@@ -70,7 +70,19 @@ Error strings found in EXE: Watcom runtime + custom: `Blad zakresu w ...::check 
   back_rect, lew_rect, sufity, speed, plany(T|TA|TALAB), platformy(.plt),
   blokady(.blk), paleta(.pal), zwierzaki, animacje, ani_plat, belka. This is
   the level-schema for the rebuild (M4).
-- `.IS` NFOSTREAM: plaintext header (`iNFO`, `STREAM`, title, date/sklad "Adacho"), frame table follows — codec = biggest unknown, only needed for cutscenes/credits, NOT for gameplay core.
+- `.IS` NFOSTREAM container — **CRACKED 2026-11-14** (static walk reaches EOF
+  byte-exact on all 15 files + dynamic verify via hbreak trace of ISplay's
+  chunk-record fn vaddr 0x1b7b0): 0x5f-byte header (text block; fixed
+  `0a 73 19 00 01` @0x51; u24@0x56; u16 w@0x59; u16 h@0x5b; u8 fps@0x5d),
+  then a contiguous chunk chain to EOF: `[u8 type=0][u32 len incl hdr][u16
+  tail]` + payload. ISplay cache table (DAT 0xc41d4, 10000-slot ring,
+  rd@0xcde18 wr@0xcde1c) records each chunk's PAYLOAD ptr 1:1 in file order
+  (verified: table[rd..wr] -> file chunk_start+7, delta 0). Video chunk
+  payloads start `b0 4e 0c 00 00` + i16 delta streams; chunk0 is PCM audio;
+  tail=1/len=777 chunks are still-frames. Codec (v2.01 BETA, Paweł
+  Leśniowski) = decompression fns vaddr ~0x1a000-0x1e000 — next task.
+  Tool: `tools/is_unpack.py` (list/extract). Attract loop plays INTRO_P.IS
+  on repeat: 2388 chunks per pass.
 - `STATUS.LEO`: 300 bytes, values `0x77XXXXXX` = tagged/delta pointers into DSEG; reverse against save/load functions in EXE.
 - `LONGSOFT.CFG`: 273 bytes, mostly zero; write path is in SETUP/CONFIG.EXE (16-bit) — parse with TDR/RATUNKU CONFIG.EXE strings.
 
