@@ -1,0 +1,38 @@
+{
+ "file": "SETUP.EXE",
+ "cpu": 0,
+ "entry": "0x25aac",
+ "stack": "0x4faa0",
+ "image": [
+  "0x10000",
+  "0x4faa0"
+ ],
+ "pages": 42,
+ "segments": [
+  {
+   "base": "0x10000",
+   "vsize": "0x215ad",
+   "flags": "0x2045"
+  },
+  {
+   "base": "0x40000",
+   "vsize": "0xfaa0",
+   "flags": "0x2043"
+  }
+ ],
+ "resident_names": [
+  "setup"
+ ],
+ "fixups": {
+  "off32": 4164,
+  "rel32": 0,
+  "sel16off32": 0,
+  "off16": 0,
+  "sel16": 0,
+  "byte": 0,
+  "chain": 0,
+  "chain_bad": 0,
+  "imports": 0,
+  "skipped": 2
+ }
+}

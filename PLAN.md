@@ -1,0 +1,215 @@
+# Lew Leon (Longsoft 1997) — decompile → rebuild plan
+
+## 0. What we have
+
+| File | What it is |
+|---|---|
+| `LEO.EXE` (840 KB) | The game engine. **Watcom C/C++11 32-bit, LE/LX linear exe (magic `LE`, CPU=386, DOS/4GW), statically linked CRT, NOT packed, debug info stripped.** obj1=code 0x10000..0x82b51 (~470 KB), obj2=data 0x90000..0xd76d0. Entry `0x74cec`. Resident name `leo`. |
+| `SETUP.EXE` | Same toolchain/config UI. code 0x10000..0x315ad. |
+| `CONFIG.EXE` (RATUNKU) | 16-bit Watcom C utility (post-install config writer). |
+| `DOS4GW.EXE` | DOS/4G (Watcom v7.5) extender, 1996. |
+| `ANIMACJE`, `ETAPY`, `SOUND`, `LEVELDES`, `*.IS` | game content in `llrs` container + `NFOSTREAM` cutscenes |
+| `LONGSOFT.CFG`, `STATUS.LEO` | binary settings + savegame (STATUS.LEO = packed game-state snapshot with 0x77XXXXXX-coded pointers) |
+
+Game = **"Lew Leon" (LEO), Longsoft/Leryx 1996-97**, Polish side-scrolling action game. Engine is data-driven:
+`ANIMACJE` = animation/sequence definitions (strings seen: `TURN_LEW, A_ATAK, A_RUN_UP, ATACK_NEAR, WALKINTOIGLO, OPCJE.MNU, OPTIONS.PAL`),
+`ETAPY` = level scripts (`KADMAR.07, TUNGA2.12, JUNCTION, CHEATS` + `.seq` references), `SOUND` = 500 entries (`*.WAV`, `*.MOD` -> tracker music),
+`*.IS` = `NFOSTREAM` full-motion video ("Lew Leon" (c) 1996 Longsoft, custom codec, 431 MB `LEVELDES` = level design data on CD).
+Error strings found in EXE: Watcom runtime + custom: `Blad zakresu w ...::check BOOL`, `Program needs XMS memory!`, `Blad Programu. Program wykryl zmiany w swoim kodzie...` (self-checksum, see §6).
+
+## 1. Toolchain status (all under ~/tools, no root)
+
+- **Ghidra 12.2** `~/tools/ghidra_12.2_PUBLIC` + Temurin **JDK 25** `~/tools/jdk/jdk-25.0.5+8` (required, set `JAVA_HOME`).
+  - Ghidra 12.2 has **no LE loader** -> import the ELF produced by `tools/le_dump.py` (loads as x86:LE:32, base/segments/entry preserved).
+- **Open Watcom V2** (2026-11-01 build) `~/tools/watcom-20261101` (+env `owenv.sh`). NOTE:
+  - the `Current-build`/`Last-CI-build` snapshot has a **broken `-bt` parser** (driver crashes); use `2026-11-01-Build` snapshot tar.
+  - use `-bt=dos` (equals form; `-bt dos` misparses in these builds);
+  - `wcl386` driver defaults to Linux link even with `-bt=dos` -> **drive it manually**:
+    ```sh
+    source ~/tools/watcom/owenv.sh
+    WATCOM=$HOME/tools/watcom-20261101; export WATCOM; PATH=$WATCOM/binl64:$PATH
+    wpp386 -bt=dos -I=$WATCOM/h file.cpp -fo=file.obj
+    wlink f file.obj name game.exe system dos4g op quiet \
+          libpath $WATCOM/lib386/dos library clib3r
+    ```
+    -> produces an **LE/DOS4GW exe identical in kind to LEO.EXE** (verified: `file` says "MS-DOS executable, LE", parses with our own le_dump). C++ front-end: `wpp386`, libs: `clib3r` (+`math387r`), stub needs `DOS4GW.EXE` beside/on PATH.
+- **dosbox 0.74-3** (installed) — works headless for automation; see §6 for the baseline blocker.
+- optional (needs sudo, user runs): `sudo pacman -S radare2 r2ghidra rizin` for scriptable second opinion.
+
+## 2. Decompile pipeline (working now)
+
+1. `python3 tools/le_dump.py LEO.EXE build/leo/leo`
+   -> `leo.img` (flat 0x10000 image, **all 27k LE fixups applied**), `leo.elf` (Ghidra-able), `leo.json` (stats).
+2. Ghidra headless (running): `analyzeHeadless build/ghidra LEOPROJ -import build/leo/leo.elf`.
+3. Name/structure pass guided by the string pool (`tools/strings_xrefs.py` — TODO):
+   Watcom C++ near-code calls = rel32/OFF32 fixups (already resolved); the string pool identifies
+   class names (`TExtSeqence`, `WALK::check`, `TURN::check`...), file loaders (`%i,%i`, `%[^,]` sscanf formats),
+   subsystem init errors -> anchor functions without symbols.
+4. Iterative: decompile module -> rewrite in C++ under `src/` -> compile w/ Open Watcom -> diff behavior in dosbox.
+
+## 3. Data-format reversing (parallel track, mostly offline from the binaries)
+
+- `llrs` container (ANIMACJE/ETAPY/SOUND/LEVELDES): header `llrs`, ver=1, u32@0x0c=0, u32@0x10=count-of-named-entries?, u32@0x08=f2=slot-count(200/500...).
+  SOUND: entries mostly 26-byte records `[name8.3ext][u32 flags][u32 size][u32 offset][...]` starting 0x14; some entries carry a 36-byte extra blob (hash?) -> stride 0x1a vs 0x34/0x4e/0x68.
+  ETAPY/ANIMACJE: names appear deeper/encrypted-looking; a static 36-byte blob repeats at 0x2e..0x62 in several files (same in SOUND@0x2c region) -> keystream/XOR-table candidate. `tools/llrs_probe.py` written; needs a crib-driven recovery pass.
+- `.IS` NFOSTREAM: plaintext header (`iNFO`, `STREAM`, title, date/sklad "Adacho"), frame table follows — codec = biggest unknown, only needed for cutscenes/credits, NOT for gameplay core.
+- `STATUS.LEO`: 300 bytes, values `0x77XXXXXX` = tagged/delta pointers into DSEG; reverse against save/load functions in EXE.
+- `LONGSOFT.CFG`: 273 bytes, mostly zero; write path is in SETUP/CONFIG.EXE (16-bit) — parse with TDR/RATUNKU CONFIG.EXE strings.
+
+## 4. Engine subsystems to reproduce (from strings + data)
+
+1. llrs archive reader (used for everything).
+2. VGA/SVGA renderer (VESA likely via DPMI int31 callback; palette ops OPTIONS.PAL).
+3. Animation/sequence interpreter ("seq", sequence classes WALK/TURN/ATACK/IDLE/..., `ANIMACJE` tables, "Blad zakresu w %s::check").
+4. Level runner (ETAPY + LEVELDES, `*.seq` scripts with sscanf `%i,%i`, `%[^,]`).
+5. Audio: Sound Blaster (WAV PCM) + GUS (`ULTRASND`) + **MOD modules** (TUNGADEA.MOD...) — MOD player choice: reimplement with a simple protracker replayer.
+6. Input (keyboard + mouse via DPMI), game menu (OPCJE.MNU).
+7. Save/load (STATUS.LEO) — keep byte-compatible so the provided saves load.
+8. FMV (.IS) player (optional last phase).
+9. Anti-tamper self-check (§6) — decide: reproduce or omit in our build.
+
+## 5. Build harness (source project layout)
+
+```
+src/           engine sources (C++ with Open Watcom)
+tools/         le_dump.py, llrs_probe.py, (todo) strings_xrefs.py, unis.py
+build/         ghidra projects, disassembly exports, baseline dumps
+data/ -> game content (keep original files, never modified)
+Makefile.wc    watcom makefile: wpp386 -bt=dos + wlink system dos4g
+run_dosbox.sh  mounts ./dist + LL_CD, runs dist/LEO.EXE in dosbox, screenshots/logs
+```
+
+## 6. Baseline status (SOLVED 2026-11-13)
+
+(Previous version of this section described a dosbox-0.74 baseline; it was
+built on a wrong premise and has been replaced 2026-11-13 with the verified
+QEMU story below.)
+
+**Baseline platform: QEMU, not DOSBox.**
+`qemu-system-i386 -m 32 -boot a -fda boot.img -fdb msdos622/dos-622-disk2.img
+-hda leo_hd.img -cdrom leo.iso -vga std -display none -monitor unix:...`
+- MS-DOS 6.22 (A: boot floppy, HIMEM + UIDE.SYS + UDVD2.SYS dev `UDVD1`,
+  `MSCDEX /D:UDVD1` -> CD on D:), HD image with real MBR partition
+  (mtools offset `leo_hd.img@@32256`), CD image `leo.iso` (ISO9660 vol "LEO",
+  game files under `LEO\` mirroring the real disc layout).
+- **Pristine LEO.EXE reproduces the user's original failure here**: it prints
+  "Blad Programu. Program wykryl zmiany w swoim kodzie." - and the project's
+  original-install artifacts (LEO.LOG / LEOOUT.TXT) show the same message
+  fired on the user's real machine. So the "tamper" check is not a checksum:
+  it is a CD-presence failure that misreports itself as code-tampering.
+
+**Gate 1 (tamper message) - root cause + minimal workaround.**
+`ll_main` (0x5c90a) -> `ll_cdcheck_chain` (0x5bd50) -> `ll_cd_int2f` (0x5bbd0):
+INT2F AX=1500 requires returned manager count != 0; for each manager,
+AX=150B must return signature `[esp+4]==0xADAD` (UDVD2/UniASPI does: yes)
+AND a non-zero CD drive word in AX (`[esp]`) - UDVD2's ASPI shim answers
+AX=0 -> `ll_cd_int2f` returns 0 -> chain fails -> ll_main site 0x5c921 shows
+message idx2 (the "tamper" string, table `[0xa9a00+((lang-1)*7+idx)*4]`).
+Workaround (patch on COPY via `tools/le_patch.py`, never on pristine):
+`0x5bd5c: 9090` = NOP the `test eax,eax` after the `call 0x5bbd0`; the rest of
+the chain (FUN_0004408/FUN_0004409/stub) passes unmodified. A legit fix would
+need a real ASPI layer that reports the CD drive word (UDVD2 does not).
+
+**Gate 2 ("Nie mozna znalezc plyty z gra LEW LEON.") - solved without patches.**
+ll_main call site 0x5c9bc: opens FMV stream `koniec.is` via FUN_0007607b ->
+FUN_00076042 (mode `rb`) -> FUN_00075f7e; the full path is sprintf'd at
+FUN_00047a70 from placeholder string 0x9246d `":\leo\"` + name, where the
+drive letter = `DAT_000cf254 + 0x40`. `DAT_000cf254` is set in FUN_0005bf10
+from **byte 0 of LONGSOFT.CFG** (ASCII drive letter minus 0x40; the user's
+original cfg says 'H' - their CD drive). Two environment fixes, no binary
+changes: (a) VM copy of LONGSOFT.CFG byte0 `H`->`D` (originals untouched);
+(b) rebuilt `leo.iso` with files under `LEO\` (my first image had them at
+root; the real CD, cf. LL.iso, keeps them in a `LEO` dir). Result: gate 2
+passes; game opens `D:\leo\intro_p.is` + `D:\leo\SOUND` (heap strings at
+0x157f450/0x157fac8/0x157fb58), 7 live FH entries in table 0xa9c00,
+QEMU `info blockstats` shows ~48 MB CD reads by t=220 s, and `screendump`
+frames show continuous full-screen FMV playback (intro movie).
+
+**Baseline FULLY VERIFIED LIVE (2026-11-13/14, user at the QEMU GUI window).**
+The game is playable in the rig: intro FMV plays, Esc opens the menu, Enter
+enters actual gameplay with working character control. Patch set to date =
+**one 2-byte NOP** (`0x5bd5c:9090`); everything else is install-layout
+equivalence. QEMU-monitor `sendkey` does NOT reach the game (use the real
+GUI window for input testing; do not trust monitor key injection).
+
+**Attract loop explained:** the title attractor is movie->menu->movie; the
+menu auto-timeout back to intro is a game timer whose *perceived* length
+scales with engine execution rate, which is why the loop seemed broken at
+full TCG speed.
+
+**Speed/pacing model.** The engine replaces the BIOS timer chain (0x0040:006C
+stays frozen; game keeps private counters, e.g. heap dword at 0x168d1b4 ticks
+~22 Hz while playing) and its animation/loop pacing is execution-rate bound
+(busy pacing, no PIT calibration), so on stock TCG it runs wildly fast.
+Control levers, best -> worst:
+1. `-icount shift=N`: QEMU 11 validates the shift (shift=11 rejected on this
+   host; 9 and 10 work). Runtime `icount shift=` changes via monitor wedge the
+   monitor - always set at launch and relaunch instead.
+2. cgroup v2 user-scope quota (`systemd-run --user --scope` wrapper or move
+   QEMU into a scope), `cpu.max = <q> <p>` in us; kernel min quota 1000 us, so
+   sub-1% needs long periods (e.g. `1000 800000` = 0.125% of a core). At
+   shift=10 QEMU needs only ~7% of a core, so quotas below that DO bite and
+   are the smooth way to slow down.
+3. SIGSTOP/SIGCONT duty-cycle loops work but stutter unless pulse freq stays
+   >=~100 Hz; below ~1% duty they are meaningless (signal overhead) -> use 2.
+Working recipe in `/tmp/opencode`: QEMU at `-icount shift=10` inside scope
+`run-...scope` with `cpu.max 1000 50000` (=2% of one core).
+Exact period-accuracy tuning was explicitly de-prioritized by the user
+("not important, important that game works").
+
+**Method notes.** Probe = 4-byte stub `b0 <code>; cd 21` at a vaddr on
+COPY named `LEOP.EXE` (must be 8.3); empty `C:\LEO_OUT.LOG` = game exited at
+the stub. Runtime layout deterministic: DOS4GW base 0x15DB000, code linear =
+vaddr+0x15CB000, data linear = vaddr+0x15BE000, entry 0x74cec. QEMU monitor:
+`memsave <lin> <size> "quoted-path"`, `screendump`, `info blockstats`;
+`-d int`/`-d exec` logs are enormous for this game (80 MB/s) - filter or
+window them. This model has no vision: frames are analyzed numerically
+(color counts, per-pixel diff%) or via a vision subagent.
+
+Notes for the source project (do NOT replicate as code):
+* DOS4GW runtime is embedded in LEO.EXE (LE + WATCOM stub); its init at
+  0x74d64..0x74f6f probes DOS/DPMI/Win3.x (INT21/30, 'XD'/'CB', INT21/FF00,
+  INT31/06) and sets mode globals [0xa9bee..0xa9bf8]; on DOSBox: mode 0.
+* Heap = WATCOM: list [0xa9b58], ceiling [0xa9bc0] (from es:[0x5c] of the
+  env segment at 0x74db7), stack top [0xa9bd4]; allocator wrapper 0x7521f
+  (eax=-1 -> free path), grow paths 0x791d4/0x79284/0x7944d, DPMI alloc
+  0x7c0e6 (INT31/0100), max-block query INT21 AX=4800.
+* Exception handler installed in main at 0x5c98f (handler 0x5c7b0, strings
+  `Second throw!`/`DOS4GW error (2001)`); after that, crashes print
+  `Second throw! Bledne zwolnienie zalockowanego bloku` instead of dumps.
+
+Visual confirmation still TODO (headless dosbox: CAPTURE/screenshot needs
+GUI keypress; QEMU FreeDOS boot image attempt parked - no local DOS boot
+image, several download sources unreachable).
+
+## 7. Milestones
+
+- M0 toolchain ready (done today): le_dump.py ✓, Open Watcom -> DOS4GW EXE ✓, Ghidra analysis of leo.elf ✓/running.
+- M1 (1-2 w): Ghidra function pass: name ~all 1-2k functions by anchors; export annotated C pseudo-source (`DecompileHeadless` script).
+- M2 (1-2 w): `llrs` reader verified against SOUND entries (extract WAVs byte-exact) + .IS header parse.
+- M3 (2-4 w): renderer + input + main loop boot to title/menu in our build (run in dosbox side-by-side).
+- M4 (4-8 w): sequence interpreter + one full level playable in our build.
+- M5 (8-16 w): all levels, audio (WAV+MOD), saves, menus.
+- M6 (later): cutscene codec (.IS) + anti-tamper decision + packaging `dist/`.
+
+### 7.1 Git branch plan (branch per target, same source base)
+Repos start from one shared recompiled tree; each target is a branch off the
+recompile, so fixes propagate forward. `.gitignore` MUST exclude original
+artifacts (LEO.EXE, LL.iso, SETUP.EXE, DOS4GW.EXE, ANIMACJE, ETAPY,
+LONGSOFT.CFG, STATUS.LEO, *.IMG/ISO) - only our source/tools/build scripts
+are versioned.
+- `base` (main): recompiled source + tools + PLAN. Never contains originals.
+- `01-decompiled`: first branch. Verbatim Ghidra output (`build/decompiled/all`)
+  committed as a frozen reference tree. Do not hand-edit; regenerate only.
+- `02-no-cd`: recompile that runs with **no CD**: gate chain removed cleanly
+  (no NOP hack), data drive from config/env, all `*.IS`/ANIMACJE/ETAPY served
+  from the HD dir. Goal: boots to title/menu + one level in DOSBox/QEMU with
+  no `leo.iso`.
+- `03-linux-native`: port that runs **natively on current Linux** (64-bit, no
+  DOS/DPMI). Replace: DOS4GW entry/heap with libc startup; INT 21/33 file+input
+  with POSIX/termios or SDL; VESA/VGA mode-X with SDL2 surface; SB/MikMod with
+  SDL2_mixer/OpenAL. iNFOSTREAM codec + sequence interpreter kept as portable C.
+  Same user-supplied data files, path resolved from argv/env.
+
+## 8. Legal/ethical
+Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.
