@@ -49,9 +49,27 @@ Error strings found in EXE: Watcom runtime + custom: `Blad zakresu w ...::check 
 
 ## 3. Data-format reversing (parallel track, mostly offline from the binaries)
 
-- `llrs` container (ANIMACJE/ETAPY/SOUND/LEVELDES): header `llrs`, ver=1, u32@0x0c=0, u32@0x10=count-of-named-entries?, u32@0x08=f2=slot-count(200/500...).
-  SOUND: entries mostly 26-byte records `[name8.3ext][u32 flags][u32 size][u32 offset][...]` starting 0x14; some entries carry a 36-byte extra blob (hash?) -> stride 0x1a vs 0x34/0x4e/0x68.
-  ETAPY/ANIMACJE: names appear deeper/encrypted-looking; a static 36-byte blob repeats at 0x2e..0x62 in several files (same in SOUND@0x2c region) -> keystream/XOR-table candidate. `tools/llrs_probe.py` written; needs a crib-driven recovery pass.
+- `llrs` container (ANIMACJE/ETAPY/SOUND/LEVELDES) — **CRACKED 2026-11-14**,
+  reader `tools/llrs_unpack.py` (list/extract; 269/291 SOUND WAVs verify with
+  exact RIFF sizes). Layout (LE): `llrs` magic, u32 ver=1, u32 capacity(slot
+  count), u32 0, u32 actual at 0x10; table of `capacity` x 26-byte slots at
+  0x14: `char name[14]` (NUL-padded), u32 id (1=data, 2=block/text, 0=free),
+  u32 dataOff, u32 size; data region starts exactly at 0x14+26*capacity
+  (SOUND 0x32dc, ETAPY 0x1464, LEVELDES 0x19b9b194 — all verified). Unused
+  slots hold zeros OR deterministic archiver padding (identical junk bytes at
+  same slot indices across archives — NOT encryption, no key needed).
+  Contents: SOUND=269 WAV (mono 8-bit mostly, 6-22 kHz) + 22 MOD; ANIMACJE /
+  ETAPY=14 each, all blocks size 0x1450 (5200B) named after level `dir=`
+  values (RAN.01, KADMAR.07...); LEVELDES=13 `*.DES` level descriptors +
+  ENG/GER/POL/POL.ORG language override tables (same slot format inside).
+  Each 5200B ETAPY/ANIMACJE block is itself a nested mini-llrs: u32 count +
+  26B slots + data, holding `*.SEQ` scripts, `*.PCX/PCM` layers, `*.SUF`,
+  `*.PAL` etc. (33 entries in ZARIA.01).
+  `.DES` = INI-style plain text, Polish keys: dir, intro(x.pcx), pozycja,
+  tlo(layer list), muzyka(x.mod), sample, lew(class,actor,anim,des), main_back,
+  back_rect, lew_rect, sufity, speed, plany(T|TA|TALAB), platformy(.plt),
+  blokady(.blk), paleta(.pal), zwierzaki, animacje, ani_plat, belka. This is
+  the level-schema for the rebuild (M4).
 - `.IS` NFOSTREAM: plaintext header (`iNFO`, `STREAM`, title, date/sklad "Adacho"), frame table follows — codec = biggest unknown, only needed for cutscenes/credits, NOT for gameplay core.
 - `STATUS.LEO`: 300 bytes, values `0x77XXXXXX` = tagged/delta pointers into DSEG; reverse against save/load functions in EXE.
 - `LONGSOFT.CFG`: 273 bytes, mostly zero; write path is in SETUP/CONFIG.EXE (16-bit) — parse with TDR/RATUNKU CONFIG.EXE strings.
@@ -206,7 +224,8 @@ are versioned.
   from the HD dir. Goal: boots to title/menu + one level in DOSBox/QEMU with
   no `leo.iso`.
 - `03-linux-native`: port that runs **natively on current Linux** (64-bit, no
-  DOS/DPMI). Replace: DOS4GW entry/heap with libc startup; INT 21/33 file+input
+  DOS/DPMI) and **also requires no CD** (branch stacks on top of `02-no-cd`:
+  all data from a user-supplied directory, no CD/DVD code paths at all). Replace: DOS4GW entry/heap with libc startup; INT 21/33 file+input
   with POSIX/termios or SDL; VESA/VGA mode-X with SDL2 surface; SB/MikMod with
   SDL2_mixer/OpenAL. iNFOSTREAM codec + sequence interpreter kept as portable C.
   Same user-supplied data files, path resolved from argv/env.
