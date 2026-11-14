@@ -1,11 +1,15 @@
-/* main.c - linux/ variant entry: native SDL2 runner for Lew Leon data.
- * Usage: ll_cutscene FILE.IS [--ppm N OUT.ppm] [--from N] [--no-audio]
- * --ppm mode is headless (no SDL): decodes and dumps frame N, used to
- * prove byte-exactness vs tools/is_decode.py.
+/* main.c - shared native entry for BOTH linux/ and win11/ variants: the
+ * SDL2 runner for Lew Leon .IS data, plus a headless --ppm mode that decodes
+ * and dumps a single frame with no SDL/display/audio. --ppm is the
+ * byte-exactness oracle used by every CI check (vs tools/is_decode.py).
+ * This file is platform-neutral: the only per-variant differences are the
+ * Makefile (compiler + SDL path) and the -DPLATFORM_* knobs in ll_config.h.
+ * Usage: ll_cutscene FILE.IS [--ppm N OUT.ppm] [--from N] [--skip-at N]
+ *          [--no-audio]
  */
-#include "../src/ll_config.h"
-#include "../src/is_stream.h"
-#include "../src/platform_sdl/is_player.h"
+#include "ll_config.h"
+#include "is_stream.h"
+#include "platform_sdl/is_player.h"
 
 #include <stdio.h>
 #include <stdlib.h>

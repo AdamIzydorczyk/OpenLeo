@@ -27,10 +27,11 @@ __pycache__/
 # vendored third-party (SDL2 MinGW cross libs from libsdl.org, never in git)
 /vendor/
 
-# build outputs
+# build outputs (root = single build dir for both native targets)
 build/bin/
 original/*.exe
-linux/*.exe
-win11/*.exe
+ll_cutscene
+ll_cutscene.exe
+llrs_selftest
 *.o
 *.obj

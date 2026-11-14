@@ -212,7 +212,7 @@ Working recipe in `/tmp/opencode`: QEMU at `-icount shift=10` inside scope
 `run-...scope` with `cpu.max 1000 50000` (=2% of one core).
 Exact period-accuracy tuning was explicitly de-prioritized by the user
 ("not important, important that game works").
-NATIVE PORTS (linux/, win11/): this busy-pacing model must NOT be inherited.
+NATIVE PORTS (src/, root Makefile): this busy-pacing model must NOT be inherited.
 Modern CPUs make it run thousands of times too fast. The recompiled engine
 needs a fixed-timestep clock instead, driven from SDL_GetTicks64 + SDL_Delay
 (QueryPerformanceCounter optional on win11), present vsync-capped - all game
@@ -283,19 +283,21 @@ main/
               regenerate-only, never hand-edited)
   original/   variant 1: faithful DOS build - CD checks intact, same behavior
               as retail (Watcom wpp386 + DOS4GW; Makefile.wc)
-  linux/      variant 2: native Linux build (SDL2, libc, no DOS/DPMI) - no CD
-              (gate code not compiled). DOS4GW entry -> libc startup;
-              INT21/33 -> POSIX/SDL; VESA mode-X -> SDL2 surface; SB/MOD ->
-              SDL2_mixer. Data path from argv/env.
-  win11/      variant 3: native Windows 11 x86-64 build (MinGW-w64 cross-build
-              from Linux, or MSVC on Windows), also no CD - reuses the SAME
-              SDL2 platform layer as linux/; only OS glue differs
-              (paths/console/case-insensitive FS).
+  src/ + root Makefile
+              variant 2+3 (merged): ONE shared native codebase compiled to two
+              targets - `make` -> Linux ELF, `make win` -> Windows x86-64
+              .exe (MinGW-w64 cross-build or vendored llvm-mingw; also
+              buildable natively on Windows). SDL2 platform layer
+              (src/platform_sdl/), libc/Windows startup, no DOS/DPMI, no CD
+              (gate code not compiled). Data path from argv. Tests:
+              `make verify-all` (byte-exact --ppm + skip-frame on both
+              targets under wine + llrs oracle).
 ```
-Each variant dir = Makefile + platform glue (`platform_*.c`; linux+win11 share
-one SDL2 backend under `src/platform_sdl/`) + a config header defining the
-knobs (`WANT_CD_GATE`, `DATA_DIR_FROM_CFG`, `PLATFORM_DOS/LINUX/WIN`);
-engine code in `src/` is shared and variant-agnostic except behind those flags.
+Native targets share everything (`src/main.c` entry, codec, SDL2 backend);
+only the Makefile rule adds per-target flags/libs. Variant knobs
+(`WANT_CD_GATE`, `DATA_DIR_FROM_CFG`, `PLATFORM_DOS/LINUX/WIN`) come from
+`src/ll_config.h` defaults plus `-D` on the compiler line; engine code in
+`src/` is shared and variant-agnostic except behind those flags.
 
 ## 8. Legal/ethical
 Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.

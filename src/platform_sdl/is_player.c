@@ -10,14 +10,87 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <dirent.h>
+
+/* Data files: the engine's internal names are lowercase (status.leo,
+ * glowne.mnu, mapka.mod) while users' ISO extracts are usually UPPERCASE
+ * (proposal 4. in IMPROVEMENTS). Resolve path component-by-component
+ * case-insensitively when the exact path does not exist. Returns a malloc'd
+ * resolved path, or NULL if no case-insensitive match exists. */
+static char *resolve_ci(const char *path)
+{
+    struct stat st;
+    if (stat(path, &st) == 0)
+        return strdup(path);
+    char out[4096];
+    out[0] = '\0';
+    const char *p = path;
+    while (*p) {
+        const char *slash = strchr(p, '/');
+        size_t len = slash ? (size_t)(slash - p) : strlen(p);
+        if (len == 0) { /* leading/duplicate slash */
+            if (strlen(out) + 1 >= sizeof out) return NULL;
+            strcat(out, "/");
+            p++;
+            continue;
+        }
+        if (len >= 512)
+            return NULL;
+        char comp[512];
+        memcpy(comp, p, len);
+        comp[len] = '\0';
+        char probe[4096];
+        snprintf(probe, sizeof probe, "%s/%s", out, comp);
+        char chosen[512];
+        if (stat(probe, &st) == 0) {
+            memcpy(chosen, comp, len + 1);
+        } else {
+            const char *dir = out[0] ? out : ".";
+            DIR *d = opendir(dir);
+            int found = 0;
+            if (d) {
+                struct dirent *de;
+                while ((de = readdir(d)) != NULL) {
+                    size_t j = 0;
+                    for (; j < len; j++) {
+                        char a = de->d_name[j], b = comp[j];
+                        if (a >= 'A' && a <= 'Z') a = (char)(a - 'A' + 'a');
+                        if (b >= 'A' && b <= 'Z') b = (char)(b - 'A' + 'a');
+                        if (a != b) break;
+                    }
+                    if (j == len && de->d_name[j] == '\0') {
+                        snprintf(chosen, sizeof chosen, "%s", de->d_name);
+                        found = 1;
+                        break;
+                    }
+                }
+                closedir(d);
+            }
+            if (!found)
+                return NULL;
+        }
+        if (strlen(out) + 1 + strlen(chosen) >= sizeof out)
+            return NULL;
+        strcat(out, "/");
+        strcat(out, chosen);
+        p += len;
+        if (*p == '/')
+            p++;
+    }
+    if (stat(out, &st) != 0 || out[0] == '\0')
+        return NULL;
+    return strdup(out);
+}
 
 typedef struct {
     is_stream   is;
     SDL_Window  *win;
     SDL_Renderer *ren;
     SDL_Texture *tex;
-    uint8_t     *rgb;      /* w*h*3 presentation buffer */
     SDL_AudioDeviceID dev; /* 0 = audio off/unavailable */
+    uint8_t     *ascratch; /* coalesced per-chunk audio (gapless queue)    */
+    unsigned     alen, acap;
     unsigned     presented;
     unsigned     start_frame; /* skip presenting frames below this */
     Uint64       pause_at;    /* perf-counter stamp when paused (0=live) */
@@ -30,30 +103,62 @@ typedef struct {
     Uint64       period;   /* ns per frame */
 } player;
 
-/* ESC-region PCM: 8 kHz unsigned 8-bit mono (pitch-verified in M2). */
+/* ESC-region PCM: 8 kHz unsigned 8-bit mono (pitch-verified in M2).
+ * Coalesced into ascratch and queued once per chunk -> gapless joins
+ * between the many small ESC blocks (proposal 3. in IMPROVEMENTS). */
 static void enqueue_audio(void *u, const uint8_t *pcm, unsigned len)
 {
     player *p = (player *)u;
-    if (p->dev)
-        SDL_QueueAudio(p->dev, pcm, len);
+    if (!p->dev || len == 0)
+        return;
+    if (p->alen + len > p->acap) {
+        unsigned nc = (p->alen + len) * 3 / 2 + 4096;
+        uint8_t *nb = (uint8_t *)realloc(p->ascratch, nc);
+        if (!nb)
+            return;
+        p->ascratch = nb;
+        p->acap = nc;
+    }
+    memcpy(p->ascratch + p->alen, pcm, len);
+    p->alen += len;
 }
 
+static void flush_audio(player *p)
+{
+    if (p->dev && p->alen) {
+        SDL_QueueAudio(p->dev, p->ascratch, p->alen);
+        p->alen = 0;
+    }
+}
+
+/* Presentation fast path (proposal 2. in IMPROVEMENTS): precomputed
+ * 256-entry palette LUT written straight into a locked ARGB8888 texture
+ * (no RGB24 staging buffer, no per-pixel 3-byte indexing, no per-frame
+ * allocation in the hot loop). */
 static void present(player *p)
 {
     uint8_t rgb[768];
     is_palette_rgb8(&p->is, rgb);
-    size_t n = (size_t)p->is.w * (size_t)p->is.h;
+    Uint32 lut[256];
+    for (int i = 0; i < 256; i++)
+        lut[i] = 0xFF000000u | ((Uint32)rgb[3 * i] << 16)
+                 | ((Uint32)rgb[3 * i + 1] << 8) | (Uint32)rgb[3 * i + 2];
     uint8_t *lin = is_linearize(&p->is);
     if (!lin)
         return;
-    for (size_t i = 0; i < n; i++) {
-        uint8_t c = lin[i];
-        p->rgb[3 * i] = rgb[3 * c];
-        p->rgb[3 * i + 1] = rgb[3 * c + 1];
-        p->rgb[3 * i + 2] = rgb[3 * c + 2];
+    void *px;
+    int pitch;
+    if (SDL_LockTexture(p->tex, NULL, &px, &pitch) == 0) {
+        int w = p->is.w, h = p->is.h;
+        for (int y = 0; y < h; y++) {
+            Uint32 *row = (Uint32 *)((uint8_t *)px + (size_t)y * pitch);
+            const uint8_t *src = lin + (size_t)y * w;
+            for (int x = 0; x < w; x++)
+                row[x] = lut[src[x]];
+        }
+        SDL_UnlockTexture(p->tex);
     }
     free(lin);
-    SDL_UpdateTexture(p->tex, NULL, p->rgb, p->is.w * 3);
     SDL_RenderClear(p->ren);
     SDL_RenderCopy(p->ren, p->tex, NULL, NULL);
     SDL_RenderPresent(p->ren);
@@ -170,10 +275,15 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     player p;
     memset(&p, 0, sizeof p);
     p.skip_at = skip_at;
-    if (is_open(&p.is, path) != 0) {
+    char *rpath = resolve_ci(path);
+    if (is_open(&p.is, rpath ? rpath : path) != 0) {
         fprintf(stderr, "is_player: cannot open %s\n", path);
+        free(rpath);
         return 1;
     }
+    if (rpath && strcmp(rpath, path) != 0)
+        printf("is_player: data path resolved as: %s\n", rpath);
+    free(rpath);
     if (SDL_Init(SDL_INIT_VIDEO | (audio ? SDL_INIT_AUDIO : 0)) != 0) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
         is_close(&p.is);
@@ -191,7 +301,7 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     p.ren = SDL_CreateRenderer(p.win, -1, SDL_RENDERER_ACCELERATED);
     if (!p.ren)
         p.ren = SDL_CreateRenderer(p.win, -1, SDL_RENDERER_SOFTWARE);
-    p.tex = SDL_CreateTexture(p.ren, SDL_PIXELFORMAT_RGB24,
+    p.tex = SDL_CreateTexture(p.ren, SDL_PIXELFORMAT_ARGB8888,
                               SDL_TEXTUREACCESS_STREAMING, p.is.w, p.is.h);
     if (!p.tex || !p.ren) {
         fprintf(stderr, "renderer: %s\n", SDL_GetError());
@@ -199,9 +309,6 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     }
     SDL_SetTextureScaleMode(p.tex, scale > 1 ? SDL_ScaleModeNearest
                                              : SDL_ScaleModeLinear);
-    p.rgb = (uint8_t *)malloc((size_t)p.is.w * (size_t)p.is.h * 3);
-    if (!p.rgb)
-        goto err;
 
     if (audio) {
         SDL_AudioSpec want, have;
@@ -233,6 +340,7 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
              * frame - looks like a real skip, never a frozen mid-frame */
             if (p.dev)
                 SDL_ClearQueuedAudio(p.dev);
+            p.alen = 0; /* drop un-flushed coalesced audio too */
             printf("is_player: ESC at frame %u -> skipping %u chunks\n",
                    p.presented, p.is.nchunks - ci);
             {
@@ -256,8 +364,13 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
             }
             {
                 const char *dp = getenv("LEO_DUMP_SKIP");
-                if (dp)
+                if (dp) {
                     is_write_ppm(&p.is, dp);
+                    /* CI convention: a skip-dump implies headless test
+                     * mode -> quit instead of holding the window. */
+                    p.quit = 1;
+                    p.quit_reason = "skip-dump test";
+                }
             }
             present(&p);
             break;
@@ -265,9 +378,11 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
         /* frames before start_frame must still DECODE (frame deltas),
          * only their presentation and audio are suppressed */
         int live = p.is.st.frames + 1 > start_frame;
-        if (live)
+        if (live) {
             is_walk_audio_range(&p.is, ci, 1, p.dev ? enqueue_audio : NULL,
                                 &p);
+            flush_audio(&p); /* one queue call per chunk (gapless) */
+        }
         is_decode_chunk(&p.is, ci, on_frame, &p, NULL);
         if (p.is.st.ok) {
             fprintf(stderr, "is_player: desync at chunk %u\n", ci);
@@ -300,14 +415,14 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     }
     printf("is_player: presented=%u decoded=%u quit=%d (%s)\n", p.presented,
            p.is.st.frames, p.quit, p.quit_reason ? p.quit_reason : "finished");
-    free(p.rgb);
+    free(p.ascratch);
     if (p.dev)
         SDL_CloseAudioDevice(p.dev);
     is_close(&p.is);
     SDL_Quit();
     return 0;
 err:
-    free(p.rgb);
+    free(p.ascratch);
     is_close(&p.is);
     SDL_Quit();
     return 1;
