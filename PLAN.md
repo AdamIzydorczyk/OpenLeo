@@ -212,6 +212,12 @@ Working recipe in `/tmp/opencode`: QEMU at `-icount shift=10` inside scope
 `run-...scope` with `cpu.max 1000 50000` (=2% of one core).
 Exact period-accuracy tuning was explicitly de-prioritized by the user
 ("not important, important that game works").
+NATIVE PORTS (linux/, win11/): this busy-pacing model must NOT be inherited.
+Modern CPUs make it run thousands of times too fast. The recompiled engine
+needs a fixed-timestep clock instead: private tick ~= 22 Hz (observed game
+counter cadence), driven from SDL_GetTicks / QueryPerformanceCounter, present
+vsync-capped, sleep via SDL_Delay - all game logic on tick boundaries, so
+behavior matches the slowed QEMU baseline, not the wall execution rate.
 
 **Method notes.** Probe = 4-byte stub `b0 <code>; cd 21` at a vaddr on
 COPY named `LEOP.EXE` (must be 8.3); empty `C:\LEO_OUT.LOG` = game exited at
@@ -248,12 +254,15 @@ image, several download sources unreachable).
 - M5 (8-16 w): all levels, audio (WAV+MOD), saves, menus.
 - M6 (later): cutscene codec (.IS) + anti-tamper decision + packaging `dist/`.
 
-### 7.1 Repo layout plan (ONE branch, three variant directories)  [changed 2026-11-14]
-Single branch `main`, three top-level variant directories instead of branches -
-all three versions visible at once, shared code single-copy. `.gitignore` MUST
-exclude original artifacts (LEO.EXE, LL.iso, SETUP.EXE, DOS4GW.EXE, ANIMACJE,
-ETAPY, LONGSOFT.CFG, STATUS.LEO, *.IMG/ISO) - only our source/tools/build
-scripts are versioned.
+### 7.1 Repo layout plan (ONE branch, three variant directories)  [updated 2026-11-14]
+Single branch `main`, top-level variant directories instead of branches -
+all versions visible at once, shared code single-copy. DECISION 2026-11-14
+(user): DOS no-CD interim variant DROPPED - the no-CD requirement is served
+by the native ports; the CD-gate chain analysis (S6, probe-verified) feeds
+`original/` fidelity and is simply not compiled into native builds.
+`.gitignore` MUST exclude original artifacts (LEO.EXE, LL.iso, SETUP.EXE,
+DOS4GW.EXE, ANIMACJE, ETAPY, LONGSOFT.CFG, STATUS.LEO, *.IMG/ISO) - only our
+source/tools/build scripts are versioned.
 
 ```
 main/
@@ -264,15 +273,11 @@ main/
               regenerate-only, never hand-edited)
   original/   variant 1: faithful DOS build - CD checks intact, same behavior
               as retail (Watcom wpp386 + DOS4GW; Makefile.wc)
-  nocd/       variant 2: DOS build - CD gate chain removed in source (no NOP
-              hack, no self-checksum problem), data drive from LONGSOFT.CFG/
-              env; *.IS/ANIMACJE/ETAPY served from HD dir. Boots title/menu +
-              gameplay in QEMU/DOSBox with no CD at all.
-  linux/      variant 3: native Linux build (SDL2, libc, no DOS/DPMI) - also
-              no CD (inherits nocd config). DOS4GW entry -> libc startup;
+  linux/      variant 2: native Linux build (SDL2, libc, no DOS/DPMI) - no CD
+              (gate code not compiled). DOS4GW entry -> libc startup;
               INT21/33 -> POSIX/SDL; VESA mode-X -> SDL2 surface; SB/MOD ->
               SDL2_mixer. Data path from argv/env.
-  win11/      variant 4: native Windows 11 x86-64 build (MinGW-w64 cross-build
+  win11/      variant 3: native Windows 11 x86-64 build (MinGW-w64 cross-build
               from Linux, or MSVC on Windows), also no CD - reuses the SAME
               SDL2 platform layer as linux/; only OS glue differs
               (paths/console/case-insensitive FS).
