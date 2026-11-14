@@ -76,15 +76,20 @@ static unsigned char *menu_bg(const char *data, unsigned *len)
     return out;
 }
 
-/* read ANIMACJE/MENU title-screen .SEQ overlays (X, CNIE, BERLO,
- * AUTORZY) in container order; *nanim = count found. Caller frees
- * payload + array.  x/y = fixed logical-canvas origins for the map menu
- * (AUTORZY.SEQ @ (4,180) is the real bottom-left corner word sprite);
- * x=-1 = park on the selected island (BERLO arrow). */
+/* read ANIMACJE/MENU title-screen .SEQ overlays in container order;
+ * *nanim = count found. Caller frees payload + array.  x/y = fixed
+ * logical-canvas origins for the map menu (AUTORZY.SEQ @ (4,180) is the
+ * real bottom-left corner word sprite); x=-1 = park on the selected
+ * island (BERLO arrow).  RESTGRY/TAK/CNIE/X are the "restart gry?"
+ * confirmation-dialog cursive sprites (VL OCR reads "restart gry?" and
+ * "tak" on them; CNIE is the ornate cursive answer word, X the cross):
+ * they compose over OPTIONS.PCX at their authored (-f0,-f2) origins on
+ * the restart corner (reconstruction, PLAN 8b: the .MNU placement is a
+ * CD data hole). */
 static ll_menu_anim *menu_anims(const char *data, int *nanim)
 {
     static const char *want[] = { "X.SEQ", "CNIE.SEQ", "BERLO.SEQ",
-                                  "AUTORZY.SEQ" };
+                                  "AUTORZY.SEQ", "RESTGRY.SEQ", "TAK.SEQ" };
     char p[4096];
     llrs a;
     *nanim = 0;
@@ -213,13 +218,50 @@ static void run_menu(const char *data, int audio)
             is_player_run(p, audio, 0, 0);
             continue;
         }
-        if (map_mode && sel == -5) {   /* opcje corner: OPTIONS.PCX screen */
+        if (map_mode && sel == -5) {   /* opcje corner: OPTIONS.PCX screen.
+                                        * The real OPTIONS.PCX art (Egyptian
+                                        * scene) is a full screen already;
+                                        * the .MNU script is a CD hole, so
+                                        * it shows with just a (BACK) item.
+                                        * The RESTGRY/TAK/CNIE/X cursive
+                                        * sprites belong to the restart
+                                        * confirmation (VL reads "restart
+                                        * gry?" + "tak" on them), wired
+                                        * under the restart corner. */
             static const char *back[] = { "(BACK)" };
-            ll_menu_open(bg, blen, back, 1, NULL, 0);
+            int r2 = ll_menu_open(bg, blen, back, 1, NULL, 0);
+            if (r2 == -3 || r2 == -2) { /* LEO_MENU_SECS hook / q: end the
+                                         * whole menu run (CI probe + quits
+                                         * the app as the user expects) */
+                printf("menu: OPTIONS exit ends menu chain\n");
+                break;
+            }
             continue;
         }
-        if (map_mode && sel == -6)     /* restart corner: redraw map */
+        if (map_mode && sel == -6) {   /* restart corner: the original
+                                        * "restart gry?" confirmation over
+                                        * OPTIONS.PCX (reconstruction, PLAN
+                                        * 8b): real cursive RESTGRY word +
+                                        * TAK / CNIE answer words + X cross
+                                        * at their authored (-f0,-f2)
+                                        * origins. */
+            static const char *back[] = { "(BACK)" };
+            ll_menu_anim m4[4];
+            int m4n = 0;
+            for (int i = 0; i < nanim && m4n < 4; i++)
+                if (anims[i].tag &&
+                    (strcmp(anims[i].tag, "RESTGRY.SEQ") == 0 ||
+                     strcmp(anims[i].tag, "TAK.SEQ") == 0 ||
+                     strcmp(anims[i].tag, "CNIE.SEQ") == 0 ||
+                     strcmp(anims[i].tag, "X.SEQ") == 0))
+                    m4[m4n++] = anims[i];
+            int r2 = ll_menu_open(bg, blen, back, 1, m4n ? m4 : NULL, m4n);
+            if (r2 == -3 || r2 == -2) {
+                printf("menu: restart-confirm exit ends menu chain\n");
+                break;
+            }
             continue;
+        }
         if (sel < 0)
             break;
         if (map_mode && sel >= 0) {

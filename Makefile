@@ -110,6 +110,17 @@ verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_
 	else echo "win menu anim: BERLO cycles under wine (t2 != t8, ok)"; fi
 	@cmp /tmp/opencode/lmenu_t2.ppm /tmp/opencode/wmenu_t2.ppm \
 	  && echo "win menu frame == linux frame (byte-exact, overlays composited)"
+	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all SDL_VIDEODRIVER=dummy \
+	  LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_KEY=r LEO_MENU_SECS=1 \
+	  LEO_MENU_PPM=Z:/tmp/opencode/wmenu_rst.ppm LEO_MENU_PPM_TICK=10 \
+	  timeout 120 wine ./ll_cutscene.exe --demo Z:$(DATA) --no-audio \
+	  > /tmp/opencode/wmenu_rst.log 2>&1 || true
+	@if tr -d '\r' < /tmp/opencode/wmenu_rst.log \
+	   | grep -q 'restart-confirm exit ends menu chain' \
+	   && tr -d '\r' < /tmp/opencode/wmenu_rst.log \
+	      | grep -q 'menu: anim 3: 2 frames at (171,146)'; \
+	then echo "win restart-confirm: RESTGRY/TAK/CNIE/X composited under wine (ok)"; \
+	else echo "win restart-confirm FAILED"; tail -8 /tmp/opencode/wmenu_rst.log; exit 1; fi
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_LEVEL_PPM=/tmp/opencode/lvlv_t2.ppm \
 	  LEO_LEVEL_PPM_TICK=2 timeout 60 ./ll_level $(DATA) TUNGA.11 >/dev/null 2>&1 || true
@@ -313,6 +324,18 @@ verify-menu: ll_cutscene
 	@if cmp -s /tmp/opencode/menu_t2.ppm /tmp/opencode/menu_t8.ppm; \
 	then echo "menu anim FAILED: frames t2 == t8 (nothing animates)"; exit 1; \
 	else echo "menu anim: BERLO frame cycles on screen (t2 != t8, ok)"; fi
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 \
+	    LEO_MENU_KEY=r LEO_MENU_SECS=1 LEO_MENU_PPM=/tmp/opencode/menu_rst.ppm \
+	    LEO_MENU_PPM_TICK=10 timeout 60 \
+	    ./ll_cutscene --demo $(DATA) > /tmp/opencode/menu_rst.log 2>&1; \
+	rc=$$?; \
+	if [ $$rc -eq 0 ] \
+	   && grep -q 'map: LEO_MENU_KEY -> restart' /tmp/opencode/menu_rst.log \
+	   && grep -q 'menu: anim 0: 1 frames at (82,86)' /tmp/opencode/menu_rst.log \
+	   && grep -q 'menu: anim 3: 2 frames at (171,146)' /tmp/opencode/menu_rst.log \
+	   && grep -q 'restart-confirm exit ends menu chain' /tmp/opencode/menu_rst.log; \
+	then echo "restart-confirm: OPTIONS.PCX + RESTGRY/TAK/CNIE/X cursive sprites (reconstruction, ok)"; \
+	else echo "restart-confirm FAILED (rc=$$rc)"; cat /tmp/opencode/menu_rst.log; exit 1; fi
 
 # MOD music: src/ll_mod.c parses the Longsoft repack layout (ll_mod.h)
 # and renders deterministically; linux vs wine hash parity is the oracle.

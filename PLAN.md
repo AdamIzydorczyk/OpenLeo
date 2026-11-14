@@ -614,6 +614,24 @@ verify-seq stays green at 172/172 payloads. BERLO.SEQ frames decode
 byte-exact but each of its 30 elements is a DELTA patch whose base
 frame we do not reconstruct; the parked BERLO sprite reads as a small
 crowned figure - good enough, documented limitation.
+**Menu dialog sprites placed (2026-11-14)**: none of the remaining
+ANIMACJE/MENU .SEQ sprites match the captured chapter-map frame at
+their element (-f0,-f2) origins (exact-index ratios 0.00-0.09, shift
+search no better), so they belong to OTHER menu states driven by the
+missing .MNU scripts. VL OCR of the decoded sprite bitmaps cracked
+their semantics: RESTGRY.SEQ is cursive "restart gry?", TAK.SEQ "tak",
+CNIE.SEQ cursive "nie", X.SEQ a 14x14 cross - i.e. the RESTART
+confirmation dialog over OPTIONS.PCX (the Egyptian scene): "restart the
+game? tak/nie/x". VL OCR of the composed frame reads all four words
+cleanly. We reconstruct that state: restart corner (LEO_MENU_KEY=r / key r) opens ll_menu_open over OPTIONS.PCX with RESTGRY/TAK/CNIE/X
+composited at their authored origins (frames cycle like the original),
+and the (o)pcje corner shows OPTIONS.PCX alone. Verified numerically:
+every painted sprite pixel is RGB-exact vs OPTIONS.PCX palette[idx]
+(RESTGRY 1006/1006, TAK el1 1049/1049, X 120/120, CNIE el1 1184/1184)
+and VL QA sees clean legible cursive, no streaks. LEVEL06/LEVEL08.SEQ
+(20/28-row diagonal wedge sprites, 4 elements each) stay unwired -
+their .MNU state is unknown (probably island/title animations);
+placing them would be guesswork, so they are documented as available.
 
 ## 8c. Level scene + .MOV motion scripts (delivered 2026-11-14)
 

@@ -217,6 +217,7 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
         ll_pcx_free(&bg);
         return -2;
     }
+    SDL_RaiseWindow(win); /* dialog re-entry: make sure the WM gives focus */
     SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
     if (!ren)
         ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
@@ -342,6 +343,19 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
                 if (e.type == SDL_QUIT) {
                     quit = 1;
                     ret = -2;
+                } else if (e.type == SDL_MOUSEBUTTONDOWN
+                           && e.button.button == SDL_BUTTON_LEFT) {
+                    int sc = W < 640 ? 2 : 1; /* window is the frame scaled
+                                              * `sc`; map click to canvas px */
+                    int mx = e.button.x / sc, my = e.button.y / sc;
+                    for (int j = 0; j < win; j++) {
+                        int ry = y0 + 12 * j;
+                        if (my >= ry - 2 && my < ry + 10 && mx >= x0 - 14) {
+                            ret = top + j;
+                            quit = 1;
+                            break;
+                        }
+                    }
                 } else if (e.type == SDL_KEYDOWN) {
                     SDL_Keycode k = e.key.keysym.sym;
                     if (k == SDLK_UP)
@@ -349,7 +363,7 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
                     else if (k == SDLK_DOWN)
                         sel = (sel + 1) % nitems;
                     else if (k == SDLK_RETURN || k == SDLK_KP_ENTER
-                             || k == SDLK_ESCAPE) {
+                             || k == SDLK_SPACE || k == SDLK_ESCAPE) {
                         quit = 1;
                         ret = sel;
                     } else if (k == SDLK_q) {
@@ -519,6 +533,7 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         menu_anims_free(aseq, nanims);
         return -2;
     }
+    SDL_RaiseWindow(win); /* dialog re-entry: make sure the WM gives focus */
     SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
     if (!ren)
         ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
@@ -638,10 +653,71 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                 ret = -3;
                 break;
             }
+            /* CI hook: LEO_MENU_KEY=a|o|r simulates a corner key at
+             * tick 1, once per process (headless coverage of the
+             * autorzy/opcje/restart paths without looping forever) */
+            {
+                static int key_fired;
+                const char *ke = getenv("LEO_MENU_KEY");
+                if (ke && tick == 1 && !key_fired++) {
+                    char kc = ke[0];
+                    if (kc == 'o') {
+                        printf("map: LEO_MENU_KEY -> opcje\n");
+                        quit = 1;
+                        ret = -5;
+                    } else if (kc == 'a') {
+                        printf("map: LEO_MENU_KEY -> autorzy\n");
+                        quit = 1;
+                        ret = -4;
+                    } else if (kc == 'r') {
+                        printf("map: LEO_MENU_KEY -> restart\n");
+                        quit = 1;
+                        ret = -6;
+                    }
+                }
+            }
             while (SDL_PollEvent(&e)) {
                 if (e.type == SDL_QUIT) {
                     quit = 1;
                     ret = -2;
+                } else if (e.type == SDL_MOUSEBUTTONDOWN
+                           && e.button.button == SDL_BUTTON_LEFT) {
+                    /* map window = 640x400, island coords are in that same
+                     * 640-space (chs[].ix/iy/rw/rh) */
+                    int mx = e.button.x, my = e.button.y;
+                    if (mx < 130 && my < 26) {          /* WYJSCIE */
+                        printf("map: click WYJSCIE\n");
+                        quit = 1;
+                        ret = -2;
+                    } else if (mx > 505 && my < 26) {   /* RESTART */
+                        printf("map: click RESTART\n");
+                        quit = 1;
+                        ret = -6;
+                    } else if (mx > 505 && my > 360) {  /* OPCJE */
+                        printf("map: click OPCJE\n");
+                        quit = 1;
+                        ret = -5;
+                    } else if (mx < 140 && my > 348) {  /* AUTORZY */
+                        printf("map: click AUTORZY\n");
+                        quit = 1;
+                        ret = -4;
+                    } else {                            /* island select/launch */
+                        for (int i = 0; i < nchs; i++) {
+                            if (mx >= chs[i].ix - chs[i].rw
+                                && mx <= chs[i].ix + chs[i].rw
+                                && my >= chs[i].iy - chs[i].rh
+                                && my <= chs[i].iy + chs[i].rh) {
+                                if (i == sel) {
+                                    quit = 1;
+                                    ret = sel;
+                                } else {
+                                    sel = i;
+                                    printf("map: island %d selected\n", i);
+                                }
+                                break;
+                            }
+                        }
+                    }
                 } else if (e.type == SDL_KEYDOWN) {
                     SDL_Keycode k = e.key.keysym.sym;
                     if (k == SDLK_UP || k == SDLK_LEFT)
