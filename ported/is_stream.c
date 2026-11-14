@@ -484,15 +484,12 @@ void is_walk_audio_range(is_stream *s, unsigned first, unsigned count,
 
 /* ------------------------------------------------------------ output */
 
-uint8_t *is_linearize(const is_stream *s)
+int is_linearize_into(const is_stream *s, uint8_t *out)
 {
     size_t q = (size_t)s->w * (size_t)s->h / 4;
-    uint8_t *out = (uint8_t *)malloc((size_t)s->w * (size_t)s->h);
-    if (!out)
-        return NULL;
     if (!s->modex) {
         memcpy(out, s->fb, (size_t)s->w * (size_t)s->h);
-        return out;
+        return 0;
     }
     /* plane p row r -> display row 4r+p (Mode X uninterleave) */
     for (int p = 0; p < 4; p++) {
@@ -502,6 +499,15 @@ uint8_t *is_linearize(const is_stream *s)
             memcpy(dst + (size_t)4 * r * (size_t)s->w,
                    plane + (size_t)r * (size_t)s->w, (size_t)s->w);
     }
+    return 0;
+}
+
+uint8_t *is_linearize(const is_stream *s)
+{
+    uint8_t *out = (uint8_t *)malloc((size_t)s->w * (size_t)s->h);
+    if (!out)
+        return NULL;
+    is_linearize_into(s, out);
     return out;
 }
 

@@ -15,6 +15,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The one ns clock source (tips T-07): every pacing decision derives from
+ * this, so pause and drift-clamp can share a single unit (ns). */
+static Uint64 now_ns(void)
+{
+    return (Uint64)(((double)SDL_GetPerformanceCounter())
+                    * (1e9 / (double)SDL_GetPerformanceFrequency()));
+}
+
 typedef struct {
     is_stream   is;
     SDL_Window  *win;
@@ -23,16 +31,27 @@ typedef struct {
     SDL_AudioDeviceID dev; /* 0 = audio off/unavailable */
     uint8_t     *ascratch; /* coalesced per-chunk audio (gapless queue)    */
     unsigned     alen, acap;
+    uint8_t     *lbuf;     /* linearized-frame scratch, reused every frame
+                            * (P-12: no full-frame malloc in the present path) */
+    size_t       lcap;
     unsigned     presented;
     unsigned     start_frame; /* skip presenting frames below this */
-    Uint64       pause_at;    /* perf-counter stamp when paused (0=live) */
+    Uint64       pause_at;    /* ns stamp when paused (0=live); works with
+                               * OR without an audio device (T-07) */
+    Uint64       pause_shift; /* total paused ns: wait_until and the drift
+                               * clamp apply it to every deadline, so a
+                               * pause holds the scene and never rewinds
+                               * or fast-forwards it (P-02, T-07) */
     const char  *quit_reason; /* diagnostics: what requested quit */
     int          skip;        /* ESC: fast-skip cutscene to its end */
     int          user_skip;   /* skip requested by a real keypress (not test) */
     unsigned     skip_at;     /* auto-skip after N presented (test hook) */
     int          idle;        /* cutscene done/skipped: hold window open */
     int          quit;
-    Uint64       t0;
+    Uint64       t0_ns;       /* the ONE presentation clock (T-07): set once
+                               * at start, rebased only by the drift clamp;
+                               * deadlines are always t0_ns + schedule,
+                               * never any other copy (P-02) */
     Uint64       period;   /* uniform hold override (LEO_IS_PERIOD_MS);
                             * 0 = audio-block clock (the real engine model) */
     int          live;     /* chunk past start_frame: present + play audio */
@@ -40,6 +59,18 @@ typedef struct {
     int          stereo;   /* movie channels (gcd of region sizes) */
     unsigned     bps;      /* audio bytes/s: 88200 stereo / 44100 mono */
 } player;
+
+/* LEO_IS_WAV dump file: opened on the first audio byte by enqueue_audio,
+ * closed by close_wav() at every is_player_run exit - the review-era ASan
+ * leak check flags nothing from this hook any more. */
+static FILE *s_wav;
+static void close_wav(void)
+{
+    if (s_wav) {
+        fclose(s_wav);
+        s_wav = NULL;
+    }
+}
 
 /* ESC-region PCM: raw signed 16-bit little-endian at 22050 Hz, MONO or
  * STEREO depending on the movie (LOGO/ENA1/KONIEC stereo, INTRO_P mono), so
@@ -79,14 +110,15 @@ static void enqueue_audio(void *u, const uint8_t *pcm, unsigned len)
     p->alen += len;
     while (pad--)                     /* keep every later sample aligned */
         p->ascratch[p->alen++] = 0;
-    if (getenv("LEO_IS_WAV")) {/* CI/diagnostic hook: raw s16 LE dump, listen
-                                * with ffplay -f s16le -ar 22050 -ac 1 FILE */
-        static FILE *wf;
-        if (!wf)
-            wf = fopen(getenv("LEO_IS_WAV"), "wb");
-        if (wf)
-            fwrite(pcm, 1, len, wf);
+    if (!s_wav) {
+        const char *wvp = getenv("LEO_IS_WAV"); /* CI/diagnostic hook: raw
+            * s16 LE dump, listen with ffplay -f s16le -ar 22050 -ac 1 FILE.
+            * Opened once here, closed by close_wav() at every run end. */
+        if (wvp)
+            s_wav = fopen(wvp, "wb");
     }
+    if (s_wav)
+        fwrite(pcm, 1, len, s_wav);
 }
 
 static void flush_audio(player *p)
@@ -109,9 +141,16 @@ static void present(player *p)
     for (int i = 0; i < 256; i++)
         lut[i] = 0xFF000000u | ((Uint32)rgb[3 * i] << 16)
                  | ((Uint32)rgb[3 * i + 1] << 8) | (Uint32)rgb[3 * i + 2];
-    uint8_t *lin = is_linearize(&p->is);
-    if (!lin)
-        return;
+    size_t fn = (size_t)p->is.w * (size_t)p->is.h;
+    if (p->lcap < fn) {
+        uint8_t *nb = (uint8_t *)realloc(p->lbuf, fn);
+        if (!nb)
+            return;
+        p->lbuf = nb;
+        p->lcap = fn;
+    }
+    uint8_t *lin = p->lbuf; /* reused across frames (P-12) */
+    is_linearize_into(&p->is, lin);
     void *px;
     int pitch;
     if (SDL_LockTexture(p->tex, NULL, &px, &pitch) == 0) {
@@ -124,7 +163,6 @@ static void present(player *p)
         }
         SDL_UnlockTexture(p->tex);
     }
-    free(lin);
     SDL_RenderClear(p->ren);
     SDL_RenderCopy(p->ren, p->tex, NULL, NULL);
     SDL_RenderPresent(p->ren);
@@ -151,31 +189,41 @@ static void pump_input(player *p)
                  * to the next scene / the title menu (M3). */
                 p->skip = 1;
                 p->user_skip = 1;
-            } else if (k == SDLK_SPACE && p->dev) {
-                int playing = SDL_GetAudioDeviceStatus(p->dev)
-                              == SDL_AUDIO_PLAYING;
-                SDL_PauseAudioDevice(p->dev, playing); /* space=pause toggle */
-                /* freeze/resume the video clock WITH the audio clock,
-                 * otherwise pausing desyncs A/V (proposal 1. in IMPROVEMENTS) */
-                if (playing) /* was playing, now pausing */
-                    p->pause_at = SDL_GetPerformanceCounter();
-                else if (p->pause_at)
-                    p->t0 += SDL_GetPerformanceCounter() - p->pause_at;
+            } else if (k == SDLK_SPACE) {
+                /* Pause holds the ONE clock (T-07) and works with or
+                 * without an audio device; with audio the device is held
+                 * too, so A/V stays in step (proposal 1. IMPROVEMENTS).
+                 * While held, wait_until shifts every deadline by the
+                 * live paused time; at resume that time joins
+                 * pause_shift, so the scene never "catches up". */
+                if (!p->pause_at) {
+                    p->pause_at = now_ns();
+                    if (p->dev)
+                        SDL_PauseAudioDevice(p->dev, 1);
+                } else {
+                    p->pause_shift += now_ns() - p->pause_at;
+                    p->pause_at = 0;
+                    if (p->dev)
+                        SDL_PauseAudioDevice(p->dev, 0);
+                }
             }
         }
     }
 }
 
-/* fixed-timestep wait until absolute frame deadline (ns), drift-clamped */
+/* fixed-timestep wait until absolute frame deadline (ns, on the t0_ns
+ * schedule), drift-clamped; a pause offsets the deadline with the paused
+ * time instead of rewinding the schedule (P-02) */
 static void wait_until(player *p, Uint64 deadline_ns)
 {
     static const Uint64 SLACK = 2000000ull; /* 2 ms: spin-wait instead */
     for (;;) {
-        Uint64 now = SDL_GetPerformanceCounter();
-        double scale = 1e9 / (double)SDL_GetPerformanceFrequency();
-        if ((Uint64)(now * scale) >= deadline_ns)
+        Uint64 now = now_ns();
+        Uint64 eff = deadline_ns + p->pause_shift +
+                     (p->pause_at ? now - p->pause_at : 0);
+        if (now >= eff)
             return;
-        if (deadline_ns - (Uint64)(now * scale) > SLACK)
+        if (eff - now > SLACK)
             SDL_Delay(2);
         else
             SDL_Delay(0);
@@ -343,10 +391,8 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     else if (getenv("LEO_IS_FPS_DIRECT"))
         p.period = 1000000000ull / (Uint64)ticks;
     p.start_frame = start_frame;
-    p.t0 = SDL_GetPerformanceCounter();
-    double perf_scale = (double)SDL_GetPerformanceFrequency() / 1e9;
-    Uint64 t0_ns = (Uint64)((double)p.t0 / perf_scale);
-    Uint64 sched_ns = 0;          /* this chunk's presentation deadline */
+    p.t0_ns = now_ns();             /* the ONE clock anchor (P-02) */
+    Uint64 sched_ns = 0;            /* this chunk's presentation deadline */
 
     for (unsigned ci = 0; ci < p.is.nchunks && !p.quit; ci++) {
         if (p.skip_at && p.presented >= p.skip_at) {
@@ -404,8 +450,8 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
         is_walk_audio_range(&p.is, ci, 1, enqueue_audio, &p);
         flush_audio(&p); /* one queue call per chunk (gapless) */
         if (p.live)
-            wait_until(&p, t0_ns + sched_ns); /* this chunk's presentation
-                                                 deadline */
+            wait_until(&p, p.t0_ns + sched_ns); /* this chunk's presentation
+                                                   deadline */
         if (p.quit || p.skip)
             continue;
         is_decode_chunk(&p.is, ci, on_frame, &p, NULL);
@@ -433,11 +479,13 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
             sched_ns += hold;
             /* drift clamp: >2 holds late (debugger, compose stall) =
              * resync the anchor instead of trying to catch up */
-            Uint64 now_ns =
-                (Uint64)((double)SDL_GetPerformanceCounter() / perf_scale);
-            if (now_ns > t0_ns + sched_ns + 2 * hold) {
-                t0_ns = now_ns - sched_ns;
-                p.t0 = (Uint64)((double)t0_ns * perf_scale);
+            Uint64 now = now_ns();
+            if (!p.pause_at &&
+                now > p.t0_ns + sched_ns + p.pause_shift + 2 * hold) {
+                /* re-anchor the schedule so it lands now; while paused
+                 * this must not fire, the pause legitimately puts "now"
+                 * far behind the deadline (P-02) */
+                p.t0_ns = now - sched_ns - p.pause_shift;
             }
         }
     }
@@ -462,6 +510,8 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     printf("is_player: presented=%u decoded=%u quit=%d (%s)\n", p.presented,
            p.is.st.frames, p.quit, p.quit_reason ? p.quit_reason : "finished");
     free(p.ascratch);
+    free(p.lbuf);
+    close_wav();
     if (p.dev)
         SDL_CloseAudioDevice(p.dev);
     is_close(&p.is);
@@ -469,6 +519,8 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     return p.user_skip ? 2 : 0;
 err:
     free(p.ascratch);
+    free(p.lbuf);
+    close_wav();
     is_close(&p.is);
     SDL_Quit();
     return 1;

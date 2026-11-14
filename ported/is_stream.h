@@ -93,6 +93,10 @@ void is_walk_audio_range(is_stream *s, unsigned first, unsigned count,
 
 /* uninterleaved (display-order) view of fb: rows top-to-bottom.
  * Mode X: plane p row r -> display row 4r+p. Returns malloc'd w*h or NULL. */
+/* P-12: reuse-a-frame variant (the player presents at ~25 fps and should
+ * not malloc a full framebuffer per frame). out must be w*h bytes.
+ * Same semantics as is_linearize, writing into the caller's buffer. */
+int is_linearize_into(const is_stream *s, uint8_t *out);
 uint8_t *is_linearize(const is_stream *s);
 
 /* palette 6-bit -> 8-bit: v<<2 (live DAC verified vs QEMU screendumps;

@@ -2,10 +2,14 @@
  *
  * Fixed-timestep pacing (PLAN S6 "NATIVE PORTS"): the original is
  * execution-rate bound and would run thousands of times too fast on
- * modern CPUs. Here every presented frame is one clock tick:
- *   cutscenes: period = 1000/.IS header fps byte (authoritative per file)
- *   fallback:  TICK_HZ from ll_config.h
- * Clock = SDL_GetTicks64 + SDL_Delay, with drift clamp (never spiral).
+ * modern CPUs. Here every presented chunk is one clock tick on ONE
+ * monotonic ns timeline (SDL_GetPerformanceCounter, anchored once in
+ * is_player.c as t0_ns - P-02/T-07):
+ *   audio regions: hold = region bytes / movie bitrate (the real engine
+ *                  model: one SB DMA block per frame, 22050 s16)
+ *   silent chunks: repeat * 1/70 s (the DOS PIT reprogram rate)
+ *   LEO_IS_PERIOD_MS overrides; deadlines are absolute, drift-clamped,
+ *   and Space-pause offsets them instead of rewinding the timeline.
  */
 #ifndef IS_PLAYER_H
 #define IS_PLAYER_H
@@ -21,7 +25,10 @@ extern "C" {
  * audio=0 disables sound; start_frame skips playback forward.
  * skip_at>0: auto-trigger the ESC-skip once skip_at frames are presented
  * (deterministic test hook; never reports 2). Env LEO_DUMP_SKIP=path dumps
- * the final framebuffer as PPM after a skip (headless bug-hunting). */
+ * the final framebuffer as PPM after a skip (headless bug-hunting).
+ * Window keys: q=quit, ESC=skip (returns 2), Space=pause/resume - the
+ * pause holds the single presentation clock and works with or without an
+ * audio device. */
 int is_player_run(const char *path, int audio, unsigned start_frame,
                   unsigned skip_at);
 
