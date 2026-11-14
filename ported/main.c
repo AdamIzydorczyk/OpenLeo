@@ -219,8 +219,12 @@ static const char *pick_data_dir(void)
         fprintf(stderr, "[leo] DATA from $LEO_DATA: %s\n", chosen);
         return chosen;
     }
-    char *base = SDL_GetBasePath(); /* SDL_free'd below; no init needed */
+    char *base = SDL_GetBasePath(); /* SDL_free'd below; no init needed.
+                                     * SDL guarantees a trailing separator. */
     if (base) {
+        size_t bl = strlen(base);
+        while (bl && (base[bl - 1] == '/' || base[bl - 1] == '\\'))
+            base[--bl] = '\0';
         snprintf(base_data, sizeof base_data, "%s/data", base);
         SDL_free(base);
         cands[n++] = base_data;
