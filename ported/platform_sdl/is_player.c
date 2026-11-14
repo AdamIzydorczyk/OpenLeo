@@ -9,6 +9,7 @@
 #include "../is_stream.h"
 #include "../ll_config.h"
 #include "../ll_level.h"
+#include "../ll_view.h"
 
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -173,6 +174,8 @@ static void pump_input(player *p)
 {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
+        if (ll_view_fullscreen_key(&e, p->win))
+            continue;
         if (e.type == SDL_QUIT) {
             p->quit = 1;
             p->quit_reason = "window close";
@@ -325,26 +328,26 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
         is_close(&p.is);
         return 1;
     }
-    int scale = p.is.w < 640 ? 2 : 1;
-    p.win = SDL_CreateWindow(
-        "Lew Leon - cutscene (esc=skip, q=quit, space=pause)",
-        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, p.is.w * scale,
-        p.is.h * scale, 0);
-    if (!p.win) {
+    /* P-10/T-12/T-13: one shared window convention (logical viewport at
+     * the content size, resizable, HiDPI-ready, F11/Alt+Enter desktop
+     * fullscreen). Presentation already is RenderCopy(full-window), so
+     * the logical viewport takes over scaling for free. */
+    ll_view view;
+    if (ll_view_create(&view,
+                       "Lew Leon - cutscene (esc=skip, q=quit, space=pause,"
+                       " f11/alt-enter=fullscreen)",
+                       p.is.w, p.is.h) != 0) {
         fprintf(stderr, "window: %s\n", SDL_GetError());
         goto err;
     }
-    p.ren = SDL_CreateRenderer(p.win, -1, SDL_RENDERER_ACCELERATED);
-    if (!p.ren)
-        p.ren = SDL_CreateRenderer(p.win, -1, SDL_RENDERER_SOFTWARE);
+    p.win = view.win;
+    p.ren = view.ren;
     p.tex = SDL_CreateTexture(p.ren, SDL_PIXELFORMAT_ARGB8888,
                               SDL_TEXTUREACCESS_STREAMING, p.is.w, p.is.h);
     if (!p.tex || !p.ren) {
         fprintf(stderr, "renderer: %s\n", SDL_GetError());
         goto err;
     }
-    SDL_SetTextureScaleMode(p.tex, scale > 1 ? SDL_ScaleModeNearest
-                                             : SDL_ScaleModeLinear);
 
     if (audio) {
         SDL_AudioSpec want, have;

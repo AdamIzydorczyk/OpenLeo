@@ -20,6 +20,7 @@
 #include "ll_pcx.h"
 #include "ll_save.h"
 #include "llrs.h"
+#include "ll_view.h"
 #include "platform_sdl/is_player.h"
 
 #include <SDL2/SDL.h>
@@ -599,6 +600,12 @@ int main(int argc, char **argv)
                 demo_data = argv[++i];
         } else if (strcmp(argv[i], "--console") == 0) {
             console_wanted = 1;
+        } else if (strcmp(argv[i], "--scale") == 0 && i + 1 < argc) {
+            /* P-10 display options (consumed by ll_view.c); default is
+             * the historical fixed geometry (2x sub-640-wide content) */
+            ll_opt_scale = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "--fullscreen") == 0) {
+            ll_opt_fullscreen = 1;
         } else {
             file = argv[i];
         }
@@ -652,7 +659,7 @@ int main(int argc, char **argv)
         static const char *usage =
             "usage: %s FILE.IS [--ppm N OUT.ppm] [--from N] [--no-audio]"
             " [--then FILE.IS] [--menu DATA_DIR] [--demo [DATA_DIR]]"
-            " [--console]\n";
+            " [--console] [--scale N] [--fullscreen]\n";
         if (menu_data) {
             run_menu(menu_data, audio); /* menu-only run (no scene first) */
             return 0;

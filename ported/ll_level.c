@@ -30,6 +30,7 @@
 #include "ll_seq.h"
 #include "llrs.h"
 #include "ll_mod.h"
+#include "ll_view.h"
 
 #include <SDL2/SDL.h>
 
@@ -1619,30 +1620,26 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     }
 
     {
+        /* P-10/T-12: shared window convention (logical viewport = the
+         * scene view size cw x ch; resizable, HiDPI-ready, F11/Alt+Enter
+         * desktop-fullscreen). */
+        ll_view view;
         SDL_Window *win = NULL;
         SDL_Renderer *ren = NULL;
-        int sc = cw < 640 ? 2 : 1;
-        win = SDL_CreateWindow("Lew Leon - level scene",
-                               SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                               cw * sc, ch * sc,
-                               SDL_WINDOW_SHOWN);
-        if (win) {
-            SDL_RaiseWindow(win);
-            /* hard focus grab over the menu window that had it; Wayland
-             * ignores it, the live loop polls SDL_RaiseWindow as fallback
-             * (see ll_menu.c win_force_focus) */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-            SDL_SetWindowInputFocus(win);
-#pragma GCC diagnostic pop
-            ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
-            if (!ren)
-                ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
-        }
-        if (!ren) {
-            fprintf(stderr, "ll_level: no renderer: %s\n", SDL_GetError());
+        if (ll_view_create(&view, "Lew Leon - level scene", cw, ch) != 0) {
+            fprintf(stderr, "ll_level: no window: %s\n", SDL_GetError());
             goto done;
         }
+        win = view.win;
+        ren = view.ren;
+        SDL_RaiseWindow(win);
+        /* hard focus grab over the menu window that had it; Wayland
+         * ignores it, the live loop polls SDL_RaiseWindow as fallback
+         * (see ll_menu.c win_force_focus) */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+        SDL_SetWindowInputFocus(win);
+#pragma GCC diagnostic pop
         SDL_Texture *tex = SDL_CreateTexture(
             ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
             cw, ch);
@@ -1696,7 +1693,9 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 SDL_RaiseWindow(win); /* Wayland re-raise fallback */
             SDL_Event e;
             while (SDL_PollEvent(&e))
-                if (e.type == SDL_QUIT ||
+                if (ll_view_fullscreen_key(&e, win))
+                    ;                   /* P-10: F11 / Alt+Enter */
+                else if (e.type == SDL_QUIT ||
                     (e.type == SDL_KEYDOWN &&
                      (e.key.keysym.sym == SDLK_ESCAPE ||
                       e.key.keysym.sym == SDLK_q)))

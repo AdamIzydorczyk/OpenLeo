@@ -8,6 +8,7 @@
 #include "ll_pcx.h"
 #include "ll_seq.h"
 #include "ll_level.h"
+#include "ll_view.h"
 
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -399,22 +400,20 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         }
     }
 
-    int scale = W < 640 ? 2 : 1;
-    SDL_Window *win = SDL_CreateWindow("Lew Leon - menu",
-                                       SDL_WINDOWPOS_CENTERED,
-                                       SDL_WINDOWPOS_CENTERED, W * scale,
-                                       H * scale, SDL_WINDOW_SHOWN);
-    if (!win) {
+    /* P-10/T-12: shared window convention (logical viewport = content
+     * size; mouse events arrive in logical coords, so the old /sc math
+     * is gone below). */
+    ll_view view;
+    if (ll_view_create(&view, "Lew Leon - menu", W, H) != 0) {
         menu_anims_free(aseq, nanims);
         ll_pcx_free(&bg);
         return -2;
     }
+    SDL_Window *win = view.win;
+    SDL_Renderer *ren = view.ren;
     SDL_RaiseWindow(win); /* dialog re-entry: make sure the WM gives focus */
     win_force_focus(win);  /* X11/XWayland hard grab; Wayland ignores it
                              * (the per-tick focus poll is the fallback) */
-    SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
-    if (!ren)
-        ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
     SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
                                          SDL_TEXTUREACCESS_STREAMING, W, H);
     if (!ren || !tex) {
@@ -423,8 +422,6 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         ll_pcx_free(&bg);
         return -2;
     }
-    SDL_SetTextureScaleMode(tex, scale > 1 ? SDL_ScaleModeNearest
-                                           : SDL_ScaleModeLinear);
 
     Uint32 *fb = (Uint32 *)malloc((size_t)W * H * sizeof *fb);
     unsigned char *cv = malloc((size_t)W * H);
@@ -683,14 +680,16 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                 break;
             }
             while (SDL_PollEvent(&e)) {
+                if (ll_view_fullscreen_key(&e, win))
+                    continue;           /* P-10: F11 / Alt+Enter */
                 if (e.type == SDL_QUIT) {
                     quit = 1;
                     ret = -2;
                 } else if (e.type == SDL_MOUSEBUTTONDOWN
                            && e.button.button == SDL_BUTTON_LEFT) {
-                    int sc = W < 640 ? 2 : 1; /* window is the frame scaled
-                                              * `sc`; map click to canvas px */
-                    int mx = e.button.x / sc, my = e.button.y / sc;
+                    /* logical viewport: SDL already maps window pixels to
+                     * canvas coords (P-10; the old /sc is gone) */
+                    int mx = e.button.x, my = e.button.y;
                     for (int j = 0; j < list_rows; j++) {
                         int ry = y0 + 12 * j;
                         if (my >= ry - 2 && my < ry + 10 && mx >= x0 - 14) {
@@ -711,8 +710,7 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                                 break;
                             }
                 } else if (e.type == SDL_MOUSEMOTION) {
-                    int sc = W < 640 ? 2 : 1;
-                    int mx = e.motion.x / sc, my = e.motion.y / sc;
+                    int mx = e.motion.x, my = e.motion.y; /* logical coords */
                     hov_r = -1;
                     for (int j = 0; j < list_rows; j++) {
                         int ry = y0 + 12 * j;
@@ -941,20 +939,19 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         }
     }
 
-    SDL_Window *win = SDL_CreateWindow("Lew Leon - chapter map",
-                                       SDL_WINDOWPOS_CENTERED,
-                                       SDL_WINDOWPOS_CENTERED, MAP_W, MAP_H,
-                                       SDL_WINDOW_SHOWN);
-    if (!win) {
+    /* P-10/T-12: shared convention; the map's logical viewport IS the
+     * 640x400 display frame (island/corner coords already live in it,
+     * so the click/hover math stays 1:1). */
+    ll_view view;
+    if (ll_view_create(&view, "Lew Leon - chapter map", MAP_W, MAP_H) != 0) {
         menu_anims_free(aseq, nanims);
         return -2;
     }
+    SDL_Window *win = view.win;
+    SDL_Renderer *ren = view.ren;
     SDL_RaiseWindow(win); /* dialog re-entry: make sure the WM gives focus */
     win_force_focus(win); /* see ll_menu_open_ex: hard focus grab on
                              * X11/XWayland */
-    SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
-    if (!ren)
-        ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
     SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
                                          SDL_TEXTUREACCESS_STREAMING,
                                          MAP_W, MAP_H);
@@ -1119,13 +1116,16 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                 }
             }
             while (SDL_PollEvent(&e)) {
+                if (ll_view_fullscreen_key(&e, win))
+                    continue;           /* P-10: F11 / Alt+Enter */
                 if (e.type == SDL_QUIT) {
                     quit = 1;
                     ret = -2;
                 } else if (e.type == SDL_MOUSEBUTTONDOWN
                            && e.button.button == SDL_BUTTON_LEFT) {
-                    /* map window = 640x400, island coords are in that same
-                     * 640-space (chs[].ix/iy/rw/rh) */
+                    /* logical viewport = the 640x400 display frame, and
+                     * island coords (chs[].ix/iy/rw/rh) live in that same
+                     * space, so events map 1:1 */
                     int mx = e.button.x, my = e.button.y;
                     if (mx < 130 && my < 26) {          /* WYJSCIE */
                         printf("map: click WYJSCIE\n");
