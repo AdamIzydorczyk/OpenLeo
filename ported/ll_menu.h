@@ -3,8 +3,8 @@
  * (PLAN.md M3), so the recompiled game owns its menu wiring: callers pass
  * the item labels; the optional PCX background comes from the original
  * ANIMACJE container (OPTIONS.PCX, verified format). Keys: up/down move,
- * Enter selects (returns index), Q quits (-2), Enter on the first item +
- * ESC is just Enter (ESC = advance semantics, never kills the app).
+ * Enter selects (returns index), Q quits (-2), ESC cancels (-1, never
+ * picks the highlighted row - E-06; callers treat -1 like (BACK)).
  * Env LEO_MENU_SECS=N: show the menu N seconds then auto-quit (returns -3;
  * CI hook so the menu render is covered by headless runs).
  */
@@ -51,7 +51,7 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
  * selected word gets a solid bright underline UNDER the sprite (mouse
  * hover: dim 1-px underline; boxes over the words covered them), rows
  * get the '>' marker; Enter/Space confirms the highlighted entry (Esc =
- * the list row = cancel), t/n/x remain direct zone shortcuts.
+ * cancel, returns -1, E-06), t/n/x remain direct zone shortcuts.
  * Round 6 (user request: "TAK (YES) should be bright green on select, as
  * NIE (NO) by default"): the selected word is ALSO re-tinted along the
  * background palette's green ramp - its own sprite indices are blitted

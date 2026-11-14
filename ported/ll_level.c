@@ -513,13 +513,15 @@ static const ll_seq_elem *obj_elem(const lvl_obj *o)
 {
     if (o->seq.count == 0)
         return NULL;
-    unsigned idx = (unsigned)o->eidx0;
+    int idx = o->eidx0;                        /* signed throughout (E-03):
+                                                * corrupt .MOV frame data can
+                                                * be negative */
     if (o->mov.nst) {
-        idx = (unsigned)o->mov.st[o->sti].fr[o->fi].frame;
-        if ((int)idx >= (int)o->seq.count)
-            idx = o->seq.count - 1;
+        idx = o->mov.st[o->sti].fr[o->fi].frame;
+        if (idx < 0 || idx >= (int)o->seq.count)
+            idx = (int)o->seq.count - 1;
     } else if (o->fi >= 0) {
-        idx = (unsigned)o->fi % o->seq.count;
+        idx = o->fi % (int)o->seq.count;
     }
     return &o->seq.els[idx];
 }
@@ -830,9 +832,10 @@ static void paint(SDL_Renderer *ren, SDL_Texture *tex,
  * POMOC1.MNU (HD-install ETAPY block) wires the help: static=x,y,pomocNN.seq
  * lines list page art (text baked into .SEQ frame patches); the .SEQ
  * payloads themselves ship in the CD ETAPY level block (incomplete CD:
- * only some pages present). Left/Right/Enter cycle pages, ESC closes, and
- * LEO_HELP_SECS (default 3 s) auto-closes for CI/flow; the scene window
- * starts when the help overlay closes.
+ * only some pages present). Left/Right/Enter cycle pages, ESC or any
+ * click closes and the page otherwise stays (original behavior, E-02);
+ * LEO_HELP_SECS=<sec> adds an auto-close timeout for CI/flow only. The
+ * scene window starts when the help overlay closes.
  * cursor=mouse.seq / palette=<stem>.pal refer to payloads absent from both
  * trees (documented data hole) - bg palette is kept.                   */
 typedef struct { int x, y; ll_seq seq; unsigned char *blob; } help_page;
@@ -968,16 +971,22 @@ static void help_pages(SDL_Renderer *ren, SDL_Texture *tex,
         return;
 
     const char *hs = getenv("LEO_HELP_SECS");
-    double lim = hs ? atof(hs) : 3.0;    /* scene timer starts after help */
+    /* E-02: production behavior is the original's - the page stays until
+     * a key or click closes it. The auto-close timeout exists only for
+     * CI/headless flow and applies only when explicitly set. */
+    double lim = hs ? atof(hs) : -1.0;
+    int auto_close = lim >= 0.0;              /* scene timer starts after */
     Uint64 freq = SDL_GetPerformanceFrequency();
     Uint64 t_end = SDL_GetPerformanceCounter() +
-                   (Uint64)(lim * (double)freq);
+                   (Uint64)((auto_close ? lim : 0.0) * (double)freq);
     int page = 0, quit = 0;
-    while (!quit && SDL_GetPerformanceCounter() < t_end) {
+    while (!quit && (!auto_close || SDL_GetPerformanceCounter() < t_end)) {
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT)
                 quit = 2;
+            else if (e.type == SDL_MOUSEBUTTONDOWN)
+                quit = 1;                     /* click closes, like a key */
             else if (e.type == SDL_KEYDOWN) {
                 SDL_Keycode k = e.key.keysym.sym;
                 if (k == SDLK_ESCAPE)
@@ -1027,6 +1036,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     const char *hs = getenv("LEO_LEVEL_SECS"); /* CI override */
     if (hs)
         secs = atof(hs);
+    int rc = 0;                 /* every failure path still runs `done:` */
     char p[4096];
     llrs leveldes, etapy;
     snprintf(p, sizeof p, "%s/LEVELDES", dir);
@@ -1466,9 +1476,9 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     size_t csz = (size_t)cw * (size_t)ch;
     unsigned char *canvas = malloc(csz);
     if (!canvas) {
-        free(view);
-        ll_pcm_release(&pcml);
-        return 1;
+        rc = 1;                 /* E-05: OOM must still release everything
+                                 * else allocated (done: below) */
+        goto done;
     }
     scratch = malloc((size_t)cw * (pcm_band ? pcm_band : 200));
     const unsigned char *base = pcm_owner ? view : img.idx;
@@ -1523,8 +1533,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             scene_ppm(ppm, cw, ch, canvas, ppal);
         } else
             scene_ppm(ppm, cw, ch, canvas, img.pal);
-        free(canvas);
-        goto done;
+        goto done;                          /* canvas freed at done: (E-05) */
     }
 
     {
@@ -1550,7 +1559,6 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         }
         if (!ren) {
             fprintf(stderr, "ll_level: no renderer: %s\n", SDL_GetError());
-            free(canvas);
             goto done;
         }
         SDL_Texture *tex = SDL_CreateTexture(
@@ -1662,9 +1670,10 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     }
     if (esc)
         printf("ll_level: ESC -> advance\n");
-    free(canvas);
 
-done:
+done:                                 /* single cleanup path (E-05): every
+                                       * way out of the scene runs this */
+    free(canvas);
     for (int k = 0; k < nobj; k++) {
         ll_seq_free(&objs[k].seq);
         free(objs[k].movtxt);
@@ -1680,5 +1689,5 @@ done:
         llrs_close(&hd_ety);
     llrs_close(&leveldes);
     llrs_close(&etapy);
-    return 0;
+    return rc;
 }

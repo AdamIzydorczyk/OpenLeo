@@ -378,6 +378,14 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                     fprintf(stderr, "menu: anim %d .SEQ parse failed\n", i);
                     continue;
                 }
+                if (aseq[i].count == 0) {
+                    /* E-04: an accepted-but-empty .SEQ would divide by zero
+                     * in the frame cycle and read els[0]; drop it (free()
+                     * zeroes els, so the draw loops skip it) */
+                    fprintf(stderr, "menu: anim %d: 0-frame .SEQ ignored\n", i);
+                    ll_seq_free(&aseq[i]);
+                    continue;
+                }
                 const ll_seq_elem *e0 = &aseq[i].els[0];
                 printf("menu: anim %d: %u frames at (%d,%d) period %ums\n",
                        i, aseq[i].count, -SX(e0->f0), -SX(e0->f2),
@@ -765,8 +773,12 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                         } else
                             ret = sel;
                     } else if (k == SDLK_ESCAPE) {
+                        /* E-06: ESC = cancel (-1), never "pick the
+                         * highlighted row" - in the LEVELS list that used
+                         * to LAUNCH a level. Callers treat -1 like (BACK). */
                         quit = 1;
-                        ret = sel;  /* esc always cancels to the row */
+                        ret = -1;
+                        printf("menu: ESC -> cancel\n");
                     } else if (k == SDLK_q) {
                         quit = 1;
                         ret = -2;
