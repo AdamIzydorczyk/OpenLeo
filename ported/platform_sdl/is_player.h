@@ -1,9 +1,10 @@
-/* is_player.h - shared SDL2 cutscene player for both native targets
+/* is_player.h - shared cutscene player for both native targets. Plays
+ * through the platform interface (platform.h, T-01); no SDL here.
  *
  * Fixed-timestep pacing (PLAN S6 "NATIVE PORTS"): the original is
  * execution-rate bound and would run thousands of times too fast on
  * modern CPUs. Here every presented chunk is one clock tick on ONE
- * monotonic ns timeline (SDL_GetPerformanceCounter, anchored once in
+ * monotonic ns timeline (plat_now_ns, anchored once in
  * is_player.c as t0_ns - P-02/T-07):
  *   audio regions: hold = region bytes / movie bitrate (the real engine
  *                  model: one SB DMA block per frame, 22050 s16)
@@ -18,7 +19,8 @@
 extern "C" {
 #endif
 
-/* Plays path (a .IS file) in an SDL window with ESC-region audio.
+/* Plays path (a .IS file) in a window with ESC-region audio (both from
+ * the platform backend).
  * Returns 0 on clean finish/quit, 2 when the user ESC-skipped mid-stream
  * (scene-chaining signal: caller advances to the next scene/menu),
  * 1 on error.

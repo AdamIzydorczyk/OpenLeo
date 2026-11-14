@@ -27,6 +27,8 @@ add_executable(ll_cutscene
     ported/main.c
     ported/is_stream.c
     ported/platform_sdl/is_player.c
+    ported/platform_sdl.c
+    ported/platform_common.c
     ported/llrs.c
     ported/ll_pcx.c
     ported/ll_menu.c

@@ -1,9 +1,10 @@
 /* platform_selftest.c - headless proof of the platform.h contract
  * (tips T-01). Links the DUMMY backend only: it decodes real .IS
  * frames and feeds them to plat_present with no display and no audio
- * device, then exercises the clock, the audio-queue accounting, and the
- * scripted event queue. This is exactly what the review said was
- * impossible before ("can't test the engine without SDL").
+ * device, then exercises the clock, the audio device contract
+ * (open/queue/pause/clear/close), and the scripted event queue. This
+ * is exactly what the review said was impossible before ("can't test
+ * the engine without SDL").
  *
  *   ./platform_selftest [SOME.IS]      (default: data/INTRO_P.IS)
  *
@@ -53,14 +54,28 @@ int main(int argc, char **argv)
     check("sleep_until honors the deadline (>=20ms)",
           t2 >= t0 + 20ull * 1000 * 1000);
 
-    /* ---- audio-queue accounting (T-09 pump contract) ---- */
-    static int16_t s16[4410 * 2];                      /* 200 ms stereo */
-    plat_audio_queue(s16, 2205, 22050, 2);             /* 100 ms */
-    plat_audio_queue(s16, 4410, 22050, 2);             /* +200 ms */
-    size_t qms = plat_audio_queued_ms();
-    check("audio_queued_ms reflects queued audio (300ms)", qms == 300);
-    plat_audio_queue(NULL, 10, 22050, 2);              /* invalid: ignored */
-    check("invalid audio ignored", plat_audio_queued_ms() == 300);
+    /* ---- audio device contract (T-09 pump + the player's model) ---- */
+    static uint8_t s16[4410 * 2 * 2];         /* 200 ms of s16 stereo */
+    check("queue before open is ignored",
+          (plat_audio_queue(s16, 8820), plat_audio_queued_bytes() == 0));
+    check("audio_open ok", plat_audio_open(22050, 2) == 0);
+    check("one device at a time", plat_audio_open(22050, 1) == -1);
+    plat_audio_queue(s16, 8820);                          /* 100 ms */
+    plat_audio_queue(s16, 17640);                         /* +200 ms */
+    check("queued_bytes counts queued bytes",
+          plat_audio_queued_bytes() == 26460);
+    plat_audio_queue(NULL, 10);                           /* ignored */
+    plat_audio_queue(s16, 0);                             /* ignored */
+    check("invalid audio ignored", plat_audio_queued_bytes() == 26460);
+    plat_audio_pause(1);                                  /* A/V hold */
+    plat_audio_pause(0);
+    check("pause does not drain", plat_audio_queued_bytes() == 26460);
+    plat_audio_clear();                                   /* skip */
+    check("clear empties the queue", plat_audio_queued_bytes() == 0);
+    plat_audio_close();
+    check("close releases the device (reopen works)",
+          plat_audio_open(44100, 2) == 0 && plat_audio_queued_bytes() == 0);
+    plat_audio_close();
 
     /* ---- engine-level input contract ---- */
     ll_event e;
@@ -84,6 +99,11 @@ int main(int argc, char **argv)
     }
     rc = plat_init("headless-selftest", s.w, s.h);
     check("plat_init for .IS content", rc == 0);
+    check("plat_init rejects bad geometry", plat_init("x", 0, -5) == -1);
+    check("plat_init is idempotent (reconfigure)",
+          plat_init("headless-selftest", s.w, s.h) == 0);
+    check("plat_last_error is usable (never NULL)",
+          plat_last_error() != NULL);
     is_decode_all(&s, present_frames, NULL, 5);        /* cap 5 frames */
     unsigned reached = plat_dummy_presented();
     check("frames flowed through plat_present headlessly",

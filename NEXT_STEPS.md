@@ -4,7 +4,7 @@ Working plan derived from `OpenLeo_native_port_review.md` (P/E/M) and
 `OpenLeo_porting_tips.md` (T). Update the status lines here as items
 land; the review/tips files stay as the detailed work orders.
 
-## Status as of 2026-11-14 (through PR-14, all pushed)
+## Status as of 2026-11-14 (through PR-15, all pushed)
 
 Done and verified green (full `make verify-all` incl. wine parity):
 
@@ -91,7 +91,23 @@ Done and verified green (full `make verify-all` incl. wine parity):
   decode(real .IS)->present->clock->audio->input THROUGH the interface
   and links ZERO SDL (ldd/nm prove it) - the "test the engine without
   SDL" capability T-01 exists for. NEW verify-platform CI leg (headless,
-  ASan/UBSan). Screens not yet migrated to plat_*: that is PR-15.        (this commit)
+  ASan/UBSan). Screens not yet migrated to plat_*: that is PR-15.        (c8b68f1)
+- PR-15 T-01 phase 2 (player): ported/platform_sdl.c implements the
+  SDL backend as a thin delegate over ll_view/ll_audio (streaming
+  texture + LUT blit moved out of the player, input -> ll_event with
+  F11/Alt+Enter consumed, ns clock, byte-based audio open/queue/
+  pause/clear/queued). is_player.c is now SDL-FREE (0 SDL headers in
+  its TU): present() linearizes then hands the INDEXED frame over,
+  pump_input reads plat_poll (q/' ' verbatim ASCII, LLKEY_ESC), audio
+  + drain + end-hold via plat_*. platform.h audio API extended to
+  the real contract (open/queue bytes/pause/clear/queued + -1/-2
+  error split preserves both old diagnostics verbatim). Backends now
+  switch on PLAT_BACKEND_DUMMY on BOTH sides (glob-safe). Verified:
+  full verify-all 36 (incl. win/wine PPM byte-exact, demo chains),
+  ASan/UBSan chain zero app leaks, REAL X11+audio smoke with XTEST
+  keys: q->quit(q), ESC->skip@35, space->pause froze the LEO_IS_WAV
+  feed exactly for the hold then resumed 125/125. menu/map/level
+  still drive ll_view/ll_audio directly (their migration = later PR).  (this commit)
 
 Known-clean baselines: ASan/UBSan on demo chain + all 22 MODs = app
 leaks 0 (SDL backend internals only); CI pins are format-only for MOD
@@ -194,14 +210,51 @@ zero SDL (proven by ldd/nm). That is the "engine testable without SDL"
 gate T-01 asks for, and it is where future headless unit tests
 (golden-master, libretro/Emscripten backends) attach.
 
-Remaining for the full T-01 (PR-15, the risky part deliberately
-deferred so each step stays verifiable): implement PLAT_BACKEND_SDL as
-a thin delegate over the existing ll_view/ll_audio (no new internals)
-and MIGRATE THE SCREENS (cutscene player first, then title/map/level)
+Remaining for the full T-01 (the risky part deliberately deferred so
+each step stays verifiable): implement PLAT_BACKEND_SDL as a thin
+delegate over the existing ll_view/ll_audio (no new internals) and
+MIGRATE THE SCREENS (cutscene player first, then title/map/level)
 to plat_poll + plat_present(indexed fb) + plat_now_ns/sleep_until,
 retiring direct SDL in engine code. That migration touches the byte-
 exact PPM/menu/sel pins, so it lands behind those same oracle checks;
 the dummy backend already gives a second consumer to catch divergence.
+DONE for the player in PR-15 (next section); title/map/level remain.
+
+## PR-15 — SDL backend + player migration (DONE, phase 2 of T-01)
+
+platform_sdl.c contains NO new session semantics: ll_view_create /
+ll_audio_open keep owning the window, focus, viewport, spec contract
+and logs; what moved out of is_player.c is only what a screen used to
+own - the streaming texture + palette-LUT blit (byte-identical code
+moved), the SDL->ll_event mapping (F11/Alt+Enter consumed inside
+plat_poll, printables verbatim, ESC = LLKEY_ESC), and the ns clock.
+The audio API grew from the T-01 sketch to the player's REAL needs:
+open/close (one device at a time), queue in BYTES (no resampling,
+P-13 contract intact), queued_bytes (drain-to-end), pause (A/V-locked
+pause, P-02), clear (ESC skip); -1/-2 split keeps both legacy
+diagnostics byte-identical. plat_present takes the LINEARISED indexed
+frame + raw 6-bit palette; the backend's v<<2 expansion is the exact
+is_palette_rgb8 formula, so presented pixels are unchanged (and the
+PPM oracle pins, which read CPU-side buffers, are untouched by design
+- they passed byte-exact on linux AND wine anyway).
+
+Backends both switch on PLAT_BACKEND_DUMMY, so any target that globs
+sources links exactly one (the ASan smoke build is that glob).
+
+Verified beyond the standard suite: 36/36 verify-all after make clean
+(incl. win .exe PPM byte-exact under wine + demo-chain legs that run
+the migrated player through skip->menu->level), zero app leaks/UB
+under ASan in single-file AND demo-chain runs, and a REAL-session
+smoke (Xwayland :0 + real audio) with XTEST-injected keys proving
+the whole input path: q -> "quit=1 (q)", Escape -> "ESC at frame 35
+-> skipping 2351 chunks" (rc semantics untouched), and Space-pause
+proven by sampling the LEO_IS_WAV dump: the audio feed froze at
+282624 B for exactly the pause window, then resumed and the run
+finished 125/125 (pause shifts the clock, never rewinds - P-02).
+
+Next T-01 step (unchanged plan): migrate title menu / chapter map /
+level scene the same way; they are the last direct ll_view/ll_audio
+users in engine code.
 
 ## Next — pick from the Deferred list below
 
@@ -219,10 +272,11 @@ user's call (T-11 4:3 aspect default, T-22 AppImage).
   users report issues).
 - E-08/T-14 palette codec fidelity (frozen: pixel output must not
   change).
-- T-01 platform abstraction - phase 1 DONE in PR-14 (platform.h
-  interface + headless dummy backend + verify-platform). Remaining =
-  PR-15: PLAT_BACKEND_SDL over ll_view/ll_audio + migrating the four
-  screens to plat_poll/plat_present (behind the PPM/grep oracle pins).
+- T-01 platform abstraction - phases 1+2 DONE (PR-14 interface +
+  headless backend; PR-15 SDL backend + cutscene-player migration).
+  Remaining: migrate the title menu / chapter map / level scene to
+  plat_poll/plat_present (same pattern, behind the PPM/grep oracle
+  pins), then ll_view/ll_audio become backend-private.
 - T-03 config knobs cleanup, T-04 globals,
   T-05/T-06 fixed-step timing + precise sleep, T-07 clock ownership,
   T-16 Polish text, T-17 save/config separation (STATUS.LEO codec

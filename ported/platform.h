@@ -1,33 +1,36 @@
 /* platform.h - thin platform interface (tips T-01 / T-02).
  *
  * The engine talks ONLY to this surface: an 8-bit indexed framebuffer is
- * its output (T-02), events come back as engine-level ll_events, timing
- * and audio-queue accounting go through plat_*, and file opens go
- * through plat_fopen. Nothing in the engine includes SDL directly.
+ * its output (T-02), input comes back as engine-level ll_events, timing
+ * and audio-queue control go through plat_*, and file opens go through
+ * plat_fopen. No engine screen includes SDL directly.
  *
  * Why now: the concrete pain T-01 named (one window per scene, SDL_Init
  * per cutscene, OS quirks repeated in 4 screens) was already collapsed
  * into the ll_view (PR-8/10) and ll_audio (PR-12) sessions. This header
- * is the engine-facing façade over those, and the load-bearing piece is
- * the SECOND backend: a headless "dummy" platform (platform_dummy.c)
- * that lets the decode->present->audio path run with no display and no
- * audio device - i.e. real headless engine tests (T-01's named benefit),
- * which today are impossible because every screen hard-wires SDL.
- *
- * Backends are selected at COMPILE time (exactly one per target), the
- * same knob style as PLATFORM_* in ll_config.h:
+ * is the engine-facing façade over those. Two backends exist so the same
+ * engine runs headless (tests) or on a real window (the game):
  *   PLAT_BACKEND_SDL   - platform_sdl.c, delegating to ll_view/ll_audio.
  *   PLAT_BACKEND_DUMMY - platform_dummy.c, headless (tests only).
- * The game currently drives ll_view/ll_audio directly; migrating the
- * screens to this interface is the follow-up PR (see NEXT_STEPS). Until
- * then only the DUMMY backend is compiled into a target (the headless
- * selftest), so this is purely additive.
+ * Exactly one is compiled per target (same knob style as PLATFORM_* in
+ * ll_config.h). The cutscene player is migrated to this surface in
+ * PR-15; the title menu / chapter map / level scene still drive
+ * ll_view/ll_audio directly and migrate in a later PR.
  *
- * Framebuffer + palette are the engine's NATIVE form: idx8 is w*h
- * indexed bytes and pal is 768 bytes of RGB triples (the .IS 6-bit DAC
- * layout; backends apply their own 8-bit conversion, see
- * is_palette_rgb8). Audio is s16 interleaved, already mixed by the
- * engine's ll_mod/is decoders - plat only owns the device + backlog.
+ * The audio API is intentionally byte-based and carries open/pause/clear
+ * (the review's T-01 sketch showed only queue+queued_ms). The real
+ * player opens one device at a fixed spec, pauses it together with its
+ * clock during pause (A/V stay in step, P-02), clears the queue on an
+ * ESC skip, and drains it to know when a cutscene has really finished.
+ * Byte units preserve that pacing contract exactly (no rate conversions
+ * in the engine).
+ *
+ * Framebuffer + palette are the engine's NATIVE form: idx8 is w*h bytes
+ * already LINEARISED to plane order (is_linearize_into), pal is 768
+ * bytes of raw 6-bit DAC triples (the .IS layout); the backend applies
+ * the 8-bit expansion (v<<2) and blits. Audio buffers are s16 already
+ * produced by the engine's ll_mod/is decoders - plat only owns the
+ * device, its queue, and its backlog.
  */
 #ifndef PLATFORM_H
 #define PLATFORM_H
@@ -36,10 +39,11 @@
 #include <stdint.h>
 #include <stdio.h>
 
-/* Engine-level input (T-01). Deliberately backend-agnostic: the SDL
- * backend maps SDL_KeyboardEvent/mouse here; the dummy backend injects
- * scripted events for tests. `key` is an engine scancode (T-15 keeps the
- * keycode-based input model), x/y are logical-viewport coordinates. */
+/* Engine-level input (T-01). Backend-agnostic: the SDL backend maps
+ * SDL keyboard/quit events here (printable keys pass through as their
+ * ASCII code; the special keys the engine uses get LLKEY_* ids), the
+ * dummy backend injects scripted events for tests. `x,y` are logical
+ * viewport coords (currently unused by the engine, kept for mouse). */
 typedef struct {
     int type;
     int key;
@@ -53,17 +57,26 @@ enum {
     LL_EV_QUIT
 };
 
+/* Non-printable keys the engine handles (printable keys are just their
+ * ASCII code in ll_event.key). Values are engine-defined, NOT SDL keysyms. */
+enum {
+    LLKEY_ESC = 1
+};
+
 /* Bring the platform up for content of this title/size. 0 = ok, -1 =
- * failure. Idempotent: repeated calls reconfigure (mirror the ll_view
- * session). */
+ * failure. Idempotent: repeated calls reconfigure the session (mirrors
+ * the ll_view window session). */
 int plat_init(const char *title, int w, int h);
 
-/* Present one indexed frame (T-02). idx8 is w*h, pal is 768 triples. */
+/* Present one indexed frame (T-02). idx8 is w*h LINEARISED indexed
+ * bytes, pal is 768 raw 6-bit triples; the backend expands + blits. */
 void plat_present(const uint8_t *idx8, const uint8_t pal[768], int w,
                   int h);
 
 /* Pop the next engine event into *ev. Returns 1 if an event was filled,
- * 0 when the queue is empty. */
+ * 0 when the queue is empty. Window-management shortcuts the engine must
+ * not see (F11 / Alt+Enter fullscreen, review P-10) are consumed by the
+ * backend here and never surfaced. */
 int plat_poll(ll_event *ev);
 
 /* Monotonic clock (ns) + an absolute wake-up, for fixed-step pacing
@@ -72,15 +85,29 @@ int plat_poll(ll_event *ev);
 uint64_t plat_now_ns(void);
 void plat_sleep_until(uint64_t ns);
 
-/* Queue s16 interleaved audio (frames = total sample frames across ch
- * channels, rate in Hz). plat_audio_queued_ms() reports how much is
- * still outstanding, so the engine keeps the pump full (T-09). */
-void plat_audio_queue(const int16_t *s, size_t frames, int rate, int ch);
-size_t plat_audio_queued_ms(void);
+/* Audio device owned by the platform. plat_audio_open(rate,ch) opens one
+ * device (0 = ok, device left playing; -1 = audio subsystem unavailable;
+ * -2 = subsystem up but the device could not be opened - the player
+ * keeps both old diagnostics distinct). plat_audio_close() releases it
+ * (no-op when none is open). The engine mixes s16 already, so the
+ * platform only moves bytes: queue bytes, ask how many are still
+ * outstanding, pause/resume (for A/V-locked pausing), clear (skip). */
+int    plat_audio_open(int rate_hz, int channels);
+void   plat_audio_close(void);
+void   plat_audio_queue(const void *bytes, size_t len);
+size_t plat_audio_queued_bytes(void);
+void   plat_audio_pause(int paused);
+void   plat_audio_clear(void);
 
 /* Open a game-data file: UTF-8 + case-insensitive (delegates to the
  * fs_ci opener, tips T-18). NULL if unresolvable. */
 FILE *plat_fopen(const char *path, const char *mode);
+
+/* Last backend error as a printable string (diagnostics only - the
+ * engine must not branch on its content). The SDL backend returns
+ * SDL_GetError(), so existing "window: ..." / "audio off (...)"
+ * diagnostics stay byte-identical; never NULL. */
+const char *plat_last_error(void);
 
 #if defined(PLAT_BACKEND_DUMMY) && PLAT_BACKEND_DUMMY
 /* Headless test hooks (not part of the real SDL backend):

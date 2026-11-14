@@ -1,12 +1,16 @@
 /* platform_dummy.c - headless platform backend (platform.h, tips T-01).
  *
  * Presents to nowhere, polls a scripted event queue, keeps a monotonic
- * clock, and accounts queued audio as a cumulative backlog (there is no
- * device to drain it - the point is the API contract + the engine being
- * runnable with no display). Compiled only when PLAT_BACKEND_DUMMY=1,
- * which is exactly the headless selftest target; the game never links
- * it. plat_fopen is backend-agnostic and lives in platform_common.c. */
+ * clock, and mirrors the audio device contract as a byte FIFO (there is
+ * no device to drain it - the point is the API contract + the engine
+ * being runnable with no display). The whole backend compiles ONLY when
+ * PLAT_BACKEND_DUMMY=1 (the headless selftest target) - the same
+ * compile-time backend switch described in platform.h; a game target
+ * that globs its sources simply compiles this file to nothing.
+ * plat_fopen is backend-agnostic and lives in platform_common.c. */
 #include "platform.h"
+
+#if defined(PLAT_BACKEND_DUMMY) && PLAT_BACKEND_DUMMY
 
 #include <errno.h>
 #include <string.h>
@@ -15,8 +19,9 @@
 static struct {
     int      init;
     unsigned presented;
-    size_t   audio_ms;          /* cumulative accepted, no device to drain */
-    int      a_rate, a_ch;
+    int      a_open;            /* one-device-at-a-time model, no device */
+    int      a_paused;
+    size_t   a_queued;          /* bytes "in the FIFO" (nothing drains) */
     ll_event q[64];
     unsigned qh, qt;            /* ring: [qh,qt) */
 } d;
@@ -62,21 +67,58 @@ void plat_sleep_until(uint64_t ns)
         ;                        /* EINTR: just retry, absolute deadline */
 }
 
-void plat_audio_queue(const int16_t *s, size_t frames, int rate, int ch)
+/* Audio: a byte-FIFO model of the SDL backend's contract - open/close
+ * one device at a time, queue bytes against it, watch the backlog,
+ * pause/clear. Nothing drains (no device); the point is the engine
+ * uses the API correctly (open before queue, one device at a time). */
+int plat_audio_open(int rate_hz, int channels)
 {
-    if (!s || frames == 0 || rate <= 0 || (ch != 1 && ch != 2))
+    if (d.a_open || rate_hz <= 0 || (channels != 1 && channels != 2))
+        return -1;
+    d.a_open = 1;
+    d.a_paused = 0;
+    d.a_queued = 0;
+    return 0;
+}
+
+void plat_audio_close(void)
+{
+    d.a_open = 0;
+    d.a_paused = 0;
+    d.a_queued = 0;              /* the FIFO goes with the device */
+}
+
+void plat_audio_queue(const void *bytes, size_t len)
+{
+    if (!d.a_open || !bytes || len == 0)
         return;
-    d.a_rate = rate;
-    d.a_ch = ch;
-    d.audio_ms += frames * 1000 / (size_t)rate;   /* cumulative backlog */
+    d.a_queued += len;
 }
 
-size_t plat_audio_queued_ms(void)
+size_t plat_audio_queued_bytes(void)
 {
-    return d.audio_ms;
+    return d.a_queued;
 }
 
-#if defined(PLAT_BACKEND_DUMMY) && PLAT_BACKEND_DUMMY
+void plat_audio_pause(int paused)
+{
+    if (d.a_open)
+        d.a_paused = paused ? 1 : 0;
+}
+
+void plat_audio_clear(void)
+{
+    if (d.a_open)
+        d.a_queued = 0;
+}
+
+const char *plat_last_error(void)
+{
+    return "";
+}
+
+/* test hooks: declared in platform.h under the same PLAT_BACKEND_DUMMY
+ * switch (script events in, presented-frame count out). */
 void plat_dummy_inject(const ll_event *ev)
 {
     if (!ev)
@@ -92,4 +134,5 @@ unsigned plat_dummy_presented(void)
 {
     return d.presented;
 }
-#endif
+
+#endif /* PLAT_BACKEND_DUMMY */

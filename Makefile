@@ -9,10 +9,12 @@ DATA     ?= /tmp/opencode/iso_stage/LEO
 PYREF    ?= tools/is_decode.py
 
 SRC      := ported/main.c ported/is_stream.c ported/platform_sdl/is_player.c \
+            ported/platform_sdl.c ported/platform_common.c \
             ported/llrs.c ported/ll_pcx.c ported/ll_menu.c ported/ll_level.c ported/ll_seq.c \
             ported/ll_pcm.c ported/ll_mod.c ported/ll_save.c ported/fs_ci.c ported/ll_view.c \
             ported/ll_audio.c ported/ll_paths.c
 HDRS     := ported/ll_config.h ported/is_stream.h ported/platform_sdl/is_player.h \
+            ported/platform.h \
             ported/llrs.h ported/ll_pcx.h ported/ll_menu.h ported/ll_level.h ported/ll_seq.h \
             ported/ll_pcm.h ported/ll_mod.h ported/ll_save.h ported/fs_ci.h ported/ll_view.h \
             ported/ll_audio.h ported/ll_paths.h
