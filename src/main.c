@@ -272,11 +272,17 @@ static void run_menu(const char *data, int audio)
             static const char *ztg[3] = { "TAK.SEQ", "CNIE.SEQ", "X.SEQ" };
             static const int zret[3] = { -10, -11, -12 };
             static const char zk[3] = { 't', 'n', 'x' };
+            /* nie is the dialog's default answer: it is also the word the
+             * original authors shipped in the BRIGHT end of the palette's
+             * green ramp (CNIE.SEQ paints idx22 #10f91b, TAK.SEQ only up
+             * to idx15 #0aa712), so the selected word's bright-green state
+             * starts here and moves to TAK when the user cycles onto it. */
+            static const int zdfl[3] = { 0, 1, 0 };
             for (int s = 0; s < 3; s++)
                 for (int i = 0; i < m4n; i++)
                     if (m4[i].tag && strcmp(m4[i].tag, ztg[s]) == 0) {
                         z3[nz3++] = (ll_menu_zone){ m4[i].tag, zret[s],
-                                                    zk[s] };
+                                                    zk[s], zdfl[s] };
                         break;
                     }
             int r2 = ll_menu_open_ex(bg, blen, back, 1,

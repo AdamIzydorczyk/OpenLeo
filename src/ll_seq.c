@@ -218,6 +218,7 @@ int ll_seq_patch_walk(const uint8_t *blob, uint32_t len,
 
 typedef struct {
     uint8_t *canvas;
+    const uint8_t *map;                      /* palette-index remap, NULL = identity */
     int cw, ch, x, y;
 } patch_paint;
 
@@ -235,9 +236,11 @@ static void patch_row_paint(void *vctx, int row, int gap,
             continue;
         }
         for (int k = 0; k < o->cnt; k++) {
+            uint8_t v = o->kind == 0 ? o->b[k] : (uint8_t)o->val;
+            if (pp->map)
+                v = pp->map[v];
             if (px >= 0 && px < pp->cw && py >= 0 && py < pp->ch)
-                pp->canvas[(size_t)py * pp->cw + px] =
-                    o->kind == 0 ? o->b[k] : (uint8_t)o->val;
+                pp->canvas[(size_t)py * pp->cw + px] = v;
             px++;
         }
     }
@@ -246,7 +249,15 @@ static void patch_row_paint(void *vctx, int row, int gap,
 int ll_seq_patch_draw(const uint8_t *blob, uint32_t len, uint8_t *canvas,
                       int cw, int ch, int x, int y)
 {
-    patch_paint pp = { canvas, cw, ch, x, y };
+    return ll_seq_patch_draw_map(blob, len, canvas, cw, ch, x, y, NULL);
+}
+
+/* Same blit with every painted palette index put through map[] (identity
+ * when map == NULL, so the plain path is bit-for-bit what it was). */
+int ll_seq_patch_draw_map(const uint8_t *blob, uint32_t len, uint8_t *canvas,
+                          int cw, int ch, int x, int y, const uint8_t *map)
+{
+    patch_paint pp = { canvas, map, cw, ch, x, y };
     return ll_seq_patch_walk(blob, len, patch_row_paint, &pp);
 }
 
@@ -257,10 +268,17 @@ int ll_seq_patch_draw(const uint8_t *blob, uint32_t len, uint8_t *canvas,
 int ll_seq_draw_elem(const ll_seq *s, const ll_seq_elem *e,
                      uint8_t *canvas, int cw, int ch, int x, int y)
 {
+    return ll_seq_draw_elem_map(s, e, canvas, cw, ch, x, y, NULL);
+}
+
+int ll_seq_draw_elem_map(const ll_seq *s, const ll_seq_elem *e,
+                         uint8_t *canvas, int cw, int ch, int x, int y,
+                         const uint8_t *map)
+{
     for (uint32_t i = 0; i < e->arr_n; i++) {
         const ll_seq_ent *t = &s->ents[e->arr_first + i];
-        if (ll_seq_patch_draw(s->blob + t->off, t->len, canvas, cw, ch,
-                              x + 80 * (int)i, y) < 0)
+        if (ll_seq_patch_draw_map(s->blob + t->off, t->len, canvas, cw, ch,
+                                  x + 80 * (int)i, y, map) < 0)
             return -1;
     }
     return 0;

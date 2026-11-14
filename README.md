@@ -45,8 +45,11 @@ ESC mid-cutscene SKIPS it and the chain advances to the next scene or the
 title menu (original semantics): no frozen mid-intro frame, the app never
 dies. Menu keys: up/down, Enter picks; ESC = Enter. The restart-confirm
 dialog answers (tak/nie/x) are selected with LEFT/RIGHT (the words sit
-side by side; up/down ride the same cycle) - the selection shows as a
-bright underline under the word, Enter confirms, t/n/x are direct keys.
+side by side; up/down ride the same cycle) - the selected word is blitted
+at the BRIGHT end of the palette's green ramp (idx22 #10f91b) and gets a
+bright underline; nie starts out selected, because that is the word the
+original art ships bright (CNIE.SEQ paints up to idx22, TAK.SEQ only to
+idx15 #0aa712). Enter confirms, t/n/x are direct keys.
 
 ## Tests (both platforms)
 
@@ -63,6 +66,7 @@ make verify-all
 # verify-level level scene: .DES wiring + .SEQ/.MOV anims + scroll camera
 # verify-help  help overlay: POMOC pages == python oracle
 # verify-menu  hooked demo chain: cutscene -> skip -> menu -> restart dialog
+#              + bright-green answer selection (tools/verify_green.py oracle)
 # verify-sel   LEVELS/MAPKA submenu + mapka.mod
 # verify-save  STATUS.LEO/LONGSOFT.CFG byte-exact round-trip (skips when
 #              the user-supplied originals are absent; never in git)
@@ -70,7 +74,11 @@ make verify-all
 
 CI hooks used by verify-menu (env): `LEO_DEMO_SKIP_FRAMES` (auto-skip demo
 scenes), `LEO_SKIP_USER=1` (auto-skip reported as a user ESC skip),
-`LEO_MENU_AUTO=N` (auto-pick menu item), `LEO_LEVEL_SECS` (intro hold).
+`LEO_MENU_AUTO=N` (auto-pick menu item), `LEO_LEVEL_SECS` (intro hold),
+`LEO_MENU_KEY=<char>` (auto-press a map corner: r = restart dialog),
+`LEO_MENU_SEL=i` (pre-select answer zone i, highlight only),
+`LEO_MENU_PPM=PATH` + `LEO_MENU_PPM_TICK=N` (dump the composed 320x200
+frame), `LEO_MENU_PICK=<char>` / `LEO_MENU_NAV=k` (fire / cycle + Enter).
 
 ## Naming
 

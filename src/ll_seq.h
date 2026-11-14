@@ -97,4 +97,15 @@ int ll_seq_patch_draw(const uint8_t *blob, uint32_t len, uint8_t *canvas,
 int ll_seq_draw_elem(const ll_seq *s, const ll_seq_elem *e,
                      uint8_t *canvas, int cw, int ch, int x, int y);
 
+/* *_map: identical blit, but every palette index the sprite paints goes
+ * through map[256] before it reaches the canvas (map == NULL = identity,
+ * which is what the plain entry points pass). Used to re-tint one sprite
+ * along a palette ramp (the menu's selected answer word) without touching
+ * the background indices under it. */
+int ll_seq_patch_draw_map(const uint8_t *blob, uint32_t len, uint8_t *canvas,
+                          int cw, int ch, int x, int y, const uint8_t *map);
+int ll_seq_draw_elem_map(const ll_seq *s, const ll_seq_elem *e,
+                         uint8_t *canvas, int cw, int ch, int x, int y,
+                         const uint8_t *map);
+
 #endif /* LL_SEQ_H */

@@ -209,6 +209,73 @@ static void elem_extent(const ll_seq *s, const ll_seq_elem *e, int *w, int *h)
     *h = hh;
 }
 
+/* ---- selected-answer-word bright-green tint ------------------------------
+ * Measured 2026-11-15 off ANIMACJE/MENU + the OPTIONS.PCX palette the
+ * restart dialog LUTs through: indices 2..22 of that palette are ONE
+ * monotonic green ramp (idx2 #010a01 L6.3, idx8 #044f08 L48.5, idx15
+ * #0aa712 L103.1, idx16 #0ab311 L110.0, idx22 #10f91b L154.0); idx1
+ * #090202 is the sprite's near-black key.  The two answer words differ only
+ * by where their ramp sits: TAK.SEQ paints idx3..15 (403 px of 15, so it
+ * reads mid-green) while CNIE.SEQ paints idx2..22 (398 px of 22 = bright
+ * green, hence "NIE seems active whole time") and X.SEQ tops out at 22 too.
+ * So the selection state is the ramp position: blit the selected word's
+ * ink shifted up the ramp until its brightest used index is GREEN_HI.
+ * TAK shifts +7 (3..15 -> 10..22), CNIE and X shift 0 = byte-exact no-op,
+ * i.e. the frame the CI already pins stays identical. */
+#define GREEN_LO 2
+#define GREEN_HI 22
+
+static void patch_hist_cb(void *vctx, int row, int gap,
+                          const ll_seq_patch_op *ops, int nops)
+{
+    (void)row; (void)gap;
+    unsigned char *seen = vctx;
+    for (int i = 0; i < nops; i++) {
+        const ll_seq_patch_op *o = &ops[i];
+        if (o->kind == 2)
+            continue;                        /* gap paints nothing */
+        if (o->kind == 1)
+            seen[o->val & 0xffu] = 1;
+        else
+            for (int k = 0; k < o->cnt; k++)
+                seen[o->b[k]] = 1;
+    }
+}
+
+/* Identity map unless the sprite paints the green ramp below its top:
+ * then every ramp index it uses moves up by the same amount (the shading
+ * order is preserved). Returns the shift applied (0 = nothing tinted). */
+static int menu_tint_build(const ll_seq *s, unsigned char *map)
+{
+    for (int i = 0; i < 256; i++)
+        map[i] = (unsigned char)i;
+    if (!s->els)
+        return 0;
+    unsigned char seen[256] = { 0 };
+    for (unsigned fr = 0; fr < s->count; fr++) {
+        const ll_seq_elem *e = &s->els[fr];
+        for (unsigned k = 0; k < e->arr_n; k++) {
+            const ll_seq_ent *en = &s->ents[e->arr_first + k];
+            ll_seq_patch_walk(s->blob + en->off, en->len, patch_hist_cb, seen);
+        }
+    }
+    int top = -1;
+    for (int i = GREEN_HI; i >= GREEN_LO; i--)
+        if (seen[i]) {
+            top = i;
+            break;
+        }
+    if (top < 0 || top >= GREEN_HI)
+        return 0;                            /* no ramp, or already brightest */
+    int sh = GREEN_HI - top;
+    for (int i = GREEN_LO; i <= GREEN_HI; i++)
+        if (seen[i]) {
+            int v = i + sh;
+            map[i] = (unsigned char)(v > GREEN_HI ? GREEN_HI : v);
+        }
+    return sh;
+}
+
 /* CI hook: dump the composed RGB frame as PPM (P6) */
 static int ppm_fb(const char *path, const Uint32 *fb, int w, int h)
 {
@@ -357,6 +424,38 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
             break;
         }
     }
+    /* Selection tint (ll_menu.h round 6): one remap table per anim that a
+     * zone is bound to + which zone that anim belongs to, so the compose
+     * loop below can blit only the SELECTED answer word up the green ramp. */
+    int *anim_zone = aseq ? calloc((size_t)nanims, sizeof *anim_zone) : NULL;
+    unsigned char *tint =
+        (aseq && nz) ? calloc((size_t)nanims * 256, 1) : NULL;
+    if (anim_zone)
+        for (int i = 0; i < nanims; i++) {
+            anim_zone[i] = -1;
+            if (!anims[i].tag)
+                continue;
+            for (int zi = 0; zi < nz; zi++)
+                if (zones[zi].tag && strcmp(zones[zi].tag, anims[i].tag) == 0) {
+                    anim_zone[i] = zi;
+                    break;
+                }
+            if (tint && anim_zone[i] >= 0 && aseq[i].els) {
+                int sh = menu_tint_build(&aseq[i], tint + (size_t)i * 256);
+                printf("menu: tint %s: ramp shift %+d (brightest ink -> idx %d)\n",
+                       anims[i].tag, sh, GREEN_HI);
+            }
+        }
+
+    /* the dialog's default answer is selected on open, so it already reads
+     * bright green before the user moves the cursor (restart: CNIE) */
+    for (int zi = 0; zi < nz; zi++)
+        if (zones[zi].dflt) {
+            zsel = zi;
+            printf("menu: default answer %s (bright green)\n", zones[zi].tag);
+            break;
+        }
+
     /* CI hook: LEO_MENU_SECS=N shows the menu N seconds then auto-quits */
     const char *sece = getenv("LEO_MENU_SECS");
     Uint64 t_deadline = sece ? SDL_GetTicks64() + 1000 * (Uint64)atof(sece) : 0;
@@ -408,8 +507,11 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                 unsigned fr = (unsigned)((Uint64)tick * 30 / per)
                               % aseq[a].count;
                 const ll_seq_elem *e = &aseq[a].els[fr];
-                ll_seq_draw_elem(&aseq[a], e, cv, W, H,
-                                 -SX(e->f0), -SX(e->f2));
+                const unsigned char *m =
+                    (tint && anim_zone && zsel >= 0 && anim_zone[a] == zsel)
+                        ? tint + (size_t)a * 256 : NULL;
+                ll_seq_draw_elem_map(&aseq[a], e, cv, W, H,
+                                     -SX(e->f0), -SX(e->f2), m);
             }
             Uint32 lut[256];
             for (int i = 0; i < 256; i++)
@@ -616,6 +718,8 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
     }
     free(fb);
     free(cv);
+    free(anim_zone);
+    free(tint);
     menu_anims_free(aseq, nanims);
     SDL_DestroyTexture(tex);
     SDL_DestroyRenderer(ren);

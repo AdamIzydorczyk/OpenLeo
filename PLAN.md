@@ -703,6 +703,37 @@ to round-4 probe (rst1.ppm == rst_r5.ppm, zero regression); SEL=1 frame
 diff = exactly 2x64 underline px at y=184/185 under CNIE rect
 (169,145)-(233,183) + the (BACK) '>' marker removal; VL: underline fully
 below 'nie', no overlap, no boxes, high contrast.
+**Desktop usability round 6 (2026-11-15, user feedback)**: user: "TAK (YES)
+should be bright green on select, as NIE (NO) by default". Measured why the
+dialog looked one-sided: in the OPTIONS.PCX palette the restart sprites live
+in, indices 2..22 are ONE monotonic green ramp (idx2 #010a01 L6.3, idx8
+#044f08 L48.5, idx15 #0aa712 L103.1, idx16 #0ab311 L110.0, idx22 #10f91b
+L154.0; idx1 #090202 is the sprite key), and the two answer words differ
+ONLY by where their ramp sits: TAK.SEQ paints idx3..15 (403 px of idx15),
+CNIE.SEQ paints idx2..22 (398 px of idx22), X.SEQ tops out at 22 as well.
+So "bright green" IS the original's selection state, held by NIE by default
+- no palette invention needed. Selection now blits the selected word's ink
+shifted up that ramp until its brightest used index is 22 (src/ll_menu.c
+GREEN_LO/GREEN_HI + menu_tint_build, measured per anim from its own patch
+histogram): TAK +7 (idx3..15 -> 10..22), CNIE and X shift 0 = byte-exact
+no-op. ll_seq gained index-mapping blits (ll_seq_patch_draw_map /
+ll_seq_draw_elem_map; the plain entry points pass NULL, so every other
+sprite and the byte-exact verify-seq path are untouched) - only the sprite's
+own painted indices move, the OPTIONS.PCX indices under it do not.
+ll_menu_zone gained `dflt`; main.c marks CNIE, so the dialog opens with NIE
+already bright green + underlined and LEFT/RIGHT carries that state onto
+TAK. CI: verify-menu dumps the dialog frame in three selection states (open
+/ LEO_MENU_SEL=0 / LEO_MENU_SEL=1) and tools/verify_green.py proves the
+change is (a) open frame == CNIE-selected frame byte-for-byte, (b) 1096 px
+changed on selecting TAK, 848 of them inside the TAK rect
+(82,128)-(142,163) plus the two underline strips and NOTHING elsewhere, (c)
+the 403 idx15 ink px become 403 idx22 px and the word's mean luminance goes
+76.0 -> 128.8. Wine twin selected-TAK frame byte-identical to linux
+(cmp rst_tak.ppm == wrst_tak.ppm). Local extra (not in CI, the baseline is
+not reproducible from the repo): the new open frame vs a build of the
+previous commit (`git archive HEAD^` -> /tmp/opencode/base_build) differs by
+CNIE's 128 underline px + the (BACK) '>' marker removal only - zero
+regression on the frame the earlier rounds pinned.
 
 ## 8c. Level scene + .MOV motion scripts (delivered 2026-11-14)
 

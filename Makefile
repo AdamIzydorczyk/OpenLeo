@@ -420,6 +420,47 @@ verify-menu: ll_cutscene
 	   && grep -q 'map: LEO_MENU_SECS expired' /tmp/opencode/menu_nav.log; \
 	then echo "restart-confirm keyboard nav: arrows cycle TAK first, Enter confirms (ok)"; \
 	else echo "restart-confirm keyboard nav FAILED (rc=$$rc)"; cat /tmp/opencode/menu_nav.log; exit 1; fi
+# Bright-green answer selection (user: "TAK (YES) should be bright green on
+# select, as NIE (NO) by default"). Same dialog frame, three selection
+# states: open (default), LEO_MENU_SEL=0 (TAK), LEO_MENU_SEL=1 (CNIE).
+# tools/verify_green.py is the numeric oracle: the open frame must equal the
+# CNIE frame byte-for-byte, and selecting TAK may only change pixels inside
+# the TAK rect + the two underline strips, with the word's ink moved UP the
+# palette's green ramp (idx15 #0aa712 -> idx22 #10f91b, mean lum up).
+# Baseline argument "-" = skip the pre-fix frame comparison (CI has no old
+# build); locally re-run it against a build of the previous commit.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_KEY=r LEO_MENU_SECS=1 \
+	  LEO_MENU_PPM_TICK=10 LEO_MENU_PPM=/tmp/opencode/rst_def.ppm timeout 60 \
+	  ./ll_cutscene --demo $(DATA) > /tmp/opencode/rst_def.log 2>&1 \
+	  || { echo "restart-confirm frame def FAILED"; cat /tmp/opencode/rst_def.log; exit 1; }
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_KEY=r LEO_MENU_SECS=1 \
+	  LEO_MENU_SEL=0 LEO_MENU_PPM_TICK=10 LEO_MENU_PPM=/tmp/opencode/rst_tak.ppm \
+	  timeout 60 ./ll_cutscene --demo $(DATA) > /tmp/opencode/rst_tak.log 2>&1 \
+	  || { echo "restart-confirm frame tak FAILED"; cat /tmp/opencode/rst_tak.log; exit 1; }
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_KEY=r LEO_MENU_SECS=1 \
+	  LEO_MENU_SEL=1 LEO_MENU_PPM_TICK=10 LEO_MENU_PPM=/tmp/opencode/rst_cnie.ppm \
+	  timeout 60 ./ll_cutscene --demo $(DATA) > /tmp/opencode/rst_cnie.log 2>&1 \
+	  || { echo "restart-confirm frame cnie FAILED"; cat /tmp/opencode/rst_cnie.log; exit 1; }
+	@if grep -q 'menu: default answer CNIE.SEQ' /tmp/opencode/rst_def.log \
+	   && grep -q 'menu: tint TAK.SEQ: ramp shift +7' /tmp/opencode/rst_tak.log \
+	   && grep -q 'menu: tint CNIE.SEQ: ramp shift +0' /tmp/opencode/rst_cnie.log; \
+	then echo "bright-green tint hooks: default CNIE, TAK ramp +7, CNIE +0 (ok)"; \
+	else echo "bright-green tint hooks FAILED"; cat /tmp/opencode/rst_def.log; exit 1; fi
+	@python3 tools/verify_green.py - /tmp/opencode/rst_def.ppm \
+	  /tmp/opencode/rst_tak.ppm /tmp/opencode/rst_cnie.ppm \
+	  82 128 142 163 169 145 233 183
+	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
+	  SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_KEY=r LEO_MENU_SEL=0 \
+	  LEO_MENU_SECS=1 LEO_MENU_PPM_TICK=10 \
+	  LEO_MENU_PPM=Z:/tmp/opencode/wrst_tak.ppm timeout 90 \
+	  wine ./ll_cutscene.exe --demo Z:$(DATA) > /tmp/opencode/wrst_tak.log 2>&1 || true
+	@cmp /tmp/opencode/rst_tak.ppm /tmp/opencode/wrst_tak.ppm \
+	  && echo "win selected TAK frame == linux frame (byte-exact, tint is palette-index math)" \
+	  || { echo "win selected TAK frame != linux"; cat /tmp/opencode/wrst_tak.log; exit 1; }
 
 # MOD music: src/ll_mod.c parses the Longsoft repack layout (ll_mod.h)
 # and renders deterministically; linux vs wine hash parity is the oracle.

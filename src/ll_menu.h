@@ -52,12 +52,21 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
  * hover: dim 1-px underline; boxes over the words covered them), rows
  * get the '>' marker; Enter/Space confirms the highlighted entry (Esc =
  * the list row = cancel), t/n/x remain direct zone shortcuts.
+ * Round 6 (user request: "TAK (YES) should be bright green on select, as
+ * NIE (NO) by default"): the selected word is ALSO re-tinted along the
+ * background palette's green ramp - its own sprite indices are blitted
+ * shifted up the ramp so its brightest ink lands on the ramp's top index
+ * (ll_menu.c GREEN_* provenance; TAK +7, CNIE/X shift 0 = byte-exact
+ * unchanged). `dflt` marks the zone that starts selected, i.e. the word
+ * the dialog shows bright green before the user moves anything (restart
+ * passes CNIE, which is also how the original art ships it).
  * CI hook: LEO_MENU_PICK=<key char> auto-fires the matching zone at
  * tick 0 (one-shot). */
 typedef struct {
     const char *tag;   /* ll_menu_anim.tag this zone covers */
     int ret;           /* value returned when the zone fires */
     int key;           /* SDL_Keycode (int) or 0 */
+    int dflt;          /* non-zero = this zone is selected on open */
 } ll_menu_zone;
 int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                     const char *const *items, int nitems,
