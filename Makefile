@@ -586,6 +586,20 @@ package-linux: ll_cutscene
 
 package: package-win package-linux
 
+# T-25: seeded parser fuzzing over REAL payloads (tools/fuzz.c docs).
+# Three fixed seeds keep it deterministic; ASan/UBSan turn any parser
+# slip into a hard failure. Corpus comes from DATA, so it tracks the
+# real formats.
+fuzz: tools/fuzz.c ported/is_stream.c ported/llrs.c ported/ll_pcx.c \
+      ported/ll_seq.c ported/ll_pcm.c ported/ll_mod.c ported/fs_ci.c
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	    -Iported -o $@ tools/fuzz.c ported/is_stream.c ported/llrs.c \
+	    ported/ll_pcx.c ported/ll_seq.c ported/ll_pcm.c ported/ll_mod.c \
+	    ported/fs_ci.c -lm
+
+verify-fuzz: fuzz
+	@for s in 1 2 3; do ./fuzz $(DATA) $$s 400 /tmp/opencode || exit 1; done
+
 # T-20 CMake parity check: the alternate build must produce the same
 # game. Skips cleanly when cmake isn't installed (the Makefile stays
 # the reference build either way).
@@ -605,12 +619,12 @@ verify-cmake:
 	cmp /tmp/opencode/cm_win.ppm /tmp/opencode/c_py/f01020.ppm \
 	  && echo "cmake windows binary (+SDL2.dll) == python reference (byte-exact)"
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music verify-utf8 verify-cmake
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music verify-utf8 verify-fuzz verify-cmake
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
 	rm -rf dist
-	rm -f ll_cutscene ll_cutscene.exe llrs_selftest llrs_selftest.exe \
+	rm -f ll_cutscene ll_cutscene.exe llrs_selftest llrs_selftest.exe fuzz \
 	      resources/ll_cutscene.res \
 	      pcx_selftest pcx_selftest.exe seq_selftest seq_selftest.exe \
 	      seq_patchdump seq_patchdump.exe pcm_selftest pcm_selftest.exe \
@@ -619,5 +633,5 @@ clean:
 
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
         verify-seq verify-pcm verify-mod verify-level verify-help verify-menu \
-        verify-sel verify-save verify-music verify-utf8 verify-cmake \
-        verify-all level clean package package-win package-linux
+        verify-sel verify-save verify-music verify-utf8 verify-fuzz \
+        verify-cmake verify-all level clean package package-win package-linux

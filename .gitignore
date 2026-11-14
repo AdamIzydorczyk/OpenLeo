@@ -48,6 +48,7 @@ ll_save
 ll_save.exe
 mod_selftest
 mod_selftest.exe
+fuzz
 *.o
 *.obj
 

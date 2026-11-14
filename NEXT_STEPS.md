@@ -4,7 +4,7 @@ Working plan derived from `OpenLeo_native_port_review.md` (P/E/M) and
 `OpenLeo_porting_tips.md` (T). Update the status lines here as items
 land; the review/tips files stay as the detailed work orders.
 
-## Status as of 2026-11-14 (through PR-9, all pushed)
+## Status as of 2026-11-14 (through PR-11, all pushed)
 
 Done and verified green (full `make verify-all` incl. wine parity):
 
@@ -41,7 +41,7 @@ Done and verified green (full `make verify-all` incl. wine parity):
   cmake build links SDL2.dll dynamically - Makefile stays static).
   T-21/T-22: tools/package.py + make package{,-win,-linux} -> dist/
   zip|tar.gz (exe + README + data/ placeholder; unpack-and-play proven
-  under wine).                                                    (this commit)
+  under wine).                                                        (aa4e97a)
 - PR-10 P-03+P-04: one session window for the whole program. ll_view
   is now a process-wide session: first ll_view_create builds the
   window, later screens RECONFIGURE it (title/logical size/geometry);
@@ -50,7 +50,17 @@ Done and verified green (full `make verify-all` incl. wine parity):
   SDL_RaiseWindow polls deleted; raise once at reconfigure + on
   WINDOWEVENT_ENTER via ll_view_handle_event (was
   ll_view_fullscreen_key). External SDL_Quit() healed via
-  SDL_WasInit re-create.                                                (this commit)
+  SDL_WasInit re-create.                                                (accfd93)
+- PR-11 T-25: seeded in-process parser fuzzer (tools/fuzz.c, Makefile
+  fuzz/verify-fuzz, in verify-all). Corpus = 80 REAL payloads from
+  DATA: container heads (ANIMACJE/ETAPY/SOUND/LEVELDES, 2 MB cap),
+  .IS streams (<=8 MB, 3 files), and PCX/SEQ/PCM/MOD records pulled
+  via llrs_block + llrs_read (the payloads live INSIDE id=2 index
+  blocks - same trick as verify_pcx.py). 1..6 mutations per blob
+  (xor-bit / 0x00 / 0xff / truncate), 3 fixed seeds x 400 iters,
+  ASan+UBSan build; accepted/rejected counters per kind prove the
+  corpus reaches every decoder (a kind that never parses = fail 2).
+  All six kinds green, zero crashes/UB/leaks, ~3 s per seed.            (this commit)
 
 Known-clean baselines: ASan/UBSan on demo chain + all 22 MODs = app
 leaks 0 (SDL backend internals only); CI pins are format-only for MOD
@@ -103,6 +113,15 @@ by the WasInit guard; P-05 (Wayland native) stays open - the focus
 policy change may make the forced-X11 probe unnecessary, test on
 hardware before touching main.c's wayland branch.
 
+## PR-11 — parser fuzzing (DONE, see status above)
+
+T-25 landed as a deterministic in-process fuzzer rather than libFuzzer:
+same binary, no toolchain dependency, corpus from the real formats.
+Deliberate limits, for the record: ll_save is not fuzzed (fixed-size
+raw-word copy, no grammar) and the .des/.MNU text scanners are not
+either (a text-grammar fuzz is its own project). If a fuzz failure
+ever appears, reproduce with the printed seed and shrink the blob.
+
 ## Next — pick from the Deferred list below
 
 Nothing queued: every review item that was scoped as "worth fixing
@@ -122,8 +141,9 @@ user's call (T-11 4:3 aspect default, T-22 AppImage).
   T-05/T-06 fixed-step timing + precise sleep, T-07 clock ownership,
   T-16 Polish text, T-17 save/config separation (STATUS.LEO codec
   itself is done), T-19 startup data validation, T-23 structured RE
-  traces, T-24 golden-master vs original EXE, T-25 parser fuzzing
-  (llrs has a python oracle - good seed), T-26 engine state machine.
+  traces, T-24 golden-master vs original EXE, T-26 engine state
+  machine. T-25 parser fuzzing - DONE in PR-11 (tools/fuzz.c);
+  extending it later = more kinds (.des text) + a longer seed list.
 
 ## Standing rules
 
