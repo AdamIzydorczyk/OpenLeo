@@ -123,6 +123,13 @@ static void enqueue_audio(void *u, const uint8_t *pcm, unsigned len)
     }
     memcpy(p->ascratch + p->alen, pcm, len);
     p->alen += len;
+    if (getenv("LEO_IS_WAV")) {          /* CI/diagnostic hook: raw U8 dump */
+        static FILE *wf;
+        if (!wf)
+            wf = fopen(getenv("LEO_IS_WAV"), "wb");
+        if (wf)
+            fwrite(pcm, 1, len, wf);
+    }
 }
 
 static void flush_audio(player *p)
@@ -324,7 +331,9 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
         want.freq = 8000;
         want.format = AUDIO_U8;
         want.channels = 1;
-        want.samples = 1024;
+        want.samples = 0;   /* keep SDL's default: explicit small sizes
+                               break SDL2.32's alsa backend here (see
+                               ll_music_play in ll_level.c) */
         p.dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
         if (!p.dev)
             fprintf(stderr, "is_player: audio off (%s)\n", SDL_GetError());

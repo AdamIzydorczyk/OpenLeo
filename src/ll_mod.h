@@ -101,7 +101,10 @@ typedef struct {
 } ll_mod_state;
 
 void ll_mod_start(ll_mod_state *st, const ll_mod *m);
-/* mix `frames` stereo s16 pairs into dst (dst frames*2 int16)          */
+/* renders `frames` stereo s16 pairs into dst (dst = frames*2 int16).
+ * Owns dst: every frame is written from scratch, so callers may reuse a
+ * buffer without zeroing it (getting this wrong made the in-game music
+ * stack chunk on chunk = clipping squeak).                      */
 void ll_mod_mix(ll_mod_state *st, int16_t *dst, size_t frames);
 
 /* CI oracle: deterministic offline render of first `ms` milliseconds

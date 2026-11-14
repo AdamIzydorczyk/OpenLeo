@@ -81,12 +81,15 @@ static ll_mod s_mus;
 static ll_mod_state s_mst;
 static SDL_AudioDeviceID s_mus_dev;
 static int s_mus_snd_open;
+static FILE *s_mus_wf;                 /* LEO_MUSIC_WAV diagnostic dump */
+static char s_mus_name[32];
 
 int ll_music_play(const char *data_dir, const char *modname)
 {
     if (getenv("LEO_NO_MUSIC"))
         return 1;
     ll_music_stop();
+    snprintf(s_mus_name, sizeof s_mus_name, "%s", modname);
     char p[4096];
     snprintf(p, sizeof p, "%s/SOUND", data_dir);
     if (llrs_open(&s_mus_snd, p) != 0)
@@ -111,7 +114,12 @@ int ll_music_play(const char *data_dir, const char *modname)
     want.freq = LL_MOD_RATE;
     want.format = AUDIO_S16SYS;
     want.channels = 2;
-    want.samples = 2048;
+    /* want.samples MUST stay 0 here: any explicit small buffer (1024,
+     * 2048) makes SDL2.32's alsa backend deliver squeaking or silent
+     * streams on the dev desktop, while SDL's own default (reported
+     * back as 0 for queue-mode devices) plays byte-perfect.  Verified
+     * by A/B probe 2026-11-14: samples=0+pump clean, samples=2048
+     * silent, samples=1024 squeak. */
     s_mus_dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if (!s_mus_dev) {
         printf("ll_music: device: %s\n", SDL_GetError());
@@ -126,6 +134,10 @@ int ll_music_play(const char *data_dir, const char *modname)
 
 void ll_music_stop(void)
 {
+    if (s_mus_wf) {
+        fclose(s_mus_wf);
+        s_mus_wf = NULL;
+    }
     if (s_mus_dev)
         SDL_CloseAudioDevice(s_mus_dev);
     s_mus_dev = 0;
@@ -149,6 +161,16 @@ void ll_music_pump(void)
     static int16_t buf[(LL_MOD_RATE / 8) * 2];      /* 125 ms stereo s16 */
     size_t frames = LL_MOD_RATE / 8;
     ll_mod_mix(&s_mst, buf, frames);
+    if (getenv("LEO_MUSIC_WAV") && !s_mus_wf) {     /* CI/diagnostic hook:
+                                                      * one raw file per play */
+        static unsigned seq;
+        char path[512];
+        snprintf(path, sizeof path, "%s.%02u.%s.raw",
+                 getenv("LEO_MUSIC_WAV"), seq++, s_mus_name);
+        s_mus_wf = fopen(path, "wb");
+    }
+    if (s_mus_wf)
+        fwrite(buf, 2 * sizeof(int16_t), frames, s_mus_wf);
     SDL_QueueAudio(s_mus_dev, buf, (Uint32)(frames * 2 * sizeof(int16_t)));
 }
 

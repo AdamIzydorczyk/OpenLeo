@@ -372,6 +372,10 @@ void ll_mod_mix(ll_mod_state *st, int16_t *dst, size_t frames)
             if (st->end) { dst[2*i] = dst[2*i+1] = 0; continue; }
             do_tick(st);
         }
+        dst[2*i] = dst[2*i+1] = 0;   /* per-frame mix base: ll_mod_mix owns
+                                      * the buffer, callers need not zero it
+                                      * (ll_mod_render used calloc, the game
+                                      * reuses one static chunk buffer) */
         for (int c = 0; c < (int)m->nch; c++) {
             int sidx = st->v[c].smp;
             if (!st->v[c].act || st->v[c].cut || !st->v[c].period ||
