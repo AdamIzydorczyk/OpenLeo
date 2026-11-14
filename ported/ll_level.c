@@ -32,9 +32,16 @@
 #include "ll_seq.h"
 #include "llrs.h"
 #include "ll_mod.h"
-#include "ll_view.h"
+#include "platform.h"
 
-#include <SDL2/SDL.h>
+#include <SDL2/SDL.h>   /* EXCEPTION, deliberately: the music SERVICE below
+                         * (ll_mod + ll_audio + a pump thread on the SDL
+                         * audio queue) is not a screen and moves behind
+                         * the platform interface in a separate step
+                         * (NEXT_STEPS PR-17). Everything that draws or
+                         * takes input here - scene window, help overlay,
+                         * key/mouse input, clocks - goes through
+                         * platform.h (T-01). */
 
 /* SDL audio for music.  IMPORTANT (dev desktop, 2026-11-14): SDL2's
  * callback delivery is corrupt on this system with EVERY backend
@@ -856,25 +863,33 @@ static void des_placement(llrs *an, const llrs_slot *arecs, unsigned narec,
     llrs_block_free(hrec2);
 }
 
-/* paint one 8bpp canvas through the palette LUT (shared present path) */
-static void paint(SDL_Renderer *ren, SDL_Texture *tex,
-                  const unsigned char *canvas, const Uint32 lut[256],
+/* paint one 8bpp canvas through the palette LUT (shared present path).
+ * The LUT stays the scene's own business (level PCX palettes AND the
+ * documented grayscale fallback for blocks without a palette donor): the
+ * CPU expands the canvas into a persistent ARGB scratch and hands the
+ * result to the platform (plat_present_argb) - pixels are exactly the
+ * ones the scene computed; the platform never sees the palette. */
+static uint32_t *s_paint_buf;
+static size_t s_paint_n;
+
+static void paint(const unsigned char *canvas, const uint32_t lut[256],
                   int w, int h)
 {
-    void *px;
-    int pitch;
-    if (SDL_LockTexture(tex, NULL, &px, &pitch) == 0) {
-        for (int y = 0; y < h; y++) {
-            Uint32 *row = (Uint32 *)((char *)px + (size_t)y * pitch);
-            const unsigned char *sp = canvas + (size_t)y * w;
-            for (int x = 0; x < w; x++)
-                row[x] = lut[sp[x]];
-        }
-        SDL_UnlockTexture(tex);
+    size_t need = (size_t)w * (size_t)h;
+    if (s_paint_n < need) {
+        uint32_t *nb = realloc(s_paint_buf, need * sizeof *nb);
+        if (!nb)
+            return;                 /* skip the frame; data work continues */
+        s_paint_buf = nb;
+        s_paint_n = need;
     }
-    SDL_RenderClear(ren);
-    SDL_RenderCopy(ren, tex, NULL, NULL);
-    SDL_RenderPresent(ren);
+    for (int y = 0; y < h; y++) {
+        uint32_t *row = s_paint_buf + (size_t)y * w;
+        const unsigned char *sp = canvas + (size_t)y * w;
+        for (int x = 0; x < w; x++)
+            row[x] = lut[sp[x]];
+    }
+    plat_present_argb(s_paint_buf, w, h);
 }
 
 /* ---------------- level help overlay (original POMOC flow) --------------
@@ -889,11 +904,10 @@ static void paint(SDL_Renderer *ren, SDL_Texture *tex,
  * trees (documented data hole) - bg palette is kept.                   */
 typedef struct { int x, y; ll_seq seq; unsigned char *blob; } help_page;
 
-static void help_pages(SDL_Renderer *ren, SDL_Texture *tex,
-                       const llrs *hd, const llrs_slot *hdrecs, unsigned nhdrec,
+static void help_pages(const llrs *hd, const llrs_slot *hdrecs, unsigned nhdrec,
                        const llrs *cd, const llrs_slot *cdrecs, unsigned ncdrec,
                        const unsigned char *bg, unsigned char *canvas,
-                       const Uint32 lut[256], int w, int h)
+                       const uint32_t lut[256], int w, int h)
 {
     const llrs_slot *mnu = NULL;
     for (unsigned k = 0; k < nhdrec; k++) {
@@ -1025,25 +1039,25 @@ static void help_pages(SDL_Renderer *ren, SDL_Texture *tex,
      * CI/headless flow and applies only when explicitly set. */
     double lim = hs ? atof(hs) : -1.0;
     int auto_close = lim >= 0.0;              /* scene timer starts after */
-    Uint64 freq = SDL_GetPerformanceFrequency();
-    Uint64 t_end = SDL_GetPerformanceCounter() +
-                   (Uint64)((auto_close ? lim : 0.0) * (double)freq);
+    uint64_t t_end = plat_now_ns() +
+                     (uint64_t)((auto_close ? lim : 0.0) * 1e9);
     int page = 0, quit = 0;
-    while (!quit && (!auto_close || SDL_GetPerformanceCounter() < t_end)) {
-        SDL_Event e;
-        while (SDL_PollEvent(&e)) {
-            if (e.type == SDL_QUIT)
+    while (!quit && (!auto_close || plat_now_ns() < t_end)) {
+        ll_event e;
+        while (plat_poll(&e)) {               /* F11/Alt+Enter are consumed
+                                               * by the backend here too */
+            if (e.type == LL_EV_QUIT)
                 quit = 2;
-            else if (e.type == SDL_MOUSEBUTTONDOWN)
+            else if (e.type == LL_EV_BUTTON_DOWN)
                 quit = 1;                     /* click closes, like a key */
-            else if (e.type == SDL_KEYDOWN) {
-                SDL_Keycode k = e.key.keysym.sym;
-                if (k == SDLK_ESCAPE)
+            else if (e.type == LL_EV_KEYDOWN) {
+                int k = e.key;                /* ASCII verbatim or LLKEY_* */
+                if (k == LLKEY_ESC)
                     quit = 1;
-                else if (k == SDLK_RIGHT || k == SDLK_RETURN ||
-                         k == SDLK_SPACE || k == SDLK_PAGEDOWN)
+                else if (k == LLKEY_RIGHT || k == LLKEY_RETURN ||
+                         k == ' ' || k == LLKEY_PGDN)
                     page = (page + 1) % np;
-                else if (k == SDLK_LEFT || k == SDLK_PAGEUP)
+                else if (k == LLKEY_LEFT || k == LLKEY_PGUP)
                     page = (page + np - 1) % np;
             }
         }
@@ -1057,7 +1071,7 @@ static void help_pages(SDL_Renderer *ren, SDL_Texture *tex,
                                  pages[page].x, pages[page].y);
                 break;
             }
-        paint(ren, tex, canvas, lut, w, h);
+        paint(canvas, lut, w, h);
         const char *hppm = getenv("LEO_HELP_PPM"); /* CI: help frame dump */
         static int hdumped = 0;
         if (hppm && !hdumped) {
@@ -1070,7 +1084,7 @@ static void help_pages(SDL_Renderer *ren, SDL_Texture *tex,
             }
             scene_ppm(hppm, w, h, canvas, pal);
         }
-        SDL_Delay(20);
+        plat_sleep_until(plat_now_ns() + 20000000ull);   /* 20 ms, as before */
     }
     for (int k = 0; k < np; k++) {
         ll_seq_free(&pages[k].seq);
@@ -1586,38 +1600,25 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     }
 
     {
-        /* P-10/T-12: shared window convention (logical viewport = the
+        /* T-01/T-12: the platform owns the window (logical viewport = the
          * scene view size cw x ch; resizable, HiDPI-ready, F11/Alt+Enter
-         * desktop-fullscreen). */
-        ll_view view;
-        SDL_Window *win = NULL;
-        SDL_Renderer *ren = NULL;
-        if (ll_view_create(&view, "Lew Leon - level scene", cw, ch) != 0) {
-            fprintf(stderr, "ll_level: no window: %s\n", SDL_GetError());
+         * desktop-fullscreen handled by the backend). */
+        if (plat_init("Lew Leon - level scene", cw, ch) < 0) {
+            fprintf(stderr, "ll_level: no window: %s\n", plat_last_error());
             goto done;
         }
-        win = view.win;
-        ren = view.ren;
-        SDL_RaiseWindow(win);
-        /* hard focus grab over the menu window that had it; Wayland
-         * ignores it, the live loop polls SDL_RaiseWindow as fallback
-         * (see ll_menu.c win_force_focus) */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-        SDL_SetWindowInputFocus(win);
-#pragma GCC diagnostic pop
-        SDL_Texture *tex = SDL_CreateTexture(
-            ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
-            cw, ch);
-        Uint32 lut[256];
+        plat_raise(); /* focus over the menu window that had it; on
+                       * Wayland the WM decides - the backend re-raises
+                       * on pointer-enter (P-04) */
+        uint32_t lut[256];
         if (!pcm_owner || img.idx)
             for (int i = 0; i < 256; i++)
-                lut[i] = 0xFF000000u | ((Uint32)img.pal[3 * i] << 16) |
-                         ((Uint32)img.pal[3 * i + 1] << 8) | img.pal[3 * i + 2];
+                lut[i] = 0xFF000000u | ((uint32_t)img.pal[3 * i] << 16) |
+                         ((uint32_t)img.pal[3 * i + 1] << 8) | img.pal[3 * i + 2];
         else
             for (int i = 0; i < 256; i++)   /* no palette donor in the block:
                                              * grayscale (documented hole) */
-                lut[i] = 0xFF000000u | 0x010101u * (Uint32)i;
+                lut[i] = 0xFF000000u | 0x010101u * (uint32_t)i;
 
         /* 5b) help overlay first, like the original POMOC flow: the HD
          *     level block's POMOC1.MNU names page art (.SEQ) that ships in
@@ -1626,7 +1627,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             llrs_slot *hrecs2 = NULL;
             unsigned nhrec2 = 0;
             if (llrs_block(&hd_ety, hblk2, &hrecs2, &nhrec2) == 0 && nhrec2)
-                help_pages(ren, tex, &hd_ety, hrecs2, nhrec2,
+                help_pages(&hd_ety, hrecs2, nhrec2,
                            &etapy, recs, nrec, base, canvas, lut,
                            cw, ch);
             llrs_block_free(hrecs2);
@@ -1648,43 +1649,41 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             }
         }
 
-        Uint64 freq = SDL_GetPerformanceFrequency();
         /* secs <= 0 = no time limit: the scene runs until ESC/q (desktop
-         * behaviour; CI pins the window with LEO_LEVEL_SECS>0). */
-        Uint64 t_end = secs > 0 ? SDL_GetPerformanceCounter() +
-                                  (Uint64)(secs * (double)freq)
-                                : 0;
-        Uint64 t_prev = SDL_GetPerformanceCounter();
-        while (!esc && (!t_end || SDL_GetPerformanceCounter() < t_end)) {
-            /* P-04: no per-tick focus poll - ll_view_handle_event
-             * below re-raises on WINDOWEVENT_ENTER only. */
-            SDL_Event e;
-            while (SDL_PollEvent(&e))
-                if (ll_view_handle_event(&e, win))
-                    ;                   /* P-10: F11 / Alt+Enter */
-                else if (e.type == SDL_QUIT ||
-                    (e.type == SDL_KEYDOWN &&
-                     (e.key.keysym.sym == SDLK_ESCAPE ||
-                      e.key.keysym.sym == SDLK_q)))
+         * behaviour; CI pins the window with LEO_LEVEL_SECS>0). All
+         * timing on the single platform clock (ns). */
+        uint64_t t_end = secs > 0 ? plat_now_ns() + (uint64_t)(secs * 1e9)
+                                  : 0;
+        uint64_t t_prev = plat_now_ns();
+        while (!esc && (!t_end || plat_now_ns() < t_end)) {
+            /* P-04: no per-tick focus poll - the backend re-raises on
+             * pointer-enter only. P-10: F11/Alt+Enter are consumed by
+             * the backend and never surface here. */
+            ll_event e;
+            while (plat_poll(&e)) {
+                if (e.type == LL_EV_QUIT ||
+                    (e.type == LL_EV_KEYDOWN &&
+                     (e.key == LLKEY_ESC || e.key == 'q')))
                     esc = 1;
-                else if (e.type == SDL_KEYDOWN && cam_max > 0) {
-                    SDL_Keycode k = e.key.keysym.sym;
-                    if (k == SDLK_LEFT)
+                else if (e.type == LL_EV_KEYDOWN && cam_max > 0) {
+                    int k = e.key;      /* ASCII verbatim or LLKEY_* */
+                    if (k == LLKEY_LEFT)
                         cam = cam > 20 ? cam - 20 : 0;
-                    else if (k == SDLK_RIGHT)
+                    else if (k == LLKEY_RIGHT)
                         cam = cam + 20 <= cam_max ? cam + 20 : cam_max;
-                    else if (k == SDLK_HOME)
+                    else if (k == LLKEY_HOME)
                         cam = 0;
-                    else if (k == SDLK_END)
+                    else if (k == LLKEY_END)
                         cam = cam_max;
-                    else if (k == SDLK_p) {
+                    else if (k == 'p') {
                         autoscroll = !autoscroll;
                         printf("ll_level: autoscroll %s\n",
                                autoscroll ? "on (50 px/s)" : "off");
                     }
                 }
-            Uint64 now = SDL_GetPerformanceCounter();
-            unsigned dt = (unsigned)((now - t_prev) * 1000 / (double)freq);
+            }
+            uint64_t now = plat_now_ns();
+            unsigned dt = (unsigned)((now - t_prev) / 1000000ull);
             t_prev = now;
             if (dt > 200)
                 dt = 200;
@@ -1704,15 +1703,14 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                     ll_seq_draw_elem(&objs[k].seq, el, canvas, cw, ch,
                                      objs[k].x - cam, objs[k].y);
             }
-            paint(ren, tex, canvas, lut, cw, ch);
+            paint(canvas, lut, cw, ch);
             ll_music_pump();
-            SDL_Delay(20);
+            plat_sleep_until(plat_now_ns() + 20000000ull);  /* 20 ms tick */
         }
         ll_music_stop();
-        if (tex)
-            SDL_DestroyTexture(tex);
-        ll_view_release(&view);   /* P-03: window stays up for the next
-                                   * screen (menu, next level, ...). */
+        /* no window teardown: P-03 keeps it up for the next screen
+         * (menu, next level, ...); the platform reuses it on the next
+         * plat_init. */
     }
     if (esc)
         printf("ll_level: ESC -> advance\n");

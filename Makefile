@@ -197,11 +197,13 @@ verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_
 
 ll_level.exe: tools/ll_level.c ported/ll_level.c ported/llrs.c ported/ll_pcx.c \
             ported/ll_pcm.c ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c \
-            ported/ll_view.c ported/ll_audio.c \
-            ported/ll_seq.h ported/ll_pcm.h ported/ll_mod.h ported/ll_config.h ported/fs_ci.h ported/ll_view.h ported/ll_audio.h
+            ported/ll_view.c ported/platform_sdl.c ported/platform_common.c \
+            ported/ll_audio.c \
+            ported/ll_seq.h ported/ll_pcm.h ported/ll_mod.h ported/ll_config.h ported/fs_ci.h ported/ll_view.h ported/ll_audio.h ported/platform.h
 	$(XC) $(XCFLAGS) $(XLD) -o $@ tools/ll_level.c ported/ll_level.c \
 	    ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c ported/ll_seq.c ported/ll_mod.c \
-	    ported/fs_ci.c ported/ll_view.c ported/ll_audio.c $(XLIBS)
+	    ported/fs_ci.c ported/ll_view.c ported/platform_sdl.c \
+	    ported/platform_common.c ported/ll_audio.c $(XLIBS)
 
 # ported/ll_pcm.c byte-for-byte agreement with tools/verify_pcm.py on every
 # PCM parallax layer payload in ETAPY (byte-RLE plane, stride = w+80).
@@ -243,10 +245,12 @@ pcm_selftest.exe: tools/pcm_selftest.c ported/ll_pcm.c ported/ll_pcm.h
 # HD-install .MOV state machines (LEO_HD_DIR=<dir with ANIMACJE/ETAPY>).
 ll_level: tools/ll_level.c ported/ll_level.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c \
         ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c ported/ll_view.c ported/ll_audio.c \
-        ported/ll_seq.h ported/ll_pcm.h ported/ll_mod.h ported/ll_config.h ported/fs_ci.h ported/ll_view.h ported/ll_audio.h
+        ported/platform_sdl.c ported/platform_common.c \
+        ported/ll_seq.h ported/ll_pcm.h ported/ll_mod.h ported/ll_config.h ported/fs_ci.h ported/ll_view.h ported/ll_audio.h ported/platform.h
 	$(CC) -O2 -std=gnu11 -Wall -Wextra -Iported $(CFLAGS) -o $@ \
 	    tools/ll_level.c ported/ll_level.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c \
-	    ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c ported/ll_view.c ported/ll_audio.c $(LIBS)
+	    ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c ported/ll_view.c ported/ll_audio.c \
+	    ported/platform_sdl.c ported/platform_common.c $(LIBS)
 
 ll_save: tools/ll_save.c ported/ll_save.c ported/ll_save.h ported/fs_ci.c
 	$(CC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ tools/ll_save.c \

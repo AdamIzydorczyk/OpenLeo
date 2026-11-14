@@ -40,10 +40,10 @@
 #include <stdio.h>
 
 /* Engine-level input (T-01). Backend-agnostic: the SDL backend maps
- * SDL keyboard/quit events here (printable keys pass through as their
- * ASCII code; the special keys the engine uses get LLKEY_* ids), the
- * dummy backend injects scripted events for tests. `x,y` are logical
- * viewport coords (currently unused by the engine, kept for mouse). */
+ * SDL keyboard/mouse/quit events here (printable keys pass through as
+ * their ASCII code; special keys get LLKEY_* ids; mouse x,y arrive in
+ * LOGICAL viewport coordinates - the backend already un-scaled them,
+ * P-10), the dummy backend injects scripted events for tests. */
 typedef struct {
     int type;
     int key;
@@ -54,13 +54,26 @@ enum {
     LL_EV_NONE = 0,
     LL_EV_KEYDOWN,
     LL_EV_KEYUP,
-    LL_EV_QUIT
+    LL_EV_QUIT,
+    LL_EV_BUTTON_DOWN,   /* mouse press; `key` = LLBTN_* */
+    LL_EV_MOTION         /* mouse move; x,y updated */
+};
+
+/* Mouse buttons the engine handles (only the primary today; the menu
+ * hit-tests zones with the left button, matching the original). */
+enum {
+    LLBTN_LEFT = 1
 };
 
 /* Non-printable keys the engine handles (printable keys are just their
- * ASCII code in ll_event.key). Values are engine-defined, NOT SDL keysyms. */
+ * ASCII code in ll_event.key, including space 0x20). Values are
+ * engine-defined, NOT SDL keysyms (T-15 keeps the keycode-based model:
+ * arrows/Enter/etc. navigate menus in every backend). */
 enum {
-    LLKEY_ESC = 1
+    LLKEY_ESC = 1,
+    LLKEY_UP, LLKEY_DOWN, LLKEY_LEFT, LLKEY_RIGHT,
+    LLKEY_RETURN,          /* Return AND keypad Enter */
+    LLKEY_HOME, LLKEY_END, LLKEY_PGUP, LLKEY_PGDN
 };
 
 /* Bring the platform up for content of this title/size. 0 = ok, -1 =
@@ -72,6 +85,19 @@ int plat_init(const char *title, int w, int h);
  * bytes, pal is 768 raw 6-bit triples; the backend expands + blits. */
 void plat_present(const uint8_t *idx8, const uint8_t pal[768], int w,
                   int h);
+
+/* Present one ARGB8888 frame: fb is w*h little-endian 0xAARRGGBB
+ * pixels. This is the NATIVE form of the compositing screens (the
+ * chapter map composites PCX + .SEQ sprites + text on the CPU into
+ * exactly this buffer); the backend just uploads and flips, no
+ * conversion, so pixels are unchanged by definition. */
+void plat_present_argb(const uint32_t *fb, int w, int h);
+
+/* Ask the window manager for focus (dialog/screen re-entry). On
+ * X11/XWayland this is a hard input grab, on Wayland the WM decides -
+ * callers must therefore keep pointer/keyboard handling tolerant.
+ * No-op when no window exists. */
+void plat_raise(void);
 
 /* Pop the next engine event into *ev. Returns 1 if an event was filled,
  * 0 when the queue is empty. Window-management shortcuts the engine must

@@ -40,7 +40,8 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
 
 /* Hot-zone answer buttons (restart-confirm dialog): a zone is bound to
  * an anim tag; clicking the sprite's painted rect (canvas px, union over
- * frames) or pressing `key` (SDL_Keycode as int, 0 = none) returns `ret`
+ * frames) or pressing `key` (printable key, ASCII code, 0 = none) returns
+ * `ret`
  * (negative, e.g. -10/-11/-12) instead of an item index.  The original
  * hit-testing came from the missing .MNU scripts, so these rects are the
  * sprite bboxes at the authored origins (reconstruction, PLAN 8b).
@@ -73,7 +74,7 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
 typedef struct {
     const char *tag;   /* ll_menu_anim.tag this zone covers */
     int ret;           /* value returned when the zone fires */
-    int key;           /* SDL_Keycode (int) or 0 */
+    int key;           /* printable key (ASCII) or 0 */
     int dflt;          /* non-zero = this zone is selected on open */
 } ll_menu_zone;
 int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,

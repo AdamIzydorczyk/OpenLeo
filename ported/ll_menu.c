@@ -1,17 +1,21 @@
-/* ll_pcx-style present path (palette LUT into locked ARGB8888 texture).
- * Menu text: built-in 8x8 bitmap font (ASCII 32..126), drawn as 1px white;
- * cursor '>' in gold. Optional .SEQ overlay animations (ll_seq_patch_draw
- * into an 8bpp index canvas over the PCX indices, then one palette LUT).
- * Fixed pacing: event-driven with SDL_Delay, no busy loop. See ll_menu.h. */
+/* The menu composites its ENTIRE frame on the CPU (PCX decode + palette
+ * LUT, .SEQ sprite overlays, 8x8 bitmap font, cursor '>') into one
+ * ARGB8888 buffer and hands it to the platform (platform.h, T-01):
+ * plat_present_argb uploads exactly those pixels, unchanged. Input
+ * arrives as ll_events - keys verbatim ASCII / LLKEY_*, mouse in
+ * logical canvas coords (the P-10 /sc math stays deleted). This file
+ * contains no SDL.
+ * Fixed pacing: event-driven with the platform sleep, no busy loop.
+ * See ll_menu.h. */
 #include "ll_menu.h"
 #include "fs_ci.h"
 #include "ll_menu_dac.h"
 #include "ll_pcx.h"
 #include "ll_seq.h"
 #include "ll_level.h"
-#include "ll_view.h"
+#include "platform.h"
 
-#include <SDL2/SDL.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -117,8 +121,8 @@ static const unsigned char FONT[95][8] = {
     {0x30,0x18,0x0C,0x00,0x00,0x00,0x00,0x00}, /* '~' approx */
 };
 
-static void draw_glyph(Uint32 *fb, int w, int h, int x, int y, char c,
-                       Uint32 col)
+static void draw_glyph(uint32_t *fb, int w, int h, int x, int y, char c,
+                       uint32_t col)
 {
     if (c < 32 || c > 126)
         c = '?';
@@ -132,16 +136,16 @@ static void draw_glyph(Uint32 *fb, int w, int h, int x, int y, char c,
             }
 }
 
-static void draw_text(Uint32 *fb, int w, int h, int x, int y, const char *s,
-                      Uint32 col)
+static void draw_text(uint32_t *fb, int w, int h, int x, int y, const char *s,
+                      uint32_t col)
 {
     for (; *s; s++, x += 8)
         draw_glyph(fb, w, h, x, y, *s, col);
 }
 
 /* 1-px outline (hover highlight on map zones/islands/corners) */
-static void draw_rect(Uint32 *fb, int w, int h, int x0, int y0, int x1,
-                      int y1, Uint32 col)
+static void draw_rect(uint32_t *fb, int w, int h, int x0, int y0, int x1,
+                      int y1, uint32_t col)
 {
     for (int x = x0; x < x1; x++)
         for (int y = y0; y < y1; y++)
@@ -152,8 +156,8 @@ static void draw_rect(Uint32 *fb, int w, int h, int x0, int y0, int x1,
 
 /* solid horizontal line (answer-word selection/hover underline: a box
  * over the cursive words covered them, an under-line never does) */
-static void draw_hline(Uint32 *fb, int w, int h, int x0, int x1, int y,
-                       Uint32 col)
+static void draw_hline(uint32_t *fb, int w, int h, int x0, int x1, int y,
+                       uint32_t col)
 {
     if (y < 0 || y >= h)
         return;
@@ -162,16 +166,12 @@ static void draw_hline(Uint32 *fb, int w, int h, int x0, int x1, int y,
             fb[(size_t)y * w + x] = col;
 }
 
-/* X11/XWayland hard focus grab.  SDL2 marks this deprecated (SDL3
- * replaces it) but it is still the only forced-focus call on X11/XWayland;
- * the pure Wayland backend ignores it entirely, hence the per-tick
- * SDL_RaiseWindow poll in the wait loops as fallback. */
-static void win_force_focus(SDL_Window *w)
+/* Menu timing is millisecond-based on purpose (30 ms redraw ticks,
+ * LEO_MENU_SECS deadlines); derive it from the ONE platform clock so
+ * there is a single time source (T-07 pattern). */
+static uint64_t now_ms(void)
 {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    SDL_SetWindowInputFocus(w);
-#pragma GCC diagnostic pop
+    return plat_now_ns() / 1000000ull;
 }
 
 static void menu_anims_free(ll_seq *aseq, int nanims)
@@ -325,7 +325,7 @@ static int menu_tint_idle_build(const ll_seq *s, unsigned char *map)
 }
 
 /* CI hook: dump the composed RGB frame as PPM (P6) */
-static int ppm_fb(const char *path, const Uint32 *fb, int w, int h)
+static int ppm_fb(const char *path, const uint32_t *fb, int w, int h)
 {
     FILE *f = ll_fopen_ci(path, "wb");
     if (!f)
@@ -401,36 +401,21 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         }
     }
 
-    /* P-10/T-12: shared window convention (logical viewport = content
-     * size; mouse events arrive in logical coords, so the old /sc math
-     * is gone below). */
-    ll_view view;
-    if (ll_view_create(&view, "Lew Leon - menu", W, H) != 0) {
+    /* T-01/T-12: the platform owns the window; the logical viewport is
+     * the content size, so mouse events arrive in canvas coordinates
+     * (the old /sc math stays deleted). */
+    if (plat_init("Lew Leon - menu", W, H) < 0) {
         menu_anims_free(aseq, nanims);
         ll_pcx_free(&bg);
         return -2;
     }
-    SDL_Window *win = view.win;
-    SDL_Renderer *ren = view.ren;
-    SDL_RaiseWindow(win); /* dialog re-entry: make sure the WM gives focus */
-    win_force_focus(win);  /* X11/XWayland hard grab; Wayland ignores it
-                             * (the per-tick focus poll is the fallback) */
-    SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
-                                         SDL_TEXTUREACCESS_STREAMING, W, H);
-    if (!ren || !tex) {
-        ll_view_release(&view);
-        menu_anims_free(aseq, nanims);
-        ll_pcx_free(&bg);
-        return -2;
-    }
+    plat_raise(); /* dialog re-entry: ask the WM for focus */
 
-    Uint32 *fb = (Uint32 *)malloc((size_t)W * H * sizeof *fb);
+    uint32_t *fb = (uint32_t *)malloc((size_t)W * H * sizeof *fb);
     unsigned char *cv = malloc((size_t)W * H);
     if (!fb || !cv) {
         free(fb);
         free(cv);
-        SDL_DestroyTexture(tex);
-        ll_view_release(&view);
         menu_anims_free(aseq, nanims);
         ll_pcx_free(&bg);
         return -2;
@@ -519,7 +504,7 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
 
     /* CI hook: LEO_MENU_SECS=N shows the menu N seconds then auto-quits */
     const char *sece = getenv("LEO_MENU_SECS");
-    Uint64 t_deadline = sece ? SDL_GetTicks64() + 1000 * (Uint64)atof(sece) : 0;
+    uint64_t t_deadline = sece ? now_ms() + 1000 * (uint64_t)atof(sece) : 0;
     while (!quit) {
         if (tick == 0 && nz) {      /* CI: LEO_MENU_PICK fires a zone key */
             const char *pk = getenv("LEO_MENU_PICK");
@@ -565,7 +550,7 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                 if (!aseq[a].els)
                     continue;
                 unsigned per = anims[a].period_ms ? anims[a].period_ms : 100;
-                unsigned fr = (unsigned)((Uint64)tick * 30 / per)
+                unsigned fr = (unsigned)((uint64_t)tick * 30 / per)
                               % aseq[a].count;
                 const unsigned char *m = NULL;
                 if (anim_zone && anim_zone[a] >= 0) {
@@ -584,24 +569,24 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                 ll_seq_draw_elem_map(&aseq[a], e, cv, W, H,
                                      -SX(e->f0), -SX(e->f2), m);
             }
-            Uint32 lut[256];
+            uint32_t lut[256];
             for (int i = 0; i < 256; i++)
-                lut[i] = 0xFF000000u | ((Uint32)bg.pal[3 * i] << 16)
-                         | ((Uint32)bg.pal[3 * i + 1] << 8)
-                         | (Uint32)bg.pal[3 * i + 2];
+                lut[i] = 0xFF000000u | ((uint32_t)bg.pal[3 * i] << 16)
+                         | ((uint32_t)bg.pal[3 * i + 1] << 8)
+                         | (uint32_t)bg.pal[3 * i + 2];
             for (int i = 0; i < W * H; i++)
                 fb[i] = lut[cv[i]];
         } else {
             for (int i = 0; i < W * H;
                  i++) /* dark vertical gradient - simple but intentional */
-                fb[i] = 0xFF000000u | (Uint32)(20 + (i / W) / 8);
+                fb[i] = 0xFF000000u | (uint32_t)(20 + (i / W) / 8);
         }
 
         /* CI hook: LEO_MENU_PPM=PATH dumps the composited frame (bg +
          * .SEQ sprites + menu text) once at that tick. */
         /* windowed list: long lists (level select has 14 entries) scroll
          * a 10-row window centred on the selection instead of overflowing
-         * (named list_rows: `win` is the SDL_Window*) */
+         * (named list_rows to avoid shadowing any window variable) */
         int list_rows = nitems > 10 ? 10 : nitems;
         int top = 0;
         if (nitems > list_rows) {
@@ -655,40 +640,28 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
             }
         }
 
-        void *px;
-        int pitch;
-        if (SDL_LockTexture(tex, NULL, &px, &pitch) == 0) {
-            for (int y = 0; y < H; y++)
-                memcpy((char *)px + (size_t)y * pitch,
-                       fb + (size_t)y * W, (size_t)W * 4);
-            SDL_UnlockTexture(tex);
-        }
-        SDL_RenderClear(ren);
-        SDL_RenderCopy(ren, tex, NULL, NULL);
-        SDL_RenderPresent(ren);
+        plat_present_argb(fb, W, H);
 
-        SDL_Event e;
-        Uint64 t_next = SDL_GetTicks64() + 30;
+        ll_event e;
+        uint64_t t_next = now_ms() + 30;
         while (!quit) {
-            /* P-04: no per-tick focus poll - ll_view_handle_event
-             * below re-raises on WINDOWEVENT_ENTER only. */
-            if (t_deadline && SDL_GetTicks64() >= t_deadline) {
+            /* P-04: no per-tick focus poll - the platform re-raises on
+             * pointer-enter only. */
+            if (t_deadline && now_ms() >= t_deadline) {
                 printf("menu: LEO_MENU_SECS expired (auto-quit)\n");
                 quit = 1;
                 ret = -3;
                 break;
             }
-            while (SDL_PollEvent(&e)) {
-                if (ll_view_handle_event(&e, win))
-                    continue;           /* P-10: F11 / Alt+Enter */
-                if (e.type == SDL_QUIT) {
+            while (plat_poll(&e)) {
+                if (e.type == LL_EV_QUIT) {
                     quit = 1;
                     ret = -2;
-                } else if (e.type == SDL_MOUSEBUTTONDOWN
-                           && e.button.button == SDL_BUTTON_LEFT) {
-                    /* logical viewport: SDL already maps window pixels to
-                     * canvas coords (P-10; the old /sc is gone) */
-                    int mx = e.button.x, my = e.button.y;
+                } else if (e.type == LL_EV_BUTTON_DOWN) {
+                    /* logical viewport: the platform already maps window
+                     * pixels to canvas coords (P-10; the old /sc is gone);
+                     * only the left button is surfaced (LLBTN_LEFT) */
+                    int mx = e.x, my = e.y;
                     for (int j = 0; j < list_rows; j++) {
                         int ry = y0 + 12 * j;
                         if (my >= ry - 2 && my < ry + 10 && mx >= x0 - 14) {
@@ -708,8 +681,8 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                                 quit = 1;
                                 break;
                             }
-                } else if (e.type == SDL_MOUSEMOTION) {
-                    int mx = e.motion.x, my = e.motion.y; /* logical coords */
+                } else if (e.type == LL_EV_MOTION) {
+                    int mx = e.x, my = e.y; /* logical coords */
                     hov_r = -1;
                     for (int j = 0; j < list_rows; j++) {
                         int ry = y0 + 12 * j;
@@ -726,11 +699,11 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                             hov_z = zi;
                             break;
                         }
-                } else if (e.type == SDL_KEYDOWN) {
-                    SDL_Keycode k = e.key.keysym.sym;
+                } else if (e.type == LL_EV_KEYDOWN) {
+                    int k = e.key;      /* ASCII verbatim or LLKEY_* */
                     int zhit = 0;
                     for (int zi = 0; zi < nz; zi++)
-                        if (zones[zi].key && k == (SDL_Keycode)zones[zi].key) {
+                        if (zones[zi].key && k == (int)zones[zi].key) {
                             ret = zones[zi].ret;
                             quit = 1;
                             zhit = 1;
@@ -746,9 +719,9 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                      * cycle (user request); UP/DOWN ride the same
                      * cycle so existing lists keep working. */
                     int ncyc = nz + nitems;
-                    if ((k == SDLK_RIGHT || k == SDLK_LEFT || k == SDLK_UP
-                         || k == SDLK_DOWN) && ncyc > 0) {
-                        int step = (k == SDLK_RIGHT || k == SDLK_DOWN)
+                    if ((k == LLKEY_RIGHT || k == LLKEY_LEFT
+                         || k == LLKEY_UP || k == LLKEY_DOWN) && ncyc > 0) {
+                        int step = (k == LLKEY_RIGHT || k == LLKEY_DOWN)
                                        ? 1 : ncyc - 1;
                         int vi = zsel >= 0 ? zsel : nz + sel;
                         vi = (vi + step) % ncyc;
@@ -760,8 +733,9 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                             zsel = -1;
                             sel = vi - nz;
                         }
-                    } else if (k == SDLK_RETURN || k == SDLK_KP_ENTER
-                               || k == SDLK_SPACE) {
+                    } else if (k == LLKEY_RETURN || k == ' ') {
+                        /* Return, keypad Enter (folded by the backend)
+                         * and space all confirm, like the original */
                         quit = 1;
                         if (zsel >= 0) {
                             printf("menu: confirm zone %s\n",
@@ -769,23 +743,23 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                             ret = zones[zsel].ret;
                         } else
                             ret = sel;
-                    } else if (k == SDLK_ESCAPE) {
+                    } else if (k == LLKEY_ESC) {
                         /* E-06: ESC = cancel (-1), never "pick the
                          * highlighted row" - in the LEVELS list that used
                          * to LAUNCH a level. Callers treat -1 like (BACK). */
                         quit = 1;
                         ret = -1;
                         printf("menu: ESC -> cancel\n");
-                    } else if (k == SDLK_q) {
+                    } else if (k == 'q') {
                         quit = 1;
                         ret = -2;
                     }
                 }
             }
-            Sint64 left = (Sint64)(t_next - SDL_GetTicks64());
-            ll_music_pump();   /* submenu music rides the SDL queue */
+            int64_t left = (int64_t)(t_next - now_ms());
+            ll_music_pump();   /* submenu music rides the audio queue */
             if (left > 0)
-                SDL_Delay((Uint32)left);
+                plat_sleep_until(plat_now_ns() + (uint64_t)left * 1000000ull);
             else
                 break;
         }
@@ -797,8 +771,6 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
     free(tint);
     free(tint_idle);
     menu_anims_free(aseq, nanims);
-    SDL_DestroyTexture(tex);
-    ll_view_release(&view);
     ll_pcx_free(&bg);
     return ret;
 }
@@ -821,7 +793,7 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
 
 /* 1x 8x8 glyph at logical scale (originals are .SEQ sprites/art; this is
  * our documented placeholder font, same space, half the 640-space size) */
-static void draw_glyph1(Uint32 *fb, int x, int y, char c, Uint32 col)
+static void draw_glyph1(uint32_t *fb, int x, int y, char c, uint32_t col)
 {
     if (c < 32 || c > 126)
         c = '?';
@@ -835,13 +807,13 @@ static void draw_glyph1(Uint32 *fb, int x, int y, char c, Uint32 col)
             }
 }
 
-static void draw_text1(Uint32 *fb, int x, int y, const char *s, Uint32 col)
+static void draw_text1(uint32_t *fb, int x, int y, const char *s, uint32_t col)
 {
     for (; *s; s++, x += 8)
         draw_glyph1(fb, x, y, *s, col);
 }
 
-static void draw_text1_r(Uint32 *fb, int xr, int y, const char *s, Uint32 col)
+static void draw_text1_r(uint32_t *fb, int xr, int y, const char *s, uint32_t col)
 {
     int n = 0;
     for (const char *p = s; *p; p++)
@@ -849,7 +821,7 @@ static void draw_text1_r(Uint32 *fb, int xr, int y, const char *s, Uint32 col)
     draw_text1(fb, xr - 8 * n, y, s, col);
 }
 
-static Uint32 menu_lut(int i)
+static uint32_t menu_lut(int i)
 {
     /* Real menu DAC recovered from the original's VGA state (capture +
      * QEMU xp dump; see ll_menu_dac.h provenance). Same index space the
@@ -860,7 +832,7 @@ static Uint32 menu_lut(int i)
 }
 
 /* bg on the logical canvas; chs anchors are 640-space, halved here */
-static void map_bg(Uint32 *fb, const ll_menu_ch *chs, int nchs)
+static void map_bg(uint32_t *fb, const ll_menu_ch *chs, int nchs)
 {
     /* Placeholder for the globe+islands art (a CD data hole, PLAN 8b),
      * but using the REAL menu DAC tones recovered from the original
@@ -868,8 +840,8 @@ static void map_bg(Uint32 *fb, const ll_menu_ch *chs, int nchs)
      * sparkles, green/sand island blobs at the measured anchors. */
     for (int y = 0; y < MAP_LH; y++) {
         int t = y * 255 / (MAP_LH - 1);
-        Uint32 a = ll_menu_dac[102], b = ll_menu_dac[46];
-        Uint32 c = 0xFF000000u
+        uint32_t a = ll_menu_dac[102], b = ll_menu_dac[46];
+        uint32_t c = 0xFF000000u
                    | ((((a >> 16 & 255) * (255 - t) + (b >> 16 & 255) * t)
                        / 255) << 16)
                    | ((((a >> 8 & 255) * (255 - t) + (b >> 8 & 255) * t)
@@ -904,7 +876,7 @@ static void map_bg(Uint32 *fb, const ll_menu_ch *chs, int nchs)
                 int px = cx + x, py = cy + y;
                 if (px < 0 || px >= MAP_LW || py < 0 || py >= MAP_LH)
                     continue;
-                Uint32 c = y < -rh / 3 ? ll_menu_dac[22] : ll_menu_dac[199];
+                uint32_t c = y < -rh / 3 ? ll_menu_dac[22] : ll_menu_dac[199];
                 if (y > rh - (rh / 4 + 1))
                     c = ll_menu_dac[107];  /* waterline */
                 fb[py * MAP_LW + px] = c;
@@ -937,41 +909,31 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         }
     }
 
-    /* P-10/T-12: shared convention; the map's logical viewport IS the
-     * 640x400 display frame (island/corner coords already live in it,
-     * so the click/hover math stays 1:1). */
-    ll_view view;
-    if (ll_view_create(&view, "Lew Leon - chapter map", MAP_W, MAP_H) != 0) {
+    /* T-01/T-12: the platform owns the window; the map's logical
+     * viewport IS the 640x400 display frame (island/corner coords
+     * already live in it, so the click/hover math stays 1:1). */
+    if (plat_init("Lew Leon - chapter map", MAP_W, MAP_H) < 0) {
         menu_anims_free(aseq, nanims);
         return -2;
     }
-    SDL_Window *win = view.win;
-    SDL_Renderer *ren = view.ren;
-    SDL_RaiseWindow(win); /* dialog re-entry: make sure the WM gives focus */
-    win_force_focus(win); /* see ll_menu_open_ex: hard focus grab on
-                             * X11/XWayland */
-    SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
-                                         SDL_TEXTUREACCESS_STREAMING,
-                                         MAP_W, MAP_H);
-    Uint32 *fb = (Uint32 *)malloc((size_t)MAP_LW * MAP_LH * sizeof *fb);
+    plat_raise(); /* dialog re-entry: ask the WM for focus */
+    uint32_t *fb = (uint32_t *)malloc((size_t)MAP_LW * MAP_LH * sizeof *fb);
     unsigned char *cv = malloc((size_t)MAP_LW * MAP_LH);
-    Uint32 *disp = (Uint32 *)malloc((size_t)MAP_W * MAP_H * sizeof *disp);
-    if (!ren || !tex || !fb || !cv || !disp) {
+    uint32_t *disp = (uint32_t *)malloc((size_t)MAP_W * MAP_H * sizeof *disp);
+    if (!fb || !cv || !disp) {
         free(fb);
         free(cv);
         free(disp);
-        if (tex) SDL_DestroyTexture(tex);
-        ll_view_release(&view);
         menu_anims_free(aseq, nanims);
         return -2;
     }
 
-    Uint32 pal[256];
+    uint32_t pal[256];
     for (int i = 0; i < 256; i++)
         pal[i] = menu_lut(i);
 
     map_bg(fb, chs, nchs);              /* background is static */
-    Uint32 *base = malloc((size_t)MAP_LW * MAP_LH * sizeof *base);
+    uint32_t *base = malloc((size_t)MAP_LW * MAP_LH * sizeof *base);
     if (base)
         memcpy(base, fb, (size_t)MAP_LW * MAP_LH * sizeof *base);
 
@@ -979,7 +941,7 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
     int hov = -1;            /* island idx or corner code (-2/-4/-5/-6) */
     unsigned tick = 0;
     const char *sece = getenv("LEO_MENU_SECS");
-    Uint64 t_deadline = sece ? SDL_GetTicks64() + 1000 * (Uint64)atof(sece) : 0;
+    uint64_t t_deadline = sece ? now_ms() + 1000 * (uint64_t)atof(sece) : 0;
     while (!quit) {
         if (base)
             memcpy(fb, base, (size_t)MAP_LW * MAP_LH * sizeof *base);
@@ -996,7 +958,7 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                 if (!aseq[a].els)
                     continue;
                 unsigned per = anims[a].period_ms ? anims[a].period_ms : 100;
-                unsigned fr = (unsigned)((Uint64)tick * 30 / per)
+                unsigned fr = (unsigned)((uint64_t)tick * 30 / per)
                               % aseq[a].count;
                 const ll_seq_elem *e = &aseq[a].els[fr];
                 int x = anims[a].x, y = anims[a].y;
@@ -1024,9 +986,9 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         /* presentation = the original's 2x2 CRTC doubling of the logical
          * canvas (VRAM capture: even-aligned block equality 1.000) */
         for (int y = 0; y < MAP_LH; y++) {
-            Uint32 *d0 = disp + (size_t)(2 * y) * MAP_W;
-            Uint32 *d1 = d0 + MAP_W;
-            const Uint32 *s = fb + (size_t)y * MAP_LW;
+            uint32_t *d0 = disp + (size_t)(2 * y) * MAP_W;
+            uint32_t *d1 = d0 + MAP_W;
+            const uint32_t *s = fb + (size_t)y * MAP_LW;
             for (int x = 0; x < MAP_LW; x++) {
                 d0[2 * x] = s[x];
                 d0[2 * x + 1] = s[x];
@@ -1065,24 +1027,14 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
             draw_rect(disp, MAP_W, MAP_H, 2, MAP_H - 52, 140, MAP_H - 2,
                       0xFFFFFF00u);
 
-        void *px;
-        int pitch;
-        if (SDL_LockTexture(tex, NULL, &px, &pitch) == 0) {
-            for (int y = 0; y < MAP_H; y++)
-                memcpy((char *)px + (size_t)y * pitch,
-                       disp + (size_t)y * MAP_W, (size_t)MAP_W * 4);
-            SDL_UnlockTexture(tex);
-        }
-        SDL_RenderClear(ren);
-        SDL_RenderCopy(ren, tex, NULL, NULL);
-        SDL_RenderPresent(ren);
+        plat_present_argb(disp, MAP_W, MAP_H);
 
-        SDL_Event e;
-        Uint64 t_next = SDL_GetTicks64() + 30;
+        ll_event e;
+        uint64_t t_next = now_ms() + 30;
         while (!quit) {
-            /* P-04: no per-tick focus poll - ll_view_handle_event
-             * below re-raises on WINDOWEVENT_ENTER only. */
-            if (t_deadline && SDL_GetTicks64() >= t_deadline) {
+            /* P-04: no per-tick focus poll - the platform re-raises on
+             * pointer-enter only. */
+            if (t_deadline && now_ms() >= t_deadline) {
                 printf("map: LEO_MENU_SECS expired (auto-quit)\n");
                 quit = 1;
                 ret = -3;
@@ -1111,18 +1063,15 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                     }
                 }
             }
-            while (SDL_PollEvent(&e)) {
-                if (ll_view_handle_event(&e, win))
-                    continue;           /* P-10: F11 / Alt+Enter */
-                if (e.type == SDL_QUIT) {
+            while (plat_poll(&e)) {
+                if (e.type == LL_EV_QUIT) {
                     quit = 1;
                     ret = -2;
-                } else if (e.type == SDL_MOUSEBUTTONDOWN
-                           && e.button.button == SDL_BUTTON_LEFT) {
+                } else if (e.type == LL_EV_BUTTON_DOWN) {
                     /* logical viewport = the 640x400 display frame, and
                      * island coords (chs[].ix/iy/rw/rh) live in that same
                      * space, so events map 1:1 */
-                    int mx = e.button.x, my = e.button.y;
+                    int mx = e.x, my = e.y;
                     if (mx < 130 && my < 26) {          /* WYJSCIE */
                         printf("map: click WYJSCIE\n");
                         quit = 1;
@@ -1153,11 +1102,11 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                             }
                         }
                     }
-                } else if (e.type == SDL_MOUSEMOTION) {
+                } else if (e.type == LL_EV_MOTION) {
                     /* hover feedback (user: mouse did nothing until the
                      * click): outline the corner word / island under the
                      * pointer; window is 1:1 (MAP_W x MAP_H) */
-                    int mx = e.motion.x, my = e.motion.y;
+                    int mx = e.x, my = e.y;
                     hov = -1;
                     if (mx < 130 && my < 26)
                         hov = -2;                     /* WYJSCIE    */
@@ -1176,39 +1125,38 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                                 hov = i;
                                 break;
                             }
-                } else if (e.type == SDL_KEYDOWN) {
-                    SDL_Keycode k = e.key.keysym.sym;
-                    if (k == SDLK_UP || k == SDLK_LEFT)
+                } else if (e.type == LL_EV_KEYDOWN) {
+                    int k = e.key;      /* ASCII verbatim or LLKEY_* */
+                    if (k == LLKEY_UP || k == LLKEY_LEFT)
                         sel = (sel + nchs - 1) % nchs;
-                    else if (k == SDLK_DOWN || k == SDLK_RIGHT)
+                    else if (k == LLKEY_DOWN || k == LLKEY_RIGHT)
                         sel = (sel + 1) % nchs;
-                    else if (k == SDLK_RETURN || k == SDLK_KP_ENTER
-                             || k == SDLK_SPACE) {
+                    else if (k == LLKEY_RETURN || k == ' ') {
                         quit = 1;
                         ret = sel;
-                    } else if (k == SDLK_ESCAPE || k == SDLK_q) {
+                    } else if (k == LLKEY_ESC || k == 'q') {
                         printf("map: wyjście\n");
                         quit = 1;
                         ret = -2;
-                    } else if (k == SDLK_a) {
+                    } else if (k == 'a') {
                         printf("map: autorzy\n");
                         quit = 1;
                         ret = -4;
-                    } else if (k == SDLK_o) {
+                    } else if (k == 'o') {
                         printf("map: opcje\n");
                         quit = 1;
                         ret = -5;
-                    } else if (k == SDLK_r) {
+                    } else if (k == 'r') {
                         printf("map: restart\n");
                         quit = 1;
                         ret = -6;
                     }
                 }
             }
-            Sint64 left = (Sint64)(t_next - SDL_GetTicks64());
+            int64_t left = (int64_t)(t_next - now_ms());
             ll_music_pump();
             if (left > 0)
-                SDL_Delay((Uint32)left);
+                plat_sleep_until(plat_now_ns() + (uint64_t)left * 1000000ull);
             else
                 break;
         }
@@ -1219,7 +1167,5 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
     free(cv);
     free(disp);
     menu_anims_free(aseq, nanims);
-    SDL_DestroyTexture(tex);
-    ll_view_release(&view);
     return ret;
 }

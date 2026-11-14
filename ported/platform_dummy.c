@@ -42,6 +42,18 @@ void plat_present(const uint8_t *idx8, const uint8_t pal[768], int w, int h)
     d.presented++;
 }
 
+void plat_present_argb(const uint32_t *fb, int w, int h)
+{
+    if (!fb || w <= 0 || h <= 0)
+        return;
+    d.presented++;
+}
+
+void plat_raise(void)
+{
+    /* no window to raise; must simply be safe to call */
+}
+
 int plat_poll(ll_event *ev)
 {
     if (!ev || d.qh == d.qt)

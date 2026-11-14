@@ -77,19 +77,29 @@ int main(int argc, char **argv)
           plat_audio_open(44100, 2) == 0 && plat_audio_queued_bytes() == 0);
     plat_audio_close();
 
-    /* ---- engine-level input contract ---- */
+    /* ---- engine-level input contract (keys + mouse) ---- */
     ll_event e;
     check("empty queue -> poll returns 0", plat_poll(&e) == 0);
-    ll_event kd = { LL_EV_KEYDOWN, 42, -1, -1 };
-    ll_event qt = { LL_EV_QUIT, 0, 0, 0 };
+    ll_event kd = { LL_EV_KEYDOWN, LLKEY_RETURN, -1, -1 };
+    ll_event bt = { LL_EV_BUTTON_DOWN, LLBTN_LEFT, 142, 97 };
+    ll_event mo = { LL_EV_MOTION, 0, 260, 31 };
+    ll_event qt = { LL_EV_QUIT, 0, -1, -1 };
     plat_dummy_inject(&kd);
+    plat_dummy_inject(&bt);
+    plat_dummy_inject(&mo);
     plat_dummy_inject(&qt);
-    ll_event got1, got2;
-    check("poll delivers injected events in order",
-          plat_poll(&got1) == 1 && got1.type == LL_EV_KEYDOWN &&
-          got1.key == 42 &&
-          plat_poll(&got2) == 1 && got2.type == LL_EV_QUIT);
+    ll_event g1, g2, g3, g4;
+    check("poll delivers injected events in order (incl. mouse coords)",
+          plat_poll(&g1) == 1 && g1.type == LL_EV_KEYDOWN &&
+          g1.key == LLKEY_RETURN &&
+          plat_poll(&g2) == 1 && g2.type == LL_EV_BUTTON_DOWN &&
+          g2.key == LLBTN_LEFT && g2.x == 142 && g2.y == 97 &&
+          plat_poll(&g3) == 1 && g3.type == LL_EV_MOTION &&
+          g3.x == 260 && g3.y == 31 &&
+          plat_poll(&g4) == 1 && g4.type == LL_EV_QUIT);
     check("queue drains -> poll returns 0", plat_poll(&e) == 0);
+    plat_raise();                              /* must not crash */
+    check("plat_raise is safe headless", 1);
 
     /* ---- decode -> present, with no display (the headline test) ---- */
     is_stream s;
@@ -104,8 +114,9 @@ int main(int argc, char **argv)
           plat_init("headless-selftest", s.w, s.h) == 0);
     check("plat_last_error is usable (never NULL)",
           plat_last_error() != NULL);
+    unsigned pbase = plat_dummy_presented();
     is_decode_all(&s, present_frames, NULL, 5);        /* cap 5 frames */
-    unsigned reached = plat_dummy_presented();
+    unsigned reached = plat_dummy_presented() - pbase;
     check("frames flowed through plat_present headlessly",
           reached >= 3 && reached == presented_cb_count);
     char m[128];
@@ -113,6 +124,15 @@ int main(int argc, char **argv)
              reached, s.w, s.h);
     printf("platform_selftest: %s (ok)\n", m);
     is_close(&s);
+
+    /* ---- ARGB compositing sink (the menu/level native form) ---- */
+    static uint32_t argb[64u * 48u];
+    unsigned abase = plat_dummy_presented();
+    plat_present_argb(argb, 64, 48);
+    check("argb present accepted", plat_dummy_presented() == abase + 1);
+    plat_present_argb(NULL, 64, 48);
+    plat_present_argb(argb, 0, 48);
+    check("invalid argb ignored", plat_dummy_presented() == abase + 1);
 
     /* ---- plat_fopen delegates to the fs_ci opener (T-18) ---- */
     FILE *f = plat_fopen(is, "rb");

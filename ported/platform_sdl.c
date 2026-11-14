@@ -93,47 +93,112 @@ void plat_present(const uint8_t *idx8, const uint8_t pal[768], int w, int h)
     SDL_RenderPresent(v.view.ren);
 }
 
+void plat_present_argb(const uint32_t *fb, int w, int h)
+{
+    if (!v.tex || !fb || w != v.tex_w || h != v.tex_h)
+        return;                 /* caller must plat_init() for this size */
+    /* Row-for-row upload of the already-composited frame (verbatim the
+     * old ll_menu/ll_level upload loop): no conversion, so the pixels
+     * shown are exactly the ones the screen computed (its PPM hooks
+     * read the very same fb). */
+    void *px;
+    int pitch;
+    if (SDL_LockTexture(v.tex, NULL, &px, &pitch) == 0) {
+        for (int y = 0; y < h; y++)
+            memcpy((char *)px + (size_t)y * pitch,
+                   (const char *)fb + (size_t)y * w * 4, (size_t)w * 4);
+        SDL_UnlockTexture(v.tex);
+    }
+    SDL_RenderClear(v.view.ren);
+    SDL_RenderCopy(v.view.ren, v.tex, NULL, NULL);
+    SDL_RenderPresent(v.view.ren);
+}
+
+void plat_raise(void)
+{
+    if (!v.view.win)
+        return;
+    SDL_RaiseWindow(v.view.win);
+    /* X11/XWayland hard input grab; the pure Wayland backend ignores
+     * it (WM decides) - callers keep input handling tolerant (P-04). */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    SDL_SetWindowInputFocus(v.view.win);
+#pragma GCC diagnostic pop
+}
+
+/* SDL keysym -> engine key id (T-15: printables stay ASCII verbatim,
+ * navigation keys get LLKEY_* ids, everything else is not for the
+ * engine). Returns 0 for "ignore". */
+static int map_key(SDL_Keycode k)
+{
+    if (k >= 32 && k < 127)
+        return (int)k;
+    switch (k) {
+    case SDLK_ESCAPE:                     return LLKEY_ESC;
+    case SDLK_RETURN: case SDLK_KP_ENTER: return LLKEY_RETURN;
+    case SDLK_UP:                         return LLKEY_UP;
+    case SDLK_DOWN:                       return LLKEY_DOWN;
+    case SDLK_LEFT:                       return LLKEY_LEFT;
+    case SDLK_RIGHT:                      return LLKEY_RIGHT;
+    case SDLK_HOME:                       return LLKEY_HOME;
+    case SDLK_END:                        return LLKEY_END;
+    case SDLK_PAGEUP:                     return LLKEY_PGUP;
+    case SDLK_PAGEDOWN:                   return LLKEY_PGDN;
+    default:                              return 0;
+    }
+}
+
+static void qpush(const ll_event *o)
+{
+    unsigned n = (unsigned)(sizeof v.q / sizeof v.q[0]);
+    unsigned next = (v.qt + 1) % n;
+    if (next == v.qh)
+        return;                 /* 64 deep: far more than one frame */
+    v.q[v.qt] = *o;
+    v.qt = next;
+}
+
 int plat_poll(ll_event *ev)
 {
     if (!ev)
         return 0;
     if (v.qh == v.qt) {
-        /* Translate one SDL event at a time (same pacing as the old
-         * per-screen SDL_PollEvent loops). */
+        /* Translate SDL events until one maps to an engine event (same
+         * per-frame drain contract as the old screens' SDL_PollEvent
+         * loops). Window-management keys (F11/Alt+Enter, P-10) and
+         * focus policy (P-04) are consumed by ll_view_handle_event and
+         * never surfaced. Mouse x,y pass through as LOGICAL viewport
+         * coordinates: SDL already un-scaled them for us (P-10). */
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
-            /* Window-management keys (F11/Alt+Enter fullscreen, P-10)
-             * and focus policy (P-04) are consumed here and never
-             * reach the engine. */
             if (ll_view_handle_event(&e, v.view.win))
                 continue;
+            ll_event o = { LL_EV_NONE, 0, -1, -1 };
             if (e.type == SDL_QUIT) {
-                ll_event o = { LL_EV_QUIT, 0, 0, 0 };
-                if (((v.qt + 1) % (sizeof v.q / sizeof v.q[0])) == v.qh)
-                    return 0;     /* ring full: retry after consumer drains */
-                v.q[v.qt++] = o;
-                v.qt %= (sizeof v.q / sizeof v.q[0]);
-                break;
+                o.type = LL_EV_QUIT;
+            } else if (e.type == SDL_KEYDOWN) {
+                o.key = map_key(e.key.keysym.sym);
+                if (!o.key)
+                    continue;
+                o.type = LL_EV_KEYDOWN;
+            } else if (e.type == SDL_MOUSEBUTTONDOWN
+                       && e.button.button == SDL_BUTTON_LEFT) {
+                o.type = LL_EV_BUTTON_DOWN;
+                o.key = LLBTN_LEFT;
+                o.x = e.button.x;
+                o.y = e.button.y;
+            } else if (e.type == SDL_MOUSEMOTION) {
+                o.type = LL_EV_MOTION;
+                o.x = e.motion.x;
+                o.y = e.motion.y;
+            } else {
+                /* key-up and everything else: the engine input model
+                 * is press-based (T-15), exactly like the old pumps. */
+                continue;
             }
-            if (e.type == SDL_KEYDOWN) {
-                SDL_Keycode k = e.key.keysym.sym;
-                int mapped = 0;
-                if (k >= 32 && k < 127)
-                    mapped = (int)k;       /* printable: ASCII verbatim */
-                else if (k == SDLK_ESCAPE)
-                    mapped = LLKEY_ESC;
-                if (!mapped)
-                    continue;              /* engine ignores other keys */
-                ll_event o = { LL_EV_KEYDOWN, mapped, 0, 0 };
-                if (((v.qt + 1) % (sizeof v.q / sizeof v.q[0])) == v.qh)
-                    return 0;
-                v.q[v.qt++] = o;
-                v.qt %= (sizeof v.q / sizeof v.q[0]);
-                break;
-            }
-            /* key-up and all other event types are dropped: the engine
-             * input model is keypress-based (T-15), exactly like the
-             * old per-screen loops that only checked KEYDOWN/QUIT. */
+            qpush(&o);
+            break;
         }
     }
     if (v.qh == v.qt)

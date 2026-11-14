@@ -4,7 +4,7 @@ Working plan derived from `OpenLeo_native_port_review.md` (P/E/M) and
 `OpenLeo_porting_tips.md` (T). Update the status lines here as items
 land; the review/tips files stay as the detailed work orders.
 
-## Status as of 2026-11-14 (through PR-15, all pushed)
+## Status as of 2026-11-14 (through PR-16, all pushed)
 
 Done and verified green (full `make verify-all` incl. wine parity):
 
@@ -107,7 +107,31 @@ Done and verified green (full `make verify-all` incl. wine parity):
   ASan/UBSan chain zero app leaks, REAL X11+audio smoke with XTEST
   keys: q->quit(q), ESC->skip@35, space->pause froze the LEO_IS_WAV
   feed exactly for the hold then resumed 125/125. menu/map/level
-  still drive ll_view/ll_audio directly (their migration = later PR).  (this commit)
+  still drive ll_view/ll_audio directly (their migration = later PR).  (5634649)
+- PR-16 T-01 phase 3 (screens): title menu, chapter map and level
+  scene migrated off direct ll_view/SDL onto plat_* — ll_menu.c is
+  now SDL-FREE (cpp proves 0 SDL headers in its TU), ll_level.c keeps
+  SDL ONLY for the music service (documented at its include; moving
+  that = PR-17). Interface grew: LL_EV_BUTTON_DOWN/MOTION with x,y in
+  LOGICAL viewport coords (backend un-scales, P-10), LLBTN_LEFT,
+  LLKEY_UP/DOWN/LEFT/RIGHT/RETURN(KP_ENTER folded)/HOME/END/PGUP/
+  PGDN (printables incl. space stay ASCII); plat_present_argb(fb,w,h)
+  = the native form of these compositing screens (upload as-is, zero
+  conversion); plat_raise() replaces every win_force_focus /
+  RaiseWindow+SetWindowInputFocus pair. ll_level's paint() keeps the
+  scene's own LUT (PCX palette AND the documented gray fallback) and
+  expands into a persistent ARGB scratch — the platform never sees a
+  palette, so the PPM/help/scene pins are untouched by construction.
+  Menu timing derives from the ONE plat clock (local now_ms helper).
+  ll_view/ll_audio are now backend-private except for that music
+  exception. Verified: full verify-all 36 after make clean (incl.
+  help-render oracle px-count, scene-canvas fnv, linux==wine PPM
+  byte-exact), platform_selftest 24 (added mouse round-trip, argb
+  accounting, raise safety), ASan/UBSan clean on the glob build +
+  demo chain + level tool, and a REAL-session X11 smoke: island
+  CLICK launches chapter -> IS -> ESC skip -> level p/ESC -> map q,
+  rc 0 (synthetic core Button events under XI2-off; kwin owns the
+  Wayland-side pointer so XTEST hit-testing is unavailable there).  (this commit)
 
 Known-clean baselines: ASan/UBSan on demo chain + all 22 MODs = app
 leaks 0 (SDL backend internals only); CI pins are format-only for MOD
@@ -218,7 +242,9 @@ to plat_poll + plat_present(indexed fb) + plat_now_ns/sleep_until,
 retiring direct SDL in engine code. That migration touches the byte-
 exact PPM/menu/sel pins, so it lands behind those same oracle checks;
 the dummy backend already gives a second consumer to catch divergence.
-DONE for the player in PR-15 (next section); title/map/level remain.
+DONE for the player in PR-15, DONE for title/map/level in PR-16;
+ll_view/ll_audio are backend-private now, with the music service the
+single remaining direct user (PR-17 candidate).
 
 ## PR-15 — SDL backend + player migration (DONE, phase 2 of T-01)
 
@@ -254,13 +280,51 @@ finished 125/125 (pause shifts the clock, never rewinds - P-02).
 
 Next T-01 step (unchanged plan): migrate title menu / chapter map /
 level scene the same way; they are the last direct ll_view/ll_audio
-users in engine code.
+users in engine code. DONE in PR-16 (next section).
+
+## PR-16 — remaining screens (DONE, phase 3 of T-01)
+
+The three compositing screens (title dialog, chapter map, level
+scene+help overlay) draw by building their frame on the CPU, so the
+right interface call for them is plat_present_argb: the buffer they
+just composited is uploaded verbatim (no palette, no conversion) —
+which is exactly why their PPM pins could not shift. The menu's
+mouse zones work through new LL_EV_BUTTON_DOWN/LL_EV_MOTION events;
+x,y are LOGICAL viewport coordinates (the backend maps them, P-10 —
+the /sc math stays deleted). Key handling went from SDL keysyms to
+engine ids: printables (incl. space) pass through as ASCII — so the
+ll_menu_zone.key contract (ASCII chars) is untouched — plus
+LLKEY_UP/DOWN/LEFT/RIGHT/RETURN/HOME/END/PGUP/PGDN for navigation.
+ll_level's paint() deliberately KEPT its LUT indirection (level
+palettes come from the tlo= PCX, and some blocks have NO palette
+donor: the documented gray-ramp fallback lives there); it expands
+canvas+LUT into a persistent ARGB scratch and hands that over. The
+music service (ll_mod + ll_audio pump thread) is NOT a screen and
+was left on the SDL audio queue on purpose — one subsystem per PR;
+that split is documented at ll_level.c's include (PR-17 would move
+it behind plat_audio_* too, at which point ll_view/ll_audio go
+fully backend-private).
+
+Real-session proof (X11/Xwayland, :0): XTEST keys work as before;
+the pointer is NOT testable there (kwin owns the Wayland-side
+pointer, XTEST warps get overridden — measured), so xtest_click.c
+sends synthetic core ButtonPress/Release with client coords with
+SDL_VIDEO_X11_XINPUT2=0 (SDL's classic path processes them; past
+SDL_PumpEvents the code path is identical to a device click). The
+chain that passed: island click at (188,132) -> "map: island 0
+launch (click)" -> chapter .IS -> ESC -> "skipping 385 chunks" ->
+level "KADMAR2" -> p -> "autoscroll on" -> ESC -> "ESC -> advance"
+-> back to map -> q -> "map: wyjście" -> exit rc 0. All five
+migrated input surfaces in one run.
 
 ## Next — pick from the Deferred list below
 
-Nothing queued: every review item that was scoped as "worth fixing
-soon" has landed. Next round = Deferred (big architecture) or the
-user's call (T-11 4:3 aspect default, T-22 AppImage).
+Nothing queued from the review's "worth fixing" set: all of it has
+landed. Open candidates: PR-17 (music service behind plat_audio_* +
+a portable thread, see PR-16 note — the last direct-SDL engine code),
+Deferred big architecture items, or the user's call (T-11 4:3 aspect
+default, T-22 AppImage, T-24 golden-master — needs the original
+LEO.EXE path).
 
 ## Deferred big items (deliberately out of scope so far)
 
@@ -272,11 +336,12 @@ user's call (T-11 4:3 aspect default, T-22 AppImage).
   users report issues).
 - E-08/T-14 palette codec fidelity (frozen: pixel output must not
   change).
-- T-01 platform abstraction - phases 1+2 DONE (PR-14 interface +
-  headless backend; PR-15 SDL backend + cutscene-player migration).
-  Remaining: migrate the title menu / chapter map / level scene to
-  plat_poll/plat_present (same pattern, behind the PPM/grep oracle
-  pins), then ll_view/ll_audio become backend-private.
+- T-01 platform abstraction - DONE (PR-14 interface + headless
+  backend; PR-15 SDL backend + player; PR-16 title/menu/level
+  screens). The only remaining direct SDL user in engine code is
+  the music service (ll_mod/ll_audio pump thread) — a follow-up PR
+  can put it behind plat_audio_* like the player's audio already
+  is; ll_view/ll_audio are backend-private otherwise.
 - T-03 config knobs cleanup, T-04 globals,
   T-05/T-06 fixed-step timing + precise sleep, T-07 clock ownership,
   T-16 Polish text, T-17 save/config separation (STATUS.LEO codec
