@@ -43,6 +43,8 @@ pcm_selftest
 pcm_selftest.exe
 ll_level
 ll_level.exe
+ll_save
+ll_save.exe
 mod_selftest
 mod_selftest.exe
 *.o
