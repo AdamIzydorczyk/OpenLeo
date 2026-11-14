@@ -206,6 +206,13 @@ int is_player_run(const char *path, int audio, unsigned start_frame)
             break;
         }
     }
+    if (p.dev && !(p.quit && p.quit_reason && p.quit_reason[0] == 'e')) {
+        /* natural finish: let queued audio drain (bounded) */
+        while (SDL_GetQueuedAudioSize(p.dev) > 0 && !p.quit) {
+            pump_input(&p);
+            SDL_Delay(50);
+        }
+    }
     if (p.quit && p.quit_reason && p.quit_reason[0] == 'e') {
         /* ESC skip: drop pending audio, hold the last frame like the
          * original does when the intro is interrupted (M3 replaces the
@@ -217,14 +224,18 @@ int is_player_run(const char *path, int audio, unsigned start_frame)
         SDL_SetWindowTitle(p.win, "Lew Leon - cutscene skipped (q = quit)");
         printf("is_player: cutscene skipped, window held (q quits)\n");
         fflush(stdout);
+    }
+    if (!p.quit) {
+        /* natural finish too: hold final frame until q / window close,
+         * so playback never vanishes on its own */
+        if (!p.idle) {
+            p.idle = 1;
+            SDL_SetWindowTitle(p.win,
+                               "Lew Leon - cutscene ended (q = quit)");
+        }
         while (!p.quit) {
             pump_input(&p);
             SDL_Delay(30);
-        }
-    } else if (p.dev) { /* let queued audio drain (bounded) */
-        while (SDL_GetQueuedAudioSize(p.dev) > 0 && !p.quit) {
-            pump_input(&p);
-            SDL_Delay(50);
         }
     }
     printf("is_player: presented=%u decoded=%u quit=%d (%s)\n", p.presented,
