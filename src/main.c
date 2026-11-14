@@ -17,6 +17,7 @@
 #include "ll_level.h"
 #include "ll_menu.h"
 #include "ll_pcx.h"
+#include "ll_save.h"
 #include "llrs.h"
 #include "platform_sdl/is_player.h"
 
@@ -415,6 +416,22 @@ int main(int argc, char **argv)
                 demo_data = argv[++i];
         } else {
             file = argv[i];
+        }
+    }
+
+    /* LEO_SAVE=<path>: load + decode the original STATUS.LEO savegame at
+     * boot (read-only proof of byte-compatible loading; see ll_save.h.
+     * Field semantics await a paired QEMU capture, so nothing is written
+     * back: the original save sites are indirect vtable dispatches). */
+    {
+        const char *sv = getenv("LEO_SAVE");
+        if (sv && *sv) {
+            ll_status st;
+            if (ll_status_load(sv, &st) == 0)
+                ll_status_dump(&st, sv);
+            else
+                printf("ll_save: %s not loadable (need exactly %d B)\n",
+                       sv, LL_STATUS_WORDS * 4);
         }
     }
 

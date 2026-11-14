@@ -153,8 +153,18 @@ Error strings found in EXE: Watcom runtime + custom: `Blad zakresu w ...::check 
      address of DAT_000c3fdc. .IS chunk payloads are streamed from the CD, so
      their bytes are generally NOT resident — searching RAM for file bytes is a
      dead end.
-- `STATUS.LEO`: 300 bytes, values `0x77XXXXXX` = tagged/delta pointers into DSEG; reverse against save/load functions in EXE.
-- `LONGSOFT.CFG`: 273 bytes, mostly zero; write path is in SETUP/CONFIG.EXE (16-bit) — parse with TDR/RATUNKU CONFIG.EXE strings.
+- `STATUS.LEO`: 300 B SOLVED 2026-11-15 (see 8f): 75 LE dwords, NOT
+  pointers - each of three 21-word blocks stores ONE byte per dword:
+  stored = (j|0x77072400) ^ (var|(j&0xffffff00)), j = index WITHIN block;
+  reader keeps only (stored ^ j) & 0xff. High bits = variable-derived
+  noise. Field semantics still want a paired QEMU capture (two shipped
+  copies differ only in word63 DAT_000a94f0: 4 vs 5).
+- `LONGSOFT.CFG`: 273 bytes, mostly zero; byte 0 = ASCII data-drive
+  letter (FUN_0005bf10: DAT_000cf2be -> DAT_000cf254 = byte0-0x40,
+  prefixes the ":\leo\" path sprintf at FUN_00047a70). Rest of header
+  raw (SB port/IRQ/DMA-looking bytes 2-13 = hypothesis, unconfirmed);
+  write path is in SETUP/CONFIG.EXE (16-bit). Blob round-trip in
+  src/ll_save.c is byte-exact.
 
 ## 4. Engine subsystems to reproduce (from strings + data)
 
@@ -909,6 +919,47 @@ Related RE (deferred features, documented data situation):
   this CD; .MOV SFX commands are smp2=/smp3=/smpauto=/smpprior=/
   smp_loop=/smp_stop= + debug `sample = %d` (strings @0x82884-0x828e9).
   WAV payloads exist in SOUND but the mapping file is a hole.
+
+## 8f. Saves: STATUS.LEO + LONGSOFT.CFG (delivered 2026-11-15)
+
+Byte-compatible codec `src/ll_save.c/.h` + CLI `tools/ll_save.c`
+(`make ll_save`, `ll_save.exe`), in-game read peek via `LEO_SAVE=<path>`
+(dumps decoded blocks at boot; nothing written back - the original
+save/load sites are indirect vtable dispatches, findcall shows no direct
+callers of FUN_0005dae0/0x5dcc0/0x5bf10).
+
+STATUS.LEO grammar, re-pinned exactly from FUN_0005dae0 (reader) /
+FUN_0005dcc0 (writer); open modes rb/w+b (strings @0x8369d/0x836a0),
+name string "status.leo" @0x9a8a4: 75 LE u32 words, three 21-word
+blocks A(state A)/B(base+0x54)/C(DAT_000cf46c) each encoded per slot
+`stored = (j|0x77072400) ^ (var | (j&0xffffff00))` with j = index
+WITHIN the block (0..20); the reader keeps only `(stored ^ j) & 0xff`
+=> each dword carries ONE byte of a game variable, upper bits are
+variable-derived noise never read. word63 -> DAT_000a94f0, word64 ->
+DAT_000cf464 (both `((stored ^ 0x77072400)>>8)&0xff`), words 65..74
+plain. The earlier "0x77XXXXXX tagged DSEG pointers" reading was wrong -
+it is byte-per-dword obfuscation (0x770724xx noise prefix). Shipped
+saves decode: A = B = [0,12..31], C = zeros, plain = [128,200,1,0x7].
+The two on-disk copies (repo-root vs hd_files) differ ONLY in word63
+(4 vs 5): DAT_000a94f0 is a progress-ish counter - first taste of field
+semantics; full map still needs a paired QEMU capture (fresh-menu vs
+mid-level saves). save() echoes raw words verbatim => load/save round
+trip is byte-identical (CI `verify-save`: cmp + decode greps; wine twin
+ll_save.exe byte-exact; SKIPs cleanly when the user-supplied originals
+are absent - they are never in git).
+
+LONGSOFT.CFG: exact 273 B; only field pinned in LEO.EXE is byte 0 =
+ASCII data-drive letter (FUN_0005bf10: first stream byte -> DAT_000cf2be,
+DAT_000cf254 = that - 0x40; drives the ":\leo\" sprintf FUN_00047a70,
+cf. 6 baseline env fix). Bytes 2-13 look like Sound Blaster setup
+(0x0220 port, IRQ 7, DMA 1 pattern - HYPOTHESIS, unconfirmed; writer is
+16-bit SETUP/CONFIG.EXE, not RE'd). C codec round-trips the blob
+byte-exact; ll_cfg_set_drive mirrors tools/cfg_ll.py (patch a COPY,
+originals untouched - hd_files copy carries 'D', original 'H').
+
+Closes the M5 "saves" box (load + byte-compatible rewrite + field
+decode); remaining save tasks are semantics-only: paired QEMU capture
+for the A/B byte map, then real save-at-exit wiring in ll_level.
 
 ## 9. Legal/ethical
 Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.

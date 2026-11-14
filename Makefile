@@ -10,10 +10,10 @@ PYREF    ?= tools/is_decode.py
 
 SRC      := src/main.c src/is_stream.c src/platform_sdl/is_player.c \
             src/llrs.c src/ll_pcx.c src/ll_menu.c src/ll_level.c src/ll_seq.c \
-            src/ll_pcm.c src/ll_mod.c
+            src/ll_pcm.c src/ll_mod.c src/ll_save.c
 HDRS     := src/ll_config.h src/is_stream.h src/platform_sdl/is_player.h \
             src/llrs.h src/ll_pcx.h src/ll_menu.h src/ll_level.h src/ll_seq.h \
-            src/ll_pcm.h src/ll_mod.h
+            src/ll_pcm.h src/ll_mod.h src/ll_save.h
 
 # ---------------- native Linux ----------------
 CC       ?= gcc
@@ -66,7 +66,7 @@ verify-skip: ll_cutscene
 # Same two proofs for the Windows .exe, run under wine.
 # Z: = wine drive mapped to /, so $(DATA) is addressed as Z:$(DATA).
 WINEPREFIX ?= /tmp/opencode/wineprefix
-verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_selftest.exe seq_patchdump.exe pcm_selftest.exe
+verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_selftest.exe seq_patchdump.exe pcm_selftest.exe mod_selftest.exe ll_save.exe
 	WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	  wine ./ll_cutscene.exe Z:$(DATA)/INTRO_P.IS --ppm 1020 \
 	  Z:/tmp/opencode/c_win.ppm
@@ -169,6 +169,18 @@ verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_
 	  >/dev/null 2>&1 || true
 	@cmp /tmp/opencode/ran_lv.ppm /tmp/opencode/ran_wv.ppm \
 	  && echo "win PCM level canvas == linux (byte-exact parallax view)"
+	@if [ -f $(HD)/STATUS.LEO ]; then \
+	  ./ll_save status $(HD)/STATUS.LEO --roundtrip /tmp/opencode/st_l.bin \
+	    >/dev/null 2>&1 || true; \
+	  wine ll_save.exe status Z:$(HD)/STATUS.LEO \
+	    --roundtrip Z:/tmp/opencode/st_w.bin \
+	    > /tmp/opencode/wsave.log 2>&1 || true; \
+	  cmp /tmp/opencode/st_l.bin /tmp/opencode/st_w.bin \
+	    && tr -d '\r' < /tmp/opencode/wsave.log \
+	       | grep -q 'plain\[65..74\]: 128 200 1 0 0 0 0 0 0 0' \
+	    && cmp /tmp/opencode/st_w.bin $(HD)/STATUS.LEO \
+	    && echo "win save codec == linux, byte-exact round-trip under wine (ok)"; \
+	else echo "verify-win save twin: SKIP (no $(HD)/STATUS.LEO)"; fi
 
 ll_level.exe: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c \
             src/ll_pcm.c src/ll_seq.c src/ll_mod.c \
@@ -220,6 +232,14 @@ ll_level: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_pcm.c \
 	$(CC) -O2 -std=gnu11 -Wall -Wextra -Isrc $(CFLAGS) -o $@ \
 	    tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_pcm.c \
 	    src/ll_seq.c src/ll_mod.c $(LIBS)
+
+ll_save: tools/ll_save.c src/ll_save.c src/ll_save.h
+	$(CC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ tools/ll_save.c \
+	    src/ll_save.c
+
+ll_save.exe: tools/ll_save.c src/ll_save.c src/ll_save.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ tools/ll_save.c \
+	    src/ll_save.c
 
 level: ll_level
 	./ll_level $(DATA) $(LEVEL) $(ARGS)
@@ -424,15 +444,41 @@ verify-sel: ll_cutscene
 	then echo "level select: MAPKA submenu + mapka.mod + TUNGA2.12 open (hooked, ok)"; \
 	else echo "level select FAILED (rc=$$rc)"; cat /tmp/opencode/sel_chain.log; exit 1; fi
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel
+# STATUS.LEO savegame + LONGSOFT.CFG codec (src/ll_save.c, FUN_0005dae0/
+# FUN_0005dcc0 grammar): byte-exact round-trips of the shipped files.
+# Originals are user-supplied and NEVER in git: the check SKIPs if absent.
+HD       ?= /tmp/opencode/hd_files
+verify-save: ll_save
+	@if [ ! -f $(HD)/STATUS.LEO ] || [ ! -f $(HD)/LONGSOFT.CFG ]; then \
+	  echo "verify-save: SKIP (no $(HD)/STATUS.LEO / LONGSOFT.CFG)"; exit 0; fi
+	@./ll_save status $(HD)/STATUS.LEO --roundtrip /tmp/opencode/st_rt.bin \
+	  > /tmp/opencode/save_dump.log 2>&1 && cmp $(HD)/STATUS.LEO \
+	  /tmp/opencode/st_rt.bin \
+	  && grep -q 'block A: 0 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31' \
+	      /tmp/opencode/save_dump.log \
+	  && grep -q 'word63(DAT_000a94f0)=5 word64(DAT_000cf464)=0' \
+	      /tmp/opencode/save_dump.log \
+	  && grep -q 'plain\[65..74\]: 128 200 1 0 0 0 0 0 0 0' \
+	      /tmp/opencode/save_dump.log \
+	  && echo "STATUS.LEO: decode + byte-exact round-trip of shipped save (ok)" \
+	  || { echo "STATUS.LEO save round-trip FAILED"; cat /tmp/opencode/save_dump.log; exit 1; }
+	@./ll_save cfg $(HD)/LONGSOFT.CFG --out /tmp/opencode/cfg_rt.CFG \
+	  > /tmp/opencode/cfg_dump.log 2>&1 \
+	  && cmp $(HD)/LONGSOFT.CFG /tmp/opencode/cfg_rt.CFG \
+	  && grep -q "drive='D'" /tmp/opencode/cfg_dump.log \
+	  && echo "LONGSOFT.CFG: 273 B blob round-trip + drive byte0 pinned (ok)" \
+	  || { echo "LONGSOFT.CFG round-trip FAILED"; cat /tmp/opencode/cfg_dump.log; exit 1; }
+
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
 	rm -f ll_cutscene ll_cutscene.exe llrs_selftest llrs_selftest.exe \
 	      pcx_selftest pcx_selftest.exe seq_selftest seq_selftest.exe \
 	      seq_patchdump seq_patchdump.exe pcm_selftest pcm_selftest.exe \
-	      mod_selftest mod_selftest.exe ll_level ll_level.exe *.o *.obj
+	      mod_selftest mod_selftest.exe ll_level ll_level.exe \
+	      ll_save ll_save.exe *.o *.obj
 
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
         verify-seq verify-pcm verify-mod verify-level verify-help verify-menu \
-        verify-sel verify-all level clean
+        verify-sel verify-save verify-all level clean

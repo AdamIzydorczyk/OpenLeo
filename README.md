@@ -55,7 +55,14 @@ make verify-all
 # verify-llrs  src/llrs.c == tools/llrs_unpack.py on all 4 containers
 # verify-pcx   src/ll_pcx.c == tools/pcx_dump.py on all 6 container PCX payloads
 # verify-seq   src/ll_seq.c == tools/seq_parse.py on all 172 container .SEQ payloads
-# verify-menu  hooked demo chain: cutscene -> skip -> menu -> level intro
+# verify-pcm   src/ll_pcm.c == tools/verify_pcm.py on every PCM parallax layer
+# verify-mod   MOD music renderer: deterministic render linux == wine
+# verify-level level scene: .DES wiring + .SEQ/.MOV anims + scroll camera
+# verify-help  help overlay: POMOC pages == python oracle
+# verify-menu  hooked demo chain: cutscene -> skip -> menu -> restart dialog
+# verify-sel   LEVELS/MAPKA submenu + mapka.mod
+# verify-save  STATUS.LEO/LONGSOFT.CFG byte-exact round-trip (skips when
+#              the user-supplied originals are absent; never in git)
 ```
 
 CI hooks used by verify-menu (env): `LEO_DEMO_SKIP_FRAMES` (auto-skip demo
