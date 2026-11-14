@@ -616,5 +616,39 @@ or --no-audio disables. `mod_selftest FILE.MOD [MS] [OUT.WAV]` renders
 audible WAVs for listening. MAPKA.MOD is 6CHN and probably not real
 music (menu map ambience?) - not in the CI set, still parses.
 
+## 8e. MAPKA level-select screen (delivered 2026-11-14)
+
+Engine RE (ModFns.java / CallersOf.java): FUN_0005dec0 = map-screen
+entry; it loads "mapka.mod" (string @0xa98b0, `MOV EDX` + play-mod
+helper) and is called from 0x5e4b7/0x5e958 (the MAPKA submenu region);
+FUN_0005df20 = stop-music, called from all 13 exit paths of that region.
+So the original plays mapka.mod ONLY during level select - our LEVELS
+submenu mirrors that (ll_music_play/ll_music_stop singleton in
+src/ll_level.c).
+
+- Level list = top-level id==2 blocks of ETAPY in container order; the
+  CD carries 14: KADMAR2, KADMAR.07, TUNGA2.12, SADES.06, ZARIA.01,
+  ENA2, JUNCTION, RAN.01, CHEATS, ZARIA.02, KARA.07, LONA.05, TUNGA.11,
+  ENA.03 (ll_level_names()).
+- MAPKA screen ART is a data hole: no MAPKA.* payload exists in
+  ANIMACJE/ETAPY/SOUND/LEVELDES (CD or HD tree) -> submenu reuses
+  ll_menu with NULL background + "(BACK)" sentinel (ESC == Enter in
+  ll_menu, so a real back item is required). ll_menu now windows lists
+  >10 rows (10-row scroll window + ^/v markers) so 14 levels fit 320x200.
+- CI: make verify-sel - LEO_MENU_AUTO=2 + LEO_LEVELSEL_AUTO=N auto-picks
+  the submenu and level N-1; greps LEVELS pick + 'll_music: playing
+  MAPKA.MOD' + level pick + TUNGA2.DES wiring.
+
+Related RE (deferred features, documented data situation):
+- Death songs are per-lion-class strings in the actor-class tables
+  (@0x81700-0x82400): TLewRan->ran1.mod, TLewKara->karade.mod,
+  TLewZaria->looser.mod, TLewEna->ena2ed.mod, TLewKadmar1->kadmdead.mod,
+  +k2dead/sadesdea/lonade/deatd.mod, paired with A_DEAD states. Cannot
+  fire yet: no player lion exists in demo levels (no A_DEAD reachable).
+- SFX: `.des sample=sound.des` (logical-name -> WAV map) is absent from
+  this CD; .MOV SFX commands are smp2=/smp3=/smpauto=/smpprior=/
+  smp_loop=/smp_stop= + debug `sample = %d` (strings @0x82884-0x828e9).
+  WAV payloads exist in SOUND but the mapping file is a hole.
+
 ## 9. Legal/ethical
 Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.

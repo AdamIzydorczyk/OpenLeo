@@ -338,7 +338,19 @@ verify-mod: mod_selftest mod_selftest.exe
 	  { echo "MOD $$M FAILED"; cat /tmp/opencode/mod_$${M}_l.txt /tmp/opencode/mod_$${M}_w.txt 2>/dev/null; exit 1; }; \
 	done
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu
+verify-sel: ll_cutscene
+	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=5 LEO_SKIP_USER=1 LEO_MENU_AUTO=2 \
+	    LEO_LEVELSEL_AUTO=3 LEO_LEVEL_SECS=1 timeout 120 \
+	    ./ll_cutscene --demo $(DATA) > /tmp/opencode/sel_chain.log 2>&1; \
+	rc=$$?; \
+	if [ $$rc -eq 0 ] && grep -q 'menu: LEO_MENU_AUTO -> picked item 1' /tmp/opencode/sel_chain.log \
+	   && grep -q 'll_music: playing MAPKA.MOD' /tmp/opencode/sel_chain.log \
+	   && grep -q 'LEO_LEVELSEL_AUTO -> picked level 2' /tmp/opencode/sel_chain.log \
+	   && grep -q 'TUNGA2.DES wiring' /tmp/opencode/sel_chain.log; \
+	then echo "level select: MAPKA submenu + mapka.mod + TUNGA2.12 open (hooked, ok)"; \
+	else echo "level select FAILED (rc=$$rc)"; cat /tmp/opencode/sel_chain.log; exit 1; fi
+
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
@@ -349,4 +361,4 @@ clean:
 
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
         verify-seq verify-pcm verify-mod verify-level verify-help verify-menu \
-        verify-all level clean
+        verify-sel verify-all level clean

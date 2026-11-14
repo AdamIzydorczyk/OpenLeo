@@ -39,6 +39,95 @@ static void mod_sdlcb(void *ud, Uint8 *stream, int len)
     ll_mod_mix((ll_mod_state *)ud, (int16_t *)stream,
                (size_t)len / (2 * sizeof(int16_t)));
 }
+
+/* ---- standalone music playback (menu/map screens), singleton ---- *
+ * Engine anchor: FUN_0005dec0 opens+plays "mapka.mod" for the MAPKA
+ * (level-select) screen; FUN_0005df20 stops it on every exit path.
+ * Same SOUND container + ll_mod player as the level path. */
+static llrs s_mus_snd;
+static unsigned char *s_mus_img;
+static ll_mod s_mus;
+static ll_mod_state s_mst;
+static SDL_AudioDeviceID s_mus_dev;
+static int s_mus_snd_open;
+
+int ll_music_play(const char *data_dir, const char *modname)
+{
+    if (getenv("LEO_NO_MUSIC"))
+        return 1;
+    ll_music_stop();
+    char p[4096];
+    snprintf(p, sizeof p, "%s/SOUND", data_dir);
+    if (llrs_open(&s_mus_snd, p) != 0)
+        return 1;
+    s_mus_snd_open = 1;
+    const llrs_slot *sl = llrs_find(&s_mus_snd, modname);
+    long n = sl ? llrs_read(&s_mus_snd, sl, &s_mus_img) : -1;
+    char err[96] = "";
+    if (n <= 0 || ll_mod_open(&s_mus, s_mus_img, (size_t)n, err,
+                              sizeof err) != 0) {
+        printf("ll_music: %s: %s\n", modname, err[0] ? err : "missing");
+        ll_music_stop();
+        return 1;
+    }
+    ll_mod_start(&s_mst, &s_mus);
+    if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
+        ll_music_stop();
+        return 1;
+    }
+    SDL_AudioSpec want, have;
+    memset(&want, 0, sizeof want);
+    want.freq = LL_MOD_RATE;
+    want.format = AUDIO_S16SYS;
+    want.channels = 2;
+    want.samples = 1024;
+    want.callback = mod_sdlcb;
+    want.userdata = &s_mst;
+    s_mus_dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
+    if (!s_mus_dev) {
+        printf("ll_music: device: %s\n", SDL_GetError());
+        ll_music_stop();
+        return 1;
+    }
+    SDL_PauseAudioDevice(s_mus_dev, 0);
+    printf("ll_music: playing %s: '%s' %upos %uuniqpat %uch\n", modname,
+           s_mus.title, s_mus.nseq, s_mus.npat_stored, s_mus.nch);
+    return 0;
+}
+
+void ll_music_stop(void)
+{
+    if (s_mus_dev)
+        SDL_CloseAudioDevice(s_mus_dev);
+    s_mus_dev = 0;
+    ll_mod_close(&s_mus);
+    free(s_mus_img);
+    s_mus_img = NULL;
+    if (s_mus_snd_open)
+        llrs_close(&s_mus_snd);
+    s_mus_snd_open = 0;
+}
+
+int ll_level_names(const char *data_dir, char names[][32], int max)
+{
+    char p[4096];
+    snprintf(p, sizeof p, "%s/ETAPY", data_dir);
+    llrs et;
+    memset(&et, 0, sizeof et);
+    if (llrs_open(&et, p) != 0)
+        return 0;
+    int n = 0;
+    for (unsigned k = 0; k < et.cap && n < max; k++) {
+        if (et.slots[k].id != 2)
+            continue;
+        char key[15] = "";
+        memcpy(key, et.slots[k].key, 14);
+        snprintf(names[n], 32, "%s", key);
+        n++;
+    }
+    llrs_close(&et);
+    return n;
+}
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>

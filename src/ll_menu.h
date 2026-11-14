@@ -26,7 +26,9 @@ typedef struct {
 } ll_menu_anim;
 
 /* bg_pcx: raw PCX payload (ll_pcx input) or NULL for black background.
- * anims/nanims: overlay animations or NULL/0. */
+ * anims/nanims: overlay animations or NULL/0. Lists longer than 10
+ * items scroll as a 10-row window centred on the selection (^/v edge
+ * markers), so e.g. the 14-level MAPKA select list fits 320x200. */
 int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
                  const char *const *items, int nitems,
                  const ll_menu_anim *anims, int nanims);

@@ -276,8 +276,34 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
                 fb[i] = 0xFF000000u | (Uint32)(20 + (i / W) / 8);
         }
 
-        /* CI hook: LEO_MENU_PPM=PATH dumps the composited overlay frame
-         * (bg + .SEQ sprites, before menu text) once at that tick. */
+        /* CI hook: LEO_MENU_PPM=PATH dumps the composited frame (bg +
+         * .SEQ sprites + menu text) once at that tick. */
+        /* windowed list: long lists (level select has 14 entries) scroll
+         * a 10-row window centred on the selection instead of overflowing */
+        int win = nitems > 10 ? 10 : nitems;
+        int top = 0;
+        if (nitems > win) {
+            top = sel - win / 2;
+            if (top < 0) top = 0;
+            if (top > nitems - win) top = nitems - win;
+        }
+        int x0 = W / 2 - 64, y0 = H / 2 - 8 * win / 2;
+        if (bg.idx) { /* OPTIONS.PCX is a full text screen already */
+            x0 = 24;
+            y0 = H - 8 * (win + 2);
+        }
+        for (int j = 0; j < win; j++) {
+            int i = top + j;
+            draw_text(fb, W, H, x0, y0 + 12 * j, items[i], 0xFFFFFFFFu);
+            if (i == sel)
+                draw_text(fb, W, H, x0 - 12, y0 + 12 * j, ">",
+                          0xFFFFFF00u);
+        }
+        if (top > 0)
+            draw_text(fb, W, H, x0, y0 - 10, "^", 0xFFAAAAAAu);
+        if (top + win < nitems)
+            draw_text(fb, W, H, x0, y0 + 12 * win - 2, "v", 0xFFAAAAAAu);
+
         {
             const char *ppm_e = getenv("LEO_MENU_PPM");
             const char *tick_e = getenv("LEO_MENU_PPM_TICK");
@@ -287,16 +313,6 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
                     printf("menu: LEO_MENU_PPM wrote %s (tick %u)\n",
                            ppm_e, tick);
             }
-        }
-        int x0 = W / 2 - 64, y0 = H / 2 - 8 * nitems / 2;
-        if (bg.idx) { /* OPTIONS.PCX is a full text screen already */
-            x0 = 24;
-            y0 = H - 8 * (nitems + 2);
-        }
-        for (int i = 0; i < nitems; i++) {
-            draw_text(fb, W, H, x0, y0 + 12 * i, items[i], 0xFFFFFFFFu);
-            if (i == sel)
-                draw_text(fb, W, H, x0 - 12, y0 + 12 * i, ">", 0xFFFFFF00u);
         }
 
         void *px;

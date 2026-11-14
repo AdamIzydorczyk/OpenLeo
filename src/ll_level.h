@@ -21,6 +21,19 @@ int ll_level_show(const char *data_dir, const char *level, double secs,
  * 0 = block found, 1 = no container/block. */
 int ll_level_anims(const char *data_dir, const char *level);
 
+/* Standalone music (singleton), used by the MAPKA level-select screen:
+ * the engine plays "mapka.mod" from the SOUND container on entering the
+ * map (FUN_0005dec0) and stops it on every exit (FUN_0005df20).
+ * ll_music_play: 0 = playing, 1 = missing/disabled (LEO_NO_MUSIC).
+ * ll_music_stop: idempotent. Requires SDL (audio subsystem self-init). */
+int ll_music_play(const char *data_dir, const char *modname);
+void ll_music_stop(void);
+
+/* Level names = top-level id==2 block keys of the ETAPY container, in
+ * container order (verified: the CD ETAPY carries 14 such blocks).
+ * Returns the count filled (max = capacity of names[][32]). */
+int ll_level_names(const char *data_dir, char names[][32], int max);
+
 #ifdef __cplusplus
 }
 #endif

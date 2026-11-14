@@ -125,11 +125,13 @@ static void run_menu(const char *data, int audio)
     int nanim = 0;
     ll_menu_anim *anims = menu_anims(data, &nanim);
     static const char *items[] = { "NEW GAME  (RAN.01)",
+                                   "LEVELS    (MAPKA)",
                                    "CREDITS   (AUTORZY.IS)",
                                    "QUIT" };
     const char *aut = getenv("LEO_MENU_AUTO"); /* "1" = pick NEW GAME, quit */
     int auto_i = aut ? atoi(aut) : 0;
     const char *dem = getenv("LEO_DEMO");      /* demo: auto-pick NEW GAME */
+    int secs_hook = getenv("LEO_MENU_SECS") != NULL;
     for (;;) {
         int sel;
         if (auto_i) {
@@ -141,7 +143,7 @@ static void run_menu(const char *data, int audio)
                    (atof(dem)));
             SDL_Delay((Uint32)(atof(dem) * 1000.0));
         } else {
-            sel = ll_menu_open(bg, blen, items, 3, anims, nanim);
+            sel = ll_menu_open(bg, blen, items, 4, anims, nanim);
         }
         if (sel < 0)
             break;
@@ -156,6 +158,43 @@ static void run_menu(const char *data, int audio)
             ll_level_show(data, lv && *lv ? lv : "RAN.01", 8.0, audio);
             break;
         } else if (sel == 1) {
+            /* LEVELS = the original MAPKA screen: the engine plays
+             * mapka.mod on entry (FUN_0005dec0) and stops it on every
+             * exit path (FUN_0005df20).  The MAPKA screen art payload
+             * is a CD/HD data hole (no MAPKA.* anywhere), so the
+             * submenu reuses ll_menu with no background; the level list
+             * comes from the ETAPY container's id==2 blocks.
+             * LEO_LEVELSEL_AUTO=N auto-picks level N-1 (CI hook). */
+            char names[32][32];
+            int n = ll_level_names(data, names, 32);
+            if (n <= 0) {
+                printf("menu: LEVELS: no level blocks in %s/ETAPY\n", data);
+                continue;
+            }
+            if (audio)
+                ll_music_play(data, "MAPKA.MOD");
+            static const char back[] = "(BACK)";
+            const char *labels[33];
+            for (int i = 0; i < n; i++)
+                labels[i] = names[i];
+            labels[n] = back;
+            int li;
+            const char *lsaut = getenv("LEO_LEVELSEL_AUTO");
+            if (auto_i && lsaut) {
+                li = atoi(lsaut) - 1;
+                printf("menu: LEO_LEVELSEL_AUTO -> picked level %d\n", li);
+            } else {
+                li = ll_menu_open(NULL, 0, labels, n + 1, NULL, 0);
+            }
+            ll_music_stop();
+            if (li >= 0 && li < n) {
+                ll_level_show(data, names[li], 8.0, audio);
+                break; /* one level per run, like NEW GAME */
+            }
+            if (secs_hook && li == -3)
+                break; /* CI deadline (LEO_MENU_SECS): end the run */
+            continue; /* (BACK) / ESC: back to the title menu */
+        } else if (sel == 2) {
             if (auto_i)
                 break; /* chained runs do not re-play FMVs twice */
             char p[4096];
