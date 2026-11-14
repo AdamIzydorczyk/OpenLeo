@@ -1,10 +1,12 @@
 # Lew Leon (Longsoft, 1997) — recompile project
 
 Source-project replica of the Polish DOS game "Lew Leon". Original game
-files are **never** in this repo (user-supplied, see .gitignore); we only
-store our source, tools and RE reference material.
+files stay out of day-to-day development (user-supplied CD, see
+.gitignore); the upstream public snapshot additionally tracks a small
+vendored core under `data/` (see below) - never add more copyrighted
+game data.
 
-Layout:
+Layout (mirrors the upstream repo at github.com/AdamIzydorczyk/OpenLeo):
 
 - `ported/` — the whole native codebase, shared by every target:
   `.IS` codec (`is_stream.*`, byte-exact vs `tools/is_decode.py`),
@@ -19,6 +21,9 @@ Layout:
   `vendor/llvm-mingw`, static, no SDL2.dll needed).
 - `original/` — faithful-DOS variant blueprint (Ghidra decompilation,
   frozen, not buildable).
+- `data/` — the vendored CD core tracked by the public snapshot
+  (ANIMACJE/ETAPY/SOUND/LEVELDES containers + LOGO/PRAWA/INTRO_P.IS);
+  the full playable data set stays local/user-supplied.
 - `tools/` — python reference implementations + oracle/self-test harnesses.
 - `build/` — RE artifacts (leo.img, Ghidra project/logs; regenerate-only).
 
