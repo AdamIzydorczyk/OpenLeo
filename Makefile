@@ -8,9 +8,10 @@ SHELL    := /bin/bash   # verify-llrs uses process substitution
 DATA     ?= /tmp/opencode/iso_stage/LEO
 PYREF    ?= tools/is_decode.py
 
-SRC      := src/main.c src/is_stream.c src/platform_sdl/is_player.c
+SRC      := src/main.c src/is_stream.c src/platform_sdl/is_player.c \
+            src/llrs.c src/ll_pcx.c src/ll_menu.c src/ll_level.c
 HDRS     := src/ll_config.h src/is_stream.h src/platform_sdl/is_player.h \
-            src/llrs.h
+            src/llrs.h src/ll_pcx.h src/ll_menu.h src/ll_level.h
 
 # ---------------- native Linux ----------------
 CC       ?= gcc
@@ -99,9 +100,9 @@ llrs_selftest: tools/llrs_selftest.c src/llrs.c src/llrs.h
 
 # ll_level: M3 viewer - prints a level's .DES wiring, shows its PCX art
 # and plays its PCM parallax track from the ETAPY block.
-ll_level: tools/ll_level.c src/llrs.c src/ll_pcx.c src/ll_config.h
+ll_level: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_config.h
 	$(CC) -O2 -std=gnu11 -Wall -Wextra -Isrc $(CFLAGS) -o $@ \
-	    tools/ll_level.c src/llrs.c src/ll_pcx.c $(LIBS)
+	    tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c $(LIBS)
 
 level: ll_level
 	./ll_level $(DATA) $(LEVEL) $(ARGS)
@@ -126,7 +127,17 @@ pcx_selftest: tools/pcx_selftest.c src/ll_pcx.c src/ll_pcx.h
 verify-pcx: pcx_selftest llrs_selftest
 	python3 tools/verify_pcx.py $(DATA) ./llrs_selftest ./pcx_selftest
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx
+verify-menu: ll_cutscene
+	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=5 LEO_SKIP_USER=1 LEO_MENU_AUTO=1 \
+	    LEO_LEVEL_SECS=1 timeout 180 \
+	    ./ll_cutscene --demo $(DATA) > /tmp/opencode/menu_chain.log 2>&1; \
+	rc=$$?; \
+	if [ $$rc -eq 0 ] && grep -q 'menu: LEO_MENU_AUTO' /tmp/opencode/menu_chain.log \
+	   && grep -q 'll_level: show' /tmp/opencode/menu_chain.log; \
+	then echo "demo chain: cutscene -> menu -> level intro (hooked, ok)"; \
+	else echo "demo chain FAILED (rc=$$rc)"; cat /tmp/opencode/menu_chain.log; exit 1; fi
+
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-menu
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
@@ -134,4 +145,4 @@ clean:
 	      pcx_selftest pcx_selftest.exe ll_level *.o *.obj
 
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
-        verify-all level clean
+        verify-menu verify-all level clean

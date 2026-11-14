@@ -96,6 +96,7 @@ typedef struct {
     Uint64       pause_at;    /* perf-counter stamp when paused (0=live) */
     const char  *quit_reason; /* diagnostics: what requested quit */
     int          skip;        /* ESC: fast-skip cutscene to its end */
+    int          user_skip;   /* skip requested by a real keypress (not test) */
     unsigned     skip_at;     /* auto-skip after N presented (test hook) */
     int          idle;        /* cutscene done/skipped: hold window open */
     int          quit;
@@ -180,9 +181,11 @@ static void pump_input(player *p)
             } else if (k == SDLK_ESCAPE && !p->idle) {
                 /* original semantics: ESC SKIPS the intro/cutscene and the
                  * game continues - never freeze a mid-intro frame, never
-                 * quit. Demo continues to the cutscene's last frame (M3
-                 * will hand over to the title menu instead). */
+                 * quit. Demo continues to the cutscene's last frame; with
+                 * scene chaining (--then/--demo) the caller then advances
+                 * to the next scene / the title menu (M3). */
                 p->skip = 1;
+                p->user_skip = 1;
             } else if (k == SDLK_SPACE && p->dev) {
                 int playing = SDL_GetAudioDeviceStatus(p->dev)
                               == SDL_AUDIO_PLAYING;
@@ -332,8 +335,13 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     p.t0 = SDL_GetPerformanceCounter();
 
     for (unsigned ci = 0; ci < p.is.nchunks && !p.quit; ci++) {
-        if (p.skip_at && p.presented >= p.skip_at)
+        if (p.skip_at && p.presented >= p.skip_at) {
             p.skip = 1;
+            /* LEO_SKIP_USER=1: treat the auto-skip as a real keypress
+             * (test hook for the interactive ESC->scene-chain handoff) */
+            if (getenv("LEO_SKIP_USER"))
+                p.user_skip = 1;
+        }
         if (p.skip) {
             /* ESC: fast-forward the rest of the stream silently (the delta
              * chain needs every frame decoded), then show the true last
@@ -396,19 +404,13 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
             SDL_Delay(50);
         }
     }
-    if (p.skip && !p.quit) {
-        p.idle = 1;
-        SDL_SetWindowTitle(p.win, "Lew Leon - cutscene skipped (q = quit)");
-    }
-    if (!p.quit) {
-        /* natural finish too: hold final frame until q / window close,
-         * so playback never vanishes on its own */
-        if (!p.idle) {
-            p.idle = 1;
-            SDL_SetWindowTitle(p.win,
-                               "Lew Leon - cutscene ended (q = quit)");
-        }
-        while (!p.quit) {
+    if (!p.quit && !p.skip) {
+        /* natural finish: hold the last frame briefly (the original always
+         * advances to the next scene; a bare single-file run shows the end
+         * for a moment before exiting) */
+        Uint64 t_end = SDL_GetPerformanceCounter()
+                       + 2 * SDL_GetPerformanceFrequency();
+        while (!p.quit && SDL_GetPerformanceCounter() < t_end) {
             pump_input(&p);
             SDL_Delay(30);
         }
@@ -420,7 +422,7 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
         SDL_CloseAudioDevice(p.dev);
     is_close(&p.is);
     SDL_Quit();
-    return 0;
+    return p.user_skip ? 2 : 0;
 err:
     free(p.ascratch);
     is_close(&p.is);
