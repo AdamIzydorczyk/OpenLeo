@@ -106,6 +106,7 @@ static ll_menu_anim *menu_anims(const char *data, int *nanim)
                         out[*nanim].seq = buf;
                         out[*nanim].len = (unsigned)sz;
                         out[*nanim].period_ms = 100;
+                        out[*nanim].tag = want[w];
                         (*nanim)++;
                     }
                     break;
@@ -134,6 +135,8 @@ static void run_menu(const char *data, int audio)
     int secs_hook = getenv("LEO_MENU_SECS") != NULL;
     for (;;) {
         int sel;
+        int map_mode = 0;
+        char lvlname[32] = "";
         if (auto_i) {
             sel = auto_i - 1;
             printf("menu: LEO_MENU_AUTO -> picked item %d\n", sel);
@@ -143,11 +146,82 @@ static void run_menu(const char *data, int audio)
                    (atof(dem)));
             SDL_Delay((Uint32)(atof(dem) * 1000.0));
         } else {
-            sel = ll_menu_open(bg, blen, items, 4, anims, nanim);
+            /* Interactive title menu = the original 640x400 chapter MAP
+             * (measured 2026-11-14: chapter .IS -> map menu -> arrow +
+             * key launches the chapter: studio cards -> flyover ->
+             * playable level).  Chapter list = ETAPY id==2 blocks; the
+             * six island anchors are measured off the captured map
+             * frame (g781); >6 chapters reuse the anchor set (the map
+             * page art is a CD data hole, PLAN 8b). */
+            static char names[32][32];
+            int n = ll_level_names(data, names, 32);
+            static const int anch[][2] = {
+                { 250, 95 }, { 470, 100 }, { 540, 110 },
+                { 185, 240 }, { 445, 240 }, { 500, 285 } };
+            ll_menu_ch chs[32];
+            if (n > 0) {
+                for (int i = 0; i < n; i++) {
+                    chs[i].title = names[i];
+                    chs[i].ix = anch[i % 6][0];
+                    chs[i].iy = anch[i % 6][1];
+                }
+                printf("map: %d chapters, arrow starts on island 0\n", n);
+                ll_menu_anim m2[1];
+                int m2n = 0;
+                for (int i = 0; i < nanim; i++)
+                    if (anims[i].tag && strcmp(anims[i].tag, "BERLO.SEQ") == 0) {
+                        m2[m2n++] = anims[i];
+                        break;
+                    }
+                sel = ll_menu_map_open(chs, n, m2n ? m2 : anims,
+                                       m2n ? m2n : nanim);
+            } else {
+                fprintf(stderr, "map: no chapters in %s/ETAPY, "
+                        "falling back to list menu\n", data);
+                sel = ll_menu_open(bg, blen, items, 4, anims, nanim);
+            }
+            map_mode = 1;
+            if (sel >= 0 && sel < n)
+                snprintf(lvlname, sizeof lvlname, "%s", names[sel]);
         }
+        if (map_mode && sel == -4) {   /* autorzy corner */
+            char p[4096];
+            snprintf(p, sizeof p, "%s/AUTORZY.IS", data);
+            is_player_run(p, audio, 0, 0);
+            continue;
+        }
+        if (map_mode && sel == -5) {   /* opcje corner: OPTIONS.PCX screen */
+            static const char *back[] = { "(BACK)" };
+            ll_menu_open(bg, blen, back, 1, NULL, 0);
+            continue;
+        }
+        if (map_mode && sel == -6)     /* restart corner: redraw map */
+            continue;
         if (sel < 0)
             break;
-        if (sel == 0) {
+        if (map_mode && sel >= 0) {
+            /* chapter launch chain measured 2026-11-14: chapter .IS
+             * movie -> flyover scroll -> playable level.  IS names are
+             * the CD counterparts where they exist (TUNGA/JUNCTION .IS
+             * are CD holes); LEO_DEMO_LEVEL still overrides the level. */
+            static const struct { const char *lvl, *is; } ch_is[] = {
+                { "RAN.01", "RAN.IS" },     { "ZARIA.01", "ZARIA1.IS" },
+                { "ZARIA.02", "ZARIA2.IS" }, { "SADES.06", "SADES.IS" },
+                { "KADMAR.07", "KADMAR1.IS" }, { "KADMAR2", "KADMAR2.IS" },
+                { "ENA2", "ENA2.IS" },
+            };
+            for (unsigned k = 0; k < sizeof ch_is / sizeof *ch_is; k++)
+                if (strcmp(ch_is[k].lvl, lvlname) == 0) {
+                    char p[4096];
+                    snprintf(p, sizeof p, "%s/%s", data, ch_is[k].is);
+                    is_player_run(p, audio, 0, 0);
+                    break;
+                }
+            const char *lv = getenv("LEO_DEMO_LEVEL");
+            ll_level_show(data, lv && *lv ? lv : lvlname, 8.0, audio);
+            break;
+        }
+        if (sel == 0 && !map_mode) {
             /* RAN.01 is the game's first level ("NEW GAME (RAN.01)"): its
              * tlo= stack on this CD resolves to the PLAN1.PCM parallax
              * plane (plan3.pcx/plan2.pcm AND the whole ANIMACJE leaf are
@@ -157,7 +231,7 @@ static void run_menu(const char *data, int audio)
             const char *lv = getenv("LEO_DEMO_LEVEL");
             ll_level_show(data, lv && *lv ? lv : "RAN.01", 8.0, audio);
             break;
-        } else if (sel == 1) {
+        } else if (sel == 1 && !map_mode) {
             /* LEVELS = the original MAPKA screen: the engine plays
              * mapka.mod on entry (FUN_0005dec0) and stops it on every
              * exit path (FUN_0005df20).  The MAPKA screen art payload
@@ -196,7 +270,7 @@ static void run_menu(const char *data, int audio)
             if (secs_hook && li == -3)
                 break; /* CI deadline (LEO_MENU_SECS): end the run */
             continue; /* (BACK) / ESC: back to the title menu */
-        } else if (sel == 2) {
+        } else if (sel == 2 && !map_mode) {
             if (auto_i)
                 break; /* chained runs do not re-play FMVs twice */
             char p[4096];

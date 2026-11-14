@@ -23,6 +23,7 @@ typedef struct {
     const unsigned char *seq; /* raw .SEQ container payload */
     unsigned len;
     unsigned period_ms;       /* ms per frame, 0 = default 100 */
+    const char *tag;          /* container name (X.SEQ/BERLO.SEQ/...), or NULL */
 } ll_menu_anim;
 
 /* bg_pcx: raw PCX payload (ll_pcx input) or NULL for black background.
@@ -32,6 +33,24 @@ typedef struct {
 int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
                  const char *const *items, int nitems,
                  const ll_menu_anim *anims, int nanims);
+
+/* Original title menu is a 640x400 chapter MAP (measured 2026-11-14 in
+ * the QEMU baseline: corner words wyjście/restart/autorzy/opcje, green
+ * chapter title, BERLO red-arrow sprite pointing at an island; keyboard
+ * advances/activates the chapter at the arrow).  The globe+islands bg
+ * art is a confirmed CD data hole (PLAN 8b) so the map is composed
+ * procedurally at the measured island anchors.  chs[] gives each
+ * chapter's title + island anchor (640x400 coords); more than 6
+ * chapters wrap onto extra anchor rings.  anims = .SEQ overlays (the
+ * BERLO arrow cycles on its period_ms).  Returns selected chapter index,
+ * -2 = wyjście/Esc, -3 = LEO_MENU_SECS deadline (CI hook), -4/-5/-6 =
+ * the autorzy/opcje/restart corner words (a/o/r keys). */
+typedef struct {
+    const char *title;
+    int ix, iy;              /* island centre the arrow points at */
+} ll_menu_ch;
+int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
+                     const ll_menu_anim *anims, int nanims);
 
 #ifdef __cplusplus
 }

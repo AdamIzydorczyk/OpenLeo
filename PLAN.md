@@ -229,13 +229,36 @@ frames show continuous full-screen FMV playback (intro movie).
 The game is playable in the rig: intro FMV plays, Esc opens the menu, Enter
 enters actual gameplay with working character control. Patch set to date =
 **one 2-byte NOP** (`0x5bd5c:9090`); everything else is install-layout
-equivalence. QEMU-monitor `sendkey` does NOT reach the game (use the real
-GUI window for input testing; do not trust monitor key injection).
+equivalence. QEMU-monitor `sendkey` DOES reach the game (verified
+2026-11-14: BIOS keyboard ring buffer @phys 0x41A/0x41C advances, and
+`down` at the map menu actually selects + starts a chapter).
 
-**Attract loop explained:** the title attractor is movie->menu->movie; the
-menu auto-timeout back to intro is a game timer whose *perceived* length
-scales with engine execution rate, which is why the loop seemed broken at
-full TCG speed.
+**Attract chain measured (2026-11-14, hunt9 = down@menu then 370 samples):**
+chapter .IS movie (70 Hz, 480-line) -> 640x400 chapter map menu (corner
+words wyjście/restart/autorzy/opcje, green chapter title "ZARIA I", BERLO
+red-arrow sprite on an island; 40:6C counter FREEZES - the definitive
+detector for this state; screen swaps between two full frames ~1 s apart,
+thumb mean|d| 43.68, no finer animation) -> `down` (or timeout) launches
+the selected chapter: studio cards ("LERYX LONGSOFT CD-PROJEKT",
+"produkcje LERYX LONGSOFT") + "LEW LEON" title ~55 s of 480-line movies ->
+~68 s 480-line scrolling flyover (new art band y172-300 every ~0.285 s)
+-> PLAYABLE LEVEL at 640x480: camera pans right, 70 Hz PIT clock stays
+running, character enters at the bottom edge, scripted encounters (tree
+hollow + crocodile). So menu is the interactive chapter selector and
+`down` = activate, exactly like Enter.
+
+**Chapter launch chain, full-res (2026-11-14 hunt10, 449 frames @ ~2 Hz
+after `down` on the map menu):** chapter .IS conversation cutscenes
+(character groups seated around a table) ALTERNATE with PLAYABLE level
+segments (checkered interior hall, lion character bottom-center);
+character walks right through the static camera at ~50 px/s (change-box
+advances x88->x292 in ~1 s, y-band 228..478 = the sprite near the floor
+in level mode); scene changes are hard cuts/fades (full-screen
+mean|d| 45-90 between segments, never mid-scroll); camera scroll is
+STEPWISE - long holds (0.5-2 s of mean|d| < 1) then a jump (cross-
+correlation at 2 Hz resolves no sub-48 px slides). Title/credits-style
+cards ("gra LARYS MODRZEJEWSKIEGO") appear mid-chain, and the black
+400-line mode (fade) marks menu entry/exit (f1033/1034 pure black).
 
 **Speed/pacing model.** CORRECTED 2026-11-14 (direct measurement, replaces the
 earlier "40:6C stays frozen / ~22 Hz private counter" reading, which was a
@@ -247,10 +270,16 @@ out(0x40,0x95); out(0x40,0x42) = count 0x4295 = 17045 -> 1193182/17045 =
 count 0 (=65536 -> BIOS 18.2 Hz) back. Measured in QEMU (plain TCG, virtual
 clock = wall): the BIOS tick counter 40:6C climbs at 69.8 ticks/s while an
 .IS movie plays and 18.2/s during boot and in the non-movie states, exactly
-matching the .IS audio block rate (22050/315 = 70 Hz). The general (non-movie)
-timer class defaults to a 55 ms period (FUN_0005b860 sets +0xe = 0x37;
-FUN_0005b9e0 converts ms -> PIT counts with 0x1d216 = 119318*10, i.e.
-1193182/10), so outside movies the engine's beat is the BIOS ~18.2 Hz.
+matching the .IS audio block rate (22050/315 = 70 Hz). It *also* climbs at
+69.8/s in every interactive post-boot state measured so far (attract,
+flyover scroll, playable level: hunt5 median 69.6/s over a 126 s span) -
+the only exception found is the chapter map menu, where the counter
+FREEZES outright (delta 0 across the whole ~7-8 s window) while the game
+polls the keyboard. 18.2/s returns only at boot and in 1-2 s
+mode-switch dips. The non-movie one-shot timer class defaults to a 55 ms
+period (FUN_0005b860 sets +0xe = 0x37; FUN_0005b9e0 converts ms -> PIT
+counts with 0x1d216 = 119318*10, i.e. 1193182/10). So the engine beat is
+70 Hz nearly everywhere; TICK_HZ=70 in ll_config.h.
 Game logic/animation *loops* are still execution-rate bound (busy pacing),
 so on stock TCG the CPU-bound parts run wildly fast while the
 timer/DMA-paced parts (all .IS playback) run in real time.
@@ -520,6 +549,22 @@ cycled from fixed 30ms redraw ticks (`ll_menu_anim.period_ms`).
 BERLO = 30-frame swaying crown-sceptre at (130,38), CNIE = 2-frame
 shadow (171,146), X = static glyph (155,54). CI: LEO_MENU_PPM[_TICK]
 dumps the composed frame; verify-menu proves attach + frame cycling.
+
+**Menu layout cracked + bg art CONFIRMED DATA HOLE (2026-11-14).**
+ANIMACJE/MENU nested block (39 slots, 9 valid): LEVEL06/08.SEQ (chapter
+island anims, 68x20/204x35), RESTGRY.SEQ (156x29 text sprite @ (82,86)),
+AUTORZY.SEQ (64x19 @ (4,180) = bottom-left corner word), TAK.SEQ (60x35
+@ (83,129)), X.SEQ (14x14 @ (155,54)), CNIE.SEQ, BERLO.SEQ, OPTIONS.PCX
+(44141 B). All .SEQ coords are in a 320x200 logical space doubled onto
+the 640x400 mode-10h screen (AUTORZY y=180*2=360 = bottom-left matches
+the on-screen corner word). The globe+islands map background shown by
+the original is NOT in any container or EXE overlay: full 1521-frame
+pixel sweep of INTRO_P gives best mean|d| 33.9 vs the captured menu
+frame (different picture), OPTIONS.PCX is a desert/pyramid scene that
+belongs to the opcje screen (vision-confirmed), and no PCX/BMP headers
+exist in ANIMACJE/ETAPY/SOUND or the LEO overlays. Menu bg is therefore
+a runtime-synthesized or lost asset - our build composes a documented
+placeholder and the real words/title/arrow from the .SEQ data.
 
 ## 8c. Level scene + .MOV motion scripts (delivered 2026-11-14)
 

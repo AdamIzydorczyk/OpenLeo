@@ -300,9 +300,9 @@ verify-menu: ll_cutscene
 	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_SECS=2 \
 	    timeout 120 ./ll_cutscene --demo $(DATA) > /tmp/opencode/menu_bg.log 2>&1; \
 	rc=$$?; \
-	if [ $$rc -eq 0 ] && grep -q 'background OPTIONS.PCX 320x200 loaded' /tmp/opencode/menu_bg.log \
-	   && grep -q 'menu: anim 2: 30 frames at (130,38)' /tmp/opencode/menu_bg.log; \
-	then echo "menu render: OPTIONS.PCX background + 3 .SEQ anims attached (hooked, ok)"; \
+	if [ $$rc -eq 0 ] && grep -qE 'map: [0-9]+ chapters' /tmp/opencode/menu_bg.log \
+	   && grep -q 'map: anim 0: 30 frames' /tmp/opencode/menu_bg.log; \
+	then echo "menu render: 640x400 chapter map + BERLO arrow anim attached (hooked, ok)"; \
 	else echo "menu render FAILED (rc=$$rc)"; cat /tmp/opencode/menu_bg.log; exit 1; fi
 	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_SECS=1 \
 	    LEO_MENU_PPM=/tmp/opencode/menu_t2.ppm LEO_MENU_PPM_TICK=2 \

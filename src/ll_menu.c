@@ -375,3 +375,288 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
     ll_pcx_free(&bg);
     return ret;
 }
+
+/* ------------------------------------------------------------------ */
+/* Chapter map menu (the original title-menu state, 640x400).          */
+/* Layout constants from the 2026-11-14 QEMU captures (g781 frame +   */
+/* hunt7/hunt9 state traces); see PLAN.md "Menu layout cracked".      */
+
+#define MAP_W 640
+#define MAP_H 400
+
+/* doubled 2x glyph draw (mode-10h text is ~16 px tall in the capture) */
+static void draw_glyph2(Uint32 *fb, int x, int y, char c, Uint32 col)
+{
+    if (c < 32 || c > 126)
+        c = '?';
+    const unsigned char *g = FONT[c - 32];
+    for (int r = 0; r < 8; r++)
+        for (int b = 0; b < 8; b++)
+            if (g[r] & (0x80 >> b))
+                for (int dy = 0; dy < 2; dy++)
+                    for (int dx = 0; dx < 2; dx++) {
+                        int px = x + 2 * b + dx, py = y + 2 * r + dy;
+                        if (px >= 0 && px < MAP_W && py >= 0 && py < MAP_H)
+                            fb[py * MAP_W + px] = col;
+                    }
+}
+
+static void draw_text2(Uint32 *fb, int x, int y, const char *s, Uint32 col)
+{
+    for (; *s; s++, x += 16)
+        draw_glyph2(fb, x, y, *s, col);
+}
+
+/* right-aligned variant (restart/opcje hug the right screen edge) */
+static void draw_text2_r(Uint32 *fb, int xr, int y, const char *s, Uint32 col)
+{
+    int n = 0;
+    for (const char *p = s; *p; p++)
+        n++;
+    draw_text2(fb, xr - 16 * n, y, s, col);
+}
+
+static Uint32 menu_lut(int i)
+{
+    /* base: CGA-ish 16-col block for the .SEQ word/shadow sprites
+     * (AUTORZY/X/CNIE use indices 1..22) */
+    static const Uint32 cga[16] = {
+        0xFF000000u, 0xFF0000AAu, 0xFF00AA00u, 0xFF00AAAAu,
+        0xFFAA0000u, 0xFFAA00AAu, 0xFFAA5500u, 0xFFAAAAAAu,
+        0xFF555555u, 0xFF5555FFu, 0xFF55FF55u, 0xFF55FFFFu,
+        0xFFFF5555u, 0xFFFF55FFu, 0xFFFFFF55u, 0xFFFFFFFFu,
+    };
+    if (i < 16)
+        return cga[i];
+    /* BERLO sprite index clusters (measured payload histogram):
+     * gold crown 218/223/224/230, red robe 90..95 */
+    switch (i) {
+    case 218: return 0xFFD2963Cu;
+    case 223: return 0xFFE6B45Au;
+    case 224: return 0xFFFFE696u;
+    case 230: return 0xFFC89632u;
+    case 90:  return 0xFFC82828u;
+    case 91:  return 0xFFDC3C32u;
+    case 94:  return 0xFFF0503Cu;
+    case 95:  return 0xFFAA1E1Eu;
+    default:  break;
+    }
+    if (i >= 17 && i <= 22)          /* CNIE shadow ramp */
+        return 0xFF000000u | (Uint32)(0x30 + 12 * i) * 0x010101u;
+    return 0xFF000000u | (Uint32)(i * 4) * 0x010101u;
+}
+
+static void map_bg(Uint32 *fb, const ll_menu_ch *chs, int nchs)
+{
+    /* starfield: dark blue vertical gradient + deterministic stars.
+     * The globe+islands art itself is a CD data hole (PLAN 8b), so we
+     * compose a placeholder at the measured island anchors. */
+    for (int y = 0; y < MAP_H; y++) {
+        Uint32 c = 0xFF000000u | (Uint32)(0x10 + y / 16)
+                   | ((Uint32)(0x18 + y / 8) << 8)
+                   | ((Uint32)(0x40 + y / 4) << 16);
+        for (int x = 0; x < MAP_W; x++)
+            fb[y * MAP_W + x] = c;
+    }
+    for (int s = 0; s < 140; s++) {
+        unsigned h = (unsigned)(s * 2654435761u);
+        int x = (int)(h % MAP_W), y = (int)((h >> 12) % MAP_H);
+        fb[y * MAP_W + x] = (h >> 24) & 1 ? 0xFFE8E8FFu : 0xFFA0A0C8u;
+    }
+    /* island blobs at each chapter anchor (green top, brown base) */
+    for (int i = 0; i < nchs; i++) {
+        int cx = chs[i].ix, cy = chs[i].iy, rw = 60, rh = 26;
+        for (int y = -rh; y <= rh; y++)
+            for (int x = -rw; x <= rw; x++) {
+                double d = (double)(x * x) / (rw * rw)
+                           + (double)(y * y) / (rh * rh);
+                if (d > 1.0)
+                    continue;
+                int px = cx + x, py = cy + y;
+                if (px < 0 || px >= MAP_W || py < 0 || py >= MAP_H)
+                    continue;
+                Uint32 c = y < -4 ? 0xFF3CB43Cu : 0xFF6E4622u;
+                if (y > rh - 6)
+                    c = 0xFF5480B0u;      /* waterline */
+                fb[py * MAP_W + px] = c;
+            }
+    }
+}
+
+int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
+                     const ll_menu_anim *anims, int nanims)
+{
+    if (nchs < 1)
+        return -1;
+
+    ll_seq *aseq = nanims > 0 ? calloc((size_t)nanims, sizeof *aseq) : NULL;
+    int nanim_ok = 0;
+    if (aseq) {
+        for (int i = 0; i < nanims; i++) {
+            if (ll_seq_parse(anims[i].seq, anims[i].len, &aseq[i]) != 0) {
+                fprintf(stderr, "map: anim %d .SEQ parse failed\n", i);
+                continue;
+            }
+            printf("map: anim %d: %u frames, period %ums\n",
+                   i, aseq[i].count,
+                   anims[i].period_ms ? anims[i].period_ms : 100);
+            nanim_ok++;
+        }
+        if (!nanim_ok) {
+            menu_anims_free(aseq, nanims);
+            aseq = NULL;
+        }
+    }
+
+    SDL_Window *win = SDL_CreateWindow("Lew Leon - chapter map",
+                                       SDL_WINDOWPOS_CENTERED,
+                                       SDL_WINDOWPOS_CENTERED, MAP_W, MAP_H,
+                                       SDL_WINDOW_SHOWN);
+    if (!win) {
+        menu_anims_free(aseq, nanims);
+        return -2;
+    }
+    SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
+    if (!ren)
+        ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
+    SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
+                                         SDL_TEXTUREACCESS_STREAMING,
+                                         MAP_W, MAP_H);
+    Uint32 *fb = (Uint32 *)malloc((size_t)MAP_W * MAP_H * sizeof *fb);
+    unsigned char *cv = malloc((size_t)MAP_W * MAP_H);
+    if (!ren || !tex || !fb || !cv) {
+        free(fb);
+        free(cv);
+        if (tex) SDL_DestroyTexture(tex);
+        if (ren) SDL_DestroyRenderer(ren);
+        SDL_DestroyWindow(win);
+        menu_anims_free(aseq, nanims);
+        return -2;
+    }
+
+    Uint32 pal[256];
+    for (int i = 0; i < 256; i++)
+        pal[i] = menu_lut(i);
+
+    map_bg(fb, chs, nchs);              /* background is static */
+    Uint32 *base = malloc((size_t)MAP_W * MAP_H * sizeof *base);
+    if (base)
+        memcpy(base, fb, (size_t)MAP_W * MAP_H * sizeof *base);
+
+    int sel = 0, quit = 0, ret = -1;
+    unsigned tick = 0;
+    const char *sece = getenv("LEO_MENU_SECS");
+    Uint64 t_deadline = sece ? SDL_GetTicks64() + 1000 * (Uint64)atof(sece) : 0;
+    while (!quit) {
+        if (base)
+            memcpy(fb, base, (size_t)MAP_W * MAP_H * sizeof *base);
+
+        /* BERLO arrow cycles over the SELECTED island: sprite frame f
+         * placed so its tip lands just left of the island centre
+         * (arrow tip at (170,95) for island centre (250,95) in g781) */
+        if (aseq) {
+            memset(cv, 0xFF, (size_t)MAP_W * MAP_H);   /* 0xFF = keep bg */
+            for (int a = 0; a < nanims; a++) {
+                if (!aseq[a].els)
+                    continue;
+                unsigned per = anims[a].period_ms ? anims[a].period_ms : 100;
+                unsigned fr = (unsigned)((Uint64)tick * 30 / per)
+                              % aseq[a].count;
+                const ll_seq_elem *e = &aseq[a].els[fr];
+                ll_seq_draw_elem(&aseq[a], e, cv, MAP_W, MAP_H,
+                                 chs[sel].ix - 80, chs[sel].iy - 20);
+            }
+            for (int i = 0; i < MAP_W * MAP_H; i++)
+                if (cv[i] != 0xFF)
+                    fb[i] = pal[cv[i]];
+        }
+
+        /* corner words + green chapter title (measured bboxes, g781) */
+        draw_text2(fb, 10, 10, "WYJSCIE", 0xFFFFFFFFu);
+        draw_text2_r(fb, 630, 6, "RESTART", 0xFFFFFFFFu);
+        draw_text2(fb, 6, 350, "AUTORZY", 0xFFFFFFFFu);
+        draw_text2_r(fb, 630, 374, "OPCJE", 0xFFFFFFFFu);
+        draw_text2(fb, 48, 168, chs[sel].title, 0xFF00D000u);
+
+        {   /* CI hook: dump composed frame at LEO_MENU_PPM_TICK */
+            const char *ppm_e = getenv("LEO_MENU_PPM");
+            const char *tick_e = getenv("LEO_MENU_PPM_TICK");
+            unsigned want = tick_e ? (unsigned)atoi(tick_e) : 0;
+            if (ppm_e && tick == want)
+                if (ppm_fb(ppm_e, fb, MAP_W, MAP_H) == 0)
+                    printf("map: LEO_MENU_PPM wrote %s (tick %u)\n",
+                           ppm_e, tick);
+        }
+
+        void *px;
+        int pitch;
+        if (SDL_LockTexture(tex, NULL, &px, &pitch) == 0) {
+            for (int y = 0; y < MAP_H; y++)
+                memcpy((char *)px + (size_t)y * pitch,
+                       fb + (size_t)y * MAP_W, (size_t)MAP_W * 4);
+            SDL_UnlockTexture(tex);
+        }
+        SDL_RenderClear(ren);
+        SDL_RenderCopy(ren, tex, NULL, NULL);
+        SDL_RenderPresent(ren);
+
+        SDL_Event e;
+        Uint64 t_next = SDL_GetTicks64() + 30;
+        while (!quit) {
+            if (t_deadline && SDL_GetTicks64() >= t_deadline) {
+                printf("map: LEO_MENU_SECS expired (auto-quit)\n");
+                quit = 1;
+                ret = -3;
+                break;
+            }
+            while (SDL_PollEvent(&e)) {
+                if (e.type == SDL_QUIT) {
+                    quit = 1;
+                    ret = -2;
+                } else if (e.type == SDL_KEYDOWN) {
+                    SDL_Keycode k = e.key.keysym.sym;
+                    if (k == SDLK_UP || k == SDLK_LEFT)
+                        sel = (sel + nchs - 1) % nchs;
+                    else if (k == SDLK_DOWN || k == SDLK_RIGHT)
+                        sel = (sel + 1) % nchs;
+                    else if (k == SDLK_RETURN || k == SDLK_KP_ENTER
+                             || k == SDLK_SPACE) {
+                        quit = 1;
+                        ret = sel;
+                    } else if (k == SDLK_ESCAPE || k == SDLK_q) {
+                        printf("map: wyjście\n");
+                        quit = 1;
+                        ret = -2;
+                    } else if (k == SDLK_a) {
+                        printf("map: autorzy\n");
+                        quit = 1;
+                        ret = -4;
+                    } else if (k == SDLK_o) {
+                        printf("map: opcje\n");
+                        quit = 1;
+                        ret = -5;
+                    } else if (k == SDLK_r) {
+                        printf("map: restart\n");
+                        quit = 1;
+                        ret = -6;
+                    }
+                }
+            }
+            Sint64 left = (Sint64)(t_next - SDL_GetTicks64());
+            ll_music_pump();
+            if (left > 0)
+                SDL_Delay((Uint32)left);
+            else
+                break;
+        }
+        tick++;
+    }
+    free(base);
+    free(fb);
+    free(cv);
+    menu_anims_free(aseq, nanims);
+    SDL_DestroyTexture(tex);
+    SDL_DestroyRenderer(ren);
+    SDL_DestroyWindow(win);
+    return ret;
+}
