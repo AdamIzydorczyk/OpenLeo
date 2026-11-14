@@ -24,6 +24,9 @@ build/*.log
 tools/__pycache__/
 __pycache__/
 
+# vendored third-party (SDL2 MinGW cross libs from libsdl.org, never in git)
+/vendor/
+
 # build outputs
 build/bin/
 original/*.exe
