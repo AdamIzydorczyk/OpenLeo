@@ -23,6 +23,7 @@ typedef struct {
     Uint64       pause_at;    /* perf-counter stamp when paused (0=live) */
     const char  *quit_reason; /* diagnostics: what requested quit */
     int          skip;        /* ESC: fast-skip cutscene to its end */
+    unsigned     skip_at;     /* auto-skip after N presented (test hook) */
     int          idle;        /* cutscene done/skipped: hold window open */
     int          quit;
     Uint64       t0;
@@ -135,10 +136,40 @@ static void on_frame(void *u, unsigned idx, const is_stream *s)
                          - (double)(frame * p->period) * perf_scale);
 }
 
-int is_player_run(const char *path, int audio, unsigned start_frame)
+/* ESC skip helper: remember the last frame whose palette is not all-zero,
+ * so a skipped cutscene lands on the last VISIBLE frame instead of the
+ * stream's by-design fade-to-black tail (verified: INTRO_P ends with a
+ * zeroed PAL block after the final frame, framebuffer content intact). */
+typedef struct {
+    uint8_t *fb;
+    uint8_t  pal[768];
+    size_t   n;
+    int      have;
+} skipctx;
+
+static void on_skip_frame(void *u, unsigned idx, const is_stream *s)
+{
+    skipctx *k = (skipctx *)u;
+    (void)idx;
+    int bright = 0;
+    for (int i = 0; i < 768; i++)
+        if (s->pal[i]) {
+            bright = 1;
+            break;
+        }
+    if (bright) {
+        memcpy(k->fb, s->fb, k->n);
+        memcpy(k->pal, s->pal, 768);
+        k->have = 1;
+    }
+}
+
+int is_player_run(const char *path, int audio, unsigned start_frame,
+                  unsigned skip_at)
 {
     player p;
     memset(&p, 0, sizeof p);
+    p.skip_at = skip_at;
     if (is_open(&p.is, path) != 0) {
         fprintf(stderr, "is_player: cannot open %s\n", path);
         return 1;
@@ -194,6 +225,8 @@ int is_player_run(const char *path, int audio, unsigned start_frame)
     p.t0 = SDL_GetPerformanceCounter();
 
     for (unsigned ci = 0; ci < p.is.nchunks && !p.quit; ci++) {
+        if (p.skip_at && p.presented >= p.skip_at)
+            p.skip = 1;
         if (p.skip) {
             /* ESC: fast-forward the rest of the stream silently (the delta
              * chain needs every frame decoded), then show the true last
@@ -202,10 +235,29 @@ int is_player_run(const char *path, int audio, unsigned start_frame)
                 SDL_ClearQueuedAudio(p.dev);
             printf("is_player: ESC at frame %u -> skipping %u chunks\n",
                    p.presented, p.is.nchunks - ci);
-            for (; ci < p.is.nchunks; ci++) {
-                is_decode_chunk(&p.is, ci, NULL, NULL, NULL);
-                if (p.is.st.ok)
-                    break;
+            {
+                size_t fnsz = (size_t)p.is.w * (size_t)p.is.h;
+                skipctx sc;
+                memset(&sc, 0, sizeof sc);
+                sc.fb = (uint8_t *)malloc(fnsz);
+                sc.n = fnsz;
+                for (; ci < p.is.nchunks; ci++) {
+                    is_decode_chunk(&p.is, ci,
+                                    sc.fb ? on_skip_frame : NULL,
+                                    sc.fb ? &sc : NULL, NULL);
+                    if (p.is.st.ok)
+                        break;
+                }
+                if (sc.have) { /* land on last visible frame */
+                    memcpy(p.is.fb, sc.fb, fnsz);
+                    memcpy(p.is.pal, sc.pal, 768);
+                }
+                free(sc.fb);
+            }
+            {
+                const char *dp = getenv("LEO_DUMP_SKIP");
+                if (dp)
+                    is_write_ppm(&p.is, dp);
             }
             present(&p);
             break;

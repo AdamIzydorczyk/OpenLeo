@@ -30,6 +30,7 @@ int main(int argc, char **argv)
     const char *file = NULL;
     ppm_job ppm = { 0, NULL, 0 };
     unsigned from = 0;
+    unsigned skip_at = 0;
     int audio = 1;
 
     for (int i = 1; i < argc; i++) {
@@ -38,6 +39,8 @@ int main(int argc, char **argv)
             ppm.out = argv[++i];
         } else if (strcmp(argv[i], "--from") == 0 && i + 1 < argc) {
             from = (unsigned)atoi(argv[++i]);
+        } else if (strcmp(argv[i], "--skip-at") == 0 && i + 1 < argc) {
+            skip_at = (unsigned)atoi(argv[++i]);
         } else if (strcmp(argv[i], "--no-audio") == 0) {
             audio = 0;
         } else {
@@ -64,5 +67,5 @@ int main(int argc, char **argv)
         is_close(&s);
         return ppm.found ? 0 : 1;
     }
-    return is_player_run(file, audio, from);
+    return is_player_run(file, audio, from, skip_at);
 }
