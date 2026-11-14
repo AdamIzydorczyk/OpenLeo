@@ -259,10 +259,12 @@ def write_ppm(path, fb, pal, w, h):
             data = b''.join(d for _, d in rows)
         else:
             data = bytes(fb)
-        lut = bytes(3 * 256)
         rgb = bytearray(3 * 256)
         for i in range(256):
-            rgb[3 * i:3 * i + 3] = pal[3 * i:3 * i + 3]
+            # stream palette is 6-bit DAC; scale to 8-bit (live DAC was
+            # v<<2 with occasional +3, verified vs QEMU screendumps)
+            for j in range(3):
+                rgb[3 * i + j] = pal[3 * i + j] << 2
         out = bytearray(3 * w * h)
         for i, v in enumerate(data):
             out[3 * i:3 * i + 3] = rgb[3 * v:3 * v + 3]
