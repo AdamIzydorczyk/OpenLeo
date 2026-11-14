@@ -102,32 +102,41 @@ typedef struct {
     int          idle;        /* cutscene done/skipped: hold window open */
     int          quit;
     Uint64       t0;
-    Uint64       period;   /* ns per frame */
+    Uint64       period;   /* uniform hold override (LEO_IS_PERIOD_MS);
+                            * 0 = audio-block clock (the real engine model) */
+    int          live;     /* chunk past start_frame: present + play audio */
+    unsigned     last_region; /* ESC bytes seen in the current chunk */
+    int          stereo;   /* movie channels (gcd of region sizes) */
+    unsigned     bps;      /* audio bytes/s: 88200 stereo / 44100 mono */
 } player;
 
-/* ESC-region PCM: 22050 Hz signed 16-bit little-endian mono.  The region is
- * stored as raw s16 samples, so bytes go to SDL untouched.  Evidence (2026-11-14):
- *   * durations line up - LOGO.IS 703080 B = 351540 s16 = 15.9 s vs its 171
- *     frames * period 2 / 22 Hz = 15.5 s of video; KONIEC.IS 4617900 B =
- *     104.7 s vs 639*6/22 = 174 s (engine pads silence when the region runs
- *     dry, see the 0x80 fill in build/decompiled/all/FUN_000185c0.c - SDL
- *     does the same when the queue drains);
- *   * the engine's own audio setup uses 0x5622 = 22050 for this stream
- *     (build/decompiled/all/FUN_00019a60.c DAT_000c40b4) and its 16-bit DMA
- *     path (BLASTER H=5), and a QEMU sb16 capture of the original shows a
- *     genuine 16-bit stream resampled 2:1 from 22050 to 44100;
- *   * byte statistics: as u8 the region is full-scale noise (mean|delta| ==
- *     rms), as s16 it is smooth audio (mean|delta| = 0.55*rms);
- *   * A/B on real speakers: s16/22050 = recognisable sound, u8/8000 (the old
- *     assumption) = the crunch the user reported.
+/* ESC-region PCM: raw signed 16-bit little-endian at 22050 Hz, MONO or
+ * STEREO depending on the movie (LOGO/ENA1/KONIEC stereo, INTRO_P mono), so
+ * region bytes go to SDL untouched once the device matches the movie.
+ * Evidence (2026-11-14, see also the pacing comment in is_player_run):
+ *   * every payload's ESC region is exactly N x 1260 B (stereo) or N x 630 B
+ *     (mono), where N is the repeat value set by the RPT8/RPT16 opcode that
+ *     precedes it (verified pairing across LOGO/ENA1/KONIEC/INTRO_P - e.g.
+ *     INTRO_P: RPT8=65 -> region 40950 = 65*630, RPT8=5 -> 3150 = 5*630);
+ *   * 1260 B = 315 stereo frames and 630 B = 315 mono samples - both exactly
+ *     one Sound Blaster DMA block (DAT_000c40b6 = 0x13b, rate 0x5622 = 22050
+ *     in build/decompiled/all/FUN_00019a60.c);
+ *   * LOGO region autocorrelation r(2)=0.96 >> r(1)=0.55 = interleaved
+ *     uncorrelated stereo pairs; INTRO_P r(1)=0.94 = single smooth channel;
+ *   * total lengths match remembered cutscene lengths exactly: LOGO 703080 B
+ *     @ 88200 B/s = 7.97 s ("the whole logo audio is about 8 seconds").
+ * Regions are sample-aligned blocks, but we still pad a stray odd byte so it
+ * can never desync every later sample pair.
  * Coalesced into ascratch and queued once per chunk -> gapless joins between
  * the many small ESC blocks (proposal 3. in IMPROVEMENTS). */
 static void enqueue_audio(void *u, const uint8_t *pcm, unsigned len)
 {
     player *p = (player *)u;
-    if (!p->dev || len == 0)
+    p->last_region += len;     /* chunk hold time = this region's audio (ns) */
+    if (!p->dev || !p->live || len == 0)
         return;
-    if (p->alen + len + 1 > p->acap) {   /* +1: odd-region pad, see below */
+    unsigned pad = p->stereo ? ((4u - (len & 3u)) & 3u) : (len & 1u);
+    if (p->alen + len + pad > p->acap) {
         unsigned nc = (p->alen + len) * 3 / 2 + 4096;
         uint8_t *nb = (uint8_t *)realloc(p->ascratch, nc);
         if (!nb)
@@ -137,12 +146,8 @@ static void enqueue_audio(void *u, const uint8_t *pcm, unsigned len)
     }
     memcpy(p->ascratch + p->alen, pcm, len);
     p->alen += len;
-    if (len & 1) {          /* sample-aligned regions only (they all are:
-                             * LOGO/KONIEC/INTRO_P sizes are whole 1260-byte
-                             * blocks), but never let one byte desync every
-                             * later sample pair */
+    while (pad--)                     /* keep every later sample aligned */
         p->ascratch[p->alen++] = 0;
-    }
     if (getenv("LEO_IS_WAV")) {/* CI/diagnostic hook: raw s16 LE dump, listen
                                 * with ffplay -f s16le -ar 22050 -ac 1 FILE */
         static FILE *wf;
@@ -249,28 +254,17 @@ static void wait_until(player *p, Uint64 deadline_ns)
     }
 }
 
-/* frame callback: fires at every frame boundary inside decode, where fb
- * holds a coherent full frame; present exactly one per frame (chunks may
- * carry several frames), paced by the fixed clock */
+/* frame callback: fires at every frame boundary inside decode.  Pacing is
+ * chunk-level and applied by the main loop (deadline already awaited
+ * before decode), so this only presents; every sampled movie payload holds
+ * 0 or 1 frames, so per-frame subdivision never comes up. */
 static void on_frame(void *u, unsigned idx, const is_stream *s)
 {
     player *p = (player *)u;
     (void)idx;
     if (s->st.frames <= p->start_frame)
         return; /* decode only (delta chain), no present */
-    Uint64 frame = p->presented;
-    double perf_scale = (double)SDL_GetPerformanceFrequency() / 1e9;
-    Uint64 t0_ns = (Uint64)((double)p->t0 / perf_scale);
-    Uint64 deadline_ns = t0_ns + frame * p->period;
-    wait_until(p, deadline_ns);
-    if (p->quit || p->skip)
-        return;
     present(p);
-    /* drift clamp: if a frame is >2 periods late, resync the clock */
-    Uint64 now_ns = (Uint64)((double)SDL_GetPerformanceCounter() / perf_scale);
-    if (now_ns > deadline_ns + 2 * p->period)
-        p->t0 = (Uint64)((double)SDL_GetPerformanceCounter()
-                         - (double)(frame * p->period) * perf_scale);
 }
 
 /* ESC skip helper: remember the last frame whose palette is not all-zero,
@@ -301,6 +295,28 @@ static void on_skip_frame(void *u, unsigned idx, const is_stream *s)
     }
 }
 
+/* Channel detection without a header field: every ESC region is a whole
+ * number of DMA blocks, 630 B mono or 1260 B stereo at 22050 s16.  If the
+ * gcd of all region sizes is a multiple of 1260 the movie is stereo; an odd
+ * multiple of 630 (INTRO_P: all 3150 = 5*630) proves mono.  Verified against
+ * autocorrelation: stereo LOGO r(2)=0.96>>r(1)=0.55, mono INTRO_P r(1)=0.94.
+ * (Residual risk: a mono movie that only ever uses an EVEN block count would
+ * read as stereo - none of the 15 shipped movies does.) */
+static unsigned igcd(unsigned a, unsigned b)
+{
+    while (b) {
+        unsigned t = a % b;
+        a = b;
+        b = t;
+    }
+    return a;
+}
+static void gcd_audio_cb(void *u, const uint8_t *pcm, unsigned len)
+{
+    (void)pcm;
+    *(unsigned *)u = igcd(*(unsigned *)u, len);
+}
+
 int is_player_run(const char *path, int audio, unsigned start_frame,
                   unsigned skip_at)
 {
@@ -313,6 +329,10 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
         free(rpath);
         return 1;
     }
+    unsigned g = 0;
+    is_walk_audio(&p.is, gcd_audio_cb, &g);
+    p.stereo = g && g % 1260u == 0;
+    p.bps = p.stereo ? 88200u : 44100u;
     if (rpath && strcmp(rpath, path) != 0)
         printf("is_player: data path resolved as: %s\n", rpath);
     free(rpath);
@@ -351,7 +371,7 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
         memset(&want, 0, sizeof want);
         want.freq = 22050;
         want.format = AUDIO_S16SYS;   /* ESC region = raw s16 LE samples */
-        want.channels = 1;
+        want.channels = p.stereo ? 2 : 1;
         want.samples = 0;   /* keep SDL's default: explicit small sizes
                                break SDL2.32's alsa backend here (see
                                ll_music_play in ll_level.c) */
@@ -362,26 +382,39 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
             SDL_PauseAudioDevice(p.dev, 0);
     }
 
-    /* Pacing model (re-pinned 2026-11-14): the .IS header byte 0x5D is the
-     * inter-frame PERIOD in engine ticks; the engine runs one private timer
-     * tick every ~45.5 ms (22 Hz tick chain, PLAN.md "Speed/pacing model").
-     * So frame period = byte * 1000/22 ms:  LOGO(2)=11.4 s total,
-     * PRAWA(2)=13 s, INTRO_P(5), ZARIA2(9)=slideshow art holds - all sizes
-     * of cutscene that 1997 players remember.  The old "byte = fps" reading
-     * made LOGO crawl at 62 s and is kept only via LEO_IS_FPS_DIRECT=1.
-     * LEO_IS_PERIOD_MS=N overrides outright (tests). */
+    /* Pacing (RE-PINNED 2026-11-14 - the audio block clock): ISplay plays
+     * the ESC stream at a fixed 22050 Hz s16 in DMA blocks of 315 source
+     * frames (DAT_000c40b6 = 0x13b, rate DAT_000c40b4 = 0x5622 in
+     * build/decompiled/all/FUN_00019a60.c) = 14.29 ms = 1/70 s per block
+     * (630 B mono / 1260 B stereo).  Its DMA IRQ handler (FUN_000185c0,
+     * ends with out(0x20,0x20) PIC EOI) counts DAT_000c410c down per block
+     * and fetches the next video chunk when it reaches 0; RPT8/RPT16 ops
+     * reload it (FUN_0001b0d9), header byte 0x5D is the initial value.
+     * Empirically every payload's ESC region == repeat x block_bytes, so
+     * each chunk is exactly one frame on screen for its region's audio:
+     * hold = region_bytes / bps.  Verified pairings: LOGO (2,2520),(3,3780),
+     * (4,5040),(5,6300); ENA1 (4,2520),(6,3780),(8,5040),(10,6300); KONIEC
+     * (5,6300),(6,7560)... up to 13860; INTRO_P hdr 5 -> 3150=5*630 and
+     * RPT8=65 -> 40950=65*630.  Region-less chunks hold repeat*14.29 ms
+     * (the engine silence-pads, cf. the 0x80 fill in FUN_000185c0).
+     * Totals now match human memory exactly: LOGO 703080 B @ 88200 B/s =
+     * 7.97 s ("the logo audio is over in about 8 seconds") - the previous
+     * period-byte x 1/22 Hz model ran it at 15.5 s, which is why our
+     * cutscenes crawled at up to half speed.  Legacy test hooks:
+     * LEO_IS_PERIOD_MS=N forces a uniform N ms hold, LEO_IS_FPS_DIRECT the
+     * oldest reading (byte = fps); with either set, audio no longer paces
+     * video and the queue absorbs the difference. */
     int ticks = p.is.fps > 0 ? p.is.fps : 2;
-    Uint64 period;
     const char *ovr = getenv("LEO_IS_PERIOD_MS");
     if (ovr && atoi(ovr) > 0)
-        period = (Uint64)atoi(ovr) * 1000000ull;
+        p.period = (Uint64)atoi(ovr) * 1000000ull;
     else if (getenv("LEO_IS_FPS_DIRECT"))
-        period = 1000000000ull / (Uint64)ticks;
-    else
-        period = (Uint64)ticks * 1000000000ull / 22ull;
-    p.period = period;
+        p.period = 1000000000ull / (Uint64)ticks;
     p.start_frame = start_frame;
     p.t0 = SDL_GetPerformanceCounter();
+    double perf_scale = (double)SDL_GetPerformanceFrequency() / 1e9;
+    Uint64 t0_ns = (Uint64)((double)p.t0 / perf_scale);
+    Uint64 sched_ns = 0;          /* this chunk's presentation deadline */
 
     for (unsigned ci = 0; ci < p.is.nchunks && !p.quit; ci++) {
         if (p.skip_at && p.presented >= p.skip_at) {
@@ -434,16 +467,46 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
         }
         /* frames before start_frame must still DECODE (frame deltas),
          * only their presentation and audio are suppressed */
-        int live = p.is.st.frames + 1 > start_frame;
-        if (live) {
-            is_walk_audio_range(&p.is, ci, 1, p.dev ? enqueue_audio : NULL,
-                                &p);
-            flush_audio(&p); /* one queue call per chunk (gapless) */
-        }
+        p.live = p.is.st.frames + 1 > start_frame;
+        p.last_region = 0;
+        is_walk_audio_range(&p.is, ci, 1, enqueue_audio, &p);
+        flush_audio(&p); /* one queue call per chunk (gapless) */
+        if (p.live)
+            wait_until(&p, t0_ns + sched_ns); /* this chunk's presentation
+                                                 deadline */
+        if (p.quit || p.skip)
+            continue;
         is_decode_chunk(&p.is, ci, on_frame, &p, NULL);
         if (p.is.st.ok) {
             fprintf(stderr, "is_player: desync at chunk %u\n", ci);
             break;
+        }
+        /* audio-block clock: hold this chunk for exactly its region's
+         * audio; silent chunks hold repeat * 1/70 s (engine keeps the
+         * DMA ticking with silence, video keeps advancing - FUN_000185c0) */
+        Uint64 hold;
+        if (p.period)
+            hold = p.period;
+        else if (p.last_region)
+            hold = (Uint64)p.last_region * 1000000000ull / p.bps;
+        else {
+            unsigned rep = p.is.st.repeat ? p.is.st.repeat
+                                          : (unsigned)ticks;
+            hold = (Uint64)rep * 1000000000ull / 70ull;
+        }
+        if (p.live) {
+            /* pre-start (LEO_DEMO_SKIP_FRAMES) chunks decode but consume no
+             * wall time: the clock anchors at the first live frame, as the
+             * old per-frame model did */
+            sched_ns += hold;
+            /* drift clamp: >2 holds late (debugger, compose stall) =
+             * resync the anchor instead of trying to catch up */
+            Uint64 now_ns =
+                (Uint64)((double)SDL_GetPerformanceCounter() / perf_scale);
+            if (now_ns > t0_ns + sched_ns + 2 * hold) {
+                t0_ns = now_ns - sched_ns;
+                p.t0 = (Uint64)((double)t0_ns * perf_scale);
+            }
         }
     }
     if (p.dev && !p.skip) {

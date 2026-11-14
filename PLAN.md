@@ -89,9 +89,10 @@ Error strings found in EXE: Watcom runtime + custom: `Blad zakresu w ...::check 
      interleaved with whole frames); framebuffer+palette persist across
      chunks. Each payload starts with an ESC(0xb0) skip of the audio tail:
      `resume = payload_pos + 5 + u32` (0 crossings of payload end in all
-     2388 INTRO_P payloads). ESC-skipped bytes = **signed 16-bit little-endian
-     PCM at 22050 Hz mono** (the earlier "8-bit unsigned ~8 kHz" reading was
-     wrong and is what made cutscene audio crunch - see the audio bullet).
+     2388 INTRO_P payloads). ESC-skipped bytes = **raw signed 16-bit
+     little-endian PCM at 22050 Hz, mono or stereo per movie** (the earlier
+     "8-bit unsigned ~8 kHz" reading was wrong and is what made cutscene
+     audio crunch - see the audio bullet).
    * Band opcode stream, 4 segments per band (bands = h/4): opcode header
      `B`: len=B&7 (|2nd byte if B&0x40), mode=B&0xb8: SOLID 0x00, LUT1 0x08,
      LUT2 0x10, LUT4 0x18, RAW 0x20, SKIP 0x90, EOB 0x88 (ends band early;
@@ -112,20 +113,28 @@ Error strings found in EXE: Watcom runtime + custom: `Blad zakresu w ...::check 
    * All 15 .IS decode to EOF, zero desync (INTRO_P: 2388 chunks -> 1521
      frames, 189 PAL ops, 2363 ESC ops).
    * **Audio (SOLVED 2026-11-14 — this was the "horrible logo video sound"
-     bug):** the ESC region is raw **s16 little-endian mono at 22050 Hz**;
-     regions are whole 1260-byte blocks (LOGO 703080 = 558x1260, KONIEC
-     4617900 = 3665x1260) and the engine pads silence once the region is
-     exhausted (the 0x80 fill in `build/decompiled/all/FUN_000185c0.c`, the
-     ISplay decoder; its 4 input modes are mono-s16->u8 msb, stereo-s16 avg,
-     stereo-u8 avg, straight copy, while `FUN_00019a60.c` sets rate
-     0x5622=22050 and takes the 16-bit DMA channel from BLASTER `H=` — 4..7,
-     else none). Evidence: durations line up with video (LOGO 15.9 s audio vs
-     171 frames x period 2 / 22 Hz = 15.5 s; KONIEC 104.7 s audio vs 174 s
-     video -> silence pad); byte statistics (as u8 mean|delta| == rms = noise,
-     as s16 0.55*rms = audio, byte mean 129 = zero-mean s16); a QEMU sb16
-     capture of the ORIGINAL shows a real 16-bit stream resampled 2:1 from
-     22050; and A/B on the user's speakers (s16/22050 recognisable, u8/8000 =
-     the reported crunch).
+     bug):** the ESC region is raw **s16 little-endian at 22050 Hz**, MONO or
+     STEREO per movie: every region is a whole number of DMA blocks, 1260 B
+     stereo or 630 B mono, exactly matching the RPT8/RPT16 repeat that
+     precedes it (region = repeat x block, verified for every payload of
+     LOGO/ENA1/KONIEC/INTRO_P - INTRO_P: all 3150=5x630 with RPT8=5, and
+     RPT8=65 -> 40950=65x630; LOGO (2,2520)...(5,6300)). Channel detector:
+     gcd of region sizes (odd multiple of 630 -> mono, i.e. INTRO_P; else
+     stereo) - agrees with autocorrelation (LOGO r(2)=0.96>>r(1)=0.55 =
+     interleaved uncorrelated stereo; INTRO_P r(1)=0.94 = single channel).
+     The engine silence-pads once a region is exhausted (the 0x80 fill in
+     `build/decompiled/all/FUN_000185c0.c` - that function is the DMA IRQ
+     handler (EOI out(0x20,0x20)) AND the video chunk advancer via the
+     DAT_000c410c countdown, see the pacing bullet; its 4 input modes are
+     mono-s16->u8 msb, stereo-s16 avg, stereo-u8 avg, straight copy, while
+     `FUN_00019a60.c` sets rate 0x5622=22050 and takes the 16-bit DMA
+     channel from BLASTER `H=` - 4..7, else none). Totals vs player memory:
+     LOGO 703080 B @ 88200 B/s = 7.97 s ("the whole logo audio is about 8
+     seconds"), ENA1 14.5 s, KONIEC 4617900 B = 52.4 s, INTRO_P 8497810 B
+     @ 44100 = 192.7 s; byte statistics (as u8 mean|delta| == rms = noise,
+     as s16 0.55*rms = audio, byte mean 129 = zero-mean s16); and A/B on
+     the user's speakers (s16/22050 recognisable, u8/8000 = the reported
+     crunch).
    * Ground-truth capture rig (diagnostics only, capture data never
      committed): `-device sb16,audiodev=a,irq=7,dma=1,dma16=5 -audiodev
      alsa,id=a,out.dev=tap` with `build/lltap.conf` (ALSA file plugin ->
@@ -253,14 +262,24 @@ needs a fixed-timestep clock instead, driven from SDL_GetTicks64 + SDL_Delay
 (QueryPerformanceCounter optional on win11), present vsync-capped - all game
 logic on tick boundaries, so behavior matches the slowed QEMU baseline, not
 the wall execution rate. EXACT pacing sources, pinned 2026-11-14:
-- cutscenes: .IS header byte 0x5D drives per-frame pacing. RE-READ
-  2026-11-14 (user playtest: LOGO crawled ~62 s at "2 fps"): the byte is
-  the frame PERIOD in 22 Hz engine ticks (period = byte*1000/22 ms), not a
-  fps value - LOGO/PRAWA 2 ticks = 11-13 s, INTRO_P 5 ticks, ZARIA2 9
-  ticks (slideshow art holds). Old reading (1000/byte ms) kept behind
-  LEO_IS_FPS_DIRECT=1; LEO_IS_PERIOD_MS=N overrides. No QEMU wall-time
-  baseline exists for cutscene speed, so the tick reading stands on the
-  verified 22 Hz tick chain + player memory.
+ - cutscenes: pacing is the .IS codec's audio DMA clock (REV 2026-11-14,
+   supersedes the earlier "byte 0x5D x 1/22 Hz" estimate, which ran
+   cutscenes 2-5x too slow): ISplay plays the ESC audio at a fixed
+   22050 Hz s16 (stereo or mono per movie, see the audio bullet) in DMA
+   blocks of 315 source frames = 14.29 ms (FUN_00019a60: DAT_000c40b4 =
+   0x5622, DAT_000c40b6 = 0x13b). Its DMA IRQ handler (FUN_000185c0, EOI
+   out(0x20,0x20)) fetches the next video chunk every `repeat` blocks
+   (DAT_000c410c countdown; RPT8/RPT16 ops reload DAT_000c41d0/c410c,
+   header byte 0x5D = initial value). Empirically every payload's ESC
+   region == repeat x block bytes (1260 stereo / 630 mono): LOGO
+   (2,2520),(3,3780),(4,5040),(5,6300); ENA1 (4,2520),(6,3780),(8,5040),
+   (10,6300); KONIEC 6300 up to 13860; INTRO_P 3150=5x630 with RPT8=5,
+   RPT8=65 -> 40950=65x630. => each chunk sits on screen exactly as long
+   as its region's audio (hold = bytes/88200 or /44100); region-less
+   chunks hold repeat x 14.29 ms with silence padding. Totals: LOGO
+   7.97 s (matches the user's memory "about 8 seconds"), ENA1 14.5 s,
+   KONIEC 52.4 s, INTRO_P 192.7 s. LEO_IS_PERIOD_MS=N forces a uniform
+   hold (tests); LEO_IS_FPS_DIRECT=1 keeps the very first naive reading.
 - engine tick: game has ZERO clock sync (no PIT port I/O, no INT 1Ah, no
   BIOS 40:6C reads anywhere in decompiled/all) - pure fixed-work-per-frame.
   QEMU docs confirm icount: "one instruction every 2^N ns virtual time",
