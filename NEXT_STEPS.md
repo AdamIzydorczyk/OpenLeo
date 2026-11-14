@@ -4,7 +4,7 @@ Working plan derived from `OpenLeo_native_port_review.md` (P/E/M) and
 `OpenLeo_porting_tips.md` (T). Update the status lines here as items
 land; the review/tips files stay as the detailed work orders.
 
-## Status as of 2026-11-14 (through PR-12, all pushed)
+## Status as of 2026-11-14 (through PR-13, all pushed)
 
 Done and verified green (full `make verify-all` incl. wine parity):
 
@@ -70,7 +70,17 @@ Done and verified green (full `make verify-all` incl. wine parity):
   both go through it; the per-caller spec/P-13 code is deleted. Device
   is per-playback on purpose (spec differs 22k/44k, no resampling,
   queue is a stateful FIFO) but scenes never overlap, so exactly one
-  live device at a time. ll_level.h drops the ll_audio_init decl.        (this commit)
+  live device at a time. ll_level.h drops the ll_audio_init decl.        (691b545)
+- PR-13 T-17 save/config dir: new ported/ll_paths.[ch] computes the
+  per-user WRITABLE dir ($LEO_USER_DIR override, else
+  SDL_GetPrefPath("LongSoft","LewLeon") = ~/.local/share/... or
+  %APPDATA%\...), ll_resolve_user_file() resolves STATUS.LEO there and
+  imports a DATA-adjacent legacy copy EXACTLY once (COPIED byte-ident,
+  original untouched); main.c LEO_SAVE stays an absolute override (API
+  preserved). pick_data_dir search order extended with
+  $XDG_DATA_HOME/openleo / ~/.local/share/openleo / /usr/share/openleo,
+  factored into find_data_candidate + a silent detect_data_dir() (so
+  single-file runs keep byte-ident output). NEW verify-userdir CI leg.   (this commit)
 
 Known-clean baselines: ASan/UBSan on demo chain + all 22 MODs = app
 leaks 0 (SDL backend internals only); CI pins are format-only for MOD
@@ -147,6 +157,21 @@ simultaneously, so there is still exactly one live device at a time -
 which is what P-03 was actually about. If a future screen needs
 concurrent SFX, add a mixer in ll_audio.c, do not reopen per call.
 
+## PR-13 — per-user save/config dir (DONE, see status above)
+
+T-17 landed on its writable-state half: ll_paths is the single seam
+for the user dir + save resolution, and main's LEO_SAVE hook became a
+verbatim override over it (so the existing save-diagnostic API and the
+"not loadable" text are unchanged; repo data/ has no STATUS.LEO so no
+CI leg triggers an import, and detect_data_dir is silent so single-file
+runs are byte-identical). Not done here, by design: a CONFIG file
+(openleo.ini) has no runtime consumer yet - settings are still CLI/env -
+so the helper (ll_resolve_user_file with leaf="LONGSOFT.CFG"/"openleo.ini")
+is ready but unwired. When a settings subsystem lands, it uses the same
+resolution + one-time-import path, no new plumbing. Import leaves the
+original in place (mirrors the "retail data untouched" rule); the
+resolution then re-reads the user copy on later runs.
+
 ## Next — pick from the Deferred list below
 
 Nothing queued: every review item that was scoped as "worth fixing
@@ -170,6 +195,9 @@ user's call (T-11 4:3 aspect default, T-22 AppImage).
   traces, T-24 golden-master vs original EXE, T-26 engine state
   machine. T-25 parser fuzzing - DONE in PR-11 (tools/fuzz.c);
   extending it later = more kinds (.des text) + a longer seed list.
+  T-17 writable-state (user dir + save resolution + XDG data search +
+  one-time import) - DONE in PR-13; what's left of T-17 is wiring a
+  config file to that same helper once a settings subsystem exists.
 
 ## Standing rules
 

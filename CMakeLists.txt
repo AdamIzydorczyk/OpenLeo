@@ -37,7 +37,8 @@ add_executable(ll_cutscene
     ported/ll_save.c
     ported/fs_ci.c
     ported/ll_view.c
-    ported/ll_audio.c)
+    ported/ll_audio.c
+    ported/ll_paths.c)
 target_include_directories(ll_cutscene PRIVATE ported)
 
 # One platform knob; everything else derives from it in ll_config.h

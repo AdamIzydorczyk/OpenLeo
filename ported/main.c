@@ -17,6 +17,7 @@
 #include "is_stream.h"
 #include "ll_level.h"
 #include "ll_menu.h"
+#include "ll_paths.h"
 #include "ll_pcx.h"
 #include "ll_save.h"
 #include "llrs.h"
@@ -145,8 +146,10 @@ static ll_menu_anim *menu_anims(const char *data, int *nanim)
  * DATA directory discovery (review P-08, tips T-17): the original EXE
  * found ANIMACJE/ next to itself; a modern launcher may start us from
  * anywhere. Search order: $LEO_DATA -> <dir of executable>/data ->
- * ./data -> . (the classic cwd default). Returns NULL when nothing
- * contains game data.
+ * $XDG_DATA_HOME/openleo (or ~/.local/share/openleo) ->
+ * /usr/share/openleo -> ./data -> . (the classic cwd default). Returns
+ * NULL when nothing contains game data. (The per-user WRITABLE dir for
+ * saves/config is separate: ported/ll_paths.h.)
  */
 /* ANIMACJE, ETAPY, SOUND, LEVELDES are single container FILES (LLRS
  * archives), not directories - existence check only. */
@@ -224,44 +227,90 @@ static void data_probe(const char *dir)
               "pass the DATA directory on the command line.", dir);
 }
 
+/* Shared silent DATA-candidate scan (tips T-17 search order):
+ * <dir of executable>/data -> $XDG_DATA_HOME/openleo (or ~/.local/
+ * share/openleo) -> /usr/share/openleo (POSIX installs) -> ./data -> .
+ * Fills `out` and returns 1 on the first candidate that holds game
+ * data, 0 otherwise. Prints nothing (pick_data_dir adds the logging);
+ * $LEO_DATA is handled by pick_data_dir so its log line is unchanged. */
+static int find_data_candidate(char *out, size_t n)
+{
+    char cands[6][4096];
+    int nc = 0;
+    char *base = SDL_GetBasePath();      /* no init needed; may fail */
+    if (base) {
+        size_t bl = strlen(base);
+        while (bl && (base[bl - 1] == '/' || base[bl - 1] == '\\'))
+            base[--bl] = '\0';
+        snprintf(cands[nc++], sizeof cands[0], "%s/data", base);
+        SDL_free(base);
+    }
+#if !PLATFORM_WIN && !PLATFORM_DOS
+    const char *xdg = getenv("XDG_DATA_HOME");
+    const char *home = getenv("HOME");
+    if (xdg && *xdg)
+        snprintf(cands[nc++], sizeof cands[0], "%s/openleo", xdg);
+    else if (home && *home)
+        snprintf(cands[nc++], sizeof cands[0], "%s/.local/share/openleo",
+                 home);
+    snprintf(cands[nc++], sizeof cands[0], "/usr/share/openleo");
+#endif
+    snprintf(cands[nc++], sizeof cands[0], "./data");
+    snprintf(cands[nc++], sizeof cands[0], ".");
+    for (int i = 0; i < nc; i++) {
+        if (have_sub(cands[i], "ANIMACJE") || have_sub(cands[i], "ETAPY")) {
+            size_t l = strlen(cands[i]);
+            if (l >= n)
+                continue;                 /* absurdly long: skip candidate */
+            memcpy(out, cands[i], l + 1);
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static const char *pick_data_dir(void)
 {
     static char chosen[4096];
-    static char base_data[4096];
-    const char *cands[3];
-    int n = 0;
+    static int resolved;
+    static const char *result;
+    if (resolved)
+        return result;
 
     const char *env = getenv("LEO_DATA");
     if (env && *env) {
         snprintf(chosen, sizeof chosen, "%s", env);
         fprintf(stderr, "[leo] DATA from $LEO_DATA: %s\n", chosen);
-        return chosen;
+        resolved = 1;
+        result = chosen;
+        return result;
     }
-    char *base = SDL_GetBasePath(); /* SDL_free'd below; no init needed.
-                                     * SDL guarantees a trailing separator. */
-    if (base) {
-        size_t bl = strlen(base);
-        while (bl && (base[bl - 1] == '/' || base[bl - 1] == '\\'))
-            base[--bl] = '\0';
-        snprintf(base_data, sizeof base_data, "%s/data", base);
-        SDL_free(base);
-        cands[n++] = base_data;
+    if (find_data_candidate(chosen, sizeof chosen)) {
+        printf("[leo] DATA auto-detected: %s\n", chosen);
+        resolved = 1;
+        result = chosen;
+        return result;
     }
-    cands[n++] = "./data";
-    cands[n++] = ".";
-    for (int i = 0; i < n; i++) {
-        if (have_sub(cands[i], "ANIMACJE") || have_sub(cands[i], "ETAPY")) {
-            snprintf(chosen, sizeof chosen, "%s", cands[i]);
-            printf("[leo] DATA auto-detected: %s\n", chosen);
-            return chosen;
-        }
+    fprintf(stderr, "[leo] no DATA found: tried <exe>/data, $XDG_DATA_HOME/"
+                    "openleo, /usr/share/openleo, ./data and $PWD\n");
+    resolved = 1;
+    result = NULL;
+    return result;
+}
+
+/* Silent auto-detected DATA dir for the T-17 legacy-save import (see
+ * the save block in main): never logs, so single-file runs keep their
+ * exact current output. */
+static const char *detect_data_dir(void)
+{
+    static char d[4096];
+    static int done;
+    if (!done) {
+        done = 1;
+        if (!find_data_candidate(d, sizeof d))
+            d[0] = '\0';
     }
-    if (base_data[0])
-        fprintf(stderr, "[leo] no DATA found: tried %s, ./data and $PWD\n",
-                base_data);
-    else
-        fprintf(stderr, "[leo] no DATA found: tried ./data and $PWD\n");
-    return NULL;
+    return d[0] ? d : NULL;
 }
 
 static void run_menu(const char *data, int audio)
@@ -611,19 +660,27 @@ int main(int argc, char **argv)
         }
     }
 
-    /* LEO_SAVE=<path>: load + decode the original STATUS.LEO savegame at
-     * boot (read-only proof of byte-compatible loading; see ll_save.h.
-     * Field semantics await a paired QEMU capture, so nothing is written
-     * back: the original save sites are indirect vtable dispatches). */
+    /* T-17: resolve the save in the per-user WRITABLE dir, keeping the
+     * LEO_SAVE hook as an absolute override (API preserved). A legacy
+     * STATUS.LEO sitting next to the game data is imported (COPIED,
+     * original untouched) into the user dir exactly once, then loaded
+     * from there. Field semantics still await a paired QEMU capture, so
+     * nothing is ever written back: the original save sites are indirect
+     * vtable dispatches. */
     {
-        const char *sv = getenv("LEO_SAVE");
-        if (sv && *sv) {
+        char sp[4096];
+        int imported = 0;
+        if (ll_resolve_user_file(sp, sizeof sp, getenv("LEO_SAVE"),
+                                 detect_data_dir(), "STATUS.LEO", &imported)) {
             ll_status st;
-            if (ll_status_load(sv, &st) == 0)
-                ll_status_dump(&st, sv);
-            else
+            if (ll_status_load(sp, &st) == 0) {
+                if (imported)
+                    printf("[leo] imported legacy save into user dir:"
+                           " %s\n", sp);
+                ll_status_dump(&st, sp);
+            } else
                 printf("ll_save: %s not loadable (need exactly %d B)\n",
-                       sv, LL_STATUS_WORDS * 4);
+                       sp, LL_STATUS_WORDS * 4);
         }
     }
 

@@ -11,11 +11,11 @@ PYREF    ?= tools/is_decode.py
 SRC      := ported/main.c ported/is_stream.c ported/platform_sdl/is_player.c \
             ported/llrs.c ported/ll_pcx.c ported/ll_menu.c ported/ll_level.c ported/ll_seq.c \
             ported/ll_pcm.c ported/ll_mod.c ported/ll_save.c ported/fs_ci.c ported/ll_view.c \
-            ported/ll_audio.c
+            ported/ll_audio.c ported/ll_paths.c
 HDRS     := ported/ll_config.h ported/is_stream.h ported/platform_sdl/is_player.h \
             ported/llrs.h ported/ll_pcx.h ported/ll_menu.h ported/ll_level.h ported/ll_seq.h \
             ported/ll_pcm.h ported/ll_mod.h ported/ll_save.h ported/fs_ci.h ported/ll_view.h \
-            ported/ll_audio.h
+            ported/ll_audio.h ported/ll_paths.h
 
 # ---------------- native Linux ----------------
 CC       ?= gcc
@@ -602,6 +602,32 @@ fuzz: tools/fuzz.c ported/is_stream.c ported/llrs.c ported/ll_pcx.c \
 verify-fuzz: fuzz
 	@for s in 1 2 3; do ./fuzz $(DATA) $$s 400 /tmp/opencode || exit 1; done
 
+# T-17: per-user save/config dir + one-time legacy import. The game
+# resolves STATUS.LEO in LEO_USER_DIR (an override for $LEO_USER_DIR),
+# importing a DATA-adjacent copy EXACTLY once (byte-identical, original
+# untouched), and LEO_SAVE still wins verbatim. Hermetic: a copy of the
+# binary next to a temp data dir so that dir is the auto-detected DATA.
+verify-userdir: ll_cutscene
+	@if [ ! -f $(HD)/STATUS.LEO ]; then echo "verify-userdir: SKIP (no $(HD)/STATUS.LEO)"; exit 0; fi
+	@T=$$(mktemp -d /tmp/opencode/t17.XXXXXX); \
+	cp ll_cutscene $$T/; mkdir -p $$T/data $$T/user; \
+	cp $(HD)/STATUS.LEO $$T/data/; : > $$T/data/ANIMACJE; : > $$T/data/ETAPY; \
+	run() { env -u DISPLAY -u WAYLAND_DISPLAY SDL_VIDEODRIVER=dummy \
+	        LEO_USER_DIR=$$T/user $$T/ll_cutscene /no.is 2>&1; }; \
+	run | grep -q 'imported legacy save into user dir' \
+	  || { echo "verify-userdir: first run did not import"; exit 1; }; \
+	cmp -s $$T/data/STATUS.LEO $$T/user/STATUS.LEO \
+	  || { echo "verify-userdir: imported save not byte-identical"; exit 1; }; \
+	test -f $$T/data/STATUS.LEO \
+	  || { echo "verify-userdir: original DATA save was moved, not copied"; exit 1; }; \
+	run | grep -q 'imported legacy' \
+	  && { echo "verify-userdir: imported a second time"; exit 1; }; \
+	env -u DISPLAY -u WAYLAND_DISPLAY SDL_VIDEODRIVER=dummy \
+	  LEO_SAVE=$(HD)/STATUS.LEO LEO_USER_DIR=$$T/user $$T/ll_cutscene /no.is 2>&1 \
+	  | grep -q 'STATUS.LEO: 75 words' \
+	  || { echo "verify-userdir: LEO_SAVE override broken"; exit 1; }; \
+	rm -rf $$T; echo "verify-userdir: user-dir import-once + byte-identical + LEO_SAVE override (ok)"
+
 # T-20 CMake parity check: the alternate build must produce the same
 # game. Skips cleanly when cmake isn't installed (the Makefile stays
 # the reference build either way).
@@ -621,7 +647,7 @@ verify-cmake:
 	cmp /tmp/opencode/cm_win.ppm /tmp/opencode/c_py/f01020.ppm \
 	  && echo "cmake windows binary (+SDL2.dll) == python reference (byte-exact)"
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music verify-utf8 verify-fuzz verify-cmake
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music verify-utf8 verify-fuzz verify-userdir verify-cmake
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
@@ -636,4 +662,4 @@ clean:
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
         verify-seq verify-pcm verify-mod verify-level verify-help verify-menu \
         verify-sel verify-save verify-music verify-utf8 verify-fuzz \
-        verify-cmake verify-all level clean package package-win package-linux
+        verify-userdir verify-cmake verify-all level clean package package-win package-linux
