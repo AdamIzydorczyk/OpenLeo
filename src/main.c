@@ -118,7 +118,7 @@ static ll_menu_anim *menu_anims(const char *data, int *nanim)
     return out;
 }
 
-static void run_menu(const char *data)
+static void run_menu(const char *data, int audio)
 {
     unsigned blen = 0;
     unsigned char *bg = menu_bg(data, &blen);
@@ -153,14 +153,14 @@ static void run_menu(const char *data)
              * demos a richer level instead, e.g. TUNGA.11 (full PLAN3.PCX
              * background + animated platforms). */
             const char *lv = getenv("LEO_DEMO_LEVEL");
-            ll_level_show(data, lv && *lv ? lv : "RAN.01", 8.0, 0);
+            ll_level_show(data, lv && *lv ? lv : "RAN.01", 8.0, audio);
             break;
         } else if (sel == 1) {
             if (auto_i)
                 break; /* chained runs do not re-play FMVs twice */
             char p[4096];
             snprintf(p, sizeof p, "%s/AUTORZY.IS", data);
-            is_player_run(p, 1, 0, 0);
+            is_player_run(p, audio, 0, 0);
         } else {
             break;
         }
@@ -222,7 +222,7 @@ int main(int argc, char **argv)
             if (rc != 0 || dsf)
                 break; /* skipped or error: advance straight to menu */
         }
-        run_menu(d);
+        run_menu(d, audio);
         return 0;
     }
 
@@ -255,6 +255,6 @@ int main(int argc, char **argv)
     if (rc == 2)
         rc = 0; /* skipped forward == normal handoff in chained mode */
     if (menu_data)
-        run_menu(menu_data);
+        run_menu(menu_data, audio);
     return rc;
 }

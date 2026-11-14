@@ -570,5 +570,51 @@ touched pixels inside the page-0 window (C blitter == python oracle again).
 cursor=mouse.seq / back.pcx / <stem>.pal payloads referenced by .MNU exist
 in neither tree (data hole) - bg palette kept, no custom cursor.
 
+## 8d. M5 music: MOD player (delivered 2026-11-14)
+
+Level tracks are chosen by `.des` `muzyka=<stem>.mod` (verified map:
+RAN->ran, TUNGA1/2+JUNCTION->tunga, KARA->kara, ZARIA2->lew, KADMAR1->
+piramid, ENA1->podwoda, ENA2->ena2, KADMAR2->kadmar2, LONA->lona,
+SADES->sades, ZARIA1->zaria); the payload is `<STEM>.MOD` in the SOUND
+container (22 tracks, all parse).
+
+**Longsoft MOD repack layout** (Ghidra loader RE - FUN_00012eb0 open,
+FUN_00012d14 pattern loop, FUN_000131b8 pattern remap, FUN_000132b0 ext
+instrument dir, FUN_00013300 sample clamp, FUN_00012c40 note parse,
+FUN_00013600 mixer tick; all 8 test tracks consistent):
+- standard 1084 B header kept (songlen BYTE @950, pattern table @1268,
+  id string @1080), but table entries are ORIGINAL pattern ids;
+- loader stores only the UNIQUE patterns (first-appearance order)
+  back-to-back at 1084, nch*256 B each; e.g. TUNGA 38pos/4uniq,
+  RAN 28/8, ZARIA 43/10, KARA 58/10, LEW 33/8, RAN1 2/1, ENA2 40/7;
+- u16 @952 holds repack garbage markers (ignored);
+- note words use the 6/8CHN encoding for ALL ids incl. 4-channel:
+  period=(b0&0xF)<<8|b1, inst=(b0&0x10)|(b2>>4), eff=b2&0xF, param=b3;
+- after patterns: optional ext instrument dir = 1 count byte + count
+  29 B records (counts 0..2 observed; content murky - instruments 32+
+  are counted but not played);
+- then sample data contiguous in directory order, clamped at EOF with
+  zero-fill (FUN_00013300) - the shipped tracks' 31 sample lengths
+  overrun the payload (TUNGA smp06 partial, 7..31 absent) and the
+  directory volume byte is 0 on most instruments; the engine defaults
+  those voices to full volume (vol 0 -> 64), else songs would be silent.
+Engine tables recovered: 61-entry period table 1712..56 @0xa7272 (Amiga
+fine-0), 10-id signature table @0xa7204 (M.K./M!K!/FLT4/4CHN/6CHN/8CHN/
+CD81/OKTA/16CN/32CN).
+
+**Player** `src/ll_mod.c`: standard ProTracker tick model (tick frames =
+tempo*44100/6250, tempo/speed via Fxx), 16x12 fine-tune period tables,
+effects 0-9,A-F + E1,E2,E5,E9,EA,EB; s8 samples with loop; alternating
+L/R pan; song loops. Deterministic pure-integer 44.1 kHz stereo mix ->
+`ll_mod_render()` is the CI oracle: `make verify-mod` renders 3 s of
+TUNGA/RAN/ENA2, FNV-1a-64 over the s16 words, linux == wine byte-exact
+(TUNGA fnv=ef4c4a42b6f77a23; autocorrelation 0.75 at exactly the
+row grid (speed6xtempo125=5292 fr) proves it's the song, not noise).
+Wired into `ll_level_show()`: block "5c" resolves `muzyka=` -> SOUND ->
+SDL_OpenAudioDevice callback pump (SDL_InitSubSystem(AUDIO)); LEO_NO_MUSIC
+or --no-audio disables. `mod_selftest FILE.MOD [MS] [OUT.WAV]` renders
+audible WAVs for listening. MAPKA.MOD is 6CHN and probably not real
+music (menu map ambience?) - not in the CI set, still parses.
+
 ## 9. Legal/ethical
 Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.

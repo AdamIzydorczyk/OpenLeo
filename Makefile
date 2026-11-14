@@ -10,10 +10,10 @@ PYREF    ?= tools/is_decode.py
 
 SRC      := src/main.c src/is_stream.c src/platform_sdl/is_player.c \
             src/llrs.c src/ll_pcx.c src/ll_menu.c src/ll_level.c src/ll_seq.c \
-            src/ll_pcm.c
+            src/ll_pcm.c src/ll_mod.c
 HDRS     := src/ll_config.h src/is_stream.h src/platform_sdl/is_player.h \
             src/llrs.h src/ll_pcx.h src/ll_menu.h src/ll_level.h src/ll_seq.h \
-            src/ll_pcm.h
+            src/ll_pcm.h src/ll_mod.h
 
 # ---------------- native Linux ----------------
 CC       ?= gcc
@@ -137,9 +137,10 @@ verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_
 	  && echo "win PCM level canvas == linux (byte-exact parallax view)"
 
 ll_level.exe: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c \
-            src/ll_pcm.c src/ll_seq.c src/ll_seq.h src/ll_pcm.h src/ll_config.h
+            src/ll_pcm.c src/ll_seq.c src/ll_mod.c \
+            src/ll_seq.h src/ll_pcm.h src/ll_mod.h src/ll_config.h
 	$(XC) $(XCFLAGS) $(XLD) -o $@ tools/ll_level.c src/ll_level.c \
-	    src/llrs.c src/ll_pcx.c src/ll_pcm.c src/ll_seq.c $(XLIBS)
+	    src/llrs.c src/ll_pcx.c src/ll_pcm.c src/ll_seq.c src/ll_mod.c $(XLIBS)
 
 # src/ll_pcm.c byte-for-byte agreement with tools/verify_pcm.py on every
 # PCM parallax layer payload in ETAPY (byte-RLE plane, stride = w+80).
@@ -180,10 +181,11 @@ pcm_selftest.exe: tools/pcm_selftest.c src/ll_pcm.c src/ll_pcm.h
 # its tlo= PCX background + ANIMACJE leaf .SEQ object sprites driven by the
 # HD-install .MOV state machines (LEO_HD_DIR=<dir with ANIMACJE/ETAPY>).
 ll_level: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_pcm.c \
-        src/ll_seq.c src/ll_seq.h src/ll_pcm.h src/ll_config.h
+        src/ll_seq.c src/ll_mod.c \
+        src/ll_seq.h src/ll_pcm.h src/ll_mod.h src/ll_config.h
 	$(CC) -O2 -std=gnu11 -Wall -Wextra -Isrc $(CFLAGS) -o $@ \
 	    tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_pcm.c \
-	    src/ll_seq.c $(LIBS)
+	    src/ll_seq.c src/ll_mod.c $(LIBS)
 
 level: ll_level
 	./ll_level $(DATA) $(LEVEL) $(ARGS)
@@ -312,15 +314,39 @@ verify-menu: ll_cutscene
 	then echo "menu anim FAILED: frames t2 == t8 (nothing animates)"; exit 1; \
 	else echo "menu anim: BERLO frame cycles on screen (t2 != t8, ok)"; fi
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-level verify-help verify-menu
+# MOD music: src/ll_mod.c parses the Longsoft repack layout (ll_mod.h)
+# and renders deterministically; linux vs wine hash parity is the oracle.
+# Payloads come straight out of the SOUND llrs container.
+mod_selftest: tools/mod_selftest.c src/ll_mod.c src/ll_mod.h
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	    -Isrc -o $@ tools/mod_selftest.c src/ll_mod.c
+
+mod_selftest.exe: tools/mod_selftest.c src/ll_mod.c src/ll_mod.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
+	    tools/mod_selftest.c src/ll_mod.c
+
+verify-mod: mod_selftest mod_selftest.exe
+	@for M in TUNGA RAN ENA2; do \
+	  python3 tools/pull_record.py $(DATA)/SOUND $$M.MOD /tmp/opencode/$$M.mod && \
+	  ./mod_selftest /tmp/opencode/$$M.mod 3000 > /tmp/opencode/mod_$${M}_l.txt && \
+	  WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
+	    wine ./mod_selftest.exe Z:/tmp/opencode/$$M.mod 3000 \
+	    | tr -d '\r' > /tmp/opencode/mod_$${M}_w.txt && \
+	  diff /tmp/opencode/mod_$${M}_l.txt /tmp/opencode/mod_$${M}_w.txt >/dev/null && \
+	  grep -q 'render 3000ms.*fnv=[0-9a-f]\{16\} peak=[1-9]' /tmp/opencode/mod_$${M}_l.txt && \
+	  echo "MOD $$M: parse+render linux == wine ($$(grep -o 'fnv=[0-9a-f]*' /tmp/opencode/mod_$${M}_l.txt))" || \
+	  { echo "MOD $$M FAILED"; cat /tmp/opencode/mod_$${M}_l.txt /tmp/opencode/mod_$${M}_w.txt 2>/dev/null; exit 1; }; \
+	done
+
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
 	rm -f ll_cutscene ll_cutscene.exe llrs_selftest llrs_selftest.exe \
 	      pcx_selftest pcx_selftest.exe seq_selftest seq_selftest.exe \
 	      seq_patchdump seq_patchdump.exe pcm_selftest pcm_selftest.exe \
-	      ll_level ll_level.exe *.o *.obj
+	      mod_selftest mod_selftest.exe ll_level ll_level.exe *.o *.obj
 
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
-        verify-seq verify-pcm verify-level verify-help verify-menu verify-all \
-        level clean
+        verify-seq verify-pcm verify-mod verify-level verify-help verify-menu \
+        verify-all level clean
