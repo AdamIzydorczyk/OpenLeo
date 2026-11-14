@@ -11,7 +11,6 @@ import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.FunctionIterator;
 import ghidra.program.model.symbol.Reference;
-import ghidra.program.model.symbol.ReferenceIterator;
 
 public class SeqRecon extends GhidraScript {
     static final String[] TARGETS = {
@@ -32,11 +31,10 @@ public class SeqRecon extends GhidraScript {
             if (f == null) { println("MISSING " + name); continue; }
             if (done.add(f)) { dump(decomp, f); budget--; }
             // callers of each target
-            ReferenceIterator refs = getReferenceManager(false)
-                .getReferencesTo(f.getEntryPoint());
+            Reference[] refs = getReferencesTo(f.getEntryPoint());
             int cr = 0;
-            while (refs.hasNext() && !monitor.isCancelled()) {
-                Reference r = refs.next();
+            for (Reference r : refs) {
+                if (monitor.isCancelled()) break;
                 Function cf = getFunctionContaining(r.getFromAddress());
                 if (cf == null || cf.equals(f)) continue;
                 println("CALLER " + r.getFromAddress() + " -> " + name

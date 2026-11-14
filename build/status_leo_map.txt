@@ -1,0 +1,86 @@
+STATUS.LEO 300B = 75 LE dwords, per FUN_0005dcc0(writer)/FUN_0005dae0(reader):
+  [0..20]  blockA (per-level state?): word=(i|0x77072400)^(varA[i]|(i&0xffffff00))
+  [21..41] blockB same scheme, varB base +0x54 (0x58-4)
+  [42..62] blockC same scheme, DAT_000cf46c[] (all zero in this save)
+  [63] DAT_000a94f0<<8 ^ 0x77072400   [64] DAT_000cf464<<8 ^ 0x77072400
+  [65..74] other saves, raw LE dwords (this save: 128, 200, 1, 0...)
+
+idx  enc.b1  X(low16)  Xhi16
+-- block A
+A[ 0] b1= 51 b0=  0 X=0x3333 hi=0x0000
+A[ 1] b1= 41 b0= 13 X=0x2924 hi=0x0000
+A[ 2] b1= 33 b0= 15 X=0x212e hi=0x0000
+A[ 3] b1= 64 b0= 13 X=0x404d hi=0x0000
+A[ 4] b1= 25 b0= 11 X=0x1912 hi=0x0000
+A[ 5] b1= 38 b0= 21 X=0x2633 hi=0x0000
+A[ 6] b1= 57 b0= 23 X=0x392e hi=0x0000
+A[ 7] b1=  6 b0= 21 X=0x0613 hi=0x0000
+A[ 8] b1= 35 b0= 27 X=0x2338 hi=0x0000
+A[ 9] b1= 90 b0= 29 X=0x5a47 hi=0x0000
+A[10] b1=  7 b0= 31 X=0x0718 hi=0x0000
+A[11] b1= 82 b0= 29 X=0x524f hi=0x0000
+A[12] b1= 88 b0= 27 X=0x5843 hi=0x0000
+A[13] b1= 36 b0= 21 X=0x2431 hi=0x0000
+A[14] b1=107 b0= 23 X=0x6b7c hi=0x0000
+A[15] b1=  1 b0= 21 X=0x0114 hi=0x0000
+A[16] b1= 91 b0= 11 X=0x5b50 hi=0x0000
+A[17] b1= 88 b0= 13 X=0x5855 hi=0x0000
+A[18] b1= 82 b0= 15 X=0x525d hi=0x0000
+A[19] b1=122 b0= 13 X=0x7a77 hi=0x0000
+A[20] b1= 14 b0= 11 X=0x0e05 hi=0x0000
+-- block B
+B[ 0] b1= 62 b0=  0 X=0x3e3e hi=0x0000
+B[ 1] b1= 76 b0= 13 X=0x4c41 hi=0x0000
+B[ 2] b1= 82 b0= 15 X=0x525d hi=0x0000
+B[ 3] b1= 56 b0= 13 X=0x3835 hi=0x0000
+B[ 4] b1= 80 b0= 11 X=0x505b hi=0x0000
+B[ 5] b1= 53 b0= 21 X=0x3520 hi=0x0000
+B[ 6] b1=118 b0= 23 X=0x7661 hi=0x0000
+B[ 7] b1= 33 b0= 21 X=0x2134 hi=0x0000
+B[ 8] b1= 18 b0= 27 X=0x1209 hi=0x0000
+B[ 9] b1= 95 b0= 29 X=0x5f42 hi=0x0000
+B[10] b1=106 b0= 31 X=0x6a75 hi=0x0000
+B[11] b1= 75 b0= 29 X=0x4b56 hi=0x0000
+B[12] b1= 21 b0= 27 X=0x150e hi=0x0000
+B[13] b1= 23 b0= 21 X=0x1702 hi=0x0000
+B[14] b1= 42 b0= 23 X=0x2a3d hi=0x0000
+B[15] b1= 21 b0= 21 X=0x1500 hi=0x0000
+B[16] b1=111 b0= 11 X=0x6f64 hi=0x0000
+B[17] b1= 12 b0= 13 X=0x0c01 hi=0x0000
+B[18] b1= 88 b0= 15 X=0x5857 hi=0x0000
+B[19] b1= 72 b0= 13 X=0x4845 hi=0x0000
+B[20] b1= 68 b0= 11 X=0x444f hi=0x0000
+-- block C
+C[ 0] b1= 94 b0=  0 X=0x5e5e hi=0x0000
+C[ 1] b1= 73 b0=  1 X=0x4948 hi=0x0000
+C[ 2] b1= 33 b0=  2 X=0x2123 hi=0x0000
+C[ 3] b1= 66 b0=  3 X=0x4241 hi=0x0000
+C[ 4] b1= 78 b0=  4 X=0x4e4a hi=0x0000
+C[ 5] b1=  9 b0=  5 X=0x090c hi=0x0000
+C[ 6] b1= 52 b0=  6 X=0x3432 hi=0x0000
+C[ 7] b1= 41 b0=  7 X=0x292e hi=0x0000
+C[ 8] b1= 97 b0=  8 X=0x6169 hi=0x0000
+C[ 9] b1= 67 b0=  9 X=0x434a hi=0x0000
+C[10] b1= 34 b0= 10 X=0x2228 hi=0x0000
+C[11] b1= 55 b0= 11 X=0x373c hi=0x0000
+C[12] b1= 43 b0= 12 X=0x2b27 hi=0x0000
+C[13] b1= 15 b0= 13 X=0x0f02 hi=0x0000
+C[14] b1= 26 b0= 14 X=0x1a14 hi=0x0000
+C[15] b1= 34 b0= 15 X=0x222d hi=0x0000
+C[16] b1=102 b0= 16 X=0x6676 hi=0x0000
+C[17] b1= 45 b0= 17 X=0x2d3c hi=0x0000
+C[18] b1= 51 b0= 18 X=0x3321 hi=0x0000
+C[19] b1=100 b0= 19 X=0x6477 hi=0x0000
+C[20] b1= 68 b0= 20 X=0x4450 hi=0x0000
+tail[63] raw=0x770720ba  lowbyte=186 byte1=(v>>8)&0xff=32
+tail[64] raw=0x77072495  lowbyte=149 byte1=(v>>8)&0xff=36
+tail[65] raw=128
+tail[66] raw=200
+tail[67] raw=1
+tail[68] raw=0
+tail[69] raw=0
+tail[70] raw=0
+tail[71] raw=0
+tail[72] raw=0
+tail[73] raw=0
+tail[74] raw=0

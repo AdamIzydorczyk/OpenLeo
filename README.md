@@ -9,7 +9,9 @@ Layout:
 - `src/` — the whole native codebase, shared by every target:
   `.IS` codec (`is_stream.*`, byte-exact vs `tools/is_decode.py`),
   `llrs` container reader (`llrs.*`, byte-exact vs `tools/llrs_unpack.py`),
-  SDL2 player/engine (`platform_sdl/`), shared entry (`main.c`),
+  container PCX reader (`ll_pcx.*`, byte-exact vs `tools/pcx_dump.py`),
+  SDL2 cutscene player (`platform_sdl/`), title menu (`ll_menu.*`),
+  level intro viewer (`ll_level.*`), shared entry (`main.c`),
   variant knobs (`ll_config.h`).
 - `Makefile` (root) — single build for both native platforms:
   `make` → `ll_cutscene` (Linux ELF, SDL2 via pkg-config),
@@ -32,7 +34,16 @@ make win      # windows .exe (needs vendor/SDL2-2.32.10-mingw + llvm-mingw,
 
 ```
 ./ll_cutscene /path/to/LEO/INTRO_P.IS      # data dir = user's original files
+./ll_cutscene --demo /path/to/LEO          # boot chain: LOGO.IS -> PRAWA.IS
+                                           # -> INTRO_P.IS -> title menu ->
+                                           # level intro (NEW GAME = RAN.01)
+./ll_cutscene A.IS --then B.IS --menu /path/to/LEO   # manual scene chain
+./ll_level /path/to/LEO RAN.01             # level wiring (.DES) + intro art
 ```
+
+ESC mid-cutscene SKIPS it and the chain advances to the next scene or the
+title menu (original semantics): no frozen mid-intro frame, the app never
+dies. Menu keys: up/down, Enter picks; ESC = Enter.
 
 ## Tests (both platforms)
 
@@ -43,7 +54,12 @@ make verify-all
 # verify-win   same two proofs for the .exe, run under wine
 # verify-llrs  src/llrs.c == tools/llrs_unpack.py on all 4 containers
 # verify-pcx   src/ll_pcx.c == tools/pcx_dump.py on all 6 container PCX payloads
+# verify-menu  hooked demo chain: cutscene -> skip -> menu -> level intro
 ```
+
+CI hooks used by verify-menu (env): `LEO_DEMO_SKIP_FRAMES` (auto-skip demo
+scenes), `LEO_SKIP_USER=1` (auto-skip reported as a user ESC skip),
+`LEO_MENU_AUTO=N` (auto-pick menu item), `LEO_LEVEL_SECS` (intro hold).
 
 ## Naming
 

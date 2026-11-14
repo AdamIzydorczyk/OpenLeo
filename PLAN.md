@@ -331,5 +331,33 @@ llrs containers (reader ported+verified: `src/llrs.c`, `make verify-llrs`):
   obfuscation word = (i|0x77072400)^(var|(i&0xffffff00)), i = byte1 index.
   Field semantics need a paired QEMU capture (menu vs mid-level save).
 
+## 8a. M3-A scene flow (delivered 2026-11-14)
+
+`ll_cutscene` now chains scenes and owns the boot flow (the original .mnu
+menu scripts are absent from the CD containers, so menu wiring is
+project-owned):
+
+- `--demo DATA`: LOGO.IS -> PRAWA.IS -> INTRO_P.IS -> title menu ->
+  level intro (NEW GAME = RAN.01 via `ll_level_show`).
+- `--then FILE.IS` / `--menu DATA`: manual chaining.
+- ESC mid-cutscene: `is_player_run` returns 2 (user skip); the chain
+  ADVANCES to the next scene/menu instead of holding a frozen frame -
+  matches the original ("esc skips intro, game continues") and the app
+  never dies. Natural finish holds the last frame ~2s then advances.
+- `src/ll_menu.c`: title menu, built-in 8x8 bitmap font, background =
+  original ANIMACJE/MENU/OPTIONS.PCX through the verified llrs+pcx
+  readers. `src/ll_level.c`: shared level intro viewer (also behind
+  `make level` / tools/ll_level CLI). .DES name mapping: LEVELDES uses
+  stem names (RAN.DES) while ETAPY slots use level dirs (RAN.01);
+  resolution order exact -> <name>.DES -> <stem>.DES -> dir= from .DES.
+- CI: `make verify-menu` runs the whole chain headless through env hooks
+  (LEO_DEMO_SKIP_FRAMES / LEO_SKIP_USER / LEO_MENU_AUTO / LEO_LEVEL_SECS)
+  and greps the log; part of verify-all (14 checks green, incl. wine).
+- Still open for gameplay: .SEQ grammar decode (Ghidra static analysis
+  done to leaf primitives FUN_00041d40/41da0/420b0/41e00 - reads go
+  through stream vtable slot +0x1c; next step dynamic QEMU trace),
+  .plt/.pal/.blk/.suf sprite grids (not in containers), PCM sample rate
+  (22050 assumed; autocorrelation inconclusive).
+
 ## 9. Legal/ethical
 Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.
