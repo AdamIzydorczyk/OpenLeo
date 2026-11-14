@@ -692,7 +692,49 @@ verify-arch:
 	    $$bad; exit 1; \
 	else echo "T-01 structure: engine+app SDL-free, backend only (ok)"; fi
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music verify-utf8 verify-fuzz verify-platform verify-userdir verify-arch verify-cmake
+# T-24 golden-master (PLAN S6 rig, no-CD route). The ORIGINAL game runs in
+# QEMU (MS-DOS 6.22 floppy + build_data_disk.sh HDD + CFG drive 'C' + the
+# known 0x5bd51 CD-gate bypass on a COPY, see build_data_disk.sh header);
+# its chapter-map menu is a STATIC frame (40:6C frozen - the detector
+# golden_qemu_run.py uses), so
+# frames need no tick alignment: the port's animation poses are scanned
+# against it by golden_menu_cmp.py. Fixtures are user-supplied and never
+# in git; frames stay in /tmp - the repo stores hashes only.
+#   make golden_rig   rebuilds images + capture (~5 min, needs LL.iso,
+#                     an MS-DOS 6.22 boot disk image, qemu, mtools)
+GOLDEN     ?= /tmp/opencode/golden
+GOLDEN_MIN ?= 99.9
+ISO        ?= LL.iso
+MSDOS622   ?= /tmp/opencode/msdos622_x/dos-622-disk1.img
+
+golden_rig:
+	@ISO=$(ISO) MSDOS622=$(MSDOS622) GOLDEN=$(GOLDEN) \
+	    bash tools/golden_build_rig.sh
+	@python3 tools/golden_qemu_run.py --workdir $(GOLDEN) --timeout 1800
+
+verify-golden: ll_cutscene
+	@if [ ! -d "$(DATA)" ]; then \
+	    echo "golden-master: SKIP (game data fixture $(DATA) absent)"; \
+	    exit 0; fi
+	@mkdir -p $(GOLDEN)/port_frames; rm -f $(GOLDEN)/port_frames/map_*.ppm
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	    LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_SECS=4 \
+	    LEO_MENU_PPM_DIR=$(GOLDEN)/port_frames LEO_MENU_PPM_MAX=300 \
+	    timeout 120 ./ll_cutscene --demo $(DATA) >/dev/null 2>&1 || true
+	@python3 tools/golden_menu_cmp.py --port-dir $(GOLDEN)/port_frames \
+	    --expect tools/golden_expect.json --json $(GOLDEN)/cmp.json
+	@if [ -f $(GOLDEN)/vram.bin ] && [ -f $(GOLDEN)/menu.ppm ]; then \
+	    python3 tools/golden_menu_cmp.py --vram $(GOLDEN)/vram.bin \
+	        --screen $(GOLDEN)/menu.ppm \
+	        --port-dir $(GOLDEN)/port_frames \
+	        --expect tools/golden_expect.json --json $(GOLDEN)/cmp.json \
+	        --min-match $(GOLDEN_MIN); \
+	else \
+	    echo "golden-master: original capture absent (run: make golden_rig); "\
+	        "checked port pins only"; \
+	fi
+
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music verify-utf8 verify-fuzz verify-platform verify-userdir verify-arch verify-golden verify-cmake
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:

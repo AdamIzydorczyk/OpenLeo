@@ -219,6 +219,23 @@ Workaround (patch on COPY via `tools/le_patch.py`, never on pristine):
 `0x5bd5c: 9090` = NOP the `test eax,eax` after the `call 0x5bbd0`; the rest of
 the chain (FUN_0004408/FUN_0004409/stub) passes unmodified. A legit fix would
 need a real ASPI layer that reports the CD drive word (UDVD2 does not).
+REVISED 2026-11-14 (no-CD rig, T-24): the 2-byte NOP is NOT deterministic -
+the chain does `test eax,eax; je fail`, so NOPing the test leaves the `je`
+reading the CALL's stale ZF (it happened to work in the UDVD2 rig, and fails
+without any ASPI manager). `0x5bd5c: eb029090` (jmp past the test+je) is
+correct in isolation but still fails in the no-CD rig: without any ASPI
+manager the chain's later INT21 IOCTL 4408h/4409h probes (ll_cd_ioctl_
+4408/4409, run against the drive from LONGSOFT.CFG byte0) are reached and
+must also return 0 to reach the pass branch. The deterministic no-CD bypass
+is therefore at the chain ENTRY, one byte in so the function's own
+`push edx` (at 0x5bd50) / `pop edx:ret` (at 0x5bd8c) pair stays balanced:
+`0x5bd51: b8 01 00 00 00 eb 32` = `mov eax,1; jmp 0x5bd8a` (the pass-counter
+`add [0x3f1c0],eax`, identical to what the natural pass branch at 0x5bd83
+does). Verified against raw bytes 0x5bd50..: 52 b8.. eb32, tail 01 05 c0 f1
+03 00 5a c3. Patching at 0x5bd50 instead (dropping the push) unbalances the
+frame and the game dies with "DOS/4GW error (2001): exception 06h"; the
+chain's return path is `5a c3` (pop edx; ret) at 0x5bd90. See
+tools/build_data_disk.sh header for the same reasoning.
 
 **Gate 2 ("Nie mozna znalezc plyty z gra LEW LEON.") - solved without patches.**
 ll_main call site 0x5c9bc: opens FMV stream `koniec.is` via FUN_0007607b ->
@@ -258,6 +275,17 @@ the selected chapter: studio cards ("LERYX LONGSOFT CD-PROJEKT",
 running, character enters at the bottom edge, scripted encounters (tree
 hollow + crocodile). So menu is the interactive chapter selector and
 `down` = activate, exactly like Enter.
+NOTE (2026-11-14, T-24 no-CD rig): that whole attract chain was measured
+in the CD-attached rig above. The scripted no-CD rig (tools/golden_build_
+rig.sh + 0x5bd51 gate bypass, HDD-only, no MSCDEX/ASPI) reaches the game
+and runs the .IS chain at the real 70 Hz audio clock, but has been seen
+STAYING in the 480-line movie loop without the counter ever freezing
+(two runs with 0.25 s tick sampling: 871 s and 931+ s of attract);
+esc/spc/ret changed nothing. The frozen-counter map-menu state has NOT
+yet been observed on the no-CD route - the golden.* capture side stays
+open until it is (reaching it may need the CD attached, i.e. the
+-cdrom+UDVD2/MSCDEX rig from S6 with the 0x5bd51 patch instead of the
+ASPI-dependent NOP).
 
 **Chapter launch chain, full-res (2026-11-14 hunt10, 449 frames @ ~2 Hz
 after `down` on the map menu):** chapter .IS conversation cutscenes

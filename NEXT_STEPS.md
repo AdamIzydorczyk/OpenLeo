@@ -4,7 +4,7 @@ Working plan derived from `OpenLeo_native_port_review.md` (P/E/M) and
 `OpenLeo_porting_tips.md` (T). Update the status lines here as items
 land; the review/tips files stay as the detailed work orders.
 
-## Status as of 2026-11-14 (through PR-18, all pushed)
+## Status as of 2026-11-14 (through PR-19, all pushed)
 
 Done and verified green (full `make verify-all` incl. wine parity):
 
@@ -173,6 +173,23 @@ Done and verified green (full `make verify-all` incl. wine parity):
   include dropped. Headless host answers pinned in selftest (+3 =
   29). Verified: verify-all 37/37 (incl. new verify-arch),
   verify-userdir unchanged, both toolchains warning-free.        (this commit)
+- PR-19 T-24 golden-master: scripted no-CD QEMU rig
+  (tools/golden_build_rig.sh + build_data_disk.sh), ORIGINAL-game
+  capture driver (tools/golden_qemu_run.py: 0.25 s tick sampling,
+  sustained 70 Hz movie-clock gate, frozen-counter map-menu detector
+  with art<->black retry), and golden-vs-port comparator
+  (tools/golden_menu_cmp.py: 2x2-doubling + index/color bijection
+  validation, port-frame scoring). Port frames captured via new
+  LEO_MENU_PPM_DIR/MAX hook. Repo stores HASHES ONLY (never frames,
+  per T-24): tools/golden_expect.json pins the 30-hash chapter-map
+  animation POSE SET (timing-independent; per-window counts are
+  not). CD-gate patch FINALISED at 0x5bd51:b801000000eb32 (the
+  0x5bd5c variants are non-deterministic without ASPI). Makefile
+  verify-golden (SKIP-safe: data-missing=SKIP, capture-missing =
+  port-pins-only) + golden_rig; verify-all now 38 legs. The
+  golden.* half stays open: the no-CD route has not yet been shown
+  to reach the frozen-counter map-menu state PLAN S6 measured in
+  the CD rig (still in its 480-line movie chain at ~900 s attract).
 
 Known-clean baselines: ASan/UBSan on demo chain + all 22 MODs = app
 leaks 0 (SDL backend internals only); CI pins are format-only for MOD
@@ -470,13 +487,65 @@ With this PR T-01 is COMPLETE: no screen, service, or entry file in
 the tree talks to SDL; the only SDL is behind platform.h (plus
 ll_view/ll_audio as backend-private helpers).
 
+## PR-19 — T-24 golden-master rig + pins (DONE 2026-11-14)
+
+- QEMU baseline rig, no-CD route, fully scripted:
+  `tools/golden_build_rig.sh` restages from LL.iso + an MS-DOS 6.22
+  boot floppy: C:\ root = the LEO_HDD files (patched LEO.EXE copy,
+  DOS4GW.EXE, LONGSOFT.CFG byte0='C', STATUS.LEO, ANIMACJE, ETAPY -
+  the HD-install copies, which DIFFER from the CD's), C:\LEO = the
+  CD's 19 flat files (the game opens them as `C:\leo\...` via the
+  CFG drive byte); data disk via `tools/build_data_disk.sh`
+  (mkfs.fat -F16 + BPB geometry pin). Boot floppy CONFIG.SYS gets
+  `FILES=40 BUFFERS=40` appended - DOS 6.22 defaults FILES=8 and the
+  game then reports "Could not open resource file: C:\leo\sound".
+  AUTOEXEC: `C:` then `LEO` (the retail LEO.BAT pattern). Verified
+  live: gate passed, resources open, the .IS movie chain runs at the
+  real 70 Hz audio-DMA clock (PIT ch0 0x4295).
+- CD-gate patch FINAL: `0x5bd51:b801000000eb32` (see PLAN S6 - the
+  0x5bd5c variants are NOT deterministic without ASPI; patching one
+  byte earlier than the `push edx` breaks the `pop edx:ret` pair ->
+  DOS/4GW error 06h).
+- `tools/golden_qemu_run.py` drives the rig over the QEMU monitor:
+  samples the BIOS tick at 0x46C at 0.25 s, waits for the 70 Hz
+  movie clock (2 sustained high samples - a lone early sample is
+  boot noise), then for the map-menu state (counter frozen >= 3 s,
+  PLAN S6; the window is only ~7-8 s, so coarse sampling misses it)
+  and captures the 320x200 linear index plane + doubled screendump,
+  retrying the art<->black cycle until the frame is static
+  (vram.bin/menu.ppm/static2.ppm + capture_manifest.json, hashes
+  only in the repo - never frames, per T-24).
+  NOTE: in the no-CD route the game was still in its 480-line movie
+  chain after ~900 s of attract; the frozen-counter map-menu state
+  from PLAN S6 was measured in the CD rig and has NOT yet been
+  observed in this no-CD rig. The capture tooling is ready; the
+  golden.* half of the manifest stays open until a real capture
+  lands (or the CD-attached route is scripted next).
+- `tools/golden_menu_cmp.py`: validates the capture against the
+  verified layout model (pure 2x2 doubling, index->color bijection
+  like menu_dac_gen), scores every port map frame against the
+  original RGB + index plane, and asserts the committed manifest
+  pins. Port-side pinning is a POSE SET, not per-file hashes: the
+  chapter-map animation is a 30-frame cycle, so the set of distinct
+  composed frames is deterministic while per-window counts are not
+  (pinned in tools/golden_expect.json, 30 hashes, reproduced
+  identically across runs).
+- Port hook: `LEO_MENU_PPM_DIR`/`LEO_MENU_PPM_MAX` (ll_menu.c)
+  dump the composed frames silently (verify-menu log pins stay
+  clean).
+- Makefile: `golden_rig` + `verify-golden` (SKIP-safe: no game
+  data -> SKIP; no QEMU capture -> checks the port pose pins only,
+  so the leg runs in ordinary CI). verify-all is now 38 legs.
+
 ## Next — pick from the Deferred list below
 
 Nothing queued from the review's "worth fixing" set: all of it has
-landed, and T-01 is finished. Open candidates: the Deferred big
-architecture items, or the user's call (T-11 4:3 aspect default,
-T-22 AppImage, T-24 golden-master - the original LEO.EXE is now on
-disk at /tmp/opencode/hd_files/LEO.EXE).
+landed, and T-01 is finished (T-24 tooling landed in PR-19: the
+golden.* capture half stays open until the no-CD rig is shown to
+reach the map-menu state - next step there would be scripting the
+CD-attached route or probing the attract chain further). Open
+candidates: the Deferred big architecture items, or the user's call
+(T-11 4:3 aspect default, T-22 AppImage).
 
 ## Deferred big items (deliberately out of scope so far)
 
@@ -498,7 +567,8 @@ disk at /tmp/opencode/hd_files/LEO.EXE).
   T-05/T-06 fixed-step timing + precise sleep, T-07 clock ownership,
   T-16 Polish text, T-17 save/config separation (STATUS.LEO codec
   itself is done), T-19 startup data validation, T-23 structured RE
-  traces, T-24 golden-master vs original EXE, T-26 engine state
+  traces, T-24 golden-master vs original EXE (tooling + port pins
+  DONE in PR-19; the original-side capture half open), T-26 engine state
   machine. T-25 parser fuzzing - DONE in PR-11 (tools/fuzz.c);
   extending it later = more kinds (.des text) + a longer seed list.
   T-17 writable-state (user dir + save resolution + XDG data search +

@@ -1007,6 +1007,23 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                            ppm_e, tick);
         }
 
+        {   /* CI hook (T-24 golden-master): dump EVERY composed frame
+             * into a directory (map_NNNN.ppm, hover-free like the
+             * single-frame hook above). The original's map-menu frame
+             * is static, so the golden comparison scans the port's
+             * animation poses for the matching one; dumping them from
+             * one session keeps the pose sequence exactly as shown.
+             * Silent on purpose: the demo-chain log pins stay clean. */
+            const char *dir_e = getenv("LEO_MENU_PPM_DIR");
+            const char *max_e = getenv("LEO_MENU_PPM_MAX");
+            unsigned maxn = max_e ? (unsigned)atoi(max_e) : 64;
+            if (dir_e && tick <= maxn) {
+                char dmp[600];
+                snprintf(dmp, sizeof dmp, "%s/map_%04u.ppm", dir_e, tick);
+                ppm_fb(dmp, disp, MAP_W, MAP_H);
+            }
+        }
+
         if (hov >= 0 && hov < nchs)          /* hover outlines (drawn after
                                               * the PPM hook: CI frames stay
                                               * hover-free) */

@@ -76,6 +76,14 @@ make verify-all
 # verify-sel   LEVELS/MAPKA submenu + mapka.mod
 # verify-save  STATUS.LEO/LONGSOFT.CFG byte-exact round-trip (skips when
 #              the user-supplied originals are absent; never in git)
+# verify-music MOD player behind plat_audio (threaded session, dummy-safe)
+# verify-arch  structural pin: only platform_sdl*/ll_view/ll_audio may
+#              include SDL (T-01 end-state; compile-free grep)
+# verify-golden T-24: ORIGINAL game in the QEMU rig vs the port's chapter
+#              map; the repo pins (tools/golden_expect.json) are HASHES
+#              only - never frames. Skips entirely when the game fixture
+#              is absent; without a QEMU capture it still checks the port
+#              pose pins (make golden_rig builds the original-side capture)
 ```
 
 CI hooks used by verify-menu (env): `LEO_DEMO_SKIP_FRAMES` (auto-skip demo
@@ -84,7 +92,9 @@ scenes), `LEO_SKIP_USER=1` (auto-skip reported as a user ESC skip),
 `LEO_MENU_KEY=<char>` (auto-press a map corner: r = restart dialog),
 `LEO_MENU_SEL=i` (pre-select answer zone i, highlight only),
 `LEO_MENU_PPM=PATH` + `LEO_MENU_PPM_TICK=N` (dump the composed 320x200
-frame), `LEO_MENU_PICK=<char>` / `LEO_MENU_NAV=k` (fire / cycle + Enter).
+frame), `LEO_MENU_PPM_DIR=DIR` + `LEO_MENU_PPM_MAX=N` (dump every composed
+map frame map_NNNN.ppm for the golden-master pose scan),
+`LEO_MENU_PICK=<char>` / `LEO_MENU_NAV=k` (fire / cycle + Enter).
 
 ## Naming
 
