@@ -174,7 +174,7 @@ static void pump_input(player *p)
 {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
-        if (ll_view_fullscreen_key(&e, p->win))
+        if (ll_view_handle_event(&e, p->win))
             continue;
         if (e.type == SDL_QUIT) {
             p->quit = 1;
@@ -323,15 +323,10 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
                                             buggy pipewire backend (see
                                             ll_level.h) */
         fprintf(stderr, "is_player: audio init failed: %s\n", SDL_GetError());
-    if (SDL_Init(SDL_INIT_VIDEO | (audio ? SDL_INIT_AUDIO : 0)) != 0) {
-        fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
-        is_close(&p.is);
-        return 1;
-    }
-    /* P-10/T-12/T-13: one shared window convention (logical viewport at
-     * the content size, resizable, HiDPI-ready, F11/Alt+Enter desktop
-     * fullscreen). Presentation already is RenderCopy(full-window), so
-     * the logical viewport takes over scaling for free. */
+    /* P-03: no SDL_Init/SDL_Quit here anymore - the video subsystem and
+     * the window come from the shared ll_view session, which stays up
+     * for the whole program (scene switches reconfigure it instead of
+     * tearing the window down). */
     ll_view view;
     if (ll_view_create(&view,
                        "Lew Leon - cutscene (esc=skip, q=quit, space=pause,"
@@ -530,14 +525,19 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     close_wav();
     if (p.dev)
         SDL_CloseAudioDevice(p.dev);
+    if (p.tex)
+        SDL_DestroyTexture(p.tex);  /* the screen owns its texture; the
+                                     * session window/renderer do not go */
     is_close(&p.is);
-    SDL_Quit();
+    /* P-03: no SDL_Quit(): the session window is reused by the next
+     * scene / the menu; the process teardown is main's business. */
     return p.user_skip ? 2 : 0;
 err:
     free(p.ascratch);
     free(p.lbuf);
     close_wav();
+    if (p.tex)
+        SDL_DestroyTexture(p.tex);
     is_close(&p.is);
-    SDL_Quit();
     return 1;
 }

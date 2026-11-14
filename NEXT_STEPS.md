@@ -42,6 +42,15 @@ Done and verified green (full `make verify-all` incl. wine parity):
   T-21/T-22: tools/package.py + make package{,-win,-linux} -> dist/
   zip|tar.gz (exe + README + data/ placeholder; unpack-and-play proven
   under wine).                                                    (this commit)
+- PR-10 P-03+P-04: one session window for the whole program. ll_view
+  is now a process-wide session: first ll_view_create builds the
+  window, later screens RECONFIGURE it (title/logical size/geometry);
+  screens never destroy win/renderer (ll_view_release keeps it).
+  is_player dropped SDL_Init/SDL_Quit. Focus: per-tick
+  SDL_RaiseWindow polls deleted; raise once at reconfigure + on
+  WINDOWEVENT_ENTER via ll_view_handle_event (was
+  ll_view_fullscreen_key). External SDL_Quit() healed via
+  SDL_WasInit re-create.                                                (this commit)
 
 Known-clean baselines: ASan/UBSan on demo chain + all 22 MODs = app
 leaks 0 (SDL backend internals only); CI pins are format-only for MOD
@@ -85,6 +94,15 @@ it in CI); SDL2 mingw config exports .../include/SDL2 — CMakeLists
 normalizes to the <SDL2/SDL.h> parent convention. MSVC compat shims
 (T-20 compat.h: strcasecmp/strtok_r/dirent) intentionally deferred.
 
+## PR-10 — one window + focus policy (DONE, see status above)
+
+P-03 + P-04 landed together through the ll_view session (the seam
+PR-8 created). Notes for later: screens must free their OWN textures
+(is_player now does); an external SDL_Quit (tools harness) is healed
+by the WasInit guard; P-05 (Wayland native) stays open - the focus
+policy change may make the forced-X11 probe unnecessary, test on
+hardware before touching main.c's wayland branch.
+
 ## Next — pick from the Deferred list below
 
 Nothing queued: every review item that was scoped as "worth fixing
@@ -93,9 +111,9 @@ user's call (T-11 4:3 aspect default, T-22 AppImage).
 
 ## Deferred big items (deliberately out of scope so far)
 
-- P-03 single window + single SDL lifecycle (big refactor; pairs
-  naturally with PR-8's window flags).
-- P-04 focus stealing (drop per-tick SDL_RaiseWindow once PR-8 lands).
+- P-03 single window + single SDL lifecycle - DONE in PR-10 (ll_view
+  session). What remains there is deeper: one audio session too.
+- P-04 focus stealing - DONE in PR-10 (raise on WINDOWEVENT_ENTER).
 - P-05 Wayland/X11 (current pipewire->alsa swap works; revisit if
   users report issues).
 - E-08/T-14 palette codec fidelity (frozen: pixel output must not

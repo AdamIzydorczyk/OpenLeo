@@ -418,7 +418,7 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
     SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
                                          SDL_TEXTUREACCESS_STREAMING, W, H);
     if (!ren || !tex) {
-        SDL_DestroyWindow(win);
+        ll_view_release(&view);
         menu_anims_free(aseq, nanims);
         ll_pcx_free(&bg);
         return -2;
@@ -430,8 +430,7 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         free(fb);
         free(cv);
         SDL_DestroyTexture(tex);
-        SDL_DestroyRenderer(ren);
-        SDL_DestroyWindow(win);
+        ll_view_release(&view);
         menu_anims_free(aseq, nanims);
         ll_pcx_free(&bg);
         return -2;
@@ -671,9 +670,8 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         SDL_Event e;
         Uint64 t_next = SDL_GetTicks64() + 30;
         while (!quit) {
-            if (SDL_GetKeyboardFocus() != win)
-                SDL_RaiseWindow(win); /* Wayland fallback: keep grabbing
-                                       * focus so keys reach this window */
+            /* P-04: no per-tick focus poll - ll_view_handle_event
+             * below re-raises on WINDOWEVENT_ENTER only. */
             if (t_deadline && SDL_GetTicks64() >= t_deadline) {
                 printf("menu: LEO_MENU_SECS expired (auto-quit)\n");
                 quit = 1;
@@ -681,7 +679,7 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                 break;
             }
             while (SDL_PollEvent(&e)) {
-                if (ll_view_fullscreen_key(&e, win))
+                if (ll_view_handle_event(&e, win))
                     continue;           /* P-10: F11 / Alt+Enter */
                 if (e.type == SDL_QUIT) {
                     quit = 1;
@@ -800,8 +798,7 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
     free(tint_idle);
     menu_anims_free(aseq, nanims);
     SDL_DestroyTexture(tex);
-    SDL_DestroyRenderer(ren);
-    SDL_DestroyWindow(win);
+    ll_view_release(&view);
     ll_pcx_free(&bg);
     return ret;
 }
@@ -964,8 +961,7 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         free(cv);
         free(disp);
         if (tex) SDL_DestroyTexture(tex);
-        if (ren) SDL_DestroyRenderer(ren);
-        SDL_DestroyWindow(win);
+        ll_view_release(&view);
         menu_anims_free(aseq, nanims);
         return -2;
     }
@@ -1084,9 +1080,8 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         SDL_Event e;
         Uint64 t_next = SDL_GetTicks64() + 30;
         while (!quit) {
-            if (SDL_GetKeyboardFocus() != win)
-                SDL_RaiseWindow(win); /* Wayland fallback: keep grabbing
-                                       * focus so keys reach this window */
+            /* P-04: no per-tick focus poll - ll_view_handle_event
+             * below re-raises on WINDOWEVENT_ENTER only. */
             if (t_deadline && SDL_GetTicks64() >= t_deadline) {
                 printf("map: LEO_MENU_SECS expired (auto-quit)\n");
                 quit = 1;
@@ -1117,7 +1112,7 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                 }
             }
             while (SDL_PollEvent(&e)) {
-                if (ll_view_fullscreen_key(&e, win))
+                if (ll_view_handle_event(&e, win))
                     continue;           /* P-10: F11 / Alt+Enter */
                 if (e.type == SDL_QUIT) {
                     quit = 1;
@@ -1225,7 +1220,6 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
     free(disp);
     menu_anims_free(aseq, nanims);
     SDL_DestroyTexture(tex);
-    SDL_DestroyRenderer(ren);
-    SDL_DestroyWindow(win);
+    ll_view_release(&view);
     return ret;
 }

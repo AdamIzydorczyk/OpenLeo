@@ -1690,11 +1690,11 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                                 : 0;
         Uint64 t_prev = SDL_GetPerformanceCounter();
         while (!esc && (!t_end || SDL_GetPerformanceCounter() < t_end)) {
-            if (win && SDL_GetKeyboardFocus() != win)
-                SDL_RaiseWindow(win); /* Wayland re-raise fallback */
+            /* P-04: no per-tick focus poll - ll_view_handle_event
+             * below re-raises on WINDOWEVENT_ENTER only. */
             SDL_Event e;
             while (SDL_PollEvent(&e))
-                if (ll_view_fullscreen_key(&e, win))
+                if (ll_view_handle_event(&e, win))
                     ;                   /* P-10: F11 / Alt+Enter */
                 else if (e.type == SDL_QUIT ||
                     (e.type == SDL_KEYDOWN &&
@@ -1745,10 +1745,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         ll_music_stop();
         if (tex)
             SDL_DestroyTexture(tex);
-        if (ren)
-            SDL_DestroyRenderer(ren);
-        if (win)
-            SDL_DestroyWindow(win);
+        ll_view_release(&view);   /* P-03: window stays up for the next
+                                   * screen (menu, next level, ...). */
     }
     if (esc)
         printf("ll_level: ESC -> advance\n");

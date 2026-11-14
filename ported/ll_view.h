@@ -1,9 +1,29 @@
-/* ll_view.h - one window/renderer convention for every screen
- * (cutscene player, title menu, chapter map, level scene).
+/* ll_view.h - one window/renderer convention AND one SDL window
+ * session for every screen (cutscene player, title menu, chapter map,
+ * level scene).
+ *
+ * Review P-03: one window for the whole program. ll_view_create hands
+ * each screen its own *view handle*, but behind it sits a single
+ * process-wide window + renderer:
+ *   - first call creates them (the video subsystem comes up lazily
+ *     here, so --ppm and other headless paths never touch SDL);
+ *   - later calls RECONFIGURE the same window (title, logical
+ *     viewport, default window size when not fullscreen), so switching
+ *     scenes swaps content instead of tearing the window down;
+ *   - a window killed by an external SDL_Quit() is detected
+ *     (SDL_WasInit) and re-created transparently.
+ * ll_view_release() is what a screen calls when it is done: the window
+ * stays up for the next screen. Screens own and free their textures.
+ *
+ * Review P-04 (focus stealing): the window is raised once at
+ * (re)configuration; screens must NOT poll focus every tick.
+ * ll_view_handle_event() re-raises only when the pointer re-enters
+ * the window - clear user intent - and never while the user has
+ * alt-tabbed away.
  *
  * Review P-10 / tips T-12, T-13:
- *   - logical-size presentation: the renderer owns a logical viewport of
- *     the EXACT content size (320x200 / 640x400 / level view), the
+ *   - logical-size presentation: the renderer owns a logical viewport
+ *     of the EXACT content size (320x200 / 640x400 / level view), the
  *     window is freely resizable, and SDL does the scaling + mouse
  *     mapping (screens therefore use raw event coords, no "/ sc").
  *   - default window geometry matches the old fixed behaviour: 2x for
@@ -31,17 +51,25 @@ typedef struct {
 extern int ll_opt_scale;
 extern int ll_opt_fullscreen;
 
-/* Creates window + renderer (accelerated, software fallback) sized
- * logical*scale, installs the logical viewport, and nearest scaling.
- * Returns 0, -1 on failure (nothing to destroy then). */
+/* Obtain this screen's view: first call creates the session window,
+ * later calls reconfigure it (see header). Installs the logical
+ * viewport and nearest scaling. Returns 0, -1 on failure (nothing to
+ * release then). */
 int ll_view_create(ll_view *v, const char *title, int logical_w,
                    int logical_h);
 
-/* F11 or Alt+Enter toggles desktop-fullscreen; feed it EVERY event
- * from the screen's pump before its own key handling (it consumes the
- * event on a hit). Returns 1 when the event was the toggle. */
-int ll_view_fullscreen_key(const SDL_Event *e, SDL_Window *win);
+/* Screen finished: keeps the shared window up for the next screen
+ * (P-03). Does NOT free the screen's own texture - the screen owns
+ * those. */
+void ll_view_release(const ll_view *v);
 
-void ll_view_destroy(ll_view *v);
+/* Feed EVERY event here before the screen's own handling: F11 or
+ * Alt+Enter toggles desktop-fullscreen (event consumed, returns 1);
+ * WINDOWEVENT_ENTER re-raises focus (P-04, returns 0). */
+int ll_view_handle_event(const SDL_Event *e, SDL_Window *win);
+
+/* Tear the session down explicitly (tools / reset paths). SDL_Quit()
+ * is also detected and healed, see header. */
+void ll_view_session_close(void);
 
 #endif /* LL_VIEW_H */
