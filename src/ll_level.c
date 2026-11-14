@@ -561,7 +561,35 @@ static void scene_ppm(const char *path, int w, int h, const unsigned char *idx,
     printf("LEO_LEVEL_PPM wrote %s\n", path);
 }
 
-/* paint one 8bpp canvas through the palette LUT (shared present path) */
+/* Rebuild the background window for camera column `cam`:
+ *  - PCM layer owner: engine strip wrap - screen strip k shows plane
+ *    strip (cam/80 + k) mod strips (ll_pcm_view_at, FUN_00056c72); only
+ *    the pcm_band ground rows change (upper rows are a documented CD art
+ *    hole).  The FUN_00057460 per-strip parallax shear is not modelled.
+ *  - .PCX background owner: window columns [cam, cam+cw) mod img.w.
+ *    The tiling wrap is SYNTHESISED: the plan-layer .PCX blitter was not
+ *    recovered (plan3.pcx carriers are partial on this CD); the mod keeps
+ *    the scene seamless vs an edge smear.
+ * cam == 0 is the rest view already present in canvas (no-op). */
+static void bg_at(const ll_pcm *pcml, const ll_pcx *img, int pcm_owner,
+                  unsigned pcm_band, int cam, int cw, int ch,
+                  unsigned char *scratch, unsigned char *canvas)
+{
+    if (!cam)
+        return;
+    if (pcm_owner && scratch) {
+        ll_pcm_view_at(pcml, 0, pcm_band, (unsigned)cam / 80u, scratch);
+        memcpy(canvas + (size_t)(ch - (int)pcm_band) * (size_t)cw,
+               scratch, (size_t)cw * pcm_band);
+    } else if (!pcm_owner && img->idx) {
+        for (int y = 0; y < ch; y++) {
+            const unsigned char *srow = img->idx + (size_t)y * img->w;
+            unsigned char *drow = canvas + (size_t)y * (size_t)cw;
+            for (int c = 0; c < cw; c++)
+                drow[c] = srow[(unsigned)((cam + c) % (int)img->w)];
+        }
+    }
+}
 /* 4b) .des placement join: HD-install sub-.des (ANI*.DES payloads in the
  *     level's ETAPY block) carry one "TYPE,name,mov,X,Y" object line per
  *     level object (verified grammar on TUNGA.11/ZARIA/LONA). TYPE names
@@ -577,7 +605,7 @@ static void des_place_lines(llrs *an, const llrs_slot *arecs, unsigned narec,
                             const llrs_slot *hrecs, unsigned nhrec,
                             const char *txt, size_t len,
                             lvl_obj *objs, int *nobj, int maxobj,
-                            int cw, int ch, const char *level)
+                            int world_w, int ch, const char *level)
 {
     const char *p = txt, *end = txt + len;
     while (p < end) {
@@ -595,11 +623,11 @@ static void des_place_lines(llrs *an, const llrs_slot *arecs, unsigned narec,
                         || strpbrk(mov, " \t\r\n") || used > eol - p))
             nf = 4;
         if (!(nf == 5 && used > 8 && strchr(mov, '.'))
-            || x < 0 || x >= cw) {
-            if (nf == 5 && strchr(mov, '.'))  /* world coords (back_rect is
-                                               * 2560x600); no scroll cam yet */
-                printf("ll_level: des %s: %s/%s at (%d,%d) off-view\n",
-                       level, typ, mov, x, y);
+            || x < 0 || x >= world_w) {
+            if (nf == 5 && strchr(mov, '.'))  /* world coord outside the
+                                               * back_rect extent: bad data */
+                printf("ll_level: des %s: %s/%s at (%d,%d) beyond back_rect"
+                       " (%d)\n", level, typ, mov, x, y, world_w);
             p = eol;
             while (p < end && (*p == '\n' || *p == '\r'))
                 p++;
@@ -718,7 +746,7 @@ static void des_placement(llrs *an, const llrs_slot *arecs, unsigned narec,
                           llrs *hd_ety, const llrs_slot *hd_blk2,
                           const des_kv *kvs, int nk,
                           lvl_obj *objs, int *nobj, int maxobj,
-                          int cw, int ch, const char *level)
+                          int world_w, int ch, const char *level)
 {
     if (!hd_ety || !hd_blk2)
         return;
@@ -754,7 +782,7 @@ static void des_placement(llrs *an, const llrs_slot *arecs, unsigned narec,
         printf("ll_level: placement %s (%u B)\n", dr->name, dr->size);
         des_place_lines(an, arecs, narec, hd_an, hrecs, nhrec,
                         (const char *)txt, (size_t)dr->size,
-                        objs, nobj, maxobj, cw, ch, level);
+                        objs, nobj, maxobj, world_w, ch, level);
         free(txt);
         touched = 1;
     }
@@ -770,13 +798,14 @@ static void des_placement(llrs *an, const llrs_slot *arecs, unsigned narec,
                    hrec2[k].size);
             des_place_lines(an, arecs, narec, hd_an, hrecs, nhrec,
                             (const char *)txt, (size_t)hrec2[k].size,
-                            objs, nobj, maxobj, cw, ch, level);
+                            objs, nobj, maxobj, world_w, ch, level);
             free(txt);
         }
     }
     llrs_block_free(hrec2);
 }
 
+/* paint one 8bpp canvas through the palette LUT (shared present path) */
 static void paint(SDL_Renderer *ren, SDL_Texture *tex,
                   const unsigned char *canvas, const Uint32 lut[256],
                   int w, int h)
@@ -1061,6 +1090,18 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     } else {
         printf("ll_level: no .DES for '%s' (showing ETAPY block only)\n",
                level);
+    }
+
+    /* World extent: back_rect=x0,y0,w,h (RAN 28800x400, TUNGA.11
+     * 2560x600, ENA1 5169x574, JUNCTION 320x200 = static one-screen).
+     * back_rect is absent on SADES/TUNGA2/ZARIA* (CD hole) -> no camera
+     * (world = one view). */
+    int world_x0 = 0, world_y0 = 0, world_w = 0, world_h = 0;
+    {
+        const char *br = des_get(kvs, nk, "back_rect");
+        if (br && *br)
+            sscanf(br, "%d,%d,%d,%d", &world_x0, &world_y0,
+                   &world_w, &world_h);
     }
 
     /* 2) level block in ETAPY: exact, stem, then dir= from the .DES */
@@ -1371,11 +1412,12 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         a++;
     }
 
-    /* 4b) .des X,Y placement join (HD sub-.des -> ANIMACJE leaf records) */
+    /* 4b) .des X,Y placement join (HD sub-.des -> ANIMACJE leaf records);
+     *     X is a WORLD coordinate validated against back_rect */
     des_placement(&an, arecs, narec, &hd_an, hrecs, nhrec,
                   have_hd_ety ? &hd_ety : NULL, hblk2, kvs, nk,
                   objs, &nobj, (int)(sizeof objs / sizeof objs[0]),
-                  (int)img.w, (int)img.h, level);
+                  world_w > 0 ? world_w : (int)img.w, (int)img.h, level);
     if (arecs)
         llrs_block_free(arecs);
     if (an_open)
@@ -1393,6 +1435,28 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                objs[k].key, objs[k].sw, objs[k].sh, objs[k].x, objs[k].y,
                objs[k].mov.nst ? " [mov]" : "");
 
+    /* Scroll camera over the back_rect world (horizontal only; the world
+     * height exceeds the view vertically - no vertical pan recovered,
+     * documented).  PCM layers pan through the engine strip wrap; .PCX
+     * bgs pan by synthesised tiling (bg_at).  LEO_LEVEL_CAM = initial
+     * camera x (CI); interactive: Left/Right pan, Home/End jump,
+     * p toggles a 50 px/s autoscroll (the original walk speed). */
+    int cam_max = world_w > cw ? world_w - cw : 0;
+    int cam = getenv("LEO_LEVEL_CAM") ? atoi(getenv("LEO_LEVEL_CAM")) : 0;
+    if (cam < 0)
+        cam = 0;
+    if (cam > cam_max)
+        cam = cam_max;
+    int autoscroll = 0;
+    if (world_w > 0)
+        printf("ll_level: world %dx%d (back_rect %d,%d), view %dx%d, cam"
+               " %d/%d [Left/Right pan, Home/End, p autoscroll]\n",
+               world_w, world_h, world_x0, world_y0, cw, ch, cam, cam_max);
+    else
+        printf("ll_level: no back_rect (data hole): static one-screen view"
+               " %dx%d\n", cw, ch);
+    unsigned char *scratch = NULL;   /* PCM scroll band scratch (below) */
+
     /* 5) composite canvas + present loop.  bg source: PCX plane, or the
      * PCM 400x200 rest view when the level is PCM-driven. */
     size_t csz = (size_t)cw * (size_t)ch;
@@ -1402,13 +1466,15 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         ll_pcm_release(&pcml);
         return 1;
     }
+    scratch = malloc((size_t)cw * (pcm_band ? pcm_band : 200));
     const unsigned char *base = pcm_owner ? view : img.idx;
     memcpy(canvas, base, csz);
+    bg_at(&pcml, &img, pcm_owner, pcm_band, cam, cw, ch, scratch, canvas);
     for (int k = 0; k < nobj; k++) {
         const ll_seq_elem *e = obj_elem(&objs[k]);
         if (e)
             ll_seq_draw_elem(&objs[k].seq, e, canvas, cw, ch,
-                             objs[k].x, objs[k].y);
+                             objs[k].x - cam, objs[k].y);
     }
 
     const char *ppm = getenv("LEO_LEVEL_PPM");   /* CI: headless dump */
@@ -1423,11 +1489,12 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                    objs[k].key, objs[k].sti, objs[k].x, objs[k].y);
         }
         memcpy(canvas, base, csz);         /* same order as the live loop */
+        bg_at(&pcml, &img, pcm_owner, pcm_band, cam, cw, ch, scratch, canvas);
         for (int k = 0; k < nobj; k++) {
             const ll_seq_elem *e = obj_elem(&objs[k]);
             if (e)
                 ll_seq_draw_elem(&objs[k].seq, e, canvas, cw, ch,
-                                 objs[k].x, objs[k].y);
+                                 objs[k].x - cam, objs[k].y);
         }
         if (pcm_owner) {
             /* PCM canvas: CI hash of the bare window band (win_rows rows,
@@ -1527,19 +1594,42 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                      (e.key.keysym.sym == SDLK_ESCAPE ||
                       e.key.keysym.sym == SDLK_q)))
                     esc = 1;
+                else if (e.type == SDL_KEYDOWN && cam_max > 0) {
+                    SDL_Keycode k = e.key.keysym.sym;
+                    if (k == SDLK_LEFT)
+                        cam = cam > 20 ? cam - 20 : 0;
+                    else if (k == SDLK_RIGHT)
+                        cam = cam + 20 <= cam_max ? cam + 20 : cam_max;
+                    else if (k == SDLK_HOME)
+                        cam = 0;
+                    else if (k == SDLK_END)
+                        cam = cam_max;
+                    else if (k == SDLK_p) {
+                        autoscroll = !autoscroll;
+                        printf("ll_level: autoscroll %s\n",
+                               autoscroll ? "on (50 px/s)" : "off");
+                    }
+                }
             Uint64 now = SDL_GetPerformanceCounter();
             unsigned dt = (unsigned)((now - t_prev) * 1000 / (double)freq);
             t_prev = now;
             if (dt > 200)
                 dt = 200;
+            if (autoscroll) {
+                cam += 50 * (int)dt / 1000;
+                if (cam > cam_max)
+                    cam = 0;
+            }
             for (int k = 0; k < nobj; k++)
                 obj_advance(&objs[k], dt);
             memcpy(canvas, base, csz);
+            bg_at(&pcml, &img, pcm_owner, pcm_band, cam, cw, ch, scratch,
+                  canvas);
             for (int k = 0; k < nobj; k++) {
                 const ll_seq_elem *el = obj_elem(&objs[k]);
                 if (el)
                     ll_seq_draw_elem(&objs[k].seq, el, canvas, cw, ch,
-                                     objs[k].x, objs[k].y);
+                                     objs[k].x - cam, objs[k].y);
             }
             paint(ren, tex, canvas, lut, cw, ch);
             ll_music_pump();
@@ -1565,6 +1655,7 @@ done:
     }
     ll_pcx_free(&img);
     free(view);
+    free(scratch);
     ll_pcm_release(&pcml);
     llrs_block_free(recs);
     free(txt);

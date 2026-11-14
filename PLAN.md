@@ -739,8 +739,28 @@ attached); unresolvable ones print the exact data hole (TUNGA's ANIBACK
 leaf holds no records at all - strum art absent). CI verify-level greps
 the join log.
 
-Still open: PCM parallax scroll camera (world-X .des objects, e.g.
-TUNGA strum x=1494, need it), PCM .pal/.plt palette layers, and level bulk
+**Scroll camera DELIVERED (2026-11-14, closes the "no scroll cam" gap)**:
+the .DES `back_rect=x0,y0,w,h` keys are the true world extents (RAN
+28800x400, ENA1 5169x574, TUNGA.11 2560x600, KARA 1600x1000, KADMAR2
+2560x1800, LONA 2480x600, JUNCTION 320x200 = static one-screen; absent
+on SADES/TUNGA2/ZARIA* = data hole -> static view). `ll_level` now pans a
+horizontal camera over that world: .des placement X is validated against
+back_rect (strum2 @ x=1494 now places, art still a documented hole),
+objects draw at x-cam, and backgrounds pan per layer type - PCM through
+the engine strip wrap (ll_pcm_view_at, screen strip k = plane strip
+(cam/80+k) mod strips, FUN_00056c72), .PCX through SYNTHESISED tiling
+((cam+c) mod img.w; the plan-layer .PCX blitter is unrecovered, the mod
+choice keeps seams continuous - VL pixel-diff confirmed). Vertical pan
+not modelled (world heights exceed the view; lew_rect hints exist). The
+FUN_00057460 per-strip parallax SHEAR ((strip_x-200)*shift/100) stays
+unmodelled: `shift` is a camera-velocity term we never observed (levels
+never run on stock CD). Hooks: LEO_LEVEL_CAM initial pan; interactive
+Left/Right pan, Home/End jump, p toggles 50 px/s autoscroll (original
+walk pace). CI verify-level greps the world/cam line + strum2 placement
+line + cam300 PPM != rest PPM; verify-win adds the byte-exact wine twin
+(lvlv_cam300 == wlv_cam300); the rest-view PCM oracle hash is unchanged.
+
+Still open: PCM .pal/.plt palette layers, and level bulk
 data (.blk/.suf, most sub-.des)
 absent from this CD image (LEVELDES slots end at 0x19ba40bb; only 15 .DES
 shipped) - stock game hits the idiv-0x50 trap at level start (LEO_OUT.LOG),

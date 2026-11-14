@@ -138,6 +138,17 @@ verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_
 	@cmp /tmp/opencode/lvlv_t2.ppm /tmp/opencode/wlv_t2.ppm \
 	  && echo "win level frame == linux frame (byte-exact scene compositing)"
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_LEVEL_CAM=300 \
+	  LEO_LEVEL_PPM=/tmp/opencode/lvlv_cam300.ppm LEO_LEVEL_PPM_TICK=8 \
+	  timeout 60 ./ll_level $(DATA) TUNGA.11 >/dev/null 2>&1 || true
+	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all SDL_VIDEODRIVER=dummy \
+	  SDL_AUDIODRIVER=dummy LEO_HD_DIR=Z:/tmp/opencode/hd_files \
+	  LEO_LEVEL_CAM=300 LEO_LEVEL_PPM=Z:/tmp/opencode/wlv_cam300.ppm \
+	  LEO_LEVEL_PPM_TICK=8 timeout 120 wine ./ll_level.exe Z:$(DATA) TUNGA.11 \
+	  >/dev/null 2>&1 || true
+	@cmp /tmp/opencode/lvlv_cam300.ppm /tmp/opencode/wlv_cam300.ppm \
+	  && echo "win scroll camera == linux (byte-exact world pan)"
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_LEVEL_PPM=/tmp/opencode/ran_lv.ppm LEO_LEVEL_PPM_TICK=2 \
 	  timeout 60 ./ll_level $(DATA) RAN.01 >/dev/null 2>&1 || true
 	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all SDL_VIDEODRIVER=dummy \
@@ -258,6 +269,20 @@ verify-level: ll_level
 	@if cmp -s /tmp/opencode/lv_tick2.ppm /tmp/opencode/lv_tick8.ppm; \
 	then echo "level anim FAILED: tick2 == tick8"; exit 1; \
 	else echo "level anim: platform moves on screen (tick2 != tick8, ok)"; fi
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  LEO_LEVEL_CAM=300 \
+	  LEO_LEVEL_PPM=/tmp/opencode/lv_cam300.ppm LEO_LEVEL_PPM_TICK=8 \
+	  ./ll_level $(DATA) TUNGA.11 > /tmp/opencode/lv_cam300.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "scroll camera FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/lv_cam300.log; exit 1; fi
+	@grep -q 'world 2560x600 (back_rect 0,0), view 640x359, cam 300/1920' \
+	    /tmp/opencode/lv_cam300.log \
+	  && grep -q 'ANIBACK/strum2.mov not on these containers' \
+	    /tmp/opencode/lv_cam300.log \
+	  && ! cmp -s /tmp/opencode/lv_tick8.ppm /tmp/opencode/lv_cam300.ppm \
+	  && echo "scroll camera: back_rect world, world-X strum2 placement, wrapped bg pan (ok)" \
+	  || { echo "scroll camera check FAILED"; cat /tmp/opencode/lv_cam300.log; exit 1; }
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
 	  LEO_LEVEL_PPM=/tmp/opencode/lv_ran.ppm LEO_LEVEL_PPM_TICK=2 \

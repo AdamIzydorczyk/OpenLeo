@@ -75,8 +75,14 @@ int ll_pcm_decode(const unsigned char *p, size_t size, ll_pcm *out)
 void ll_pcm_view(const ll_pcm *p, unsigned y0, unsigned nh,
                  unsigned char *dst)
 {
-    /* FUN_00056c72 at rest: screen strip k shows plane strip (0+k) mod
-     * strips; for the 400-px window that is identity over columns 0..399 */
+    ll_pcm_view_at(p, y0, nh, 0, dst);
+}
+
+void ll_pcm_view_at(const ll_pcm *p, unsigned y0, unsigned nh,
+                    unsigned scroll_strips, unsigned char *dst)
+{
+    /* FUN_00056c72: screen strip k shows plane strip (scroll+k) mod
+     * strips; at scroll=0 the 400-px window is identity over 0..399 */
     for (unsigned r = 0; r < nh; r++) {
         unsigned char *d = dst + (size_t)r * 400;
         const unsigned char *row = NULL;
@@ -84,8 +90,9 @@ void ll_pcm_view(const ll_pcm *p, unsigned y0, unsigned nh,
         if (ry < p->rows)
             row = p->plane + (size_t)ry * p->stride;
         for (int k = 0; k < 400; k++) {
-            unsigned col = PCM_STRIP * ((unsigned)k / PCM_STRIP % p->strips)
-                           + (unsigned)k % PCM_STRIP;
+            unsigned s = (scroll_strips + (unsigned)k / PCM_STRIP)
+                         % p->strips;
+            unsigned col = PCM_STRIP * s + (unsigned)k % PCM_STRIP;
             d[k] = row ? row[col] : 0;
         }
     }

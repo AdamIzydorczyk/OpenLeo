@@ -73,6 +73,14 @@ int ll_pcm_decode(const unsigned char *payload, size_t size, ll_pcm *out);
 void ll_pcm_view(const ll_pcm *p, unsigned y0, unsigned nh,
                  unsigned char *dst);
 
+/* Scrolled blit window (FUN_00056c72): screen strip k shows plane strip
+ * (scroll_strips + k) mod strips - the engine's strip wrap as the level
+ * camera advances by whole 80-px strips.  The per-strip parallax shear of
+ * FUN_00057460 ((strip_x-200)*shift/100 about the window centre) is NOT
+ * modelled: `shift` (a camera velocity term) is unrecovered. */
+void ll_pcm_view_at(const ll_pcm *p, unsigned y0, unsigned nh,
+                    unsigned scroll_strips, unsigned char *dst);
+
 void ll_pcm_release(ll_pcm *p);
 
 #ifdef __cplusplus
