@@ -391,8 +391,52 @@ project-owned):
   build artifacts, never shipped: shipped sprites live in ANIMACJE leaf
   blocks, see 8), PCM sample rate (22050 assumed; autocorrelation
   inconclusive). .SEQ grammar AND leaf-block sprite recon are DONE;
-  next gameplay step is wiring ll_seq playback into the menu /
-  level-intro renderer.
+  ll_seq playback is now wired into the title menu (see 8b); next step
+  is .SEQ playback in the level-intro renderer.
+
+## 8b. M4 animation engine (delivered 2026-11-14)
+
+**Frame-patch blob format CRACKED** (tools/seq_patch.py, 750/750 entry
+blobs of the 172 container .SEQ payloads decode with exact consumption):
+
+```
+blob    := row*
+row     := (0x80|len) content[len]    length-prefixed rows; the >=0x80
+                                        header doubles as the blitter's
+                                        row-END marker (end-of-row =
+                                        "next byte >= 0x80") and lets the
+                                        clip prologue SKIP whole rows.
+content := gap run*
+  gap        := byte added to dst x
+  op pos     : C < 0x80 copy C bytes | F >= 0x80 fill F&0x7f + value byte
+  marker pos (after any run): B < 0x40 gap | 0x40..0x7f after COPY =
+  fill (B&0x3f)+value, after FILL = copy B&0x3f bytes
+```
+
+Blitter RE (raw disasm build/seq_blitters.txt): FUN_0001dc80 draw
+(400-byte pitch, view base = buf + 0x190, 320x200 clip, p5 = rows to
+skip), FUN_0001d9b8 erase (copy-only rows, advance 0x190-w),
+FUN_0001dda8 = STD-direction variant. Renderer FUN_000426a0: element =
+one frame, entries = 80px sprite chunks + b15px tail chunk, x += 80;
+screen pos = (-f0, -f2). A Watcom "dirty upper EAX" reading of the gap
+add was ruled out empirically (chain variant corrupts the BERLO crown,
+clean per-row gap model renders it intact).
+
+C port (src/ll_seq.c): `ll_seq_patch_walk` (row callback = ONE grammar
+impl), `ll_seq_patch_draw` painter, `ll_seq_draw_elem` chunk model.
+Proof: tools/seq_patchdump.c dumps decoded rows in the exact text format
+of seq_patch.py `dump_payload`; verify_seq.py diffs grammar AND patch
+rows (`--grammar/--patch`) on all 172 payloads, under ASan/UBSan natively
+and under wine. 172/172 byte-exact.
+
+**On-screen payoff**: title menu now composites the original overlays -
+main.c `menu_anims()` pulls X.SEQ/CNIE.SEQ/BERLO.SEQ from ANIMACJE/MENU;
+ll_menu_open builds an 8bpp index canvas (OPTIONS.PCX idx + sprite
+indices via ll_seq_draw_elem at (-f0,-f2)), one palette LUT, frames
+cycled from fixed 30ms redraw ticks (`ll_menu_anim.period_ms`).
+BERLO = 30-frame swaying crown-sceptre at (130,38), CNIE = 2-frame
+shadow (171,146), X = static glyph (155,54). CI: LEO_MENU_PPM[_TICK]
+dumps the composed frame; verify-menu proves attach + frame cycling.
 
 ## 9. Legal/ethical
 Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.
