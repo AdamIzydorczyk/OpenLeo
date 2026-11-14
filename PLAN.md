@@ -272,9 +272,14 @@ main/
               no CD (inherits nocd config). DOS4GW entry -> libc startup;
               INT21/33 -> POSIX/SDL; VESA mode-X -> SDL2 surface; SB/MOD ->
               SDL2_mixer. Data path from argv/env.
+  win11/      variant 4: native Windows 11 x86-64 build (MinGW-w64 cross-build
+              from Linux, or MSVC on Windows), also no CD - reuses the SAME
+              SDL2 platform layer as linux/; only OS glue differs
+              (paths/console/case-insensitive FS).
 ```
-Each variant dir = Makefile + platform glue (`platform_*.c`) + a config header
-defining the knobs (`WANT_CD_GATE`, `DATA_DIR_FROM_CFG`, `PLATFORM_DOS/LINUX`);
+Each variant dir = Makefile + platform glue (`platform_*.c`; linux+win11 share
+one SDL2 backend under `src/platform_sdl/`) + a config header defining the
+knobs (`WANT_CD_GATE`, `DATA_DIR_FROM_CFG`, `PLATFORM_DOS/LINUX/WIN`);
 engine code in `src/` is shared and variant-agnostic except behind those flags.
 
 ## 8. Legal/ethical
