@@ -36,6 +36,7 @@ typedef struct {
     FILE      *f;
     unsigned   cap, actual;
     size_t     data_start;
+    long       fsize;     /* container length, for range-validating reads */
     llrs_slot *slots;   /* cap entries, id==0 for free ones */
     unsigned   used;    /* count of id!=0 slots             */
 } llrs;

@@ -2,6 +2,7 @@
  * Reference oracle: tools/llrs_unpack.py (byte-for-byte agreement on all
  * four shipped containers, checked by linux `make verify-llrs`). */
 #include "llrs.h"
+#include "fs_ci.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -63,7 +64,8 @@ static void slot_fill(llrs_slot *s, const unsigned char *raw)
 int llrs_open(llrs *c, const char *path)
 {
     memset(c, 0, sizeof *c);
-    c->f = fopen(path, "rb");
+    c->f = ll_fopen_ci(path, "rb");   /* container names ship UPPERCASE but
+                                       * users extract lowercase trees */
     if (!c->f)
         return 1;
 
@@ -83,6 +85,7 @@ int llrs_open(llrs *c, const char *path)
         llrs_close(c);
         return 3;
     }
+    c->fsize = fsize;
 
     c->slots = (llrs_slot *)calloc(c->cap, sizeof *c->slots);
     if (!c->slots) {
@@ -145,13 +148,29 @@ int llrs_block(const llrs *c, const llrs_slot *slot, llrs_slot **out,
         free(b);
         return 2;
     }
+    if (cnt == 0) {                /* a legal empty block: calloc(0) may
+                                    * return NULL, which is NOT an error */
+        free(b);
+        *out   = NULL;
+        *nrecs = 0;
+        return 0;
+    }
     llrs_slot *r = (llrs_slot *)calloc(cnt, sizeof *r);
     if (!r) {
         free(b);
         return 3;
     }
-    for (unsigned k = 0; k < cnt; k++)
+    for (unsigned k = 0; k < cnt; k++) {
         slot_fill(&r[k], b + 4 + 26 * k);
+        /* sub-records carry ABSOLUTE offsets too: range-validate them
+         * against the container, mirroring the top-level filter (E-07);
+         * out-of-range records become id==0 (padding) */
+        if (r[k].id &&
+            (r[k].size == 0 ||
+             (unsigned long long)r[k].off + r[k].size >
+                 (unsigned long long)c->fsize))
+            r[k].id = 0;
+    }
     free(b);
     *out   = r;
     *nrecs = cnt;
@@ -162,6 +181,10 @@ void llrs_block_free(llrs_slot *recs) { free(recs); }
 
 long llrs_read(const llrs *c, const llrs_slot *s, unsigned char **out)
 {
+    /* full range check first (E-07): never malloc/seek past the file */
+    if ((unsigned long long)s->off + s->size >
+            (unsigned long long)c->fsize || s->off < c->data_start)
+        return -1;
     /* one extra NUL: several payloads are text (.DES/.MNU/.MOV) and the
      * scanners walk them as C strings; the NUL is past the payload bytes */
     unsigned char *b = (unsigned char *)malloc((size_t)s->size + 1);
