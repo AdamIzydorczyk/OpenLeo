@@ -144,6 +144,34 @@ void plat_thread_join(void)
 {
 }
 
+/* ---- host glue (see platform.h contract) ---- *
+ * Headless there is no host to ask: no executable directory story, no
+ * GUI to put a box on, no per-user dir, no video backend to pick.
+ * The app-glue fallbacks (no <exe>/data candidate, LEO_USER_DIR as
+ * the only user dir, stderr as the report) are exactly what the
+ * headless test setup wants. */
+char *plat_base_path(void)
+{
+    return NULL;
+}
+
+void plat_message_box(const char *title, const char *text)
+{
+    (void)title;
+    (void)text;
+}
+
+int plat_pref_dir(char *out, size_t cap)
+{
+    (void)out;
+    (void)cap;
+    return -1;
+}
+
+void plat_prepare_video(void)
+{
+}
+
 /* test hooks: declared in platform.h under the same PLAT_BACKEND_DUMMY
  * switch (script events in, presented-frame count out). */
 void plat_dummy_inject(const ll_event *ev)

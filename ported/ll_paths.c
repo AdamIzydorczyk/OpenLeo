@@ -1,10 +1,10 @@
 /* ll_paths.c - user-writable state location (see ll_paths.h, T-17).
  * Deliberately small: it only locates the per-user dir and imports a
  * legacy file once. All byte-level save/config parsing stays in
- * ll_save.c. */
+ * ll_save.c. The per-user dir itself is the platform's to know
+ * (plat_pref_dir) - this file contains no SDL. */
 #include "ll_paths.h"
-
-#include <SDL2/SDL.h>
+#include "platform.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,11 +29,10 @@ const char *ll_user_dir(void)
         strip_sep(cached);
         return cached;
     }
-    char *p = SDL_GetPrefPath("LongSoft", "LewLeon"); /* creates the dir */
-    if (!p)
+    char dirbuf[4096];
+    if (plat_pref_dir(dirbuf, sizeof dirbuf) != 0)
         return NULL;
-    snprintf(cached, sizeof cached, "%s", p);
-    SDL_free(p);
+    snprintf(cached, sizeof cached, "%s", dirbuf);
     strip_sep(cached);
     return cached;
 }
@@ -92,8 +91,8 @@ int ll_resolve_user_file(char *out, size_t n, const char *env_override,
     int legacy = data_dir && *data_dir && exists(data_path);
 
     /* Only resolve the user dir when $LEO_USER_DIR was given (no
-     * GetPrefPath side effect on ordinary runs) or a legacy import is
-     * actually possible. */
+     * plat_pref_dir side effect on ordinary runs) or a legacy import
+     * is actually possible. */
     const char *ud = (getenv("LEO_USER_DIR") || legacy) ? ll_user_dir()
                                                         : NULL;
     if (!ud)

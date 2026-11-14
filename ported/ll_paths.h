@@ -9,9 +9,10 @@
  * data dir exactly once.
  *
  *   - ll_user_dir(): $LEO_USER_DIR if set (a test/override hook, used
- *     verbatim), else SDL_GetPrefPath("LongSoft","LewLeon") - on Linux
- *     ~/.local/share/LongSoft/LewLeon/, on Windows %APPDATA%\LongSoft\
- *     LewLeon\.
+ *     verbatim), else the platform's per-user dir (plat_pref_dir =
+ *     SDL_GetPrefPath("LongSoft","LewLeon") on the SDL backend) - on
+ *     Linux ~/.local/share/LongSoft/LewLeon/, on Windows %APPDATA%\
+ *     LongSoft\LewLeon\.
  *   - ll_resolve_user_file(): the LEO_SAVE-style override still wins
  *     (API preserved); otherwise the file is found/imported under the
  *     user dir. A read-only DATA copy is COPIED (never moved), so the
@@ -26,9 +27,10 @@
 
 #include <stddef.h>
 
-/* Per-user writable dir, computed + cached (created by SDL_GetPrefPath
- * on the default path; $LEO_USER_DIR is used as-is and must exist).
- * Returns NULL only if neither is available. No trailing separator. */
+/* Per-user writable dir, computed + cached (created by the platform's
+ * plat_pref_dir on the default path; $LEO_USER_DIR is used as-is and
+ * must exist). Returns NULL only if neither is available. No trailing
+ * separator. */
 const char *ll_user_dir(void);
 
 /* Join dir + name with a single '/' into out (both platforms accept
@@ -50,7 +52,7 @@ int ll_copy_file(const char *src, const char *dst);
  *          use that, *imported = 1; if the copy fails, fall back to
  *          data_dir/leaf with *imported = 0.
  *   3. nothing found -> return 0, out untouched.
- * The user dir is only created (via GetPrefPath) when there is a real
+ * The user dir is only created (via plat_pref_dir) when there is a real
  * chance of writing, so ordinary runs with no save anywhere do nothing.
  */
 int ll_resolve_user_file(char *out, size_t n, const char *env_override,

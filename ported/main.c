@@ -1,6 +1,7 @@
-/* main.c - shared native entry for BOTH the linux and windows targets: the
- * SDL2 runner for Lew Leon .IS data, plus a headless --ppm mode that decodes
- * and dumps a single frame with no SDL/display/audio. --ppm is the
+/* main.c - shared native entry for BOTH the linux and windows targets:
+ * runs every screen through the platform interface (platform.h; the
+ * SDL2 backend is a build choice), plus a headless --ppm mode that decodes
+ * and dumps a single frame with no display/audio. --ppm is the
  * byte-exactness oracle used by every CI check (vs tools/is_decode.py).
  * Scene chaining (M3): --then FILE.IS plays scenes back-to-back; ESC mid
  * scene skips it and advances to the NEXT scene (never freezes, never
@@ -21,15 +22,15 @@
 #include "ll_pcx.h"
 #include "ll_save.h"
 #include "llrs.h"
-#include "ll_view.h"
+#include "platform.h"
 #include "platform_sdl/is_player.h"
 
-#include <SDL2/SDL.h>
 #if defined(PLATFORM_WIN) && PLATFORM_WIN
 #include <windows.h> /* P-06: AttachConsole/AllocConsole for --console */
 #endif
 #include <dirent.h>
 #include <stdarg.h> /* fatal_msg */
+#include <stdint.h> /* uint64_t for the demo title hold (plat clock) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -193,9 +194,10 @@ static void fatal_msg(const char *fmt, ...)
     vsnprintf(buf, sizeof buf, fmt, ap);
     va_end(ap);
     fprintf(stderr, "%s\n", buf);
-#if defined(PLATFORM_WIN) && PLATFORM_WIN
-    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Lew Leon", buf, NULL);
-#endif
+    /* P-06: the box is shown by the backend on Windows only (there a
+     * double-click launch has no console); on POSIX this stderr line
+     * IS the report. */
+    plat_message_box("Lew Leon", buf);
 }
 
 /* E-01 / tips T-19: one clear report of missing DATA directories at
@@ -237,13 +239,13 @@ static int find_data_candidate(char *out, size_t n)
 {
     char cands[6][4096];
     int nc = 0;
-    char *base = SDL_GetBasePath();      /* no init needed; may fail */
+    char *base = plat_base_path();      /* may be NULL; no init needed */
     if (base) {
         size_t bl = strlen(base);
         while (bl && (base[bl - 1] == '/' || base[bl - 1] == '\\'))
             base[--bl] = '\0';
         snprintf(cands[nc++], sizeof cands[0], "%s/data", base);
-        SDL_free(base);
+        free(base);
     }
 #if !PLATFORM_WIN && !PLATFORM_DOS
     const char *xdg = getenv("XDG_DATA_HOME");
@@ -339,7 +341,8 @@ static void run_menu(const char *data, int audio)
             sel = 0;
             printf("menu: demo auto-picks NEW GAME (title shown for %.1f s)\n",
                    (atof(dem)));
-            SDL_Delay((Uint32)(atof(dem) * 1000.0));
+            plat_sleep_until(plat_now_ns()
+                             + (uint64_t)(atof(dem) * 1000.0) * 1000000ull);
         } else {
             /* Interactive title menu = the original 640x400 chapter MAP
              * (measured 2026-11-14: chapter .IS -> map menu -> arrow +
@@ -597,27 +600,11 @@ static void run_demo_chain(const char *d, int audio)
 
 int main(int argc, char **argv)
 {
-    /* Wayland sessions (KDE Plasma desktop reports): SDL's wayland backend
-     * windows can NEVER get keyboard focus (WM policy: raise/focus-grant
-     * calls are ignored, keys reach the window only after a user click on
-     * X11, never on wayland). Same remedy as the pipewire audio pin in
-     * ll_audio_session_init: pin X11 (XWayland) where SDL_RaiseWindow +
-     * SetWindowInputFocus work; fall back to the default if no X server.
-     * An explicit SDL_VIDEODRIVER always wins. */
-    if (!SDL_getenv("SDL_VIDEODRIVER") && SDL_getenv("WAYLAND_DISPLAY")) {
-        SDL_setenv("SDL_VIDEODRIVER", "x11", 1);
-        int ok = SDL_InitSubSystem(SDL_INIT_VIDEO) == 0;
-        SDL_QuitSubSystem(SDL_INIT_VIDEO);
-        if (ok)
-            printf("main: Wayland session detected: using X11/XWayland "
-                   "video backend (window keyboard focus works there)\n");
-        else {
-            printf("main: no X server under Wayland (%s): keeping default "
-                   "backend (keyboard focus may not follow windows)\n",
-                   SDL_GetError());
-            SDL_setenv("SDL_VIDEODRIVER", "wayland", 1);
-        }
-    }
+    /* P-04 focus policy: under Wayland sessions prefer X11/XWayland
+     * (SDL wayland windows never get keyboard focus there). The whole
+     * probe + its diagnostics live in the backend (T-01 phase 5);
+     * an explicit SDL_VIDEODRIVER still wins, headless is a no-op. */
+    plat_prepare_video();
 
     const char *file = NULL;
     const char *then[MAX_SCENES];
@@ -650,11 +637,12 @@ int main(int argc, char **argv)
         } else if (strcmp(argv[i], "--console") == 0) {
             console_wanted = 1;
         } else if (strcmp(argv[i], "--scale") == 0 && i + 1 < argc) {
-            /* P-10 display options (consumed by ll_view.c); default is
-             * the historical fixed geometry (2x sub-640-wide content) */
-            ll_opt_scale = atoi(argv[++i]);
+            /* P-10 display options (consumed by the backend via
+             * platform.h); default is the historical fixed geometry
+             * (2x sub-640-wide content) */
+            plat_opt_scale = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--fullscreen") == 0) {
-            ll_opt_fullscreen = 1;
+            plat_opt_fullscreen = 1;
         } else {
             file = argv[i];
         }

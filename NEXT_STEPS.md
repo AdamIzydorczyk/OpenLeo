@@ -4,7 +4,7 @@ Working plan derived from `OpenLeo_native_port_review.md` (P/E/M) and
 `OpenLeo_porting_tips.md` (T). Update the status lines here as items
 land; the review/tips files stay as the detailed work orders.
 
-## Status as of 2026-11-14 (through PR-17, all pushed)
+## Status as of 2026-11-14 (through PR-18, all pushed)
 
 Done and verified green (full `make verify-all` incl. wine parity):
 
@@ -153,7 +153,26 @@ Done and verified green (full `make verify-all` incl. wine parity):
   platform device + REAL platform pump thread (no fallback message),
   joined clean, rc 0; LSan in real-audio sessions shows only third-
   party libasound/sdl2-compat one-time allocs (zero app frames) -
-  documented below with the timeout/SIGTERM gotcha.                (this commit)
+  documented below with the timeout/SIGTERM gotcha.                  (9e52313)
+- PR-18 T-01 phase 5 (app glue): main.c and ll_paths.c are now
+  SDL-FREE too (cpp proof: 0 SDL headers AND 0 SDL_ tokens in their
+  TUs) - only the backend files (platform_sdl.c, platform_sdl/
+  is_player.c, ll_view/ll_audio) reference SDL anymore, and that is
+  now a CI STRUCTURAL pin: new verify-arch greps ported/ for SDL2
+  includes outside the backend set and names any offender. Interface
+  grew: plat_base_path (malloc'd copy of SDL_GetBasePath),
+  plat_message_box (box policy backend-side: Windows only, P-06;
+  headless no-op), plat_pref_dir (per-user dir, GetPrefPath
+  semantics, creates it; headless -1 -> LEO_USER_DIR-only fallback
+  is exactly what headless tests want), plat_prepare_video (the
+  Wayland->X11 focus pin moved VERBATIM incl. both byte-identical
+  "main: ..." diagnostics), plat_opt_scale/plat_opt_fullscreen
+  (renamed ll_opt_* display overrides now declared on platform.h,
+  still defined + consumed by ll_view.c); demo title hold uses the
+  one plat clock (plat_sleep_until); main.c's vestigial ll_view.h
+  include dropped. Headless host answers pinned in selftest (+3 =
+  29). Verified: verify-all 37/37 (incl. new verify-arch),
+  verify-userdir unchanged, both toolchains warning-free.        (this commit)
 
 Known-clean baselines: ASan/UBSan on demo chain + all 22 MODs = app
 leaks 0 (SDL backend internals only); CI pins are format-only for MOD
@@ -404,15 +423,60 @@ verify-save pins updated to the present files + provenance comment.
 Side benefit: hd_files/LEO.EXE is the original DOS executable -
 useful for the T-24 golden-master idea.
 
+## PR-18 — app glue (DONE, phase 5 of T-01)
+
+The last two non-backend SDL users were entry-code concerns: main.c
+(base path for the DATA search, the P-06 error box, the demo title
+hold, the Wayland video-driver pin) and ll_paths.c (GetPrefPath for
+the per-user dir). Four new platform.h entry points cover exactly
+those, nothing more: plat_base_path, plat_message_box, plat_pref_
+dir, plat_prepare_video. Design notes:
+
+- The P-06 "box only on Windows" policy moved INTO the SDL backend
+  (that is a property of the host, not of the app code), so main.c
+  calls plat_message_box unconditionally and the dummy is a no-op -
+  the caller's stderr line stays the POSIX report.
+- plat_prepare_video is the main.c block VERBATIM, including both
+  byte-identical "main: Wayland session..." diagnostics and the
+  "explicit SDL_VIDEODRIVER always wins" rule; called once at the
+  top of main, same position as before.
+- plat_pref_dir keeps GetPrefPath semantics (creates the directory;
+  NULL/-1 -> ll_user_dir's documented LEO_USER_DIR-only fallback).
+  Headless answering -1 is the honest answer and matches what the
+  test harness wants.
+- The --scale/--fullscreen display overrides were always an app ->
+  window-backend channel; their ll_opt_* globals were declared in
+  the backend-private ll_view.h. Renamed plat_opt_scale /
+  plat_opt_fullscreen, declared on platform.h (next to plat_init),
+  still DEFINED and consumed in ll_view.c. CLI surface unchanged.
+- The demo auto-pick hold was SDL_Delay; it now derives from the
+  one platform clock (plat_sleep_until) like everything else
+  (T-05/T-07 clock ownership falls out for free).
+- main.c's ll_view.h include was vestigial after PR-15 (it used no
+  ll_view_* call); removing it + the SDL include makes the TU SDL-
+  free, proven with cpp (0 SDL headers, 0 SDL_ tokens) for both
+  files. The windows.h include for --console stays: that is the
+  real Win32 API, not SDL.
+- New CI leg verify-arch (compile-free structural pin): greps
+  ported/ for SDL2 includes outside the allowed backend set
+  (platform_sdl.c, platform_sdl/, ll_view.h, ll_audio.h) and names
+  the offender if the invariant ever regresses. verify-all is now
+  37 legs.
+- platform_selftest +3: headless must answer "no executable dir",
+  "no pref dir", and message-box/video-prep must be safe no-ops -
+  the app-glue fallbacks then hold by construction (29 checks).
+
+With this PR T-01 is COMPLETE: no screen, service, or entry file in
+the tree talks to SDL; the only SDL is behind platform.h (plus
+ll_view/ll_audio as backend-private helpers).
+
 ## Next — pick from the Deferred list below
 
 Nothing queued from the review's "worth fixing" set: all of it has
-landed. Open candidates: PR-18 (app glue off SDL: main.c
-GetBasePath/message box/SDL_Delay/video-driver pin + ll_paths.c
-GetPrefPath -> plat_*; the last SDL includes in the tree),
-Deferred big architecture items, or the user's call (T-11 4:3 aspect
-default, T-22 AppImage, T-24 golden-master - the original LEO.EXE
-is now on disk at /tmp/opencode/hd_files/LEO.EXE).
+landed, and T-01 is finished. Open candidates: the Deferred big
+architecture items, or the user's call (T-11 4:3 aspect default,
+T-22 AppImage, T-24 golden-master - the original LEO.EXE is now on
+disk at /tmp/opencode/hd_files/LEO.EXE).
 
 ## Deferred big items (deliberately out of scope so far)
 
@@ -426,12 +490,10 @@ is now on disk at /tmp/opencode/hd_files/LEO.EXE).
   change).
 - T-01 platform abstraction - DONE (PR-14 interface + headless
   backend; PR-15 SDL backend + player; PR-16 title/menu/level
-  screens; PR-17 music service + platform thread). ll_view/ll_audio
-  are backend-private; no engine source includes SDL2 anymore
-  (grep: only platform_sdl.c, ll_view/ll_audio headers, main.c and
-  ll_paths.c). Remaining SDL = app glue (GetBasePath, message box,
-  SDL_Delay, video-driver pin, GetPrefPath) - small PR-18 candidate
-  if ever wanted.
+  screens; PR-17 music service + platform thread; PR-18 app glue).
+  Only platform_sdl.c, platform_sdl/is_player.c and the private
+  ll_view/ll_audio helpers reference SDL now - pinned structurally
+  by the verify-arch CI leg so it cannot silently regress.
 - T-03 config knobs cleanup, T-04 globals,
   T-05/T-06 fixed-step timing + precise sleep, T-07 clock ownership,
   T-16 Polish text, T-17 save/config separation (STATUS.LEO codec

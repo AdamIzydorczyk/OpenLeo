@@ -118,6 +118,20 @@ int main(int argc, char **argv)
     plat_thread_join();
     check("thread join safe when none ran", 1);
 
+    /* ---- host-glue contract (app bootstrap, T-01 phase 5) ---- *
+     * Headless: no host paths, no GUI box, no user dir, no video to
+     * pick - and the app-glue code relies on exactly those answers
+     * (no <exe>/data candidate, LEO_USER_DIR-only user dir). */
+    char prefbuf[256];
+    check("host: no executable dir claimed headless",
+          plat_base_path() == NULL);
+    prefbuf[0] = 'x';
+    check("host: no pref dir headless (out untouched by us)",
+          plat_pref_dir(prefbuf, sizeof prefbuf) == -1);
+    plat_message_box("t", "x");
+    plat_prepare_video();
+    check("host: message box / video prep safe headless no-ops", 1);
+
     /* ---- decode -> present, with no display (the headline test) ---- */
     is_stream s;
     if (is_open(&s, is) != 0) {

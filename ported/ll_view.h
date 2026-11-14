@@ -29,7 +29,7 @@
  *   - default window geometry matches the old fixed behaviour: 2x for
  *     sub-640-wide content, 1x otherwise, centered - nothing changes
  *     until the user drags, presses F11/Alt+Enter, or passes
- *     --scale/--fullscreen (main.c fills ll_opt_*).
+ *     --scale/--fullscreen (main.c fills plat_opt_*).
  *   - SDL_WINDOW_ALLOW_HIGHDPI + the app.manifest PerMonitorV2 entry
  *     give sharp output on scaled displays (no bitmap stretch).
  *   - fullscreen is always FULLSCREEN_DESKTOP (borderless desktop
@@ -46,10 +46,11 @@ typedef struct {
     int logical_w, logical_h;
 } ll_view;
 
-/* CLI overrides (main.c); 0 = defaults. ll_opt_scale > 0 forces the
- * initial window multiple even under the logical viewport. */
-extern int ll_opt_scale;
-extern int ll_opt_fullscreen;
+/* CLI overrides moved to platform.h as plat_opt_scale/plat_opt_
+ * fullscreen (T-01 phase 5: the app sets display options through the
+ * platform interface); they are defined in ll_view.c and consumed
+ * here at window creation. plat_opt_scale > 0 forces the initial
+ * window multiple even under the logical viewport. */
 
 /* Obtain this screen's view: first call creates the session window,
  * later calls reconfigure it (see header). Installs the logical

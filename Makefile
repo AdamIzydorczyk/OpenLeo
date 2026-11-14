@@ -680,7 +680,19 @@ verify-cmake:
 	cmp /tmp/opencode/cm_win.ppm /tmp/opencode/c_py/f01020.ppm \
 	  && echo "cmake windows binary (+SDL2.dll) == python reference (byte-exact)"
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music verify-utf8 verify-fuzz verify-platform verify-userdir verify-cmake
+# T-01 end-state structural pin (free of compiling): ONLY the backend
+# and its private helpers may include SDL. Engine screens, the app glue
+# and the shared codecs must reach the platform only via platform.h.
+# If any other file grows an SDL include back (regression of PR-15..18),
+# this leg fails with the offending file named.
+verify-arch:
+	@bad=$$(grep -rl "include <SDL2" ported/ | grep -vE \
+	    '^ported/(platform_sdl\.c|platform_sdl/|ll_view\.h|ll_audio\.h)'); \
+	if [ -n "$$bad" ]; then printf 'engine SDL-free pin FAILED:\n  %s\n' \
+	    $$bad; exit 1; \
+	else echo "T-01 structure: engine+app SDL-free, backend only (ok)"; fi
+
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music verify-utf8 verify-fuzz verify-platform verify-userdir verify-arch verify-cmake
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:

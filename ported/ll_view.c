@@ -3,10 +3,14 @@
  * handles from ll_view_create; the first call builds the window, every
  * later call reconfigures it in place. */
 #include "ll_view.h"
+#include "platform.h"  /* plat_opt_* declarations (defined here) */
 #include <string.h>
 
-int ll_opt_scale;
-int ll_opt_fullscreen;
+/* The initial window multiple / fullscreen overrides (plat_opt_*) are
+ * declared by platform.h and defined in this file (backend-side
+ * consumption, P-10). */
+int plat_opt_scale;
+int plat_opt_fullscreen;
 
 static ll_view g;                  /* the one window (P-03) */
 
@@ -18,7 +22,7 @@ static int auto_scale(int lw)
 int ll_view_create(ll_view *v, const char *title, int logical_w,
                    int logical_h)
 {
-    int sc = ll_opt_scale > 0 ? ll_opt_scale : auto_scale(logical_w);
+    int sc = plat_opt_scale > 0 ? plat_opt_scale : auto_scale(logical_w);
     memset(v, 0, sizeof *v);
     if (g.win && !SDL_WasInit(SDL_INIT_VIDEO))
         memset(&g, 0, sizeof g);  /* external SDL_Quit(): window is gone */
@@ -36,7 +40,7 @@ int ll_view_create(ll_view *v, const char *title, int logical_w,
                                  logical_w * sc, logical_h * sc, flags);
         if (!g.win)
             return -1;
-        if (ll_opt_fullscreen)
+        if (plat_opt_fullscreen)
             SDL_SetWindowFullscreen(g.win, SDL_WINDOW_FULLSCREEN_DESKTOP);
         g.ren = SDL_CreateRenderer(g.win, -1, SDL_RENDERER_ACCELERATED);
         if (!g.ren)

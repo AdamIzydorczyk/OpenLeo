@@ -26,6 +26,7 @@
 #include "ll_view.h"
 
 #include <SDL2/SDL.h>
+#include <stdio.h>
 #include <string.h>
 
 static struct {
@@ -313,6 +314,71 @@ void plat_thread_join(void)
         return;
     SDL_WaitThread(s_thr, NULL);
     s_thr = NULL;
+}
+
+/* ---- host glue (see platform.h contract) ---- */
+
+char *plat_base_path(void)
+{
+    /* Exactly what main.c used to call: works before any SDL_Init,
+     * may legitimately fail. Copied out so the caller can plain-free
+     * it regardless of SDL's allocator. */
+    char *p = SDL_GetBasePath();
+    if (!p)
+        return NULL;
+    char *r = strdup(p);
+    SDL_free(p);
+    return r;
+}
+
+void plat_message_box(const char *title, const char *text)
+{
+#if defined(PLATFORM_WIN) && PLATFORM_WIN
+    /* P-06: a Windows double-click launch has no console; on POSIX
+     * the caller's stderr line is the report and a box would only
+     * block the shell (the policy that lived in main.c). */
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, title, text, NULL);
+#else
+    (void)title;
+    (void)text;
+#endif
+}
+
+int plat_pref_dir(char *out, size_t cap)
+{
+    if (!out || cap < 2)
+        return -1;
+    char *p = SDL_GetPrefPath("LongSoft", "LewLeon");  /* creates the dir */
+    if (!p)
+        return -1;
+    snprintf(out, cap, "%s", p);
+    SDL_free(p);
+    return 0;
+}
+
+void plat_prepare_video(void)
+{
+    /* Verbatim move from main.c (T-01 phase 5): same conditions, same
+     * byte-identical diagnostics ("main: ..." prefixes kept - users
+     * and the docs quote them). Wayland sessions: SDL's wayland
+     * windows can NEVER get keyboard focus (WM policy), so pin X11
+     * (XWayland) where SDL_RaiseWindow + SetWindowInputFocus work;
+     * fall back to the default if no X server. An explicit
+     * SDL_VIDEODRIVER always wins. */
+    if (!SDL_getenv("SDL_VIDEODRIVER") && SDL_getenv("WAYLAND_DISPLAY")) {
+        SDL_setenv("SDL_VIDEODRIVER", "x11", 1);
+        int ok = SDL_InitSubSystem(SDL_INIT_VIDEO) == 0;
+        SDL_QuitSubSystem(SDL_INIT_VIDEO);
+        if (ok)
+            printf("main: Wayland session detected: using X11/XWayland "
+                   "video backend (window keyboard focus works there)\n");
+        else {
+            printf("main: no X server under Wayland (%s): keeping default "
+                   "backend (keyboard focus may not follow windows)\n",
+                   SDL_GetError());
+            SDL_setenv("SDL_VIDEODRIVER", "wayland", 1);
+        }
+    }
 }
 
 #endif /* !PLAT_BACKEND_DUMMY */

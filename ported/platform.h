@@ -81,6 +81,14 @@ enum {
  * the ll_view window session). */
 int plat_init(const char *title, int w, int h);
 
+/* P-10 display overrides (set by the app before plat_init; 0 = the
+ * historical default geometry). The backend consumes them at window
+ * creation; declared here so the app sets them through the interface
+ * rather than reaching into ll_view.h. plat_opt_scale > 0 forces the
+ * initial window multiple; plat_opt_fullscreen opens fullscreen. */
+extern int plat_opt_scale;
+extern int plat_opt_fullscreen;
+
 /* Present one indexed frame (T-02). idx8 is w*h LINEARISED indexed
  * bytes, pal is 768 raw 6-bit triples; the backend expands + blits. */
 void plat_present(const uint8_t *idx8, const uint8_t pal[768], int w,
@@ -140,6 +148,37 @@ FILE *plat_fopen(const char *path, const char *mode);
  * exercises exactly that fallback path in tests. */
 int  plat_thread_start(int (*fn)(void *), void *ctx, const char *name);
 void plat_thread_join(void);
+
+/* ---- host glue (T-01 phase 5: the entry code keeps NO direct SDL) ---- *
+ * These four cover everything ported/main.c and ported/ll_paths.c used
+ * to call SDL for. They are deliberately NOT in any engine contract:
+ * they belong to the app bootstrap, so they stay out of the screen
+ * code and selftest keeps their headless answers pinned. */
+
+/* Directory containing the running executable, malloc'd (caller frees
+ * with free()); NULL when the platform cannot say. May run before any
+ * plat_init (the SDL backend delegates to SDL_GetBasePath, which is
+ * documented to work uninitialized). */
+char *plat_base_path(void);
+
+/* Modal user-facing error report (review P-06: a double-click launch
+ * has no console). Policy lives backend-side: the SDL backend shows a
+ * real box on Windows only - elsewhere the caller's stderr line IS
+ * the report, and an extra box would just block the shell. */
+void plat_message_box(const char *title, const char *text);
+
+/* Per-user WRITABLE directory, created if missing (the SDL backend
+ * delegates to SDL_GetPrefPath("LongSoft","LewLeon"): %APPDATA% on
+ * Windows, ~/.local/share on Linux). 0 = path written into out (a
+ * NUL-terminated string within cap), -1 = none available. */
+int plat_pref_dir(char *out, size_t cap);
+
+/* One-time video backend selection (P-04 focus policy): under a
+ * Wayland session prefer X11/XWayland, where the focus-grant calls
+ * actually work; an explicit SDL_VIDEODRIVER always wins. Call once
+ * at startup, before any plat_init. Headless: no-op. The two
+ * diagnostic lines are user-facing and byte-pinned by the port. */
+void plat_prepare_video(void);
 
 /* Last backend error as a printable string (diagnostics only - the
  * engine must not branch on its content). The SDL backend returns
