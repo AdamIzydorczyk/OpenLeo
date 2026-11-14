@@ -7,6 +7,7 @@
 #include "is_player.h"
 #include "../fs_ci.h"
 #include "../is_stream.h"
+#include "../ll_audio.h"
 #include "../ll_config.h"
 #include "../ll_level.h"
 #include "../ll_view.h"
@@ -319,9 +320,10 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     if (rpath && strcmp(rpath, path) != 0)
         printf("is_player: data path resolved as: %s\n", rpath);
     free(rpath);
-    if (audio && ll_audio_init() != 0)   /* pins driver away from SDL2's
-                                            buggy pipewire backend (see
-                                            ll_level.h) */
+    if (audio && ll_audio_session_init() != 0)   /* pins driver away
+                                                    from SDL2's buggy
+                                                    pipewire backend
+                                                    (see ll_audio.h) */
         fprintf(stderr, "is_player: audio init failed: %s\n", SDL_GetError());
     /* P-03: no SDL_Init/SDL_Quit here anymore - the video subsystem and
      * the window come from the shared ll_view session, which stays up
@@ -345,32 +347,18 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     }
 
     if (audio) {
-        SDL_AudioSpec want, have;
+        SDL_AudioSpec want;
         memset(&want, 0, sizeof want);
         want.freq = 22050;
         want.format = AUDIO_S16SYS;   /* ESC region = raw s16 LE samples */
         want.channels = p.stereo ? 2 : 1;
-        want.samples = 0;   /* keep SDL's default: explicit small sizes
-                               break SDL2.32's alsa backend here (see
-                               ll_music_play in ll_level.c) */
-        p.dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
+        /* samples=0 + accepted-spec logging (P-13) are enforced in one
+         * place: ll_audio_open, see ported/ll_audio.h. */
+        p.dev = ll_audio_open(&want);
         if (!p.dev)
             fprintf(stderr, "is_player: audio off (%s)\n", SDL_GetError());
-        else {
-            /* P-13: allowed_changes=0 means SDL converts silently to
-             * what the backend really runs; log the accepted spec so
-             * capture/diagnostic runs can be trusted. */
-            static const char *const fmt[] = {
-                "U8", "S8", "S16LSB", "S16MSB", "S16SYS", "S32LSB",
-                "S32MSB", "S32SYS", "F32LSB", "F32MSB", "F32SYS",
-            };
-            unsigned f = have.format & 0x800F;
-            fprintf(stderr, "is_player: audio %s %uHz %uch %u samples\n",
-                    f < sizeof fmt / sizeof fmt[0] ? fmt[f] : "?",
-                    (unsigned)have.freq, (unsigned)have.channels,
-                    (unsigned)have.samples);
+        else
             SDL_PauseAudioDevice(p.dev, 0);
-        }
     }
 
     /* Pacing (RE-PINNED 2026-11-14 - the audio block clock): ISplay plays
@@ -524,7 +512,7 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     free(p.lbuf);
     close_wav();
     if (p.dev)
-        SDL_CloseAudioDevice(p.dev);
+        ll_audio_close(p.dev);
     if (p.tex)
         SDL_DestroyTexture(p.tex);  /* the screen owns its texture; the
                                      * session window/renderer do not go */

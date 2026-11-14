@@ -26,6 +26,7 @@
  */
 #include "ll_level.h"
 #include "fs_ci.h"
+#include "ll_audio.h"
 #include "ll_pcx.h"
 #include "ll_pcm.h"
 #include "ll_seq.h"
@@ -45,35 +46,9 @@
  * the UI loops, because window drags (Windows modal loop), slow loads
  * and SDL_Delays in the screens underran the old in-loop pump. */
 
-/* Initialize the audio subsystem, dodging SDL2 >= 2.32's native
- * "pipewire" backend, which on the dev desktop (SDL 2.32.74 + PipeWire,
- * 2026-11-14) delivered squeaking or silent streams for BOTH the
- * callback and QueueAudio paths while the alsa backend played the very
- * same bytes clean.  Only fires when SDL would auto-pick pipewire, so
- * Windows (directsound) and older/user-pinned setups are untouched;
- * LEO/SDL_AUDIODRIVER in the environment always wins. */
-int ll_audio_init(void)
-{
-    if (SDL_WasInit(SDL_INIT_AUDIO))
-        return 0;
-    if (SDL_getenv("SDL_AUDIODRIVER"))
-        return SDL_InitSubSystem(SDL_INIT_AUDIO) == 0 ? 0 : -1;
-    if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0)
-        return -1;
-    const char *drv = SDL_GetCurrentAudioDriver();
-    if (drv && strcmp(drv, "pipewire") == 0) {
-        SDL_QuitSubSystem(SDL_INIT_AUDIO);
-        SDL_setenv("SDL_AUDIODRIVER", "alsa", 1);
-        if (SDL_InitSubSystem(SDL_INIT_AUDIO) == 0) {
-            printf("ll_audio: SDL pipewire backend unreliable, "
-                   "audio on alsa driver\n");
-            return 0;
-        }
-        SDL_setenv("SDL_AUDIODRIVER", drv, 1);   /* restore, alsa absent */
-        return SDL_InitSubSystem(SDL_INIT_AUDIO) == 0 ? 0 : -1;
-    }
-    return 0;
-}
+/* Initialize the audio subsystem: moved to ported/ll_audio.c in PR-12
+ * (ll_audio_session_init); the queue-only device contract notes above
+ * still apply - read them with ported/ll_audio.h. */
 
 /* ---- standalone music playback (menu/map screens), singleton ---- *
  * Engine anchor: FUN_0005dec0 opens+plays "mapka.mod" for the MAPKA
@@ -169,11 +144,11 @@ int ll_music_play(const char *data_dir, const char *modname)
         return 1;
     }
     ll_mod_start(&s_mst, &s_mus);
-    if (ll_audio_init() != 0) {
+    if (ll_audio_session_init() != 0) {
         ll_music_stop();
         return 1;
     }
-    SDL_AudioSpec want, have;
+    SDL_AudioSpec want;
     memset(&want, 0, sizeof want);
     want.freq = LL_MOD_RATE;
     want.format = AUDIO_S16SYS;
@@ -183,23 +158,13 @@ int ll_music_play(const char *data_dir, const char *modname)
      * streams on the dev desktop, while SDL's own default (reported
      * back as 0 for queue-mode devices) plays byte-perfect.  Verified
      * by A/B probe 2026-11-14: samples=0+pump clean, samples=2048
-     * silent, samples=1024 squeak. */
-    s_mus_dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
+     * silent, samples=1024 squeak.  ll_audio_open enforces this and
+     * logs the accepted spec (P-13) - see ported/ll_audio.h. */
+    s_mus_dev = ll_audio_open(&want);
     if (!s_mus_dev) {
         fprintf(stderr, "ll_music: device: %s\n", SDL_GetError());
         ll_music_stop();
         return 1;
-    }
-    {   /* P-13: log the accepted spec (see is_player.c) */
-        static const char *const fmt[] = {
-            "U8", "S8", "S16LSB", "S16MSB", "S16SYS", "S32LSB",
-            "S32MSB", "S32SYS", "F32LSB", "F32MSB", "F32SYS",
-        };
-        unsigned f = have.format & 0x800F;
-        fprintf(stderr, "ll_music: audio %s %uHz %uch %u samples\n",
-                f < sizeof fmt / sizeof fmt[0] ? fmt[f] : "?",
-                (unsigned)have.freq, (unsigned)have.channels,
-                (unsigned)have.samples);
     }
     SDL_PauseAudioDevice(s_mus_dev, 0);
     /* E-09: dedicated pump thread; if it can't be created we fall
@@ -231,7 +196,7 @@ void ll_music_stop(void)
         s_mus_wf = NULL;
     }
     if (s_mus_dev)
-        SDL_CloseAudioDevice(s_mus_dev);
+        ll_audio_close(s_mus_dev);
     s_mus_dev = 0;
     ll_mod_close(&s_mus);
     free(s_mus_img);
@@ -1671,7 +1636,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
          *     container '<STEM>.MOD' payload (standard MOD layout, see
          *     ll_mod.h).  Same singleton as the MAPKA screen; the scene
          *     loop below pumps it (SDL queue path, see note above
-         *     ll_audio_init - callbacks are unreliable on SDL2+PipeWire). */
+         *     ll_audio_session_init - callbacks are unreliable on
+         *     SDL2+PipeWire). */
         if (audio && !getenv("LEO_NO_MUSIC")) {
             const char *muz = des_get(kvs, nk, "muzyka");
             if (muz && *muz) {

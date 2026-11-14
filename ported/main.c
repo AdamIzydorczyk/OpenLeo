@@ -552,7 +552,7 @@ int main(int argc, char **argv)
      * windows can NEVER get keyboard focus (WM policy: raise/focus-grant
      * calls are ignored, keys reach the window only after a user click on
      * X11, never on wayland). Same remedy as the pipewire audio pin in
-     * ll_audio_init: pin X11 (XWayland) where SDL_RaiseWindow +
+     * ll_audio_session_init: pin X11 (XWayland) where SDL_RaiseWindow +
      * SetWindowInputFocus work; fall back to the default if no X server.
      * An explicit SDL_VIDEODRIVER always wins. */
     if (!SDL_getenv("SDL_VIDEODRIVER") && SDL_getenv("WAYLAND_DISPLAY")) {

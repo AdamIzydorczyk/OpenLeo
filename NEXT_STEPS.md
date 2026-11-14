@@ -4,7 +4,7 @@ Working plan derived from `OpenLeo_native_port_review.md` (P/E/M) and
 `OpenLeo_porting_tips.md` (T). Update the status lines here as items
 land; the review/tips files stay as the detailed work orders.
 
-## Status as of 2026-11-14 (through PR-11, all pushed)
+## Status as of 2026-11-14 (through PR-12, all pushed)
 
 Done and verified green (full `make verify-all` incl. wine parity):
 
@@ -60,7 +60,17 @@ Done and verified green (full `make verify-all` incl. wine parity):
   (xor-bit / 0x00 / 0xff / truncate), 3 fixed seeds x 400 iters,
   ASan+UBSan build; accepted/rejected counters per kind prove the
   corpus reaches every decoder (a kind that never parses = fail 2).
-  All six kinds green, zero crashes/UB/leaks, ~3 s per seed.            (this commit)
+  All six kinds green, zero crashes/UB/leaks, ~3 s per seed.            (71ece54)
+- PR-12 P-03(audio): one audio session. New ported/ll_audio.[ch] owns
+  the SDL audio subsystem lifecycle (ll_audio_session_init = the old
+  ll_audio_init/pipewire-pin, moved out of ll_level.c; ll_audio_session
+  _close). Device acquisition centralised in ll_audio_open (enforces
+  the samples=0 + queue-only contract, logs accepted spec once = P-13)
+  and ll_audio_close (closes + SDL_ClearError). is_player + ll_music
+  both go through it; the per-caller spec/P-13 code is deleted. Device
+  is per-playback on purpose (spec differs 22k/44k, no resampling,
+  queue is a stateful FIFO) but scenes never overlap, so exactly one
+  live device at a time. ll_level.h drops the ll_audio_init decl.        (this commit)
 
 Known-clean baselines: ASan/UBSan on demo chain + all 22 MODs = app
 leaks 0 (SDL backend internals only); CI pins are format-only for MOD
@@ -122,6 +132,21 @@ raw-word copy, no grammar) and the .des/.MNU text scanners are not
 either (a text-grammar fuzz is its own project). If a fuzz failure
 ever appears, reproduce with the printed seed and shrink the blob.
 
+## PR-12 — one audio session (DONE, see status above)
+
+Completes P-03 on the audio side, mirroring how PR-10 did video.
+What is deliberately NOT a persistent singleton: the audio DEVICE.
+Unlike a window, an SDL audio device is spec-specific (cutscene 22050
+mono/stereo, MOD music 44100 stereo; SDL applies no resampling to
+queued bytes and both streams are byte-pinned by CI) and a stateful
+FIFO (a kept-open device would bleed one scene's queue tail into the
+next). So the SUBSYSTEM + driver policy + spec contract are session-
+owned (ll_audio.c, exactly once per process); the DEVICE stays
+acquire-per-playback (ll_audio_open/close). Scenes never play
+simultaneously, so there is still exactly one live device at a time -
+which is what P-03 was actually about. If a future screen needs
+concurrent SFX, add a mixer in ll_audio.c, do not reopen per call.
+
 ## Next — pick from the Deferred list below
 
 Nothing queued: every review item that was scoped as "worth fixing
@@ -130,8 +155,9 @@ user's call (T-11 4:3 aspect default, T-22 AppImage).
 
 ## Deferred big items (deliberately out of scope so far)
 
-- P-03 single window + single SDL lifecycle - DONE in PR-10 (ll_view
-  session). What remains there is deeper: one audio session too.
+- P-03 single window + single SDL lifecycle - DONE for both: PR-10
+  (ll_view session) + PR-12 (ll_audio session). The device itself is
+  per-playback by design; see the PR-12 note.
 - P-04 focus stealing - DONE in PR-10 (raise on WINDOWEVENT_ENTER).
 - P-05 Wayland/X11 (current pipewire->alsa swap works; revisit if
   users report issues).
