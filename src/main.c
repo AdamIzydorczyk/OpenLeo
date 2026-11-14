@@ -386,6 +386,28 @@ static void run_menu(const char *data, int audio)
 
 int main(int argc, char **argv)
 {
+    /* Wayland sessions (KDE Plasma desktop reports): SDL's wayland backend
+     * windows can NEVER get keyboard focus (WM policy: raise/focus-grant
+     * calls are ignored, keys reach the window only after a user click on
+     * X11, never on wayland). Same remedy as the pipewire audio pin in
+     * ll_audio_init: pin X11 (XWayland) where SDL_RaiseWindow +
+     * SetWindowInputFocus work; fall back to the default if no X server.
+     * An explicit SDL_VIDEODRIVER always wins. */
+    if (!SDL_getenv("SDL_VIDEODRIVER") && SDL_getenv("WAYLAND_DISPLAY")) {
+        SDL_setenv("SDL_VIDEODRIVER", "x11", 1);
+        int ok = SDL_InitSubSystem(SDL_INIT_VIDEO) == 0;
+        SDL_QuitSubSystem(SDL_INIT_VIDEO);
+        if (ok)
+            printf("main: Wayland session detected: using X11/XWayland "
+                   "video backend (window keyboard focus works there)\n");
+        else {
+            printf("main: no X server under Wayland (%s): keeping default "
+                   "backend (keyboard focus may not follow windows)\n",
+                   SDL_GetError());
+            SDL_setenv("SDL_VIDEODRIVER", "wayland", 1);
+        }
+    }
+
     const char *file = NULL;
     const char *then[MAX_SCENES];
     int nthen = 0;

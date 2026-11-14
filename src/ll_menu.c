@@ -137,6 +137,17 @@ static void draw_text(Uint32 *fb, int w, int h, int x, int y, const char *s,
         draw_glyph(fb, w, h, x, y, *s, col);
 }
 
+/* 1-px outline (hover highlight on zones/islands/corners) */
+static void draw_rect(Uint32 *fb, int w, int h, int x0, int y0, int x1,
+                      int y1, Uint32 col)
+{
+    for (int x = x0; x < x1; x++)
+        for (int y = y0; y < y1; y++)
+            if (x >= 0 && x < w && y >= 0 && y < h &&
+                (y == y0 || y == y1 - 1 || x == x0 || x == x1 - 1))
+                fb[(size_t)y * w + x] = col;
+}
+
 /* X11/XWayland hard focus grab.  SDL2 marks this deprecated (SDL3
  * replaces it) but it is still the only forced-focus call on X11/XWayland;
  * the pure Wayland backend ignores it entirely, hence the per-tick
@@ -296,6 +307,7 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
     }
 
     int sel = 0, quit = 0, ret = -1;
+    int hov_z = -1, hov_r = -1;    /* hover indicators (mouse motion)     */
     unsigned tick = 0;   /* fixed 30 ms redraw ticks drive anim frames */
 
     /* hot-zone rects in canvas px: the union over frames of the bound
@@ -408,6 +420,15 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         if (top + list_rows < nitems)
             draw_text(fb, W, H, x0, y0 + 12 * list_rows - 2, "v",
                       0xFFAAAAAAu);
+        if (hov_r >= 0)            /* row hover: marker even without click */
+            draw_text(fb, W, H, x0 - 12, y0 + 12 * hov_r, ">",
+                      0xFFFFFF00u);
+        if (hov_z >= 0 && hov_z < nz && zrect[hov_z][2] > zrect[hov_z][0]) {
+            int pad = 3;           /* cursive answer word hover outline   */
+            draw_rect(fb, W, H, zrect[hov_z][0] - pad, zrect[hov_z][1] - pad,
+                      zrect[hov_z][2] + pad, zrect[hov_z][3] + pad,
+                      0xFFFFFF00u);
+        }
 
         {
             const char *ppm_e = getenv("LEO_MENU_PPM");
@@ -472,6 +493,25 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                                 quit = 1;
                                 break;
                             }
+                } else if (e.type == SDL_MOUSEMOTION) {
+                    int sc = W < 640 ? 2 : 1;
+                    int mx = e.motion.x / sc, my = e.motion.y / sc;
+                    hov_r = -1;
+                    for (int j = 0; j < list_rows; j++) {
+                        int ry = y0 + 12 * j;
+                        if (my >= ry - 2 && my < ry + 10 && mx >= x0 - 14) {
+                            hov_r = j;
+                            break;
+                        }
+                    }
+                    hov_z = -1;
+                    for (int zi = 0; zi < nz; zi++)
+                        if (zrect[zi][2] > zrect[zi][0] &&
+                            mx >= zrect[zi][0] && mx < zrect[zi][2] &&
+                            my >= zrect[zi][1] && my < zrect[zi][3]) {
+                            hov_z = zi;
+                            break;
+                        }
                 } else if (e.type == SDL_KEYDOWN) {
                     SDL_Keycode k = e.key.keysym.sym;
                     int zhit = 0;
@@ -692,6 +732,7 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         memcpy(base, fb, (size_t)MAP_LW * MAP_LH * sizeof *base);
 
     int sel = 0, quit = 0, ret = -1;
+    int hov = -1;            /* island idx or corner code (-2/-4/-5/-6) */
     unsigned tick = 0;
     const char *sece = getenv("LEO_MENU_SECS");
     Uint64 t_deadline = sece ? SDL_GetTicks64() + 1000 * (Uint64)atof(sece) : 0;
@@ -759,6 +800,26 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                     printf("map: LEO_MENU_PPM wrote %s (tick %u)\n",
                            ppm_e, tick);
         }
+
+        if (hov >= 0 && hov < nchs)          /* hover outlines (drawn after
+                                              * the PPM hook: CI frames stay
+                                              * hover-free) */
+            draw_rect(disp, MAP_W, MAP_H,
+                      chs[hov].ix - chs[hov].rw - 3,
+                      chs[hov].iy - chs[hov].rh - 3,
+                      chs[hov].ix + chs[hov].rw + 4,
+                      chs[hov].iy + chs[hov].rh + 4, 0xFFFFFF00u);
+        else if (hov == -2)
+            draw_rect(disp, MAP_W, MAP_H, 2, 2, 130, 26, 0xFFFFFF00u);
+        else if (hov == -6)
+            draw_rect(disp, MAP_W, MAP_H, 506, 2, MAP_W - 2, 26,
+                      0xFFFFFF00u);
+        else if (hov == -5)
+            draw_rect(disp, MAP_W, MAP_H, 506, MAP_H - 40, MAP_W - 2,
+                      MAP_H - 2, 0xFFFFFF00u);
+        else if (hov == -4)
+            draw_rect(disp, MAP_W, MAP_H, 2, MAP_H - 52, 140, MAP_H - 2,
+                      0xFFFFFF00u);
 
         void *px;
         int pitch;
@@ -846,6 +907,29 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                             }
                         }
                     }
+                } else if (e.type == SDL_MOUSEMOTION) {
+                    /* hover feedback (user: mouse did nothing until the
+                     * click): outline the corner word / island under the
+                     * pointer; window is 1:1 (MAP_W x MAP_H) */
+                    int mx = e.motion.x, my = e.motion.y;
+                    hov = -1;
+                    if (mx < 130 && my < 26)
+                        hov = -2;                     /* WYJSCIE    */
+                    else if (mx > 505 && my < 26)
+                        hov = -6;                     /* RESTART    */
+                    else if (mx > 505 && my > 360)
+                        hov = -5;                     /* OPCJE      */
+                    else if (mx < 140 && my > 348)
+                        hov = -4;                     /* AUTORZY    */
+                    else
+                        for (int i = 0; i < nchs; i++)
+                            if (mx >= chs[i].ix - chs[i].rw
+                                && mx <= chs[i].ix + chs[i].rw
+                                && my >= chs[i].iy - chs[i].rh
+                                && my <= chs[i].iy + chs[i].rh) {
+                                hov = i;
+                                break;
+                            }
                 } else if (e.type == SDL_KEYDOWN) {
                     SDL_Keycode k = e.key.keysym.sym;
                     if (k == SDLK_UP || k == SDLK_LEFT)

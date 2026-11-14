@@ -668,6 +668,22 @@ unlimited until ESC/q, and the map chapter-launch plus restart-TAK paths
 pass 0.0 and CONTINUE - ESC in the scene returns to the chapter map.
 CI: menu_tak/wmenu_tak pin LEO_MENU_SECS=1 and grep 'map: LEO_MENU_SECS
 expired' as proof the chain cycled back to the map before ending.
+**Desktop usability round 4 (2026-11-15)**: (a) keyboard focus was still
+dead on the KDE dialog (SDL2's wayland backend ignores focus grants
+outright) - main() now PINS the x11 backend when WAYLAND_DISPLAY is set
+and SDL_VIDEODRIVER is unset (probe SDL_InitSubSystem, same pattern as
+the pipewire->alsa pin in ll_audio_init; prints 'using X11/XWayland',
+pins back to wayland if no X server). X11/XWayland honors RaiseWindow +
+SetWindowInputFocus, so the whole focus chain works there. (b) hover
+feedback added (user: mouse only acted on clicks): ll_menu_open_ex
+tracks SDL_MOUSEMOTION - hov_z draws a yellow outline around the cursive
+answer-word zone, hov_r draws the '>' row marker; ll_menu_map_open
+outlines the hovered island (chs rect) or corner word (fixed rects
+matching the click hitboxes) on disp AFTER the LEO_MENU_PPM hook so CI
+frames stay hover-free. (c) 'improper render left side' re-verified:
+dialog PPM byte-identical to the pre-hover probe (cmp rst1.ppm ==
+rst_hv.ppm) and VL side-by-side vs standalone OPTIONS.PCX: same artwork,
+left temple column authentic, no defect.
 
 ## 8c. Level scene + .MOV motion scripts (delivered 2026-11-14)
 
