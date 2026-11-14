@@ -488,6 +488,26 @@ mod_selftest.exe: tools/mod_selftest.c ported/ll_mod.c ported/ll_mod.h
 	$(XC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ \
 	    tools/mod_selftest.c ported/ll_mod.c
 
+# T-01: headless engine-contract test. Deliberately built with the
+# DUMMY platform backend and NO SDL at all (only is_stream + fs_ci): a
+# successful link+run proves the decode->present->audio->clock->input
+# surface is SDL-free, i.e. exactly the "can't test the engine without
+# SDL" barrier T-01 removes. ASan/UBSan like the other headless tools.
+platform_selftest: tools/platform_selftest.c ported/platform.h \
+        ported/platform_dummy.c ported/platform_common.c ported/fs_ci.c \
+        ported/is_stream.c ported/is_stream.h
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -DPLAT_BACKEND_DUMMY=1 \
+	    -fsanitize=address,undefined -Iported -o $@ \
+	    tools/platform_selftest.c ported/platform_dummy.c \
+	    ported/platform_common.c ported/fs_ci.c ported/is_stream.c -lm
+
+verify-platform: platform_selftest
+	@./platform_selftest $(DATA)/INTRO_P.IS > /tmp/opencode/plat_self.txt 2>&1 \
+	  && grep -q "NO SDL display/audio" /tmp/opencode/plat_self.txt \
+	  && grep -qc "(ok)" /tmp/opencode/plat_self.txt >/dev/null \
+	  && echo "verify-platform: headless engine path + clock/audio/input/fopen contract (ok)" \
+	  || { echo "verify-platform: FAILED"; cat /tmp/opencode/plat_self.txt; exit 1; }
+
 verify-mod: mod_selftest mod_selftest.exe
 	@for M in TUNGA RAN ENA2; do \
 	  python3 tools/pull_record.py $(DATA)/SOUND $$M.MOD /tmp/opencode/$$M.mod && \
@@ -647,12 +667,13 @@ verify-cmake:
 	cmp /tmp/opencode/cm_win.ppm /tmp/opencode/c_py/f01020.ppm \
 	  && echo "cmake windows binary (+SDL2.dll) == python reference (byte-exact)"
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music verify-utf8 verify-fuzz verify-userdir verify-cmake
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music verify-utf8 verify-fuzz verify-platform verify-userdir verify-cmake
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
 	rm -rf dist
 	rm -f ll_cutscene ll_cutscene.exe llrs_selftest llrs_selftest.exe fuzz \
+	      platform_selftest \
 	      resources/ll_cutscene.res \
 	      pcx_selftest pcx_selftest.exe seq_selftest seq_selftest.exe \
 	      seq_patchdump seq_patchdump.exe pcm_selftest pcm_selftest.exe \
@@ -662,4 +683,4 @@ clean:
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
         verify-seq verify-pcm verify-mod verify-level verify-help verify-menu \
         verify-sel verify-save verify-music verify-utf8 verify-fuzz \
-        verify-userdir verify-cmake verify-all level clean package package-win package-linux
+        verify-platform verify-userdir verify-cmake verify-all level clean package package-win package-linux

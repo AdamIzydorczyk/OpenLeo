@@ -4,7 +4,7 @@ Working plan derived from `OpenLeo_native_port_review.md` (P/E/M) and
 `OpenLeo_porting_tips.md` (T). Update the status lines here as items
 land; the review/tips files stay as the detailed work orders.
 
-## Status as of 2026-11-14 (through PR-13, all pushed)
+## Status as of 2026-11-14 (through PR-14, all pushed)
 
 Done and verified green (full `make verify-all` incl. wine parity):
 
@@ -80,7 +80,18 @@ Done and verified green (full `make verify-all` incl. wine parity):
   preserved). pick_data_dir search order extended with
   $XDG_DATA_HOME/openleo / ~/.local/share/openleo / /usr/share/openleo,
   factored into find_data_candidate + a silent detect_data_dir() (so
-  single-file runs keep byte-ident output). NEW verify-userdir CI leg.   (this commit)
+  single-file runs keep byte-ident output). NEW verify-userdir CI leg.   (f34543e)
+- PR-14 T-01 phase 1: engine-facing platform interface. ported/platform.h
+  declares the T-01 surface (plat_init/present/poll/now_ns/sleep_until/
+  audio_queue/queued_ms/fopen + engine-level ll_event). Backends chosen
+  at COMPILE time: PLAT_BACKEND_DUMMY (ported/platform_dummy.c, headless
+  - implemented now) vs PLAT_BACKEND_SDL (over ll_view/ll_audio - the
+  game keeps using those directly for now). plat_fopen delegates to
+  fs_ci in a shared platform_common.c. tools/platform_selftest.c runs
+  decode(real .IS)->present->clock->audio->input THROUGH the interface
+  and links ZERO SDL (ldd/nm prove it) - the "test the engine without
+  SDL" capability T-01 exists for. NEW verify-platform CI leg (headless,
+  ASan/UBSan). Screens not yet migrated to plat_*: that is PR-15.        (this commit)
 
 Known-clean baselines: ASan/UBSan on demo chain + all 22 MODs = app
 leaks 0 (SDL backend internals only); CI pins are format-only for MOD
@@ -172,6 +183,26 @@ resolution + one-time-import path, no new plumbing. Import leaves the
 original in place (mirrors the "retail data untouched" rule); the
 resolution then re-reads the user copy on later runs.
 
+## PR-14 — platform interface + headless backend (DONE, phase 1 of T-01)
+
+The concrete pain T-01 named (window per scene, SDL_Init per cutscene,
+quirks in 4 screens) was already removed by PR-8/10/12's ll_view +
+ll_audio sessions. PR-14 builds the engine-facing seam ON TOP of that:
+one platform.h contract + a second, headless backend, and a selftest
+that runs the whole decode->present->audio->clock->input surface with
+zero SDL (proven by ldd/nm). That is the "engine testable without SDL"
+gate T-01 asks for, and it is where future headless unit tests
+(golden-master, libretro/Emscripten backends) attach.
+
+Remaining for the full T-01 (PR-15, the risky part deliberately
+deferred so each step stays verifiable): implement PLAT_BACKEND_SDL as
+a thin delegate over the existing ll_view/ll_audio (no new internals)
+and MIGRATE THE SCREENS (cutscene player first, then title/map/level)
+to plat_poll + plat_present(indexed fb) + plat_now_ns/sleep_until,
+retiring direct SDL in engine code. That migration touches the byte-
+exact PPM/menu/sel pins, so it lands behind those same oracle checks;
+the dummy backend already gives a second consumer to catch divergence.
+
 ## Next — pick from the Deferred list below
 
 Nothing queued: every review item that was scoped as "worth fixing
@@ -188,7 +219,11 @@ user's call (T-11 4:3 aspect default, T-22 AppImage).
   users report issues).
 - E-08/T-14 palette codec fidelity (frozen: pixel output must not
   change).
-- T-01 platform abstraction, T-03 config knobs cleanup, T-04 globals,
+- T-01 platform abstraction - phase 1 DONE in PR-14 (platform.h
+  interface + headless dummy backend + verify-platform). Remaining =
+  PR-15: PLAT_BACKEND_SDL over ll_view/ll_audio + migrating the four
+  screens to plat_poll/plat_present (behind the PPM/grep oracle pins).
+- T-03 config knobs cleanup, T-04 globals,
   T-05/T-06 fixed-step timing + precise sleep, T-07 clock ownership,
   T-16 Polish text, T-17 save/config separation (STATUS.LEO codec
   itself is done), T-19 startup data validation, T-23 structured RE

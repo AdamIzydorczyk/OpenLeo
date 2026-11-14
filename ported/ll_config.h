@@ -10,6 +10,11 @@
  *   platform_sdl/ - the ONE SDL2 platform layer shared by the linux and
  *            windows targets; target differences live only in the root
  *            Makefile + the PLATFORM_* knobs below.
+ *   plat_* - the engine-facing platform interface (ported/platform.h,
+ *            tips T-01): plat_init/present/poll/now_ns/sleep_until/
+ *            audio_queue/fopen. Backend chosen at compile time
+ *            (PLAT_BACKEND_SDL vs PLAT_BACKEND_DUMMY); engine code must
+ *            call plat_*, never SDL, so it is testable headless.
  * Every public symbol follows its prefix; file name == primary prefix.
  *
  * Knobs are set per target with -D on the compiler line (see Makefile) or
