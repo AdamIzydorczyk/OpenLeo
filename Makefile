@@ -123,12 +123,15 @@ verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_
 	else echo "win restart-confirm FAILED"; tail -8 /tmp/opencode/wmenu_rst.log; exit 1; fi
 	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all SDL_VIDEODRIVER=dummy \
 	  SDL_AUDIODRIVER=dummy LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 \
-	  LEO_MENU_KEY=r LEO_MENU_PICK=t LEO_LEVEL_SECS=2 LEO_HELP_SECS=0 \
+	  LEO_MENU_KEY=r LEO_MENU_PICK=t LEO_MENU_SECS=1 LEO_LEVEL_SECS=2 \
+	  LEO_HELP_SECS=0 \
 	  timeout 150 wine ./ll_cutscene.exe --demo Z:$(DATA) \
 	  > /tmp/opencode/wmenu_tak.log 2>&1 || true
 	@if tr -d '\r' < /tmp/opencode/wmenu_tak.log \
-	   | grep -q 'restart confirmed (tak) -> new game'; \
-	then echo "win restart-confirm TAK: answer buttons under wine (ok)"; \
+	   | grep -q 'restart confirmed (tak) -> new game' \
+	   && tr -d '\r' < /tmp/opencode/wmenu_tak.log \
+	   | grep -q 'map: LEO_MENU_SECS expired'; \
+	then echo "win restart-confirm TAK: answer buttons + back-to-map under wine (ok)"; \
 	else echo "win restart-confirm TAK FAILED"; tail -8 /tmp/opencode/wmenu_tak.log; exit 1; fi
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_LEVEL_PPM=/tmp/opencode/lvlv_t2.ppm \
@@ -372,15 +375,17 @@ verify-menu: ll_cutscene
 	else echo "restart-confirm FAILED (rc=$$rc)"; cat /tmp/opencode/menu_rst.log; exit 1; fi
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	    LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_KEY=r \
-	    LEO_MENU_PICK=t LEO_LEVEL_SECS=2 LEO_HELP_SECS=0 timeout 90 \
+	    LEO_MENU_PICK=t LEO_MENU_SECS=1 LEO_LEVEL_SECS=2 LEO_HELP_SECS=0 \
+	    timeout 90 \
 	    ./ll_cutscene --demo $(DATA) > /tmp/opencode/menu_tak.log 2>&1; \
 	rc=$$?; \
 	if [ $$rc -eq 0 ] \
 	   && grep -q "zone TAK.SEQ (82,128)-(142,163) key 't'" \
 	      /tmp/opencode/menu_tak.log \
 	   && grep -q 'restart confirmed (tak) -> new game' \
-	      /tmp/opencode/menu_tak.log; \
-	then echo "restart-confirm TAK: cursive words = answer buttons (click/key), restart -> new game (ok)"; \
+	      /tmp/opencode/menu_tak.log \
+	   && grep -q 'map: LEO_MENU_SECS expired' /tmp/opencode/menu_tak.log; \
+	then echo "restart-confirm TAK: answer buttons (click/key), restart -> new game -> back to map (ok)"; \
 	else echo "restart-confirm TAK FAILED (rc=$$rc)"; cat /tmp/opencode/menu_tak.log; exit 1; fi
 
 # MOD music: src/ll_mod.c parses the Longsoft repack layout (ll_mod.h)

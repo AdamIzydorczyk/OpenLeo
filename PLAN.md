@@ -643,6 +643,21 @@ instantly (a click = activation everywhere: corners act, islands launch);
 LEO_MENU_PICK=<key> is the CI one-shot dialog hook (verify-menu TAK step
 + wine twin). OPTIONS screen stays art-only: the real settings UI was
 SETUP/CONFIG.EXE territory, no in-game option assets exist on the CD.
+**Desktop usability round 3 (2026-11-15, user feedback)**: (a) second
+window keyboard focus under Plasma/Wayland - SDL_RaiseWindow alone was
+not enough (mouse clicks worked, keys never arrived): both menu window
+creations and the level scene window now call win_force_focus()
+(= SDL_SetWindowInputFocus, single-arg SDL2 form under a
+-Wdeprecated-declarations pragma) after SDL_RaiseWindow, AND the menu
+dialog/map wait loops plus the level live loop poll
+`if (SDL_GetKeyboardFocus() != win) SDL_RaiseWindow(win)` each tick.
+The SDL2 wayland backend ignores both focus calls (KDE policy); if keys
+still do not land, run with SDL_VIDEODRIVER=x11 (XWayland honors them).
+(b) level scenes no longer exit the app: ll_level_show(secs<=0) = run
+unlimited until ESC/q, and the map chapter-launch plus restart-TAK paths
+pass 0.0 and CONTINUE - ESC in the scene returns to the chapter map.
+CI: menu_tak/wmenu_tak pin LEO_MENU_SECS=1 and grep 'map: LEO_MENU_SECS
+expired' as proof the chain cycled back to the map before ending.
 
 ## 8c. Level scene + .MOV motion scripts (delivered 2026-11-14)
 

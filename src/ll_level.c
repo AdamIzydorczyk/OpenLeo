@@ -1532,6 +1532,14 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                                cw * sc, ch * sc,
                                SDL_WINDOW_SHOWN);
         if (win) {
+            SDL_RaiseWindow(win);
+            /* hard focus grab over the menu window that had it; Wayland
+             * ignores it, the live loop polls SDL_RaiseWindow as fallback
+             * (see ll_menu.c win_force_focus) */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+            SDL_SetWindowInputFocus(win);
+#pragma GCC diagnostic pop
             ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
             if (!ren)
                 ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
@@ -1583,10 +1591,15 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         }
 
         Uint64 freq = SDL_GetPerformanceFrequency();
-        Uint64 t_end = SDL_GetPerformanceCounter() +
-                       (Uint64)(secs * (double)freq);
+        /* secs <= 0 = no time limit: the scene runs until ESC/q (desktop
+         * behaviour; CI pins the window with LEO_LEVEL_SECS>0). */
+        Uint64 t_end = secs > 0 ? SDL_GetPerformanceCounter() +
+                                  (Uint64)(secs * (double)freq)
+                                : 0;
         Uint64 t_prev = SDL_GetPerformanceCounter();
-        while (!esc && SDL_GetPerformanceCounter() < t_end) {
+        while (!esc && (!t_end || SDL_GetPerformanceCounter() < t_end)) {
+            if (win && SDL_GetKeyboardFocus() != win)
+                SDL_RaiseWindow(win); /* Wayland re-raise fallback */
             SDL_Event e;
             while (SDL_PollEvent(&e))
                 if (e.type == SDL_QUIT ||

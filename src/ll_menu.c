@@ -137,6 +137,18 @@ static void draw_text(Uint32 *fb, int w, int h, int x, int y, const char *s,
         draw_glyph(fb, w, h, x, y, *s, col);
 }
 
+/* X11/XWayland hard focus grab.  SDL2 marks this deprecated (SDL3
+ * replaces it) but it is still the only forced-focus call on X11/XWayland;
+ * the pure Wayland backend ignores it entirely, hence the per-tick
+ * SDL_RaiseWindow poll in the wait loops as fallback. */
+static void win_force_focus(SDL_Window *w)
+{
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    SDL_SetWindowInputFocus(w);
+#pragma GCC diagnostic pop
+}
+
 static void menu_anims_free(ll_seq *aseq, int nanims)
 {
     if (!aseq)
@@ -254,6 +266,8 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         return -2;
     }
     SDL_RaiseWindow(win); /* dialog re-entry: make sure the WM gives focus */
+    win_force_focus(win);  /* X11/XWayland hard grab; Wayland ignores it
+                             * (the per-tick focus poll is the fallback) */
     SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
     if (!ren)
         ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
@@ -368,20 +382,21 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         /* CI hook: LEO_MENU_PPM=PATH dumps the composited frame (bg +
          * .SEQ sprites + menu text) once at that tick. */
         /* windowed list: long lists (level select has 14 entries) scroll
-         * a 10-row window centred on the selection instead of overflowing */
-        int win = nitems > 10 ? 10 : nitems;
+         * a 10-row window centred on the selection instead of overflowing
+         * (named list_rows: `win` is the SDL_Window*) */
+        int list_rows = nitems > 10 ? 10 : nitems;
         int top = 0;
-        if (nitems > win) {
-            top = sel - win / 2;
+        if (nitems > list_rows) {
+            top = sel - list_rows / 2;
             if (top < 0) top = 0;
-            if (top > nitems - win) top = nitems - win;
+            if (top > nitems - list_rows) top = nitems - list_rows;
         }
-        int x0 = W / 2 - 64, y0 = H / 2 - 8 * win / 2;
+        int x0 = W / 2 - 64, y0 = H / 2 - 8 * list_rows / 2;
         if (bg.idx) { /* OPTIONS.PCX is a full text screen already */
             x0 = 24;
-            y0 = H - 8 * (win + 2);
+            y0 = H - 8 * (list_rows + 2);
         }
-        for (int j = 0; j < win; j++) {
+        for (int j = 0; j < list_rows; j++) {
             int i = top + j;
             draw_text(fb, W, H, x0, y0 + 12 * j, items[i], 0xFFFFFFFFu);
             if (i == sel)
@@ -390,8 +405,9 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         }
         if (top > 0)
             draw_text(fb, W, H, x0, y0 - 10, "^", 0xFFAAAAAAu);
-        if (top + win < nitems)
-            draw_text(fb, W, H, x0, y0 + 12 * win - 2, "v", 0xFFAAAAAAu);
+        if (top + list_rows < nitems)
+            draw_text(fb, W, H, x0, y0 + 12 * list_rows - 2, "v",
+                      0xFFAAAAAAu);
 
         {
             const char *ppm_e = getenv("LEO_MENU_PPM");
@@ -419,6 +435,9 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         SDL_Event e;
         Uint64 t_next = SDL_GetTicks64() + 30;
         while (!quit) {
+            if (SDL_GetKeyboardFocus() != win)
+                SDL_RaiseWindow(win); /* Wayland fallback: keep grabbing
+                                       * focus so keys reach this window */
             if (t_deadline && SDL_GetTicks64() >= t_deadline) {
                 printf("menu: LEO_MENU_SECS expired (auto-quit)\n");
                 quit = 1;
@@ -434,7 +453,7 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                     int sc = W < 640 ? 2 : 1; /* window is the frame scaled
                                               * `sc`; map click to canvas px */
                     int mx = e.button.x / sc, my = e.button.y / sc;
-                    for (int j = 0; j < win; j++) {
+                    for (int j = 0; j < list_rows; j++) {
                         int ry = y0 + 12 * j;
                         if (my >= ry - 2 && my < ry + 10 && mx >= x0 - 14) {
                             ret = top + j;
@@ -641,6 +660,8 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         return -2;
     }
     SDL_RaiseWindow(win); /* dialog re-entry: make sure the WM gives focus */
+    win_force_focus(win); /* see ll_menu_open_ex: hard focus grab on
+                             * X11/XWayland */
     SDL_Renderer *ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
     if (!ren)
         ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
@@ -754,6 +775,9 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         SDL_Event e;
         Uint64 t_next = SDL_GetTicks64() + 30;
         while (!quit) {
+            if (SDL_GetKeyboardFocus() != win)
+                SDL_RaiseWindow(win); /* Wayland fallback: keep grabbing
+                                       * focus so keys reach this window */
             if (t_deadline && SDL_GetTicks64() >= t_deadline) {
                 printf("map: LEO_MENU_SECS expired (auto-quit)\n");
                 quit = 1;

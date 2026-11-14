@@ -279,12 +279,14 @@ static void run_menu(const char *data, int audio)
             }
             int r2 = ll_menu_open_ex(bg, blen, back, 1,
                                      m4n ? m4 : NULL, m4n, z3, nz3);
-            if (r2 == -10) {   /* tak: restart -> the NEW GAME chain */
+            if (r2 == -10) {   /* tak: restart -> the NEW GAME chain; the
+                                * scene runs until ESC, then back to the
+                                * map (secs 0; CI pins LEO_LEVEL_SECS) */
                 const char *lv = getenv("LEO_DEMO_LEVEL");
                 printf("menu: restart confirmed (tak) -> new game (%s)\n",
                        lv && *lv ? lv : "RAN.01");
-                ll_level_show(data, lv && *lv ? lv : "RAN.01", 8.0, audio);
-                break;
+                ll_level_show(data, lv && *lv ? lv : "RAN.01", 0.0, audio);
+                continue;
             }
             if (r2 == -3 || r2 == -2) {
                 printf("menu: restart-confirm exit ends menu chain\n");
@@ -313,8 +315,8 @@ static void run_menu(const char *data, int audio)
                     break;
                 }
             const char *lv = getenv("LEO_DEMO_LEVEL");
-            ll_level_show(data, lv && *lv ? lv : lvlname, 8.0, audio);
-            break;
+            ll_level_show(data, lv && *lv ? lv : lvlname, 0.0, audio);
+            continue; /* ESC in the scene: back to the chapter map */
         }
         if (sel == 0 && !map_mode) {
             /* RAN.01 is the game's first level ("NEW GAME (RAN.01)"): its
