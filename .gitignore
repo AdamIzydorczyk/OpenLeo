@@ -21,6 +21,7 @@
 build/ghidra/
 build/setup/
 build/*.log
+/build/leo/
 tools/__pycache__/
 __pycache__/
 
