@@ -10,10 +10,10 @@ PYREF    ?= tools/is_decode.py
 
 SRC      := src/main.c src/is_stream.c src/platform_sdl/is_player.c \
             src/llrs.c src/ll_pcx.c src/ll_menu.c src/ll_level.c src/ll_seq.c \
-            src/ll_pcm.c src/ll_mod.c src/ll_save.c
+            src/ll_pcm.c src/ll_mod.c src/ll_save.c src/fs_ci.c
 HDRS     := src/ll_config.h src/is_stream.h src/platform_sdl/is_player.h \
             src/llrs.h src/ll_pcx.h src/ll_menu.h src/ll_level.h src/ll_seq.h \
-            src/ll_pcm.h src/ll_mod.h src/ll_save.h
+            src/ll_pcm.h src/ll_mod.h src/ll_save.h src/fs_ci.h
 
 # ---------------- native Linux ----------------
 CC       ?= gcc
@@ -183,10 +183,11 @@ verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_
 	else echo "verify-win save twin: SKIP (no $(HD)/STATUS.LEO)"; fi
 
 ll_level.exe: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c \
-            src/ll_pcm.c src/ll_seq.c src/ll_mod.c \
-            src/ll_seq.h src/ll_pcm.h src/ll_mod.h src/ll_config.h
+            src/ll_pcm.c src/ll_seq.c src/ll_mod.c src/fs_ci.c \
+            src/ll_seq.h src/ll_pcm.h src/ll_mod.h src/ll_config.h src/fs_ci.h
 	$(XC) $(XCFLAGS) $(XLD) -o $@ tools/ll_level.c src/ll_level.c \
-	    src/llrs.c src/ll_pcx.c src/ll_pcm.c src/ll_seq.c src/ll_mod.c $(XLIBS)
+	    src/llrs.c src/ll_pcx.c src/ll_pcm.c src/ll_seq.c src/ll_mod.c \
+	    src/fs_ci.c $(XLIBS)
 
 # src/ll_pcm.c byte-for-byte agreement with tools/verify_pcm.py on every
 # PCM parallax layer payload in ETAPY (byte-RLE plane, stride = w+80).
@@ -195,9 +196,9 @@ verify-pcm: pcm_selftest
 
 # src/llrs.c byte-for-byte agreement with tools/llrs_unpack.py on all four
 # containers, checked under ASan/UBSan.
-llrs_selftest.exe: tools/llrs_selftest.c src/llrs.c src/llrs.h
+llrs_selftest.exe: tools/llrs_selftest.c src/llrs.c src/llrs.h src/fs_ci.c
 	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
-	    tools/llrs_selftest.c src/llrs.c
+	    tools/llrs_selftest.c src/llrs.c src/fs_ci.c
 
 pcx_selftest.exe: tools/pcx_selftest.c src/ll_pcx.c src/ll_pcx.h
 	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
@@ -211,9 +212,9 @@ seq_patchdump.exe: tools/seq_patchdump.c src/ll_seq.c src/ll_seq.h
 	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
 	    tools/seq_patchdump.c src/ll_seq.c
 
-llrs_selftest: tools/llrs_selftest.c src/llrs.c src/llrs.h
+llrs_selftest: tools/llrs_selftest.c src/llrs.c src/llrs.h src/fs_ci.c
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
-	    -Isrc -o $@ tools/llrs_selftest.c src/llrs.c
+	    -Isrc -o $@ tools/llrs_selftest.c src/llrs.c src/fs_ci.c
 
 pcm_selftest: tools/pcm_selftest.c src/ll_pcm.c src/ll_pcm.h
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
@@ -227,19 +228,19 @@ pcm_selftest.exe: tools/pcm_selftest.c src/ll_pcm.c src/ll_pcm.h
 # its tlo= PCX background + ANIMACJE leaf .SEQ object sprites driven by the
 # HD-install .MOV state machines (LEO_HD_DIR=<dir with ANIMACJE/ETAPY>).
 ll_level: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_pcm.c \
-        src/ll_seq.c src/ll_mod.c \
-        src/ll_seq.h src/ll_pcm.h src/ll_mod.h src/ll_config.h
+        src/ll_seq.c src/ll_mod.c src/fs_ci.c \
+        src/ll_seq.h src/ll_pcm.h src/ll_mod.h src/ll_config.h src/fs_ci.h
 	$(CC) -O2 -std=gnu11 -Wall -Wextra -Isrc $(CFLAGS) -o $@ \
 	    tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_pcm.c \
-	    src/ll_seq.c src/ll_mod.c $(LIBS)
+	    src/ll_seq.c src/ll_mod.c src/fs_ci.c $(LIBS)
 
-ll_save: tools/ll_save.c src/ll_save.c src/ll_save.h
+ll_save: tools/ll_save.c src/ll_save.c src/ll_save.h src/fs_ci.c
 	$(CC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ tools/ll_save.c \
-	    src/ll_save.c
+	    src/ll_save.c src/fs_ci.c
 
-ll_save.exe: tools/ll_save.c src/ll_save.c src/ll_save.h
+ll_save.exe: tools/ll_save.c src/ll_save.c src/ll_save.h src/fs_ci.c
 	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ tools/ll_save.c \
-	    src/ll_save.c
+	    src/ll_save.c src/fs_ci.c
 
 level: ll_level
 	./ll_level $(DATA) $(LEVEL) $(ARGS)

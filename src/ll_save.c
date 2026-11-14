@@ -5,6 +5,7 @@
  * words back verbatim so a load/save round-trip of a shipped file is
  * byte-identical. */
 #include "ll_save.h"
+#include "fs_ci.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -28,7 +29,7 @@ static void wr32(unsigned char *p, unsigned int v)
 
 int ll_status_load(const char *path, ll_status *st)
 {
-    FILE *f = fopen(path, "rb");
+    FILE *f = ll_fopen_ci(path, "rb");   /* users' extracts vary in case */
     if (!f)
         return -1;
     unsigned char buf[STATUS_BYTES + 1];
@@ -102,7 +103,7 @@ void ll_status_dump(const ll_status *st, const char *path)
 
 int ll_cfg_load(const char *path, ll_cfg *c)
 {
-    FILE *f = fopen(path, "rb");
+    FILE *f = ll_fopen_ci(path, "rb");
     if (!f)
         return -1;
     size_t n = fread(c->b, 1, sizeof c->b, f);

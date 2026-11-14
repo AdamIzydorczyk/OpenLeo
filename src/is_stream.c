@@ -4,6 +4,7 @@
  * live trace, this file's byte-exactness is the M2 deliverable.
  */
 #include "is_stream.h"
+#include "fs_ci.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,7 +21,8 @@ static uint32_t rd32(const uint8_t *p)
 
 int is_open(is_stream *s, const char *path)
 {
-    FILE *f = fopen(path, "rb");
+    FILE *f = ll_fopen_ci(path, "rb");   /* case-insensitive + UTF-8 path
+                                          * fallback (fs_ci.h, P-01/P-07) */
     if (!f)
         return -1;
     fseek(f, 0, SEEK_END);

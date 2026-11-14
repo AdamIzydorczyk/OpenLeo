@@ -1,8 +1,11 @@
 /* is_player.c - SDL2 cutscene playback on top of the verified codec.
  * See is_player.h for the pacing contract; do NOT replace the clock with
  * a free-running loop (the original's bug is exactly that).
- */
+ * Path robustness: all game-data opening goes through ll_fopen_ci /
+ * ll_resolve_ci (fs_ci.h) - case-insensitive on POSIX, UTF-8-aware on
+ * Windows (review P-01/P-07; the old in-file resolve_ci is removed). */
 #include "is_player.h"
+#include "../fs_ci.h"
 #include "../is_stream.h"
 #include "../ll_config.h"
 #include "../ll_level.h"
@@ -11,78 +14,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <dirent.h>
-
-/* Data files: the engine's internal names are lowercase (status.leo,
- * glowne.mnu, mapka.mod) while users' ISO extracts are usually UPPERCASE
- * (proposal 4. in IMPROVEMENTS). Resolve path component-by-component
- * case-insensitively when the exact path does not exist. Returns a malloc'd
- * resolved path, or NULL if no case-insensitive match exists. */
-static char *resolve_ci(const char *path)
-{
-    struct stat st;
-    if (stat(path, &st) == 0)
-        return strdup(path);
-    char out[4096];
-    out[0] = '\0';
-    const char *p = path;
-    while (*p) {
-        const char *slash = strchr(p, '/');
-        size_t len = slash ? (size_t)(slash - p) : strlen(p);
-        if (len == 0) { /* leading/duplicate slash */
-            if (strlen(out) + 1 >= sizeof out) return NULL;
-            strcat(out, "/");
-            p++;
-            continue;
-        }
-        if (len >= 512)
-            return NULL;
-        char comp[512];
-        memcpy(comp, p, len);
-        comp[len] = '\0';
-        char probe[4096];
-        snprintf(probe, sizeof probe, "%s/%s", out, comp);
-        char chosen[512];
-        if (stat(probe, &st) == 0) {
-            memcpy(chosen, comp, len + 1);
-        } else {
-            const char *dir = out[0] ? out : ".";
-            DIR *d = opendir(dir);
-            int found = 0;
-            if (d) {
-                struct dirent *de;
-                while ((de = readdir(d)) != NULL) {
-                    size_t j = 0;
-                    for (; j < len; j++) {
-                        char a = de->d_name[j], b = comp[j];
-                        if (a >= 'A' && a <= 'Z') a = (char)(a - 'A' + 'a');
-                        if (b >= 'A' && b <= 'Z') b = (char)(b - 'A' + 'a');
-                        if (a != b) break;
-                    }
-                    if (j == len && de->d_name[j] == '\0') {
-                        snprintf(chosen, sizeof chosen, "%s", de->d_name);
-                        found = 1;
-                        break;
-                    }
-                }
-                closedir(d);
-            }
-            if (!found)
-                return NULL;
-        }
-        if (strlen(out) + 1 + strlen(chosen) >= sizeof out)
-            return NULL;
-        strcat(out, "/");
-        strcat(out, chosen);
-        p += len;
-        if (*p == '/')
-            p++;
-    }
-    if (stat(out, &st) != 0 || out[0] == '\0')
-        return NULL;
-    return strdup(out);
-}
 
 typedef struct {
     is_stream   is;
@@ -323,16 +254,17 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     player p;
     memset(&p, 0, sizeof p);
     p.skip_at = skip_at;
-    char *rpath = resolve_ci(path);
-    if (is_open(&p.is, rpath ? rpath : path) != 0) {
+    if (is_open(&p.is, path) != 0) { /* is_open itself falls back to
+                                        ll_fopen_ci (fs_ci.h, P-07) */
         fprintf(stderr, "is_player: cannot open %s\n", path);
-        free(rpath);
         return 1;
     }
     unsigned g = 0;
     is_walk_audio(&p.is, gcd_audio_cb, &g);
     p.stereo = g && g % 1260u == 0;
     p.bps = p.stereo ? 88200u : 44100u;
+    char *rpath = ll_resolve_ci(path); /* diagnostic only: the open above
+                                          already accepted a CI match */
     if (rpath && strcmp(rpath, path) != 0)
         printf("is_player: data path resolved as: %s\n", rpath);
     free(rpath);
