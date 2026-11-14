@@ -2,9 +2,12 @@
 # Same shared sources as linux/ (../src + the thin ../linux/main.c).
 # Self-contained static .exe: no SDL2.dll at runtime.
 # Toolchain (run once): sudo pacman -S --needed mingw-w64-toolchain
-XC       ?= x86_64-w64-mingw32-gcc
+# XC := pacman-installed mingw-w64 gcc if present, else the vendored
+# llvm-mingw cross toolchain (vendor/llvm-mingw, gitignored).
+XC       ?= $(shell command -v x86_64-w64-mingw32-gcc 2>/dev/null || \
+                   echo ../vendor/llvm-mingw/bin/x86_64-w64-mingw32-clang)
 SDL      ?= ../vendor/SDL2-2.32.10/x86_64-w64-mingw32
-INC      ?= ../vendor/SDL2-2.32.10/include
+INC      ?= $(SDL)/include
 CFLAGS   ?= -O2 -std=gnu11 -Wall -Wextra -DPLATFORM_WIN=1 -Dmain=SDL_main \
             -I../src -I$(INC)
 SRC      := ../linux/main.c ../src/is_stream.c ../src/platform_sdl/is_player.c

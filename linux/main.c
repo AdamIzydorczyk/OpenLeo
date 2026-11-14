@@ -57,9 +57,10 @@ int main(int argc, char **argv)
             fprintf(stderr, "cannot open %s\n", file);
             return 1;
         }
-        is_decode_all(&s, ppm_cb, &ppm, ppm.want + 1);
-        printf("%s: frame %u -> %s (%s)\n", file, ppm.want, ppm.out,
-               ppm.found ? "ok" : "NOT REACHED");
+        int rc = is_decode_all(&s, ppm_cb, &ppm, ppm.want + 1);
+        printf("%s: frame %u -> %s (%s) rc=%d decoded=%u chunks=%u\n", file,
+               ppm.want, ppm.out, ppm.found ? "ok" : "NOT REACHED", rc,
+               s.st.frames, s.st.chunks);
         is_close(&s);
         return ppm.found ? 0 : 1;
     }
