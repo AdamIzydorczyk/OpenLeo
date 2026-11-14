@@ -83,6 +83,32 @@ Error strings found in EXE: Watcom runtime + custom: `Blad zakresu w ...::check 
   Leśniowski) = decompression fns vaddr ~0x1a000-0x1e000 — next task.
   Tool: `tools/is_unpack.py` (list/extract). Attract loop plays INTRO_P.IS
   on repeat: 2388 chunks per pass.
+ - `.IS` codec v2.01 — **CRACKED + LIVE-VERIFIED 2026-11-14**, decoder
+   `tools/is_decode.py`. Full spec in that file's header; highlights:
+   * Chunk payloads carry a continuous per-movie opcode stream (control ops
+     interleaved with whole frames); framebuffer+palette persist across
+     chunks. Each payload starts with an ESC(0xb0) skip of the audio tail:
+     `resume = payload_pos + 5 + u32` (0 crossings of payload end in all
+     2388 INTRO_P payloads). ESC-skipped bytes = 8-bit unsigned PCM ~8kHz.
+   * Band opcode stream, 4 segments per band (bands = h/4): opcode header
+     `B`: len=B&7 (|2nd byte if B&0x40), mode=B&0xb8: SOLID 0x00, LUT1 0x08,
+     LUT2 0x10, LUT4 0x18, RAW 0x20, SKIP 0x90, EOB 0x88 (ends band early;
+     frame band-counter advances by len). Budget per band = width px.
+   * Control ops: ESC 0xb0; RPT8 0x98 / RPT16 0xa8 set [c410c]=n-1,
+     [cde2c]=1 — a player/decoder handshake, NOT read by the band drivers,
+     so they do not duplicate decoded frames; PAL 0xa0 = 768B straight to
+     DAC 3c8/3c9 (all 256 entries); END 0xb8 sits ~1 byte before payload
+     end (remaining tail bytes are not opcodes).
+   * Grammar **byte-exact** vs live codec: 137,165/137,165 traced leaf
+     events whose cache window is file-confirmed decode to the logged
+     (mode,len) — 97,525 1-byte + 39,640 2-byte headers, zero header-bad.
+   * Screen end-to-end confirmed: idle freeze (bandctr==h/4, budget==0,
+     mid-movie) -> QEMU screendump vs last decoded frame = **99.05%** exact
+     at rd=1020 (frame 704); at rd=1956 (frame 1263) content is correct
+     (top rows exact; bottom diff is pure DAC rounding — live DAC ~= my
+     6-bit table `v<<2` with occasional +3 per entry, consistent per entry).
+   * All 15 .IS decode to EOF, zero desync (INTRO_P: 2388 chunks -> 1521
+     frames, 189 PAL ops, 2363 ESC ops).
 - `STATUS.LEO`: 300 bytes, values `0x77XXXXXX` = tagged/delta pointers into DSEG; reverse against save/load functions in EXE.
 - `LONGSOFT.CFG`: 273 bytes, mostly zero; write path is in SETUP/CONFIG.EXE (16-bit) — parse with TDR/RATUNKU CONFIG.EXE strings.
 
