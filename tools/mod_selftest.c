@@ -1,4 +1,4 @@
-/* mod_selftest.c - CI harness for src/ll_mod.c (MOD player).
+/* mod_selftest.c - CI harness for ported/ll_mod.c (MOD player).
  *
  * usage: mod_selftest FILE.MOD [MS] [OUT.WAV]
  * Prints the parse summary (standard MOD layout with the whole numbered

@@ -1,4 +1,4 @@
-/* ll_level.c - command-line front-end for src/ll_level.c (shared viewer).
+/* ll_level.c - command-line front-end for ported/ll_level.c (shared viewer).
  * usage: ll_level DATA_DIR LEVEL [-t SECONDS] [--no-audio]
  *   e.g. ll_level /tmp/opencode/iso_stage/LEO RAN.01
  */

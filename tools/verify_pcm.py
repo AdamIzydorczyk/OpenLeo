@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""verify_pcm.py - oracle for src/ll_pcm.c (PCM parallax image layers).
+"""verify_pcm.py - oracle for ported/ll_pcm.c (PCM parallax image layers).
 
 Decodes each PCM payload in the ETAPY containers (level-block records
 named *.PCM) with the python reference decode and compares the plane

@@ -6,7 +6,7 @@ store our source, tools and RE reference material.
 
 Layout:
 
-- `src/` — the whole native codebase, shared by every target:
+- `ported/` — the whole native codebase, shared by every target:
   `.IS` codec (`is_stream.*`, byte-exact vs `tools/is_decode.py`),
   `llrs` container reader (`llrs.*`, byte-exact vs `tools/llrs_unpack.py`),
   container PCX reader (`ll_pcx.*`, byte-exact vs `tools/pcx_dump.py`),
@@ -59,10 +59,10 @@ make verify-all
 # verify       linux --ppm frame 1020 == python reference (byte-exact)
 # verify-skip  linux ESC-skip final frame == python reference
 # verify-win   same two proofs for the .exe, run under wine
-# verify-llrs  src/llrs.c == tools/llrs_unpack.py on all 4 containers
-# verify-pcx   src/ll_pcx.c == tools/pcx_dump.py on all 6 container PCX payloads
-# verify-seq   src/ll_seq.c == tools/seq_parse.py on all 172 container .SEQ payloads
-# verify-pcm   src/ll_pcm.c == tools/verify_pcm.py on every PCM parallax layer
+# verify-llrs  ported/llrs.c == tools/llrs_unpack.py on all 4 containers
+# verify-pcx   ported/ll_pcx.c == tools/pcx_dump.py on all 6 container PCX payloads
+# verify-seq   ported/ll_seq.c == tools/seq_parse.py on all 172 container .SEQ payloads
+# verify-pcm   ported/ll_pcm.c == tools/verify_pcm.py on every PCM parallax layer
 # verify-mod   MOD music renderer: deterministic render linux == wine
 # verify-level level scene: .DES wiring + .SEQ/.MOV anims + scroll camera
 # verify-help  help overlay: POMOC pages == python oracle
@@ -86,7 +86,7 @@ frame), `LEO_MENU_PICK=<char>` / `LEO_MENU_NAV=k` (fire / cycle + Enter).
 `is_*` = .IS cutscene format (oracle `tools/is_decode.py`); `llrs_*` = the
 "llrs" resource container format (oracle `tools/llrs_unpack.py`); `ll_*` =
 project glue that is neither wire format. One SDL2 platform layer
-(`src/platform_sdl/`) for both targets - no per-platform source forks.
+(`ported/platform_sdl/`) for both targets - no per-platform source forks.
 
 ## Both native builds are no-CD and use fixed-timestep pacing (the original's
 execution-rate-bound busy loop would run thousands of times too fast on

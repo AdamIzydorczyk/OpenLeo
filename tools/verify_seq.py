@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""verify_seq.py - prove src/ll_seq.c == tools/seq_parse.py on every .SEQ
+"""verify_seq.py - prove ported/ll_seq.c == tools/seq_parse.py on every .SEQ
 payload stored in the game containers (ANIMACJE, ETAPY, LEVELDES). Extracts
 each id=1 record with a .SEQ key from the top-level table AND from every
 nested id=2 index block, checks the python reference consumes the payload
 byte-exactly (consumed == size), then diffs the C dumper's output against
 the python dump. The frame-patch rows of every entry blob are diffed the
-same way (src/ll_seq.c ll_seq_patch_walk vs tools/seq_patch.py).
+same way (ported/ll_seq.c ll_seq_patch_walk vs tools/seq_patch.py).
 
 usage: verify_seq.py DATA_DIR [--grammar TOOL ...] [--patch TOOL ...]
        TOOL may be 'wine ./seq_selftest.exe' (quote it).

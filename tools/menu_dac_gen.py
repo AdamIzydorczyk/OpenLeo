@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""menu_dac_gen.py - regenerate src/ll_menu_dac.h from a hunt13-style capture.
+"""menu_dac_gen.py - regenerate ported/ll_menu_dac.h from a hunt13-style capture.
 
 Inputs:
   VRAM.BIN   256 KiB xp dump of the vga.vram BAR alias (QEMU `stop` +

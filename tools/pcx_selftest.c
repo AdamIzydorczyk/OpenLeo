@@ -1,5 +1,5 @@
 /* pcx_selftest.c - decode a raw PCX payload to PPM (oracle: tools/pcx_dump.py). */
-#include "../src/ll_pcx.h"
+#include "../ported/ll_pcx.h"
 
 #include <stdio.h>
 #include <stdlib.h>

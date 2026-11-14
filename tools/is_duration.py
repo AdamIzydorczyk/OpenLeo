@@ -10,7 +10,7 @@ So a chunk's hold = region_bytes / bps, and a region-less chunk holds
 repeat x 1/70 s (the engine silence-pads, cf. the 0x80 fill).
 Channels: gcd of the region sizes - an odd multiple of 630 proves mono.
 
-This is the python twin of src/platform_sdl/is_player.c's pacing loop;
+This is the python twin of ported/platform_sdl/is_player.c's pacing loop;
 use it to sanity-check what the C player should show on screen.
 
 Usage: is_duration.py [DIR | FILE.IS ...]   (default: the staged LEO dir)

@@ -1,4 +1,4 @@
-/* tools/ll_save.c - CLI for src/ll_save.c: dump + byte-exact round-trip
+/* tools/ll_save.c - CLI for ported/ll_save.c: dump + byte-exact round-trip
  * of the shipped STATUS.LEO / LONGSOFT.CFG (the originals are never
  * modified: the patched copy for the VM drive letter is written to OUT).
  *

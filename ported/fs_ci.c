@@ -137,16 +137,17 @@ char *ll_resolve_ci(const char *path)
         memcpy(comp, p, len);
         comp[len] = '\0';
 
-        /* probe without ever prepending a stray "/" to a relative base */
+        /* probe without ever prepending a stray "/" to a relative base;
+         * built by explicit length math so no output can be truncated */
         char probe[4096];
-        if (out[0]) {
-            if (strlen(out) + 2 >= sizeof probe)
-                return NULL;
-            snprintf(probe, sizeof probe, "%s%s", out,
-                     out[strlen(out) - 1] == '/' ? "" : "/");
-        } else
-            probe[0] = '\0';
-        strncat(probe, comp, sizeof probe - strlen(probe) - 1);
+        size_t base = out[0] ? strlen(out) : 0;
+        if (base + len + 2 >= sizeof probe)
+            return NULL;
+        memcpy(probe, out, base);
+        if (base && out[base - 1] != '/')
+            probe[base++] = '/';
+        memcpy(probe + base, comp, len);
+        probe[base + len] = '\0';
 
         char chosen[512];
         if (stat(probe, &st) == 0) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""verify_pcx.py - prove src/ll_pcx.c == tools/pcx_dump.py on every PCX
+"""verify_pcx.py - prove ported/ll_pcx.c == tools/pcx_dump.py on every PCX
 payload stored in the game containers (ANIMACJE, ETAPY ...). Extracts each
 id=1 record with a .PCX key from every nested index block, decodes it with
 the python reference and with the compiled C tool, and cmps the PPMs.

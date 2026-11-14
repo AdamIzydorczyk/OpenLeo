@@ -1,5 +1,5 @@
 /* seq_patchdump.c - dump the decoded frame-patch rows of every entry blob
- * in a .SEQ payload with src/ll_seq.c in the exact text format of
+ * in a .SEQ payload with ported/ll_seq.c in the exact text format of
  * tools/seq_patch.py so make verify-seq can diff them.
  *
  * Format per entry blob:  patch len L rows R / prow <gap> <toks...> / pend

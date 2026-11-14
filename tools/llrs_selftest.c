@@ -1,9 +1,9 @@
 /* llrs_selftest.c - prints every used slot of each container in the same
  * format as `python3 tools/llrs_unpack.py list FILE`, so
  *   diff <(./llrs_selftest DIR FILE...) <(python3 tools/llrs_unpack.py list ...)
- * is the equivalence proof for src/llrs.c. Also walks nested index blocks
+ * is the equivalence proof for ported/llrs.c. Also walks nested index blocks
  * (ANIMACJE/ETAPY level slots) and prints their records. */
-#include "../src/llrs.h"
+#include "../ported/llrs.h"
 
 #include <stdio.h>
 #include <string.h>

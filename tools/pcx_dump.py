@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""pcx_dump.py - reference PCX decoder oracle (spec for src/ll_pcx.c).
+"""pcx_dump.py - reference PCX decoder oracle (spec for ported/ll_pcx.c).
 
 Extracts and decodes 8bpp single-plane RLE PCX payloads exactly as pinned
 on the real game data: rows = (y1+1), line width = x1+1, RLE counter

@@ -1,4 +1,4 @@
-/* seq_selftest.c - dump one .SEQ payload blob with src/ll_seq.c in the
+/* seq_selftest.c - dump one .SEQ payload blob with ported/ll_seq.c in the
  * exact text format of tools/seq_parse.py so make verify-seq can diff them. */
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,4 +1,4 @@
-# Lew Leon recompile - ONE shared codebase (src/) for both native targets:
+# Lew Leon recompile - ONE shared codebase (ported/) for both native targets:
 #   make          -> ll_cutscene       (native Linux ELF, SDL2 via pkg-config)
 #   make win      -> ll_cutscene.exe   (Windows x86-64, cross-built with MinGW
 #                                        or the vendored llvm-mingw clang)
@@ -8,12 +8,12 @@ SHELL    := /bin/bash   # verify-llrs uses process substitution
 DATA     ?= /tmp/opencode/iso_stage/LEO
 PYREF    ?= tools/is_decode.py
 
-SRC      := src/main.c src/is_stream.c src/platform_sdl/is_player.c \
-            src/llrs.c src/ll_pcx.c src/ll_menu.c src/ll_level.c src/ll_seq.c \
-            src/ll_pcm.c src/ll_mod.c src/ll_save.c src/fs_ci.c
-HDRS     := src/ll_config.h src/is_stream.h src/platform_sdl/is_player.h \
-            src/llrs.h src/ll_pcx.h src/ll_menu.h src/ll_level.h src/ll_seq.h \
-            src/ll_pcm.h src/ll_mod.h src/ll_save.h src/fs_ci.h
+SRC      := ported/main.c ported/is_stream.c ported/platform_sdl/is_player.c \
+            ported/llrs.c ported/ll_pcx.c ported/ll_menu.c ported/ll_level.c ported/ll_seq.c \
+            ported/ll_pcm.c ported/ll_mod.c ported/ll_save.c ported/fs_ci.c
+HDRS     := ported/ll_config.h ported/is_stream.h ported/platform_sdl/is_player.h \
+            ported/llrs.h ported/ll_pcx.h ported/ll_menu.h ported/ll_level.h ported/ll_seq.h \
+            ported/ll_pcm.h ported/ll_mod.h ported/ll_save.h ported/fs_ci.h
 
 # ---------------- native Linux ----------------
 CC       ?= gcc
@@ -22,7 +22,7 @@ CFLAGS   ?= -O2 -std=gnu11 -Wall -Wextra -DPLATFORM_LINUX=1 \
 LIBS     := $(shell pkg-config --libs sdl2) -lm
 
 ll_cutscene: $(SRC) $(HDRS)
-	$(CC) $(CFLAGS) -Isrc -o $@ $(SRC) $(LIBS)
+	$(CC) $(CFLAGS) -Iported -o $@ $(SRC) $(LIBS)
 
 run: ll_cutscene
 	./ll_cutscene $(DATA)/INTRO_P.IS
@@ -35,7 +35,7 @@ XC        ?= $(shell command -v x86_64-w64-mingw32-gcc 2>/dev/null || \
                     echo vendor/llvm-mingw/bin/x86_64-w64-mingw32-clang)
 SDL_WIN   ?= vendor/SDL2-2.32.10/x86_64-w64-mingw32
 XCFLAGS   := -O2 -std=gnu11 -Wall -Wextra -DPLATFORM_WIN=1 -Dmain=SDL_main \
-             -Isrc -I$(SDL_WIN)/include
+             -Iported -I$(SDL_WIN)/include
 XLD       := -static -static-libgcc -Wl,--dynamicbase -Wl,--nxcompat \
              -Wl,--high-entropy-va
 XLIBS     := -L$(SDL_WIN)/lib -lmingw32 -lSDL2main -lSDL2 -mwindows \
@@ -182,65 +182,65 @@ verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_
 	    && echo "win save codec == linux, byte-exact round-trip under wine (ok)"; \
 	else echo "verify-win save twin: SKIP (no $(HD)/STATUS.LEO)"; fi
 
-ll_level.exe: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c \
-            src/ll_pcm.c src/ll_seq.c src/ll_mod.c src/fs_ci.c \
-            src/ll_seq.h src/ll_pcm.h src/ll_mod.h src/ll_config.h src/fs_ci.h
-	$(XC) $(XCFLAGS) $(XLD) -o $@ tools/ll_level.c src/ll_level.c \
-	    src/llrs.c src/ll_pcx.c src/ll_pcm.c src/ll_seq.c src/ll_mod.c \
-	    src/fs_ci.c $(XLIBS)
+ll_level.exe: tools/ll_level.c ported/ll_level.c ported/llrs.c ported/ll_pcx.c \
+            ported/ll_pcm.c ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c \
+            ported/ll_seq.h ported/ll_pcm.h ported/ll_mod.h ported/ll_config.h ported/fs_ci.h
+	$(XC) $(XCFLAGS) $(XLD) -o $@ tools/ll_level.c ported/ll_level.c \
+	    ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c ported/ll_seq.c ported/ll_mod.c \
+	    ported/fs_ci.c $(XLIBS)
 
-# src/ll_pcm.c byte-for-byte agreement with tools/verify_pcm.py on every
+# ported/ll_pcm.c byte-for-byte agreement with tools/verify_pcm.py on every
 # PCM parallax layer payload in ETAPY (byte-RLE plane, stride = w+80).
 verify-pcm: pcm_selftest
 	python3 tools/verify_pcm.py $(DATA) ./pcm_selftest
 
-# src/llrs.c byte-for-byte agreement with tools/llrs_unpack.py on all four
+# ported/llrs.c byte-for-byte agreement with tools/llrs_unpack.py on all four
 # containers, checked under ASan/UBSan.
-llrs_selftest.exe: tools/llrs_selftest.c src/llrs.c src/llrs.h src/fs_ci.c
-	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
-	    tools/llrs_selftest.c src/llrs.c src/fs_ci.c
+llrs_selftest.exe: tools/llrs_selftest.c ported/llrs.c ported/llrs.h ported/fs_ci.c
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ \
+	    tools/llrs_selftest.c ported/llrs.c ported/fs_ci.c
 
-pcx_selftest.exe: tools/pcx_selftest.c src/ll_pcx.c src/ll_pcx.h
-	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
-	    tools/pcx_selftest.c src/ll_pcx.c
+pcx_selftest.exe: tools/pcx_selftest.c ported/ll_pcx.c ported/ll_pcx.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ \
+	    tools/pcx_selftest.c ported/ll_pcx.c
 
-seq_selftest.exe: tools/seq_selftest.c src/ll_seq.c src/ll_seq.h
-	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
-	    tools/seq_selftest.c src/ll_seq.c
+seq_selftest.exe: tools/seq_selftest.c ported/ll_seq.c ported/ll_seq.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ \
+	    tools/seq_selftest.c ported/ll_seq.c
 
-seq_patchdump.exe: tools/seq_patchdump.c src/ll_seq.c src/ll_seq.h
-	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
-	    tools/seq_patchdump.c src/ll_seq.c
+seq_patchdump.exe: tools/seq_patchdump.c ported/ll_seq.c ported/ll_seq.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ \
+	    tools/seq_patchdump.c ported/ll_seq.c
 
-llrs_selftest: tools/llrs_selftest.c src/llrs.c src/llrs.h src/fs_ci.c
+llrs_selftest: tools/llrs_selftest.c ported/llrs.c ported/llrs.h ported/fs_ci.c
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
-	    -Isrc -o $@ tools/llrs_selftest.c src/llrs.c src/fs_ci.c
+	    -Iported -o $@ tools/llrs_selftest.c ported/llrs.c ported/fs_ci.c
 
-pcm_selftest: tools/pcm_selftest.c src/ll_pcm.c src/ll_pcm.h
+pcm_selftest: tools/pcm_selftest.c ported/ll_pcm.c ported/ll_pcm.h
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
-	    -Isrc -o $@ tools/pcm_selftest.c src/ll_pcm.c
+	    -Iported -o $@ tools/pcm_selftest.c ported/ll_pcm.c
 
-pcm_selftest.exe: tools/pcm_selftest.c src/ll_pcm.c src/ll_pcm.h
-	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
-	    tools/pcm_selftest.c src/ll_pcm.c
+pcm_selftest.exe: tools/pcm_selftest.c ported/ll_pcm.c ported/ll_pcm.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ \
+	    tools/pcm_selftest.c ported/ll_pcm.c
 
 # ll_level: level-scene viewer - prints a level's .DES wiring, composites
 # its tlo= PCX background + ANIMACJE leaf .SEQ object sprites driven by the
 # HD-install .MOV state machines (LEO_HD_DIR=<dir with ANIMACJE/ETAPY>).
-ll_level: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_pcm.c \
-        src/ll_seq.c src/ll_mod.c src/fs_ci.c \
-        src/ll_seq.h src/ll_pcm.h src/ll_mod.h src/ll_config.h src/fs_ci.h
-	$(CC) -O2 -std=gnu11 -Wall -Wextra -Isrc $(CFLAGS) -o $@ \
-	    tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_pcm.c \
-	    src/ll_seq.c src/ll_mod.c src/fs_ci.c $(LIBS)
+ll_level: tools/ll_level.c ported/ll_level.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c \
+        ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c \
+        ported/ll_seq.h ported/ll_pcm.h ported/ll_mod.h ported/ll_config.h ported/fs_ci.h
+	$(CC) -O2 -std=gnu11 -Wall -Wextra -Iported $(CFLAGS) -o $@ \
+	    tools/ll_level.c ported/ll_level.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c \
+	    ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c $(LIBS)
 
-ll_save: tools/ll_save.c src/ll_save.c src/ll_save.h src/fs_ci.c
-	$(CC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ tools/ll_save.c \
-	    src/ll_save.c src/fs_ci.c
+ll_save: tools/ll_save.c ported/ll_save.c ported/ll_save.h ported/fs_ci.c
+	$(CC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ tools/ll_save.c \
+	    ported/ll_save.c ported/fs_ci.c
 
-ll_save.exe: tools/ll_save.c src/ll_save.c src/ll_save.h src/fs_ci.c
-	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ tools/ll_save.c \
-	    src/ll_save.c src/fs_ci.c
+ll_save.exe: tools/ll_save.c ported/ll_save.c ported/ll_save.h ported/fs_ci.c
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ tools/ll_save.c \
+	    ported/ll_save.c ported/fs_ci.c
 
 level: ll_level
 	./ll_level $(DATA) $(LEVEL) $(ARGS)
@@ -254,25 +254,25 @@ verify-llrs: llrs_selftest
 	@echo "MENU index block (39 records):"
 	./llrs_selftest --block $(DATA)/ANIMACJE MENU | head -3
 
-# src/ll_pcx.c byte-for-byte agreement with tools/pcx_dump.py on every PCX
+# ported/ll_pcx.c byte-for-byte agreement with tools/pcx_dump.py on every PCX
 # payload inside ANIMACJE/ETAPY.
-pcx_selftest: tools/pcx_selftest.c src/ll_pcx.c src/ll_pcx.h
+pcx_selftest: tools/pcx_selftest.c ported/ll_pcx.c ported/ll_pcx.h
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
-	    -Isrc -o $@ tools/pcx_selftest.c src/ll_pcx.c
+	    -Iported -o $@ tools/pcx_selftest.c ported/ll_pcx.c
 
 verify-pcx: pcx_selftest llrs_selftest
 	python3 tools/verify_pcx.py $(DATA) ./llrs_selftest ./pcx_selftest
 
-# src/ll_seq.c byte-for-byte agreement with tools/seq_parse.py on every
+# ported/ll_seq.c byte-for-byte agreement with tools/seq_parse.py on every
 # .SEQ payload in ANIMACJE/ETAPY/LEVELDES (172 blobs, exact consumption),
 # plus the frame-patch row decode (ll_seq_patch_walk vs tools/seq_patch.py).
-seq_selftest: tools/seq_selftest.c src/ll_seq.c src/ll_seq.h
+seq_selftest: tools/seq_selftest.c ported/ll_seq.c ported/ll_seq.h
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
-	    -Isrc -o $@ tools/seq_selftest.c src/ll_seq.c
+	    -Iported -o $@ tools/seq_selftest.c ported/ll_seq.c
 
-seq_patchdump: tools/seq_patchdump.c src/ll_seq.c src/ll_seq.h
+seq_patchdump: tools/seq_patchdump.c ported/ll_seq.c ported/ll_seq.h
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
-	    -Isrc -o $@ tools/seq_patchdump.c src/ll_seq.c
+	    -Iported -o $@ tools/seq_patchdump.c ported/ll_seq.c
 
 verify-seq: seq_selftest seq_patchdump
 	python3 tools/verify_seq.py $(DATA) --grammar ./seq_selftest \
@@ -465,16 +465,16 @@ verify-menu: ll_cutscene
 	  && echo "win selected TAK frame == linux frame (byte-exact, tint is palette-index math)" \
 	  || { echo "win selected TAK frame != linux"; cat /tmp/opencode/wrst_tak.log; exit 1; }
 
-# MOD music: src/ll_mod.c parses the Longsoft repack layout (ll_mod.h)
+# MOD music: ported/ll_mod.c parses the Longsoft repack layout (ll_mod.h)
 # and renders deterministically; linux vs wine hash parity is the oracle.
 # Payloads come straight out of the SOUND llrs container.
-mod_selftest: tools/mod_selftest.c src/ll_mod.c src/ll_mod.h
+mod_selftest: tools/mod_selftest.c ported/ll_mod.c ported/ll_mod.h
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
-	    -Isrc -o $@ tools/mod_selftest.c src/ll_mod.c
+	    -Iported -o $@ tools/mod_selftest.c ported/ll_mod.c
 
-mod_selftest.exe: tools/mod_selftest.c src/ll_mod.c src/ll_mod.h
-	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
-	    tools/mod_selftest.c src/ll_mod.c
+mod_selftest.exe: tools/mod_selftest.c ported/ll_mod.c ported/ll_mod.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ \
+	    tools/mod_selftest.c ported/ll_mod.c
 
 verify-mod: mod_selftest mod_selftest.exe
 	@for M in TUNGA RAN ENA2; do \
@@ -501,7 +501,7 @@ verify-sel: ll_cutscene
 	then echo "level select: MAPKA submenu + mapka.mod + TUNGA2.12 open (hooked, ok)"; \
 	else echo "level select FAILED (rc=$$rc)"; cat /tmp/opencode/sel_chain.log; exit 1; fi
 
-# STATUS.LEO savegame + LONGSOFT.CFG codec (src/ll_save.c, FUN_0005dae0/
+# STATUS.LEO savegame + LONGSOFT.CFG codec (ported/ll_save.c, FUN_0005dae0/
 # FUN_0005dcc0 grammar): byte-exact round-trips of the shipped files.
 # Originals are user-supplied and NEVER in git: the check SKIPs if absent.
 HD       ?= /tmp/opencode/hd_files
