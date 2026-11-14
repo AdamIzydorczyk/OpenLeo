@@ -16,6 +16,11 @@ extern "C" {
 int ll_level_show(const char *data_dir, const char *level, double secs,
                   int play_audio);
 
+/* Prints the level's ANIMACJE animation inventory (cutscene .SEQ scripts
+ * + per-object leaf tables of animation-frame .SEQ scripts). No SDL.
+ * 0 = block found, 1 = no container/block. */
+int ll_level_anims(const char *data_dir, const char *level);
+
 #ifdef __cplusplus
 }
 #endif

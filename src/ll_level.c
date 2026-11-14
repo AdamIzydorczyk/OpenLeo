@@ -97,6 +97,62 @@ static int des_parse(const char *txt, des_kv *kvs, int max)
     return n;
 }
 
+/* Lists the level's ANIMACJE animations: the level's id=2 block holds
+ * id=1 scripts (SEQ cutscene scripts) and id=2 leaf tables keyed by
+ * object name (SCHODY, CAMEL...), each leaf a mini index whose id=1
+ * records are that object's animation-frame .SEQ scripts. */
+int ll_level_anims(const char *dir, const char *level)
+{
+    char p[4096];
+    llrs an;
+    snprintf(p, sizeof p, "%s/ANIMACJE", dir);
+    if (llrs_open(&an, p)) {
+        printf("ll_level: no ANIMACJE container\n");
+        return 1;
+    }
+    const llrs_slot *blk = find_or_stem(&an, level);
+    if (!blk) {
+        printf("ll_level: no ANIMACJE block for '%s'\n", level);
+        llrs_close(&an);
+        return 1;
+    }
+    llrs_slot *recs = NULL;
+    unsigned nrec = 0;
+    if (llrs_block(&an, blk, &recs, &nrec)) {
+        llrs_close(&an);
+        return 1;
+    }
+    printf("ll_level: ANIMACJE '%s' animations:\n", blk->name);
+    for (unsigned k = 0; k < nrec; k++) {
+        if (!recs[k].id)
+            continue;
+        const char *nm = recs[k].name[0] ? recs[k].name : "<binary-key>";
+        if (recs[k].id == 1) {
+            printf("  script  %-14s %5u B\n", nm, recs[k].size);
+        } else if (recs[k].id == 2) {
+            llrs_slot *fr = NULL;
+            unsigned nfr = 0;
+            if (llrs_block(&an, &recs[k], &fr, &nfr) == 0) {
+                unsigned nf = 0;
+                char first[96] = "";
+                for (unsigned j = 0; j < nfr; j++)
+                    if (fr[j].id == 1) {
+                        if (nf == 0)
+                            snprintf(first, sizeof first, "%s",
+                                     fr[j].name[0] ? fr[j].name : "?");
+                        nf++;
+                    }
+                printf("  object  %-14s %2u frame scripts (first: %s)\n",
+                       nm, nf, nf ? first : "-");
+                llrs_block_free(fr);
+            }
+        }
+    }
+    llrs_block_free(recs);
+    llrs_close(&an);
+    return 0;
+}
+
 int ll_level_show(const char *dir, const char *level, double secs, int audio)
 {
     const char *hs = getenv("LEO_LEVEL_SECS"); /* CI override */
@@ -156,6 +212,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     unsigned nrec = 0;
     if (blk)
         llrs_block(&etapy, blk, &recs, &nrec);
+
+    ll_level_anims(dir, level);
 
     int shown = 0, rc = 0;
     SDL_AudioDeviceID adev = 0;
