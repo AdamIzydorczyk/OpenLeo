@@ -267,17 +267,18 @@ static void run_menu(const char *data, int audio)
                     m4[m4n++] = anims[i];
             ll_menu_zone z3[3];
             int nz3 = 0;
-            for (int i = 0; i < m4n; i++) {
-                const char *tg = m4[i].tag;
-                if (!tg)
-                    continue;
-                if (strcmp(tg, "TAK.SEQ") == 0)
-                    z3[nz3++] = (ll_menu_zone){ tg, -10, 't' };
-                else if (strcmp(tg, "CNIE.SEQ") == 0)
-                    z3[nz3++] = (ll_menu_zone){ tg, -11, 'n' };
-                else if (strcmp(tg, "X.SEQ") == 0)
-                    z3[nz3++] = (ll_menu_zone){ tg, -12, 'x' };
-            }
+            /* fixed answer order (TAK, CNIE, X) = the arrow-key cycle
+             * order in the dialog, independent of anim scan order */
+            static const char *ztg[3] = { "TAK.SEQ", "CNIE.SEQ", "X.SEQ" };
+            static const int zret[3] = { -10, -11, -12 };
+            static const char zk[3] = { 't', 'n', 'x' };
+            for (int s = 0; s < 3; s++)
+                for (int i = 0; i < m4n; i++)
+                    if (m4[i].tag && strcmp(m4[i].tag, ztg[s]) == 0) {
+                        z3[nz3++] = (ll_menu_zone){ m4[i].tag, zret[s],
+                                                    zk[s] };
+                        break;
+                    }
             int r2 = ll_menu_open_ex(bg, blen, back, 1,
                                      m4n ? m4 : NULL, m4n, z3, nz3);
             if (r2 == -10) {   /* tak: restart -> the NEW GAME chain; the

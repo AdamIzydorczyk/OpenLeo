@@ -137,7 +137,7 @@ static void draw_text(Uint32 *fb, int w, int h, int x, int y, const char *s,
         draw_glyph(fb, w, h, x, y, *s, col);
 }
 
-/* 1-px outline (hover highlight on zones/islands/corners) */
+/* 1-px outline (hover highlight on map zones/islands/corners) */
 static void draw_rect(Uint32 *fb, int w, int h, int x0, int y0, int x1,
                       int y1, Uint32 col)
 {
@@ -146,6 +146,18 @@ static void draw_rect(Uint32 *fb, int w, int h, int x0, int y0, int x1,
             if (x >= 0 && x < w && y >= 0 && y < h &&
                 (y == y0 || y == y1 - 1 || x == x0 || x == x1 - 1))
                 fb[(size_t)y * w + x] = col;
+}
+
+/* solid horizontal line (answer-word selection/hover underline: a box
+ * over the cursive words covered them, an under-line never does) */
+static void draw_hline(Uint32 *fb, int w, int h, int x0, int x1, int y,
+                       Uint32 col)
+{
+    if (y < 0 || y >= h)
+        return;
+    for (int x = x0; x < x1; x++)
+        if (x >= 0 && x < w)
+            fb[(size_t)y * w + x] = col;
 }
 
 /* X11/XWayland hard focus grab.  SDL2 marks this deprecated (SDL3
@@ -308,6 +320,7 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
 
     int sel = 0, quit = 0, ret = -1;
     int hov_z = -1, hov_r = -1;    /* hover indicators (mouse motion)     */
+    int zsel = -1;      /* keyboard-selected answer zone (-1 = list row) */
     unsigned tick = 0;   /* fixed 30 ms redraw ticks drive anim frames */
 
     /* hot-zone rects in canvas px: the union over frames of the bound
@@ -360,6 +373,26 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                         quit = 1;
                         break;
                     }
+            /* CI: LEO_MENU_NAV=k = k arrow-DOWN moves + Enter (proves
+             * the zone/list keyboard cycle; from the initial (BACK) row
+             * the restart dialog cycle is TAK,CNIE,X,(BACK)) */
+            const char *nv = getenv("LEO_MENU_NAV");
+            if (!quit && nv && *nv && nz + nitems > 0) {
+                int vi = (nz + atoi(nv)) % (nz + nitems);
+                if (vi < nz) {
+                    printf("menu: LEO_MENU_NAV -> zone %s\n",
+                           zones[vi].tag);
+                    ret = zones[vi].ret;
+                } else
+                    ret = vi - nz;
+                quit = 1;
+            }
+            /* CI: LEO_MENU_SEL=i pre-selects zone i (highlight only,
+             * no activation) so LEO_MENU_PPM frames show the selection
+             * underline the desktop user sees */
+            const char *sl = getenv("LEO_MENU_SEL");
+            if (!quit && sl && *sl)
+                zsel = (int)((unsigned)atoi(sl) % (unsigned)nz);
         }
         if (quit)
             break;
@@ -411,7 +444,7 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         for (int j = 0; j < list_rows; j++) {
             int i = top + j;
             draw_text(fb, W, H, x0, y0 + 12 * j, items[i], 0xFFFFFFFFu);
-            if (i == sel)
+            if (i == sel && zsel < 0)
                 draw_text(fb, W, H, x0 - 12, y0 + 12 * j, ">",
                           0xFFFFFF00u);
         }
@@ -423,11 +456,19 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         if (hov_r >= 0)            /* row hover: marker even without click */
             draw_text(fb, W, H, x0 - 12, y0 + 12 * hov_r, ">",
                       0xFFFFFF00u);
-        if (hov_z >= 0 && hov_z < nz && zrect[hov_z][2] > zrect[hov_z][0]) {
-            int pad = 3;           /* cursive answer word hover outline   */
-            draw_rect(fb, W, H, zrect[hov_z][0] - pad, zrect[hov_z][1] - pad,
-                      zrect[hov_z][2] + pad, zrect[hov_z][3] + pad,
-                      0xFFFFFF00u);
+        /* answer-word indicators UNDER the cursive words (round 4's
+         * outline boxes covered them): keyboard selection = solid bright
+         * 2-px underline, mouse hover = dim 1-px underline */
+        for (int zi = 0; zi < nz; zi++) {
+            if (zrect[zi][2] <= zrect[zi][0])
+                continue;
+            if (zi == zsel)
+                for (int t = 0; t < 2; t++)
+                    draw_hline(fb, W, H, zrect[zi][0], zrect[zi][2],
+                               zrect[zi][3] + 1 + t, 0xFFFFFF00u);
+            else if (zi == hov_z)
+                draw_hline(fb, W, H, zrect[zi][0], zrect[zi][2],
+                           zrect[zi][3] + 1, 0xFFB08000u);
         }
 
         {
@@ -524,14 +565,40 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                         }
                     if (zhit)
                         break;
-                    if (k == SDLK_UP)
-                        sel = (sel + nitems - 1) % nitems;
-                    else if (k == SDLK_DOWN)
-                        sel = (sel + 1) % nitems;
-                    else if (k == SDLK_RETURN || k == SDLK_KP_ENTER
-                             || k == SDLK_SPACE || k == SDLK_ESCAPE) {
+                    /* arrows cycle EVERYTHING the user can pick: answer
+                     * zones first (TAK, CNIE, X), then the list rows
+                     * (the dialog's "(BACK)"); the highlight (solid
+                     * underline / '>') is the visible state. The words
+                     * sit side by side, so LEFT/RIGHT is the primary
+                     * cycle (user request); UP/DOWN ride the same
+                     * cycle so existing lists keep working. */
+                    int ncyc = nz + nitems;
+                    if ((k == SDLK_RIGHT || k == SDLK_LEFT || k == SDLK_UP
+                         || k == SDLK_DOWN) && ncyc > 0) {
+                        int step = (k == SDLK_RIGHT || k == SDLK_DOWN)
+                                       ? 1 : ncyc - 1;
+                        int vi = zsel >= 0 ? zsel : nz + sel;
+                        vi = (vi + step) % ncyc;
+                        if (vi < nz) {
+                            zsel = vi;
+                            printf("menu: sel zone %s (Enter=confirm)\n",
+                                   zones[vi].tag);
+                        } else {
+                            zsel = -1;
+                            sel = vi - nz;
+                        }
+                    } else if (k == SDLK_RETURN || k == SDLK_KP_ENTER
+                               || k == SDLK_SPACE) {
                         quit = 1;
-                        ret = sel;
+                        if (zsel >= 0) {
+                            printf("menu: confirm zone %s\n",
+                                   zones[zsel].tag);
+                            ret = zones[zsel].ret;
+                        } else
+                            ret = sel;
+                    } else if (k == SDLK_ESCAPE) {
+                        quit = 1;
+                        ret = sel;  /* esc always cancels to the row */
                     } else if (k == SDLK_q) {
                         quit = 1;
                         ret = -2;

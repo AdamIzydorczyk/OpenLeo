@@ -407,6 +407,19 @@ verify-menu: ll_cutscene
 	   && grep -q 'map: LEO_MENU_SECS expired' /tmp/opencode/menu_tak.log; \
 	then echo "restart-confirm TAK: answer buttons (click/key), restart -> new game -> back to map (ok)"; \
 	else echo "restart-confirm TAK FAILED (rc=$$rc)"; cat /tmp/opencode/menu_tak.log; exit 1; fi
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	    LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_KEY=r \
+	    LEO_MENU_NAV=1 LEO_MENU_SECS=1 LEO_LEVEL_SECS=2 LEO_HELP_SECS=0 \
+	    timeout 90 \
+	    ./ll_cutscene --demo $(DATA) > /tmp/opencode/menu_nav.log 2>&1; \
+	rc=$$?; \
+	if [ $$rc -eq 0 ] \
+	   && grep -q 'LEO_MENU_NAV -> zone TAK.SEQ' /tmp/opencode/menu_nav.log \
+	   && grep -q 'restart confirmed (tak) -> new game' \
+	      /tmp/opencode/menu_nav.log \
+	   && grep -q 'map: LEO_MENU_SECS expired' /tmp/opencode/menu_nav.log; \
+	then echo "restart-confirm keyboard nav: arrows cycle TAK first, Enter confirms (ok)"; \
+	else echo "restart-confirm keyboard nav FAILED (rc=$$rc)"; cat /tmp/opencode/menu_nav.log; exit 1; fi
 
 # MOD music: src/ll_mod.c parses the Longsoft repack layout (ll_mod.h)
 # and renders deterministically; linux vs wine hash parity is the oracle.

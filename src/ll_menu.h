@@ -44,6 +44,14 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
  * (negative, e.g. -10/-11/-12) instead of an item index.  The original
  * hit-testing came from the missing .MNU scripts, so these rects are the
  * sprite bboxes at the authored origins (reconstruction, PLAN 8b).
+ * Keyboard selection (round 5): LEFT/RIGHT cycle EVERYTHING pickable -
+ * answer zones first (in caller order, restart passes TAK, CNIE, X),
+ * then the list rows; UP/DOWN ride the same cycle (the words sit side
+ * by side so left/right is the primary control, user request). The
+ * selected word gets a solid bright underline UNDER the sprite (mouse
+ * hover: dim 1-px underline; boxes over the words covered them), rows
+ * get the '>' marker; Enter/Space confirms the highlighted entry (Esc =
+ * the list row = cancel), t/n/x remain direct zone shortcuts.
  * CI hook: LEO_MENU_PICK=<key char> auto-fires the matching zone at
  * tick 0 (one-shot). */
 typedef struct {

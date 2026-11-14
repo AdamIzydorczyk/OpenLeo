@@ -43,7 +43,10 @@ make win      # windows .exe (needs vendor/SDL2-2.32.10-mingw + llvm-mingw,
 
 ESC mid-cutscene SKIPS it and the chain advances to the next scene or the
 title menu (original semantics): no frozen mid-intro frame, the app never
-dies. Menu keys: up/down, Enter picks; ESC = Enter.
+dies. Menu keys: up/down, Enter picks; ESC = Enter. The restart-confirm
+dialog answers (tak/nie/x) are selected with LEFT/RIGHT (the words sit
+side by side; up/down ride the same cycle) - the selection shows as a
+bright underline under the word, Enter confirms, t/n/x are direct keys.
 
 ## Tests (both platforms)
 

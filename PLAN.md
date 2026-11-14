@@ -684,6 +684,25 @@ frames stay hover-free. (c) 'improper render left side' re-verified:
 dialog PPM byte-identical to the pre-hover probe (cmp rst1.ppm ==
 rst_hv.ppm) and VL side-by-side vs standalone OPTIONS.PCX: same artwork,
 left temple column authentic, no defect.
+**Desktop usability round 5 (2026-11-15)**: user: the hover OUTLINE
+COVERED the cursive words and there was no visible answer selection
+("NIE seems active whole time", "clicking works but animations not").
+Replaced: dialog hover = dim 1-px UNDERLINE under the word's sprite
+bbox; keyboard selection = solid bright 2-px underline (ll_menu.c
+draw_hline; draw_rect kept for map hover only). Answers are first-class
+nav entries: LEFT/RIGHT cycle zones first then list rows (words sit
+side by side, user asked left/right not up/down; UP/DOWN ride the same
+cycle so lists keep working); Enter/Space confirms the highlighted
+zone/item, Esc stays = cancel to the row; t/n/x direct keys unchanged.
+Zone order pinned TAK, CNIE, X in main.c (was anim scan order TAK, X,
+CNIE). New CI hooks: LEO_MENU_NAV=k = k cycle steps + Enter (verify-menu
+step 'keyboard nav': proves the cycle lands on TAK and Enter -> -10 ->
+new game -> back to map); LEO_MENU_SEL=i pre-highlights zone i for
+LEO_MENU_PPM frames. Pixel proof: neutral dialog frame byte-IDENTICAL
+to round-4 probe (rst1.ppm == rst_r5.ppm, zero regression); SEL=1 frame
+diff = exactly 2x64 underline px at y=184/185 under CNIE rect
+(169,145)-(233,183) + the (BACK) '>' marker removal; VL: underline fully
+below 'nie', no overlap, no boxes, high contrast.
 
 ## 8c. Level scene + .MOV motion scripts (delivered 2026-11-14)
 
