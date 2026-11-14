@@ -501,5 +501,19 @@ absent from this CD image (LEVELDES slots end at 0x19ba40bb; only 15 .DES
 shipped) - stock game hits the idiv-0x50 trap at level start (LEO_OUT.LOG),
 so original level rendering was never baselined.
 
+**Help overlay (POMOC flow) DELIVERED**: the HD level block's POMOC1.MNU
+lists page art as `static=x,y,pomocNN.seq` (x,y are 0,0 placeholders there);
+the real anchor is the .SEQ element header (screen pos = (-f0,-f2), same as
+menu leaves; POMOC00 -> (99,3) top strip on all levels). The MNU's generic
+static= list (pomoc00..pomoc10) is only partly on the CD; per-level pages
+are keyed by page number instead (TUNGA.11/JUNCTION carry POMOC32.SEQ) and
+are collected from the CD block by POMOC<NN> name. Rendered as bg + first
+patched element per page; Left/Right/Enter page, ESC closes, LEO_HELP_SECS
+auto-close, LEO_HELP_PPM dumps the first help frame. CI `make verify-help`:
+JUNCTION (pure-PCX scene) help dump == bare bg + exactly the oracle's 1768
+touched pixels inside the page-0 window (C blitter == python oracle again).
+cursor=mouse.seq / back.pcx / <stem>.pal payloads referenced by .MNU exist
+in neither tree (data hole) - bg palette kept, no custom cursor.
+
 ## 9. Legal/ethical
 Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.

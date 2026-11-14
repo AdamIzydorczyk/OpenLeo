@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h> /* strncasecmp for container record names */
 
 typedef struct { char key[32], val[256]; } des_kv;
 
@@ -388,6 +389,221 @@ static void scene_ppm(const char *path, int w, int h, const unsigned char *idx,
     printf("LEO_LEVEL_PPM wrote %s\n", path);
 }
 
+/* paint one 8bpp canvas through the palette LUT (shared present path) */
+static void paint(SDL_Renderer *ren, SDL_Texture *tex,
+                  const unsigned char *canvas, const Uint32 lut[256],
+                  int w, int h)
+{
+    void *px;
+    int pitch;
+    if (SDL_LockTexture(tex, NULL, &px, &pitch) == 0) {
+        for (int y = 0; y < h; y++) {
+            Uint32 *row = (Uint32 *)((char *)px + (size_t)y * pitch);
+            const unsigned char *sp = canvas + (size_t)y * w;
+            for (int x = 0; x < w; x++)
+                row[x] = lut[sp[x]];
+        }
+        SDL_UnlockTexture(tex);
+    }
+    SDL_RenderClear(ren);
+    SDL_RenderCopy(ren, tex, NULL, NULL);
+    SDL_RenderPresent(ren);
+}
+
+/* ---------------- level help overlay (original POMOC flow) --------------
+ * POMOC1.MNU (HD-install ETAPY block) wires the help: static=x,y,pomocNN.seq
+ * lines list page art (text baked into .SEQ frame patches); the .SEQ
+ * payloads themselves ship in the CD ETAPY level block (incomplete CD:
+ * only some pages present). Left/Right/Enter cycle pages, ESC closes, and
+ * LEO_HELP_SECS (default min(4, 0.6*secs)) auto-closes for CI/flow.
+ * cursor=mouse.seq / palette=<stem>.pal refer to payloads absent from both
+ * trees (documented data hole) - bg palette is kept.                   */
+typedef struct { int x, y; ll_seq seq; unsigned char *blob; } help_page;
+
+static void help_pages(SDL_Renderer *ren, SDL_Texture *tex,
+                       const llrs *hd, const llrs_slot *hdrecs, unsigned nhdrec,
+                       const llrs *cd, const llrs_slot *cdrecs, unsigned ncdrec,
+                       const unsigned char *bg, unsigned char *canvas,
+                       const Uint32 lut[256], int w, int h, double secs)
+{
+    const llrs_slot *mnu = NULL;
+    for (unsigned k = 0; k < nhdrec; k++) {
+        const char *dot = strrchr(hdrecs[k].name, '.');
+        if (hdrecs[k].id == 1 && dot && ci_eq(dot, ".MNU")) {
+            mnu = &hdrecs[k];
+            break;
+        }
+    }
+    if (!mnu)
+        return;
+    unsigned char *raw = NULL;
+    if (llrs_read(hd, mnu, &raw) < 0)
+        return;
+    help_page pages[16];
+    char mnu_seq[16][16];
+    int nms = 0;
+    int np = 0;
+    /* line scan (repeated "static=" keys - a key=table would collapse them) */
+    const char *p = (const char *)raw;
+    while (*p) {
+        const char *eol = p;
+        while (*eol && *eol != '\n' && *eol != '\r')
+            eol++;
+        if (eol - p > 7 && strncmp(p, "static=", 7) == 0) {
+            int x, y;
+            char seq[16] = "";
+            if (sscanf(p + 7, "%d,%d,%15[a-zA-Z0-9.]", &x, &y, seq) == 3) {
+                if (nms < 16)
+                    snprintf(mnu_seq[nms++], sizeof mnu_seq[0], "%s", seq);
+                const llrs_slot *ps = NULL;
+                for (unsigned j = 0; j < ncdrec; j++)
+                    if (cdrecs[j].id == 1 && ci_eq(cdrecs[j].name, seq)) {
+                        ps = &cdrecs[j];
+                        break;
+                    }
+                if (ps && np < 16) {  /* other pages absent from this CD */
+                    pages[np].blob = NULL;
+                    if (llrs_read(cd, ps, &pages[np].blob) >= 0 &&
+                        ll_seq_parse(pages[np].blob, (uint32_t)ps->size,
+                                     &pages[np].seq) == 0) {
+                        const ll_seq_elem *fe = NULL;
+                        for (unsigned el = 0; el < pages[np].seq.count; el++)
+                            if (pages[np].seq.els[el].arr_n > 0) {
+                                fe = &pages[np].seq.els[el];
+                                break;
+                            }
+                        /* MNU x,y are placeholders (0,0) here; the .SEQ
+                         * element header carries the real canvas anchor,
+                         * screen pos = (-f0,-f2), like the menu leaves. */
+                        if (fe) {
+                            int ex = -(int)(short)fe->f0;
+                            int ey = -(int)(short)fe->f2;
+                            if (ex > 0 || ey > 0) {
+                                x = ex > 0 ? ex : x;
+                                y = ey > 0 ? ey : y;
+                            }
+                        }
+                        pages[np].x = x;
+                        pages[np].y = y;
+                        printf("ll_level: help: %s page %d %s at (%d,%d)\n",
+                               mnu->name, np, seq, x, y);
+                        np++;
+                    } else {
+                        free(pages[np].blob);
+                        pages[np].blob = NULL;
+                    }
+                }
+            }
+        }
+        p = eol;
+        while (*p == '\n' || *p == '\r')
+            p++;
+    }
+    /* This CD's .MNU static= list is the generic set (pomoc00..pomoc10);
+     * per-level help art is keyed by page number instead (TUNGA.11 ships
+     * POMOC32.SEQ), so also collect POMOC<NN>.SEQ payloads present in the
+     * CD block that the MNU does not name (deterministic numeric order). */
+    for (unsigned j = 0; j < ncdrec && np < 16; j++) {
+        const char *nm = cdrecs[j].name;
+        if (cdrecs[j].id != 1)
+            continue;
+        char stem[16];
+        stem_of(nm, stem, sizeof stem);
+        if (strncasecmp(stem, "POMOC", 5) != 0)
+            continue;
+        int dup = 0;
+        for (int k = 0; k < nms; k++)
+            if (ci_eq(mnu_seq[k], stem) || ci_eq(mnu_seq[k], nm)) {
+                dup = 1;
+                break;
+            }
+        if (dup)
+            continue;
+        pages[np].blob = NULL;
+        if (llrs_read(cd, &cdrecs[j], &pages[np].blob) < 0 ||
+            ll_seq_parse(pages[np].blob, (uint32_t)cdrecs[j].size,
+                         &pages[np].seq) != 0) {
+            free(pages[np].blob);
+            pages[np].blob = NULL;
+            continue;
+        }
+        const ll_seq_elem *fe = NULL;
+        for (unsigned el = 0; el < pages[np].seq.count; el++)
+            if (pages[np].seq.els[el].arr_n > 0) {
+                fe = &pages[np].seq.els[el];
+                break;
+            }
+        pages[np].x = pages[np].y = 0;
+        if (fe) {
+            int ex = -(int)(short)fe->f0, ey = -(int)(short)fe->f2;
+            if (ex > 0)
+                pages[np].x = ex;
+            if (ey > 0)
+                pages[np].y = ey;
+        }
+        printf("ll_level: help: %s page %d %s at (%d,%d) [CD]\n",
+               mnu->name, np, nm, pages[np].x, pages[np].y);
+        np++;
+    }
+    free(raw);
+    if (!np)
+        return;
+
+    const char *hs = getenv("LEO_HELP_SECS");
+    double lim = hs ? atof(hs) : (secs > 6.66 ? 4.0 : secs * 0.6);
+    Uint64 freq = SDL_GetPerformanceFrequency();
+    Uint64 t_end = SDL_GetPerformanceCounter() +
+                   (Uint64)(lim * (double)freq);
+    int page = 0, quit = 0;
+    while (!quit && SDL_GetPerformanceCounter() < t_end) {
+        SDL_Event e;
+        while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_QUIT)
+                quit = 2;
+            else if (e.type == SDL_KEYDOWN) {
+                SDL_Keycode k = e.key.keysym.sym;
+                if (k == SDLK_ESCAPE)
+                    quit = 1;
+                else if (k == SDLK_RIGHT || k == SDLK_RETURN ||
+                         k == SDLK_SPACE || k == SDLK_PAGEDOWN)
+                    page = (page + 1) % np;
+                else if (k == SDLK_LEFT || k == SDLK_PAGEUP)
+                    page = (page + np - 1) % np;
+            }
+        }
+        if (quit)
+            break;
+        memcpy(canvas, bg, (size_t)w * (size_t)h);
+        const ll_seq *s = &pages[page].seq;
+        for (unsigned el = 0; el < s->count; el++)
+            if (s->els[el].arr_n > 0) {
+                ll_seq_draw_elem(s, &s->els[el], canvas, w, h,
+                                 pages[page].x, pages[page].y);
+                break;
+            }
+        paint(ren, tex, canvas, lut, w, h);
+        const char *hppm = getenv("LEO_HELP_PPM"); /* CI: help frame dump */
+        static int hdumped = 0;
+        if (hppm && !hdumped) {
+            hdumped = 1;
+            unsigned char pal[768];
+            for (int i = 0; i < 256; i++) {
+                pal[3 * i] = (unsigned char)(lut[i] >> 16);
+                pal[3 * i + 1] = (unsigned char)(lut[i] >> 8);
+                pal[3 * i + 2] = (unsigned char)lut[i];
+            }
+            scene_ppm(hppm, w, h, canvas, pal);
+        }
+        SDL_Delay(20);
+    }
+    for (int k = 0; k < np; k++) {
+        ll_seq_free(&pages[k].seq);
+        free(pages[k].blob);
+    }
+    if (quit == 1)
+        printf("ll_level: help: ESC\n");
+}
+
 int ll_level_show(const char *dir, const char *level, double secs, int audio)
 {
     const char *hs = getenv("LEO_LEVEL_SECS"); /* CI override */
@@ -706,6 +922,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             printf("ll_level: tick %d: %s state %d at (%d,%d)\n", ticks,
                    objs[k].key, objs[k].sti, objs[k].x, objs[k].y);
         }
+        memcpy(canvas, img.idx, csz);      /* same order as the live loop */
         for (int k = 0; k < nobj; k++) {
             const ll_seq_elem *e = obj_elem(&objs[k]);
             if (e)
@@ -743,6 +960,33 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             lut[i] = 0xFF000000u | ((Uint32)img.pal[3 * i] << 16) |
                      ((Uint32)img.pal[3 * i + 1] << 8) | img.pal[3 * i + 2];
 
+        /* 5b) help overlay first, like the original POMOC flow: the HD
+         *     level block's POMOC1.MNU names page art (.SEQ) that ships in
+         *     the CD level block; ESC closes, Left/Right page through. */
+        if (hd) {
+            char hp[4096];
+            snprintf(hp, sizeof hp, "%s/ETAPY", hd);
+            llrs hd_ety;
+            if (llrs_open(&hd_ety, hp) == 0) {
+                const llrs_slot *hblk2 = find_or_stem(&hd_ety, level);
+                if (!hblk2 && nk) {
+                    const char *d = des_get(kvs, nk, "dir");
+                    if (d[0])
+                        hblk2 = find_or_stem(&hd_ety, d);
+                }
+                llrs_slot *hrecs2 = NULL;
+                unsigned nhrec2 = 0;
+                if (hblk2)
+                    llrs_block(&hd_ety, hblk2, &hrecs2, &nhrec2);
+                if (nhrec2)
+                    help_pages(ren, tex, &hd_ety, hrecs2, nhrec2,
+                               &etapy, recs, nrec, img.idx, canvas, lut,
+                               (int)img.w, (int)img.h, secs);
+                llrs_block_free(hrecs2);
+                llrs_close(&hd_ety);
+            }
+        }
+
         Uint64 freq = SDL_GetPerformanceFrequency();
         Uint64 t_end = SDL_GetPerformanceCounter() +
                        (Uint64)(secs * (double)freq);
@@ -769,20 +1013,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                     ll_seq_draw_elem(&objs[k].seq, el, canvas, (int)img.w,
                                      (int)img.h, objs[k].x, objs[k].y);
             }
-            void *px;
-            int pitch;
-            if (SDL_LockTexture(tex, NULL, &px, &pitch) == 0) {
-                for (unsigned y = 0; y < img.h; y++) {
-                    Uint32 *row = (Uint32 *)((char *)px + (size_t)y * pitch);
-                    const unsigned char *sp = canvas + (size_t)y * img.w;
-                    for (unsigned x = 0; x < img.w; x++)
-                        row[x] = lut[sp[x]];
-                }
-                SDL_UnlockTexture(tex);
-            }
-            SDL_RenderClear(ren);
-            SDL_RenderCopy(ren, tex, NULL, NULL);
-            SDL_RenderPresent(ren);
+            paint(ren, tex, canvas, lut, (int)img.w, (int)img.h);
             SDL_Delay(20);
         }
         if (tex)

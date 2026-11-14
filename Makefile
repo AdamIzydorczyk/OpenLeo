@@ -64,7 +64,7 @@ verify-skip: ll_cutscene
 # Same two proofs for the Windows .exe, run under wine.
 # Z: = wine drive mapped to /, so $(DATA) is addressed as Z:$(DATA).
 WINEPREFIX ?= /tmp/opencode/wineprefix
-verify-win: ll_cutscene.exe llrs_selftest.exe pcx_selftest.exe seq_selftest.exe seq_patchdump.exe
+verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_selftest.exe seq_patchdump.exe
 	WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	  wine ./ll_cutscene.exe Z:$(DATA)/INTRO_P.IS --ppm 1020 \
 	  Z:/tmp/opencode/c_win.ppm
@@ -104,6 +104,26 @@ verify-win: ll_cutscene.exe llrs_selftest.exe pcx_selftest.exe seq_selftest.exe 
 	else echo "win menu anim: BERLO cycles under wine (t2 != t8, ok)"; fi
 	@cmp /tmp/opencode/lmenu_t2.ppm /tmp/opencode/wmenu_t2.ppm \
 	  && echo "win menu frame == linux frame (byte-exact, overlays composited)"
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_LEVEL_PPM=/tmp/opencode/lvlv_t2.ppm \
+	  LEO_LEVEL_PPM_TICK=2 timeout 60 ./ll_level $(DATA) TUNGA.11 >/dev/null 2>&1 || true
+	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all SDL_VIDEODRIVER=dummy \
+	  SDL_AUDIODRIVER=dummy LEO_HD_DIR=Z:/tmp/opencode/hd_files \
+	  LEO_LEVEL_PPM=Z:/tmp/opencode/wlv_t2.ppm LEO_LEVEL_PPM_TICK=2 \
+	  timeout 120 wine ./ll_level.exe Z:$(DATA) TUNGA.11 >/dev/null 2>&1 || true
+	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all SDL_VIDEODRIVER=dummy \
+	  SDL_AUDIODRIVER=dummy LEO_HD_DIR=Z:/tmp/opencode/hd_files \
+	  LEO_LEVEL_PPM=Z:/tmp/opencode/wlv_t8.ppm LEO_LEVEL_PPM_TICK=8 \
+	  timeout 120 wine ./ll_level.exe Z:$(DATA) TUNGA.11 >/dev/null 2>&1 || true
+	@if cmp -s /tmp/opencode/wlv_t2.ppm /tmp/opencode/wlv_t8.ppm; \
+	then echo "win level anim FAILED: tick2 == tick8"; exit 1; \
+	else echo "win level anim: platform moves under wine (t2 != t8, ok)"; fi
+	@cmp /tmp/opencode/lvlv_t2.ppm /tmp/opencode/wlv_t2.ppm \
+	  && echo "win level frame == linux frame (byte-exact scene compositing)"
+
+ll_level.exe: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_seq.c src/ll_seq.h src/ll_config.h
+	$(XC) $(XCFLAGS) $(XLD) -o $@ tools/ll_level.c src/ll_level.c \
+	    src/llrs.c src/ll_pcx.c src/ll_seq.c $(XLIBS)
 
 # src/llrs.c byte-for-byte agreement with tools/llrs_unpack.py on all four
 # containers, checked under ASan/UBSan.
@@ -189,6 +209,31 @@ verify-level: ll_level
 	then echo "level anim FAILED: tick2 == tick8"; exit 1; \
 	else echo "level anim: platform moves on screen (tick2 != tick8, ok)"; fi
 
+# Level help overlay (POMOC flow): HD .MNU page list + CD ETAPY .SEQ page
+# art. JUNCTION carries page art AND the whole scene is one .PCX, so the
+# help frame dump must be the bare bg plus exactly the page-0 window
+# (element anchor (-f0,-f2)), with a pixel count matching the python oracle.
+verify-help: ll_level llrs_selftest
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0.5 LEO_LEVEL_SECS=0.5 \
+	  timeout 120 ./ll_level $(DATA) TUNGA.11 \
+	  > /tmp/opencode/help_tunga.log 2>&1; \
+	if grep -q 'help: POMOC1.MNU page 0 pomoc00.seq at (99,3)' /tmp/opencode/help_tunga.log \
+	   && grep -q 'page 1 POMOC32.SEQ at (43,44)' /tmp/opencode/help_tunga.log; \
+	then echo "help wiring: .MNU static= pages + CD POMOC<NN>.SEQ join (ok)"; \
+	else echo "help wiring FAILED"; cat /tmp/opencode/help_tunga.log; exit 1; fi
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0.5 LEO_LEVEL_SECS=0.5 \
+	  LEO_HELP_PPM=/tmp/opencode/help_junction.ppm timeout 120 \
+	  ./ll_level $(DATA) JUNCTION >/dev/null 2>&1 || true
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=/tmp/opencode/hd_files \
+	  LEO_LEVEL_PPM=/tmp/opencode/bare_junction.ppm LEO_LEVEL_PPM_TICK=0 \
+	  timeout 120 ./ll_level $(DATA) JUNCTION >/dev/null 2>&1 || true
+	python3 tools/verify_help.py /tmp/opencode/help_junction.ppm \
+	  /tmp/opencode/bare_junction.ppm $(DATA)/ETAPY JUNCTION POMOC00.SEQ \
+	  99 215 3 33
+
 verify-menu: ll_cutscene
 	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=5 LEO_SKIP_USER=1 LEO_MENU_AUTO=1 \
 	    LEO_LEVEL_SECS=1 timeout 180 \
@@ -215,7 +260,7 @@ verify-menu: ll_cutscene
 	then echo "menu anim FAILED: frames t2 == t8 (nothing animates)"; exit 1; \
 	else echo "menu anim: BERLO frame cycles on screen (t2 != t8, ok)"; fi
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-level verify-menu
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-level verify-help verify-menu
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
