@@ -76,11 +76,15 @@ static unsigned char *menu_bg(const char *data, unsigned *len)
     return out;
 }
 
-/* read ANIMACJE/MENU title-screen .SEQ overlays (X, CNIE, BERLO) in
- * container order; *nanim = count found. Caller frees payload + array. */
+/* read ANIMACJE/MENU title-screen .SEQ overlays (X, CNIE, BERLO,
+ * AUTORZY) in container order; *nanim = count found. Caller frees
+ * payload + array.  x/y = fixed logical-canvas origins for the map menu
+ * (AUTORZY.SEQ @ (4,180) is the real bottom-left corner word sprite);
+ * x=-1 = park on the selected island (BERLO arrow). */
 static ll_menu_anim *menu_anims(const char *data, int *nanim)
 {
-    static const char *want[] = { "X.SEQ", "CNIE.SEQ", "BERLO.SEQ" };
+    static const char *want[] = { "X.SEQ", "CNIE.SEQ", "BERLO.SEQ",
+                                  "AUTORZY.SEQ" };
     char p[4096];
     llrs a;
     *nanim = 0;
@@ -107,6 +111,10 @@ static ll_menu_anim *menu_anims(const char *data, int *nanim)
                         out[*nanim].len = (unsigned)sz;
                         out[*nanim].period_ms = 100;
                         out[*nanim].tag = want[w];
+                        out[*nanim].x =
+                            strcasecmp(want[w], "AUTORZY.SEQ") == 0 ? 4 : -1;
+                        out[*nanim].y =
+                            strcasecmp(want[w], "AUTORZY.SEQ") == 0 ? 180 : -1;
                         (*nanim)++;
                     }
                     break;
@@ -150,14 +158,18 @@ static void run_menu(const char *data, int audio)
              * (measured 2026-11-14: chapter .IS -> map menu -> arrow +
              * key launches the chapter: studio cards -> flyover ->
              * playable level).  Chapter list = ETAPY id==2 blocks; the
-             * six island anchors are measured off the captured map
-             * frame (g781); >6 chapters reuse the anchor set (the map
-             * page art is a CD data hole, PLAN 8b). */
+             * six island anchors are measured off the captured menu
+             * VRAM index plane (land-blob centroids, PLAN 8b); >6
+             * chapters reuse the anchor set (the map page art is a CD
+             * data hole, PLAN 8b). */
             static char names[32][32];
             int n = ll_level_names(data, names, 32);
-            static const int anch[][2] = {
-                { 250, 95 }, { 470, 100 }, { 540, 110 },
-                { 185, 240 }, { 445, 240 }, { 500, 285 } };
+            static const int anch[][4] = {
+                /* ix, iy, rw, rh: land-blob centroids + robust
+                 * half-extents measured off the menu VRAM capture */
+                { 188, 132, 14, 12 }, { 500, 89, 17, 15 },
+                { 351, 233, 29, 17 }, { 470, 259, 12, 30 },
+                { 589, 281, 22, 7 },  { 83, 348, 19, 29 } };
             ll_menu_ch chs[32];
             int keep[32], m = 0;
             for (int i = 0; i < n; i++)
@@ -169,15 +181,21 @@ static void run_menu(const char *data, int audio)
                     chs[i].title = names[keep[i]];
                     chs[i].ix = anch[i % 6][0];
                     chs[i].iy = anch[i % 6][1];
+                    chs[i].rw = anch[i % 6][2];
+                    chs[i].rh = anch[i % 6][3];
                 }
                 printf("map: %d chapters, arrow starts on island 0\n", n);
-                ll_menu_anim m2[1];
+                ll_menu_anim m2[2];
                 int m2n = 0;
                 for (int i = 0; i < nanim; i++)
                     if (anims[i].tag && strcmp(anims[i].tag, "BERLO.SEQ") == 0) {
                         m2[m2n++] = anims[i];
                         break;
                     }
+                for (int i = 0; i < nanim && m2n < 2; i++)
+                    if (anims[i].tag &&
+                        strcmp(anims[i].tag, "AUTORZY.SEQ") == 0)
+                        m2[m2n++] = anims[i];
                 sel = ll_menu_map_open(chs, n, m2n ? m2 : anims,
                                        m2n ? m2n : nanim);
             } else {

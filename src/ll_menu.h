@@ -24,6 +24,10 @@ typedef struct {
     unsigned len;
     unsigned period_ms;       /* ms per frame, 0 = default 100 */
     const char *tag;          /* container name (X.SEQ/BERLO.SEQ/...), or NULL */
+    int x, y;                 /* origin in the 320x200 logical canvas the
+                               * original authored .SEQ coords in (doubled
+                               * 2x2 on the 640x400 CRTC).  x<0 in the map
+                               * menu = park on the selected island. */
 } ll_menu_anim;
 
 /* bg_pcx: raw PCX payload (ll_pcx input) or NULL for black background.
@@ -48,6 +52,8 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
 typedef struct {
     const char *title;
     int ix, iy;              /* island centre the arrow points at */
+    int rw, rh;              /* island half-extent in 640x400 px
+                              * (0 = placeholder default 60/26) */
 } ll_menu_ch;
 int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                      const ll_menu_anim *anims, int nanims);

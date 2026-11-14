@@ -64,20 +64,24 @@ void ll_seq_free(ll_seq *s);
  * Entry blobs (ll_seq_ent .off/.len) are length-prefixed sprite rows:
  *   row := (0x80|len) content[len];  content := gap run*
  *   op pos: C < 0x80 copy C bytes | F >= 0x80 fill F&0x7f bytes, 1 value B
- *   marker pos (after any run): B < 0x40 gap | 0x40..0x7f after COPY run =
- *   fill (B&0x3f)+value byte, after FILL run = copy B&0x3f bytes
+ *   marker pos (after any run): B < 0x40 dst gap advance (kind 2, paints
+ *   nothing, no dump token) | 0x40..0x7f after COPY run = fill (B&0x3f)
+ *   bytes + value byte, after FILL run = copy B&0x3f bytes
  * The game blits rows onto a 400-byte pitch; chunks: entries 0..arr_n-2 are
  * 80 px wide, the last entry is b15 px wide, x cursor += 80. Element screen
  * position = (-f0, -f2) (bbox derived from negated f0/f2, FUN_000420b0).
  *
  * ll_seq_patch_walk decodes one entry blob, invoking cb per row (gap -1 =
  * empty row; ops array valid only during the call). Returns rows decoded,
- * -1 malformed (cb may have seen earlier rows already).
+ * -1 malformed (cb may have seen earlier rows already). Marker bytes seen
+ * between ops (FUN_0001dc80 @0x1dd59/0x1dd83): <0x40 = dst gap advance
+ * (kind 2; the painter MUST advance px — missing that garbled AUTORZY.SEQ
+ * word rendering), 0x40..0x7f alternates fill/copy on the previous run.
  * ll_seq_patch_draw paints the decoded palette indices into an 8bpp canvas
  * (clip to cw/ch). ll_seq_draw_elem paints all chunks of an element with
  * origin (x,y). */
 typedef struct {
-    int kind;                /* 0 = copy (b), 1 = fill (val) */
+    int kind;                /* 0 = copy (b), 1 = fill (val), 2 = gap skip */
     const uint8_t *b;        /* copy payload (points into blob) */
     int val;                 /* fill value */
     int cnt;                 /* run length in pixels */

@@ -4,6 +4,7 @@
  * into an 8bpp index canvas over the PCX indices, then one palette LUT).
  * Fixed pacing: event-driven with SDL_Delay, no busy loop. See ll_menu.h. */
 #include "ll_menu.h"
+#include "ll_menu_dac.h"
 #include "ll_pcx.h"
 #include "ll_seq.h"
 #include "ll_level.h"
@@ -384,88 +385,90 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
 #define MAP_W 640
 #define MAP_H 400
 
-/* doubled 2x glyph draw (mode-10h text is ~16 px tall in the capture) */
-static void draw_glyph2(Uint32 *fb, int x, int y, char c, Uint32 col)
+/* The original composites in a 320x200 logical canvas (the .SEQ sprite
+ * coords, e.g. AUTORZY.SEQ @ (4,180), are authored in that space) and
+ * doubles 2x2 onto the 640x400 CRTC; hunt13's VRAM dump proved the fb is
+ * linear 8bpp 320x200.  We mirror that: everything composites at logical
+ * scale, presentation + PPM merge to 640x400. */
+#define MAP_LW 320
+#define MAP_LH 200
+
+/* 1x 8x8 glyph at logical scale (originals are .SEQ sprites/art; this is
+ * our documented placeholder font, same space, half the 640-space size) */
+static void draw_glyph1(Uint32 *fb, int x, int y, char c, Uint32 col)
 {
     if (c < 32 || c > 126)
         c = '?';
     const unsigned char *g = FONT[c - 32];
     for (int r = 0; r < 8; r++)
         for (int b = 0; b < 8; b++)
-            if (g[r] & (0x80 >> b))
-                for (int dy = 0; dy < 2; dy++)
-                    for (int dx = 0; dx < 2; dx++) {
-                        int px = x + 2 * b + dx, py = y + 2 * r + dy;
-                        if (px >= 0 && px < MAP_W && py >= 0 && py < MAP_H)
-                            fb[py * MAP_W + px] = col;
-                    }
+            if (g[r] & (0x80 >> b)) {
+                int px = x + b, py = y + r;
+                if (px >= 0 && px < MAP_LW && py >= 0 && py < MAP_LH)
+                    fb[py * MAP_LW + px] = col;
+            }
 }
 
-static void draw_text2(Uint32 *fb, int x, int y, const char *s, Uint32 col)
+static void draw_text1(Uint32 *fb, int x, int y, const char *s, Uint32 col)
 {
-    for (; *s; s++, x += 16)
-        draw_glyph2(fb, x, y, *s, col);
+    for (; *s; s++, x += 8)
+        draw_glyph1(fb, x, y, *s, col);
 }
 
-/* right-aligned variant (restart/opcje hug the right screen edge) */
-static void draw_text2_r(Uint32 *fb, int xr, int y, const char *s, Uint32 col)
+static void draw_text1_r(Uint32 *fb, int xr, int y, const char *s, Uint32 col)
 {
     int n = 0;
     for (const char *p = s; *p; p++)
         n++;
-    draw_text2(fb, xr - 16 * n, y, s, col);
+    draw_text1(fb, xr - 8 * n, y, s, col);
 }
 
 static Uint32 menu_lut(int i)
 {
-    /* base: CGA-ish 16-col block for the .SEQ word/shadow sprites
-     * (AUTORZY/X/CNIE use indices 1..22) */
-    static const Uint32 cga[16] = {
-        0xFF000000u, 0xFF0000AAu, 0xFF00AA00u, 0xFF00AAAAu,
-        0xFFAA0000u, 0xFFAA00AAu, 0xFFAA5500u, 0xFFAAAAAAu,
-        0xFF555555u, 0xFF5555FFu, 0xFF55FF55u, 0xFF55FFFFu,
-        0xFFFF5555u, 0xFFFF55FFu, 0xFFFFFF55u, 0xFFFFFFFFu,
-    };
-    if (i < 16)
-        return cga[i];
-    /* BERLO sprite index clusters (measured payload histogram):
-     * gold crown 218/223/224/230, red robe 90..95 */
-    switch (i) {
-    case 218: return 0xFFD2963Cu;
-    case 223: return 0xFFE6B45Au;
-    case 224: return 0xFFFFE696u;
-    case 230: return 0xFFC89632u;
-    case 90:  return 0xFFC82828u;
-    case 91:  return 0xFFDC3C32u;
-    case 94:  return 0xFFF0503Cu;
-    case 95:  return 0xFFAA1E1Eu;
-    default:  break;
-    }
-    if (i >= 17 && i <= 22)          /* CNIE shadow ramp */
-        return 0xFF000000u | (Uint32)(0x30 + 12 * i) * 0x010101u;
-    return 0xFF000000u | (Uint32)(i * 4) * 0x010101u;
+    /* Real menu DAC recovered from the original's VGA state (capture +
+     * QEMU xp dump; see ll_menu_dac.h provenance). Same index space the
+     * ANIMACJE/MENU .SEQ sprites are drawn into: idx 15 = green corner
+     * words, 22 = bright green title, 90..95 dark / 218..230 bright =
+     * BERLO golds, 44/46/51/102-107 sea blues, 199/200/202 island sand. */
+    return ll_menu_dac[i & 0xFF];
 }
 
+/* bg on the logical canvas; chs anchors are 640-space, halved here */
 static void map_bg(Uint32 *fb, const ll_menu_ch *chs, int nchs)
 {
-    /* starfield: dark blue vertical gradient + deterministic stars.
-     * The globe+islands art itself is a CD data hole (PLAN 8b), so we
-     * compose a placeholder at the measured island anchors. */
-    for (int y = 0; y < MAP_H; y++) {
-        Uint32 c = 0xFF000000u | (Uint32)(0x10 + y / 16)
-                   | ((Uint32)(0x18 + y / 8) << 8)
-                   | ((Uint32)(0x40 + y / 4) << 16);
-        for (int x = 0; x < MAP_W; x++)
-            fb[y * MAP_W + x] = c;
+    /* Placeholder for the globe+islands art (a CD data hole, PLAN 8b),
+     * but using the REAL menu DAC tones recovered from the original
+     * (ll_menu_dac.h): deep sea idx102 -> sea idx46 gradient, sea-blue
+     * sparkles, green/sand island blobs at the measured anchors. */
+    for (int y = 0; y < MAP_LH; y++) {
+        int t = y * 255 / (MAP_LH - 1);
+        Uint32 a = ll_menu_dac[102], b = ll_menu_dac[46];
+        Uint32 c = 0xFF000000u
+                   | ((((a >> 16 & 255) * (255 - t) + (b >> 16 & 255) * t)
+                       / 255) << 16)
+                   | ((((a >> 8 & 255) * (255 - t) + (b >> 8 & 255) * t)
+                       / 255) << 8)
+                   | (((a & 255) * (255 - t) + (b & 255) * t) / 255);
+        for (int x = 0; x < MAP_LW; x++)
+            fb[y * MAP_LW + x] = c;
     }
-    for (int s = 0; s < 140; s++) {
+    for (int s = 0; s < 70; s++) {
         unsigned h = (unsigned)(s * 2654435761u);
-        int x = (int)(h % MAP_W), y = (int)((h >> 12) % MAP_H);
-        fb[y * MAP_W + x] = (h >> 24) & 1 ? 0xFFE8E8FFu : 0xFFA0A0C8u;
+        int x = (int)(h % MAP_LW), y = (int)((h >> 12) % MAP_LH);
+        fb[y * MAP_LW + x] = (h >> 24) & 1 ? ll_menu_dac[121]
+                                           : ll_menu_dac[107];
     }
-    /* island blobs at each chapter anchor (green top, brown base) */
+    /* island blobs at each chapter anchor (green top, sand base);
+     * rw/rh are the measured land-blob half-extents (fallback 60/26
+     * in 640-space = 30/13 logical) */
     for (int i = 0; i < nchs; i++) {
-        int cx = chs[i].ix, cy = chs[i].iy, rw = 60, rh = 26;
+        int cx = chs[i].ix / 2, cy = chs[i].iy / 2;
+        int rw = chs[i].rw > 0 ? chs[i].rw / 2 : 30;
+        int rh = chs[i].rh > 0 ? chs[i].rh / 2 : 13;
+        if (rw < 2)
+            rw = 2;
+        if (rh < 2)
+            rh = 2;
         for (int y = -rh; y <= rh; y++)
             for (int x = -rw; x <= rw; x++) {
                 double d = (double)(x * x) / (rw * rw)
@@ -473,12 +476,12 @@ static void map_bg(Uint32 *fb, const ll_menu_ch *chs, int nchs)
                 if (d > 1.0)
                     continue;
                 int px = cx + x, py = cy + y;
-                if (px < 0 || px >= MAP_W || py < 0 || py >= MAP_H)
+                if (px < 0 || px >= MAP_LW || py < 0 || py >= MAP_LH)
                     continue;
-                Uint32 c = y < -4 ? 0xFF3CB43Cu : 0xFF6E4622u;
-                if (y > rh - 6)
-                    c = 0xFF5480B0u;      /* waterline */
-                fb[py * MAP_W + px] = c;
+                Uint32 c = y < -rh / 3 ? ll_menu_dac[22] : ll_menu_dac[199];
+                if (y > rh - (rh / 4 + 1))
+                    c = ll_menu_dac[107];  /* waterline */
+                fb[py * MAP_LW + px] = c;
             }
     }
 }
@@ -522,11 +525,13 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
     SDL_Texture *tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
                                          SDL_TEXTUREACCESS_STREAMING,
                                          MAP_W, MAP_H);
-    Uint32 *fb = (Uint32 *)malloc((size_t)MAP_W * MAP_H * sizeof *fb);
-    unsigned char *cv = malloc((size_t)MAP_W * MAP_H);
-    if (!ren || !tex || !fb || !cv) {
+    Uint32 *fb = (Uint32 *)malloc((size_t)MAP_LW * MAP_LH * sizeof *fb);
+    unsigned char *cv = malloc((size_t)MAP_LW * MAP_LH);
+    Uint32 *disp = (Uint32 *)malloc((size_t)MAP_W * MAP_H * sizeof *disp);
+    if (!ren || !tex || !fb || !cv || !disp) {
         free(fb);
         free(cv);
+        free(disp);
         if (tex) SDL_DestroyTexture(tex);
         if (ren) SDL_DestroyRenderer(ren);
         SDL_DestroyWindow(win);
@@ -539,9 +544,9 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         pal[i] = menu_lut(i);
 
     map_bg(fb, chs, nchs);              /* background is static */
-    Uint32 *base = malloc((size_t)MAP_W * MAP_H * sizeof *base);
+    Uint32 *base = malloc((size_t)MAP_LW * MAP_LH * sizeof *base);
     if (base)
-        memcpy(base, fb, (size_t)MAP_W * MAP_H * sizeof *base);
+        memcpy(base, fb, (size_t)MAP_LW * MAP_LH * sizeof *base);
 
     int sel = 0, quit = 0, ret = -1;
     unsigned tick = 0;
@@ -549,13 +554,16 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
     Uint64 t_deadline = sece ? SDL_GetTicks64() + 1000 * (Uint64)atof(sece) : 0;
     while (!quit) {
         if (base)
-            memcpy(fb, base, (size_t)MAP_W * MAP_H * sizeof *base);
+            memcpy(fb, base, (size_t)MAP_LW * MAP_LH * sizeof *base);
 
-        /* BERLO arrow cycles over the SELECTED island: sprite frame f
-         * placed so its tip lands just left of the island centre
-         * (arrow tip at (170,95) for island centre (250,95) in g781) */
+        /* .SEQ overlays composite at logical scale (the original authored
+         * its sprite coords in the 320x200 space): anims with x>=0 draw at
+         * their fixed origin (AUTORZY.SEQ @ (4,180) = the bottom-left
+         * corner word); x<0 parks the BERLO arrow just left of the
+         * selected island's measured edge, vertically centred */
         if (aseq) {
-            memset(cv, 0xFF, (size_t)MAP_W * MAP_H);   /* 0xFF = keep bg */
+            memset(cv, 0xFF, (size_t)MAP_LW * MAP_LH);  /* 0xFF = keep bg */
+            int irw = chs[sel].rw > 0 ? chs[sel].rw / 2 : 30;
             for (int a = 0; a < nanims; a++) {
                 if (!aseq[a].els)
                     continue;
@@ -563,27 +571,48 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                 unsigned fr = (unsigned)((Uint64)tick * 30 / per)
                               % aseq[a].count;
                 const ll_seq_elem *e = &aseq[a].els[fr];
-                ll_seq_draw_elem(&aseq[a], e, cv, MAP_W, MAP_H,
-                                 chs[sel].ix - 80, chs[sel].iy - 20);
+                int x = anims[a].x, y = anims[a].y;
+                if (x < 0) {
+                    x = chs[sel].ix / 2 - irw - 14;
+                    y = chs[sel].iy / 2 - 9;
+                }
+                ll_seq_draw_elem(&aseq[a], e, cv, MAP_LW, MAP_LH, x, y);
             }
-            for (int i = 0; i < MAP_W * MAP_H; i++)
+            for (int i = 0; i < MAP_LW * MAP_LH; i++)
                 if (cv[i] != 0xFF)
                     fb[i] = pal[cv[i]];
         }
 
-        /* corner words + green chapter title (measured bboxes, g781) */
-        draw_text2(fb, 10, 10, "WYJSCIE", 0xFFFFFFFFu);
-        draw_text2_r(fb, 630, 6, "RESTART", 0xFFFFFFFFu);
-        draw_text2(fb, 6, 350, "AUTORZY", 0xFFFFFFFFu);
-        draw_text2_r(fb, 630, 374, "OPCJE", 0xFFFFFFFFu);
-        draw_text2(fb, 48, 168, chs[sel].title, 0xFF00D000u);
+        /* corner words + chapter title at logical scale, colors from the
+         * real menu DAC: idx15 green words, idx22 bright green title
+         * (art bbox x50..342 y108..158 = logical 25..171 54..79).
+         * AUTORZY is NOT font-drawn: it is the real AUTORZY.SEQ sprite
+         * overlay (anim @ logical (4,180)). */
+        draw_text1(fb, 5, 5, "WYJSCIE", ll_menu_dac[15]);
+        draw_text1_r(fb, 315, 3, "RESTART", ll_menu_dac[15]);
+        draw_text1_r(fb, 315, 187, "OPCJE", ll_menu_dac[15]);
+        draw_text1(fb, 25, 62, chs[sel].title, ll_menu_dac[22]);
+
+        /* presentation = the original's 2x2 CRTC doubling of the logical
+         * canvas (VRAM capture: even-aligned block equality 1.000) */
+        for (int y = 0; y < MAP_LH; y++) {
+            Uint32 *d0 = disp + (size_t)(2 * y) * MAP_W;
+            Uint32 *d1 = d0 + MAP_W;
+            const Uint32 *s = fb + (size_t)y * MAP_LW;
+            for (int x = 0; x < MAP_LW; x++) {
+                d0[2 * x] = s[x];
+                d0[2 * x + 1] = s[x];
+                d1[2 * x] = s[x];
+                d1[2 * x + 1] = s[x];
+            }
+        }
 
         {   /* CI hook: dump composed frame at LEO_MENU_PPM_TICK */
             const char *ppm_e = getenv("LEO_MENU_PPM");
             const char *tick_e = getenv("LEO_MENU_PPM_TICK");
             unsigned want = tick_e ? (unsigned)atoi(tick_e) : 0;
             if (ppm_e && tick == want)
-                if (ppm_fb(ppm_e, fb, MAP_W, MAP_H) == 0)
+                if (ppm_fb(ppm_e, disp, MAP_W, MAP_H) == 0)
                     printf("map: LEO_MENU_PPM wrote %s (tick %u)\n",
                            ppm_e, tick);
         }
@@ -593,7 +622,7 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         if (SDL_LockTexture(tex, NULL, &px, &pitch) == 0) {
             for (int y = 0; y < MAP_H; y++)
                 memcpy((char *)px + (size_t)y * pitch,
-                       fb + (size_t)y * MAP_W, (size_t)MAP_W * 4);
+                       disp + (size_t)y * MAP_W, (size_t)MAP_W * 4);
             SDL_UnlockTexture(tex);
         }
         SDL_RenderClear(ren);
@@ -654,6 +683,7 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
     free(base);
     free(fb);
     free(cv);
+    free(disp);
     menu_anims_free(aseq, nanims);
     SDL_DestroyTexture(tex);
     SDL_DestroyRenderer(ren);

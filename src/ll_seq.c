@@ -164,10 +164,25 @@ int ll_seq_patch_walk(const uint8_t *blob, uint32_t len,
                         last_fill = 0;
                     }
                     at_op = 0;
-                } else {                     /* marker position */
+                } else {                     /* marker position (FUN_0001dc80
+                                              * 0x1dd59/0x1dd83 + tools/
+                                              * seq_patch.py reference):
+                                              * <0x40 = dst gap advance,
+                                              * 0x40..0x7f after COPY run =
+                                              * short fill, after FILL run =
+                                              * short copy */
                     uint8_t b = *q;
                     if (b >= 0x80) return -1;      /* mid-content header */
-                    if (b < 0x40) { q++; at_op = 1; continue; }
+                    if (b < 0x40) {          /* gap: advance dst, draw nothing */
+                        ops[nops].kind = 2;
+                        ops[nops].b = NULL;
+                        ops[nops].val = 0;
+                        ops[nops].cnt = b;
+                        nops++;
+                        q++;
+                        at_op = 1;
+                        continue;
+                    }
                     if (last_fill) {         /* short copy */
                         uint8_t cnt = b & 0x3F;
                         if (q + 1 + cnt > end) return -1;
@@ -188,6 +203,8 @@ int ll_seq_patch_walk(const uint8_t *blob, uint32_t len,
                         q += 2;
                         last_fill = 1;
                     }
+                    /* stays at marker position (runs chain); only a gap
+                     * byte returns to an op position (seq_patch.py 83-99) */
                 }
             }
         }
@@ -213,6 +230,10 @@ static void patch_row_paint(void *vctx, int row, int gap,
     int px = pp->x + gap, py = pp->y + row;
     for (int i = 0; i < nops; i++) {
         const ll_seq_patch_op *o = &ops[i];
+        if (o->kind == 2) {                  /* gap: advance, draw nothing */
+            px += o->cnt;
+            continue;
+        }
         for (int k = 0; k < o->cnt; k++) {
             if (px >= 0 && px < pp->cw && py >= 0 && py < pp->ch)
                 pp->canvas[(size_t)py * pp->cw + px] =

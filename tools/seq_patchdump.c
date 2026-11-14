@@ -25,6 +25,9 @@ static void rowprint(void *ctx, int row, int gap,
         printf(" -");
     for (int i = 0; i < nops; i++) {
         const ll_seq_patch_op *o = &ops[i];
+        if (o->kind == 2)
+            continue;                   /* gap byte: painter advance only,
+                                         * seq_patch.py emits no token */
         if (o->kind == 0) {
             printf(" c");
             for (int k = 0; k < o->cnt; k++) printf("%02x", o->b[k]);
