@@ -19,7 +19,7 @@ typedef struct {
     uint8_t     *rgb;      /* w*h*3 presentation buffer */
     SDL_AudioDeviceID dev; /* 0 = audio off/unavailable */
     unsigned     presented;
-    int          dirty;    /* fb changed since last present */
+    unsigned     start_frame; /* skip presenting frames below this */
     int          quit;
     Uint64       t0;
     Uint64       period;   /* ns per frame */
@@ -31,14 +31,6 @@ static void enqueue_audio(void *u, const uint8_t *pcm, unsigned len)
     player *p = (player *)u;
     if (p->dev)
         SDL_QueueAudio(p->dev, pcm, len);
-}
-
-static void on_frame(void *u, unsigned idx, const is_stream *s)
-{
-    player *p = (player *)u;
-    (void)idx;
-    (void)s;
-    p->dirty = 1;
 }
 
 static void present(player *p)
@@ -60,7 +52,6 @@ static void present(player *p)
     SDL_RenderClear(p->ren);
     SDL_RenderCopy(p->ren, p->tex, NULL, NULL);
     SDL_RenderPresent(p->ren);
-    p->dirty = 0;
     p->presented++;
 }
 
@@ -100,6 +91,30 @@ static void wait_until(player *p, Uint64 deadline_ns)
         if (p->quit)
             return;
     }
+}
+
+/* frame callback: fires at every frame boundary inside decode, where fb
+ * holds a coherent full frame; present exactly one per frame (chunks may
+ * carry several frames), paced by the fixed clock */
+static void on_frame(void *u, unsigned idx, const is_stream *s)
+{
+    player *p = (player *)u;
+    (void)idx;
+    if (s->st.frames <= p->start_frame)
+        return; /* decode only (delta chain), no present */
+    Uint64 frame = p->presented;
+    double perf_scale = (double)SDL_GetPerformanceFrequency() / 1e9;
+    Uint64 t0_ns = (Uint64)((double)p->t0 / perf_scale);
+    Uint64 deadline_ns = t0_ns + frame * p->period;
+    wait_until(p, deadline_ns);
+    if (p->quit)
+        return;
+    present(p);
+    /* drift clamp: if a frame is >2 periods late, resync the clock */
+    Uint64 now_ns = (Uint64)((double)SDL_GetPerformanceCounter() / perf_scale);
+    if (now_ns > deadline_ns + 2 * p->period)
+        p->t0 = (Uint64)((double)SDL_GetPerformanceCounter()
+                         - (double)(frame * p->period) * perf_scale);
 }
 
 int is_player_run(const char *path, int audio, unsigned start_frame)
@@ -156,12 +171,12 @@ int is_player_run(const char *path, int audio, unsigned start_frame)
      * as fallback for bogus/zero values. */
     int fps = p.is.fps > 0 ? p.is.fps : TICK_HZ;
     p.period = 1000000000ull / (Uint64)fps;
+    p.start_frame = start_frame;
     p.t0 = SDL_GetPerformanceCounter();
 
-    double perf_scale = (double)SDL_GetPerformanceFrequency() / 1e9;
     for (unsigned ci = 0; ci < p.is.nchunks && !p.quit; ci++) {
         /* frames before start_frame must still DECODE (frame deltas),
-         * they are just not presented and their audio is muted */
+         * only their presentation and audio are suppressed */
         int live = p.is.st.frames + 1 > start_frame;
         if (live)
             is_walk_audio_range(&p.is, ci, 1, p.dev ? enqueue_audio : NULL,
@@ -171,25 +186,6 @@ int is_player_run(const char *path, int audio, unsigned start_frame)
             fprintf(stderr, "is_player: desync at chunk %u\n", ci);
             break;
         }
-        if (!p.dirty)
-            continue;
-        if (!live) {
-            p.dirty = 0; /* consumed silently, keeps delta chain intact */
-            continue;
-        }
-        Uint64 frame = p.presented;
-        Uint64 deadline_ns =
-            (Uint64)(((double)p.t0) / perf_scale) + frame * p.period;
-        wait_until(&p, deadline_ns);
-        if (p.quit)
-            break;
-        present(&p);
-        /* drift clamp: if a frame is >2 periods late, resync clock */
-        Uint64 now_ns =
-            (Uint64)(((double)SDL_GetPerformanceCounter()) / perf_scale);
-        if (now_ns > deadline_ns + 2 * p.period)
-            p.t0 = SDL_GetPerformanceCounter()
-                 - (Uint64)((double)(frame * p.period) * perf_scale);
     }
     if (p.dev) { /* let queued audio drain (bounded) */
         while (SDL_GetQueuedAudioSize(p.dev) > 0 && !p.quit) {
