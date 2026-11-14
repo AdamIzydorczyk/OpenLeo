@@ -42,6 +42,7 @@ make verify-all
 # verify-skip  linux ESC-skip final frame == python reference
 # verify-win   same two proofs for the .exe, run under wine
 # verify-llrs  src/llrs.c == tools/llrs_unpack.py on all 4 containers
+# verify-pcx   src/ll_pcx.c == tools/pcx_dump.py on all 6 container PCX payloads
 ```
 
 ## Naming

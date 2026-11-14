@@ -63,7 +63,7 @@ verify-skip: ll_cutscene
 # Same two proofs for the Windows .exe, run under wine.
 # Z: = wine drive mapped to /, so $(DATA) is addressed as Z:$(DATA).
 WINEPREFIX ?= /tmp/opencode/wineprefix
-verify-win: ll_cutscene.exe
+verify-win: ll_cutscene.exe llrs_selftest.exe pcx_selftest.exe
 	WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	  wine ./ll_cutscene.exe Z:$(DATA)/INTRO_P.IS --ppm 1020 \
 	  Z:/tmp/opencode/c_win.ppm
@@ -74,9 +74,27 @@ verify-win: ll_cutscene.exe
 	  --skip-at 10 --no-audio
 	cmp /tmp/opencode/c_wskip.ppm /tmp/opencode/py_last/f01520.ppm \
 	  && echo "win skip-frame == python reference (byte-exact)"
+	env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
+	  python3 tools/verify_pcx.py $(DATA) ./llrs_selftest.exe \
+	  "wine ./pcx_selftest.exe"
+	@for F in ANIMACJE ETAPY SOUND LEVELDES; do \
+	  if env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
+	      wine ./llrs_selftest.exe $(DATA)/$$F 2>/dev/null | tr -d '\r' \
+	      | diff - <(python3 tools/llrs_unpack.py list $(DATA)/$$F 2>/dev/null) \
+	      >/dev/null; \
+	  then echo "win $$F: C == python (exact)"; \
+	  else echo "win $$F: MISMATCH"; exit 1; fi; done
 
 # src/llrs.c byte-for-byte agreement with tools/llrs_unpack.py on all four
 # containers, checked under ASan/UBSan.
+llrs_selftest.exe: tools/llrs_selftest.c src/llrs.c src/llrs.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
+	    tools/llrs_selftest.c src/llrs.c
+
+pcx_selftest.exe: tools/pcx_selftest.c src/ll_pcx.c src/ll_pcx.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
+	    tools/pcx_selftest.c src/ll_pcx.c
+
 llrs_selftest: tools/llrs_selftest.c src/llrs.c src/llrs.h
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
 	    -Isrc -o $@ tools/llrs_selftest.c src/llrs.c
@@ -90,10 +108,20 @@ verify-llrs: llrs_selftest
 	@echo "MENU index block (39 records):"
 	./llrs_selftest --block $(DATA)/ANIMACJE MENU | head -3
 
-verify-all: verify verify-skip verify-win verify-llrs
+# src/ll_pcx.c byte-for-byte agreement with tools/pcx_dump.py on every PCX
+# payload inside ANIMACJE/ETAPY.
+pcx_selftest: tools/pcx_selftest.c src/ll_pcx.c src/ll_pcx.h
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	    -Isrc -o $@ tools/pcx_selftest.c src/ll_pcx.c
+
+verify-pcx: pcx_selftest llrs_selftest
+	python3 tools/verify_pcx.py $(DATA) ./llrs_selftest ./pcx_selftest
+
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
-	rm -f ll_cutscene ll_cutscene.exe llrs_selftest *.o *.obj
+	rm -f ll_cutscene ll_cutscene.exe llrs_selftest llrs_selftest.exe \
+	      pcx_selftest pcx_selftest.exe *.o *.obj
 
-.PHONY: run win verify verify-skip verify-win verify-llrs verify-all clean
+.PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx verify-all clean

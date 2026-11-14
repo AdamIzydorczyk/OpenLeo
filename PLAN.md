@@ -299,5 +299,37 @@ only the Makefile rule adds per-target flags/libs. Variant knobs
 `src/ll_config.h` defaults plus `-D` on the compiler line; engine code in
 `src/` is shared and variant-agnostic except behind those flags.
 
-## 8. Legal/ethical
+## 8. M3 findings (asset format recon, 2026-11-14)
+
+llrs containers (reader ported+verified: `src/llrs.c`, `make verify-llrs`):
+- ETAPY/ANIMACJE level slots (id=2) -> 5200B nested index blocks; id=1
+  records = named payloads, id=2 = leaf blocks (5200B sprite data), id=0 =
+  padding. The "junk" records are padding only - all real payloads are
+  plain (no encryption anywhere in the containers).
+- ANIMACJE/MENU block (slot 190): 39 recs, 9 payloads = menu .SEQ scripts
+  (LEVEL06/LEVEL08/RESTGRY/AUTORZY/TAK/CNIE/BERLO/X.SEQ) + OPTIONS.PCX.
+- ETAPY level blocks carry per-level resources: POMOC00/POMOC32/TAK/NEXT
+  .SEQ, intro/plan .PCX (JUNCTION.PCX 320x200, PLAN3.PCX 640x359,
+  M15/KARA/PIORUN3...), plus id=2 sprite leaf blocks.
+- LEVELDES: .DES level descriptors are PLAIN TEXT key=value
+  (dir/intro=x.pcx/pozycja/tlo=planX.pcx,pcm/muzyka/lew/animacje=...).des...);
+  POL/ENG/GER/POL.ORG slots are nested index blocks of the per-language
+  text copies. This is the level wiring table for gameplay.
+- PCX payloads: standard 8bpp RLE but non-standard headers (planes byte
+  garbage, no 0x0C marker, palette = last 768B, junk tail). `src/ll_pcx.c`
+  verified byte-exact vs `tools/pcx_dump.py` on all 6 container PCXs
+  (`make verify-pcx`).
+- .SEQ payloads: binary, entropy ~4.3-5.6, header u16[3]: (framecount?, 15,
+  0) then u16 pairs; 0x80-0x8f opcode runs (7-16B apart) - vector/sprite
+  animation scripts; text token strings (BY_X/SOLID/CHECK_*) belong to
+  .mnu/text parsing (FUN_00051913) not .SEQ; decode fn still open - next
+  step is dynamic QEMU tracing of the SEQ loader.
+- STATUS.LEO map pinned from FUN_0005dcc0 (writer) / FUN_0005dae0 (reader):
+  75 LE dwords = [0..20] state block A, [21..41] block B (var base +0x54),
+  [42..62] block C (DAT_000cf46c, zero in stock save), [63]=DAT_000a94f0<<8,
+  [64]=DAT_000cf464<<8, [65..74] plain dwords (this save: 128,200,1,...);
+  obfuscation word = (i|0x77072400)^(var|(i&0xffffff00)), i = byte1 index.
+  Field semantics need a paired QEMU capture (menu vs mid-level save).
+
+## 9. Legal/ethical
 Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.
