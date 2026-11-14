@@ -43,13 +43,19 @@
 #define DATA_DIR_FROM_CFG 0
 #endif
 
-/* Fixed-timestep pacing for the native ports (PLAN S6 "NATIVE PORTS"):
- * the original paces by execution rate (busy loop), thousands of times
- * too fast on modern CPUs. Engine logic must advance only on tick
- * boundaries at this rate. 22 Hz = observed counter cadence of the
- * slowed QEMU baseline. original/ (DOS) ignores this knob. */
+/* Fixed-timestep pacing for the native ports (PLAN S6 "NATIVE PORTS").
+ * REV 2026-11-14, measured against plain-TCG QEMU as real-time oracle:
+ * LEO reprograms PIT ch0 to 70.00 Hz (count 0x4295, FUN_00018870) for the
+ * whole session after boot - BIOS ticks 40:6C were measured at 69.8/s in
+ * EVERY game state (three full INTRO_P replays + attract + menu), and the
+ * counter FREEZEs outright while the 640x400 corner-word menu polls the
+ * keyboard.  The .IS movie clock is the same 70 Hz (22050/315 audio
+ * blocks; is_player.c derives it from the block size directly).  Non-movie
+ * one-shot waits use the 55 ms timer class (FUN_0005b860 +0xe=0x37).
+ * So the engine beat for menu/gameplay logic = 70 Hz; old "22 Hz" came
+ * from a throttled-icount artifact.  original/ (DOS) ignores this knob. */
 #ifndef TICK_HZ
-#define TICK_HZ 22
+#define TICK_HZ 70
 #endif
 
 /* Case-insensitive filesystem lookup (Windows/DOS FAT). Native Linux

@@ -237,10 +237,23 @@ menu auto-timeout back to intro is a game timer whose *perceived* length
 scales with engine execution rate, which is why the loop seemed broken at
 full TCG speed.
 
-**Speed/pacing model.** The engine replaces the BIOS timer chain (0x0040:006C
-stays frozen; game keeps private counters, e.g. heap dword at 0x168d1b4 ticks
-~22 Hz while playing) and its animation/loop pacing is execution-rate bound
-(busy pacing, no PIT calibration), so on stock TCG it runs wildly fast.
+**Speed/pacing model.** CORRECTED 2026-11-14 (direct measurement, replaces the
+earlier "40:6C stays frozen / ~22 Hz private counter" reading, which was a
+host-side artifact of the throttled QEMU baseline): the game DOES use the
+hardware clock - it reprograms PIT channel 0 to 70 Hz for the whole ISplay
+subsystem. FUN_00018c40 (IS init) calls FUN_00018870: out(0x43,0x36);
+out(0x40,0x95); out(0x40,0x42) = count 0x4295 = 17045 -> 1193182/17045 =
+70.00 Hz, and FUN_00018ce0 (IS teardown) calls FUN_000188c0 which writes
+count 0 (=65536 -> BIOS 18.2 Hz) back. Measured in QEMU (plain TCG, virtual
+clock = wall): the BIOS tick counter 40:6C climbs at 69.8 ticks/s while an
+.IS movie plays and 18.2/s during boot and in the non-movie states, exactly
+matching the .IS audio block rate (22050/315 = 70 Hz). The general (non-movie)
+timer class defaults to a 55 ms period (FUN_0005b860 sets +0xe = 0x37;
+FUN_0005b9e0 converts ms -> PIT counts with 0x1d216 = 119318*10, i.e.
+1193182/10), so outside movies the engine's beat is the BIOS ~18.2 Hz.
+Game logic/animation *loops* are still execution-rate bound (busy pacing),
+so on stock TCG the CPU-bound parts run wildly fast while the
+timer/DMA-paced parts (all .IS playback) run in real time.
 Control levers, best -> worst:
 1. `-icount shift=N`: QEMU 11 validates the shift (shift=11 rejected on this
    host; 9 and 10 work). Runtime `icount shift=` changes via monitor wedge the
@@ -280,13 +293,24 @@ the wall execution rate. EXACT pacing sources, pinned 2026-11-14:
    7.97 s (matches the user's memory "about 8 seconds"), ENA1 14.5 s,
    KONIEC 52.4 s, INTRO_P 192.7 s. LEO_IS_PERIOD_MS=N forces a uniform
    hold (tests); LEO_IS_FPS_DIRECT=1 keeps the very first naive reading.
-- engine tick: game has ZERO clock sync (no PIT port I/O, no INT 1Ah, no
-  BIOS 40:6C reads anywhere in decompiled/all) - pure fixed-work-per-frame.
-  QEMU docs confirm icount: "one instruction every 2^N ns virtual time",
-  so shift=10 = 1024ns/instr ~ 0.977 MIPS = the retail-correct calibration;
-  gameplay tick 22 Hz => ~44k instr/tick. To refine 22 Hz exactly: INT21
-  marker probe + INT 1Ah AH=0 CX:DX BIOS-tick timestamps under icount are
-  fully deterministic and host-speed-independent.
+- engine tick: REV 2026-11-14 (direct `x /1wd 0x46c` sampling in plain-TCG
+  QEMU). The old "ZERO clock sync / frozen 40:6C / 22 Hz private counter"
+  claim was a THROTTLED-icount artifact; the decompile does contain PIT
+  writers: FUN_00018870 programs ch0 count 0x4295 (=70.00 Hz) on ISplay
+  init (via FUN_00018c40), FUN_000188c0 restores count 0 (BIOS 18.2 Hz) on
+  teardown (via FUN_00018ce0); the non-movie timer class FUN_0005b820/
+  FUN_0005b860 defaults to 55 ms (+0xe = 0x37, ms->counts via 0x1d216 =
+  1193182/10 in FUN_0005b9e0). Measured: 40:6C climbs at 69.8 ticks/s for
+  the WHOLE span of every .IS movie (three INTRO_P replays: 194.45 /
+  194.30 / 194.58 s wall vs 194.48 s predicted by the audio-block model,
+  0.1% error) and drops to ~18.2 Hz only at boot and in 1-2 s inter-state
+  dips. So: movies = 70 Hz audio-block/DMA beat (implemented); menu +
+  gameplay beat = the 55 ms timer class (~18.2 Hz); CPU-bound loops stay
+  execution-rate-paced (that part of the old claim stands). TICK_HZ=22 in
+  ll_config.h is being replaced by these two classes. QEMU plain-TCG (no
+  icount) is the real-time oracle: PIT and SB16 DMA run on virtual clock =
+  wall, only CPU-bound loops run fast; icount shift=10,align=on is NOT a
+  usable absolute-time base on this host ("guest is late by 0.0-1.0 s").
 
 **Method notes.** Probe = 4-byte stub `b0 <code>; cd 21` at a vaddr on
 COPY named `LEOP.EXE` (must be 8.3); empty `C:\LEO_OUT.LOG` = game exited at
