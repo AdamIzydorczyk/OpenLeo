@@ -129,11 +129,17 @@ static void run_menu(const char *data)
                                    "QUIT" };
     const char *aut = getenv("LEO_MENU_AUTO"); /* "1" = pick NEW GAME, quit */
     int auto_i = aut ? atoi(aut) : 0;
+    const char *dem = getenv("LEO_DEMO");      /* demo: auto-pick NEW GAME */
     for (;;) {
         int sel;
         if (auto_i) {
             sel = auto_i - 1;
             printf("menu: LEO_MENU_AUTO -> picked item %d\n", sel);
+        } else if (dem && !auto_i) {
+            sel = 0;
+            printf("menu: demo auto-picks NEW GAME (title shown for %.1f s)\n",
+                   (atof(dem)));
+            SDL_Delay((Uint32)(atof(dem) * 1000.0));
         } else {
             sel = ll_menu_open(bg, blen, items, 3, anims, nanim);
         }

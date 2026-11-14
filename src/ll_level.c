@@ -419,10 +419,15 @@ static void des_place_lines(llrs *an, const llrs_slot *arecs, unsigned narec,
             eol++;
         char typ[16] = "", nm[24] = "", mov[24] = "";
         int x = 0, y = 0, used = 0;
-        int nf = sscanf(p, "%15[^,[:space:]],%23[^,[:space:]],"
-                          "%23[^,[:space:]],%d,%d%n",
+        int nf = sscanf(p, "%15[^,],%23[^,],%23[^,],%d,%d%n",
                         typ, nm, mov, &x, &y, &used);
-        if (!(nf == 5 && used > 8 && used <= eol - p && strchr(mov, '.'))
+        /* glibc scan sets swallow newlines into [^,] fields, so a bare
+         * count line can bleed into the next fields: reject any field or
+         * span that contains whitespace */
+        if (nf == 5 && (strpbrk(typ, " \t\r\n") || strpbrk(nm, " \t\r\n")
+                        || strpbrk(mov, " \t\r\n") || used > eol - p))
+            nf = 4;
+        if (!(nf == 5 && used > 8 && strchr(mov, '.'))
             || x < 0 || x >= cw) {
             if (nf == 5 && strchr(mov, '.'))  /* world coords (back_rect is
                                                * 2560x600); no scroll cam yet */

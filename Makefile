@@ -215,12 +215,15 @@ verify-seq: seq_selftest seq_patchdump
 # Level scene: TUNGA.11 = PLAN3.PCX bg + MOVEPLAT leaf .SEQ sprite animated
 # by the HD-install ED000002.MOV state machine (LEO_HD_DIR). Fixed-tick PPM
 # dumps must differ (motion) and must be composited over the bare background.
+# LEO_HELP_SECS=0 skips the help overlay for the pure-scene dumps.
 verify-level: ll_level
 	@for T in 2 8; do env -u DISPLAY SDL_VIDEODRIVER=dummy \
 	  SDL_AUDIODRIVER=dummy LEO_HD_DIR=/tmp/opencode/hd_files \
+	  LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
 	  LEO_LEVEL_PPM=/tmp/opencode/lv_tick$$T.ppm LEO_LEVEL_PPM_TICK=$$T \
 	  ./ll_level $(DATA) TUNGA.11 > /tmp/opencode/lv_tick$$T.log 2>&1; \
-	  if [ $$? -ne 0 ]; then echo "level scene FAILED"; cat /tmp/opencode/lv_tick$$T.log; exit 1; fi; done
+	  rc=$$?; if [ $$rc -ne 0 ]; then echo "level scene FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/lv_tick$$T.log; exit 1; fi; done
 	@grep -q 'show TUNGA.11: bg PLAN3.PCX 640x359, 1 animated' /tmp/opencode/lv_tick8.log \
 	  && grep -q 'obj MOVEPLAT/ED000002.SEQ.*\[mov\]' /tmp/opencode/lv_tick8.log \
 	  && grep -q 'tick 8: ED000002.SEQ state 1 at' /tmp/opencode/lv_tick8.log \
