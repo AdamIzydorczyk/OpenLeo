@@ -5,6 +5,7 @@
 #include "is_player.h"
 #include "../is_stream.h"
 #include "../ll_config.h"
+#include "../ll_level.h"
 
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -287,6 +288,10 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     if (rpath && strcmp(rpath, path) != 0)
         printf("is_player: data path resolved as: %s\n", rpath);
     free(rpath);
+    if (audio && ll_audio_init() != 0)   /* pins driver away from SDL2's
+                                            buggy pipewire backend (see
+                                            ll_level.h) */
+        fprintf(stderr, "is_player: audio init failed: %s\n", SDL_GetError());
     if (SDL_Init(SDL_INIT_VIDEO | (audio ? SDL_INIT_AUDIO : 0)) != 0) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
         is_close(&p.is);

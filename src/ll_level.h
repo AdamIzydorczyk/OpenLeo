@@ -29,6 +29,13 @@ int ll_level_anims(const char *data_dir, const char *level);
 int ll_music_play(const char *data_dir, const char *modname);
 void ll_music_stop(void);
 
+/* Init SDL audio, dodging SDL2 >= 2.32's native pipewire backend (it
+ * emits squeaking/silent streams on some PipeWire setups; verified on
+ * the dev desktop 2026-11-14). Call BEFORE any SDL audio use: it pins
+ * SDL_AUDIODRIVER=alsa only when SDL would auto-pick pipewire, so
+ * Windows and explicit SDL_AUDIODRIVER=... users are unaffected. */
+int ll_audio_init(void);
+
 /* Level names = top-level id==2 block keys of the ETAPY container, in
  * container order (verified: the CD ETAPY carries 14 such blocks).
  * Returns the count filled (max = capacity of names[][32]). */

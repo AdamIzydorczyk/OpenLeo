@@ -40,6 +40,36 @@ static void mod_sdlcb(void *ud, Uint8 *stream, int len)
                (size_t)len / (2 * sizeof(int16_t)));
 }
 
+/* Initialize the audio subsystem, dodging SDL2 >= 2.32's native
+ * "pipewire" backend, which on the dev desktop (SDL 2.32.74 + PipeWire,
+ * 2026-11-14) delivered squeaking or silent streams for BOTH the
+ * callback and QueueAudio paths while the alsa backend played the very
+ * same bytes clean.  Only fires when SDL would auto-pick pipewire, so
+ * Windows (directsound) and older/user-pinned setups are untouched;
+ * LEO/SDL_AUDIODRIVER in the environment always wins. */
+int ll_audio_init(void)
+{
+    if (SDL_WasInit(SDL_INIT_AUDIO))
+        return 0;
+    if (SDL_getenv("SDL_AUDIODRIVER"))
+        return SDL_InitSubSystem(SDL_INIT_AUDIO) == 0 ? 0 : -1;
+    if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0)
+        return -1;
+    const char *drv = SDL_GetCurrentAudioDriver();
+    if (drv && strcmp(drv, "pipewire") == 0) {
+        SDL_QuitSubSystem(SDL_INIT_AUDIO);
+        SDL_setenv("SDL_AUDIODRIVER", "alsa", 1);
+        if (SDL_InitSubSystem(SDL_INIT_AUDIO) == 0) {
+            printf("ll_audio: SDL pipewire backend unreliable, "
+                   "audio on alsa driver\n");
+            return 0;
+        }
+        SDL_setenv("SDL_AUDIODRIVER", drv, 1);   /* restore, alsa absent */
+        return SDL_InitSubSystem(SDL_INIT_AUDIO) == 0 ? 0 : -1;
+    }
+    return 0;
+}
+
 /* ---- standalone music playback (menu/map screens), singleton ---- *
  * Engine anchor: FUN_0005dec0 opens+plays "mapka.mod" for the MAPKA
  * (level-select) screen; FUN_0005df20 stops it on every exit path.
@@ -71,7 +101,7 @@ int ll_music_play(const char *data_dir, const char *modname)
         return 1;
     }
     ll_mod_start(&s_mst, &s_mus);
-    if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) {
+    if (ll_audio_init() != 0) {
         ll_music_stop();
         return 1;
     }
@@ -1451,7 +1481,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         if (audio && !getenv("LEO_NO_MUSIC")) {
             const char *muz = des_get(kvs, nk, "muzyka");
             if (muz && *muz) {
-                if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0)
+                if (ll_audio_init() != 0)
                     printf("ll_level: audio init: %s\n", SDL_GetError());
                 char stem[16], mname[24];
                 stem_of(muz, stem, sizeof stem);

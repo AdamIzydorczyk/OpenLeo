@@ -182,6 +182,8 @@ static void run_menu(const char *data, int audio)
             const char *lsaut = getenv("LEO_LEVELSEL_AUTO");
             if (auto_i && lsaut) {
                 li = atoi(lsaut) - 1;
+                if (li < 0 || li >= n)
+                    li = -1; /* out-of-range hook behaves like (BACK) */
                 printf("menu: LEO_LEVELSEL_AUTO -> picked level %d\n", li);
             } else {
                 li = ll_menu_open(NULL, 0, labels, n + 1, NULL, 0);

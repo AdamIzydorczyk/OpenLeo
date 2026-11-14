@@ -626,7 +626,13 @@ FNV-1a-64 linux == wine byte-exact (TUNGA fnv=e21ee1d2b63508a5,
 RAN b030b60db7c8c54c, ENA2 eea5e519512fb8ef).
 Wired into `ll_level_show()`: block "5c" resolves `muzyka=` -> SOUND ->
 SDL_OpenAudioDevice callback pump (SDL_InitSubSystem(AUDIO)); LEO_NO_MUSIC
-or --no-audio disables. `mod_selftest FILE.MOD [MS] [OUT.WAV]` renders
+or --no-audio disables. NOTE SDL_AUDIO: SDL2 >= 2.32 auto-picks its native
+"pipewire" backend, which on the dev desktop (SDL 2.32.74, PipeWire) made
+EVERY SDL stream squeak or go silent (callback and QueueAudio alike, via
+both pipewire and pulseaudio drivers) while SDL's own disk-driver dump
+was byte-perfect and mpv was clean; `ll_audio_init()` (ll_level.c) now
+switches to SDL's alsa backend exactly when SDL would pick pipewire
+(Windows/directsound and explicit SDL_AUDIODRIVER= unaffected). `mod_selftest FILE.MOD [MS] [OUT.WAV]` renders
 audible WAVs for listening. MAPKA.MOD is 6CHN and probably not real
 music (menu map ambience?) - not in the CI set, still parses.
 
