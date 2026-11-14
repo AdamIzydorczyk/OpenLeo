@@ -84,7 +84,8 @@ verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_
 	  python3 tools/verify_seq.py $(DATA) --grammar "wine ./seq_selftest.exe" \
 	  --patch "wine ./seq_patchdump.exe"
 	@python3 tools/verify_pcm.py $(DATA) "wine ./pcm_selftest.exe" \
-	  | tail -1 | grep -q '4/4 payloads byte-exact' \
+	  Z:/tmp/opencode/pcm_verify.tmp \
+	  | tr -d '\r' | tail -1 | grep -q '4/4 payloads byte-exact' \
 	  && echo "win PCM: C == python (exact)"
 	@for F in ANIMACJE ETAPY SOUND LEVELDES; do \
 	  if env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
@@ -225,6 +226,10 @@ verify-level: ll_level
 	  && grep -q 'tick 8: ED000002.SEQ state 1 at' /tmp/opencode/lv_tick8.log \
 	  && echo "level scene: wiring + .SEQ sprite + .MOV state machine (ok)" \
 	  || { echo "level scene grep FAILED"; cat /tmp/opencode/lv_tick8.log; exit 1; }
+	@grep -q 'placement ANI3.DES' /tmp/opencode/lv_tick8.log \
+	  && grep -q 'ANIBACK/strum1.mov not on these containers' /tmp/opencode/lv_tick8.log \
+	  && echo "placement join: animacje= -> ANI3.DES -> ANIMACJE leaf grammar (ok; strum art absent on this CD)" \
+	  || { echo "placement join FAILED"; cat /tmp/opencode/lv_tick8.log; exit 1; }
 	@if cmp -s /tmp/opencode/lv_tick2.ppm /tmp/opencode/lv_tick8.ppm; \
 	then echo "level anim FAILED: tick2 == tick8"; exit 1; \
 	else echo "level anim: platform moves on screen (tick2 != tick8, ok)"; fi

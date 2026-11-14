@@ -162,7 +162,9 @@ void llrs_block_free(llrs_slot *recs) { free(recs); }
 
 long llrs_read(const llrs *c, const llrs_slot *s, unsigned char **out)
 {
-    unsigned char *b = (unsigned char *)malloc(s->size ? s->size : 1);
+    /* one extra NUL: several payloads are text (.DES/.MNU/.MOV) and the
+     * scanners walk them as C strings; the NUL is past the payload bytes */
+    unsigned char *b = (unsigned char *)malloc((size_t)s->size + 1);
     if (!b)
         return -1;
     if (fseek(c->f, (long)s->off, SEEK_SET) != 0
@@ -170,6 +172,7 @@ long llrs_read(const llrs *c, const llrs_slot *s, unsigned char **out)
         free(b);
         return -1;
     }
+    b[s->size] = '\0';
     *out = b;
     return (long)s->size;
 }

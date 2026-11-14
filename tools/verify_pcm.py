@@ -67,12 +67,15 @@ def main():
     data = sys.argv[1]
     cmd = sys.argv[2] if len(sys.argv) > 2 else './pcm_selftest'
     total = bad = 0
+    tmp = sys.argv[3] if len(sys.argv) > 3 else '/tmp/opencode/pcm_verify.tmp'
     for etapy in ('ETAPY',):
         for name, raw in pcm_payloads(data + '/' + etapy):
             total += 1
             ref = decode(raw)
-            got = subprocess.run(cmd.split() + ['-', name],
-                                 input=raw, capture_output=True)
+            with open(tmp, 'wb') as fh:           # wine mangles big stdin
+                fh.write(raw)
+            got = subprocess.run(cmd.split() + [tmp, name],
+                                 capture_output=True)
             line = got.stdout.decode().strip()
             want = ('decode %s w=%d win=%d stride=%d rows=%d partial=%d '
                     'fnv=%016x' % (name, ref[0], ref[1], ref[2], ref[4],

@@ -505,8 +505,23 @@ background PCX on the CD - its tlo is plan3.pcx,.pcm,.pcm). CI:
 grep, compositing proven vs bare bg: 1885 painted px, 4018 differing bytes
 after the +4px bob).
 
-Still open: exact .des X,Y -> ED-key placement join (SETUP hashes mov names;
-strum1.mov etc.), PCM tiling, and level bulk data (.blk/.suf, most sub-.des)
+**`.des` placement join CRACKED (verified grammar)**: the main .DES's
+`animacje=` key names the per-level placement files (`ani4.des,ani3.des,
+ani2.des,ani1.des,animdemo.des`); the HD level block ships ANI3.DES (ENA.03
+also ZWIERZ3.DES) - the rest are data holes on this CD. Line fields:
+**TYPE = the ANIMACJE/<level> leaf block name** (ANIBACK/IGLO/MOVEPLAT/...),
+**mov stem = the record stem inside that leaf** (`IGLO,xxx,elem04.mov,317,36`
+-> ANIMACJE/LONA.05/IGLO/ELEM04.SEQ - same-container join, no hash),
+**X,Y = world coords** (world = back_rect, 2560x600 on TUNGA; `ANIBACK,
+dumny,strum2.mov,1494,503` is off the 640-px view - no scroll camera yet,
+so off-view lines are logged, not drawn). `src/ll_level.c des_placement()`
+applies every resolvable line (retargets the fallback object of the same
+stem, else instantiates another copy from the leaf with the HD .MOV
+attached); unresolvable ones print the exact data hole (TUNGA's ANIBACK
+leaf holds no records at all - strum art absent). CI verify-level greps
+the join log.
+
+Still open: PCM tiling, and level bulk data (.blk/.suf, most sub-.des)
 absent from this CD image (LEVELDES slots end at 0x19ba40bb; only 15 .DES
 shipped) - stock game hits the idiv-0x50 trap at level start (LEO_OUT.LOG),
 so original level rendering was never baselined.

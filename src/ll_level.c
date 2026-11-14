@@ -88,14 +88,15 @@ static const char *des_get(const des_kv *kvs, int n, const char *k)
     return "";
 }
 
-/* Parse the "key=value" .DES text (CRLF); returns lines filled. */
-static int des_parse(const char *txt, des_kv *kvs, int max)
+/* Parse the "key=value" .DES text (CRLF); returns lines filled.
+ * `len` bounds the scan: container payloads are not NUL-terminated. */
+static int des_parse(const char *txt, size_t len, des_kv *kvs, int max)
 {
     int n = 0;
-    const char *p = txt;
-    while (*p && n < max) {
+    const char *p = txt, *end = txt + len;
+    while (p < end && *p && n < max) {
         const char *eol = p;
-        while (*eol && *eol != '\n' && *eol != '\r')
+        while (eol < end && *eol && *eol != '\n' && *eol != '\r')
             eol++;
         const char *eq = memchr(p, '=', (size_t)(eol - p));
         if (eq) {
@@ -294,14 +295,17 @@ static void elem_size(const ll_seq *s, const ll_seq_elem *e, int *w, int *h)
  * X,Y placement: x = |f0|; f2 >= 0 is a world-below coordinate, so tall
  * level sprites bottom-align in the view (the MENU scripts all carry
  * negative f0/f2 and draw at exactly (-f0,-f2), see ll_menu.c). */
+/* bottom-aligned y for tall level sprites (world y is a below-anchor) */
+static int bottom_y(int sh, int ch)
+{
+    return sh < ch ? ch - sh : 0;
+}
+
 static void anchor_of(const ll_seq_elem *e, int sh, int ch, int *ax, int *ay)
 {
     int ex = (int)(short)e->f0, ey = (int)(short)e->f2;
     *ax = ex < 0 ? -ex : ex;
-    if (ey < 0)
-        *ay = -ey;
-    else
-        *ay = sh < ch ? ch - sh : 0;
+    *ay = ey < 0 ? -ey : bottom_y(sh, ch);
 }
 
 static void obj_advance(lvl_obj *o, unsigned dt_ms)
@@ -391,6 +395,216 @@ static void scene_ppm(const char *path, int w, int h, const unsigned char *idx,
 }
 
 /* paint one 8bpp canvas through the palette LUT (shared present path) */
+/* 4b) .des placement join: HD-install sub-.des (ANI*.DES payloads in the
+ *     level's ETAPY block) carry one "TYPE,name,mov,X,Y" object line per
+ *     level object (verified grammar on TUNGA.11/ZARIA/LONA). TYPE names
+ *     the ANIMACJE/<level> leaf block and the <mov> stem names one record
+ *     inside that leaf (ELEM04.SEQ-style stems; TUNGA's strum1.mov art is
+ *     absent from both trees - documented CD hole), X,Y is the world
+ *     placement. Apply it for every line whose art exists: instantiate a
+ *     copy at X,Y (bottom-align vertically like the anchor heuristic when
+ *     Y exceeds the view) and retarget the fallback heuristic object with
+ *     the same stem. Lines whose art is missing are logged and skipped. */
+static void des_place_lines(llrs *an, const llrs_slot *arecs, unsigned narec,
+                            llrs *hd_an,
+                            const llrs_slot *hrecs, unsigned nhrec,
+                            const char *txt, size_t len,
+                            lvl_obj *objs, int *nobj, int maxobj,
+                            int cw, int ch, const char *level)
+{
+    const char *p = txt, *end = txt + len;
+    while (p < end) {
+        const char *eol = p;
+        while (eol < end && *eol != '\n' && *eol != '\r')
+            eol++;
+        char typ[16] = "", nm[24] = "", mov[24] = "";
+        int x = 0, y = 0, used = 0;
+        int nf = sscanf(p, "%15[^,[:space:]],%23[^,[:space:]],"
+                          "%23[^,[:space:]],%d,%d%n",
+                        typ, nm, mov, &x, &y, &used);
+        if (!(nf == 5 && used > 8 && used <= eol - p && strchr(mov, '.'))
+            || x < 0 || x >= cw) {
+            if (nf == 5 && strchr(mov, '.'))  /* world coords (back_rect is
+                                               * 2560x600); no scroll cam yet */
+                printf("ll_level: des %s: %s/%s at (%d,%d) off-view\n",
+                       level, typ, mov, x, y);
+            p = eol;
+            while (p < end && (*p == '\n' || *p == '\r'))
+                p++;
+            continue;
+        }
+        {
+            char stem[16];
+            stem_of(mov, stem, sizeof stem);
+            int done = 0;
+            for (int m = 0; m < *nobj; m++)   /* retarget fallback object */
+                if (objs[m].leaf[0] && ci_eq(objs[m].leaf, typ)) {
+                    char st2[16];
+                    stem_of(objs[m].key, st2, sizeof st2);
+                    if (ci_eq(st2, stem)) {
+                        objs[m].bx = objs[m].x = x;
+                        if (y + objs[m].sh <= ch)
+                            objs[m].by = objs[m].y = y;
+                        printf("ll_level: des-place %s/%s at (%d,%d)\n",
+                               typ, objs[m].key, objs[m].x, objs[m].y);
+                        done = 1;
+                    }
+                }
+            if (!done && arecs) {             /* instantiate from the leaf */
+                const llrs_slot *lf = NULL;
+                for (unsigned k = 0; k < narec; k++)
+                    if (arecs[k].id == 2 && arecs[k].name[0] &&
+                        ci_eq(arecs[k].name, typ))
+                        lf = &arecs[k];
+                if (!lf)
+                    printf("ll_level: des %s: leaf %s (%s) not in ANIMACJE"
+                           " (data hole)\n", level, typ, mov);
+                else if (*nobj < maxobj) {
+                    llrs_slot *lrec = NULL;
+                    unsigned nlrec = 0;
+                    const llrs_slot *sr = NULL;
+                    if (llrs_block(an, lf, &lrec, &nlrec) == 0)
+                        for (unsigned k = 0; k < nlrec; k++) {
+                            char st2[16];
+                            stem_of(lrec[k].name, st2, sizeof st2);
+                            if (lrec[k].id == 1 && ci_eq(st2, stem)) {
+                                sr = &lrec[k];
+                                break;
+                            }
+                        }
+                    if (!sr)
+                        printf("ll_level: des %s: %s/%s not on these"
+                               " containers (data hole)\n", level, typ, mov);
+                    else {
+                        lvl_obj *o = &objs[*nobj];
+                        memset(o, 0, sizeof *o);
+                        if (llrs_read(an, sr, &o->blob) >= 0 &&
+                            ll_seq_parse(o->blob, (uint32_t)sr->size,
+                                         &o->seq) == 0) {
+                            int first = -1;
+                            for (unsigned e = 0; e < o->seq.count; e++)
+                                if (o->seq.els[e].arr_n > 0) {
+                                    first = (int)e;
+                                    break;
+                                }
+                            if (first < 0) {
+                                free(o->blob);
+                                o->blob = NULL;
+                            } else {
+                                o->eidx0 = first;
+                                snprintf(o->key, sizeof o->key, "%s",
+                                         sr->name);
+                                snprintf(o->leaf, sizeof o->leaf, "%s",
+                                         lf->name);
+                                elem_size(&o->seq, &o->seq.els[first],
+                                          &o->sw, &o->sh);
+                                o->x = o->bx = x;
+                                o->y = o->by = (y + o->sh <= ch)
+                                                   ? y : bottom_y(o->sh, ch);
+                                if (hrecs) {
+                                    llrs_slot *mr = NULL;
+                                    unsigned nmr = 0;
+                                    const llrs_slot *hl = NULL;
+                                    for (unsigned k = 0; k < nhrec; k++)
+                                        if (hrecs[k].id == 2 &&
+                                            hrecs[k].name[0] &&
+                                            ci_eq(hrecs[k].name, typ))
+                                            hl = &hrecs[k];
+                                    if (hl &&
+                                        llrs_block(hd_an, hl, &mr,
+                                                   &nmr) == 0) {
+                                        const llrs_slot *mv =
+                                            rec_find(mr, nmr, stem, ".MOV");
+                                        if (mv &&
+                                            llrs_read(hd_an, mv,
+                                                      &o->movtxt) > 0)
+                                            mov_parse((char *)o->movtxt,
+                                                      &o->mov);
+                                        llrs_block_free(mr);
+                                    }
+                                }
+                                printf("ll_level: des-place %s/%s at (%d,%d)"
+                                       " (new copy)\n", typ, o->key,
+                                       o->x, o->y);
+                                (*nobj)++;
+                            }
+                        }
+                    }
+                    llrs_block_free(lrec);
+                }
+            }
+        }
+        p = eol;
+        while (p < end && (*p == '\n' || *p == '\r'))
+            p++;
+    }
+}
+
+static void des_placement(llrs *an, const llrs_slot *arecs, unsigned narec,
+                          llrs *hd_an,
+                          const llrs_slot *hrecs, unsigned nhrec,
+                          llrs *hd_ety, const llrs_slot *hd_blk2,
+                          const des_kv *kvs, int nk,
+                          lvl_obj *objs, int *nobj, int maxobj,
+                          int cw, int ch, const char *level)
+{
+    if (!hd_ety || !hd_blk2)
+        return;
+    llrs_slot *hrec2 = NULL;
+    unsigned nh2 = 0;
+    if (llrs_block(hd_ety, hd_blk2, &hrec2, &nh2))
+        return;
+
+    /* the main .DES names the placement files: animacje=ani4.des,ani3.des */
+    char list[512];
+    snprintf(list, sizeof list, "%s", des_get(kvs, nk, "animacje"));
+    char *save = NULL;
+    int touched = 0;
+    for (char *tok = strtok_r(list, ",", &save); tok;
+         tok = strtok_r(NULL, ",", &save)) {
+        while (*tok == ' ')
+            tok++;
+        if (!tok[0])
+            continue;
+        const llrs_slot *dr = NULL;
+        for (unsigned k = 0; k < nh2; k++)
+            if (hrec2[k].id == 1 && hrec2[k].name[0] &&
+                ci_eq(hrec2[k].name, tok))
+                dr = &hrec2[k];
+        if (!dr) {
+            printf("ll_level: des %s: %s not in the HD level block"
+                   " (data hole)\n", level, tok);
+            continue;
+        }
+        unsigned char *txt = NULL;
+        if (llrs_read(hd_ety, dr, &txt) < 0)
+            continue;
+        printf("ll_level: placement %s (%u B)\n", dr->name, dr->size);
+        des_place_lines(an, arecs, narec, hd_an, hrecs, nhrec,
+                        (const char *)txt, (size_t)dr->size,
+                        objs, nobj, maxobj, cw, ch, level);
+        free(txt);
+        touched = 1;
+    }
+    if (!touched) {                    /* no animacje= list: try any .DES */
+        for (unsigned k = 0; k < nh2; k++) {
+            const char *dot = strrchr(hrec2[k].name, '.');
+            if (hrec2[k].id != 1 || !dot || !ci_eq(dot, ".DES"))
+                continue;
+            unsigned char *txt = NULL;
+            if (llrs_read(hd_ety, &hrec2[k], &txt) < 0)
+                continue;
+            printf("ll_level: placement %s (%u B)\n", hrec2[k].name,
+                   hrec2[k].size);
+            des_place_lines(an, arecs, narec, hd_an, hrecs, nhrec,
+                            (const char *)txt, (size_t)hrec2[k].size,
+                            objs, nobj, maxobj, cw, ch, level);
+            free(txt);
+        }
+    }
+    llrs_block_free(hrec2);
+}
+
 static void paint(SDL_Renderer *ren, SDL_Texture *tex,
                   const unsigned char *canvas, const Uint32 lut[256],
                   int w, int h)
@@ -445,11 +659,12 @@ static void help_pages(SDL_Renderer *ren, SDL_Texture *tex,
     char mnu_seq[16][16];
     int nms = 0;
     int np = 0;
-    /* line scan (repeated "static=" keys - a key=table would collapse them) */
-    const char *p = (const char *)raw;
-    while (*p) {
+    /* line scan (repeated "static=" keys - a key=table would collapse them);
+     * bounded by the payload size: container payloads are not NUL-terminated */
+    const char *p = (const char *)raw, *mend = (const char *)raw + mnu->size;
+    while (p < mend && *p) {
         const char *eol = p;
-        while (*eol && *eol != '\n' && *eol != '\r')
+        while (eol < mend && *eol && *eol != '\n' && *eol != '\r')
             eol++;
         if (eol - p > 7 && strncmp(p, "static=", 7) == 0) {
             int x, y;
@@ -656,7 +871,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             if (llrs_read(&leveldes, s, &cand) < 0)
                 continue;
             des_kv tmp[8];
-            int nt = des_parse((char *)cand, tmp, 8);
+            int nt = des_parse((char *)cand, (size_t)s->size, tmp, 8);
             if (nt && ci_eq(des_get(tmp, nt, "dir"), level)) {
                 txt = cand;
                 des = s;
@@ -668,7 +883,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     int nk = 0;
     if (txt) {
         printf("ll_level: %s wiring:\n", des->name);
-        nk = des_parse((char *)txt, kvs, 64);
+        nk = des_parse((char *)txt, (size_t)des->size, kvs, 64);
         for (int k = 0; k < nk; k++)
             printf("  %-12s = %s\n", kvs[k].key, kvs[k].val);
     } else {
@@ -789,10 +1004,28 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         if (hblk)
             llrs_block(&hd_an, hblk, &hrecs, &nhrec);
     }
+    llrs hd_ety;
+    int have_hd_ety = 0;
+    const llrs_slot *hblk2 = NULL;
+    if (hd) {
+        char hp[4096];
+        snprintf(hp, sizeof hp, "%s/ETAPY", hd);
+        have_hd_ety = llrs_open(&hd_ety, hp) == 0;
+        if (have_hd_ety) {
+            hblk2 = find_or_stem(&hd_ety, level);
+            if (!hblk2 && nk) {
+                const char *d = des_get(kvs, nk, "dir");
+                if (d[0])
+                    hblk2 = find_or_stem(&hd_ety, d);
+            }
+        }
+    }
+    llrs_slot *arecs = NULL;
+    unsigned narec = 0;
+    int an_open = 0;
     if (llrs_open(&an, p) == 0) {
         const llrs_slot *ablk = find_or_stem(&an, level);
-        llrs_slot *arecs = NULL;
-        unsigned narec = 0;
+        an_open = 1;
         if (ablk && llrs_block(&an, ablk, &arecs, &narec) == 0) {
             for (unsigned k = 0; k < narec && nobj < 24; k++) {
                 if (arecs[k].id != 2 || !arecs[k].name[0])
@@ -863,14 +1096,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 }
                 llrs_block_free(fr);
             }
-            llrs_block_free(arecs);
         }
-        llrs_close(&an);
     }
-    if (hrecs)
-        llrs_block_free(hrecs);
-    if (have_hd)
-        llrs_close(&hd_an);
 
     /* One visible script per leaf object: the game shows one .SEQ per object
      * (its .MOV state machine names it via seq=), so collapse each leaf
@@ -895,6 +1122,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             objs[keep] = tmp;
         }
         for (int m = a + 1; m < b; m++) {
+            ll_seq_free(&objs[m].seq);
             free(objs[m].movtxt);
             free(objs[m].blob);
         }
@@ -904,6 +1132,21 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         nobj -= b - a - 1;
         a++;
     }
+
+    /* 4b) .des X,Y placement join (HD sub-.des -> ANIMACJE leaf records) */
+    des_placement(&an, arecs, narec, &hd_an, hrecs, nhrec,
+                  have_hd_ety ? &hd_ety : NULL, hblk2, kvs, nk,
+                  objs, &nobj, (int)(sizeof objs / sizeof objs[0]),
+                  (int)img.w, (int)img.h, level);
+    if (arecs)
+        llrs_block_free(arecs);
+    if (an_open)
+        llrs_close(&an);
+    if (hrecs)
+        llrs_block_free(hrecs);
+    if (have_hd)
+        llrs_close(&hd_an);
+    /* hd_ety stays open: the help overlay (5b) reads the same HD block */
 
     printf("ll_level: show %s: bg %s %ux%u, %d animated object(s)\n", level,
            bgname, img.w, img.h, nobj);
@@ -977,28 +1220,14 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         /* 5b) help overlay first, like the original POMOC flow: the HD
          *     level block's POMOC1.MNU names page art (.SEQ) that ships in
          *     the CD level block; ESC closes, Left/Right page through. */
-        if (hd) {
-            char hp[4096];
-            snprintf(hp, sizeof hp, "%s/ETAPY", hd);
-            llrs hd_ety;
-            if (llrs_open(&hd_ety, hp) == 0) {
-                const llrs_slot *hblk2 = find_or_stem(&hd_ety, level);
-                if (!hblk2 && nk) {
-                    const char *d = des_get(kvs, nk, "dir");
-                    if (d[0])
-                        hblk2 = find_or_stem(&hd_ety, d);
-                }
-                llrs_slot *hrecs2 = NULL;
-                unsigned nhrec2 = 0;
-                if (hblk2)
-                    llrs_block(&hd_ety, hblk2, &hrecs2, &nhrec2);
-                if (nhrec2)
-                    help_pages(ren, tex, &hd_ety, hrecs2, nhrec2,
-                               &etapy, recs, nrec, img.idx, canvas, lut,
-                               (int)img.w, (int)img.h);
-                llrs_block_free(hrecs2);
-                llrs_close(&hd_ety);
-            }
+        if (have_hd_ety && hblk2) {
+            llrs_slot *hrecs2 = NULL;
+            unsigned nhrec2 = 0;
+            if (llrs_block(&hd_ety, hblk2, &hrecs2, &nhrec2) == 0 && nhrec2)
+                help_pages(ren, tex, &hd_ety, hrecs2, nhrec2,
+                           &etapy, recs, nrec, img.idx, canvas, lut,
+                           (int)img.w, (int)img.h);
+            llrs_block_free(hrecs2);
         }
 
         Uint64 freq = SDL_GetPerformanceFrequency();
@@ -1043,12 +1272,15 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
 
 done:
     for (int k = 0; k < nobj; k++) {
+        ll_seq_free(&objs[k].seq);
         free(objs[k].movtxt);
         free(objs[k].blob);
     }
     ll_pcx_free(&img);
     llrs_block_free(recs);
     free(txt);
+    if (have_hd_ety)
+        llrs_close(&hd_ety);
     llrs_close(&leveldes);
     llrs_close(&etapy);
     (void)audio;
