@@ -12,5 +12,9 @@ MinGW-w64 (`x86_64-w64-mingw32-gcc`), also buildable on Windows directly.
   make it run thousands of times too fast)
 - data: user-supplied game files in a directory, path from argv/env
   (WANT_CD_GATE=0: CD gate code simply not compiled in)
-- build: `Makefile.mgw` -> `leo.exe` (static-linked SDL2 for portability);
-  `Makefile` for MSVC/CL or CMake later if wanted
+- build (cross from Linux): `sudo pacman -S --needed mingw-w64-toolchain`
+  (Arch/CachyOS; Debian: `apt install gcc-mingw-w64-x86-64`), then fetch the
+  SDL2 MinGW libs once: `curl -LO https://www.libsdl.org/release/SDL2-devel-2.32.10-mingw.tar.gz
+  && mkdir -p ../vendor && tar xzf SDL2-devel-*-mingw.tar.gz -C ../vendor/`
+  (vendored dir is gitignored); then `make` -> `ll_cutscene.exe`,
+  a static-linked single .exe (no SDL2.dll needed at runtime)
