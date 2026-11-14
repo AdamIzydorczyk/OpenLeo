@@ -22,10 +22,12 @@
 #include "platform_sdl/is_player.h"
 
 #include <SDL2/SDL.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h> /* strcasecmp for container record names */
+#include <sys/stat.h> /* stat() for the DATA probe (containers are files) */
 
 #define MAX_SCENES 16
 
@@ -133,8 +135,116 @@ static ll_menu_anim *menu_anims(const char *data, int *nanim)
     return out;
 }
 
+/*
+ * DATA directory discovery (review P-08, tips T-17): the original EXE
+ * found ANIMACJE/ next to itself; a modern launcher may start us from
+ * anywhere. Search order: $LEO_DATA -> <dir of executable>/data ->
+ * ./data -> . (the classic cwd default). Returns NULL when nothing
+ * contains game data.
+ */
+/* ANIMACJE, ETAPY, SOUND, LEVELDES are single container FILES (LLRS
+ * archives), not directories - existence check only. */
+static int have_sub(const char *dir, const char *sub)
+{
+    const char *slash = (dir[0] && dir[strlen(dir) - 1] == '/') ? "" : "/";
+    char probe[4096];
+    snprintf(probe, sizeof probe, "%s%s%s", dir, slash, sub);
+    struct stat st;
+    return stat(probe, &st) == 0;
+}
+
+/* P-08 "did you mean" hint: an under- or mis-cased sibling directory
+ * (data/animacje vs ANIMACJE) is a very common CD-rip accident. */
+static void suggest_sub(const char *dir, const char *want)
+{
+    DIR *d = opendir(dir);
+    if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d))) {
+        if (de->d_name[0] == '.') continue;
+        if (!strcasecmp(de->d_name, want)) {
+            fprintf(stderr, " (closest match: %s/%s)\n", dir, de->d_name);
+            closedir(d);
+            return;
+        }
+    }
+    closedir(d);
+    fprintf(stderr, "\n");
+}
+
+/* E-01 / tips T-19: one clear report of missing DATA directories at
+ * startup, instead of a failure buried in the first scene. Prints nothing
+ * when the set is complete except the one-line confirmation; a Windows
+ * double-click launch (no console) also gets a real message box (P-06).
+ * Runs once per process; the game then continues in its degraded mode. */
+static void data_probe(const char *dir)
+{
+    static int done;
+    static const char *need[] = { "ANIMACJE", "ETAPY", "SOUND", "LEVELDES" };
+    int missing = 0;
+    if (done)
+        return;
+    done = 1;
+    for (unsigned k = 0; k < sizeof need / sizeof *need; k++) {
+        if (have_sub(dir, need[k]))
+            continue;
+        fprintf(stderr, "[leo] DATA %s: missing %s/", dir, need[k]);
+        suggest_sub(dir, need[k]);
+        missing = 1;
+    }
+    if (!missing) {
+        printf("[leo] DATA %s: complete\n", dir);
+        return;
+    }
+#if defined(PLATFORM_WIN) && PLATFORM_WIN
+    char msg[512];
+    snprintf(msg, sizeof msg,
+             "Game data not found in\n%s\n\nCopy the original game "
+             "directories (ANIMACJE, ETAPY, SOUND, LEVELDES) there, or "
+             "pass the DATA directory on the command line.", dir);
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Lew Leon", msg, NULL);
+#endif
+}
+
+static const char *pick_data_dir(void)
+{
+    static char chosen[4096];
+    static char base_data[4096];
+    const char *cands[3];
+    int n = 0;
+
+    const char *env = getenv("LEO_DATA");
+    if (env && *env) {
+        snprintf(chosen, sizeof chosen, "%s", env);
+        fprintf(stderr, "[leo] DATA from $LEO_DATA: %s\n", chosen);
+        return chosen;
+    }
+    char *base = SDL_GetBasePath(); /* SDL_free'd below; no init needed */
+    if (base) {
+        snprintf(base_data, sizeof base_data, "%s/data", base);
+        SDL_free(base);
+        cands[n++] = base_data;
+    }
+    cands[n++] = "./data";
+    cands[n++] = ".";
+    for (int i = 0; i < n; i++) {
+        if (have_sub(cands[i], "ANIMACJE") || have_sub(cands[i], "ETAPY")) {
+            snprintf(chosen, sizeof chosen, "%s", cands[i]);
+            printf("[leo] DATA auto-detected: %s\n", chosen);
+            return chosen;
+        }
+    }
+    if (base_data[0])
+        fprintf(stderr, "[leo] no DATA found: tried %s, ./data and $PWD\n",
+                base_data);
+    else
+        fprintf(stderr, "[leo] no DATA found: tried ./data and $PWD\n");
+    return NULL;
+}
+
 static void run_menu(const char *data, int audio)
 {
+    data_probe(data);
     unsigned blen = 0;
     unsigned char *bg = menu_bg(data, &blen);
     int nanim = 0;
@@ -391,6 +501,29 @@ static void run_menu(const char *data, int audio)
     free(bg);
 }
 
+/* original boot chain (LOGO/INTRO section of the DOS ll_main): each scene
+ * hands off to the next one. P-09: only an ERROR (rc==1) breaks the
+ * chain - an ESC skip (rc==2) means "skip to the NEXT scene", exactly
+ * like pressing a key in the original. LEO_DEMO_SKIP_FRAMES (CI hook)
+ * still fast-forwards straight to the menu. */
+static void run_demo_chain(const char *d, int audio)
+{
+    static const char *boot[] = { "/LOGO.IS", "/PRAWA.IS", "/INTRO_P.IS" };
+    unsigned dsf = 0;
+    const char *e = getenv("LEO_DEMO_SKIP_FRAMES"); /* CI: fast-forward */
+    if (e)
+        dsf = (unsigned)atoi(e);
+    data_probe(d);
+    for (unsigned k = 0; k < sizeof boot / sizeof *boot; k++) {
+        char *p = (char *)malloc(strlen(d) + 32);
+        sprintf(p, "%s%s", d, boot[k]);
+        int rc = is_player_run(p, audio, 0, dsf);
+        free(p);
+        if (rc == 1 || dsf)
+            break; /* error (or CI fast-forward): straight to the menu */
+    }
+}
+
 int main(int argc, char **argv)
 {
     /* Wayland sessions (KDE Plasma desktop reports): SDL's wayland backend
@@ -465,31 +598,38 @@ int main(int argc, char **argv)
     }
 
     if (demo) {
-        /* original boot chain (LOGO/INTRO section of ll_main) */
-        const char *d = demo_data ? demo_data : ".";
-        static const char *boot[] = { "/LOGO.IS", "/PRAWA.IS", "/INTRO_P.IS" };
-        unsigned dsf = 0;
-        const char *e = getenv("LEO_DEMO_SKIP_FRAMES"); /* CI: fast-forward */
-        if (e)
-            dsf = (unsigned)atoi(e);
-        for (unsigned k = 0; k < sizeof boot / sizeof *boot; k++) {
-            char *p = (char *)malloc(strlen(d) + 32);
-            sprintf(p, "%s%s", d, boot[k]);
-            int rc = is_player_run(p, audio, 0, dsf);
-            free(p);
-            if (rc != 0 || dsf)
-                break; /* skipped or error: advance straight to menu */
+        const char *d = demo_data;
+        if (!d) {
+            d = pick_data_dir();
+            if (!d)
+                d = "."; /* classic cwd default; data_probe reports the gaps */
         }
+        run_demo_chain(d, audio);
         run_menu(d, audio);
         return 0;
     }
 
     if (!file) {
-        fprintf(stderr,
-                "usage: %s FILE.IS [--ppm N OUT.ppm] [--from N] [--no-audio]"
-                " [--then FILE.IS] [--menu DATA_DIR] [--demo [DATA_DIR]]\n",
-                argv[0]);
-        return 2;
+        static const char *usage =
+            "usage: %s FILE.IS [--ppm N OUT.ppm] [--from N] [--no-audio]"
+            " [--then FILE.IS] [--menu DATA_DIR] [--demo [DATA_DIR]]\n";
+        if (menu_data) {
+            run_menu(menu_data, audio); /* menu-only run (no scene first) */
+            return 0;
+        }
+        /* P-09: a bare launch (double-click, no CLI habits) behaved in the
+         * original as "start the boot demo": do that when game data is
+         * findable (T-17 chain); the usage error only remains when there
+         * is truly nothing to run. */
+        const char *d = pick_data_dir();
+        fprintf(stderr, usage, argv[0]);
+        if (!d)
+            return 2;
+        fprintf(stderr, "[leo] no FILE.IS given: starting the original boot"
+                        " demo chain from DATA %s\n", d);
+        run_demo_chain(d, audio);
+        run_menu(d, audio);
+        return 0;
     }
 
     if (ppm.out) {
@@ -506,9 +646,11 @@ int main(int argc, char **argv)
         return ppm.found ? 0 : 1;
     }
 
-    /* scene chain: first file, then --then files; a skip (rc=2) breaks out */
+    /* scene chain: first file, then --then files. P-09: ESC (rc==2) means
+     * "skip this scene, continue with the next one" - the same handoff the
+     * original demo chain makes; only an error (rc==1) ends the chain. */
     int rc = is_player_run(file, audio, from, skip_at);
-    for (int k = 0; k < nthen && rc == 0; k++)
+    for (int k = 0; k < nthen && rc != 1; k++)
         rc = is_player_run(then[k], audio, 0, 0);
     if (rc == 2)
         rc = 0; /* skipped forward == normal handoff in chained mode */

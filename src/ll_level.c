@@ -1031,12 +1031,16 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     llrs leveldes, etapy;
     snprintf(p, sizeof p, "%s/LEVELDES", dir);
     if (llrs_open(&leveldes, p)) {
-        fprintf(stderr, "ll_level: cannot open %s\n", p);
+        /* E-01: name the DATA problem, not just the file: a bare
+         * "cannot open" with no context is where support threads start. */
+        fprintf(stderr, "ll_level: cannot open %s - %s is not a DATA "
+                        "directory (no LEVELDES container there)\n", p, dir);
         return 1;
     }
     snprintf(p, sizeof p, "%s/ETAPY", dir);
     if (llrs_open(&etapy, p)) {
-        fprintf(stderr, "ll_level: cannot open %s\n", p);
+        fprintf(stderr, "ll_level: cannot open %s - %s has LEVELDES but no "
+                        "ETAPY container\n", p, dir);
         llrs_close(&leveldes);
         return 1;
     }
