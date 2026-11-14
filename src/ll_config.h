@@ -1,8 +1,19 @@
-/* ll_config.h - variant knobs for Lew Leon recompile.
+/* ll_config.h - variant knobs + naming convention for Lew Leon recompile.
  *
- * Each variant dir (original/, linux/, win11/) defines these BEFORE
- * including any engine header (or passes them via -D on the compiler line).
- * Sensible defaults here describe the native (SDL2) builds.
+ * Naming convention (applies across src/):
+ *   is_*   - .IS cutscene stream format (codec, stream walking): the
+ *            spec/oracle is tools/is_decode.py.
+ *   llrs_* - LongSoft "llrs" resource container format; spec/oracle is
+ *            tools/llrs_unpack.py.
+ *   ll_*   - project-level glue that is neither of the two wire formats
+ *            (ll_config.h, the ll_cutscene binaries).
+ *   platform_sdl/ - the ONE SDL2 platform layer shared by the linux and
+ *            windows targets; target differences live only in the root
+ *            Makefile + the PLATFORM_* knobs below.
+ * Every public symbol follows its prefix; file name == primary prefix.
+ *
+ * Knobs are set per target with -D on the compiler line (see Makefile) or
+ * before including any engine header. Defaults here describe native builds.
  */
 #ifndef LL_CONFIG_H
 #define LL_CONFIG_H
@@ -20,7 +31,8 @@
 
 /* CD-presence gate chain (PLAN S6: ll_cdcheck_chain vaddr 0x5bd50 and its
  * four subchecks). 1 = faithful retail behavior (original/); 0 = not
- * compiled at all (linux/, win11/ - data comes from a directory). */
+ * compiled at all (native linux/windows targets - data comes from a
+ * directory). */
 #ifndef WANT_CD_GATE
 #define WANT_CD_GATE 0
 #endif

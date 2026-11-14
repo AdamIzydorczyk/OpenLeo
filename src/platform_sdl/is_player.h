@@ -1,4 +1,4 @@
-/* is_player.h - shared SDL2 cutscene player for linux/ + win11/.
+/* is_player.h - shared SDL2 cutscene player for both native targets
  *
  * Fixed-timestep pacing (PLAN S6 "NATIVE PORTS"): the original is
  * execution-rate bound and would run thousands of times too fast on

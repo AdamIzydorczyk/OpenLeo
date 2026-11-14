@@ -1,4 +1,4 @@
-/* main.c - shared native entry for BOTH linux/ and win11/ variants: the
+/* main.c - shared native entry for BOTH the linux and windows targets: the
  * SDL2 runner for Lew Leon .IS data, plus a headless --ppm mode that decodes
  * and dumps a single frame with no SDL/display/audio. --ppm is the
  * byte-exactness oracle used by every CI check (vs tools/is_decode.py).

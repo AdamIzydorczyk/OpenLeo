@@ -1,4 +1,4 @@
-# Improvement proposals - linux/ + win11/ native ports
+# Improvement proposals - native ports (linux + windows, src/)
 
 Analysis of the current builds (2026-11-14) and concrete proposals, ranked
 by impact. Current measurements are from the verified cutscene-demo state:

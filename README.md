@@ -44,6 +44,13 @@ make verify-all
 # verify-llrs  src/llrs.c == tools/llrs_unpack.py on all 4 containers
 ```
 
-Both native builds are no-CD and use fixed-timestep pacing (the original's
+## Naming
+
+`is_*` = .IS cutscene format (oracle `tools/is_decode.py`); `llrs_*` = the
+"llrs" resource container format (oracle `tools/llrs_unpack.py`); `ll_*` =
+project glue that is neither wire format. One SDL2 platform layer
+(`src/platform_sdl/`) for both targets - no per-platform source forks.
+
+## Both native builds are no-CD and use fixed-timestep pacing (the original's
 execution-rate-bound busy loop would run thousands of times too fast on
 modern hardware).
