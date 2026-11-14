@@ -15,9 +15,21 @@
 extern "C" {
 #endif
 
-/* bg_pcx: raw PCX payload (ll_pcx input) or NULL for black background. */
+/* Optional .SEQ sprite animations composited onto the background before
+ * the palette LUT: each anim cycles its elements as frames (element i
+ * drawn at (-f0,-f2), frame-patch rows painted as 8bpp indices), like the
+ * BERLO/CNIE/X animations over OPTIONS.PCX in the original title menu. */
+typedef struct {
+    const unsigned char *seq; /* raw .SEQ container payload */
+    unsigned len;
+    unsigned period_ms;       /* ms per frame, 0 = default 100 */
+} ll_menu_anim;
+
+/* bg_pcx: raw PCX payload (ll_pcx input) or NULL for black background.
+ * anims/nanims: overlay animations or NULL/0. */
 int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
-                 const char *const *items, int nitems);
+                 const char *const *items, int nitems,
+                 const ll_menu_anim *anims, int nanims);
 
 #ifdef __cplusplus
 }

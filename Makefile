@@ -9,9 +9,9 @@ DATA     ?= /tmp/opencode/iso_stage/LEO
 PYREF    ?= tools/is_decode.py
 
 SRC      := src/main.c src/is_stream.c src/platform_sdl/is_player.c \
-            src/llrs.c src/ll_pcx.c src/ll_menu.c src/ll_level.c
+            src/llrs.c src/ll_pcx.c src/ll_menu.c src/ll_level.c src/ll_seq.c
 HDRS     := src/ll_config.h src/is_stream.h src/platform_sdl/is_player.h \
-            src/llrs.h src/ll_pcx.h src/ll_menu.h src/ll_level.h
+            src/llrs.h src/ll_pcx.h src/ll_menu.h src/ll_level.h src/ll_seq.h
 
 # ---------------- native Linux ----------------
 CC       ?= gcc
@@ -165,9 +165,19 @@ verify-menu: ll_cutscene
 	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_SECS=2 \
 	    timeout 120 ./ll_cutscene --demo $(DATA) > /tmp/opencode/menu_bg.log 2>&1; \
 	rc=$$?; \
-	if [ $$rc -eq 0 ] && grep -q 'background OPTIONS.PCX 320x200 loaded' /tmp/opencode/menu_bg.log; \
-	then echo "menu render: OPTIONS.PCX background decoded + drawn (hooked, ok)"; \
+	if [ $$rc -eq 0 ] && grep -q 'background OPTIONS.PCX 320x200 loaded' /tmp/opencode/menu_bg.log \
+	   && grep -q 'menu: anim 2: 30 frames at (130,38)' /tmp/opencode/menu_bg.log; \
+	then echo "menu render: OPTIONS.PCX background + 3 .SEQ anims attached (hooked, ok)"; \
 	else echo "menu render FAILED (rc=$$rc)"; cat /tmp/opencode/menu_bg.log; exit 1; fi
+	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_SECS=1 \
+	    LEO_MENU_PPM=/tmp/opencode/menu_t2.ppm LEO_MENU_PPM_TICK=2 \
+	    timeout 60 ./ll_cutscene --demo $(DATA) >/dev/null 2>&1 || true
+	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_SECS=1 \
+	    LEO_MENU_PPM=/tmp/opencode/menu_t8.ppm LEO_MENU_PPM_TICK=8 \
+	    timeout 60 ./ll_cutscene --demo $(DATA) >/dev/null 2>&1 || true
+	@if cmp -s /tmp/opencode/menu_t2.ppm /tmp/opencode/menu_t8.ppm; \
+	then echo "menu anim FAILED: frames t2 == t8 (nothing animates)"; exit 1; \
+	else echo "menu anim: BERLO frame cycles on screen (t2 != t8, ok)"; fi
 
 verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-menu
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"

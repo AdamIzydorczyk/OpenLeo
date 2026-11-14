@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h> /* strcasecmp for container record names */
 
 #define MAX_SCENES 16
 
@@ -75,10 +76,54 @@ static unsigned char *menu_bg(const char *data, unsigned *len)
     return out;
 }
 
+/* read ANIMACJE/MENU title-screen .SEQ overlays (X, CNIE, BERLO) in
+ * container order; *nanim = count found. Caller frees payload + array. */
+static ll_menu_anim *menu_anims(const char *data, int *nanim)
+{
+    static const char *want[] = { "X.SEQ", "CNIE.SEQ", "BERLO.SEQ" };
+    char p[4096];
+    llrs a;
+    *nanim = 0;
+    snprintf(p, sizeof p, "%s/ANIMACJE", data);
+    if (llrs_open(&a, p))
+        return NULL;
+    ll_menu_anim *out = NULL;
+    const llrs_slot *menu = llrs_find(&a, "MENU");
+    if (menu && menu->id == 2) {
+        llrs_slot *recs = NULL;
+        unsigned n = 0;
+        if (llrs_block(&a, menu, &recs, &n) == 0) {
+            out = calloc(n ? n : 1, sizeof *out);
+            for (unsigned k = 0; k < n && out; k++) {
+                if (recs[k].id != 1)
+                    continue;
+                for (unsigned w = 0; w < sizeof want / sizeof want[0]; w++) {
+                    if (strcasecmp(recs[k].name, want[w]) != 0)
+                        continue;
+                    unsigned char *buf = NULL;
+                    long sz = llrs_read(&a, &recs[k], &buf);
+                    if (sz > 0) {
+                        out[*nanim].seq = buf;
+                        out[*nanim].len = (unsigned)sz;
+                        out[*nanim].period_ms = 100;
+                        (*nanim)++;
+                    }
+                    break;
+                }
+            }
+            llrs_block_free(recs);
+        }
+    }
+    llrs_close(&a);
+    return out;
+}
+
 static void run_menu(const char *data)
 {
     unsigned blen = 0;
     unsigned char *bg = menu_bg(data, &blen);
+    int nanim = 0;
+    ll_menu_anim *anims = menu_anims(data, &nanim);
     static const char *items[] = { "NEW GAME  (RAN.01)",
                                    "CREDITS   (AUTORZY.IS)",
                                    "QUIT" };
@@ -90,7 +135,7 @@ static void run_menu(const char *data)
             sel = auto_i - 1;
             printf("menu: LEO_MENU_AUTO -> picked item %d\n", sel);
         } else {
-            sel = ll_menu_open(bg, blen, items, 3);
+            sel = ll_menu_open(bg, blen, items, 3, anims, nanim);
         }
         if (sel < 0)
             break;
@@ -107,6 +152,9 @@ static void run_menu(const char *data)
             break;
         }
     }
+    for (int i = 0; i < nanim; i++)
+        free((void *)anims[i].seq);
+    free(anims);
     free(bg);
 }
 

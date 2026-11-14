@@ -1,14 +1,18 @@
 /* ll_pcx-style present path (palette LUT into locked ARGB8888 texture).
  * Menu text: built-in 8x8 bitmap font (ASCII 32..126), drawn as 1px white;
- * cursor '>' in gold. Fixed pacing: event-driven with SDL_Delay, no busy
- * loop. See ll_menu.h. */
+ * cursor '>' in gold. Optional .SEQ overlay animations (ll_seq_patch_draw
+ * into an 8bpp index canvas over the PCX indices, then one palette LUT).
+ * Fixed pacing: event-driven with SDL_Delay, no busy loop. See ll_menu.h. */
 #include "ll_menu.h"
 #include "ll_pcx.h"
+#include "ll_seq.h"
 
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define SX(v) ((int)(short)(v))
 
 /* 8x8 font, row-major bytes, bit 7 = leftmost pixel. */
 static const unsigned char FONT[95][8] = {
@@ -131,8 +135,35 @@ static void draw_text(Uint32 *fb, int w, int h, int x, int y, const char *s,
         draw_glyph(fb, w, h, x, y, *s, col);
 }
 
+static void menu_anims_free(ll_seq *aseq, int nanims)
+{
+    if (!aseq)
+        return;
+    for (int i = 0; i < nanims; i++)
+        if (aseq[i].els)
+            ll_seq_free(&aseq[i]);
+    free(aseq);
+}
+
+/* CI hook: dump the composed RGB frame as PPM (P6) */
+static int ppm_fb(const char *path, const Uint32 *fb, int w, int h)
+{
+    FILE *f = fopen(path, "wb");
+    if (!f)
+        return -1;
+    fprintf(f, "P6\n%d %d\n255\n", w, h);
+    for (int i = 0; i < w * h; i++) {
+        unsigned char c[3] = { (unsigned char)(fb[i] >> 16),
+                               (unsigned char)(fb[i] >> 8),
+                               (unsigned char)fb[i] };
+        if (fwrite(c, 1, 3, f) != 3) { fclose(f); return -1; }
+    }
+    return fclose(f) == 0 ? 0 : -1;
+}
+
 int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
-                 const char *const *items, int nitems)
+                 const char *const *items, int nitems,
+                 const ll_menu_anim *anims, int nanims)
 {
     if (nitems < 1)
         return -1;
@@ -146,12 +177,41 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
         printf("menu: background OPTIONS.PCX %ux%u loaded\n", bg.w, bg.h);
     int W = bg.w ? (int)bg.w : 320, H = bg.h ? (int)bg.h : 200;
 
+    /* overlay animations: parsed once; frames cycled off the redraw tick */
+    ll_seq *aseq = nanims > 0 ? calloc((size_t)nanims, sizeof *aseq) : NULL;
+    int nanim_ok = 0;
+    if (aseq) {
+        if (!bg.idx) {
+            fprintf(stderr, "menu: .SEQ anims need a PCX palette; skipped\n");
+            menu_anims_free(aseq, nanims);
+            aseq = NULL;
+            nanims = 0;
+        } else {
+            for (int i = 0; i < nanims; i++) {
+                if (ll_seq_parse(anims[i].seq, anims[i].len, &aseq[i]) != 0) {
+                    fprintf(stderr, "menu: anim %d .SEQ parse failed\n", i);
+                    continue;
+                }
+                const ll_seq_elem *e0 = &aseq[i].els[0];
+                printf("menu: anim %d: %u frames at (%d,%d) period %ums\n",
+                       i, aseq[i].count, -SX(e0->f0), -SX(e0->f2),
+                       anims[i].period_ms ? anims[i].period_ms : 100);
+                nanim_ok++;
+            }
+            if (!nanim_ok) {
+                menu_anims_free(aseq, nanims);
+                aseq = NULL;
+            }
+        }
+    }
+
     int scale = W < 640 ? 2 : 1;
     SDL_Window *win = SDL_CreateWindow("Lew Leon - menu",
                                        SDL_WINDOWPOS_CENTERED,
                                        SDL_WINDOWPOS_CENTERED, W * scale,
                                        H * scale, SDL_WINDOW_SHOWN);
     if (!win) {
+        menu_anims_free(aseq, nanims);
         ll_pcx_free(&bg);
         return -2;
     }
@@ -162,6 +222,7 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
                                          SDL_TEXTUREACCESS_STREAMING, W, H);
     if (!ren || !tex) {
         SDL_DestroyWindow(win);
+        menu_anims_free(aseq, nanims);
         ll_pcx_free(&bg);
         return -2;
     }
@@ -169,32 +230,63 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
                                            : SDL_ScaleModeLinear);
 
     Uint32 *fb = (Uint32 *)malloc((size_t)W * H * sizeof *fb);
-    if (!fb) {
+    unsigned char *cv = malloc((size_t)W * H);
+    if (!fb || !cv) {
+        free(fb);
+        free(cv);
         SDL_DestroyTexture(tex);
         SDL_DestroyRenderer(ren);
         SDL_DestroyWindow(win);
+        menu_anims_free(aseq, nanims);
         ll_pcx_free(&bg);
         return -2;
     }
 
     int sel = 0, quit = 0, ret = -1;
+    unsigned tick = 0;   /* fixed 30 ms redraw ticks drive anim frames */
     /* CI hook: LEO_MENU_SECS=N shows the menu N seconds then auto-quits */
     const char *sece = getenv("LEO_MENU_SECS");
     Uint64 t_deadline = sece ? SDL_GetTicks64() + 1000 * (Uint64)atof(sece) : 0;
     while (!quit) {
         /* compose: background (image or black) then the item list */
         if (bg.idx) {
+            /* 8bpp index canvas = PCX background + .SEQ sprite overlays,
+             * then ONE palette LUT (the game composites the same way) */
+            memcpy(cv, bg.idx, (size_t)W * H);
+            for (int a = 0; a < nanims && aseq; a++) {
+                if (!aseq[a].els)
+                    continue;
+                unsigned per = anims[a].period_ms ? anims[a].period_ms : 100;
+                unsigned fr = (unsigned)((Uint64)tick * 30 / per)
+                              % aseq[a].count;
+                const ll_seq_elem *e = &aseq[a].els[fr];
+                ll_seq_draw_elem(&aseq[a], e, cv, W, H,
+                                 -SX(e->f0), -SX(e->f2));
+            }
             Uint32 lut[256];
             for (int i = 0; i < 256; i++)
                 lut[i] = 0xFF000000u | ((Uint32)bg.pal[3 * i] << 16)
                          | ((Uint32)bg.pal[3 * i + 1] << 8)
                          | (Uint32)bg.pal[3 * i + 2];
             for (int i = 0; i < W * H; i++)
-                fb[i] = lut[bg.idx[i]];
+                fb[i] = lut[cv[i]];
         } else {
             for (int i = 0; i < W * H;
                  i++) /* dark vertical gradient - simple but intentional */
                 fb[i] = 0xFF000000u | (Uint32)(20 + (i / W) / 8);
+        }
+
+        /* CI hook: LEO_MENU_PPM=PATH dumps the composited overlay frame
+         * (bg + .SEQ sprites, before menu text) once at that tick. */
+        {
+            const char *ppm_e = getenv("LEO_MENU_PPM");
+            const char *tick_e = getenv("LEO_MENU_PPM_TICK");
+            unsigned want = tick_e ? (unsigned)atoi(tick_e) : 0;
+            if (ppm_e && tick == want) {
+                if (ppm_fb(ppm_e, fb, W, H) == 0)
+                    printf("menu: LEO_MENU_PPM wrote %s (tick %u)\n",
+                           ppm_e, tick);
+            }
         }
         int x0 = W / 2 - 64, y0 = H / 2 - 8 * nitems / 2;
         if (bg.idx) { /* OPTIONS.PCX is a full text screen already */
@@ -254,8 +346,11 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
             else
                 break;
         }
+        tick++;
     }
     free(fb);
+    free(cv);
+    menu_anims_free(aseq, nanims);
     SDL_DestroyTexture(tex);
     SDL_DestroyRenderer(ren);
     SDL_DestroyWindow(win);
