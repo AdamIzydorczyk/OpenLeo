@@ -38,8 +38,10 @@
  * (pipewire/pulse squeeze or go silent; even alsa squeaks at 1024
  * samples and dies at 2048+), while SDL_QueueAudio on the alsa backend
  * plays byte-perfect.  So music never uses want.callback: the device is
- * opened silent and ll_music_pump() tops up the queue from the game's
- * own loops (menu, level scene). */
+ * opened silent and the queue is topped by a dedicated pump THREAD
+ * (review E-09 / tips T-09) - keeping ~250 ms queued independently of
+ * the UI loops, because window drags (Windows modal loop), slow loads
+ * and SDL_Delays in the screens underran the old in-loop pump. */
 
 /* Initialize the audio subsystem, dodging SDL2 >= 2.32's native
  * "pipewire" backend, which on the dev desktop (SDL 2.32.74 + PipeWire,
@@ -83,6 +85,66 @@ static SDL_AudioDeviceID s_mus_dev;
 static int s_mus_snd_open;
 static FILE *s_mus_wf;                 /* LEO_MUSIC_WAV diagnostic dump */
 static char s_mus_name[32];
+static SDL_Thread *s_mus_thr;          /* E-09 dedicated pump thread    */
+static SDL_atomic_t s_mus_quit;
+
+/* E-09: while it lives this thread owns s_mst/s_mus_wf/s_mus_dev
+ * (ll_music_stop joins it before touching any of them, ll_music_play
+ * stops first), so no lock is needed. Queue kept >= ~250 ms with 125 ms
+ * chunks (old in-loop low-water was 12000 B ~= 68 ms, review E-09). */
+static int SDLCALL music_pump_thread(void *unused)
+{
+    (void)unused;
+    static int16_t buf[(LL_MOD_RATE / 8) * 2];      /* 125 ms stereo s16 */
+    const Uint32 low_water = (Uint32)LL_MOD_RATE / 4 * 4; /* 250 ms bytes */
+    while (!SDL_AtomicGet(&s_mus_quit)) {
+        if (s_mus_dev &&
+            SDL_GetQueuedAudioSize(s_mus_dev) < low_water) {
+            size_t frames = LL_MOD_RATE / 8;
+            ll_mod_mix(&s_mst, buf, frames);
+            if (s_mus_wf) {
+                fwrite(buf, 2 * sizeof(int16_t), frames, s_mus_wf);
+                fflush(s_mus_wf);       /* CI hook: LEO_MUSIC_WAV stays
+                                         * tail-able while the game runs */
+            }
+            SDL_QueueAudio(s_mus_dev, buf,
+                           (Uint32)(frames * 2 * sizeof(int16_t)));
+        }
+        SDL_Delay(25);                  /* first pass runs immediately,
+                                         * so even very short plays get
+                                         * their first chunk */
+    }
+    return 0;
+}
+
+/* first 125 ms chunk mixed+queued synchronously (play context): the
+ * thread start races ll_music_stop in very short plays, and the old
+ * in-loop pump always produced its first chunk before anything else
+ * could touch the state - LEO_MUSIC_WAV consumers rely on >=1 chunk
+ * per play. */
+static void music_first_chunk(void)
+{
+    static int16_t buf[(LL_MOD_RATE / 8) * 2];
+    size_t frames = LL_MOD_RATE / 8;
+    ll_mod_mix(&s_mst, buf, frames);
+    if (s_mus_wf) {
+        fwrite(buf, 2 * sizeof(int16_t), frames, s_mus_wf);
+        fflush(s_mus_wf);
+    }
+    if (s_mus_dev)
+        SDL_QueueAudio(s_mus_dev, buf,
+                       (Uint32)(frames * 2 * sizeof(int16_t)));
+}
+
+/* the LEO_MUSIC_WAV diagnostic: one raw file per play */
+static void music_wav_open(void)
+{
+    static unsigned seq;
+    char path[512];
+    snprintf(path, sizeof path, "%s.%02u.%s.raw",
+             getenv("LEO_MUSIC_WAV"), seq++, s_mus_name);
+    s_mus_wf = fopen(path, "wb");
+}
 
 int ll_music_play(const char *data_dir, const char *modname)
 {
@@ -127,6 +189,17 @@ int ll_music_play(const char *data_dir, const char *modname)
         return 1;
     }
     SDL_PauseAudioDevice(s_mus_dev, 0);
+    /* E-09: dedicated pump thread; if it can't be created we fall
+     * back to ll_music_pump() being called from the UI loops (the
+     * pre-E-09 behaviour). */
+    if (getenv("LEO_MUSIC_WAV"))
+        music_wav_open();
+    music_first_chunk();
+    SDL_AtomicSet(&s_mus_quit, 0);
+    s_mus_thr = SDL_CreateThread(music_pump_thread, "ll_music_pump", NULL);
+    if (!s_mus_thr)
+        printf("ll_music: pump thread failed (%s), using UI-loop pump\n",
+               SDL_GetError());
     printf("ll_music: playing %s: '%s' %upos %uuniqpat %uch\n", modname,
            s_mus.title, s_mus.nseq, s_mus.npat_stored, s_mus.nch);
     return 0;
@@ -134,6 +207,12 @@ int ll_music_play(const char *data_dir, const char *modname)
 
 void ll_music_stop(void)
 {
+    if (s_mus_thr) {                    /* join first: the thread owns
+                                           s_mst/s_mus_wf/s_mus_dev */
+        SDL_AtomicSet(&s_mus_quit, 1);
+        SDL_WaitThread(s_mus_thr, NULL);
+        s_mus_thr = NULL;
+    }
     if (s_mus_wf) {
         fclose(s_mus_wf);
         s_mus_wf = NULL;
@@ -149,26 +228,18 @@ void ll_music_stop(void)
     s_mus_snd_open = 0;
 }
 
-/* Top up the queue with ~125 ms of music when it runs low; call from
- * any long-running loop (menu, level scene) while music plays.  No-op
- * when no music device is open. */
+/* Fallback queue top-up (pre-E-09 path): only used when the pump
+ * thread could not be created; the UI loops keep calling it blindly.
+ * No-op when no music device is open or the thread is running. */
 void ll_music_pump(void)
 {
-    if (!s_mus_dev)
+    if (!s_mus_dev || s_mus_thr)
         return;
     if (SDL_GetQueuedAudioSize(s_mus_dev) > 12000)
         return;
     static int16_t buf[(LL_MOD_RATE / 8) * 2];      /* 125 ms stereo s16 */
     size_t frames = LL_MOD_RATE / 8;
     ll_mod_mix(&s_mst, buf, frames);
-    if (getenv("LEO_MUSIC_WAV") && !s_mus_wf) {     /* CI/diagnostic hook:
-                                                      * one raw file per play */
-        static unsigned seq;
-        char path[512];
-        snprintf(path, sizeof path, "%s.%02u.%s.raw",
-                 getenv("LEO_MUSIC_WAV"), seq++, s_mus_name);
-        s_mus_wf = fopen(path, "wb");
-    }
     if (s_mus_wf)
         fwrite(buf, 2 * sizeof(int16_t), frames, s_mus_wf);
     SDL_QueueAudio(s_mus_dev, buf, (Uint32)(frames * 2 * sizeof(int16_t)));

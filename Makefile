@@ -36,7 +36,7 @@ XC        ?= $(shell command -v x86_64-w64-mingw32-gcc 2>/dev/null || \
 SDL_WIN   ?= vendor/SDL2-2.32.10/x86_64-w64-mingw32
 XCFLAGS   := -O2 -std=gnu11 -Wall -Wextra -DPLATFORM_WIN=1 -Dmain=SDL_main \
              -Iported -I$(SDL_WIN)/include
-XLD       := -static -static-libgcc -Wl,--dynamicbase -Wl,--nxcompat \
+XLD       := -static -static-libgcc -Wl,-s -Wl,--dynamicbase -Wl,--nxcompat \
              -Wl,--high-entropy-va
 XLIBS     := -L$(SDL_WIN)/lib -lmingw32 -lSDL2main -lSDL2 -mwindows \
              -lm -ldinput8 -ldxguid -ldxerr8 -luser32 -lgdi32 -lwinmm \
