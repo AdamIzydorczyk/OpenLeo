@@ -148,9 +148,12 @@ static void run_menu(const char *data)
         if (sel == 0) {
             /* RAN.01 is the game's first level ("NEW GAME (RAN.01)"): its
              * tlo= stack on this CD resolves to the PLAN1.PCM parallax
-             * plane (plan3.pcx/plan2.pcm are CD holes) - ll_level shows the
-             * 400x200 PCM rest view. */
-            ll_level_show(data, "RAN.01", 8.0, 0);
+             * plane (plan3.pcx/plan2.pcm AND the whole ANIMACJE leaf are
+             * CD holes, so it stays skeletal).  LEO_DEMO_LEVEL=<NAME>
+             * demos a richer level instead, e.g. TUNGA.11 (full PLAN3.PCX
+             * background + animated platforms). */
+            const char *lv = getenv("LEO_DEMO_LEVEL");
+            ll_level_show(data, lv && *lv ? lv : "RAN.01", 8.0, 0);
             break;
         } else if (sel == 1) {
             if (auto_i)
