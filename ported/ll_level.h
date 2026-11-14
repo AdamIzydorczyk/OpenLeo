@@ -1,8 +1,9 @@
 /* ll_level.h - level intro/preview viewer (M3): resolves the plain-text
  * .DES wiring for a level, then shows the PCX art and plays the PCM
  * parallax track stored in the level's ETAPY block. Used by the ll_level
- * tool and by the demo flow (level start preview). Assumes SDL already
- * initialised; never calls SDL_Quit.
+ * tool and by the demo flow (level start preview). All window/input/
+ * clock/audio/thread needs go through the platform interface
+ * (platform.h); the backend owns the session lifecycle.
  */
 #ifndef LL_LEVEL_H
 #define LL_LEVEL_H
@@ -25,7 +26,8 @@ int ll_level_anims(const char *data_dir, const char *level);
  * the engine plays "mapka.mod" from the SOUND container on entering the
  * map (FUN_0005dec0) and stops it on every exit (FUN_0005df20).
  * ll_music_play: 0 = playing, 1 = missing/disabled (LEO_NO_MUSIC).
- * ll_music_stop: idempotent. Requires SDL (audio subsystem self-init). */
+ * ll_music_stop: idempotent. Audio self-inits through the platform
+ * (silent play if the platform reports no audio). */
 int ll_music_play(const char *data_dir, const char *modname);
 void ll_music_stop(void);
 

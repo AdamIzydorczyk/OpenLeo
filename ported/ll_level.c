@@ -26,7 +26,6 @@
  */
 #include "ll_level.h"
 #include "fs_ci.h"
-#include "ll_audio.h"
 #include "ll_pcx.h"
 #include "ll_pcm.h"
 #include "ll_seq.h"
@@ -34,28 +33,26 @@
 #include "ll_mod.h"
 #include "platform.h"
 
-#include <SDL2/SDL.h>   /* EXCEPTION, deliberately: the music SERVICE below
-                         * (ll_mod + ll_audio + a pump thread on the SDL
-                         * audio queue) is not a screen and moves behind
-                         * the platform interface in a separate step
-                         * (NEXT_STEPS PR-17). Everything that draws or
-                         * takes input here - scene window, help overlay,
-                         * key/mouse input, clocks - goes through
-                         * platform.h (T-01). */
+#include <stdatomic.h>  /* pump-thread stop flag (portable C11; the
+                         * thread itself is plat_thread_start, T-01).
+                         * This file contains no SDL: the queue-only
+                         * audio contract and its samples=0 rationale
+                         * live with the SDL backend (ported/ll_audio.h,
+                         * ported/platform_sdl.c). */
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h> /* strncasecmp for container record names */
 
-/* SDL audio for music.  IMPORTANT (dev desktop, 2026-11-14): SDL2's
- * callback delivery is corrupt on this system with EVERY backend
- * (pipewire/pulse squeeze or go silent; even alsa squeaks at 1024
- * samples and dies at 2048+), while SDL_QueueAudio on the alsa backend
- * plays byte-perfect.  So music never uses want.callback: the device is
- * opened silent and the queue is topped by a dedicated pump THREAD
- * (review E-09 / tips T-09) - keeping ~250 ms queued independently of
- * the UI loops, because window drags (Windows modal loop), slow loads
- * and SDL_Delays in the screens underran the old in-loop pump. */
-
-/* Initialize the audio subsystem: moved to ported/ll_audio.c in PR-12
- * (ll_audio_session_init); the queue-only device contract notes above
- * still apply - read them with ported/ll_audio.h. */
+/* Music audio (E-09): the device is plat_audio_open (queue-only, s16
+ * interleaved - same call the cutscene player uses); the queue is kept
+ * >= ~250 ms by a dedicated pump thread (plat_thread_start) so window
+ * drags (Windows modal loop), slow loads and screen delays never
+ * underrun it - the old in-loop pump did. When the platform has no
+ * threads (headless dummy backend) plat_thread_start fails cleanly and
+ * the UI loops keep topping the queue via ll_music_pump (the pre-E-09
+ * path); both paths produce the same bytes. */
 
 /* ---- standalone music playback (menu/map screens), singleton ---- *
  * Engine anchor: FUN_0005dec0 opens+plays "mapka.mod" for the MAPKA
@@ -65,25 +62,25 @@ static llrs s_mus_snd;
 static unsigned char *s_mus_img;
 static ll_mod s_mus;
 static ll_mod_state s_mst;
-static SDL_AudioDeviceID s_mus_dev;
+static int s_mus_aopen;                /* platform audio device is ours */
 static int s_mus_snd_open;
 static FILE *s_mus_wf;                 /* LEO_MUSIC_WAV diagnostic dump */
 static char s_mus_name[32];
-static SDL_Thread *s_mus_thr;          /* E-09 dedicated pump thread    */
-static SDL_atomic_t s_mus_quit;
+static int s_mus_thr;                  /* plat_thread running (E-09)   */
+static atomic_int s_mus_quit;
 
-/* E-09: while it lives this thread owns s_mst/s_mus_wf/s_mus_dev
- * (ll_music_stop joins it before touching any of them, ll_music_play
- * stops first), so no lock is needed. Queue kept >= ~250 ms with 125 ms
- * chunks (old in-loop low-water was 12000 B ~= 68 ms, review E-09). */
-static int SDLCALL music_pump_thread(void *unused)
+/* E-09: while it lives this thread owns s_mst/s_mus_wf/the audio
+ * queue (ll_music_stop joins it before touching any of them,
+ * ll_music_play stops first), so no lock is needed. Queue kept
+ * >= ~250 ms with 125 ms chunks (old in-loop low-water was 12000 B
+ * ~= 68 ms, review E-09). */
+static int music_pump_thread(void *unused)
 {
     (void)unused;
     static int16_t buf[(LL_MOD_RATE / 8) * 2];      /* 125 ms stereo s16 */
-    const Uint32 low_water = (Uint32)LL_MOD_RATE / 4 * 4; /* 250 ms bytes */
-    while (!SDL_AtomicGet(&s_mus_quit)) {
-        if (s_mus_dev &&
-            SDL_GetQueuedAudioSize(s_mus_dev) < low_water) {
+    const size_t low_water = (size_t)LL_MOD_RATE;   /* 250 ms bytes */
+    while (!atomic_load(&s_mus_quit)) {
+        if (plat_audio_queued_bytes() < low_water) {
             size_t frames = LL_MOD_RATE / 8;
             ll_mod_mix(&s_mst, buf, frames);
             if (s_mus_wf) {
@@ -91,12 +88,11 @@ static int SDLCALL music_pump_thread(void *unused)
                 fflush(s_mus_wf);       /* CI hook: LEO_MUSIC_WAV stays
                                          * tail-able while the game runs */
             }
-            SDL_QueueAudio(s_mus_dev, buf,
-                           (Uint32)(frames * 2 * sizeof(int16_t)));
+            plat_audio_queue(buf, frames * 2 * sizeof(int16_t));
         }
-        SDL_Delay(25);                  /* first pass runs immediately,
-                                         * so even very short plays get
-                                         * their first chunk */
+        plat_sleep_until(plat_now_ns() + 25000000ull); /* first pass runs
+                                         * immediately, so even very short
+                                         * plays get their first chunk */
     }
     return 0;
 }
@@ -115,9 +111,8 @@ static void music_first_chunk(void)
         fwrite(buf, 2 * sizeof(int16_t), frames, s_mus_wf);
         fflush(s_mus_wf);
     }
-    if (s_mus_dev)
-        SDL_QueueAudio(s_mus_dev, buf,
-                       (Uint32)(frames * 2 * sizeof(int16_t)));
+    if (s_mus_aopen)
+        plat_audio_queue(buf, frames * 2 * sizeof(int16_t));
 }
 
 /* the LEO_MUSIC_WAV diagnostic: one raw file per play */
@@ -151,40 +146,35 @@ int ll_music_play(const char *data_dir, const char *modname)
         return 1;
     }
     ll_mod_start(&s_mst, &s_mus);
-    if (ll_audio_session_init() != 0) {
+    /* Queue-only device (samples=0 contract + accepted-spec log P-13
+     * enforced inside the backend; the samples A/B probe results are
+     * documented at ported/ll_audio.h): -1 = audio subsystem
+     * unavailable -> play silent, exactly like the old silent
+     * ll_audio_session_init failure path; -2 = subsystem up, device
+     * failed -> keep the old diagnostic. */
+    int arc = plat_audio_open(LL_MOD_RATE, 2);
+    if (arc == -2) {
+        fprintf(stderr, "ll_music: device: %s\n", plat_last_error());
         ll_music_stop();
         return 1;
     }
-    SDL_AudioSpec want;
-    memset(&want, 0, sizeof want);
-    want.freq = LL_MOD_RATE;
-    want.format = AUDIO_S16SYS;
-    want.channels = 2;
-    /* want.samples MUST stay 0 here: any explicit small buffer (1024,
-     * 2048) makes SDL2.32's alsa backend deliver squeaking or silent
-     * streams on the dev desktop, while SDL's own default (reported
-     * back as 0 for queue-mode devices) plays byte-perfect.  Verified
-     * by A/B probe 2026-11-14: samples=0+pump clean, samples=2048
-     * silent, samples=1024 squeak.  ll_audio_open enforces this and
-     * logs the accepted spec (P-13) - see ported/ll_audio.h. */
-    s_mus_dev = ll_audio_open(&want);
-    if (!s_mus_dev) {
-        fprintf(stderr, "ll_music: device: %s\n", SDL_GetError());
+    if (arc != 0) {
         ll_music_stop();
         return 1;
     }
-    SDL_PauseAudioDevice(s_mus_dev, 0);
-    /* E-09: dedicated pump thread; if it can't be created we fall
-     * back to ll_music_pump() being called from the UI loops (the
-     * pre-E-09 behaviour). */
+    s_mus_aopen = 1;
+    /* E-09: dedicated pump thread; if the platform cannot give us one
+     * we fall back to ll_music_pump() being called from the UI loops
+     * (the pre-E-09 behaviour). */
     if (getenv("LEO_MUSIC_WAV"))
         music_wav_open();
     music_first_chunk();
-    SDL_AtomicSet(&s_mus_quit, 0);
-    s_mus_thr = SDL_CreateThread(music_pump_thread, "ll_music_pump", NULL);
-    if (!s_mus_thr)
+    atomic_store(&s_mus_quit, 0);
+    if (plat_thread_start(music_pump_thread, NULL, "ll_music_pump") == 0)
+        s_mus_thr = 1;
+    else
         printf("ll_music: pump thread failed (%s), using UI-loop pump\n",
-               SDL_GetError());
+               plat_last_error());
     printf("ll_music: playing %s: '%s' %upos %uuniqpat %uch\n", modname,
            s_mus.title, s_mus.nseq, s_mus.npat_stored, s_mus.nch);
     return 0;
@@ -193,18 +183,18 @@ int ll_music_play(const char *data_dir, const char *modname)
 void ll_music_stop(void)
 {
     if (s_mus_thr) {                    /* join first: the thread owns
-                                           s_mst/s_mus_wf/s_mus_dev */
-        SDL_AtomicSet(&s_mus_quit, 1);
-        SDL_WaitThread(s_mus_thr, NULL);
-        s_mus_thr = NULL;
+                                            s_mst/s_mus_wf/audio queue */
+        atomic_store(&s_mus_quit, 1);
+        plat_thread_join();
+        s_mus_thr = 0;
     }
     if (s_mus_wf) {
         fclose(s_mus_wf);
         s_mus_wf = NULL;
     }
-    if (s_mus_dev)
-        ll_audio_close(s_mus_dev);
-    s_mus_dev = 0;
+    if (s_mus_aopen)
+        plat_audio_close();
+    s_mus_aopen = 0;
     ll_mod_close(&s_mus);
     free(s_mus_img);
     s_mus_img = NULL;
@@ -218,16 +208,16 @@ void ll_music_stop(void)
  * No-op when no music device is open or the thread is running. */
 void ll_music_pump(void)
 {
-    if (!s_mus_dev || s_mus_thr)
+    if (!s_mus_aopen || s_mus_thr)
         return;
-    if (SDL_GetQueuedAudioSize(s_mus_dev) > 12000)
+    if (plat_audio_queued_bytes() > 12000)
         return;
     static int16_t buf[(LL_MOD_RATE / 8) * 2];      /* 125 ms stereo s16 */
     size_t frames = LL_MOD_RATE / 8;
     ll_mod_mix(&s_mst, buf, frames);
     if (s_mus_wf)
         fwrite(buf, 2 * sizeof(int16_t), frames, s_mus_wf);
-    SDL_QueueAudio(s_mus_dev, buf, (Uint32)(frames * 2 * sizeof(int16_t)));
+    plat_audio_queue(buf, frames * 2 * sizeof(int16_t));
 }
 
 int ll_level_names(const char *data_dir, char names[][32], int max)
@@ -250,11 +240,6 @@ int ll_level_names(const char *data_dir, char names[][32], int max)
     llrs_close(&et);
     return n;
 }
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h> /* strncasecmp for container record names */
 
 typedef struct { char key[32], val[256]; } des_kv;
 
@@ -1636,9 +1621,9 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         /* 5c) level music: the .des `muzyka=<stem>.mod` names a SOUND
          *     container '<STEM>.MOD' payload (standard MOD layout, see
          *     ll_mod.h).  Same singleton as the MAPKA screen; the scene
-         *     loop below pumps it (SDL queue path, see note above
-         *     ll_audio_session_init - callbacks are unreliable on
-         *     SDL2+PipeWire). */
+         *     loop below pumps it (platform queue path, see the note at
+         *     the top of this file - callback delivery is unreliable on
+         *     SDL2+PipeWire, so the backend opens devices queue-only). */
         if (audio && !getenv("LEO_NO_MUSIC")) {
             const char *muz = des_get(kvs, nk, "muzyka");
             if (muz && *muz) {

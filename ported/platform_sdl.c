@@ -289,4 +289,30 @@ const char *plat_last_error(void)
     return SDL_GetError();
 }
 
+/* ---- platform worker thread (review E-09: music pump) ---- */
+static SDL_Thread *s_thr;
+
+int plat_thread_start(int (*fn)(void *), void *ctx, const char *name)
+{
+    if (s_thr || !fn)
+        return -1;
+    /* Exactly the SDL_CreateThread call music used to make itself:
+     * same SDLCALL ABI (the cast is a no-op on both our targets), so
+     * the E-09 thread semantics and the failure diagnostic
+     * (SDL_GetError via plat_last_error) are unchanged. */
+    s_thr = SDL_CreateThread((SDL_ThreadFunction)fn,
+                             name && *name ? name : "ll_plat", ctx);
+    if (!s_thr)
+        return -1;
+    return 0;
+}
+
+void plat_thread_join(void)
+{
+    if (!s_thr)
+        return;
+    SDL_WaitThread(s_thr, NULL);
+    s_thr = NULL;
+}
+
 #endif /* !PLAT_BACKEND_DUMMY */

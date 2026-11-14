@@ -4,7 +4,7 @@ Working plan derived from `OpenLeo_native_port_review.md` (P/E/M) and
 `OpenLeo_porting_tips.md` (T). Update the status lines here as items
 land; the review/tips files stay as the detailed work orders.
 
-## Status as of 2026-11-14 (through PR-16, all pushed)
+## Status as of 2026-11-14 (through PR-17, all pushed)
 
 Done and verified green (full `make verify-all` incl. wine parity):
 
@@ -131,7 +131,29 @@ Done and verified green (full `make verify-all` incl. wine parity):
   demo chain + level tool, and a REAL-session X11 smoke: island
   CLICK launches chapter -> IS -> ESC skip -> level p/ESC -> map q,
   rc 0 (synthetic core Button events under XI2-off; kwin owns the
-  Wayland-side pointer so XTEST hit-testing is unavailable there).  (this commit)
+  Wayland-side pointer so XTEST hit-testing is unavailable there).    (d58f33c)
+- PR-17 T-01 phase 4 (music service): ll_level.c is now COMPLETELY
+  SDL-free - the music singleton uses plat_audio_open/queue/close for
+  its device (same queue-only device the player uses; samples=0
+  contract now enforced backend-side), and the E-09 pump thread goes
+  through NEW plat_thread_start/plat_thread_join (C11 <threads.h> is
+  NOT available on the vendored llvm-mingw - probed; the platform
+  keeps the thread: SDL backend = the exact SDL_CreateThread call,
+  diagnostics byte-identical; headless dummy = -1, which runs the
+  documented UI-loop pump fallback = pre-E-09 path, both paths byte-
+  same). Quit flag moved to C11 stdatomic (probed available on both
+  toolchains); low_water rewritten as (size_t)LL_MOD_RATE = the same
+  250 ms; error split preserved (-1 subsystem -> silent play like the
+  old silent session-init path, -2 device -> ll_music: device: %s
+  with plat_last_error). Remaining direct SDL after this PR = app
+  glue ONLY (main.c GetBasePath/MessageBox/Delay/video-pin, ll_paths.c
+  GetPrefPath) - PR-18 candidate. Verified: verify-all 36/36 after
+  clean, selftest 26 (+2 thread-contract checks), ASan/UBSan glob
+  build + real X11+ALSA session chain: MAPKA.MOD played through the
+  platform device + REAL platform pump thread (no fallback message),
+  joined clean, rc 0; LSan in real-audio sessions shows only third-
+  party libasound/sdl2-compat one-time allocs (zero app frames) -
+  documented below with the timeout/SIGTERM gotcha.                (this commit)
 
 Known-clean baselines: ASan/UBSan on demo chain + all 22 MODs = app
 leaks 0 (SDL backend internals only); CI pins are format-only for MOD
@@ -317,14 +339,80 @@ level "KADMAR2" -> p -> "autoscroll on" -> ESC -> "ESC -> advance"
 -> back to map -> q -> "map: wyjście" -> exit rc 0. All five
 migrated input surfaces in one run.
 
+## PR-17 — music service (DONE, phase 4 of T-01)
+
+The music singleton (MAPKA level-select + per-level tracks) was the
+last engine code talking to SDL directly. It now uses the SAME audio
+API the cutscene player already used (plat_audio_open/queue/
+queued_bytes/close - queue-only devices, the samples=0 contract and
+the P-13 accepted-spec log live backend-side), plus a NEW tiny
+thread API: plat_thread_start(fn,ctx,name)/plat_thread_join. C11
+<threads.h> was the obvious portable choice and is NOT available on
+the vendored llvm-mingw (probe: fatal error, gcc has it); the
+portable atomic flag IS (stdatomic on both toolchains, probed), so:
+thread = platform's job, stop-protocol = engine's job (atomic_int
+s_mus_quit). The SDL backend is the exact SDL_CreateThread call the
+music code used to make (same ABI cast, same thread name, the
+"pump thread failed (%s)" diagnostic verbatim via plat_last_error);
+the headless dummy returns -1, which makes CI exercise the
+documented UI-loop pump fallback (the pre-E-09 path) as the normal
+path. low_water was rewritten as (size_t)LL_MOD_RATE = the same
+250 ms value. Error mapping preserved: plat_audio_open -1 (subsystem
+unavailable) -> silent play, exactly like the old failed
+ll_audio_session_init path; -2 -> ll_music: device: %s. ll_level.c
+is now SDL-FREE end to end (its SDL include had also been smuggling
+in the std* headers - the std includes moved to the top of the file,
+the stray mid-file include block deleted; behaviour unchanged).
+
+Verified: verify-all 36/36 from clean, verify-music byte-pin
+(tunga.MOD 2.25 s, silent=0 clip=0 peak=19259), platform_selftest
+26/26 (+2 thread-contract checks: headless start must fail cleanly,
+join safe when none ran), ASan/UBSan glob build links, and a REAL
+X11+ALSA session run of the CI auto-chain under ASan: MAPKA.MOD
+playing through the platform device with a REAL platform pump
+thread (no fallback line), ll_music_stop joined it, chain rc 0,
+zero UBSan errors, and zero app frames in the leak report.
+
+Two environment lessons worth keeping:
+1. timeout(1) + SDL2: SDL installs SIGINT/SIGTERM handlers, so
+   `timeout N ./game` does NOT kill it - SDL turns TERM into an
+   app-quit event, the game exits the current scene and keeps
+   running the next screen; timeout without -k then waits forever.
+   Real session runs must either pass the CI auto-hooks (so the
+   chain ends on its own) or use `timeout -k`. A LSan-at-exit run
+   also prints the leak report BEFORE stdio is flushed, so a
+   killed-by-timeout ASan log can show ONLY stderr lines - do not
+   mistake that for "the app hung at startup".
+2. The ASan-in-real-audio leak report (3.4 KB/47 allocs) is ALL
+   third-party one-time allocations in libasound + the pipewire
+   ALSA plugin + sdl2-compat internals (zero app frames) - it
+   appears only when a real device is touched; the dummy-driver
+   legs remain leak-clean.
+
+Workspace note: /tmp/opencode was swept mid-PR (iso_stage,
+py_last, wineprefix, harness scripts gone). Restored: full CD from
+the repo's LL.iso -> bsdtar -xf LL.iso LEO (=> /tmp/opencode/
+iso_stage/LEO), HD overlay -> bsdtar -xf LL.iso LEO_HDD && mv
+LEO_HDD hd_files, save fixtures cp STATUS.LEO LONGSOFT.CFG from
+the repo root (they live there, gitignored on purpose - verify-
+save SKIPs cleanly without them), last-frame oracle -> python3
+tools/is_decode.py frames $(DATA)/INTRO_P.IS /tmp/opencode/py_last
+--ppm --only 1520. Note: the hd_files save fixtures that existed
+before were from another install (word63=5, drive='D'); the restored
+repo-root ones decode with the SAME grammar (word63=4, drive='H'),
+verify-save pins updated to the present files + provenance comment.
+Side benefit: hd_files/LEO.EXE is the original DOS executable -
+useful for the T-24 golden-master idea.
+
 ## Next — pick from the Deferred list below
 
 Nothing queued from the review's "worth fixing" set: all of it has
-landed. Open candidates: PR-17 (music service behind plat_audio_* +
-a portable thread, see PR-16 note — the last direct-SDL engine code),
+landed. Open candidates: PR-18 (app glue off SDL: main.c
+GetBasePath/message box/SDL_Delay/video-driver pin + ll_paths.c
+GetPrefPath -> plat_*; the last SDL includes in the tree),
 Deferred big architecture items, or the user's call (T-11 4:3 aspect
-default, T-22 AppImage, T-24 golden-master — needs the original
-LEO.EXE path).
+default, T-22 AppImage, T-24 golden-master - the original LEO.EXE
+is now on disk at /tmp/opencode/hd_files/LEO.EXE).
 
 ## Deferred big items (deliberately out of scope so far)
 
@@ -338,10 +426,12 @@ LEO.EXE path).
   change).
 - T-01 platform abstraction - DONE (PR-14 interface + headless
   backend; PR-15 SDL backend + player; PR-16 title/menu/level
-  screens). The only remaining direct SDL user in engine code is
-  the music service (ll_mod/ll_audio pump thread) — a follow-up PR
-  can put it behind plat_audio_* like the player's audio already
-  is; ll_view/ll_audio are backend-private otherwise.
+  screens; PR-17 music service + platform thread). ll_view/ll_audio
+  are backend-private; no engine source includes SDL2 anymore
+  (grep: only platform_sdl.c, ll_view/ll_audio headers, main.c and
+  ll_paths.c). Remaining SDL = app glue (GetBasePath, message box,
+  SDL_Delay, video-driver pin, GetPrefPath) - small PR-18 candidate
+  if ever wanted.
 - T-03 config knobs cleanup, T-04 globals,
   T-05/T-06 fixed-step timing + precise sleep, T-07 clock ownership,
   T-16 Polish text, T-17 save/config separation (STATUS.LEO codec

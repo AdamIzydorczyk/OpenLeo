@@ -129,6 +129,18 @@ void   plat_audio_clear(void);
  * fs_ci opener, tips T-18). NULL if unresolvable. */
 FILE *plat_fopen(const char *path, const char *mode);
 
+/* One platform-owned worker thread (review E-09: the music pump must
+ * top the audio queue independently of the UI loops). Exactly one may
+ * run at a time - matching the music singleton's own invariant.
+ * plat_thread_start runs fn(ctx) and returns 0; on failure it returns
+ * -1 (reason via plat_last_error) and the engine falls back to its
+ * documented UI-loop pump. The caller owns the stop protocol (an
+ * atomic flag in ctx); plat_thread_join just waits for exit.
+ * The headless dummy backend reports "no threads here" = -1, which
+ * exercises exactly that fallback path in tests. */
+int  plat_thread_start(int (*fn)(void *), void *ctx, const char *name);
+void plat_thread_join(void);
+
 /* Last backend error as a printable string (diagnostics only - the
  * engine must not branch on its content). The SDL backend returns
  * SDL_GetError(), so existing "window: ..." / "audio off (...)"

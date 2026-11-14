@@ -129,6 +129,21 @@ const char *plat_last_error(void)
     return "";
 }
 
+/* Headless: no threads. Returning -1 exercises the engine's documented
+ * UI-loop pump fallback (ll_music_pump), which is exactly what the
+ * pre-E-09 code did - good test coverage, not a limitation. */
+int plat_thread_start(int (*fn)(void *), void *ctx, const char *name)
+{
+    (void)fn;
+    (void)ctx;
+    (void)name;
+    return -1;
+}
+
+void plat_thread_join(void)
+{
+}
+
 /* test hooks: declared in platform.h under the same PLAT_BACKEND_DUMMY
  * switch (script events in, presented-frame count out). */
 void plat_dummy_inject(const ll_event *ev)

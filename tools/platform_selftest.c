@@ -29,6 +29,14 @@ static void present_frames(void *user, unsigned idx, const is_stream *s)
     presented_cb_count++;
 }
 
+/* thread contract probe: never runs when the platform has no threads
+ * (headless dummy); must simply be a valid plat_thread_start target. */
+static int selftest_never_fn(void *ctx)
+{
+    (void)ctx;
+    return 0;
+}
+
 static int fails;
 static void check(const char *what, int cond)
 {
@@ -100,6 +108,15 @@ int main(int argc, char **argv)
     check("queue drains -> poll returns 0", plat_poll(&e) == 0);
     plat_raise();                              /* must not crash */
     check("plat_raise is safe headless", 1);
+
+    /* ---- worker-thread contract (music pump, E-09) ---- *
+     * Headless there are no platform threads: start must fail cleanly,
+     * which is exactly what routes the engine to its documented
+     * UI-loop pump fallback; join stays safe. */
+    check("headless thread start fails cleanly (UI-pump fallback)",
+          plat_thread_start(selftest_never_fn, NULL, "selftest") == -1);
+    plat_thread_join();
+    check("thread join safe when none ran", 1);
 
     /* ---- decode -> present, with no display (the headline test) ---- */
     is_stream s;

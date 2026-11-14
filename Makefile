@@ -542,6 +542,13 @@ verify-sel: ll_cutscene
 # STATUS.LEO savegame + LONGSOFT.CFG codec (ported/ll_save.c, FUN_0005dae0/
 # FUN_0005dcc0 grammar): byte-exact round-trips of the shipped files.
 # Originals are user-supplied and NEVER in git: the check SKIPs if absent.
+# 2026-11-14: a /tmp workspace sweep lost the fixture copies; restored
+# from the repo-root ones (gitignored by design, sha256-identical to
+# the Trash copy at ~/.local/share/Trash/files/LONGSOFT/LEO/). The lost
+# copies were from a DIFFERENT install (STATUS.LEO word63=5, CFG
+# drive='D'); pins below match the current files (word63=4, drive='H')
+# - same grammar. Re-pin again if the other copies resurface (/tmp is
+# not precious; the handheld install may still have them).
 HD       ?= /tmp/opencode/hd_files
 verify-save: ll_save
 	@if [ ! -f $(HD)/STATUS.LEO ] || [ ! -f $(HD)/LONGSOFT.CFG ]; then \
@@ -551,7 +558,7 @@ verify-save: ll_save
 	  /tmp/opencode/st_rt.bin \
 	  && grep -q 'block A: 0 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31' \
 	      /tmp/opencode/save_dump.log \
-	  && grep -q 'word63(DAT_000a94f0)=5 word64(DAT_000cf464)=0' \
+	  && grep -q 'word63(DAT_000a94f0)=4 word64(DAT_000cf464)=0' \
 	      /tmp/opencode/save_dump.log \
 	  && grep -q 'plain\[65..74\]: 128 200 1 0 0 0 0 0 0 0' \
 	      /tmp/opencode/save_dump.log \
@@ -560,7 +567,7 @@ verify-save: ll_save
 	@./ll_save cfg $(HD)/LONGSOFT.CFG --out /tmp/opencode/cfg_rt.CFG \
 	  > /tmp/opencode/cfg_dump.log 2>&1 \
 	  && cmp $(HD)/LONGSOFT.CFG /tmp/opencode/cfg_rt.CFG \
-	  && grep -q "drive='D'" /tmp/opencode/cfg_dump.log \
+	  && grep -q "drive='H'" /tmp/opencode/cfg_dump.log \
 	  && echo "LONGSOFT.CFG: 273 B blob round-trip + drive byte0 pinned (ok)" \
 	  || { echo "LONGSOFT.CFG round-trip FAILED"; cat /tmp/opencode/cfg_dump.log; exit 1; }
 
