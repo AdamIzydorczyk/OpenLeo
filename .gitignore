@@ -31,6 +31,7 @@ __pycache__/
 # build outputs (root = single build dir for both native targets)
 build/bin/
 original/*.exe
+resources/*.res
 ll_cutscene
 ll_cutscene.exe
 llrs_selftest

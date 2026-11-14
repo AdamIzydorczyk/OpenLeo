@@ -11,6 +11,7 @@
  * Makefile (compiler + SDL path) and the -DPLATFORM_* knobs in ll_config.h.
  * Usage: ll_cutscene FILE.IS [--ppm N OUT.ppm] [--from N] [--skip-at N]
  *          [--no-audio] [--then FILE.IS] [--menu DATA_DIR] [--demo [DATA_DIR]]
+ *          [--console (windows: attach/alloc a console for diagnostics)]
  */
 #include "ll_config.h"
 #include "is_stream.h"
@@ -22,7 +23,11 @@
 #include "platform_sdl/is_player.h"
 
 #include <SDL2/SDL.h>
+#if defined(PLATFORM_WIN) && PLATFORM_WIN
+#include <windows.h> /* P-06: AttachConsole/AllocConsole for --console */
+#endif
 #include <dirent.h>
+#include <stdarg.h> /* fatal_msg */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -172,6 +177,23 @@ static void suggest_sub(const char *dir, const char *want)
     fprintf(stderr, "\n");
 }
 
+/* P-06: one fatal-error channel for both platforms: stderr always,
+ * plus a real message box on the -mwindows build (double-click
+ * launch has no console; `--console` or a --no-subsystem build gets
+ * the text on stderr). */
+static void fatal_msg(const char *fmt, ...)
+{
+    char buf[512];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof buf, fmt, ap);
+    va_end(ap);
+    fprintf(stderr, "%s\n", buf);
+#if defined(PLATFORM_WIN) && PLATFORM_WIN
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Lew Leon", buf, NULL);
+#endif
+}
+
 /* E-01 / tips T-19: one clear report of missing DATA directories at
  * startup, instead of a failure buried in the first scene. Prints nothing
  * when the set is complete except the one-line confirmation; a Windows
@@ -196,14 +218,9 @@ static void data_probe(const char *dir)
         printf("[leo] DATA %s: complete\n", dir);
         return;
     }
-#if defined(PLATFORM_WIN) && PLATFORM_WIN
-    char msg[512];
-    snprintf(msg, sizeof msg,
-             "Game data not found in\n%s\n\nCopy the original game "
-             "directories (ANIMACJE, ETAPY, SOUND, LEVELDES) there, or "
-             "pass the DATA directory on the command line.", dir);
-    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Lew Leon", msg, NULL);
-#endif
+    fatal_msg("Game data not found in\n%s\n\nCopy the original game "
+              "directories (ANIMACJE, ETAPY, SOUND, LEVELDES) there, or "
+              "pass the DATA directory on the command line.", dir);
 }
 
 static const char *pick_data_dir(void)
@@ -559,7 +576,7 @@ int main(int argc, char **argv)
     ppm_job ppm = { 0, NULL, 0 };
     unsigned from = 0;
     unsigned skip_at = 0;
-    int audio = 1, demo = 0;
+    int audio = 1, demo = 0, console_wanted = 0;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--ppm") == 0 && i + 2 < argc) {
@@ -580,6 +597,8 @@ int main(int argc, char **argv)
             demo = 1;
             if (i + 1 < argc && argv[i + 1][0] != '-')
                 demo_data = argv[++i];
+        } else if (strcmp(argv[i], "--console") == 0) {
+            console_wanted = 1;
         } else {
             file = argv[i];
         }
@@ -601,6 +620,22 @@ int main(int argc, char **argv)
         }
     }
 
+    /* P-06: the windows build links -mwindows, so a plain launch has no
+     * console at all and every diagnostic is invisible. --console attaches
+     * to the parent console (launched from cmd) or allocates one, and
+     * points stdout/stderr at it; fatal errors additionally surface as a
+     * message box (fatal_msg). */
+    if (console_wanted) {
+#if defined(PLATFORM_WIN) && PLATFORM_WIN
+        if (AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole()) {
+            freopen("CONOUT$", "w", stdout);
+            freopen("CONOUT$", "w", stderr);
+        }
+#else
+        (void)0; /* linux: stdout/stderr already go somewhere */
+#endif
+    }
+
     if (demo) {
         const char *d = demo_data;
         if (!d) {
@@ -616,7 +651,8 @@ int main(int argc, char **argv)
     if (!file) {
         static const char *usage =
             "usage: %s FILE.IS [--ppm N OUT.ppm] [--from N] [--no-audio]"
-            " [--then FILE.IS] [--menu DATA_DIR] [--demo [DATA_DIR]]\n";
+            " [--then FILE.IS] [--menu DATA_DIR] [--demo [DATA_DIR]]"
+            " [--console]\n";
         if (menu_data) {
             run_menu(menu_data, audio); /* menu-only run (no scene first) */
             return 0;
@@ -639,7 +675,7 @@ int main(int argc, char **argv)
     if (ppm.out) {
         is_stream s;
         if (is_open(&s, file) != 0) {
-            fprintf(stderr, "cannot open %s\n", file);
+            fatal_msg("cannot open %s", file);
             return 1;
         }
         int rc = is_decode_all(&s, ppm_cb, &ppm, ppm.want + 1);
@@ -648,6 +684,17 @@ int main(int argc, char **argv)
                s.st.frames, s.st.chunks);
         is_close(&s);
         return ppm.found ? 0 : 1;
+    }
+
+    /* P-06: the fatal "cannot open" path belongs to main, not the
+     * library, so it can surface as a message box on -mwindows runs
+     * (is_player_run keeps its own guard for library users). */
+    {
+        struct stat st;
+        if (stat(file, &st) != 0) {
+            fatal_msg("cannot open %s", file);
+            return 1;
+        }
     }
 
     /* scene chain: first file, then --then files. P-09: ESC (rc==2) means

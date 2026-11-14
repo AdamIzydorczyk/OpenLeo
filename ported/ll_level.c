@@ -184,9 +184,20 @@ int ll_music_play(const char *data_dir, const char *modname)
      * silent, samples=1024 squeak. */
     s_mus_dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if (!s_mus_dev) {
-        printf("ll_music: device: %s\n", SDL_GetError());
+        fprintf(stderr, "ll_music: device: %s\n", SDL_GetError());
         ll_music_stop();
         return 1;
+    }
+    {   /* P-13: log the accepted spec (see is_player.c) */
+        static const char *const fmt[] = {
+            "U8", "S8", "S16LSB", "S16MSB", "S16SYS", "S32LSB",
+            "S32MSB", "S32SYS", "F32LSB", "F32MSB", "F32SYS",
+        };
+        unsigned f = have.format & 0x800F;
+        fprintf(stderr, "ll_music: audio %s %uHz %uch %u samples\n",
+                f < sizeof fmt / sizeof fmt[0] ? fmt[f] : "?",
+                (unsigned)have.freq, (unsigned)have.channels,
+                (unsigned)have.samples);
     }
     SDL_PauseAudioDevice(s_mus_dev, 0);
     /* E-09: dedicated pump thread; if it can't be created we fall

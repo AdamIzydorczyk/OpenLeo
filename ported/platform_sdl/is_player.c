@@ -358,8 +358,21 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
         p.dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
         if (!p.dev)
             fprintf(stderr, "is_player: audio off (%s)\n", SDL_GetError());
-        else
+        else {
+            /* P-13: allowed_changes=0 means SDL converts silently to
+             * what the backend really runs; log the accepted spec so
+             * capture/diagnostic runs can be trusted. */
+            static const char *const fmt[] = {
+                "U8", "S8", "S16LSB", "S16MSB", "S16SYS", "S32LSB",
+                "S32MSB", "S32SYS", "F32LSB", "F32MSB", "F32SYS",
+            };
+            unsigned f = have.format & 0x800F;
+            fprintf(stderr, "is_player: audio %s %uHz %uch %u samples\n",
+                    f < sizeof fmt / sizeof fmt[0] ? fmt[f] : "?",
+                    (unsigned)have.freq, (unsigned)have.channels,
+                    (unsigned)have.samples);
             SDL_PauseAudioDevice(p.dev, 0);
+        }
     }
 
     /* Pacing (RE-PINNED 2026-11-14 - the audio block clock): ISplay plays

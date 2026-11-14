@@ -43,8 +43,17 @@ XLIBS     := -L$(SDL_WIN)/lib -lmingw32 -lSDL2main -lSDL2 -mwindows \
              -limm32 -lole32 -loleaut32 -lshell32 -lsetupapi -lversion -luuid
 
 win: ll_cutscene.exe
-ll_cutscene.exe: $(SRC) $(HDRS)
-	$(XC) $(XCFLAGS) $(XLD) -o $@ $(SRC) $(XLIBS)
+ll_cutscene.exe: $(SRC) $(HDRS) resources/ll_cutscene.res
+	$(XC) $(XCFLAGS) $(XLD) -o $@ $(SRC) resources/ll_cutscene.res $(XLIBS)
+
+# Windows metadata (review P-14): icon + VERSIONINFO + app.manifest
+# (PerMonitorV2 DPI, UTF-8 active code page). windres from the vendored
+# llvm-mingw (or any mingw windres).
+resources/ll_cutscene.res: resources/ll_cutscene.rc resources/app.manifest \
+                          resources/ll_cutscene.ico
+	$(shell command -v x86_64-w64-mingw32-windres 2>/dev/null || \
+	        echo vendor/llvm-mingw/bin/x86_64-w64-mingw32-windres) \
+	    resources/ll_cutscene.rc -O coff -o $@
 
 # ---------------- tests (both platforms) ----------------
 # Byte-exactness oracle: headless --ppm output vs tools/is_decode.py.
@@ -526,11 +535,28 @@ verify-save: ll_save
 	  && echo "LONGSOFT.CFG: 273 B blob round-trip + drive byte0 pinned (ok)" \
 	  || { echo "LONGSOFT.CFG round-trip FAILED"; cat /tmp/opencode/cfg_dump.log; exit 1; }
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save
+# Music path (E-09 pump thread + llrs/MOD join): a real level scene with
+# LEO_MUSIC_WAV must produce >= 1.5 s of s16 stereo at 44.1 kHz (the
+# thread refills the queue independently of the UI loop; the first chunk
+# is mixed synchronously at play).  Decode + clamp check is python-side.
+verify-music: ll_level
+	@rm -f /tmp/opencode/mus_ci.*.raw
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_MUSIC_WAV=/tmp/opencode/mus_ci LEO_HD_DIR=/tmp/opencode/hd_files \
+	  LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  ./ll_level $(DATA) TUNGA.11 > /tmp/opencode/mus_ci.log 2>&1; \
+	rc=$$?; \
+	if [ $$rc -ne 0 ]; then echo "music path FAILED (rc=$$rc)"; cat /tmp/opencode/mus_ci.log; exit 1; fi; \
+	grep -q 'll_music: playing tunga.MOD' /tmp/opencode/mus_ci.log || \
+	{ echo "music path: tunga.MOD never started"; cat /tmp/opencode/mus_ci.log; exit 1; }; \
+	python3 tools/verify_music.py /tmp/opencode/mus_ci
+
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
 	rm -f ll_cutscene ll_cutscene.exe llrs_selftest llrs_selftest.exe \
+	      resources/ll_cutscene.res \
 	      pcx_selftest pcx_selftest.exe seq_selftest seq_selftest.exe \
 	      seq_patchdump seq_patchdump.exe pcm_selftest pcm_selftest.exe \
 	      mod_selftest mod_selftest.exe ll_level ll_level.exe \
@@ -538,4 +564,4 @@ clean:
 
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
         verify-seq verify-pcm verify-mod verify-level verify-help verify-menu \
-        verify-sel verify-save verify-all level clean
+        verify-sel verify-save verify-music verify-all level clean

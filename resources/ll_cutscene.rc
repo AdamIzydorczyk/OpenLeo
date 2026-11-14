@@ -1,0 +1,36 @@
+/* ll_cutscene.rc - Windows version resource + icon + manifest (review P-14)
+ * Built by the Makefile via windres (llvm-rc in vendor/llvm-mingw/bin or
+ * any mingw windres).  Deliberately no winresrc.h include: llvm-rc parses
+ * VS_VERSION_INFO / RT_MANIFEST as its own keywords, and letting the C
+ * preprocessor expand them to bare numbers breaks that grammar.  The
+ * numeric forms used here (1 VERSIONINFO, 1 24) are the same resources. */
+
+IDI_ICON1 ICON "ll_cutscene.ico"
+
+1 24 "app.manifest"    /* RT_MANIFEST, CREATEPROCESS_MANIFEST_RESOURCE_ID */
+
+1 VERSIONINFO
+FILEVERSION     0,1,0,0
+PRODUCTVERSION  0,1,0,0
+FILEOS 0x4           /* VOS_NT_WINDOWS32 */
+FILETYPE 0x1         /* VFT_APP */
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"   /* en-US, Unicode codepage */
+        BEGIN
+            VALUE "CompanyName",      "OpenLeo (Adam Izydorczyk)"
+            VALUE "FileDescription",  "Lew Leon - native port"
+            VALUE "FileVersion",      "0.1.0.0"
+            VALUE "InternalName",     "ll_cutscene"
+            VALUE "LegalCopyright",   "Lew Leon (C) 1998 Adventure International / Longsoft"
+            VALUE "OriginalFilename", "ll_cutscene.exe"
+            VALUE "ProductName",      "OpenLeo - Lew Leon"
+            VALUE "ProductVersion",   "0.1.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END
