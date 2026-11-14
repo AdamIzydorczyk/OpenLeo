@@ -88,6 +88,22 @@ verify-win: ll_cutscene.exe llrs_selftest.exe pcx_selftest.exe seq_selftest.exe 
 	      >/dev/null; \
 	  then echo "win $$F: C == python (exact)"; \
 	  else echo "win $$F: MISMATCH"; exit 1; fi; done
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 \
+	  LEO_MENU_SECS=1 LEO_MENU_PPM=/tmp/opencode/lmenu_t2.ppm LEO_MENU_PPM_TICK=2 \
+	  timeout 90 ./ll_cutscene --demo $(DATA) --no-audio >/dev/null 2>&1 || true
+	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all SDL_VIDEODRIVER=dummy \
+	  LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_SECS=1 \
+	  LEO_MENU_PPM=Z:/tmp/opencode/wmenu_t2.ppm LEO_MENU_PPM_TICK=2 \
+	  timeout 120 wine ./ll_cutscene.exe --demo Z:$(DATA) --no-audio >/dev/null 2>&1 || true
+	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all SDL_VIDEODRIVER=dummy \
+	  LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_SECS=1 \
+	  LEO_MENU_PPM=Z:/tmp/opencode/wmenu_t8.ppm LEO_MENU_PPM_TICK=8 \
+	  timeout 120 wine ./ll_cutscene.exe --demo Z:$(DATA) --no-audio >/dev/null 2>&1 || true
+	@if cmp -s /tmp/opencode/wmenu_t2.ppm /tmp/opencode/wmenu_t8.ppm; \
+	then echo "win menu anim FAILED: t2 == t8"; exit 1; \
+	else echo "win menu anim: BERLO cycles under wine (t2 != t8, ok)"; fi
+	@cmp /tmp/opencode/lmenu_t2.ppm /tmp/opencode/wmenu_t2.ppm \
+	  && echo "win menu frame == linux frame (byte-exact, overlays composited)"
 
 # src/llrs.c byte-for-byte agreement with tools/llrs_unpack.py on all four
 # containers, checked under ASan/UBSan.
