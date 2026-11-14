@@ -22,6 +22,7 @@ typedef struct {
     unsigned     start_frame; /* skip presenting frames below this */
     Uint64       pause_at;    /* perf-counter stamp when paused (0=live) */
     const char  *quit_reason; /* diagnostics: what requested quit */
+    int          skip;        /* ESC: fast-skip cutscene to its end */
     int          idle;        /* cutscene done/skipped: hold window open */
     int          quit;
     Uint64       t0;
@@ -71,12 +72,11 @@ static void pump_input(player *p)
                 p->quit = 1;
                 p->quit_reason = "q";
             } else if (k == SDLK_ESCAPE && !p->idle) {
-                /* original semantics: ESC interrupts the intro/cutscene,
-                 * it does NOT quit the game. Demo state after skip = hold
-                 * last frame (a menu/game comes with M3); further ESC is
-                 * a no-op, matching "intro stopped, game still running". */
-                p->quit = 1;
-                p->quit_reason = "esc (skip cutscene)";
+                /* original semantics: ESC SKIPS the intro/cutscene and the
+                 * game continues - never freeze a mid-intro frame, never
+                 * quit. Demo continues to the cutscene's last frame (M3
+                 * will hand over to the title menu instead). */
+                p->skip = 1;
             } else if (k == SDLK_SPACE && p->dev) {
                 int playing = SDL_GetAudioDeviceStatus(p->dev)
                               == SDL_AUDIO_PLAYING;
@@ -106,7 +106,7 @@ static void wait_until(player *p, Uint64 deadline_ns)
         else
             SDL_Delay(0);
         pump_input(p);
-        if (p->quit)
+        if (p->quit || p->skip)
             return;
     }
 }
@@ -125,7 +125,7 @@ static void on_frame(void *u, unsigned idx, const is_stream *s)
     Uint64 t0_ns = (Uint64)((double)p->t0 / perf_scale);
     Uint64 deadline_ns = t0_ns + frame * p->period;
     wait_until(p, deadline_ns);
-    if (p->quit)
+    if (p->quit || p->skip)
         return;
     present(p);
     /* drift clamp: if a frame is >2 periods late, resync the clock */
@@ -194,6 +194,22 @@ int is_player_run(const char *path, int audio, unsigned start_frame)
     p.t0 = SDL_GetPerformanceCounter();
 
     for (unsigned ci = 0; ci < p.is.nchunks && !p.quit; ci++) {
+        if (p.skip) {
+            /* ESC: fast-forward the rest of the stream silently (the delta
+             * chain needs every frame decoded), then show the true last
+             * frame - looks like a real skip, never a frozen mid-frame */
+            if (p.dev)
+                SDL_ClearQueuedAudio(p.dev);
+            printf("is_player: ESC at frame %u -> skipping %u chunks\n",
+                   p.presented, p.is.nchunks - ci);
+            for (; ci < p.is.nchunks; ci++) {
+                is_decode_chunk(&p.is, ci, NULL, NULL, NULL);
+                if (p.is.st.ok)
+                    break;
+            }
+            present(&p);
+            break;
+        }
         /* frames before start_frame must still DECODE (frame deltas),
          * only their presentation and audio are suppressed */
         int live = p.is.st.frames + 1 > start_frame;
@@ -206,24 +222,16 @@ int is_player_run(const char *path, int audio, unsigned start_frame)
             break;
         }
     }
-    if (p.dev && !(p.quit && p.quit_reason && p.quit_reason[0] == 'e')) {
+    if (p.dev && !p.skip) {
         /* natural finish: let queued audio drain (bounded) */
-        while (SDL_GetQueuedAudioSize(p.dev) > 0 && !p.quit) {
+        while (SDL_GetQueuedAudioSize(p.dev) > 0 && !p.quit && !p.skip) {
             pump_input(&p);
             SDL_Delay(50);
         }
     }
-    if (p.quit && p.quit_reason && p.quit_reason[0] == 'e') {
-        /* ESC skip: drop pending audio, hold the last frame like the
-         * original does when the intro is interrupted (M3 replaces the
-         * hold with menu/gameplay handoff) */
-        if (p.dev)
-            SDL_ClearQueuedAudio(p.dev);
+    if (p.skip && !p.quit) {
         p.idle = 1;
-        p.quit = 0;
         SDL_SetWindowTitle(p.win, "Lew Leon - cutscene skipped (q = quit)");
-        printf("is_player: cutscene skipped, window held (q quits)\n");
-        fflush(stdout);
     }
     if (!p.quit) {
         /* natural finish too: hold final frame until q / window close,
