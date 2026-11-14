@@ -257,7 +257,7 @@ verify-level: ll_level
 	      /tmp/opencode/ran_plan1.pcm \
 	  && h=$$(./pcm_selftest /tmp/opencode/ran_plan1.pcm PLAN1.PCM \
 	      2>/dev/null | grep -o 'view.*fnv=[0-9a-f]*' | grep -o 'fnv=.*') \
-	  && grep -q "PCM view PLAN1.PCM 400x200 $$h" /tmp/opencode/lv_ran.log \
+	  && grep -q "PCM view PLAN1.PCM 400x40 $$h" /tmp/opencode/lv_ran.log \
 	  && echo "PCM canvas: tlo stack picks PLAN1.PCM; scene view == ll_pcm oracle ($$h)" \
 	  || { echo "PCM canvas check FAILED"; cat /tmp/opencode/lv_ran.log; exit 1; }
 

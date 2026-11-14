@@ -50,7 +50,11 @@ int main(int argc, char **argv)
     }
     printf("decode %s w=%u win=%u stride=%u rows=%u partial=%d fnv=%016llx\n",
            argv[2], p.w, p.win_rows, p.stride, p.rows, p.last_partial, h);
-    unsigned nh = p.rows < 200 ? p.rows : 200;
+    /* engine window height: what the blitter can actually show at rest
+     * (blit height is clamped to the load-window row count, hdr u16@2) */
+    unsigned nh = p.win_rows && p.win_rows < p.rows ? p.win_rows : p.rows;
+    if (nh > 200)
+        nh = 200;
     unsigned char *view = malloc((size_t)nh * 400);
     if (view) {
         ll_pcm_view(&p, 0, nh, view);

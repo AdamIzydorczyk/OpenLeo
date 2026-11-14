@@ -218,9 +218,14 @@ needs a fixed-timestep clock instead, driven from SDL_GetTicks64 + SDL_Delay
 (QueryPerformanceCounter optional on win11), present vsync-capped - all game
 logic on tick boundaries, so behavior matches the slowed QEMU baseline, not
 the wall execution rate. EXACT pacing sources, pinned 2026-11-14:
-- cutscenes: .IS header byte 0x5D (fps) is authoritative per-file: measured
-  2 fps (LOGO/PRAWA/AUTORZY?) ... 9 fps (ZARIA2); 640x480 files 2-5 fps,
-  Mode X 320x200 files 5-9 fps. Player uses 1000/fps ms directly.
+- cutscenes: .IS header byte 0x5D drives per-frame pacing. RE-READ
+  2026-11-14 (user playtest: LOGO crawled ~62 s at "2 fps"): the byte is
+  the frame PERIOD in 22 Hz engine ticks (period = byte*1000/22 ms), not a
+  fps value - LOGO/PRAWA 2 ticks = 11-13 s, INTRO_P 5 ticks, ZARIA2 9
+  ticks (slideshow art holds). Old reading (1000/byte ms) kept behind
+  LEO_IS_FPS_DIRECT=1; LEO_IS_PERIOD_MS=N overrides. No QEMU wall-time
+  baseline exists for cutscene speed, so the tick reading stands on the
+  verified 22 Hz tick chain + player memory.
 - engine tick: game has ZERO clock sync (no PIT port I/O, no INT 1Ah, no
   BIOS 40:6C reads anywhere in decompiled/all) - pure fixed-work-per-frame.
   QEMU docs confirm icount: "one instruction every 2^N ns virtual time",
@@ -493,14 +498,27 @@ w-multiples of 80 (RAN 400 yes; TUNGA 600/ZARIA 700 = engine quirk; we
 frame at the ctor pitch). Layers: RAN 400x1494, ZARIA.01 700x1491,
 ZARIA.02 700x1714, TUNGA 600x2896. The w/80 idiv-0 SIGFPE at level start
 = a MISSING PCM payload -> strips 0 (stock LEO_OUT.LOG), not a decode bug.
+Visual reality (checked with the free remote VL model opencode/nemotron-
+3.5-super-vl-free - no local GPU needed, works via subagent read tool):
+the RAN win_rows band with the PIORUN3.PCX palette reads as a plausible
+muddy ground strip (6/10), but deeper plane rows at any start offset
+(0..0x500 swept) or pitch hypothesis decode to banded noise for BOTH
+RAN and TUNGA - the window itself is honest data, but a row-interleave
+inside the RLE stream likely remains unresolved (open question, not
+blocking: the engine only shows the window at rest).
 
 **src/ll_level.c is now a scene composer**: main .DES resolved by exact ->
 <name>.DES -> <stem>.DES -> dir= scan of every LEVELDES .DES payload
 (TUNGA.11 is carried by TUNGA1.DES); bg = the tlo= LAYER STACK
 (`tlo=plan3.pcx,plan2.pcm,plan1.pcm` - whole stack, top layer first): the
 first listed layer present in the ETAPY block owns the canvas; a .PCM
-there renders its 400x200 rest view (grayscale until the .pal/.plt layer
-ships), a .PCX composites normally; fallback any .PCX in the block.
+there renders its engine rest window (exactly `win_rows` rows - ctor
+allocates win_rows*(w+80) and blitter FUN_00056c72 clamps blit height to
+that window; deeper plane rows stream in only while scrolling, the
+40-entry u32 table holds mid-stream resync offsets for that - as the
+ground band at the canvas bottom, palette from the level block's own
+.PCX donor (RAN.01: PIORUN3.PCX; grayscale documented fallback), a .PCX
+composites normally; fallback any .PCX in the block.
 RAN.01 on this CD resolves to PLAN1.PCM (plan3.pcx/plan2.pcm are CD holes)
 - demo NEW GAME now shows the real first level RAN.01 on the PCM canvas.
 objects = ANIMACJE/<level>/<LEAF> .SEQ sprites (ll_seq blitter)

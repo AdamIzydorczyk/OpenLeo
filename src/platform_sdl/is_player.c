@@ -327,10 +327,24 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
             SDL_PauseAudioDevice(p.dev, 0);
     }
 
-    /* pacing: authoritative per-file fps from the .IS header; TICK_HZ only
-     * as fallback for bogus/zero values. */
-    int fps = p.is.fps > 0 ? p.is.fps : TICK_HZ;
-    p.period = 1000000000ull / (Uint64)fps;
+    /* Pacing model (re-pinned 2026-11-14): the .IS header byte 0x5D is the
+     * inter-frame PERIOD in engine ticks; the engine runs one private timer
+     * tick every ~45.5 ms (22 Hz tick chain, PLAN.md "Speed/pacing model").
+     * So frame period = byte * 1000/22 ms:  LOGO(2)=11.4 s total,
+     * PRAWA(2)=13 s, INTRO_P(5), ZARIA2(9)=slideshow art holds - all sizes
+     * of cutscene that 1997 players remember.  The old "byte = fps" reading
+     * made LOGO crawl at 62 s and is kept only via LEO_IS_FPS_DIRECT=1.
+     * LEO_IS_PERIOD_MS=N overrides outright (tests). */
+    int ticks = p.is.fps > 0 ? p.is.fps : 2;
+    Uint64 period;
+    const char *ovr = getenv("LEO_IS_PERIOD_MS");
+    if (ovr && atoi(ovr) > 0)
+        period = (Uint64)atoi(ovr) * 1000000ull;
+    else if (getenv("LEO_IS_FPS_DIRECT"))
+        period = 1000000000ull / (Uint64)ticks;
+    else
+        period = (Uint64)ticks * 1000000000ull / 22ull;
+    p.period = period;
     p.start_frame = start_frame;
     p.t0 = SDL_GetPerformanceCounter();
 

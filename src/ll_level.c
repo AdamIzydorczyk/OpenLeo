@@ -377,7 +377,8 @@ static const llrs_slot *rec_find(const llrs_slot *recs, unsigned n,
     return NULL;
 }
 
-/* PPM dump of the composited scene (CI hook, LEO_LEVEL_PPM) */
+/* PPM dump of the composited scene (CI hook, LEO_LEVEL_PPM; the parent
+ * directory must already exist - CI recipes use /tmp/opencode directly) */
 static void scene_ppm(const char *path, int w, int h, const unsigned char *idx,
                       const unsigned char pal[768])
 {
@@ -1021,12 +1022,26 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     int pcm_owner = have_pcm && (!bg || bgpref < 0
                                  || !ci_eq(bg->name, recs[bgpref].name));
     unsigned char *view = NULL;
+    unsigned pcm_band = 0;
     if (pcm_owner) {
-        ch = (int)pcml.rows < 200 ? (int)pcml.rows : 200;
+        /* The engine can only show its current load window: the ctor
+         * allocates and decodes exactly win_rows rows (hdr u16@2), and
+         * blitter FUN_00056c72 clamps blit height to that window.  Deeper
+         * plane rows belong to further scroll stages streamed in later.
+         * At rest the window is the ground band (plan1 = nearest layer)
+         * at the bottom of the 400x200 screen; above it stays black
+         * because this CD lacks plan3.pcx/plan2.pcm (documented hole). */
         cw = 400;
-        view = malloc((size_t)cw * (size_t)ch);
+        ch = 200;
+        pcm_band = pcml.win_rows ? pcml.win_rows : 200;
+        if (pcm_band > pcml.rows)
+            pcm_band = (unsigned)pcml.rows;
+        if (pcm_band > 200)
+            pcm_band = 200;
+        view = calloc((size_t)cw, (size_t)ch);
         if (view)
-            ll_pcm_view(&pcml, 0, (unsigned)ch, view);
+            ll_pcm_view(&pcml, 0, pcm_band,
+                        view + (size_t)(ch - pcm_band) * (size_t)cw);
     }
     if (!img.idx && !view) {
         printf("ll_level: no background PCX for '%s' "
@@ -1252,21 +1267,26 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                                  objs[k].x, objs[k].y);
         }
         if (pcm_owner) {
-            /* PCM canvas: CI hash of the bare view must equal the
-             * verify_pcm.py `view` hash (level-integration check) */
+            /* PCM canvas: CI hash of the bare window band (win_rows rows,
+             * top-anchored like verify_pcm.py's `view`) must equal the
+             * ll_pcm oracle hash (level-integration check) */
             uint64_t hv = 0xCBF29CE484222325ull;
-            for (size_t i = 0; i < csz; i++) {
-                hv ^= view[i];
+            const unsigned char *band =
+                view + (size_t)(ch - pcm_band) * (size_t)cw;
+            for (size_t i = 0; i < (size_t)cw * pcm_band; i++) {
+                hv ^= band[i];
                 hv *= 0x100000001B3ull;
             }
-            printf("ll_level: PCM view %s %dx%d fnv=%016llx\n", bgname,
-                   cw, ch, (unsigned long long)hv);
-            unsigned char gpal[768];       /* grayscale: ppm bytes == view */
-            for (int i = 0; i < 256; i++) {
-                gpal[3 * i] = gpal[3 * i + 1] = gpal[3 * i + 2] =
-                    (unsigned char)i;
-            }
-            scene_ppm(ppm, cw, ch, canvas, gpal);
+            printf("ll_level: PCM view %s %dx%u fnv=%016llx\n", bgname,
+                   cw, pcm_band, (unsigned long long)hv);
+            unsigned char ppal[768];
+            if (img.idx)
+                memcpy(ppal, img.pal, 768);   /* level block's PCX palette */
+            else
+                for (int i = 0; i < 256; i++) /* documented fallback: gray */
+                    ppal[3 * i] = ppal[3 * i + 1] = ppal[3 * i + 2] =
+                        (unsigned char)i;
+            scene_ppm(ppm, cw, ch, canvas, ppal);
         } else
             scene_ppm(ppm, cw, ch, canvas, img.pal);
         free(canvas);
@@ -1295,13 +1315,13 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
             cw, ch);
         Uint32 lut[256];
-        if (!pcm_owner)
+        if (!pcm_owner || img.idx)
             for (int i = 0; i < 256; i++)
                 lut[i] = 0xFF000000u | ((Uint32)img.pal[3 * i] << 16) |
                          ((Uint32)img.pal[3 * i + 1] << 8) | img.pal[3 * i + 2];
         else
-            for (int i = 0; i < 256; i++)   /* PCM plane: grayscale until
-                                             * the .pal/.plt layer ships */
+            for (int i = 0; i < 256; i++)   /* no palette donor in the block:
+                                             * grayscale (documented hole) */
                 lut[i] = 0xFF000000u | 0x010101u * (Uint32)i;
 
         /* 5b) help overlay first, like the original POMOC flow: the HD

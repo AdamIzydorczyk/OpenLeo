@@ -29,14 +29,18 @@
  *            non-80-multiple widths.  We frame at the ctor pitch.)
  *
  * Display model (FUN_00056c72 + FUN_0001d528): one blit paints a
- * 400-px-wide window (5 strips of 80 px) of up to 200 rows; screen
+ * 400-px-wide window (5 strips of 80 px) whose height is clamped to the
+ * load window win_rows (the ctor allocates win_rows*(w+0x50) and decodes
+ * exactly that many rows per load; deeper rows stream in with scrolling,
+ * the 40-entry offset table holds resync points for that).  Screen
  * strip k shows plane strip (scroll_x + k) mod strips.  At rest that is
  * the identity, i.e. the view is plane columns 0..399.  Parallax
  * (FUN_00057460) shifts each strip by (strip_x - 200)*shift/100 about
  * the 400-px window centre (RAN: 5 strips * 80 = 400 = one full view).
- * The ctor streams win_rows rows per pass and the blitter clamps its
- * height to that window (<=200); ll_pcm_view() shows plane rows
- * [y0, y0+nh) of the fully decoded plane.
+ * ll_pcm_view() shows plane rows [y0, y0+nh) of the fully decoded plane;
+ * ll_level() renders only the win_rows-tall rest window.  NOTE: the
+ * plane decodes byte-exactly but looks dithered/garbled at depth on this
+ * CD; row-interleaving inside the stream stays unresolved (see PLAN.md).
  */
 #ifndef LL_PCM_H
 #define LL_PCM_H

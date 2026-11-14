@@ -56,10 +56,11 @@ def decode(raw):
     return w, win, stride, plane, rows, 1 if len(dec) % stride else 0
 
 
-def view(plane, stride, strips, rows):
-    """400-px rest window rows 0.. of FUN_00056c72 at world_x=0: screen
-    strip k shows plane strip k mod strips (identity for k < 400)."""
-    nh = min(rows, 200)
+def view(plane, stride, strips, rows, win):
+    """400-px rest window of FUN_00056c72 at world_x=0, clamped to the
+    load window (hdr u16@2): screen strip k shows plane strip k mod
+    strips (identity for k < 400)."""
+    nh = min(rows, win if win else rows, 200)
     out = bytearray()
     for r in range(nh):
         row = plane[r * stride:(r + 1) * stride]
@@ -94,12 +95,13 @@ def main():
                                  capture_output=True)
             lines = got.stdout.decode().splitlines()
             line = '\n'.join(l.strip() for l in lines[:2])
-            nh = min(ref[4], 200)
+            nh = min(ref[4], ref[1] if ref[1] else ref[4], 200)
             want = ('decode %s w=%d win=%d stride=%d rows=%d partial=%d '
                     'fnv=%016x\nview %s h=%d fnv=%016x'
                     % (name, ref[0], ref[1], ref[2], ref[4],
                        ref[5], fnv64(ref[3]), name, nh,
-                       fnv64(view(ref[3], ref[2], ref[0] // 80, ref[4]))))
+                       fnv64(view(ref[3], ref[2], ref[0] // 80, ref[4],
+                                  ref[1]))))
             if line != want:
                 bad += 1
                 print('MISMATCH %s\n  want %s\n  got  %s' % (name, want, line))
