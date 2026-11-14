@@ -159,9 +159,14 @@ static void run_menu(const char *data, int audio)
                 { 250, 95 }, { 470, 100 }, { 540, 110 },
                 { 185, 240 }, { 445, 240 }, { 500, 285 } };
             ll_menu_ch chs[32];
+            int keep[32], m = 0;
+            for (int i = 0; i < n; i++)
+                if (strcasecmp(names[i], "CHEATS") != 0)
+                    keep[m++] = i;
+            n = m;
             if (n > 0) {
                 for (int i = 0; i < n; i++) {
-                    chs[i].title = names[i];
+                    chs[i].title = names[keep[i]];
                     chs[i].ix = anch[i % 6][0];
                     chs[i].iy = anch[i % 6][1];
                 }
@@ -182,7 +187,7 @@ static void run_menu(const char *data, int audio)
             }
             map_mode = 1;
             if (sel >= 0 && sel < n)
-                snprintf(lvlname, sizeof lvlname, "%s", names[sel]);
+                snprintf(lvlname, sizeof lvlname, "%s", names[keep[sel]]);
         }
         if (map_mode && sel == -4) {   /* autorzy corner */
             char p[4096];

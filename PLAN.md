@@ -237,8 +237,10 @@ equivalence. QEMU-monitor `sendkey` DOES reach the game (verified
 chapter .IS movie (70 Hz, 480-line) -> 640x400 chapter map menu (corner
 words wyjście/restart/autorzy/opcje, green chapter title "ZARIA I", BERLO
 red-arrow sprite on an island; 40:6C counter FREEZES - the definitive
-detector for this state; screen swaps between two full frames ~1 s apart,
-thumb mean|d| 43.68, no finer animation) -> `down` (or timeout) launches
+detector for this state; ONE static art frame (hunt12 dense capture: 16
+identical frames ~0.9 s, then black fade - the hunt7 "two-screen swap"
+was art<->black: |g781-black| mean|d| = 43.5 == hunt7's 43.68 pair), no
+animation at all inside the window) -> `down` (or timeout) launches
 the selected chapter: studio cards ("LERYX LONGSOFT CD-PROJEKT",
 "produkcje LERYX LONGSOFT") + "LEW LEON" title ~55 s of 480-line movies ->
 ~68 s 480-line scrolling flyover (new art band y172-300 every ~0.285 s)
@@ -562,9 +564,17 @@ the original is NOT in any container or EXE overlay: full 1521-frame
 pixel sweep of INTRO_P gives best mean|d| 33.9 vs the captured menu
 frame (different picture), OPTIONS.PCX is a desert/pyramid scene that
 belongs to the opcje screen (vision-confirmed), and no PCX/BMP headers
-exist in ANIMACJE/ETAPY/SOUND or the LEO overlays. Menu bg is therefore
-a runtime-synthesized or lost asset - our build composes a documented
-placeholder and the real words/title/arrow from the .SEQ data.
+exist in ANIMACJE/ETAPY/SOUND or the LEO overlays. RAN.IS frame 0 looked
+compositionally identical under the vision model but pixel forensics
+refutes it: the captured frame is a perfect 2x2-doubled 320x200 indexed
+image (even-aligned block equality = 1.000), and an index-plane
+bijection sweep over all 15 .IS movies (4900+ frames; best per-index
+agreement against the menu's 2x-halved downsample) peaks at 33% =
+chance level. So RAN f0 similarity is palette/statistics coincidence.
+Menu bg is a runtime-synthesized or lost asset: our build composes a
+documented placeholder plus the real words/title/arrow from .SEQ data.
+hunt13 captures the menu's raw planar VRAM (QEMU `stop` + `xp` on the
+vga.vram BAR alias @0xfd000000) for a byte-level grep of every payload.
 
 ## 8c. Level scene + .MOV motion scripts (delivered 2026-11-14)
 
