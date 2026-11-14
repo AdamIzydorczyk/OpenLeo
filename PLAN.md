@@ -214,10 +214,20 @@ Exact period-accuracy tuning was explicitly de-prioritized by the user
 ("not important, important that game works").
 NATIVE PORTS (linux/, win11/): this busy-pacing model must NOT be inherited.
 Modern CPUs make it run thousands of times too fast. The recompiled engine
-needs a fixed-timestep clock instead: private tick ~= 22 Hz (observed game
-counter cadence), driven from SDL_GetTicks / QueryPerformanceCounter, present
-vsync-capped, sleep via SDL_Delay - all game logic on tick boundaries, so
-behavior matches the slowed QEMU baseline, not the wall execution rate.
+needs a fixed-timestep clock instead, driven from SDL_GetTicks64 + SDL_Delay
+(QueryPerformanceCounter optional on win11), present vsync-capped - all game
+logic on tick boundaries, so behavior matches the slowed QEMU baseline, not
+the wall execution rate. EXACT pacing sources, pinned 2026-11-14:
+- cutscenes: .IS header byte 0x5D (fps) is authoritative per-file: measured
+  2 fps (LOGO/PRAWA/AUTORZY?) ... 9 fps (ZARIA2); 640x480 files 2-5 fps,
+  Mode X 320x200 files 5-9 fps. Player uses 1000/fps ms directly.
+- engine tick: game has ZERO clock sync (no PIT port I/O, no INT 1Ah, no
+  BIOS 40:6C reads anywhere in decompiled/all) - pure fixed-work-per-frame.
+  QEMU docs confirm icount: "one instruction every 2^N ns virtual time",
+  so shift=10 = 1024ns/instr ~ 0.977 MIPS = the retail-correct calibration;
+  gameplay tick 22 Hz => ~44k instr/tick. To refine 22 Hz exactly: INT21
+  marker probe + INT 1Ah AH=0 CX:DX BIOS-tick timestamps under icount are
+  fully deterministic and host-speed-independent.
 
 **Method notes.** Probe = 4-byte stub `b0 <code>; cd 21` at a vaddr on
 COPY named `LEOP.EXE` (must be 8.3); empty `C:\LEO_OUT.LOG` = game exited at

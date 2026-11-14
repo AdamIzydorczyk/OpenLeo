@@ -1,44 +1,33 @@
-# Original proprietary artifacts - NEVER commit (no redistribution).
-# Original executable + rip + installer + DOS4GW runtime:
-LEO.EXE
-SETUP.EXE
-DOS4GW.EXE
-*.PIF
-# Original data / archives / CD images / disk images:
-ANIMACJE
-ETAPY
-LL.iso
-*.iso
-*.IMG
-*.img
-# Original config/save/log artifacts (user-supplied):
-LONGSOFT.CFG
-STATUS.LEO
+# Never version original game artifacts (retail CD content + config/saves/logs).
+# The user supplies these locally; this repo holds only our source/tools/docs.
+/LEO.EXE
+/SETUP.EXE
+/DOS4GW.EXE
+/*.PIF
+/*.iso
+/*.ISO
+/*.img
+/ANIMACJE
+/ETAPY
+/LL_CD/
+/LONGSOFT.CFG
+/STATUS.LEO
 *.LOG
-*.log
-LEOOUT.TXT
-OUT1.LOG
-D4G.LOG
-LL_CD/
-# Scratch / large derived artifacts:
-*.ppm
-*.png
+*.LOG.bak
+/LEOOUT.TXT
+/OUT1.LOG
+/segoff.txt
+/D4G.LOG
+build/ghidra/
+build/setup/
+build/*.log
+tools/__pycache__/
 __pycache__/
-*.pyc
-ram*.bin
-mem*.bin
-tick*.bin
-d1.bin
-d2.bin
-segoff.txt
-eips.txt
-q*.log
-q*.txt
-# Build outputs:
-build/leo/
+
+# build outputs
+build/bin/
+original/*.exe
+linux/*.exe
+win11/*.exe
 *.o
 *.obj
-*.elf
-# Ghidra project scratch:
-*.rep
-*.gpr

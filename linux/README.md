@@ -11,6 +11,9 @@ Platform layer:
 - input: SDL events (keyboard/gamepad -> the engine's 0x1b-style key states)
 - files: POSIX open/read; llrs + .IS readers from `../tools` semantics,
   reimplemented portable-C in `../src`
+- pacing: fixed-timestep game clock (~22 Hz tick) off SDL_GetTicks +
+  SDL_Delay/sleep_until - never execution-rate bound like the original
+  (modern CPUs would make it run thousands of times too fast)
 
 `.IS` codec spec = `../tools/is_decode.py` header (live-verified byte-exact).
 Build: `Makefile` (SDL2 via pkg-config). Original binaries/data never in git;
