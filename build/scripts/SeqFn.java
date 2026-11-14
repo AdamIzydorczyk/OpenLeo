@@ -8,7 +8,7 @@ public class SeqFn extends GhidraScript {
     @Override
     public void run() throws Exception {
         println("=== SeqFn start");
-        String[] targets = { "000426a0", "000424d0", "000420b0", "00042140" };
+        String[] targets = { "0001d9b8", "0001dc80", "000420b0" };
         for (String t : targets) {
             Address a = currentProgram.getAddressFactory().getAddress(t);
             println("/* ---- asm @ " + t + " ---- */");
