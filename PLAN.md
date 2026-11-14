@@ -248,25 +248,34 @@ image, several download sources unreachable).
 - M5 (8-16 w): all levels, audio (WAV+MOD), saves, menus.
 - M6 (later): cutscene codec (.IS) + anti-tamper decision + packaging `dist/`.
 
-### 7.1 Git branch plan (branch per target, same source base)
-Repos start from one shared recompiled tree; each target is a branch off the
-recompile, so fixes propagate forward. `.gitignore` MUST exclude original
-artifacts (LEO.EXE, LL.iso, SETUP.EXE, DOS4GW.EXE, ANIMACJE, ETAPY,
-LONGSOFT.CFG, STATUS.LEO, *.IMG/ISO) - only our source/tools/build scripts
-are versioned.
-- `base` (main): recompiled source + tools + PLAN. Never contains originals.
-- `01-decompiled`: first branch. Verbatim Ghidra output (`build/decompiled/all`)
-  committed as a frozen reference tree. Do not hand-edit; regenerate only.
-- `02-no-cd`: recompile that runs with **no CD**: gate chain removed cleanly
-  (no NOP hack), data drive from config/env, all `*.IS`/ANIMACJE/ETAPY served
-  from the HD dir. Goal: boots to title/menu + one level in DOSBox/QEMU with
-  no `leo.iso`.
-- `03-linux-native`: port that runs **natively on current Linux** (64-bit, no
-  DOS/DPMI) and **also requires no CD** (branch stacks on top of `02-no-cd`:
-  all data from a user-supplied directory, no CD/DVD code paths at all). Replace: DOS4GW entry/heap with libc startup; INT 21/33 file+input
-  with POSIX/termios or SDL; VESA/VGA mode-X with SDL2 surface; SB/MikMod with
-  SDL2_mixer/OpenAL. iNFOSTREAM codec + sequence interpreter kept as portable C.
-  Same user-supplied data files, path resolved from argv/env.
+### 7.1 Repo layout plan (ONE branch, three variant directories)  [changed 2026-11-14]
+Single branch `main`, three top-level variant directories instead of branches -
+all three versions visible at once, shared code single-copy. `.gitignore` MUST
+exclude original artifacts (LEO.EXE, LL.iso, SETUP.EXE, DOS4GW.EXE, ANIMACJE,
+ETAPY, LONGSOFT.CFG, STATUS.LEO, *.IMG/ISO) - only our source/tools/build
+scripts are versioned.
+
+```
+main/
+  PLAN.md
+  src/        shared engine C/C++ (single copy; all 3 variants compile it)
+  tools/      python RE tooling (llrs/is unpackers, le_dump/le_patch, ...)
+  build/      RE artifacts: leo.img, Ghidra decompiled/all (frozen reference,
+              regenerate-only, never hand-edited)
+  original/   variant 1: faithful DOS build - CD checks intact, same behavior
+              as retail (Watcom wpp386 + DOS4GW; Makefile.wc)
+  nocd/       variant 2: DOS build - CD gate chain removed in source (no NOP
+              hack, no self-checksum problem), data drive from LONGSOFT.CFG/
+              env; *.IS/ANIMACJE/ETAPY served from HD dir. Boots title/menu +
+              gameplay in QEMU/DOSBox with no CD at all.
+  linux/      variant 3: native Linux build (SDL2, libc, no DOS/DPMI) - also
+              no CD (inherits nocd config). DOS4GW entry -> libc startup;
+              INT21/33 -> POSIX/SDL; VESA mode-X -> SDL2 surface; SB/MOD ->
+              SDL2_mixer. Data path from argv/env.
+```
+Each variant dir = Makefile + platform glue (`platform_*.c`) + a config header
+defining the knobs (`WANT_CD_GATE`, `DATA_DIR_FROM_CFG`, `PLATFORM_DOS/LINUX`);
+engine code in `src/` is shared and variant-agnostic except behind those flags.
 
 ## 8. Legal/ethical
 Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.
