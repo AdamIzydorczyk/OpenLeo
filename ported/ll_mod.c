@@ -1,7 +1,15 @@
 /* ll_mod.c - MOD player for the Longsoft repack variant (see ll_mod.h
  * for the verified container layout: standard header, full numbered
- * pattern set, contiguous samples).  Standard ProTracker playback
- * semantics, integer-only math, fixed 44.1 kHz output. */
+ * pattern set, contiguous samples).  ProTracker 2.3 playback semantics
+ * (review M-01..M-12), integer-only math, fixed 44.1 kHz output.
+ * The tick/tickless effect split, per-channel parameter memory and
+ * loop-boundary handling follow the ProTracker model; the effect scan of
+ * all 22 shipped SOUND containers confirmed which groups matter (tempo
+ * Fxx
+ * in KARA, Dxx breaks everywhere, 9xx offsets, 4xy vibrato with
+ * continuation rows, E1/EA/EB/E9, porta 1/2/3 with parameter memory).
+ * Tremolo (7xy) and the E-chained patternloop counter (E60 variants)
+ * appear in none of these songs and stay unimplemented. */
 #include "ll_mod.h"
 
 #include <stdio.h>
@@ -50,17 +58,26 @@ static int16_t note_period(int idx, int fine)
     return (int16_t)(p < 32 ? 32 : p);
 }
 
-/* sample-frame step in 16.16 for the Amiga clock:
- * inc = 7093789.2/(2*period)/44100 * 65536 = 5278235/period           */
+/* sample-frame step in 16.16 for the Amiga clock (M-11):
+ * inc = 7093789.2/(2*period)/44100 * 65536 = 5270959/period.
+ * (The former 5278235 constant was 0.14% sharp.) */
 static uint32_t period_inc(int period)
 {
     if (period < 32) period = 32;
-    return (uint32_t)(5278235u / (uint32_t)period);
+    return (uint32_t)(5270959u / (uint32_t)period);
 }
 
-static const int8_t sin32[32] = {
-      0, 30, 60, 86,107,121,126,121,107, 86, 60, 30,  0,-30,-60,-86,
-   -107,-121,-126,-121,-107,-86,-60,-30,  0, 30, 60, 86,107,121,126,121
+/* M-09: ProTracker vibrato = one sine sampled at 64 positions per
+ * cycle, amplitude 255 (period delta = table * depth / 128, i.e. up to
+ * +-2*depth semitones-ish; the old 32-position/126 table was ~4x too
+ * shallow). */
+static const int16_t sin64[64] = {
+      0,  25,  50,  74,  98, 120, 142, 162, 180, 197, 212, 225,
+    236, 244, 250, 254, 255, 254, 250, 244, 236, 225, 212, 197,
+    180, 162, 142, 120,  98,  74,  50,  25,   0, -25, -50, -74,
+    -98,-120,-142,-162,-180,-197,-212,-225,-236,-244,-250,-254,
+   -255,-254,-250,-244,-236,-225,-212,-197,-180,-162,-142,-120,
+    -98, -74, -50, -25,
 };
 
 #define CLAMP64(v) ((v) < 0 ? 0 : ((v) > 64 ? 64 : (v)))
@@ -128,6 +145,13 @@ int ll_mod_open(ll_mod *m, const unsigned char *img, size_t len,
         m->smp[i].loop_len   = (uint32_t)((e[28] << 8) | e[29]) * 2u;
         size_t avail = off < region ? region - off : 0;
         m->smp[i].dlen = L < avail ? L : (uint32_t)avail;
+        /* M-02 (load half): a loop whose end runs past the sample must
+         * end AT the sample end, never beyond - otherwise the wrap math
+         * in ll_mod_mix misbehaves on truncated tails. */
+        if (m->smp[i].loop_start >= m->smp[i].dlen)
+            m->smp[i].loop_len = 0;
+        else if (m->smp[i].loop_len > m->smp[i].dlen - m->smp[i].loop_start)
+            m->smp[i].loop_len = m->smp[i].dlen - m->smp[i].loop_start;
         m->smp[i].data = img + p + off;
         off += L;
     }
@@ -148,6 +172,9 @@ void ll_mod_start(ll_mod_state *st, const ll_mod *m)
     st->speed = 6;
     st->tempo = 125;
     st->gvol = 64;
+    st->break_row = st->jump_order = 0x7F;   /* no pending (M-04) */
+    for (int c = 0; c < LL_MOD_MAXCH; c++)
+        st->v[c].fine_set = 0xFF;            /* E5 memory: no override */
 }
 
 /* note word (standard 4-byte entry): b0 = inst-hi4 | period-hi4,
@@ -172,6 +199,16 @@ static uint8_t smp_vol(const ll_mod *m, int idx)
     return v == 0 ? 64 : (v > 64 ? 64 : v);
 }
 
+/* effective finetune of a voice: E5 override first, else the sample's */
+static int voice_fine(const ll_mod_state *st, int c)
+{
+    if (st->v[c].fine_set != 0xFF)
+        return st->v[c].fine_set;
+    if (st->v[c].smp)
+        return st->m->smp[st->v[c].smp - 1].fine;
+    return 0;
+}
+
 /* kick a voice with the sample for `inst` at period p */
 static void voice_kick(ll_mod_state *st, int c, int p, int inst)
 {
@@ -193,61 +230,151 @@ static void do_tick(ll_mod_state *st)
     const ll_mod *m = st->m;
     if (st->order >= m->nseq) { st->end = 1; return; }
     int pat = m->pos2pat[st->order];
-    if (st->row >= 64) {          /* advance position */
-        st->row = 0;
-        st->order++;
-        if (st->order >= m->nseq) st->order = 0;   /* songs loop */
-        pat = m->pos2pat[st->order];
-    }
     for (int c = 0; c < (int)m->nch; c++) {
         int p, ins, ef, pr;
         rd_entry(m, pat, (int)st->row, c, &p, &ins, &ef, &pr);
-        if (st->tick == 0 && ins > 0 && ins <= m->nsmp) {
-            st->v[c].smp = (uint8_t)ins;
-            if (p == 0)                  /* instrument change alone:
-                                            only retune on next note */
-                st->v[c].vol = smp_vol(m, ins);
-        }
+
+        /* ProTracker effect-parameter memory (per channel): a row that
+         * names an effect but leaves the parameter at 0 reuses the last
+         * one. B/D/F have no memory; a fully blank entry is "no effect"
+         * (so arpeggio does NOT continue through blanks). */
+        int memo = (ef <= 0x0A || ef == 0x0C || ef == 0x0E);
+        if (memo && pr)
+            st->v[c].pmem[ef] = (uint8_t)pr;
+        int q = pr;
+        if (ef && !q && memo && !(ef == 0x00))
+            q = st->v[c].pmem[ef];
+
         if (st->tick == 0) {
             st->v[c].e0 = (uint8_t)ef;
-            st->v[c].e1 = (uint8_t)pr;
-            if (ef >= 0x01 && ef <= 0x06)
-                st->v[c].porta_spd = (uint8_t)pr; /* remembered by 5/6 */
-            if (p > 0) {                                  /* new note */
+            st->v[c].e1 = (uint8_t)q;
+            if (ins > 0 && ins <= m->nsmp) {
+                st->v[c].smp = (uint8_t)ins;
+                if (p == 0)          /* instrument change alone:
+                                        only retune on next note */
+                    st->v[c].vol = smp_vol(m, ins);
+            }
+            /* 4xy/6xy memories land at row start (per nibble != 0) */
+            if (ef == 0x04) {
+                if (q >> 4) st->v[c].vib_depth = (uint8_t)(q >> 4);
+                if (q & 0x0F) st->v[c].vib_speed = (uint8_t)(q & 0x0F);
+            }
+            if (ef == 0x03 && q)
+                st->v[c].porta_speed = (uint8_t)q;   /* remembered by 5 */
+            if (ef == 0x09 && q)
+                st->v[c].off9 = (uint8_t)q;          /* M-03 memory */
+            /* M-04: B/D are remembered for the END of this row */
+            if (ef == 0x0B) st->jump_order = (unsigned)pr;
+            if (ef == 0x0D) {
+                int br = (pr >> 4) * 10 + (pr & 0x0F); /* DECIMAL digits */
+                st->break_row = (unsigned)(br > 0x7F ? 0x7F : br);
+            }
+            if (ef == 0x0F && pr) {
+                if (pr < 0x20) st->speed = (unsigned)pr;
+                else st->tempo = (unsigned)(pr < 32 ? 32 : pr);
+            }
+            /* note trigger: everything EXCEPT porta (3/5) and delayed
+             * notes kicks (M-05; 1/2 retrigger at the old period and
+             * merely move the porta target). */
+            if (p > 0) {
                 int ni = note_index(p);
-                int fine = st->v[c].smp ? m->smp[st->v[c].smp - 1].fine : 0;
-                int ep = ni >= 0 ? note_period(ni, fine) : (int16_t)p;
-                if (ef == 1 || ef == 2 || ef == 3) {
+                int ep = ni >= 0 ? note_period(ni, voice_fine(st, c))
+                                 : (int16_t)p;
+                int ed = (ef == 0x0E && (q >> 4) == 0x0D);
+                if (ef == 3 || ef == 5) {
+                    st->v[c].tgt_period = (int16_t)ep;
+                    st->v[c].porta = 3;
+                } else if (ed) {
+                    st->v[c].ed_per = (int16_t)ep;
+                    st->v[c].ed_ins = (uint8_t)(ins > 0 && ins <= m->nsmp
+                                                ? ins : 0);
+                    st->v[c].ed_act = 1;
+                } else if (ef == 1 || ef == 2) {
+                    int oldp = st->v[c].period ? st->v[c].period : ep;
+                    voice_kick(st, c, oldp, ins);
                     st->v[c].tgt_period = (int16_t)ep;
                     st->v[c].porta = (int8_t)ef;
                 } else {
                     voice_kick(st, c, ep, ins);
                     st->v[c].porta = 0;
-                    st->v[c].vibpos = 0;
+                    if (ef == 4 || ef == 6)
+                        st->v[c].vibpos = 0;
                 }
-                st->v[c].retrig_cnt = 0;
             }
+            /* row-only E effects (M-07 renumbering: E1/E2 fine porta,
+             * E5 set finetune, EA/EB fine volume = tick 0 ONLY) */
+            if (ef == 0x0E) switch (q >> 4) {
+                int np;
+            case 1: /* E1x: fine porta up, once */
+                if (st->v[c].period) { np = st->v[c].period - (q & 0x0F);
+                    if (np < 32) np = 32;
+                    st->v[c].period = (int16_t)np;
+                    st->v[c].inc = period_inc(np); }
+                break;
+            case 2: /* E2x: fine porta down, once */
+                if (st->v[c].period) { np = st->v[c].period + (q & 0x0F);
+                    st->v[c].period = (int16_t)np;
+                    st->v[c].inc = period_inc(np); }
+                break;
+            case 5: /* E5x: set finetune (applies to following notes) */
+                st->v[c].fine_set = (uint8_t)(q & 0x0F);
+                break;
+            case 6: /* E6x: pattern loop at row 0: jump back x orders
+                     * (no shipped song uses it; PT-faithful minimum) */
+                if (st->row == 0 && (q & 0x0F))
+                    st->order = st->order > (unsigned)(q & 0x0F)
+                                  ? st->order - (unsigned)(q & 0x0F) : 0;
+                break;
+            case 0xA: /* EAx: fine volume up, once */
+                st->v[c].vol = (uint8_t)CLAMP64(st->v[c].vol + (q & 0x0F));
+                break;
+            case 0xB: /* EBx: fine volume down, once */
+                st->v[c].vol = (uint8_t)CLAMP64(st->v[c].vol - (q & 0x0F));
+                break;
+            case 0xE: /* EEx: repeat this row x extra times (EE) */
+                if (q & 0x0F) st->row_repeat = (unsigned)(q & 0x0F);
+                break;
+            default: break;
+            }
+            if (ef == 0x0C)                       /* set volume, clamped */
+                st->v[c].vol = (uint8_t)(q > 64 ? 64 : q);
+            if (ef == 0x09 && st->v[c].off9)     /* 9: tick 0, q<<24 (M-03) */
+                st->v[c].pos = (uint32_t)st->v[c].off9 << 24;
+            st->v[c].ed_at = (ef == 0x0E && (q >> 4) == 0x0D)
+                                      ? (uint8_t)(q & 0x0F) : 0xFF;
         }
-        /* per-tick effects */
-        int e = st->v[c].e0, q = st->v[c].e1;
+
+        /* per-tick effects (continuations use the row's e0/e1) */
+        int e = st->v[c].e0, qq = st->v[c].e1;
+        /* ED delayed note fires at its tick (M-07: the 12th E command) */
+        if (st->v[c].ed_act && st->tick == st->v[c].ed_at) {
+            voice_kick(st, c, st->v[c].ed_per, st->v[c].ed_ins);
+            st->v[c].ed_act = 0;
+            if (st->v[c].off9)
+                st->v[c].pos = (uint32_t)st->v[c].off9 << 24;
+        }
         switch (e) {
-        case 0x0: /* arpeggio (only with a parameter) */
-            if (q) {
-                int semi = (st->tick % 3 == 1) ? (q >> 4) :
-                           (st->tick % 3 == 2) ? (q & 0x0F) : 0;
+        case 0x0: /* arpeggio (only with a parameter); M-08: with no
+                   * arpeggio the pitch reverts to the base period. */
+            if (qq) {
+                int semi = (st->tick % 3 == 1) ? (qq >> 4) :
+                           (st->tick % 3 == 2) ? (qq & 0x0F) : 0;
                 if (st->v[c].period && st->v[c].smp) {
                     int ni = note_index(st->v[c].period);
-                    int fine = m->smp[st->v[c].smp - 1].fine;
                     if (ni >= 0)
-                        st->v[c].inc = period_inc(note_period(ni + semi, fine));
+                        st->v[c].inc = period_inc(
+                            note_period(ni + semi, voice_fine(st, c)));
                 }
+            } else if (st->v[c].period) {
+                st->v[c].inc = period_inc(st->v[c].period);
             }
             break;
         case 0x1: /* porta up */
         case 0x2: /* porta down */
-        case 0x3: /* porta to note */
+        case 0x3: /* porta to note (plain porta; no volume slide) */
             if (st->v[c].porta && st->v[c].tgt_period && st->tick) {
-                int d = q;
+                int d = e == 3 ? st->v[c].porta_speed : qq;
+                if (!d) break;
                 int np = st->v[c].period;
                 if (e == 0x1 || (e == 0x3 && np > st->v[c].tgt_period)) {
                     np -= d; if (np < st->v[c].tgt_period) np = st->v[c].tgt_period;
@@ -257,125 +384,114 @@ static void do_tick(ll_mod_state *st)
                 st->v[c].period = (int16_t)np;
                 st->v[c].inc = period_inc(np);
             }
-            if (e == 3) goto volslide;
             break;
-        case 0x4: /* vibrato */
-            st->v[c].vibpos = (int8_t)((st->v[c].vibpos + (q & 0x0F)) & 31);
+        case 0x4: /* vibrato: 64-position sine (M-09), memories (M-06);
+                   * a note on the same row reset the phase at the kick */
+        case 0x6: /* 6: xy is the VOLUME slide; vibrato speed/depth come
+                   * from the last 4xy (M-06) */
+            st->v[c].vibpos = (int16_t)((st->v[c].vibpos +
+                                         st->v[c].vib_speed) & 63);
             if (st->v[c].period) {
-                int mod = sin32[(unsigned)st->v[c].vibpos & 31] * (q >> 4) / 256;
+                int mod = sin64[(unsigned)st->v[c].vibpos] *
+                          (int)st->v[c].vib_depth / 128;
                 st->v[c].inc = period_inc(st->v[c].period + mod);
             }
+            if (e == 6) goto volslide;
             break;
-        case 0x5: /* porta + volume slide (porta speed from last 3xy) */
+        case 0x5: /* porta (speed from last 3xy, M-06) + volume slide */
             if (st->v[c].porta && st->v[c].tgt_period && st->tick) {
+                int d = st->v[c].porta_speed;
                 int np = st->v[c].period;
-                if (np > st->v[c].tgt_period) {
-                    np -= st->v[c].porta_spd;
-                    if (np < st->v[c].tgt_period) np = st->v[c].tgt_period;
-                } else {
-                    np += st->v[c].porta_spd;
-                    if (np > st->v[c].tgt_period) np = st->v[c].tgt_period;
+                if (d) {
+                    if (np > st->v[c].tgt_period) {
+                        np -= d;
+                        if (np < st->v[c].tgt_period) np = st->v[c].tgt_period;
+                    } else {
+                        np += d;
+                        if (np > st->v[c].tgt_period) np = st->v[c].tgt_period;
+                    }
+                    st->v[c].period = (int16_t)np;
+                    st->v[c].inc = period_inc(np);
                 }
-                st->v[c].period = (int16_t)np;
-                st->v[c].inc = period_inc(np);
-            }
-            goto volslide;
-        case 0x6: /* vibrato + volume slide (speeds from last 4xy) */
-            st->v[c].vibpos = (int8_t)((st->v[c].vibpos +
-                                        (st->v[c].porta_spd & 0x0F)) & 31);
-            if (st->v[c].period) {
-                int mod = sin32[(unsigned)st->v[c].vibpos & 31] *
-                          (st->v[c].porta_spd >> 4) / 256;
-                st->v[c].inc = period_inc(st->v[c].period + mod);
             }
             goto volslide;
         volslide:
             if (st->tick) {
-                int up = (q >> 4), dn = (q & 0x0F);
-                int v = st->v[c].vol + up - dn;
+                int x = qq >> 4, y = qq & 0x0F;
+                /* M-12: FastTracker rule - up wins when both set */
+                int v = st->v[c].vol + (x ? x : -y);
                 st->v[c].vol = (uint8_t)CLAMP64(v);
             }
             break;
-        case 0x9: /* sample offset (row start) */
-            if (st->tick == 0) st->v[c].pos = (uint32_t)q << 16;
+        case 0x9: /* sample offset: applied at tick 0 above (M-03) */
             break;
         case 0xA: /* volume slide */
-            if (st->tick) {
-                int up = (q >> 4), dn = (q & 0x0F);
-                int v = st->v[c].vol + up - dn;
-                st->v[c].vol = (uint8_t)CLAMP64(v);
-            }
-            break;
-        case 0xC: /* set volume */
-            if (st->tick == 0 && q <= 64) st->v[c].vol = (uint8_t)q;
+            goto volslide;
+        case 0xC: /* set volume: tick 0 only (applied above) */
             break;
         case 0xE:
-            switch (q >> 4) {
-            case 1: if (st->tick) { int np = st->v[c].period - (q & 0x0F);
-                        if (np >= 32) { st->v[c].period = (int16_t)np;
-                                        st->v[c].inc = period_inc(np); } } break;
-            case 2: if (st->tick) { int np = st->v[c].period + (q & 0x0F);
-                        st->v[c].period = (int16_t)np;
-                        st->v[c].inc = period_inc(np); } break;
-            case 5: /* retrigger + volume slide */
-                if (st->tick && st->v[c].period &&
-                    st->tick % ((q >> 4) ? (q >> 4) : 1) == 0) {
+            switch (qq >> 4) {
+            case 9: /* E9x: sample retrigger every x ticks (M-07: E9 is
+                     * retrigger; note CUT is EC) */
+                if ((qq & 0x0F) && st->tick && st->v[c].period &&
+                    st->tick % (unsigned)(qq & 0x0F) == 0 &&
+                    st->v[c].act)
                     st->v[c].pos = 0;
-                    st->v[c].inc = period_inc(st->v[c].period);
-                }
-                if (st->tick) {
-                    int v = st->v[c].vol + ((q & 0x0F) >= 8 ? 0 : (q & 0x0F))
-                            - ((q & 0x0F) >= 8 ? 0 : 0);
-                    if ((q & 0x0F) >= 8) v -= (q & 0x0F) - 8;
-                    st->v[c].vol = (uint8_t)CLAMP64(v);
-                }
                 break;
-            case 9: /* note cut */
-                if (st->tick == (unsigned)(q & 0x0F)) st->v[c].cut = 1;
+            case 0xC: /* ECx: note cut at tick x */
+                if (st->tick == (unsigned)(qq & 0x0F)) st->v[c].cut = 1;
                 break;
-            case 0xA: if (st->tick) { int v = st->v[c].vol + (q & 0x0F);
-                        st->v[c].vol = (uint8_t)CLAMP64(v); } break;
-            case 0xB: if (st->tick) { int v = st->v[c].vol - (q & 0x0F);
-                        st->v[c].vol = (uint8_t)CLAMP64(v); } break;
-            default: break;
+            default: break;   /* 1,2,5,6,A,B,D,E handled at tick 0 */
             }
             break;
         default: break;
         }
     }
 
-    /* global effects on this row's channels (B/D/F handled at tick 0) */
-    if (st->tick == 0) {
-        for (int c = 0; c < (int)m->nch; c++) {
-            int p, ins, ef, pr;
-            rd_entry(m, pat, (int)st->row, c, &p, &ins, &ef, &pr);
-            if (ef == 0x0B) { st->order = (unsigned)pr; if (st->order >= m->nseq) st->order = 0; }
-            else if (ef == 0x0D) { st->row = (unsigned)(pr >> 4) * 10 + (pr & 0x0F); }
-            else if (ef == 0x0F) {
-                if (pr && pr < 0x20) st->speed = (unsigned)pr;
-                else if (pr >= 0x20) st->tempo = (unsigned)pr;
-            }
-        }
-    }
-
     st->tick++;
-    if (st->tick >= st->speed) { st->tick = 0; st->row++; }
+    if (st->tick < st->speed)
+        return;
+    /* ---- end of row (M-04: pending B/D apply HERE, not in-row) ---- */
+    st->tick = 0;
+    st->row++;
+    if (st->row_repeat) {          /* EEx pattern repeat */
+        st->row_repeat--;
+        st->row--;
+        return;
+    }
+    if (st->row >= 64 || st->break_row != 0x7F || st->jump_order != 0x7F) {
+        if (st->jump_order != 0x7F)
+            st->order = st->jump_order;
+        else
+            st->order++;
+        st->row = st->break_row != 0x7F ? (st->break_row < 64
+                                           ? st->break_row : 0) : 0;
+        st->break_row = st->jump_order = 0x7F;
+        if (st->order >= m->nseq) st->order = 0;   /* songs loop */
+        if (st->row >= 64) st->row = 0;
+    }
 }
 
 void ll_mod_mix(ll_mod_state *st, int16_t *dst, size_t frames)
 {
     const ll_mod *m = st->m;
-    uint32_t tick_len = (st->tempo * 44100u) / 6250u; /* tempo*7.056 fr */
-    if (tick_len < 1) tick_len = 1;
     for (size_t i = 0; i < frames; i++) {
-        if (st->subtick == 0) {
+        /* M-01: one tick = 110250/tempo audio frames (tempo BPM ->
+         * tempo*2/5 ticks/s; 125 -> 882 = 1/50 s). Kept in 16.16 so a
+         * tempo like 140 (787.5 frames) stays exact instead of drifting.
+         * (The former tempo*44100/6250 was only right at 125.) */
+        uint32_t tempo = st->tempo < 32 ? 32 : st->tempo;
+        uint32_t tick_fp = ((uint32_t)110250u << 16) / tempo;
+        if (st->subtick == 0 || st->subtick >= tick_fp) {
+            if (st->subtick >= tick_fp)
+                st->subtick -= tick_fp;   /* fractional carry-over (M-01) */
             if (st->end) { dst[2*i] = dst[2*i+1] = 0; continue; }
             do_tick(st);
         }
-        dst[2*i] = dst[2*i+1] = 0;   /* per-frame mix base: ll_mod_mix owns
-                                      * the buffer, callers need not zero it
-                                      * (ll_mod_render used calloc, the game
-                                      * reuses one static chunk buffer) */
+        int32_t mixL = 0, mixR = 0;  /* int32 accumulator, clamp once
+                                      * (review 5.x close + M-10: the old
+                                      * per-channel int16 saturating add
+                                      * order-dependent-clipped) */
         for (int c = 0; c < (int)m->nch; c++) {
             int sidx = st->v[c].smp;
             if (!st->v[c].act || st->v[c].cut || !st->v[c].period ||
@@ -385,33 +501,63 @@ void ll_mod_mix(ll_mod_state *st, int16_t *dst, size_t frames)
             if (!s->dlen || !st->v[c].inc) continue;
             uint32_t pos = st->v[c].pos;
             uint32_t idx = pos >> 16;
-            if (idx >= s->dlen) {
-                if (s->loop_len > 2 && s->loop_start < s->dlen) {
-                    st->v[c].pos = (uint32_t)s->loop_start << 16;
-                    pos = st->v[c].pos; idx = s->loop_start;
-                } else { st->v[c].act = 0; continue; }
+            /* M-02: loop at loop_start..loop_start+loop_len, wrap by
+             * loop_len so the fractional overshoot survives (the old
+             * code looped at dlen and reset pos, playing tails of
+             * looped samples and glitching the wrap phase). */
+            int looping = s->loop_len > 2 && s->loop_start < s->dlen &&
+                          s->loop_start + s->loop_len <= s->dlen;
+            if (looping) {
+                uint32_t lend = s->loop_start + s->loop_len;
+                if (idx >= lend) {
+                    if (pos < ((uint32_t)s->loop_len << 16)) {
+                        st->v[c].act = 0;   /* offset landed past the loop */
+                        continue;
+                    }
+                    pos -= (uint32_t)s->loop_len << 16;
+                    st->v[c].pos = pos;
+                    idx = pos >> 16;
+                    if (idx >= lend) continue;   /* degenerate guard */
+                }
+            } else if (idx >= s->dlen) {
+                st->v[c].act = 0;
+                continue;
             }
-            if (idx >= s->dlen) continue;
+            uint32_t nx = idx + 1;
+            if (looping && nx >= s->loop_start + s->loop_len)
+                nx = s->loop_start;       /* interpolate ACROSS the loop
+                                             edge, not into the tail */
+            if (nx >= s->dlen) nx = idx;
             int s0 = (int)(signed char)s->data[idx] * 256; /* s8 -> s16 */
-            int s1 = idx + 1 < s->dlen
-                       ? (int)(signed char)s->data[idx + 1] * 256 : s0;
+            int s1 = (int)(signed char)s->data[nx] * 256;
             int samp = s0 + (int)(((int64_t)(s1 - s0) *
                                    (int)(pos & 0xFFFF)) >> 16); /* linear */
             int vol = st->v[c].vol * st->gvol;               /* 0..4096 */
-            int v = samp * vol / 4096;
-            /* saturating add (never signed-overflow; CI runs under UBSan) */
-            if (c & 1) {
-                int a = dst[2*i+1] + v;
-                dst[2*i+1] = (int16_t)(a > 32767 ? 32767 :
-                                       a < -32768 ? -32768 : a);
-            } else {
-                int a = dst[2*i] + v;
-                dst[2*i] = (int16_t)(a > 32767 ? 32767 :
-                                     a < -32768 ? -32768 : a);
-            }
+            int32_t v = (int32_t)samp * vol / 4096;
+            /* M-10: Amiga 4-voice panning L,R,R,L (the old L,R,L,R put
+             * two adjacent melody channels on the same side). Channels
+             * beyond 4 (6/8-channel repacks) repeat the pattern.
+             * ~75% separation = 25% cross-feed, and the master runs at
+             * ~-6 dB (half): four full-volume voices can sum to 4x
+             * full-scale, and without that headroom the mix flattened
+             * (measured before this gain: 2.4% of RAN.MOD samples hit
+             * the clamp). */
+            int32_t vl = 0, vr = 0;
+            if ((c & 3) == 1 || (c & 3) == 2)
+                vr = v;
+            else
+                vl = v;
+            mixL += vl - vl / 4 + vr / 4;
+            mixR += vr - vr / 4 + vl / 4;
             st->v[c].pos += st->v[c].inc;
         }
-        if (++st->subtick >= tick_len) st->subtick = 0;
+        mixL /= 2;                      /* master ~-6 dB (M-10) */
+        mixR /= 2;
+        dst[2*i]   = (int16_t)(mixL > 32767 ? 32767 :
+                               mixL < -32768 ? -32768 : mixL);
+        dst[2*i+1] = (int16_t)(mixR > 32767 ? 32767 :
+                               mixR < -32768 ? -32768 : mixR);
+        st->subtick += 0x10000u;            /* one audio frame elapsed */
     }
 }
 

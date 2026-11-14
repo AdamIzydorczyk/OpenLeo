@@ -24,12 +24,19 @@
  * table 61 entries 1712..56 at VA 0xa7272 (Amiga); signature table
  * M.K./M!K!/FLT4/4CHN/6CHN/8CHN/CD81/OKTA/16CN/32CN at 0xa7204.
  *
- * Playback semantics: standard ProTracker tick model (fixed 50 Hz ticks,
- * Fxx<0x20 = speed in ticks/row; no tempo effects appear in these files),
- * effect subset 0-9,A-F + E1,E2,E5,E6,E9,EA,EB; sample playback 8-bit
- * signed with loop, linear interpolation, Amiga period clock
- * (inc = 5278235/period in 16.16); note cut-off and volume on the
- * engine voice handlers (FUN_00015484 etc).
+ * Playback semantics: ProTracker 2.3 tick model (review M-01..M-12):
+ * ticks are 110250/tempo audio frames kept fractionally (Fxx<0x20 =
+ * speed in ticks/row, Fxx>=0x20 = tempo - KARA uses tempo changes);
+ * effects 0-9,A-F plus E1,E2,E5,E6,E9,EA,EB,EC,ED,EE with per-channel
+ * parameter memory on continuation rows; B/D land at the END of the row
+ * (Dxx row digits are decimal); sample loops wrap at
+ * loop_start+loop_len keeping the fractional overshoot; sample playback
+ * 8-bit signed with linear interpolation across the loop edge; Amiga
+ * period clock inc = 5270959/period in 16.16; the mixer accumulates in
+ * int32 and clamps once with Amiga L,R,R,L panning.  Tremolo (7xy) and
+ * the E6 loop-counter forms appear in no shipped song and stay
+ * unimplemented.  Instrument default volumes: see ll_mod.c smp_vol()
+ * (the engine defaults 0 to full; FUN_00015484 voice handlers).
  *
  * Deterministic: pure integer mix at fixed rate; ll_mod_render() is the
  * CI oracle (FNV of the first N ms of the song), used by tools/
@@ -85,17 +92,31 @@ typedef struct {
         uint32_t pos;          /* sample frame position (16.16 fixed)   */
         uint32_t inc;          /* frame step (16.16)                    */
         int8_t  act;           /* currently audible                     */
-        uint8_t e0, e1;        /* effect params for this row            */
-        uint8_t porta_spd;     /* remembered speed for 5/6 continuations */
-        int8_t  porta;         /* running porta direction 0/1/2         */
-        int8_t  vibpos;
-        int8_t  cut;           /* note-cut flag                         */
-        uint8_t retrig_cnt;
+        uint8_t e0, e1;        /* effect + resolved param of the row
+                                * (effects continue for the whole row)  */
+        uint8_t pmem[16];      /* ProTracker per-channel parameter
+                                * memory: a row naming an effect with a
+                                * 0 param reuses the last one (M-06)   */
+        uint8_t porta_speed;   /* 3xx speed, remembered by 5xy (M-06)  */
+        uint8_t vib_speed, vib_depth; /* 4xy nibbles, remembered      */
+        uint8_t off9;          /* 9xx sample offset memory (M-03)      */
+        uint8_t fine_set;      /* E5 finetune override, 0xFF = none    */
+        uint8_t cut;           /* EC note-cut flag                     */
+        uint8_t ed_act;        /* ED: pending delayed note trigger     */
+        uint8_t ed_ins;
+        uint8_t ed_at;         /*   ... fired at this tick             */
+        int16_t ed_per;
+        int8_t  porta;         /* running porta 0/1/2/3                */
+        int16_t vibpos;        /* vibrato phase 0..63 (M-09)           */
     } v[LL_MOD_MAXCH];
     unsigned tick;             /* 0..speed-1                            */
     unsigned speed, tempo;     /* ProTracker semantics (tempo 125=50Hz) */
     unsigned row, order;
-    uint32_t subtick;          /* frames elapsed in current tick        */
+    unsigned break_row, jump_order; /* pending D/B applied at row END
+                                     * (M-04); 0x7F = none pending      */
+    unsigned row_repeat;       /* EE: extra repeats of this row left    */
+    uint32_t subtick;          /* frames elapsed in current tick (16.16,
+                                * fractional carry-over = M-01)         */
     uint8_t  gvol;             /* 0..64 global                          */
     int      end;
 } ll_mod_state;
