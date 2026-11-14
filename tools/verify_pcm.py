@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""verify_pcm.py - oracle for src/ll_pcm.c (PCM parallax image layers).
+
+Decodes each PCM payload in the ETAPY containers (level-block records
+named *.PCM) with the python reference decode and compares the plane
+FNV-1a-64 hash + geometry against `pcm_selftest <file>` output lines:
+  decode <name> w=<w> win=<win> stride=<s> rows=<r> partial=<0|1> fnv=<hex>
+
+usage: verify_pcm.py DATA_DIR [selftest_cmd]
+"""
+import subprocess
+import struct
+import sys
+
+SLOT = struct.Struct('<14sIII')
+
+
+def pcm_payloads(etapy_path):
+    d = open(etapy_path, 'rb').read()
+    cap, = struct.unpack_from('<I', d, 8)
+    out = []
+    for k in range(cap):
+        key, rid, off, size = SLOT.unpack_from(d, 0x14 + 26 * k)
+        blk = key.split(b'\0')[0]
+        if rid != 2 or not blk:
+            continue
+        cnt, = struct.unpack_from('<I', d, off)
+        for t in range(cnt):
+            k2, r2, o2, s2 = SLOT.unpack_from(d, off + 4 + 26 * t)
+            nm = k2.split(b'\0')[0]
+            if r2 == 1 and nm.upper().endswith(b'.PCM'):
+                out.append((blk.decode() + '/' + nm.decode(), d[o2:o2 + s2]))
+    return out
+
+
+def decode(raw):
+    """-> (w, win, stride, plane bytes, rows, partial) or None."""
+    if len(raw) < 0x1c4:
+        return None
+    w, win = struct.unpack_from('<HH', raw, 0)
+    stride = w + 80
+    i, dec = 0xa6, bytearray()
+    n = len(raw)
+    while i < n:
+        c = raw[i]
+        i += 1
+        if (c & 0xC0) == 0xC0:
+            if i >= n:
+                break
+            dec += bytes([raw[i]]) * (c & 0x3F)
+            i += 1
+        else:
+            dec.append(c)
+    rows = -(-len(dec) // stride)
+    plane = bytes(dec) + bytes(rows * stride - len(dec))
+    return w, win, stride, plane, rows, 1 if len(dec) % stride else 0
+
+
+def fnv64(b):
+    h = 0xCBF29CE484222325
+    for v in b:
+        h = ((h ^ v) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+    return h
+
+
+def main():
+    data = sys.argv[1]
+    cmd = sys.argv[2] if len(sys.argv) > 2 else './pcm_selftest'
+    total = bad = 0
+    for etapy in ('ETAPY',):
+        for name, raw in pcm_payloads(data + '/' + etapy):
+            total += 1
+            ref = decode(raw)
+            got = subprocess.run(cmd.split() + ['-', name],
+                                 input=raw, capture_output=True)
+            line = got.stdout.decode().strip()
+            want = ('decode %s w=%d win=%d stride=%d rows=%d partial=%d '
+                    'fnv=%016x' % (name, ref[0], ref[1], ref[2], ref[4],
+                                   ref[5], fnv64(ref[3])))
+            if line != want:
+                bad += 1
+                print('MISMATCH %s\n  want %s\n  got  %s' % (name, want, line))
+            else:
+                print('%s: %dx rows=%d (C == python, exact)'
+                      % (name, ref[0], ref[4]))
+    print('PCM check: %d/%d payloads byte-exact (C == python)'
+          % (total - bad, total))
+    return 1 if bad or total < 4 else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

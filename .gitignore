@@ -39,6 +39,8 @@ pcx_selftest
 pcx_selftest.exe
 seq_selftest
 seq_selftest.exe
+pcm_selftest
+pcm_selftest.exe
 ll_level
 ll_level.exe
 *.o

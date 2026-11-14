@@ -472,13 +472,23 @@ MOVEPLAT ED000002: A_IDLE/A_MOVE_DN/A_STOP/A_MOVE_UP/A_DEAD, 6x "M 0,2"
 down + 6x "M 0,-2" up = the bobbing platform, net zero per cycle.
 
 **PCM is a parallax image layer, NOT audio** (old ll_level audio path
-removed): u16 header (400=pitch, 40, 16), u32 chunk-offset table from 0x0a
-(39 monotonic entries for RAN PLAN1), chunks use the same byte-RLE family
-as PCX/.SEQ patches (C>=0xC0 -> repeat next byte C&0x3F times; FUN_00044b80
-= the .SEQ entry reader). Layer ctor FUN_00056b20 divides by 0x50 (80 =
-tile width, the divide-by-zero crash site), blit FUN_00056c72 clamps to a
-400-pitch, FUN_00057460 parallax = ((pix-200)-(lastPix-200)*speed/100)
-with .DES speed= p1,p2;p2,p2;100,100 percentages. Full tiling open.
+removed). DECODE SOLVED 2026-11-14 (src/ll_pcm.c + tools/verify_pcm.py,
+`make verify-pcm`, wine-parity in verify-win): hdr u16 w, u16 win_rows,
+u16 16, 2 zero u16s; 40 x u32 monotonic table at 0x06 (chunk
+decompressed-SIZE targets: cumulative, base 0 - the ctor reads it but the
+row loop never seeks); 7 x 24-entry u32 tables (0x200000-stepped, role
+unknown); from 0xa6 ONE continuous byte-RLE stream (same codec as .SEQ:
+byte >= 0xC0 -> repeat next byte C&0x3F times, else literal) decodes to
+EOF exactly (tiny tail = partial final row); plane = row-major stride
+w+80 (FUN_00056bcd: stride = w + 0x50; ctor FUN_00056b20 loads win_rows
+rows/pass, blitter FUN_00056c72 maps screen y % win_rows and advances
+stride + 0x50 per screen row = 80-px gutter for the per-column parallax
+shift FUN_00057460). Layers: RAN 400x1494, ZARIA.01 700x1491, ZARIA.02
+700x1714, TUNGA 600x2896 (win 32/40). Vertical adjacency coherence of the
+decoded planes is weak (byte-match ~0.07 at row+1 vs 0.014 baseline):
+tiled/gutter interpretation still open - pixel display pending, and note
+the stock CD hits the w/80 idiv trap at level start anyway, so stock PCM
+display was never baselined.
 
 **src/ll_level.c is now a scene composer**: main .DES resolved by exact ->
 <name>.DES -> <stem>.DES -> dir= scan of every LEVELDES .DES payload

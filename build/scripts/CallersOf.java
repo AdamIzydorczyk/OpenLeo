@@ -11,7 +11,7 @@ public class CallersOf extends GhidraScript {
         for (String a : getScriptArgs()) {
             Address t = toAddr(Long.decode(a));
             println("== xrefs to " + t);
-            for (Reference r : getReferenceManager().getReferencesTo(t))
+            for (Reference r : currentProgram.getReferenceManager().getReferencesTo(t))
                 println("   from " + r.getFromAddress() + " type=" + r.getReferenceType());
         }
     }

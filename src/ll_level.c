@@ -24,6 +24,7 @@
  */
 #include "ll_level.h"
 #include "ll_pcx.h"
+#include "ll_pcm.h"
 #include "ll_seq.h"
 #include "llrs.h"
 
@@ -737,9 +738,21 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     }
     for (unsigned k = 0; k < nrec; k++) {
         const char *dot = strrchr(recs[k].name, '.');
-        if (recs[k].id == 1 && dot && ci_eq(dot, ".PCM"))
-            printf("ll_level: PCM %s: parallax image layer (decode pending,"
-                   " PLAN.md) - not audio\n", recs[k].name);
+        if (recs[k].id == 1 && dot && ci_eq(dot, ".PCM")) {
+            unsigned char *raw = NULL;
+            if (llrs_read(&etapy, &recs[k], &raw) >= 0) {
+                ll_pcm pcml;
+                if (ll_pcm_decode(raw, (size_t)recs[k].size, &pcml) == 0) {
+                    printf("ll_level: PCM %s: parallax layer %ux%u rows"
+                           " (window %u rows, stride %u); tiling pending\n",
+                           recs[k].name, pcml.w, pcml.rows, pcml.win_rows,
+                           pcml.stride);
+                    ll_pcm_release(&pcml);
+                } else
+                    printf("ll_level: PCM %s: decode failed\n", recs[k].name);
+                free(raw);
+            }
+        }
     }
     if (!img.idx) {
         printf("ll_level: no background PCX for '%s' "

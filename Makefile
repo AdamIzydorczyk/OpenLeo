@@ -9,9 +9,11 @@ DATA     ?= /tmp/opencode/iso_stage/LEO
 PYREF    ?= tools/is_decode.py
 
 SRC      := src/main.c src/is_stream.c src/platform_sdl/is_player.c \
-            src/llrs.c src/ll_pcx.c src/ll_menu.c src/ll_level.c src/ll_seq.c
+            src/llrs.c src/ll_pcx.c src/ll_menu.c src/ll_level.c src/ll_seq.c \
+            src/ll_pcm.c
 HDRS     := src/ll_config.h src/is_stream.h src/platform_sdl/is_player.h \
-            src/llrs.h src/ll_pcx.h src/ll_menu.h src/ll_level.h src/ll_seq.h
+            src/llrs.h src/ll_pcx.h src/ll_menu.h src/ll_level.h src/ll_seq.h \
+            src/ll_pcm.h
 
 # ---------------- native Linux ----------------
 CC       ?= gcc
@@ -64,7 +66,7 @@ verify-skip: ll_cutscene
 # Same two proofs for the Windows .exe, run under wine.
 # Z: = wine drive mapped to /, so $(DATA) is addressed as Z:$(DATA).
 WINEPREFIX ?= /tmp/opencode/wineprefix
-verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_selftest.exe seq_patchdump.exe
+verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_selftest.exe seq_patchdump.exe pcm_selftest.exe
 	WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	  wine ./ll_cutscene.exe Z:$(DATA)/INTRO_P.IS --ppm 1020 \
 	  Z:/tmp/opencode/c_win.ppm
@@ -81,6 +83,9 @@ verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_
 	env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	  python3 tools/verify_seq.py $(DATA) --grammar "wine ./seq_selftest.exe" \
 	  --patch "wine ./seq_patchdump.exe"
+	@python3 tools/verify_pcm.py $(DATA) "wine ./pcm_selftest.exe" \
+	  | tail -1 | grep -q '4/4 payloads byte-exact' \
+	  && echo "win PCM: C == python (exact)"
 	@for F in ANIMACJE ETAPY SOUND LEVELDES; do \
 	  if env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	      wine ./llrs_selftest.exe $(DATA)/$$F 2>/dev/null | tr -d '\r' \
@@ -121,9 +126,15 @@ verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_
 	@cmp /tmp/opencode/lvlv_t2.ppm /tmp/opencode/wlv_t2.ppm \
 	  && echo "win level frame == linux frame (byte-exact scene compositing)"
 
-ll_level.exe: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_seq.c src/ll_seq.h src/ll_config.h
+ll_level.exe: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c \
+            src/ll_pcm.c src/ll_seq.c src/ll_seq.h src/ll_pcm.h src/ll_config.h
 	$(XC) $(XCFLAGS) $(XLD) -o $@ tools/ll_level.c src/ll_level.c \
-	    src/llrs.c src/ll_pcx.c src/ll_seq.c $(XLIBS)
+	    src/llrs.c src/ll_pcx.c src/ll_pcm.c src/ll_seq.c $(XLIBS)
+
+# src/ll_pcm.c byte-for-byte agreement with tools/verify_pcm.py on every
+# PCM parallax layer payload in ETAPY (byte-RLE plane, stride = w+80).
+verify-pcm: pcm_selftest
+	python3 tools/verify_pcm.py $(DATA) ./pcm_selftest
 
 # src/llrs.c byte-for-byte agreement with tools/llrs_unpack.py on all four
 # containers, checked under ASan/UBSan.
@@ -147,12 +158,21 @@ llrs_selftest: tools/llrs_selftest.c src/llrs.c src/llrs.h
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
 	    -Isrc -o $@ tools/llrs_selftest.c src/llrs.c
 
+pcm_selftest: tools/pcm_selftest.c src/ll_pcm.c src/ll_pcm.h
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	    -Isrc -o $@ tools/pcm_selftest.c src/ll_pcm.c
+
+pcm_selftest.exe: tools/pcm_selftest.c src/ll_pcm.c src/ll_pcm.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
+	    tools/pcm_selftest.c src/ll_pcm.c
+
 # ll_level: level-scene viewer - prints a level's .DES wiring, composites
 # its tlo= PCX background + ANIMACJE leaf .SEQ object sprites driven by the
 # HD-install .MOV state machines (LEO_HD_DIR=<dir with ANIMACJE/ETAPY>).
-ll_level: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_seq.c src/ll_seq.h src/ll_config.h
+ll_level: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_pcm.c \
+        src/ll_seq.c src/ll_seq.h src/ll_pcm.h src/ll_config.h
 	$(CC) -O2 -std=gnu11 -Wall -Wextra -Isrc $(CFLAGS) -o $@ \
-	    tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c \
+	    tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_pcm.c \
 	    src/ll_seq.c $(LIBS)
 
 level: ll_level
@@ -260,14 +280,15 @@ verify-menu: ll_cutscene
 	then echo "menu anim FAILED: frames t2 == t8 (nothing animates)"; exit 1; \
 	else echo "menu anim: BERLO frame cycles on screen (t2 != t8, ok)"; fi
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-level verify-help verify-menu
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-level verify-help verify-menu
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
 	rm -f ll_cutscene ll_cutscene.exe llrs_selftest llrs_selftest.exe \
 	      pcx_selftest pcx_selftest.exe seq_selftest seq_selftest.exe \
-	      seq_patchdump seq_patchdump.exe \
-	      ll_level *.o *.obj
+	      seq_patchdump seq_patchdump.exe pcm_selftest pcm_selftest.exe \
+	      ll_level ll_level.exe *.o *.obj
 
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
-        verify-seq verify-menu verify-all level clean
+        verify-seq verify-pcm verify-level verify-help verify-menu verify-all \
+        level clean
