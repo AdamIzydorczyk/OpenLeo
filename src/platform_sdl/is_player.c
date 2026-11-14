@@ -21,6 +21,8 @@ typedef struct {
     unsigned     presented;
     unsigned     start_frame; /* skip presenting frames below this */
     Uint64       pause_at;    /* perf-counter stamp when paused (0=live) */
+    const char  *quit_reason; /* diagnostics: what requested quit */
+    int          idle;        /* cutscene done/skipped: hold window open */
     int          quit;
     Uint64       t0;
     Uint64       period;   /* ns per frame */
@@ -60,13 +62,22 @@ static void pump_input(player *p)
 {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
-        if (e.type == SDL_QUIT)
+        if (e.type == SDL_QUIT) {
             p->quit = 1;
-        else if (e.type == SDL_KEYDOWN) {
+            p->quit_reason = "window close";
+        } else if (e.type == SDL_KEYDOWN) {
             SDL_Keycode k = e.key.keysym.sym;
-            if (k == SDLK_ESCAPE || k == SDLK_q)
+            if (k == SDLK_q) {
                 p->quit = 1;
-            else if (k == SDLK_SPACE && p->dev) {
+                p->quit_reason = "q";
+            } else if (k == SDLK_ESCAPE && !p->idle) {
+                /* original semantics: ESC interrupts the intro/cutscene,
+                 * it does NOT quit the game. Demo state after skip = hold
+                 * last frame (a menu/game comes with M3); further ESC is
+                 * a no-op, matching "intro stopped, game still running". */
+                p->quit = 1;
+                p->quit_reason = "esc (skip cutscene)";
+            } else if (k == SDLK_SPACE && p->dev) {
                 int playing = SDL_GetAudioDeviceStatus(p->dev)
                               == SDL_AUDIO_PLAYING;
                 SDL_PauseAudioDevice(p->dev, playing); /* space=pause toggle */
@@ -138,9 +149,10 @@ int is_player_run(const char *path, int audio, unsigned start_frame)
         return 1;
     }
     int scale = p.is.w < 640 ? 2 : 1;
-    p.win = SDL_CreateWindow("Lew Leon - cutscene (esc/q quit, space pause)",
-                             SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                             p.is.w * scale, p.is.h * scale, 0);
+    p.win = SDL_CreateWindow(
+        "Lew Leon - cutscene (esc=skip, q=quit, space=pause)",
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, p.is.w * scale,
+        p.is.h * scale, 0);
     if (!p.win) {
         fprintf(stderr, "window: %s\n", SDL_GetError());
         goto err;
@@ -194,14 +206,29 @@ int is_player_run(const char *path, int audio, unsigned start_frame)
             break;
         }
     }
-    if (p.dev) { /* let queued audio drain (bounded) */
+    if (p.quit && p.quit_reason && p.quit_reason[0] == 'e') {
+        /* ESC skip: drop pending audio, hold the last frame like the
+         * original does when the intro is interrupted (M3 replaces the
+         * hold with menu/gameplay handoff) */
+        if (p.dev)
+            SDL_ClearQueuedAudio(p.dev);
+        p.idle = 1;
+        p.quit = 0;
+        SDL_SetWindowTitle(p.win, "Lew Leon - cutscene skipped (q = quit)");
+        printf("is_player: cutscene skipped, window held (q quits)\n");
+        fflush(stdout);
+        while (!p.quit) {
+            pump_input(&p);
+            SDL_Delay(30);
+        }
+    } else if (p.dev) { /* let queued audio drain (bounded) */
         while (SDL_GetQueuedAudioSize(p.dev) > 0 && !p.quit) {
             pump_input(&p);
             SDL_Delay(50);
         }
     }
-    printf("is_player: presented=%u decoded=%u quit=%d\n", p.presented,
-           p.is.st.frames, p.quit);
+    printf("is_player: presented=%u decoded=%u quit=%d (%s)\n", p.presented,
+           p.is.st.frames, p.quit, p.quit_reason ? p.quit_reason : "finished");
     free(p.rgb);
     if (p.dev)
         SDL_CloseAudioDevice(p.dev);
