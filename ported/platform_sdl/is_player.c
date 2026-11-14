@@ -116,7 +116,7 @@ static void enqueue_audio(void *u, const uint8_t *pcm, unsigned len)
             * s16 LE dump, listen with ffplay -f s16le -ar 22050 -ac 1 FILE.
             * Opened once here, closed by close_wav() at every run end. */
         if (wvp)
-            s_wav = fopen(wvp, "wb");
+            s_wav = ll_fopen_ci(wvp, "wb");
     }
     if (s_wav)
         fwrite(pcm, 1, len, s_wav);

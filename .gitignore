@@ -51,6 +51,9 @@ mod_selftest.exe
 *.o
 *.obj
 
+# release packaging (tools/package.py output; make clean removes it)
+/dist/
+
 # build outputs (make clean removes them)
 /seq_patchdump
 /seq_patchdump.exe

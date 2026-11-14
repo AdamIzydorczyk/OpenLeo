@@ -25,6 +25,7 @@
  * 400x200 rest view (ll_pcm_view) becomes the scene canvas.
  */
 #include "ll_level.h"
+#include "fs_ci.h"
 #include "ll_pcx.h"
 #include "ll_pcm.h"
 #include "ll_seq.h"
@@ -144,7 +145,7 @@ static void music_wav_open(void)
     char path[512];
     snprintf(path, sizeof path, "%s.%02u.%s.raw",
              getenv("LEO_MUSIC_WAV"), seq++, s_mus_name);
-    s_mus_wf = fopen(path, "wb");
+    s_mus_wf = ll_fopen_ci(path, "wb");
 }
 
 int ll_music_play(const char *data_dir, const char *modname)
@@ -630,7 +631,7 @@ static const llrs_slot *rec_find(const llrs_slot *recs, unsigned n,
 static void scene_ppm(const char *path, int w, int h, const unsigned char *idx,
                       const unsigned char pal[768])
 {
-    FILE *f = fopen(path, "wb");
+    FILE *f = ll_fopen_ci(path, "wb");
     if (!f) {
         fprintf(stderr, "ll_level: cannot write %s\n", path);
         return;

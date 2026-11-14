@@ -4,6 +4,7 @@
  * into an 8bpp index canvas over the PCX indices, then one palette LUT).
  * Fixed pacing: event-driven with SDL_Delay, no busy loop. See ll_menu.h. */
 #include "ll_menu.h"
+#include "fs_ci.h"
 #include "ll_menu_dac.h"
 #include "ll_pcx.h"
 #include "ll_seq.h"
@@ -326,7 +327,7 @@ static int menu_tint_idle_build(const ll_seq *s, unsigned char *map)
 /* CI hook: dump the composed RGB frame as PPM (P6) */
 static int ppm_fb(const char *path, const Uint32 *fb, int w, int h)
 {
-    FILE *f = fopen(path, "wb");
+    FILE *f = ll_fopen_ci(path, "wb");
     if (!f)
         return -1;
     fprintf(f, "P6\n%d %d\n255\n", w, h);

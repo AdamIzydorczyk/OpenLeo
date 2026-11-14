@@ -79,9 +79,9 @@ int llrs_open(llrs *c, const char *path)
     c->actual     = rd_le32(hdr + 0x10);
     c->data_start = 0x14u + 26u * (size_t)c->cap;
 
-    long fsize;
-    if (fseek(c->f, 0, SEEK_END) != 0
-        || (fsize = ftell(c->f)) < 0) { /* glibc off_t == long here */
+    long long fsize;
+    if (ll_fseek64(c->f, 0, SEEK_END) != 0
+        || (fsize = ll_ftell64(c->f)) < 0) {   /* P-07: 64-bit clean */
         llrs_close(c);
         return 3;
     }
@@ -183,14 +183,15 @@ long llrs_read(const llrs *c, const llrs_slot *s, unsigned char **out)
 {
     /* full range check first (E-07): never malloc/seek past the file */
     if ((unsigned long long)s->off + s->size >
-            (unsigned long long)c->fsize || s->off < c->data_start)
+            (unsigned long long)c->fsize || s->off < c->data_start
+        || s->size > 0x7fffffffu)   /* return type is long (P-07 guard) */
         return -1;
     /* one extra NUL: several payloads are text (.DES/.MNU/.MOV) and the
      * scanners walk them as C strings; the NUL is past the payload bytes */
     unsigned char *b = (unsigned char *)malloc((size_t)s->size + 1);
     if (!b)
         return -1;
-    if (fseek(c->f, (long)s->off, SEEK_SET) != 0
+    if (ll_fseek64(c->f, (long long)s->off, SEEK_SET) != 0
         || fread(b, 1, s->size, c->f) != s->size) {
         free(b);
         return -1;

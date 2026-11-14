@@ -45,7 +45,7 @@ int ll_status_load(const char *path, ll_status *st)
 
 int ll_status_save(const char *path, const ll_status *st)
 {
-    FILE *f = fopen(path, "wb");
+    FILE *f = ll_fopen_ci(path, "wb");
     if (!f)
         return -1;
     unsigned char buf[STATUS_BYTES];
@@ -116,7 +116,7 @@ int ll_cfg_load(const char *path, ll_cfg *c)
 
 int ll_cfg_save(const char *path, const ll_cfg *c)
 {
-    FILE *f = fopen(path, "wb");
+    FILE *f = ll_fopen_ci(path, "wb");
     if (!f)
         return -1;
     size_t n = fwrite(c->b, 1, LL_CFG_SIZE, f);

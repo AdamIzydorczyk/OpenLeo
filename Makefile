@@ -552,10 +552,64 @@ verify-music: ll_level
 	{ echo "music path: tunga.MOD never started"; cat /tmp/opencode/mus_ci.log; exit 1; }; \
 	python3 tools/verify_music.py /tmp/opencode/mus_ci
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music
+# P-07 end-to-end: game data + output paths through a non-ASCII
+# directory (the review's "C:\Gry\Łódź\" case).  Linux proves the
+# engine itself is path-encoding agnostic; the wine runs prove the
+# windows binary loads data + writes PPM + passes the DATA probe there.
+# (On real Windows the UCRT + activeCodePage=UTF-8 manifest makes even
+# the ANSI fast path UTF-8; ll_fopen_ci's _wfopen fallback covers
+# environments without that manifest.  Do NOT run the wine legs under
+# LC_ALL=C: wine mangles non-ASCII argv before the app sees it.)
+verify-utf8: ll_cutscene ll_cutscene.exe
+	@mkdir -p "/tmp/opencode/Gry/Łódź" && \
+	  ln -sfn "$(DATA)" "/tmp/opencode/Gry/Łódź/LEO"
+	./ll_cutscene "/tmp/opencode/Gry/Łódź/LEO/INTRO_P.IS" --ppm 1020 \
+	  "/tmp/opencode/Gry/Łódź/l1020.ppm"
+	cmp "/tmp/opencode/Gry/Łódź/l1020.ppm" /tmp/opencode/c_py/f01020.ppm \
+	  && echo "linux utf-8 path: read+write (ok)"
+	env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
+	  wine ./ll_cutscene.exe "Z:/tmp/opencode/Gry/Łódź/LEO/INTRO_P.IS" \
+	  --ppm 1020 "Z:/tmp/opencode/Gry/Łódź/w1020.ppm"
+	cmp "/tmp/opencode/Gry/Łódź/w1020.ppm" /tmp/opencode/c_py/f01020.ppm \
+	  && echo "win utf-8 path: read+write byte-exact (ok)"
+	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
+	  LEO_MENU_SECS=1 LEO_MENU_AUTO=1 \
+	  wine ./ll_cutscene.exe --menu "Z:/tmp/opencode/Gry/Łódź/LEO" \
+	  --no-audio 2>&1 | tr -d '\r' | grep -q 'DATA .*Łódź.*: complete' \
+	  && echo "win utf-8 DATA dir: discovery + probe (ok)"
+
+package-win: ll_cutscene.exe
+	python3 tools/package.py --win
+
+package-linux: ll_cutscene
+	python3 tools/package.py --linux
+
+package: package-win package-linux
+
+# T-20 CMake parity check: the alternate build must produce the same
+# game. Skips cleanly when cmake isn't installed (the Makefile stays
+# the reference build either way).
+verify-cmake:
+	@command -v cmake >/dev/null 2>&1 || { echo "cmake not installed: skipping verify-cmake"; exit 0; }
+	cmake -B /tmp/opencode/cmbuild -S . >/dev/null && cmake --build /tmp/opencode/cmbuild -j >/dev/null
+	/tmp/opencode/cmbuild/ll_cutscene $(DATA)/INTRO_P.IS --ppm 1020 /tmp/opencode/cm_f1020.ppm
+	cmp /tmp/opencode/cm_f1020.ppm /tmp/opencode/c_py/f01020.ppm \
+	  && echo "cmake linux binary == python reference (byte-exact)"
+	PKG_CONFIG_LIBDIR=$(SDL_WIN)/lib/pkgconfig cmake -B /tmp/opencode/cmwin -S . \
+	  -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-mingw-x86_64.cmake >/dev/null \
+	&& cmake --build /tmp/opencode/cmwin -j >/dev/null
+	cp $(SDL_WIN)/bin/SDL2.dll /tmp/opencode/cmwin/ 2>/dev/null || true
+	env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
+	  wine /tmp/opencode/cmwin/ll_cutscene.exe Z:$(DATA)/INTRO_P.IS \
+	  --ppm 1020 Z:/tmp/opencode/cm_win.ppm
+	cmp /tmp/opencode/cm_win.ppm /tmp/opencode/c_py/f01020.ppm \
+	  && echo "cmake windows binary (+SDL2.dll) == python reference (byte-exact)"
+
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music verify-utf8 verify-cmake
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
+	rm -rf dist
 	rm -f ll_cutscene ll_cutscene.exe llrs_selftest llrs_selftest.exe \
 	      resources/ll_cutscene.res \
 	      pcx_selftest pcx_selftest.exe seq_selftest seq_selftest.exe \
@@ -565,4 +619,5 @@ clean:
 
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
         verify-seq verify-pcm verify-mod verify-level verify-help verify-menu \
-        verify-sel verify-save verify-music verify-all level clean
+        verify-sel verify-save verify-music verify-utf8 verify-cmake \
+        verify-all level clean package package-win package-linux

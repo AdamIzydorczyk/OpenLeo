@@ -25,10 +25,14 @@ int is_open(is_stream *s, const char *path)
                                           * fallback (fs_ci.h, P-01/P-07) */
     if (!f)
         return -1;
-    fseek(f, 0, SEEK_END);
-    long n = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (n < (long)IS_CHUNK_BASE + 7) {
+    if (ll_fseek64(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return -1;
+    }
+    long long n = ll_ftell64(f);
+    ll_fseek64(f, 0, SEEK_SET);
+    if (n < (long long)IS_CHUNK_BASE + 7
+        || (unsigned long long)n > (unsigned long long)SIZE_MAX) {
         fclose(f);
         return -1;
     }
@@ -524,7 +528,7 @@ int is_write_ppm(const is_stream *s, const char *path)
         return -1;
     uint8_t rgb[768];
     is_palette_rgb8(s, rgb);
-    FILE *f = fopen(path, "wb");
+    FILE *f = ll_fopen_ci(path, "wb");
     if (!f) {
         free(lin);
         return -1;
