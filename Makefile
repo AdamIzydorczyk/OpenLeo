@@ -127,11 +127,13 @@ llrs_selftest: tools/llrs_selftest.c src/llrs.c src/llrs.h
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
 	    -Isrc -o $@ tools/llrs_selftest.c src/llrs.c
 
-# ll_level: M3 viewer - prints a level's .DES wiring, shows its PCX art
-# and plays its PCM parallax track from the ETAPY block.
-ll_level: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_config.h
+# ll_level: level-scene viewer - prints a level's .DES wiring, composites
+# its tlo= PCX background + ANIMACJE leaf .SEQ object sprites driven by the
+# HD-install .MOV state machines (LEO_HD_DIR=<dir with ANIMACJE/ETAPY>).
+ll_level: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_seq.c src/ll_seq.h src/ll_config.h
 	$(CC) -O2 -std=gnu11 -Wall -Wextra -Isrc $(CFLAGS) -o $@ \
-	    tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c $(LIBS)
+	    tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c \
+	    src/ll_seq.c $(LIBS)
 
 level: ll_level
 	./ll_level $(DATA) $(LEVEL) $(ARGS)
@@ -169,6 +171,24 @@ verify-seq: seq_selftest seq_patchdump
 	python3 tools/verify_seq.py $(DATA) --grammar ./seq_selftest \
 	  --patch ./seq_patchdump
 
+# Level scene: TUNGA.11 = PLAN3.PCX bg + MOVEPLAT leaf .SEQ sprite animated
+# by the HD-install ED000002.MOV state machine (LEO_HD_DIR). Fixed-tick PPM
+# dumps must differ (motion) and must be composited over the bare background.
+verify-level: ll_level
+	@for T in 2 8; do env -u DISPLAY SDL_VIDEODRIVER=dummy \
+	  SDL_AUDIODRIVER=dummy LEO_HD_DIR=/tmp/opencode/hd_files \
+	  LEO_LEVEL_PPM=/tmp/opencode/lv_tick$$T.ppm LEO_LEVEL_PPM_TICK=$$T \
+	  ./ll_level $(DATA) TUNGA.11 > /tmp/opencode/lv_tick$$T.log 2>&1; \
+	  if [ $$? -ne 0 ]; then echo "level scene FAILED"; cat /tmp/opencode/lv_tick$$T.log; exit 1; fi; done
+	@grep -q 'show TUNGA.11: bg PLAN3.PCX 640x359, 1 animated' /tmp/opencode/lv_tick8.log \
+	  && grep -q 'obj MOVEPLAT/ED000002.SEQ.*\[mov\]' /tmp/opencode/lv_tick8.log \
+	  && grep -q 'tick 8: ED000002.SEQ state 1 at' /tmp/opencode/lv_tick8.log \
+	  && echo "level scene: wiring + .SEQ sprite + .MOV state machine (ok)" \
+	  || { echo "level scene grep FAILED"; cat /tmp/opencode/lv_tick8.log; exit 1; }
+	@if cmp -s /tmp/opencode/lv_tick2.ppm /tmp/opencode/lv_tick8.ppm; \
+	then echo "level anim FAILED: tick2 == tick8"; exit 1; \
+	else echo "level anim: platform moves on screen (tick2 != tick8, ok)"; fi
+
 verify-menu: ll_cutscene
 	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=5 LEO_SKIP_USER=1 LEO_MENU_AUTO=1 \
 	    LEO_LEVEL_SECS=1 timeout 180 \
@@ -195,7 +215,7 @@ verify-menu: ll_cutscene
 	then echo "menu anim FAILED: frames t2 == t8 (nothing animates)"; exit 1; \
 	else echo "menu anim: BERLO frame cycles on screen (t2 != t8, ok)"; fi
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-menu
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-level verify-menu
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:

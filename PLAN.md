@@ -387,10 +387,10 @@ project-owned):
   and greps the log; part of verify-all (15 checks green with the new
   verify-seq, incl. wine).
 - Still open for gameplay: .mnu menu scripts (absent from CD containers -
-  likely SETUP-install output), .plt/.pal/.blk/.suf (likely intermediate
-  build artifacts, never shipped: shipped sprites live in ANIMACJE leaf
-  blocks, see 8), PCM sample rate (22050 assumed; autocorrelation
-  inconclusive). .SEQ grammar AND leaf-block sprite recon are DONE;
+  SETUP-install output after all, see 8c), .plt/.pal/.blk/.suf (present in
+  the HD install tree, see 8c; not on the CD), PCM = parallax IMAGE layer
+  (the old "22050 u8 audio" guess was WRONG - removed; geometry decode
+  pending, see 8c). .SEQ grammar AND leaf-block sprite recon are DONE;
   ll_seq playback is now wired into the title menu (see 8b); next step
   is .SEQ playback in the level-intro renderer.
 
@@ -437,6 +437,69 @@ cycled from fixed 30ms redraw ticks (`ll_menu_anim.period_ms`).
 BERLO = 30-frame swaying crown-sceptre at (130,38), CNIE = 2-frame
 shadow (171,146), X = static glyph (155,54). CI: LEO_MENU_PPM[_TICK]
 dumps the composed frame; verify-menu proves attach + frame cycling.
+
+## 8c. Level scene + .MOV motion scripts (delivered 2026-11-14)
+
+**SETUP-install tree cracked**: INSTALL.BAT copies `LEO_HDD\*.*` (shipped
+in LL_CD, pruned pre-SETUP copies identical to the installed HD tree) then
+runs CONFIG+SETUP (SETUP.EXE carries the "leveldes" container-tool strings).
+The HD ETAPY/ANIMACJE containers hold the TEXT payloads the CD lacks:
+per-level POMOC1.MNU / CHEAT04.MNU, <level>.plt platform polylines, .pal
+tables, and sub-.des placement files - read as extra llrs containers,
+originals never modified. Grammars (all plain text, CRLF):
+  sub-.des  := "count CRLF" then "TYPE,name,mov,X,Y" lines (ANIBACK/IGLO/
+               SURPRISE/PILAGEN/BAL/BERLO/KORONA/KONIK/ZONE/KRY/GRUPA/
+               SOUNDSOURCE...) + per-object blocks (sample=/effects=/
+               count=/id=/prior=/loop= and "x,y;x,y;" point lists);
+  .plt      := "N" then "n x,y;x,y;..." platform polylines (world coords,
+               back_rect up to 28800x600);
+  .MNU      := background=/palette=/cursor=/button=x,y,seq,f/key=.../
+               anime=x,y,seq,period/canime=/static=x,y,seq/default=.
+
+**.MOV = OBJECT STATE MACHINE (the missing motion half)**: HD ANIMACJE leaf
+records carry `<KEY>.MOV` text where the CD carries `<KEY>.SEQ` art - SAME
+record key (ED000002.SEQ art <-> ED000002.MOV script), 1:1 join. Grammar:
+
+```
+state-names-list; blank line; then [STATE] blocks:
+  control=BY_TIME
+  TARGET(n)=ACTION          transitions (viewer cycles states in order)
+  seq=edNNNNNN              art .SEQ key the state shows
+  <frame>,<period_ms>[, M dx,dy]*   show frame, then move object by delta
+```
+
+MOVEPLAT ED000002: A_IDLE/A_MOVE_DN/A_STOP/A_MOVE_UP/A_DEAD, 6x "M 0,2"
+down + 6x "M 0,-2" up = the bobbing platform, net zero per cycle.
+
+**PCM is a parallax image layer, NOT audio** (old ll_level audio path
+removed): u16 header (400=pitch, 40, 16), u32 chunk-offset table from 0x0a
+(39 monotonic entries for RAN PLAN1), chunks use the same byte-RLE family
+as PCX/.SEQ patches (C>=0xC0 -> repeat next byte C&0x3F times; FUN_00044b80
+= the .SEQ entry reader). Layer ctor FUN_00056b20 divides by 0x50 (80 =
+tile width, the divide-by-zero crash site), blit FUN_00056c72 clamps to a
+400-pitch, FUN_00057460 parallax = ((pix-200)-(lastPix-200)*speed/100)
+with .DES speed= p1,p2;p2,p2;100,100 percentages. Full tiling open.
+
+**src/ll_level.c is now a scene composer**: main .DES resolved by exact ->
+<name>.DES -> <stem>.DES -> dir= scan of every LEVELDES .DES payload
+(TUNGA.11 is carried by TUNGA1.DES); bg = first tlo= .PCX present in the
+ETAPY block; objects = ANIMACJE/<level>/<LEAF> .SEQ sprites (ll_seq blitter)
+with the HD .MOV driving frame+delta motion (LEO_HD_DIR=<dir with
+ANIMACJE/ETAPY>); one script per leaf (prefers the .SEQ the .MOV seq= names,
+ED000012-style unreferenced alternates dropped). Anchor heuristic until the
+mov-name->ED-key join is known: x=|f0|, tall sprites bottom-aligned (MENU
+scripts use negative f0/f2 = exact (-f0,-f2), level leaves carry positive
+world-space values). Demo NEW GAME now renders TUNGA.11 (RAN.01 has no
+background PCX on the CD - its tlo is plan3.pcx,.pcm,.pcm). CI:
+`make verify-level` (fixed-tick PPM dumps tick2 != tick8, state-machine
+grep, compositing proven vs bare bg: 1885 painted px, 4018 differing bytes
+after the +4px bob).
+
+Still open: exact .des X,Y -> ED-key placement join (SETUP hashes mov names;
+strum1.mov etc.), PCM tiling, and level bulk data (.blk/.suf, most sub-.des)
+absent from this CD image (LEVELDES slots end at 0x19ba40bb; only 15 .DES
+shipped) - stock game hits the idiv-0x50 trap at level start (LEO_OUT.LOG),
+so original level rendering was never baselined.
 
 ## 9. Legal/ethical
 Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.
