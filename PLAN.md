@@ -632,6 +632,17 @@ and VL QA sees clean legible cursive, no streaks. LEVEL06/LEVEL08.SEQ
 (20/28-row diagonal wedge sprites, 4 elements each) stay unwired -
 their .MNU state is unknown (probably island/title animations);
 placing them would be guesswork, so they are documented as available.
+**Dialog answer buttons (2026-11-14, user-feedback fix)**: the cursive
+words ARE the controls - ll_menu_open_ex hot-zones bind TAK/CNIE/X to
+returns -10/-11/-12 with rects = union of painted sprite extents over
+frames ((82,128)-(142,163) / (169,145)-(233,183) / (155,54)-(169,68)
+canvas px) and keys t/n/x; click or key on TAK restarts the game via
+the NEW GAME level chain (restart semantics = documented reconstruction,
+the .MNU driver is the same CD hole). Map-menu island clicks now launch
+instantly (a click = activation everywhere: corners act, islands launch);
+LEO_MENU_PICK=<key> is the CI one-shot dialog hook (verify-menu TAK step
++ wine twin). OPTIONS screen stays art-only: the real settings UI was
+SETUP/CONFIG.EXE territory, no in-game option assets exist on the CD.
 
 ## 8c. Level scene + .MOV motion scripts (delivered 2026-11-14)
 

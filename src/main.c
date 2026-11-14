@@ -190,6 +190,9 @@ static void run_menu(const char *data, int audio)
                     chs[i].rh = anch[i % 6][3];
                 }
                 printf("map: %d chapters, arrow starts on island 0\n", n);
+                printf("map: click = activate (island launches, corner "
+                       "acts); arrows + Enter/Space chapter; a/o/r corner "
+                       "keys; q/Esc quit\n");
                 ll_menu_anim m2[2];
                 int m2n = 0;
                 for (int i = 0; i < nanim; i++)
@@ -244,7 +247,13 @@ static void run_menu(const char *data, int audio)
                                         * 8b): real cursive RESTGRY word +
                                         * TAK / CNIE answer words + X cross
                                         * at their authored (-f0,-f2)
-                                        * origins. */
+                                        * origins.  The cursive words ARE
+                                        * the answer buttons: click them
+                                        * or press t (tak) / n (nie) / x.
+                                        * tak = restart the game -> the
+                                        * new-game level chain (original
+                                        * .MNU semantics are a CD hole;
+                                        * documented reconstruction). */
             static const char *back[] = { "(BACK)" };
             ll_menu_anim m4[4];
             int m4n = 0;
@@ -255,12 +264,33 @@ static void run_menu(const char *data, int audio)
                      strcmp(anims[i].tag, "CNIE.SEQ") == 0 ||
                      strcmp(anims[i].tag, "X.SEQ") == 0))
                     m4[m4n++] = anims[i];
-            int r2 = ll_menu_open(bg, blen, back, 1, m4n ? m4 : NULL, m4n);
+            ll_menu_zone z3[3];
+            int nz3 = 0;
+            for (int i = 0; i < m4n; i++) {
+                const char *tg = m4[i].tag;
+                if (!tg)
+                    continue;
+                if (strcmp(tg, "TAK.SEQ") == 0)
+                    z3[nz3++] = (ll_menu_zone){ tg, -10, 't' };
+                else if (strcmp(tg, "CNIE.SEQ") == 0)
+                    z3[nz3++] = (ll_menu_zone){ tg, -11, 'n' };
+                else if (strcmp(tg, "X.SEQ") == 0)
+                    z3[nz3++] = (ll_menu_zone){ tg, -12, 'x' };
+            }
+            int r2 = ll_menu_open_ex(bg, blen, back, 1,
+                                     m4n ? m4 : NULL, m4n, z3, nz3);
+            if (r2 == -10) {   /* tak: restart -> the NEW GAME chain */
+                const char *lv = getenv("LEO_DEMO_LEVEL");
+                printf("menu: restart confirmed (tak) -> new game (%s)\n",
+                       lv && *lv ? lv : "RAN.01");
+                ll_level_show(data, lv && *lv ? lv : "RAN.01", 8.0, audio);
+                break;
+            }
             if (r2 == -3 || r2 == -2) {
                 printf("menu: restart-confirm exit ends menu chain\n");
                 break;
             }
-            continue;
+            continue;          /* nie / x / (BACK): back to the map */
         }
         if (sel < 0)
             break;

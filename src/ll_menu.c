@@ -147,6 +147,33 @@ static void menu_anims_free(ll_seq *aseq, int nanims)
     free(aseq);
 }
 
+/* Painted extent of one .SEQ element: side-by-side sprite chunks
+ * (arr_n-1 x 80 px + b15 px tail), height = patch row count (mirrors
+ * the blitter chunk widths; same computation as ll_level.c elem_size). */
+typedef struct { int maxrow; } menu_rowctx;
+static void menu_rowcount_cb(void *ctx, int row, int gap,
+                             const ll_seq_patch_op *ops, int nops)
+{
+    (void)gap; (void)ops; (void)nops;
+    menu_rowctx *rc = ctx;
+    if (row + 1 > rc->maxrow)
+        rc->maxrow = row + 1;
+}
+static void elem_extent(const ll_seq *s, const ll_seq_elem *e, int *w, int *h)
+{
+    int ww = 0, hh = 0;
+    for (unsigned k = 0; k < e->arr_n; k++) {
+        const ll_seq_ent *en = &s->ents[e->arr_first + k];
+        ww += (k + 1 < e->arr_n) ? 80 : (int)(short)e->b15;
+        menu_rowctx rc = { 0 };
+        ll_seq_patch_walk(s->blob + en->off, en->len, menu_rowcount_cb, &rc);
+        if (rc.maxrow > hh)
+            hh = rc.maxrow;
+    }
+    *w = ww;
+    *h = hh;
+}
+
 /* CI hook: dump the composed RGB frame as PPM (P6) */
 static int ppm_fb(const char *path, const Uint32 *fb, int w, int h)
 {
@@ -166,6 +193,15 @@ static int ppm_fb(const char *path, const Uint32 *fb, int w, int h)
 int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
                  const char *const *items, int nitems,
                  const ll_menu_anim *anims, int nanims)
+{
+    return ll_menu_open_ex(bg_pcx, bg_len, items, nitems, anims, nanims,
+                           NULL, 0);
+}
+
+int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
+                    const char *const *items, int nitems,
+                    const ll_menu_anim *anims, int nanims,
+                    const ll_menu_zone *zones, int nzones)
 {
     if (nitems < 1)
         return -1;
@@ -247,10 +283,60 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
 
     int sel = 0, quit = 0, ret = -1;
     unsigned tick = 0;   /* fixed 30 ms redraw ticks drive anim frames */
+
+    /* hot-zone rects in canvas px: the union over frames of the bound
+     * anim's painted extent (see ll_menu.h zone docs) */
+    enum { MAXZ = 8 };
+    int nz = zones && nzones > 0 ? (nzones > MAXZ ? MAXZ : nzones) : 0;
+    int zrect[MAXZ][4];
+    for (int zi = 0; zi < nz; zi++) {
+        zrect[zi][0] = zrect[zi][1] = zrect[zi][2] = zrect[zi][3] = 0;
+        if (!zones[zi].tag || !aseq)
+            continue;
+        for (int i = 0; i < nanims; i++) {
+            if (!anims[i].tag || strcmp(anims[i].tag, zones[zi].tag) != 0 ||
+                !aseq[i].els)
+                continue;
+            int bx0 = 1 << 20, by0 = 1 << 20, bx1 = -1, by1 = -1;
+            for (unsigned fr = 0; fr < aseq[i].count; fr++) {
+                const ll_seq_elem *e = &aseq[i].els[fr];
+                int ex = -SX(e->f0), ey = -SX(e->f2), ew = 0, eh = 0;
+                elem_extent(&aseq[i], e, &ew, &eh);
+                if (ex < bx0) bx0 = ex;
+                if (ey < by0) by0 = ey;
+                if (ex + ew > bx1) bx1 = ex + ew;
+                if (ey + eh > by1) by1 = ey + eh;
+            }
+            if (bx1 > 0 && by1 > 0) {
+                zrect[zi][0] = bx0; zrect[zi][1] = by0;
+                zrect[zi][2] = bx1; zrect[zi][3] = by1;
+                printf("menu: zone %s (%d,%d)-(%d,%d) key '%c' -> %d\n",
+                       zones[zi].tag, bx0, by0, bx1, by1,
+                       zones[zi].key ? (char)zones[zi].key : '-',
+                       zones[zi].ret);
+            }
+            break;
+        }
+    }
     /* CI hook: LEO_MENU_SECS=N shows the menu N seconds then auto-quits */
     const char *sece = getenv("LEO_MENU_SECS");
     Uint64 t_deadline = sece ? SDL_GetTicks64() + 1000 * (Uint64)atof(sece) : 0;
     while (!quit) {
+        if (tick == 0 && nz) {      /* CI: LEO_MENU_PICK fires a zone key */
+            const char *pk = getenv("LEO_MENU_PICK");
+            if (pk && *pk)
+                for (int zi = 0; zi < nz; zi++)
+                    if (zones[zi].key &&
+                        (int)(unsigned char)pk[0] == zones[zi].key) {
+                        printf("menu: LEO_MENU_PICK -> zone %s\n",
+                               zones[zi].tag);
+                        ret = zones[zi].ret;
+                        quit = 1;
+                        break;
+                    }
+        }
+        if (quit)
+            break;
         /* compose: background (image or black) then the item list */
         if (bg.idx) {
             /* 8bpp index canvas = PCX background + .SEQ sprite overlays,
@@ -356,8 +442,29 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
                             break;
                         }
                     }
+                    if (!quit)
+                        for (int zi = 0; zi < nz; zi++)
+                            if (zrect[zi][2] > zrect[zi][0] &&
+                                mx >= zrect[zi][0] && mx < zrect[zi][2] &&
+                                my >= zrect[zi][1] && my < zrect[zi][3]) {
+                                printf("menu: click zone %s\n",
+                                       zones[zi].tag);
+                                ret = zones[zi].ret;
+                                quit = 1;
+                                break;
+                            }
                 } else if (e.type == SDL_KEYDOWN) {
                     SDL_Keycode k = e.key.keysym.sym;
+                    int zhit = 0;
+                    for (int zi = 0; zi < nz; zi++)
+                        if (zones[zi].key && k == (SDL_Keycode)zones[zi].key) {
+                            ret = zones[zi].ret;
+                            quit = 1;
+                            zhit = 1;
+                            break;
+                        }
+                    if (zhit)
+                        break;
                     if (k == SDLK_UP)
                         sel = (sel + nitems - 1) % nitems;
                     else if (k == SDLK_DOWN)
@@ -707,13 +814,10 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                                 && mx <= chs[i].ix + chs[i].rw
                                 && my >= chs[i].iy - chs[i].rh
                                 && my <= chs[i].iy + chs[i].rh) {
-                                if (i == sel) {
-                                    quit = 1;
-                                    ret = sel;
-                                } else {
-                                    sel = i;
-                                    printf("map: island %d selected\n", i);
-                                }
+                                sel = i;
+                                printf("map: island %d launch (click)\n", i);
+                                quit = 1;
+                                ret = i;
                                 break;
                             }
                         }
