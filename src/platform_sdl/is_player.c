@@ -105,15 +105,29 @@ typedef struct {
     Uint64       period;   /* ns per frame */
 } player;
 
-/* ESC-region PCM: 8 kHz unsigned 8-bit mono (pitch-verified in M2).
- * Coalesced into ascratch and queued once per chunk -> gapless joins
- * between the many small ESC blocks (proposal 3. in IMPROVEMENTS). */
+/* ESC-region PCM: 22050 Hz signed 16-bit little-endian mono.  The region is
+ * stored as raw s16 samples, so bytes go to SDL untouched.  Evidence (2026-11-14):
+ *   * durations line up - LOGO.IS 703080 B = 351540 s16 = 15.9 s vs its 171
+ *     frames * period 2 / 22 Hz = 15.5 s of video; KONIEC.IS 4617900 B =
+ *     104.7 s vs 639*6/22 = 174 s (engine pads silence when the region runs
+ *     dry, see the 0x80 fill in build/decompiled/all/FUN_000185c0.c - SDL
+ *     does the same when the queue drains);
+ *   * the engine's own audio setup uses 0x5622 = 22050 for this stream
+ *     (build/decompiled/all/FUN_00019a60.c DAT_000c40b4) and its 16-bit DMA
+ *     path (BLASTER H=5), and a QEMU sb16 capture of the original shows a
+ *     genuine 16-bit stream resampled 2:1 from 22050 to 44100;
+ *   * byte statistics: as u8 the region is full-scale noise (mean|delta| ==
+ *     rms), as s16 it is smooth audio (mean|delta| = 0.55*rms);
+ *   * A/B on real speakers: s16/22050 = recognisable sound, u8/8000 (the old
+ *     assumption) = the crunch the user reported.
+ * Coalesced into ascratch and queued once per chunk -> gapless joins between
+ * the many small ESC blocks (proposal 3. in IMPROVEMENTS). */
 static void enqueue_audio(void *u, const uint8_t *pcm, unsigned len)
 {
     player *p = (player *)u;
     if (!p->dev || len == 0)
         return;
-    if (p->alen + len > p->acap) {
+    if (p->alen + len + 1 > p->acap) {   /* +1: odd-region pad, see below */
         unsigned nc = (p->alen + len) * 3 / 2 + 4096;
         uint8_t *nb = (uint8_t *)realloc(p->ascratch, nc);
         if (!nb)
@@ -123,7 +137,14 @@ static void enqueue_audio(void *u, const uint8_t *pcm, unsigned len)
     }
     memcpy(p->ascratch + p->alen, pcm, len);
     p->alen += len;
-    if (getenv("LEO_IS_WAV")) {          /* CI/diagnostic hook: raw U8 dump */
+    if (len & 1) {          /* sample-aligned regions only (they all are:
+                             * LOGO/KONIEC/INTRO_P sizes are whole 1260-byte
+                             * blocks), but never let one byte desync every
+                             * later sample pair */
+        p->ascratch[p->alen++] = 0;
+    }
+    if (getenv("LEO_IS_WAV")) {/* CI/diagnostic hook: raw s16 LE dump, listen
+                                * with ffplay -f s16le -ar 22050 -ac 1 FILE */
         static FILE *wf;
         if (!wf)
             wf = fopen(getenv("LEO_IS_WAV"), "wb");
@@ -328,8 +349,8 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     if (audio) {
         SDL_AudioSpec want, have;
         memset(&want, 0, sizeof want);
-        want.freq = 8000;
-        want.format = AUDIO_U8;
+        want.freq = 22050;
+        want.format = AUDIO_S16SYS;   /* ESC region = raw s16 LE samples */
         want.channels = 1;
         want.samples = 0;   /* keep SDL's default: explicit small sizes
                                break SDL2.32's alsa backend here (see

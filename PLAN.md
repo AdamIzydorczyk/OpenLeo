@@ -89,7 +89,9 @@ Error strings found in EXE: Watcom runtime + custom: `Blad zakresu w ...::check 
      interleaved with whole frames); framebuffer+palette persist across
      chunks. Each payload starts with an ESC(0xb0) skip of the audio tail:
      `resume = payload_pos + 5 + u32` (0 crossings of payload end in all
-     2388 INTRO_P payloads). ESC-skipped bytes = 8-bit unsigned PCM ~8kHz.
+     2388 INTRO_P payloads). ESC-skipped bytes = **signed 16-bit little-endian
+     PCM at 22050 Hz mono** (the earlier "8-bit unsigned ~8 kHz" reading was
+     wrong and is what made cutscene audio crunch - see the audio bullet).
    * Band opcode stream, 4 segments per band (bands = h/4): opcode header
      `B`: len=B&7 (|2nd byte if B&0x40), mode=B&0xb8: SOLID 0x00, LUT1 0x08,
      LUT2 0x10, LUT4 0x18, RAW 0x20, SKIP 0x90, EOB 0x88 (ends band early;
@@ -109,6 +111,39 @@ Error strings found in EXE: Watcom runtime + custom: `Blad zakresu w ...::check 
      6-bit table `v<<2` with occasional +3 per entry, consistent per entry).
    * All 15 .IS decode to EOF, zero desync (INTRO_P: 2388 chunks -> 1521
      frames, 189 PAL ops, 2363 ESC ops).
+   * **Audio (SOLVED 2026-11-14 — this was the "horrible logo video sound"
+     bug):** the ESC region is raw **s16 little-endian mono at 22050 Hz**;
+     regions are whole 1260-byte blocks (LOGO 703080 = 558x1260, KONIEC
+     4617900 = 3665x1260) and the engine pads silence once the region is
+     exhausted (the 0x80 fill in `build/decompiled/all/FUN_000185c0.c`, the
+     ISplay decoder; its 4 input modes are mono-s16->u8 msb, stereo-s16 avg,
+     stereo-u8 avg, straight copy, while `FUN_00019a60.c` sets rate
+     0x5622=22050 and takes the 16-bit DMA channel from BLASTER `H=` — 4..7,
+     else none). Evidence: durations line up with video (LOGO 15.9 s audio vs
+     171 frames x period 2 / 22 Hz = 15.5 s; KONIEC 104.7 s audio vs 174 s
+     video -> silence pad); byte statistics (as u8 mean|delta| == rms = noise,
+     as s16 0.55*rms = audio, byte mean 129 = zero-mean s16); a QEMU sb16
+     capture of the ORIGINAL shows a real 16-bit stream resampled 2:1 from
+     22050; and A/B on the user's speakers (s16/22050 recognisable, u8/8000 =
+     the reported crunch).
+   * Ground-truth capture rig (diagnostics only, capture data never
+     committed): `-device sb16,audiodev=a,irq=7,dma=1,dma16=5 -audiodev
+     alsa,id=a,out.dev=tap` with `build/lltap.conf` (ALSA file plugin ->
+     build/qemu_*.raw; define `pcm.tap`, never `pcm.!default`, and set
+     `defaults.pcm.file_truncate false`). Note `out.dev`, not `out.device`.
+     The plugin is unthrottled behind a null slave, so it writes much faster
+     than realtime (2.6 GB in minutes): keep captures on disk, trim, clean up.
+     The guest needs `SET BLASTER=A220 I7 D1 H5 T6` in AUTOEXEC.BAT or the
+     engine never programs the DSP and the capture stays all-zero.
+   * RAM forensics (reading engine globals from a snapshot): `pmemsave 0
+     0x2000000 "file"` — HMP needs the path QUOTED; locate the loaded image by
+     voting on `pos-off` over 32-byte windows of `build/leo/leo.img` (the code
+     copy lands at `vaddr + ~0x2BCA00`, varying per boot, but data segments are
+     relocated separately). Then read the **absolute operands out of the
+     fixupped code**: e.g. `8b 3d <abs32>` in `FUN_000185c0` gives the live
+     address of DAT_000c3fdc. .IS chunk payloads are streamed from the CD, so
+     their bytes are generally NOT resident — searching RAM for file bytes is a
+     dead end.
 - `STATUS.LEO`: 300 bytes, values `0x77XXXXXX` = tagged/delta pointers into DSEG; reverse against save/load functions in EXE.
 - `LONGSOFT.CFG`: 273 bytes, mostly zero; write path is in SETUP/CONFIG.EXE (16-bit) — parse with TDR/RATUNKU CONFIG.EXE strings.
 

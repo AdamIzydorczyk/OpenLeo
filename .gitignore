@@ -51,3 +51,6 @@ mod_selftest.exe
 # build outputs (make clean removes them)
 /seq_patchdump
 /seq_patchdump.exe
+
+# QEMU/ALSA ground-truth captures contain ORIGINAL game audio - never commit
+build/*.raw
