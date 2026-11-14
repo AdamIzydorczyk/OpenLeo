@@ -416,7 +416,8 @@ static void paint(SDL_Renderer *ren, SDL_Texture *tex,
  * lines list page art (text baked into .SEQ frame patches); the .SEQ
  * payloads themselves ship in the CD ETAPY level block (incomplete CD:
  * only some pages present). Left/Right/Enter cycle pages, ESC closes, and
- * LEO_HELP_SECS (default min(4, 0.6*secs)) auto-closes for CI/flow.
+ * LEO_HELP_SECS (default 3 s) auto-closes for CI/flow; the scene window
+ * starts when the help overlay closes.
  * cursor=mouse.seq / palette=<stem>.pal refer to payloads absent from both
  * trees (documented data hole) - bg palette is kept.                   */
 typedef struct { int x, y; ll_seq seq; unsigned char *blob; } help_page;
@@ -425,7 +426,7 @@ static void help_pages(SDL_Renderer *ren, SDL_Texture *tex,
                        const llrs *hd, const llrs_slot *hdrecs, unsigned nhdrec,
                        const llrs *cd, const llrs_slot *cdrecs, unsigned ncdrec,
                        const unsigned char *bg, unsigned char *canvas,
-                       const Uint32 lut[256], int w, int h, double secs)
+                       const Uint32 lut[256], int w, int h)
 {
     const llrs_slot *mnu = NULL;
     for (unsigned k = 0; k < nhdrec; k++) {
@@ -551,7 +552,7 @@ static void help_pages(SDL_Renderer *ren, SDL_Texture *tex,
         return;
 
     const char *hs = getenv("LEO_HELP_SECS");
-    double lim = hs ? atof(hs) : (secs > 6.66 ? 4.0 : secs * 0.6);
+    double lim = hs ? atof(hs) : 3.0;    /* scene timer starts after help */
     Uint64 freq = SDL_GetPerformanceFrequency();
     Uint64 t_end = SDL_GetPerformanceCounter() +
                    (Uint64)(lim * (double)freq);
@@ -994,7 +995,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 if (nhrec2)
                     help_pages(ren, tex, &hd_ety, hrecs2, nhrec2,
                                &etapy, recs, nrec, img.idx, canvas, lut,
-                               (int)img.w, (int)img.h, secs);
+                               (int)img.w, (int)img.h);
                 llrs_block_free(hrecs2);
                 llrs_close(&hd_ety);
             }
