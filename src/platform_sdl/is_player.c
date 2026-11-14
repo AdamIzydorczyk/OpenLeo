@@ -20,6 +20,7 @@ typedef struct {
     SDL_AudioDeviceID dev; /* 0 = audio off/unavailable */
     unsigned     presented;
     unsigned     start_frame; /* skip presenting frames below this */
+    Uint64       pause_at;    /* perf-counter stamp when paused (0=live) */
     int          quit;
     Uint64       t0;
     Uint64       period;   /* ns per frame */
@@ -69,6 +70,12 @@ static void pump_input(player *p)
                 int playing = SDL_GetAudioDeviceStatus(p->dev)
                               == SDL_AUDIO_PLAYING;
                 SDL_PauseAudioDevice(p->dev, playing); /* space=pause toggle */
+                /* freeze/resume the video clock WITH the audio clock,
+                 * otherwise pausing desyncs A/V (proposal 1. in IMPROVEMENTS) */
+                if (playing) /* was playing, now pausing */
+                    p->pause_at = SDL_GetPerformanceCounter();
+                else if (p->pause_at)
+                    p->t0 += SDL_GetPerformanceCounter() - p->pause_at;
             }
         }
     }
