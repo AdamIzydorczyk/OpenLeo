@@ -1,4 +1,5 @@
 # linux/ variant: native SDL2 build from shared ../src.
+SHELL    := /bin/bash   # verify-llrs uses process substitution
 CC       ?= gcc
 CFLAGS   ?= -O2 -std=gnu11 -Wall -Wextra -DPLATFORM_LINUX=1 \
             $(shell pkg-config --cflags sdl2)
@@ -21,7 +22,22 @@ verify: ll_cutscene
 	    --only 1020
 	cmp /tmp/f_c.ppm /tmp/f_py/f01020.ppm && echo "C == python reference (byte-exact)"
 
-clean:
-	rm -f ll_cutscene *.o
+# src/llrs.c byte-for-byte agreement with tools/llrs_unpack.py on all four
+# containers, checked under ASan/UBSan.
+llrs_selftest: ../tools/llrs_selftest.c ../src/llrs.c ../src/llrs.h
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	    -I../src -o $@ ../tools/llrs_selftest.c ../src/llrs.c
 
-.PHONY: run verify clean
+verify-llrs: llrs_selftest
+	@for F in ANIMACJE ETAPY SOUND LEVELDES; do \
+	  if diff <(./llrs_selftest $(DATA)/$$F) \
+	      <(python3 ../tools/llrs_unpack.py list $(DATA)/$$F 2>/dev/null) >/dev/null; \
+	  then echo "$$F: C == python (exact)"; \
+	  else echo "$$F: MISMATCH"; exit 1; fi; done
+	@echo "MENU index block (39 records):"
+	./llrs_selftest --block $(DATA)/ANIMACJE MENU | head -3
+
+clean:
+	rm -f ll_cutscene llrs_selftest *.o
+
+.PHONY: run verify verify-llrs clean
