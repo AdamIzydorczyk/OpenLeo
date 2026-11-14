@@ -38,7 +38,7 @@ def decode(raw):
     if len(raw) < 0x1c4:
         return None
     w, win = struct.unpack_from('<HH', raw, 0)
-    stride = w + 80
+    stride = w + 80                   # ctor alloc pitch (w + 0x50)
     i, dec = 0xa6, bytearray()
     n = len(raw)
     while i < n:
@@ -54,6 +54,19 @@ def decode(raw):
     rows = -(-len(dec) // stride)
     plane = bytes(dec) + bytes(rows * stride - len(dec))
     return w, win, stride, plane, rows, 1 if len(dec) % stride else 0
+
+
+def view(plane, stride, strips, rows):
+    """400-px rest window rows 0.. of FUN_00056c72 at world_x=0: screen
+    strip k shows plane strip k mod strips (identity for k < 400)."""
+    nh = min(rows, 200)
+    out = bytearray()
+    for r in range(nh):
+        row = plane[r * stride:(r + 1) * stride]
+        for k in range(400):
+            col = 80 * ((k // 80) % strips) + k % 80
+            out.append(row[col])
+    return bytes(out)
 
 
 def fnv64(b):
@@ -79,10 +92,14 @@ def main():
                 fh.write(raw)
             got = subprocess.run(cmd.split() + [arg, name],
                                  capture_output=True)
-            line = got.stdout.decode().strip()
+            lines = got.stdout.decode().splitlines()
+            line = '\n'.join(l.strip() for l in lines[:2])
+            nh = min(ref[4], 200)
             want = ('decode %s w=%d win=%d stride=%d rows=%d partial=%d '
-                    'fnv=%016x' % (name, ref[0], ref[1], ref[2], ref[4],
-                                   ref[5], fnv64(ref[3])))
+                    'fnv=%016x\nview %s h=%d fnv=%016x'
+                    % (name, ref[0], ref[1], ref[2], ref[4],
+                       ref[5], fnv64(ref[3]), name, nh,
+                       fnv64(view(ref[3], ref[2], ref[0] // 80, ref[4]))))
             if line != want:
                 bad += 1
                 print('MISMATCH %s\n  want %s\n  got  %s' % (name, want, line))

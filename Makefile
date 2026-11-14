@@ -126,6 +126,15 @@ verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_
 	else echo "win level anim: platform moves under wine (t2 != t8, ok)"; fi
 	@cmp /tmp/opencode/lvlv_t2.ppm /tmp/opencode/wlv_t2.ppm \
 	  && echo "win level frame == linux frame (byte-exact scene compositing)"
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_LEVEL_PPM=/tmp/opencode/ran_lv.ppm LEO_LEVEL_PPM_TICK=2 \
+	  timeout 60 ./ll_level $(DATA) RAN.01 >/dev/null 2>&1 || true
+	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all SDL_VIDEODRIVER=dummy \
+	  SDL_AUDIODRIVER=dummy LEO_LEVEL_PPM=Z:/tmp/opencode/ran_wv.ppm \
+	  LEO_LEVEL_PPM_TICK=2 timeout 120 wine ./ll_level.exe Z:$(DATA) RAN.01 \
+	  >/dev/null 2>&1 || true
+	@cmp /tmp/opencode/ran_lv.ppm /tmp/opencode/ran_wv.ppm \
+	  && echo "win PCM level canvas == linux (byte-exact parallax view)"
 
 ll_level.exe: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c \
             src/ll_pcm.c src/ll_seq.c src/ll_seq.h src/ll_pcm.h src/ll_config.h
@@ -236,6 +245,21 @@ verify-level: ll_level
 	@if cmp -s /tmp/opencode/lv_tick2.ppm /tmp/opencode/lv_tick8.ppm; \
 	then echo "level anim FAILED: tick2 == tick8"; exit 1; \
 	else echo "level anim: platform moves on screen (tick2 != tick8, ok)"; fi
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  LEO_LEVEL_PPM=/tmp/opencode/lv_ran.ppm LEO_LEVEL_PPM_TICK=2 \
+	  ./ll_level $(DATA) RAN.01 > /tmp/opencode/lv_ran.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "PCM level scene FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/lv_ran.log; exit 1; fi
+	@grep -q 'PCM PLAN1.PCM.*-> scene canvas' /tmp/opencode/lv_ran.log \
+	  && grep -q 'show RAN.01: bg PLAN1.PCM 400x200' /tmp/opencode/lv_ran.log \
+	  && python3 tools/extract_record.py $(DATA)/ETAPY RAN.01 PLAN1.PCM \
+	      /tmp/opencode/ran_plan1.pcm \
+	  && h=$$(./pcm_selftest /tmp/opencode/ran_plan1.pcm PLAN1.PCM \
+	      2>/dev/null | grep -o 'view.*fnv=[0-9a-f]*' | grep -o 'fnv=.*') \
+	  && grep -q "PCM view PLAN1.PCM 400x200 $$h" /tmp/opencode/lv_ran.log \
+	  && echo "PCM canvas: tlo stack picks PLAN1.PCM; scene view == ll_pcm oracle ($$h)" \
+	  || { echo "PCM canvas check FAILED"; cat /tmp/opencode/lv_ran.log; exit 1; }
 
 # Level help overlay (POMOC flow): HD .MNU page list + CD ETAPY .SEQ page
 # art. JUNCTION carries page art AND the whole scene is one .PCX, so the

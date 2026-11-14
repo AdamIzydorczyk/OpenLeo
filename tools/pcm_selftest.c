@@ -50,6 +50,18 @@ int main(int argc, char **argv)
     }
     printf("decode %s w=%u win=%u stride=%u rows=%u partial=%d fnv=%016llx\n",
            argv[2], p.w, p.win_rows, p.stride, p.rows, p.last_partial, h);
+    unsigned nh = p.rows < 200 ? p.rows : 200;
+    unsigned char *view = malloc((size_t)nh * 400);
+    if (view) {
+        ll_pcm_view(&p, 0, nh, view);
+        h = 0xCBF29CE484222325ull;
+        for (size_t i = 0; i < (size_t)nh * 400; i++) {
+            h ^= view[i];
+            h *= 0x100000001B3ull;
+        }
+        printf("view %s h=%u fnv=%016llx\n", argv[2], nh, h);
+        free(view);
+    }
     ll_pcm_release(&p);
     return 0;
 }

@@ -45,3 +45,7 @@ ll_level
 ll_level.exe
 *.o
 *.obj
+
+# build outputs (make clean removes them)
+/seq_patchdump
+/seq_patchdump.exe

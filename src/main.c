@@ -146,9 +146,11 @@ static void run_menu(const char *data)
         if (sel < 0)
             break;
         if (sel == 0) {
-            /* TUNGA.11 has a tlo= PCX background on the CD; RAN.01's
-             * background is .PCM-only (layer decode pending, PLAN.md). */
-            ll_level_show(data, "TUNGA.11", 8.0, 0);
+            /* RAN.01 is the game's first level ("NEW GAME (RAN.01)"): its
+             * tlo= stack on this CD resolves to the PLAN1.PCM parallax
+             * plane (plan3.pcx/plan2.pcm are CD holes) - ll_level shows the
+             * 400x200 PCM rest view. */
+            ll_level_show(data, "RAN.01", 8.0, 0);
             break;
         } else if (sel == 1) {
             if (auto_i)

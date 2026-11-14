@@ -18,9 +18,11 @@
  *                some levels; object X,Y join needs SETUP's mov->ED key
  *                mapping, still open (PLAN.md). Until then sprites anchor by
  *                their element header (x=|f0|, tall sprites bottom-aligned).
- * PCM payloads are parallax IMAGE layers (400-byte pitch chunked RLE,
- * FUN_00056b20) - NOT audio; the old "u8 audio" interpretation was wrong
- * and PCM geometry decode is pending (PLAN.md). They are listed, not played.
+ * PCM payloads are parallax IMAGE layers (one continuous byte-RLE plane,
+ * FUN_00056b20) - NOT audio; the old "u8 audio" interpretation was wrong.
+ * They join the scene as the tlo= background stack: when a level has no
+ * .PCX among its tlo= layers (RAN.01: plan1.pcm only on this CD), the
+ * 400x200 rest view (ll_pcm_view) becomes the scene canvas.
  */
 #include "ll_level.h"
 #include "ll_pcx.h"
@@ -29,6 +31,7 @@
 #include "llrs.h"
 
 #include <SDL2/SDL.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -908,20 +911,27 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     if (blk)
         llrs_block(&etapy, blk, &recs, &nrec);
 
-    /* 3) background: first tlo= layer present in the block (.PCX), else any
-     *    .PCX in the block (KADMAR2's M15.PCX etc. are intro art). */
+    /* 3) background layer stack: tlo= lists the layers in stack order
+     * ("plan3.pcx,plan2.pcm,plan1.pcm").  Pick the FIRST listed layer
+     * present in the level's ETAPY block: a .PCX wins the canvas; a
+     * .PCM (parallax plane, ll_pcm) becomes the canvas only when no
+     * .PCX precedes it in the stack (RAN.01 on this CD: plan3.pcx and
+     * plan2.pcm are absent, plan1.pcm is present -> PCM canvas).
+     * Fallback: any .PCX in the block (KADMAR2's M15.PCX intro art). */
     char bgname[32] = "";
+    char pcm_t[16] = "";            /* tlo stem of the canvas PCM layer */
     const llrs_slot *bg = NULL;
+    int bgpref = -1;                /* block index of first present tlo layer */
     {
         char tlo[512];
         snprintf(tlo, sizeof tlo, "%s", des_get(kvs, nk, "tlo"));
         char *save = NULL;
-        for (char *tok = strtok_r(tlo, ",", &save); tok && !bg;
+        for (char *tok = strtok_r(tlo, ",", &save); tok;
              tok = strtok_r(NULL, ",", &save)) {
             while (*tok == ' ')
                 tok++;
             const char *dot = strrchr(tok, '.');
-            if (!dot || !ci_eq(dot, ".PCX"))
+            if (!dot || !(ci_eq(dot, ".PCX") || ci_eq(dot, ".PCM")))
                 continue;
             char stem[16];
             stem_of(tok, stem, sizeof stem);
@@ -929,7 +939,12 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 char st2[16];
                 stem_of(recs[k].name, st2, sizeof st2);
                 if (recs[k].id == 1 && ci_eq(st2, stem)) {
-                    bg = &recs[k];
+                    if (bgpref < 0)
+                        bgpref = (int)k;
+                    if (!bg && ci_eq(dot, ".PCX"))
+                        bg = &recs[k];
+                    if (ci_eq(dot, ".PCM") && !pcm_t[0])
+                        snprintf(pcm_t, sizeof pcm_t, "%s", stem);
                     break;
                 }
             }
@@ -943,6 +958,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 break;
             }
         }
+    if (bg && (bgpref < 0 || ci_eq(bg->name, recs[bgpref].name)))
+        pcm_t[0] = '\0';            /* a tlo .PCX owns the canvas */
     if (bg)
         snprintf(bgname, sizeof bgname, "%s", bg->name);
 
@@ -957,28 +974,66 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             free(raw);
         }
     }
+    /* tlo= names the whole background layer stack (.pcx + .pcm).  PCM
+     * layers are decoded for display; when the block carries no tlo .PCX
+     * (RAN.01 on this CD: plan1.pcm only) the first tlo= .PCM becomes the
+     * scene canvas - the 400-px blit window of FUN_00056c72 at rest.
+     * PCM payloads are NOT audio (parallax image planes, see ll_pcm.h). */
+    ll_pcm pcml;
+    memset(&pcml, 0, sizeof pcml);
+    int have_pcm = 0;
     for (unsigned k = 0; k < nrec; k++) {
         const char *dot = strrchr(recs[k].name, '.');
-        if (recs[k].id == 1 && dot && ci_eq(dot, ".PCM")) {
-            unsigned char *raw = NULL;
-            if (llrs_read(&etapy, &recs[k], &raw) >= 0) {
-                ll_pcm pcml;
-                if (ll_pcm_decode(raw, (size_t)recs[k].size, &pcml) == 0) {
-                    printf("ll_level: PCM %s: parallax layer %ux%u rows"
-                           " (window %u rows, stride %u); tiling pending\n",
-                           recs[k].name, pcml.w, pcml.rows, pcml.win_rows,
-                           pcml.stride);
-                    ll_pcm_release(&pcml);
+        if (recs[k].id != 1 || !dot || !ci_eq(dot, ".PCM"))
+            continue;
+        int want = 0;
+        if (!have_pcm && pcm_t[0]) {
+            char stem[16];
+            stem_of(recs[k].name, stem, sizeof stem);
+            if (ci_eq(stem, pcm_t))
+                want = 1;
+        }
+        unsigned char *raw = NULL;
+        ll_pcm p2;
+        memset(&p2, 0, sizeof p2);
+        int rc2 = -1;
+        if (llrs_read(&etapy, &recs[k], &raw) >= 0) {
+            rc2 = ll_pcm_decode(raw, (size_t)recs[k].size, &p2);
+            if (rc2 == 0) {
+                if (want) {
+                    pcml = p2;
+                    have_pcm = 1;
+                    snprintf(bgname, sizeof bgname, "%s", recs[k].name);
                 } else
-                    printf("ll_level: PCM %s: decode failed\n", recs[k].name);
-                free(raw);
-            }
+                    ll_pcm_release(&p2);
+                printf("ll_level: PCM %s: parallax layer %ux%u rows"
+                       " (window %u rows, stride %u)%s\n", recs[k].name,
+                       p2.w, p2.rows, p2.win_rows, p2.stride,
+                       want ? " -> scene canvas" : "");
+            } else
+                printf("ll_level: PCM %s: decode failed rc=%d size=%d\n",
+                       recs[k].name, rc2, recs[k].size);
+            free(raw);
         }
     }
-    if (!img.idx) {
+
+    int cw = (int)img.w, ch = (int)img.h;
+    int pcm_owner = have_pcm && (!bg || bgpref < 0
+                                 || !ci_eq(bg->name, recs[bgpref].name));
+    unsigned char *view = NULL;
+    if (pcm_owner) {
+        ch = (int)pcml.rows < 200 ? (int)pcml.rows : 200;
+        cw = 400;
+        view = malloc((size_t)cw * (size_t)ch);
+        if (view)
+            ll_pcm_view(&pcml, 0, (unsigned)ch, view);
+    }
+    if (!img.idx && !view) {
         printf("ll_level: no background PCX for '%s' "
                "(wiring wants '%s' - missing from these containers)\n",
                level, des_get(kvs, nk, "tlo"));
+        free(view);
+        ll_pcm_release(&pcml);
         llrs_block_free(recs);
         free(txt);
         llrs_close(&leveldes);
@@ -1153,23 +1208,28 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         llrs_close(&hd_an);
     /* hd_ety stays open: the help overlay (5b) reads the same HD block */
 
-    printf("ll_level: show %s: bg %s %ux%u, %d animated object(s)\n", level,
-           bgname, img.w, img.h, nobj);
+    printf("ll_level: show %s: bg %s %dx%d, %d animated object(s)\n", level,
+           bgname, cw, ch, nobj);
     for (int k = 0; k < nobj; k++)
         printf("ll_level: obj %s/%s: %dx%d at (%d,%d)%s\n", objs[k].leaf,
                objs[k].key, objs[k].sw, objs[k].sh, objs[k].x, objs[k].y,
                objs[k].mov.nst ? " [mov]" : "");
 
-    /* 5) composite canvas + present loop */
-    size_t csz = (size_t)img.w * img.h;
+    /* 5) composite canvas + present loop.  bg source: PCX plane, or the
+     * PCM 400x200 rest view when the level is PCM-driven. */
+    size_t csz = (size_t)cw * (size_t)ch;
     unsigned char *canvas = malloc(csz);
-    if (!canvas)
+    if (!canvas) {
+        free(view);
+        ll_pcm_release(&pcml);
         return 1;
-    memcpy(canvas, img.idx, csz);
+    }
+    const unsigned char *base = pcm_owner ? view : img.idx;
+    memcpy(canvas, base, csz);
     for (int k = 0; k < nobj; k++) {
         const ll_seq_elem *e = obj_elem(&objs[k]);
         if (e)
-            ll_seq_draw_elem(&objs[k].seq, e, canvas, (int)img.w, (int)img.h,
+            ll_seq_draw_elem(&objs[k].seq, e, canvas, cw, ch,
                              objs[k].x, objs[k].y);
     }
 
@@ -1184,14 +1244,31 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             printf("ll_level: tick %d: %s state %d at (%d,%d)\n", ticks,
                    objs[k].key, objs[k].sti, objs[k].x, objs[k].y);
         }
-        memcpy(canvas, img.idx, csz);      /* same order as the live loop */
+        memcpy(canvas, base, csz);         /* same order as the live loop */
         for (int k = 0; k < nobj; k++) {
             const ll_seq_elem *e = obj_elem(&objs[k]);
             if (e)
-                ll_seq_draw_elem(&objs[k].seq, e, canvas, (int)img.w,
-                                 (int)img.h, objs[k].x, objs[k].y);
+                ll_seq_draw_elem(&objs[k].seq, e, canvas, cw, ch,
+                                 objs[k].x, objs[k].y);
         }
-        scene_ppm(ppm, (int)img.w, (int)img.h, canvas, img.pal);
+        if (pcm_owner) {
+            /* PCM canvas: CI hash of the bare view must equal the
+             * verify_pcm.py `view` hash (level-integration check) */
+            uint64_t hv = 0xCBF29CE484222325ull;
+            for (size_t i = 0; i < csz; i++) {
+                hv ^= view[i];
+                hv *= 0x100000001B3ull;
+            }
+            printf("ll_level: PCM view %s %dx%d fnv=%016llx\n", bgname,
+                   cw, ch, (unsigned long long)hv);
+            unsigned char gpal[768];       /* grayscale: ppm bytes == view */
+            for (int i = 0; i < 256; i++) {
+                gpal[3 * i] = gpal[3 * i + 1] = gpal[3 * i + 2] =
+                    (unsigned char)i;
+            }
+            scene_ppm(ppm, cw, ch, canvas, gpal);
+        } else
+            scene_ppm(ppm, cw, ch, canvas, img.pal);
         free(canvas);
         goto done;
     }
@@ -1199,10 +1276,10 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     {
         SDL_Window *win = NULL;
         SDL_Renderer *ren = NULL;
-        int sc = img.w < 640 ? 2 : 1;
+        int sc = cw < 640 ? 2 : 1;
         win = SDL_CreateWindow("Lew Leon - level scene",
                                SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                               (int)img.w * sc, (int)img.h * sc,
+                               cw * sc, ch * sc,
                                SDL_WINDOW_SHOWN);
         if (win) {
             ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
@@ -1216,11 +1293,16 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         }
         SDL_Texture *tex = SDL_CreateTexture(
             ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
-            (int)img.w, (int)img.h);
+            cw, ch);
         Uint32 lut[256];
-        for (int i = 0; i < 256; i++)
-            lut[i] = 0xFF000000u | ((Uint32)img.pal[3 * i] << 16) |
-                     ((Uint32)img.pal[3 * i + 1] << 8) | img.pal[3 * i + 2];
+        if (!pcm_owner)
+            for (int i = 0; i < 256; i++)
+                lut[i] = 0xFF000000u | ((Uint32)img.pal[3 * i] << 16) |
+                         ((Uint32)img.pal[3 * i + 1] << 8) | img.pal[3 * i + 2];
+        else
+            for (int i = 0; i < 256; i++)   /* PCM plane: grayscale until
+                                             * the .pal/.plt layer ships */
+                lut[i] = 0xFF000000u | 0x010101u * (Uint32)i;
 
         /* 5b) help overlay first, like the original POMOC flow: the HD
          *     level block's POMOC1.MNU names page art (.SEQ) that ships in
@@ -1230,8 +1312,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             unsigned nhrec2 = 0;
             if (llrs_block(&hd_ety, hblk2, &hrecs2, &nhrec2) == 0 && nhrec2)
                 help_pages(ren, tex, &hd_ety, hrecs2, nhrec2,
-                           &etapy, recs, nrec, img.idx, canvas, lut,
-                           (int)img.w, (int)img.h);
+                           &etapy, recs, nrec, base, canvas, lut,
+                           cw, ch);
             llrs_block_free(hrecs2);
         }
 
@@ -1254,14 +1336,14 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 dt = 200;
             for (int k = 0; k < nobj; k++)
                 obj_advance(&objs[k], dt);
-            memcpy(canvas, img.idx, csz);
+            memcpy(canvas, base, csz);
             for (int k = 0; k < nobj; k++) {
                 const ll_seq_elem *el = obj_elem(&objs[k]);
                 if (el)
-                    ll_seq_draw_elem(&objs[k].seq, el, canvas, (int)img.w,
-                                     (int)img.h, objs[k].x, objs[k].y);
+                    ll_seq_draw_elem(&objs[k].seq, el, canvas, cw, ch,
+                                     objs[k].x, objs[k].y);
             }
-            paint(ren, tex, canvas, lut, (int)img.w, (int)img.h);
+            paint(ren, tex, canvas, lut, cw, ch);
             SDL_Delay(20);
         }
         if (tex)
@@ -1282,6 +1364,8 @@ done:
         free(objs[k].blob);
     }
     ll_pcx_free(&img);
+    free(view);
+    ll_pcm_release(&pcml);
     llrs_block_free(recs);
     free(txt);
     if (have_hd_ety)

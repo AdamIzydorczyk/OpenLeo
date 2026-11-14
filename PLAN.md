@@ -472,38 +472,48 @@ MOVEPLAT ED000002: A_IDLE/A_MOVE_DN/A_STOP/A_MOVE_UP/A_DEAD, 6x "M 0,2"
 down + 6x "M 0,-2" up = the bobbing platform, net zero per cycle.
 
 **PCM is a parallax image layer, NOT audio** (old ll_level audio path
-removed). DECODE SOLVED 2026-11-14 (src/ll_pcm.c + tools/verify_pcm.py,
-`make verify-pcm`, wine-parity in verify-win): hdr u16 w, u16 win_rows,
-u16 16, 2 zero u16s; 40 x u32 monotonic table at 0x06 (chunk
-decompressed-SIZE targets: cumulative, base 0 - the ctor reads it but the
-row loop never seeks); 7 x 24-entry u32 tables (0x200000-stepped, role
-unknown); from 0xa6 ONE continuous byte-RLE stream (same codec as .SEQ:
-byte >= 0xC0 -> repeat next byte C&0x3F times, else literal) decodes to
-EOF exactly (tiny tail = partial final row); plane = row-major stride
-w+80 (FUN_00056bcd: stride = w + 0x50; ctor FUN_00056b20 loads win_rows
-rows/pass, blitter FUN_00056c72 maps screen y % win_rows and advances
-stride + 0x50 per screen row = 80-px gutter for the per-column parallax
-shift FUN_00057460). Layers: RAN 400x1494, ZARIA.01 700x1491, ZARIA.02
-700x1714, TUNGA 600x2896 (win 32/40). Vertical adjacency coherence of the
-decoded planes is weak (byte-match ~0.07 at row+1 vs 0.014 baseline):
-tiled/gutter interpretation still open - pixel display pending, and note
-the stock CD hits the w/80 idiv trap at level start anyway, so stock PCM
-display was never baselined.
+removed). DECODE + DISPLAY SOLVED 2026-11-14 (src/ll_pcm.c +
+tools/verify_pcm.py, `make verify-pcm`, wine-parity in verify-win): hdr
+u16 w, u16 win_rows, u16 16, zeros; 40 x u32 table at 0x06 = absolute
+payload offsets, each a valid mid-stream RLE resync point, monotonic until
+padding restarts - NOT row-aligned, never seeked by the row loop, role
+unresolved (the earlier "7 x 24-entry tables" claim was bogus:
+0x06 + 40*4 = 0xa6 = data start); from 0xa6 ONE continuous byte-RLE stream
+(same codec as .SEQ: byte >= 0xC0 -> repeat next byte C&0x3F times, else
+literal) decodes to EOF exactly (tiny tail = partial final row); plane =
+row-major stride w+80 (ctor FUN_00056b20 allocates win_rows*(w+0x50); the
+80-px row tail is the parallax gutter, FUN_00057460 shifts each 80-px
+strip by (strip_x-200)*shift/100 about the window centre). Display model
+(blitter FUN_00056c72 + copy FUN_0001d528): one blit paints a 400-px
+window = 5 screen strips of 80 px; screen strip k shows plane strip
+(scroll+k) mod (w/80) - identity at rest - height clamped to <=200 rows;
+`ll_pcm_view()` renders that 400-px rest view. The blitter recomputes the
+pitch as (w/80)*80+80 which only agrees with the ctor pitch for
+w-multiples of 80 (RAN 400 yes; TUNGA 600/ZARIA 700 = engine quirk; we
+frame at the ctor pitch). Layers: RAN 400x1494, ZARIA.01 700x1491,
+ZARIA.02 700x1714, TUNGA 600x2896. The w/80 idiv-0 SIGFPE at level start
+= a MISSING PCM payload -> strips 0 (stock LEO_OUT.LOG), not a decode bug.
 
 **src/ll_level.c is now a scene composer**: main .DES resolved by exact ->
 <name>.DES -> <stem>.DES -> dir= scan of every LEVELDES .DES payload
-(TUNGA.11 is carried by TUNGA1.DES); bg = first tlo= .PCX present in the
-ETAPY block; objects = ANIMACJE/<level>/<LEAF> .SEQ sprites (ll_seq blitter)
+(TUNGA.11 is carried by TUNGA1.DES); bg = the tlo= LAYER STACK
+(`tlo=plan3.pcx,plan2.pcm,plan1.pcm` - whole stack, top layer first): the
+first listed layer present in the ETAPY block owns the canvas; a .PCM
+there renders its 400x200 rest view (grayscale until the .pal/.plt layer
+ships), a .PCX composites normally; fallback any .PCX in the block.
+RAN.01 on this CD resolves to PLAN1.PCM (plan3.pcx/plan2.pcm are CD holes)
+- demo NEW GAME now shows the real first level RAN.01 on the PCM canvas.
+objects = ANIMACJE/<level>/<LEAF> .SEQ sprites (ll_seq blitter)
 with the HD .MOV driving frame+delta motion (LEO_HD_DIR=<dir with
 ANIMACJE/ETAPY>); one script per leaf (prefers the .SEQ the .MOV seq= names,
 ED000012-style unreferenced alternates dropped). Anchor heuristic until the
 mov-name->ED-key join is known: x=|f0|, tall sprites bottom-aligned (MENU
 scripts use negative f0/f2 = exact (-f0,-f2), level leaves carry positive
-world-space values). Demo NEW GAME now renders TUNGA.11 (RAN.01 has no
-background PCX on the CD - its tlo is plan3.pcx,.pcm,.pcm). CI:
+world-space values). CI:
 `make verify-level` (fixed-tick PPM dumps tick2 != tick8, state-machine
 grep, compositing proven vs bare bg: 1885 painted px, 4018 differing bytes
-after the +4px bob).
+after the +4px bob; RAN.01 PCM canvas: scene `PCM view` FNV == ll_pcm
+oracle hash, tools/extract_record.py + pcm_selftest).
 
 **`.des` placement join CRACKED (verified grammar)**: the main .DES's
 `animacje=` key names the per-level placement files (`ani4.des,ani3.des,
@@ -521,7 +531,9 @@ attached); unresolvable ones print the exact data hole (TUNGA's ANIBACK
 leaf holds no records at all - strum art absent). CI verify-level greps
 the join log.
 
-Still open: PCM tiling, and level bulk data (.blk/.suf, most sub-.des)
+Still open: PCM parallax scroll camera (world-X .des objects, e.g.
+TUNGA strum x=1494, need it), PCM .pal/.plt palette layers, and level bulk
+data (.blk/.suf, most sub-.des)
 absent from this CD image (LEVELDES slots end at 0x19ba40bb; only 15 .DES
 shipped) - stock game hits the idiv-0x50 trap at level start (LEO_OUT.LOG),
 so original level rendering was never baselined.
