@@ -60,6 +60,14 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
  * unchanged). `dflt` marks the zone that starts selected, i.e. the word
  * the dialog shows bright green before the user moves anything (restart
  * passes CNIE, which is also how the original art ships it).
+ * Round 7 (user: "now TAK changes color, but NIE dont, and i guess that
+ * buttons should be animated"): selection state is now two-directional -
+ * UNSELECTED answer words are re-blitted DOWN the ramp to top idx15 and
+ * FROZEN on sprite frame 0, while the SELECTED word keeps/gets the top
+ * idx22 and cycles the 2 frames its .SEQ data already carries (measured:
+ * identical shape, ink oscillating on the ramp, 100 ms period = the
+ * original's own pulse). Every button now visibly changes when selection
+ * enters AND leaves it, and the selected button is the animated one.
  * CI hook: LEO_MENU_PICK=<key char> auto-fires the matching zone at
  * tick 0 (one-shot). */
 typedef struct {

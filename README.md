@@ -46,10 +46,11 @@ title menu (original semantics): no frozen mid-intro frame, the app never
 dies. Menu keys: up/down, Enter picks; ESC = Enter. The restart-confirm
 dialog answers (tak/nie/x) are selected with LEFT/RIGHT (the words sit
 side by side; up/down ride the same cycle) - the selected word is blitted
-at the BRIGHT end of the palette's green ramp (idx22 #10f91b) and gets a
-bright underline; nie starts out selected, because that is the word the
-original art ships bright (CNIE.SEQ paints up to idx22, TAK.SEQ only to
-idx15 #0aa712). Enter confirms, t/n/x are direct keys.
+at the BRIGHT end of the palette's green ramp (idx22 #10f91b), gets a
+bright underline, and pulses its authored 2-frame animation; unselected
+words sit dim (top idx15) and frozen. nie starts out selected (the safe
+default answer; also the word the original art ships bright). Enter
+confirms, t/n/x are direct keys.
 
 ## Tests (both platforms)
 

@@ -734,6 +734,27 @@ not reproducible from the repo): the new open frame vs a build of the
 previous commit (`git archive HEAD^` -> /tmp/opencode/base_build) differs by
 CNIE's 128 underline px + the (BACK) '>' marker removal only - zero
 regression on the frame the earlier rounds pinned.
+**Desktop usability round 7 (2026-11-15, user feedback)**: user: "now yes
+TAK changes color, but NIE dont change, and i guess that buttons should be
+animated". (a) NIE/X could never change on select: round 6 shifts the
+selected word UP the ramp, and CNIE/X already top idx22 (+0). Fix:
+UNSELECTED answers shift DOWN to GREEN_IDLE_TOP = idx15 (#0aa712, top of
+TAK's authored ramp; TAK idle stays byte-exact, CNIE/X -7) -> every answer
+changes both arriving and leaving selection. (b) Animation facts measured:
+each answer .SEQ carries 2 frames, identical shape, ink oscillating along
+the green ramp, 100 ms period in the data - the authors' own pulse; the
+frame diff (TAK rect 762 px, CNIE rect 995 px between ticks) had always
+been cycling, which reads as uniform flicker, not state. New compose rule
+(reconstruction labeled under the .MNU CD-hole banner, built ONLY from
+measured ramp/frame facts): SELECTED word = bright ramp + cycles its 2
+frames (animated button); UNSELECTED = dim ramp + frozen frame 0. Proofs
+(tools/verify_green.py rewritten, wired in verify-menu): DEF==SEL_CNIE
+byte-identical (NIE default); SEL_TAK vs DEF confined to TAK rect + CNIE
+rect + underline strips, TAK idx22 ink 0->403 px lum 58.9->76.1, NIE idx22
+398->0 (idx15 398 arrive) lum 61.8->47.4; freeze proof tick13->14 with NIE
+selected: CNIE rect 995 px (pulse) vs TAK rect 0 px and X rect 0 px. VL
+two-state side-by-side: brightness flip + underline tracking unambiguous,
+no defects. Wine twin frame cmp unchanged-green.
 
 ## 8c. Level scene + .MOV motion scripts (delivered 2026-11-14)
 

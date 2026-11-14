@@ -224,6 +224,16 @@ static void elem_extent(const ll_seq *s, const ll_seq_elem *e, int *w, int *h)
  * i.e. the frame the CI already pins stays identical. */
 #define GREEN_LO 2
 #define GREEN_HI 22
+/* round 7: idle (unselected) words sit at the authored top of the DIMMER
+ * word (TAK's idx15): CNIE/X shift DOWN to it, TAK's own idle state is a
+ * byte-exact no-op. The 2 frames every answer sprite carries (measured
+ * 2026-11-15: identical shape, ink oscillating along the green ramp,
+ * period 100 ms in the data) are the original's own pulse: the SELECTED
+ * word cycles them (animated button), unselected words freeze on frame 0.
+ * The .MNU selector state machines are a CD hole, so this idle/selected
+ * split is a labeled reconstruction (PLAN 8b), built ONLY from measured
+ * palette/ramp/frame facts. */
+#define GREEN_IDLE_TOP 15          /* idx15 #0aa712: TAK's authored top   */
 
 static void patch_hist_cb(void *vctx, int row, int gap,
                           const ll_seq_patch_op *ops, int nops)
@@ -274,6 +284,42 @@ static int menu_tint_build(const ll_seq *s, unsigned char *map)
             map[i] = (unsigned char)(v > GREEN_HI ? GREEN_HI : v);
         }
     return sh;
+}
+
+/* round 7 (user: "nie dont change"): CNIE/X top the ramp already, so the
+ * SELECT shift is +0 for them and selecting them changed nothing. Shift
+ * them DOWN to GREEN_IDLE_TOP while UNSELECTED instead: every answer word
+ * then changes in BOTH directions (bright + animated when selected, dim +
+ * frozen when not), and TAK's idle stays byte-exact (authored top 15). */
+static int menu_tint_idle_build(const ll_seq *s, unsigned char *map)
+{
+    for (int i = 0; i < 256; i++)
+        map[i] = (unsigned char)i;
+    if (!s->els)
+        return 0;
+    unsigned char seen[256] = { 0 };
+    for (unsigned fr = 0; fr < s->count; fr++) {
+        const ll_seq_elem *e = &s->els[fr];
+        for (unsigned k = 0; k < e->arr_n; k++) {
+            const ll_seq_ent *en = &s->ents[e->arr_first + k];
+            ll_seq_patch_walk(s->blob + en->off, en->len, patch_hist_cb, seen);
+        }
+    }
+    int top = -1;
+    for (int i = GREEN_HI; i >= GREEN_LO; i--)
+        if (seen[i]) {
+            top = i;
+            break;
+        }
+    if (top < 0 || top <= GREEN_IDLE_TOP)
+        return 0;                    /* no ramp, or authored dim already  */
+    int sh = top - GREEN_IDLE_TOP;
+    for (int i = GREEN_LO; i <= GREEN_HI; i++)
+        if (seen[i]) {
+            int v = i - sh;
+            map[i] = (unsigned char)(v < GREEN_LO ? GREEN_LO : v);
+        }
+    return -sh;
 }
 
 /* CI hook: dump the composed RGB frame as PPM (P6) */
@@ -424,12 +470,17 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
             break;
         }
     }
-    /* Selection tint (ll_menu.h round 6): one remap table per anim that a
-     * zone is bound to + which zone that anim belongs to, so the compose
-     * loop below can blit only the SELECTED answer word up the green ramp. */
+    /* Selection tint (ll_menu.h round 6/7): two remap tables per zone-bound
+     * anim + which zone that anim belongs to: SELECTED = bright ramp
+     * (animated, cycles the sprite's own 2 frames), UNSELECTED = dim ramp
+     * (frozen frame 0). */
     int *anim_zone = aseq ? calloc((size_t)nanims, sizeof *anim_zone) : NULL;
     unsigned char *tint =
         (aseq && nz) ? calloc((size_t)nanims * 256, 1) : NULL;
+    unsigned char *tint_idle =
+        (aseq && nz) ? calloc((size_t)nanims * 256, 1) : NULL;
+    if (!tint)
+        tint_idle = NULL;
     if (anim_zone)
         for (int i = 0; i < nanims; i++) {
             anim_zone[i] = -1;
@@ -442,8 +493,13 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                 }
             if (tint && anim_zone[i] >= 0 && aseq[i].els) {
                 int sh = menu_tint_build(&aseq[i], tint + (size_t)i * 256);
-                printf("menu: tint %s: ramp shift %+d (brightest ink -> idx %d)\n",
-                       anims[i].tag, sh, GREEN_HI);
+                int shi = tint_idle
+                    ? menu_tint_idle_build(&aseq[i],
+                                           tint_idle + (size_t)i * 256)
+                    : 0;
+                printf("menu: tint %s: selected %+d / idle %+d (ramp tops %d"
+                       " selected, %d idle)\n",
+                       anims[i].tag, sh, shi, GREEN_HI, GREEN_IDLE_TOP);
             }
         }
 
@@ -506,10 +562,20 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                 unsigned per = anims[a].period_ms ? anims[a].period_ms : 100;
                 unsigned fr = (unsigned)((Uint64)tick * 30 / per)
                               % aseq[a].count;
+                const unsigned char *m = NULL;
+                if (anim_zone && anim_zone[a] >= 0) {
+                    if (anim_zone[a] == zsel) {
+                        /* selected answer: bright ramp + the sprite's own
+                         * 2-frame pulse = the animated button */
+                        m = tint ? tint + (size_t)a * 256 : NULL;
+                    } else {
+                        /* unselected: dim ramp, frozen on frame 0 so only
+                         * the selected word moves */
+                        m = tint_idle ? tint_idle + (size_t)a * 256 : NULL;
+                        fr = 0;
+                    }
+                }
                 const ll_seq_elem *e = &aseq[a].els[fr];
-                const unsigned char *m =
-                    (tint && anim_zone && zsel >= 0 && anim_zone[a] == zsel)
-                        ? tint + (size_t)a * 256 : NULL;
                 ll_seq_draw_elem_map(&aseq[a], e, cv, W, H,
                                      -SX(e->f0), -SX(e->f2), m);
             }
@@ -720,6 +786,7 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
     free(cv);
     free(anim_zone);
     free(tint);
+    free(tint_idle);
     menu_anims_free(aseq, nanims);
     SDL_DestroyTexture(tex);
     SDL_DestroyRenderer(ren);

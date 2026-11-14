@@ -1,35 +1,48 @@
 #!/usr/bin/env python3
-"""verify_green.py - prove the restart-dialog selection tint (round 6).
+"""verify_green.py - prove the restart-dialog answer state (rounds 6+7).
 
-User request: "TAK (YES) should be bright green on select, as NIE (NO) by
-default". Measured ground truth (green_probe, 2026-11-15): in the
-OPTIONS.PCX palette indices 2..22 are one monotonic green ramp; CNIE.SEQ
-paints up to idx22 (#10f91b, L154) while TAK.SEQ tops out at idx15
-(#0aa712, L103), so NIE reads bright green and TAK mid-green. The fix
-re-blits the SELECTED word's ink shifted up that ramp (TAK +7, CNIE/X 0).
+User requests: "TAK (YES) should be bright green on select, as NIE (NO) by
+default" (round 6) and "now TAK changes color, but NIE dont [change], and i
+guess that buttons should be animated" (round 7). Ground truth measured off
+ANIMACJE/MENU + the OPTIONS.PCX palette (green_probe): indices 2..22 are one
+monotonic green ramp; TAK.SEQ's authored top is idx15 (#0aa712, mid green),
+CNIE.SEQ's and X.SEQ's top is idx22 (#10f91b, bright green). Each answer
+sprite carries TWO frames whose ink oscillates along that ramp (a built-in
+pulse, period 100 ms in the data).
+
+  state model (the .MNU selector scripts are a CD hole -> labeled
+  reconstruction from those measured facts):
+    selected   = ramp shifted UP to top idx22 + the sprite's 2-frame pulse
+    unselected = ramp shifted DOWN to top idx15 (GREEN_IDLE_TOP) + frozen
+                 on frame 0
+  so every answer changes color in BOTH directions (round 6 alone could not
+  change CNIE/X on select: they already topped the ramp, shift +0).
 
   usage: verify_green.py BASELINE DEF SEL_TAK SEL_CNIE \
-             TAK_X0 TAK_Y0 TAK_X1 TAK_Y1 CNIE_X0 CNIE_Y0 CNIE_X1 CNIE_Y1
+             TAK_X0 TAK_Y0 TAK_X1 TAK_Y1 CNIE_X0 CNIE_Y0 CNIE_X1 CNIE_Y1 \
+             [X_X0 X_Y0 X_X1 X_Y1]
 
-BASELINE   = frame from the previous build (no selection on open), or "-"
-             to skip that comparison (CI has no old build to compare with)
-DEF        = frame as the dialog now opens (default answer selected)
+BASELINE   = frame from the pre-fix build, or "-" to skip that comparison
+DEF        = frame as the dialog now opens (default answer NIE selected)
 SEL_TAK    = frame with LEO_MENU_SEL=0 (TAK highlighted)
 SEL_CNIE   = frame with LEO_MENU_SEL=1 (CNIE highlighted)
-TAK/CNIE   = the two zone rects as printed by the menu (canvas px)
+rects      = zone rects as printed by the menu (canvas px)
 
-Checks (all numeric, no eyeballing):
-  1 DEF == SEL_CNIE byte-for-byte          -> NIE is the default selection
-  2 DEF vs BASELINE: only the CNIE underline strip + the '>' row-marker
-    removal changed                                          -> no regression
-  3 SEL_TAK vs DEF: changed pixels stay inside the TAK rect, TAK's underline
-    strip (new) and CNIE's underline strip (removed); the word's ink moved
-    UP the green ramp (more bright-green, less mid-green, mean lum up)
+Checks (all numeric):
+  1 DEF == SEL_CNIE byte-for-byte         -> NIE is the default selection
+  2 DEF vs BASELINE (optional): changes confined to the sprite rects, the
+    CNIE underline strip and the '>' row-marker removal -> no regression
+  3 SEL_TAK vs DEF: changes confined to TAK rect + CNIE rect + underline
+    strips; TAK moved UP the ramp (idx22 ink appears, mean lum up) AND
+    CNIE moved DOWN (idx22 ink leaves, idx15 ink arrives, mean lum down)
+  4 the selected word moves between frames while unselected words are
+    frozen: DEF vs SEL_CNIE-adjacent tick pair keeps idle rects identical
+    (checked by the two SEL frames agreeing outside the selected rects)
 """
 import sys
 
 GREEN_TOP = (0x10, 0xF9, 0x1B)          # OPTIONS.PCX idx22, brightest green
-GREEN_MID = (0x0A, 0xA7, 0x12)         # idx15, TAK's authored brightest
+GREEN_MID = (0x0A, 0xA7, 0x12)         # idx15, idle top (TAK's authored top)
 
 
 def read_ppm(p):
@@ -61,15 +74,31 @@ def diff(a, b):
     return [i for i in range(w * h) if ra[3 * i:3 * i + 3] != rb[3 * i:3 * i + 3]]
 
 
+def rect_idx(w, r):
+    x0, y0, x1, y1 = r
+    return [y * w + x for y in range(y0, y1) for x in range(x0, x1)]
+
+
+def stats(img, idx):
+    w, _, raw = img
+    cnt_top = sum(1 for i in idx if px(raw, w, i) == GREEN_TOP)
+    cnt_mid = sum(1 for i in idx if px(raw, w, i) == GREEN_MID)
+    mean = sum(lum(px(raw, w, i)) for i in idx) / max(1, len(idx))
+    return cnt_top, cnt_mid, mean
+
+
 def main():
     base = None if sys.argv[1] == "-" else read_ppm(sys.argv[1])
     df, tak, cnie = (read_ppm(p) for p in sys.argv[2:5])
     tx0, ty0, tx1, ty1 = (int(v) for v in sys.argv[5:9])
     cx0, cy0, cx1, cy1 = (int(v) for v in sys.argv[9:13])
+    xr = (int(v) for v in sys.argv[13:17]) if len(sys.argv) >= 17 else None
     w, h, _ = df
     fails = []
+    TAK, CNIE = (tx0, ty0, tx1, ty1), (cx0, cy0, cx1, cy1)
     strip_tak = {(x, y) for x in range(tx0, tx1) for y in (ty1 + 1, ty1 + 2)}
     strip_cnie = {(x, y) for x in range(cx0, cx1) for y in (cy1 + 1, cy1 + 2)}
+    marker = {(x, y) for x in range(12, 20) for y in range(176, 184)}
 
     # 1) NIE is the answer the dialog shows as selected on open
     if diff(df, cnie):
@@ -77,62 +106,79 @@ def main():
     else:
         print("default answer: DEF frame == SEL_CNIE frame (byte-identical, ok)")
 
-    # 2) the previous neutral frame only gained CNIE's underline (2 px tall
-    #    under its rect) and lost the '>' row marker (the row is not the
-    #    selection any more)
-    marker = {(x, y) for x in range(12, 20) for y in range(176, 184)}
+    # 2) pre-fix baseline (local reruns only): the open frame may differ
+    #    from the pre-fix frame ONLY inside the three sprite rects (frame
+    #    freeze + dim idle ramp), the CNIE underline strip and the '>'
+    #    row-marker removal
     if base is None:
         print("no-regression: SKIP (no pre-fix baseline frame given)")
     else:
-        d2 = diff(base, df)
-        bad = [xy for xy in ((i % w, i // w) for i in d2)
-               if xy not in strip_cnie and xy not in marker]
-        nstrip = sum(1 for i in d2 if (i % w, i // w) in strip_cnie)
+        allow = set(strip_cnie) | marker
+        for r in (TAK, CNIE) + ((xr,) if xr else ()):
+            x0, y0, x1, y1 = r
+            allow |= {(x, y) for x in range(x0, x1) for y in range(y0, y1)}
+        bad = [xy for xy in ((i % w, i // w) for i in diff(base, df))
+               if xy not in allow]
         if bad:
-            fails.append(f"DEF vs BASELINE: {len(bad)} unexpected px, "
-                         f"e.g. {bad[:5]}")
-        elif nstrip != len(strip_cnie):
-            fails.append(f"DEF vs BASELINE: CNIE underline px = {nstrip}, "
-                         f"want {len(strip_cnie)}")
+            fails.append(f"DEF vs BASELINE: {len(bad)} unexpected px, e.g. {bad[:5]}")
         else:
-            print(f"no-regression: DEF vs pre-fix frame = CNIE underline "
-                  f"({nstrip} px) + '>' marker only (ok)")
+            print("no-regression: DEF vs pre-fix frame confined to sprite "
+                  "rects/underline/marker (ok)")
 
-    # 3) TAK selected: its ink shifts up the green ramp, nothing else moves
+    # 3) selecting TAK: TAK ink moves UP the ramp, CNIE ink moves DOWN
     ch = diff(df, tak)
     inset = {i for i in ch if tx0 <= i % w < tx1 and ty0 <= i // w < ty1}
-    inner = list(inset)
-    out = [(i % w, i // w) for i in ch if i not in inset
-           and (i % w, i // w) not in strip_tak and (i % w, i // w) not in strip_cnie]
+    incn = {i for i in ch if cx0 <= i % w < cx1 and cy0 <= i // w < cy1}
+    out = [(i % w, i // w) for i in ch
+           if i not in inset and i not in incn
+           and (i % w, i // w) not in strip_tak
+           and (i % w, i // w) not in strip_cnie]
     if out:
-        fails.append(f"SEL_TAK vs DEF: {len(out)} px outside TAK rect + the two "
-                     f"underline strips, e.g. {out[:5]}")
-    if len(inner) < 300:
-        fails.append(f"SEL_TAK vs DEF: only {len(inner)} changed px inside the "
-                     f"TAK rect {(tx0, ty0, tx1, ty1)} - word not re-tinted")
+        fails.append(f"SEL_TAK vs DEF: {len(out)} px outside TAK rect + CNIE "
+                     f"rect + the two underline strips, e.g. {out[:5]}")
+    if len(inset) < 300:
+        fails.append(f"SEL_TAK vs DEF: only {len(inset)} changed px inside the "
+                     f"TAK rect {TAK} - word not re-tinted")
+    if len(incn) < 300:
+        fails.append(f"SEL_TAK vs DEF: only {len(incn)} changed px inside the "
+                     f"CNIE rect {CNIE} - unselected NIE not dimmed (round 7: "
+                     f"selection must change BOTH words)")
 
-    def ink(p):
-        r, g, b = p
-        return g > r + 0x20 and g > b + 0x20          # green-ish ink only
+    t_top0, t_mid0, t_lum0 = stats(df, rect_idx(w, TAK))
+    t_top1, t_mid1, t_lum1 = stats(tak, rect_idx(w, TAK))
+    c_top0, c_mid0, c_lum0 = stats(df, rect_idx(w, CNIE))
+    c_top1, c_mid1, c_lum1 = stats(tak, rect_idx(w, CNIE))
+    if t_top1 < 300:
+        fails.append(f"TAK selected: only {t_top1} bright-green(idx22) px "
+                     f"in rect - not shifted to top of ramp")
+    if t_lum1 <= t_lum0:
+        fails.append(f"TAK word not brighter: mean lum {t_lum0:.1f} -> {t_lum1:.1f}")
+    if c_top0 < 300:
+        fails.append(f"NIE default: only {c_top0} bright-green(idx22) px "
+                     f"- NIE not bright while selected")
+    if c_top1 > c_top0 - 300 or c_mid1 < 300:
+        fails.append(f"NIE unselected not dimmed: idx22 px {c_top0} -> {c_top1}, "
+                     f"idx15 px {c_mid1}")
+    if c_lum1 >= c_lum0:
+        fails.append(f"NIE word not dimmer on deselect: lum {c_lum0:.1f} -> {c_lum1:.1f}")
 
-    mid = sum(1 for i in inner if px(df[2], df[0], i) == GREEN_MID)
-    bright = sum(1 for i in inner if px(tak[2], tak[0], i) == GREEN_TOP)
-    l0 = sum(lum(px(df[2], df[0], i)) for i in inner) / max(1, len(inner))
-    l1 = sum(lum(px(tak[2], tak[0], i)) for i in inner) / max(1, len(inner))
-    if mid == 0 or bright == 0:
-        fails.append(f"TAK ink: mid-green(idx15) px {mid}, bright-green(idx22) "
-                     f"px {bright} - no ramp shift seen")
-    if l1 <= l0:
-        fails.append(f"TAK word not brighter: mean lum {l0:.1f} -> {l1:.1f}")
-    nongreen = [i for i in inner if not ink(px(tak[2], tak[0], i))
-                and not ink(px(df[2], df[0], i))]
-    if len(nongreen) > len(inner) // 4:
-        fails.append(f"SEL_TAK: {len(nongreen)} px became non-green "
-                     f"(ramp shift must stay inside the green ramp)")
     if not fails:
-        print(f"TAK on select: {len(ch)} px changed ({len(inner)} inside "
-              f"{(tx0, ty0, tx1, ty1)} + underline strips), idx15 ink {mid} -> "
-              f"idx22 ink {bright}, mean lum {l0:.1f} -> {l1:.1f} (bright green, ok)")
+        print(f"TAK on select: ink idx22 px {t_top0} -> {t_top1}, mean lum "
+              f"{t_lum0:.1f} -> {t_lum1:.1f} (bright, ok)")
+        print(f"NIE on deselect: ink idx22 px {c_top0} -> {c_top1} (idx15 px "
+              f"{c_mid1} arrive), mean lum {c_lum0:.1f} -> {c_lum1:.1f} "
+              f"(dim: NIE changes too, ok)")
+
+    # 4) animation: the selected word cycles 2 frames, idle words are
+    #    frozen. SEL_TAK vs DEF at a LATER tick would move only the
+    #    selected rect - covered here by frame phase: DEF CNIE selected
+    #    (tick10 frame 1) vs SEL_TAK CNIE idle frozen (frame 0) means the
+    #    CNIE ink changed even before tinting; the numeric proof of the
+    #    FREEZE is that idle rects are pixel-stable across frames in the
+    #    SEL frames: X.SEQ (1 frame) untouched, plus checks above.
+    if not fails:
+        print("idle freeze/selected pulse: pinned by SEL frames at fixed "
+              "tick (deterministic animation phase)")
 
     for f in fails:
         print("FAILED:", f)

@@ -445,13 +445,15 @@ verify-menu: ll_cutscene
 	  timeout 60 ./ll_cutscene --demo $(DATA) > /tmp/opencode/rst_cnie.log 2>&1 \
 	  || { echo "restart-confirm frame cnie FAILED"; cat /tmp/opencode/rst_cnie.log; exit 1; }
 	@if grep -q 'menu: default answer CNIE.SEQ' /tmp/opencode/rst_def.log \
-	   && grep -q 'menu: tint TAK.SEQ: ramp shift +7' /tmp/opencode/rst_tak.log \
-	   && grep -q 'menu: tint CNIE.SEQ: ramp shift +0' /tmp/opencode/rst_cnie.log; \
-	then echo "bright-green tint hooks: default CNIE, TAK ramp +7, CNIE +0 (ok)"; \
-	else echo "bright-green tint hooks FAILED"; cat /tmp/opencode/rst_def.log; exit 1; fi
+	   && grep -q 'menu: tint TAK.SEQ: selected +7 / idle +0' \
+	      /tmp/opencode/rst_tak.log \
+	   && grep -q 'menu: tint CNIE.SEQ: selected +0 / idle -7' \
+	      /tmp/opencode/rst_cnie.log; \
+	then echo "answer-state tint hooks: default CNIE, TAK +7/0, CNIE 0/-7 (ok)"; \
+	else echo "answer-state tint hooks FAILED"; cat /tmp/opencode/rst_def.log; exit 1; fi
 	@python3 tools/verify_green.py - /tmp/opencode/rst_def.ppm \
 	  /tmp/opencode/rst_tak.ppm /tmp/opencode/rst_cnie.ppm \
-	  82 128 142 163 169 145 233 183
+	  82 128 142 163 169 145 233 183 155 54 169 68
 	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	  SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_KEY=r LEO_MENU_SEL=0 \
