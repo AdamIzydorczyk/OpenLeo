@@ -6,6 +6,7 @@
 #include "ll_menu.h"
 #include "ll_pcx.h"
 #include "ll_seq.h"
+#include "ll_level.h"
 
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -357,6 +358,7 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
                 }
             }
             Sint64 left = (Sint64)(t_next - SDL_GetTicks64());
+            ll_music_pump();   /* submenu music rides the SDL queue */
             if (left > 0)
                 SDL_Delay((Uint32)left);
             else

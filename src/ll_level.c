@@ -33,12 +33,13 @@
 
 #include <SDL2/SDL.h>
 
-/* SDL audio pump for level music (spec built at the call site) */
-static void mod_sdlcb(void *ud, Uint8 *stream, int len)
-{
-    ll_mod_mix((ll_mod_state *)ud, (int16_t *)stream,
-               (size_t)len / (2 * sizeof(int16_t)));
-}
+/* SDL audio for music.  IMPORTANT (dev desktop, 2026-11-14): SDL2's
+ * callback delivery is corrupt on this system with EVERY backend
+ * (pipewire/pulse squeeze or go silent; even alsa squeaks at 1024
+ * samples and dies at 2048+), while SDL_QueueAudio on the alsa backend
+ * plays byte-perfect.  So music never uses want.callback: the device is
+ * opened silent and ll_music_pump() tops up the queue from the game's
+ * own loops (menu, level scene). */
 
 /* Initialize the audio subsystem, dodging SDL2 >= 2.32's native
  * "pipewire" backend, which on the dev desktop (SDL 2.32.74 + PipeWire,
@@ -110,9 +111,7 @@ int ll_music_play(const char *data_dir, const char *modname)
     want.freq = LL_MOD_RATE;
     want.format = AUDIO_S16SYS;
     want.channels = 2;
-    want.samples = 1024;
-    want.callback = mod_sdlcb;
-    want.userdata = &s_mst;
+    want.samples = 2048;
     s_mus_dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if (!s_mus_dev) {
         printf("ll_music: device: %s\n", SDL_GetError());
@@ -136,6 +135,21 @@ void ll_music_stop(void)
     if (s_mus_snd_open)
         llrs_close(&s_mus_snd);
     s_mus_snd_open = 0;
+}
+
+/* Top up the queue with ~125 ms of music when it runs low; call from
+ * any long-running loop (menu, level scene) while music plays.  No-op
+ * when no music device is open. */
+void ll_music_pump(void)
+{
+    if (!s_mus_dev)
+        return;
+    if (SDL_GetQueuedAudioSize(s_mus_dev) > 12000)
+        return;
+    static int16_t buf[(LL_MOD_RATE / 8) * 2];      /* 125 ms stereo s16 */
+    size_t frames = LL_MOD_RATE / 8;
+    ll_mod_mix(&s_mst, buf, frames);
+    SDL_QueueAudio(s_mus_dev, buf, (Uint32)(frames * 2 * sizeof(int16_t)));
 }
 
 int ll_level_names(const char *data_dir, char names[][32], int max)
@@ -1465,58 +1479,17 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         }
 
         /* 5c) level music: the .des `muzyka=<stem>.mod` names a SOUND
-         *     container '<STEM>.MOD' payload (Longsoft MOD repack, see
-         *     ll_mod.h: first-appearance pattern remap + sample loads
-         *     clamped at EOF, so late samples play partially silent -
-         *     matches the engine buffer clamp FUN_00013300). */
-        ll_mod mod;
-        ll_mod_state mst;
-        llrs snd;
-        unsigned char *modimg = NULL;
-        SDL_AudioDeviceID adev = 0;
-        int snd_open = 0;
-        memset(&mod, 0, sizeof mod);
-        memset(&mst, 0, sizeof mst);
-        memset(&snd, 0, sizeof snd);
+         *     container '<STEM>.MOD' payload (standard MOD layout, see
+         *     ll_mod.h).  Same singleton as the MAPKA screen; the scene
+         *     loop below pumps it (SDL queue path, see note above
+         *     ll_audio_init - callbacks are unreliable on SDL2+PipeWire). */
         if (audio && !getenv("LEO_NO_MUSIC")) {
             const char *muz = des_get(kvs, nk, "muzyka");
             if (muz && *muz) {
-                if (ll_audio_init() != 0)
-                    printf("ll_level: audio init: %s\n", SDL_GetError());
                 char stem[16], mname[24];
                 stem_of(muz, stem, sizeof stem);
                 snprintf(mname, sizeof mname, "%s.MOD", stem);
-                snprintf(p, sizeof p, "%s/SOUND", dir);
-                if (llrs_open(&snd, p) == 0) {
-                    snd_open = 1;
-                    const llrs_slot *ms = llrs_find(&snd, mname);
-                    long mn = ms ? llrs_read(&snd, ms, &modimg) : -1;
-                    char err[96] = "";
-                    if (mn > 0 && ll_mod_open(&mod, modimg, (size_t)mn,
-                                              err, sizeof err) == 0) {
-                        ll_mod_start(&mst, &mod);
-                        printf("ll_level: music %s: '%s' %upos %uuniqpat "
-                               "%uch %usmp (clamped tail)\n", mname,
-                               mod.title, mod.nseq, mod.npat_stored,
-                               mod.nch, mod.nsmp);
-                        SDL_AudioSpec want, have;
-                        memset(&want, 0, sizeof want);
-                        want.freq = LL_MOD_RATE;
-                        want.format = AUDIO_S16SYS;
-                        want.channels = 2;
-                        want.samples = 1024;
-                        want.callback = mod_sdlcb;
-                        want.userdata = &mst;
-                        adev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
-                        if (adev)
-                            SDL_PauseAudioDevice(adev, 0);
-                        else
-                            printf("ll_level: music device: %s\n",
-                                   SDL_GetError());
-                    } else
-                        printf("ll_level: music %s failed: %s\n", mname,
-                               err[0] ? err : "payload unreadable");
-                }
+                ll_music_play(dir, mname);
             }
         }
 
@@ -1547,14 +1520,10 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                                      objs[k].x, objs[k].y);
             }
             paint(ren, tex, canvas, lut, cw, ch);
+            ll_music_pump();
             SDL_Delay(20);
         }
-        if (adev)
-            SDL_CloseAudioDevice(adev);
-        if (snd_open)
-            llrs_close(&snd);
-        ll_mod_close(&mod);
-        free(modimg);
+        ll_music_stop();
         if (tex)
             SDL_DestroyTexture(tex);
         if (ren)

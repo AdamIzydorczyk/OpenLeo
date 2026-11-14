@@ -29,6 +29,10 @@ int ll_level_anims(const char *data_dir, const char *level);
 int ll_music_play(const char *data_dir, const char *modname);
 void ll_music_stop(void);
 
+/* Queue-feed ~125 ms chunks while music plays: call from every long
+ * loop that runs while music is up (menu loop, level scene loop). */
+void ll_music_pump(void);
+
 /* Init SDL audio, dodging SDL2 >= 2.32's native pipewire backend (it
  * emits squeaking/silent streams on some PipeWire setups; verified on
  * the dev desktop 2026-11-14). Call BEFORE any SDL audio use: it pins
