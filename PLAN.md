@@ -306,6 +306,18 @@ llrs containers (reader ported+verified: `src/llrs.c`, `make verify-llrs`):
   records = named payloads, id=2 = leaf blocks (5200B sprite data), id=0 =
   padding. The "junk" records are padding only - all real payloads are
   plain (no encryption anywhere in the containers).
+  LEAF BLOCKS DECODED 2026-11-14: id=2 records inside ANIMACJE level blocks
+  are themselves mini index tables (u32 count + 26B records, offsets stay
+  ABSOLUTE in the container at every nesting depth) whose id=1 entries are
+  the per-object ANIMATION FRAME .SEQ scripts: leaf key = object name
+  (SCHODY stairs, PLANT, CAMEL tank, PTAK bird, TABLICA, PIASEK...), inner
+  keys NN.SEQ frame numbers (CAMEL/UJ04.SEQ = 60KB script, 24 elements).
+  40 leaf blocks / 131 frame scripts in ANIMACJE; all 131 parse with the
+  same .SEQ grammar, byte-exact (verify-seq recurses 3 levels). The
+  per-object sprite animation assets were never missing - they are these
+  leaf tables; ETAPY blocks carry no id=2 leaves (PCX/PCM/SEQ only).
+  NB: wine truncates large piped stdout (~120KB) - batch captures go to a
+  file (see tools/verify_seq.py).
 - ANIMACJE/MENU block (slot 190): 39 recs, 9 payloads = menu .SEQ scripts
   (LEVEL06/LEVEL08/RESTGRY/AUTORZY/TAK/CNIE/BERLO/X.SEQ) + OPTIONS.PCX.
 - ETAPY level blocks carry per-level resources: POMOC00/POMOC32/TAK/NEXT
@@ -319,11 +331,31 @@ llrs containers (reader ported+verified: `src/llrs.c`, `make verify-llrs`):
   garbage, no 0x0C marker, palette = last 768B, junk tail). `src/ll_pcx.c`
   verified byte-exact vs `tools/pcx_dump.py` on all 6 container PCXs
   (`make verify-pcx`).
-- .SEQ payloads: binary, entropy ~4.3-5.6, header u16[3]: (framecount?, 15,
-  0) then u16 pairs; 0x80-0x8f opcode runs (7-16B apart) - vector/sprite
-  animation scripts; text token strings (BY_X/SOLID/CHECK_*) belong to
-  .mnu/text parsing (FUN_00051913) not .SEQ; decode fn still open - next
-  step is dynamic QEMU tracing of the SEQ loader.
+- .SEQ payloads: GRAMMAR DECODED 2026-11-14 (raw disasm of loader
+  FUN_00043e70 -> element chain FUN_00041ef0/41f60, leaf readers
+  FUN_00041d40/41da0/41e00; every stream read = vtable slot +0x1c,
+  count in BYTES). Grammar:
+    blob    := u16 count; count x element
+    element := u16 w0 (flags)
+               u16 b19,b15,b17        (sub-block obj+0x19/0x15/0x17)
+               u16 f0,f2,f4,f6        (obj+0x00..0x06; f0 "type" IS
+                                       stream-read, ctor 0x7fff is only
+                                       a default that gets overwritten)
+               [u16 f8,fA]            when w0&4
+               [n B palette][n B sprite]  when w0&3, n=int16(b17),
+                                       n<=0 reads nothing (game's
+                                       negative-ESI loop)
+               [for i=0..int16(b19): u16 L; L B]   unless w0&2 && !(w0&1)
+  All 172 container .SEQ payloads (8 ANIMACJE/MENU + 33 ETAPY nested +
+  131 leaf-block frame scripts; the 49-file recon corpus = 41 + 8
+  byte-identical dupes) are consumed EXACTLY (parser end == payload size,
+  zero leftover). Ported to
+  `src/ll_seq.c`, oracle `tools/seq_parse.py`, CI `make verify-seq`
+  (ASan/UBSan, C==python dump diff, also under wine in verify-win).
+  Derived object fields (obj+0x0c..0x12 bbox, obj+0x14 = w0&8) are
+  recomputed by FUN_000420b0, not stored in the blob. Text token
+  strings (BY_X/SOLID/CHECK_*) belong to .mnu text parsing (FUN_00051913),
+  not .SEQ.
 - STATUS.LEO map pinned from FUN_0005dcc0 (writer) / FUN_0005dae0 (reader):
   75 LE dwords = [0..20] state block A, [21..41] block B (var base +0x54),
   [42..62] block C (DAT_000cf46c, zero in stock save), [63]=DAT_000a94f0<<8,
@@ -352,12 +384,15 @@ project-owned):
   resolution order exact -> <name>.DES -> <stem>.DES -> dir= from .DES.
 - CI: `make verify-menu` runs the whole chain headless through env hooks
   (LEO_DEMO_SKIP_FRAMES / LEO_SKIP_USER / LEO_MENU_AUTO / LEO_LEVEL_SECS)
-  and greps the log; part of verify-all (14 checks green, incl. wine).
-- Still open for gameplay: .SEQ grammar decode (Ghidra static analysis
-  done to leaf primitives FUN_00041d40/41da0/420b0/41e00 - reads go
-  through stream vtable slot +0x1c; next step dynamic QEMU trace),
-  .plt/.pal/.blk/.suf sprite grids (not in containers), PCM sample rate
-  (22050 assumed; autocorrelation inconclusive).
+  and greps the log; part of verify-all (15 checks green with the new
+  verify-seq, incl. wine).
+- Still open for gameplay: .mnu menu scripts (absent from CD containers -
+  likely SETUP-install output), .plt/.pal/.blk/.suf (likely intermediate
+  build artifacts, never shipped: shipped sprites live in ANIMACJE leaf
+  blocks, see 8), PCM sample rate (22050 assumed; autocorrelation
+  inconclusive). .SEQ grammar AND leaf-block sprite recon are DONE;
+  next gameplay step is wiring ll_seq playback into the menu /
+  level-intro renderer.
 
 ## 9. Legal/ethical
 Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.

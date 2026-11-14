@@ -142,6 +142,8 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
     memset(&bg, 0, sizeof bg);
     if (bg_pcx && ll_pcx_decode(bg_pcx, bg_len, &bg) != 0)
         fprintf(stderr, "ll_menu: background PCX decode failed\n");
+    if (bg_pcx && bg.w)
+        printf("menu: background OPTIONS.PCX %ux%u loaded\n", bg.w, bg.h);
     int W = bg.w ? (int)bg.w : 320, H = bg.h ? (int)bg.h : 200;
 
     int scale = W < 640 ? 2 : 1;
@@ -176,6 +178,9 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
     }
 
     int sel = 0, quit = 0, ret = -1;
+    /* CI hook: LEO_MENU_SECS=N shows the menu N seconds then auto-quits */
+    const char *sece = getenv("LEO_MENU_SECS");
+    Uint64 t_deadline = sece ? SDL_GetTicks64() + 1000 * (Uint64)atof(sece) : 0;
     while (!quit) {
         /* compose: background (image or black) then the item list */
         if (bg.idx) {
@@ -217,6 +222,12 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
         SDL_Event e;
         Uint64 t_next = SDL_GetTicks64() + 30;
         while (!quit) {
+            if (t_deadline && SDL_GetTicks64() >= t_deadline) {
+                printf("menu: LEO_MENU_SECS expired (auto-quit)\n");
+                quit = 1;
+                ret = -3;
+                break;
+            }
             while (SDL_PollEvent(&e)) {
                 if (e.type == SDL_QUIT) {
                     quit = 1;

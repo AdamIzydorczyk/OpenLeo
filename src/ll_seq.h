@@ -1,0 +1,63 @@
+/* ll_seq.h - .SEQ animation-script reader for Lew Leon (Longsoft 1997).
+ * Format recovered 2026-11-14 from LEO.EXE raw disassembly: the game loads
+ * a whole .SEQ record payload from the llrs container into a buffered
+ * stream (FUN_00043e70 + FUN_0005c6b0), reads u16 element count, then
+ * parses `count` elements (FUN_00041ef0 -> FUN_00041f60, leaf readers
+ * FUN_00041d40 / FUN_00041da0 / FUN_00041e00; every stream read goes
+ * through vtable slot +0x1c = read(dest, count-BYTES)):
+ *
+ *   blob    := u16 count; count x element
+ *   element := u16 w0                        flag word (low nibble used)
+ *              u16 b19, b15, b17             sub-block obj+0x19/0x15/0x17
+ *              u16 f0, f2, f4, f6            obj+0x00..0x06 (f0 = id,
+ *                                            0x7fff = ctor sentinel)
+ *              [u16 f8, u16 fA]              obj+0x08/0x0a, when w0&4
+ *              [n bytes palette][n bytes sprite]   when w0&3,
+ *                                            n = int16(b17), skipped n<=0
+ *              [for i=0..int16(b19): u16 L; L bytes]  unless w0&2 && !(w0&1)
+ *
+ * This grammar consumes ALL 49 .SEQ payloads in ANIMACJE/ETAPY/LEVELDES
+ * exactly (consumed == payload size). Reference: tools/seq_parse.py;
+ * make verify-seq checks byte-exact agreement. The derived fields the
+ * game computes at load (obj+0x0c..0x12 bbox, obj+0x14 = w0&8) are NOT
+ * part of the blob; FUN_000420b0 recomputes them from parsed data.
+ */
+#ifndef LL_SEQ_H
+#define LL_SEQ_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+typedef struct {                 /* one variable-length byte array entry  */
+    uint32_t off, len;           /* byte offset into the blob             */
+} ll_seq_ent;
+
+typedef struct {
+    uint32_t off;                /* element start (the w0 word) in blob   */
+    uint16_t w0;
+    uint16_t b19, b15, b17;      /* sub-block words                       */
+    uint16_t f0, f2, f4, f6;     /* object header words                   */
+    uint16_t f8, fA;             /* valid only when (w0 & 4)              */
+    int32_t  n;                  /* palette/sprite length, 0 = absent     */
+    uint32_t pal, spr;           /* byte offsets, valid when n > 0        */
+    uint32_t arr_first, arr_n;   /* window into ll_seq.ents; arr_n = 0 +
+                                  * arr_present for empty arrays          */
+    uint8_t  arr_present;
+} ll_seq_elem;
+
+typedef struct {
+    const uint8_t *blob;         /* not owned                             */
+    uint32_t len, count;
+    uint32_t consumed;           /* == len for all known files            */
+    ll_seq_elem *els;            /* malloc'd [count]                      */
+    ll_seq_ent  *ents;           /* malloc'd array entries (flat)         */
+    uint32_t n_ents, cap_ents;
+} ll_seq;
+
+/* Parse a .SEQ blob (payload bytes straight from an llrs id=1 record).
+ * 0 = ok, all bytes consistent; -1 = malformed/truncated. Free with
+ * ll_seq_free. No side tables: element data stays in the blob. */
+int  ll_seq_parse(const uint8_t *blob, uint32_t len, ll_seq *out);
+void ll_seq_free(ll_seq *s);
+
+#endif /* LL_SEQ_H */

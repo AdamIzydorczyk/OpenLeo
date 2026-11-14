@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""verify_seq.py - prove src/ll_seq.c == tools/seq_parse.py on every .SEQ
+payload stored in the game containers (ANIMACJE, ETAPY, LEVELDES). Extracts
+each id=1 record with a .SEQ key from the top-level table AND from every
+nested id=2 index block, checks the python reference consumes the payload
+byte-exactly (consumed == size), then diffs the C dumper's output against
+the python dump.
+
+usage: verify_seq.py DATA_DIR SEQ_TOOL [SEQ_TOOL ...]
+       SEQ_TOOL may be 'wine ./seq_selftest.exe' (quote it).
+"""
+import os
+import shlex
+import struct
+import subprocess
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import seq_parse  # noqa: E402
+
+
+def records_of(path):
+    """yield (slotname, recname, off, size) for every id=1 .SEQ record at
+    all nesting depths: top-level table -> id=2 index blocks -> id=2 leaf
+    blocks (per-object animation frame tables; offsets stay ABSOLUTE in the
+    container at every level)."""
+    d = open(path, "rb").read()
+    cap, actual = struct.unpack_from("<II", d, 8)
+
+    def ok(rk, ri, ro, rs):
+        if ri != 1 or rk[:4] == b"\0\0\0\0":
+            return False
+        nm = rk.split(b"\0")[0].decode("latin1")
+        return nm.upper().endswith(".SEQ")
+
+    def printable(b):
+        return b and all(32 <= c < 127 for c in b)
+
+    def walk(base, cnt, slot, depth=0):
+        for j in range(cnt):
+            rk, ri, ro, rs = struct.unpack_from("<14sIII", d, base + 26 * j)
+            if ok(rk, ri, ro, rs):
+                yield slot, rk.split(b"\0")[0].decode("latin1"), ro, rs
+            if ri != 2 or depth >= 4 or ro >= len(d) or ro + rs > len(d):
+                continue
+            blk = d[ro:ro + rs]
+            if len(blk) < 4:
+                continue
+            bcnt, = struct.unpack_from("<I", blk, 0)
+            if 4 + 26 * bcnt > len(blk):
+                continue
+            kb = rk.split(b"\0")[0]
+            sub = slot + "/" + (kb.decode("latin1") if printable(kb)
+                                else kb.hex())
+            yield from walk(ro + 4, bcnt, sub, depth + 1)
+
+    for k in range(cap):
+        key, i, o, s = struct.unpack_from("<14sIII", d, 0x14 + 26 * k)
+        if ok(key, i, o, s):
+            yield ("TOP", key.split(b"\0")[0].decode("latin1"), o, s)
+        if i != 2:
+            continue
+        blk = d[o:o + s]
+        if len(blk) < 4:
+            continue
+        cnt, = struct.unpack_from("<I", blk, 0)
+        if 4 + 26 * cnt > len(blk):
+            continue
+        yield from walk(o + 4, cnt,
+                        key.split(b"\0")[0].decode("latin1"))
+
+
+def main():
+    data, tools = sys.argv[1], sys.argv[2:]
+    tmp = "/tmp/opencode/seqver"
+    os.makedirs(tmp, exist_ok=True)
+    cases = []            # (label, raw_path, expected_text bytes)
+    fails = 0
+    for cont in ("ANIMACJE", "ETAPY", "LEVELDES"):
+        p = os.path.join(data, cont)
+        if not os.path.exists(p):
+            continue
+        blob = open(p, "rb").read()
+        for slot, nm, off, size in records_of(p):
+            label = f"{cont}/{slot}/{nm}"
+            raw = os.path.join(tmp,
+                               f"{cont}_{slot.replace('/', '_')}_{nm}")
+            payload = blob[off:off + size]
+            open(raw, "wb").write(payload)
+            # python oracle must consume the payload exactly
+            try:
+                st = seq_parse.seq_parse(payload)
+                txt = seq_parse.dump_text(payload)
+            except seq_parse.SeqError as ex:
+                fails += 1
+                print(f"PY-FAIL {label}: {ex}")
+                continue
+            if st["consumed"] != size:
+                fails += 1
+                print(f"PY-SLACK {label}: {st['consumed']} != {size}")
+                continue
+            cases.append((label, raw, txt.encode()))
+
+    n = len(cases) + fails
+    exp = b"".join(c[2] for c in cases)
+    for tool in tools:
+        # NB: wine truncates large PIPED stdout (~120KB), so capture to a
+        # file (file writes through wine are proven byte-exact elsewhere).
+        cap = os.path.join(tmp, "tool_out.bin")
+        with open(cap, "wb") as fh:
+            subprocess.run(shlex.split(tool) + [c[1] for c in cases],
+                           stdout=fh, check=True)
+        out = open(cap, "rb").read().replace(b"\r", b"")
+        if out == exp:
+            continue
+        pos, located = 0, False
+        for label, _, e in cases:
+            if out[pos:pos + len(e)] != e:
+                print(f"MISMATCH {label} [{tool}]")
+                located = True
+                break
+            pos += len(e)
+        if not located:
+            print(f"EXTRA/TRUNCATED OUTPUT [{tool}] "
+                  f"({len(out)} vs {len(exp)} bytes)")
+        fails += 1
+    print(f"SEQ check: {n - fails}/{n} payloads byte-exact "
+          f"(C == python, exact consumption)")
+    return 1 if (fails or n == 0) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -54,6 +54,7 @@ make verify-all
 # verify-win   same two proofs for the .exe, run under wine
 # verify-llrs  src/llrs.c == tools/llrs_unpack.py on all 4 containers
 # verify-pcx   src/ll_pcx.c == tools/pcx_dump.py on all 6 container PCX payloads
+# verify-seq   src/ll_seq.c == tools/seq_parse.py on all 172 container .SEQ payloads
 # verify-menu  hooked demo chain: cutscene -> skip -> menu -> level intro
 ```
 

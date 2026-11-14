@@ -64,7 +64,7 @@ verify-skip: ll_cutscene
 # Same two proofs for the Windows .exe, run under wine.
 # Z: = wine drive mapped to /, so $(DATA) is addressed as Z:$(DATA).
 WINEPREFIX ?= /tmp/opencode/wineprefix
-verify-win: ll_cutscene.exe llrs_selftest.exe pcx_selftest.exe
+verify-win: ll_cutscene.exe llrs_selftest.exe pcx_selftest.exe seq_selftest.exe
 	WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	  wine ./ll_cutscene.exe Z:$(DATA)/INTRO_P.IS --ppm 1020 \
 	  Z:/tmp/opencode/c_win.ppm
@@ -78,6 +78,8 @@ verify-win: ll_cutscene.exe llrs_selftest.exe pcx_selftest.exe
 	env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	  python3 tools/verify_pcx.py $(DATA) ./llrs_selftest.exe \
 	  "wine ./pcx_selftest.exe"
+	env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
+	  python3 tools/verify_seq.py $(DATA) "wine ./seq_selftest.exe"
 	@for F in ANIMACJE ETAPY SOUND LEVELDES; do \
 	  if env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	      wine ./llrs_selftest.exe $(DATA)/$$F 2>/dev/null | tr -d '\r' \
@@ -96,7 +98,13 @@ pcx_selftest.exe: tools/pcx_selftest.c src/ll_pcx.c src/ll_pcx.h
 	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
 	    tools/pcx_selftest.c src/ll_pcx.c
 
+seq_selftest.exe: tools/seq_selftest.c src/ll_seq.c src/ll_seq.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
+	    tools/seq_selftest.c src/ll_seq.c
+
 llrs_selftest: tools/llrs_selftest.c src/llrs.c src/llrs.h
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	    -Isrc -o $@ tools/llrs_selftest.c src/llrs.c
 
 # ll_level: M3 viewer - prints a level's .DES wiring, shows its PCX art
 # and plays its PCM parallax track from the ETAPY block.
@@ -106,8 +114,6 @@ ll_level: tools/ll_level.c src/ll_level.c src/llrs.c src/ll_pcx.c src/ll_config.
 
 level: ll_level
 	./ll_level $(DATA) $(LEVEL) $(ARGS)
-	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
-	    -Isrc -o $@ tools/llrs_selftest.c src/llrs.c
 
 verify-llrs: llrs_selftest
 	@for F in ANIMACJE ETAPY SOUND LEVELDES; do \
@@ -127,6 +133,15 @@ pcx_selftest: tools/pcx_selftest.c src/ll_pcx.c src/ll_pcx.h
 verify-pcx: pcx_selftest llrs_selftest
 	python3 tools/verify_pcx.py $(DATA) ./llrs_selftest ./pcx_selftest
 
+# src/ll_seq.c byte-for-byte agreement with tools/seq_parse.py on every
+# .SEQ payload in ANIMACJE/ETAPY/LEVELDES (49 blobs, exact consumption).
+seq_selftest: tools/seq_selftest.c src/ll_seq.c src/ll_seq.h
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	    -Isrc -o $@ tools/seq_selftest.c src/ll_seq.c
+
+verify-seq: seq_selftest
+	python3 tools/verify_seq.py $(DATA) ./seq_selftest
+
 verify-menu: ll_cutscene
 	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=5 LEO_SKIP_USER=1 LEO_MENU_AUTO=1 \
 	    LEO_LEVEL_SECS=1 timeout 180 \
@@ -136,13 +151,20 @@ verify-menu: ll_cutscene
 	   && grep -q 'll_level: show' /tmp/opencode/menu_chain.log; \
 	then echo "demo chain: cutscene -> menu -> level intro (hooked, ok)"; \
 	else echo "demo chain FAILED (rc=$$rc)"; cat /tmp/opencode/menu_chain.log; exit 1; fi
+	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_SECS=2 \
+	    timeout 120 ./ll_cutscene --demo $(DATA) > /tmp/opencode/menu_bg.log 2>&1; \
+	rc=$$?; \
+	if [ $$rc -eq 0 ] && grep -q 'background OPTIONS.PCX 320x200 loaded' /tmp/opencode/menu_bg.log; \
+	then echo "menu render: OPTIONS.PCX background decoded + drawn (hooked, ok)"; \
+	else echo "menu render FAILED (rc=$$rc)"; cat /tmp/opencode/menu_bg.log; exit 1; fi
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-menu
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-menu
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
 	rm -f ll_cutscene ll_cutscene.exe llrs_selftest llrs_selftest.exe \
-	      pcx_selftest pcx_selftest.exe ll_level *.o *.obj
+	      pcx_selftest pcx_selftest.exe seq_selftest seq_selftest.exe \
+	      ll_level *.o *.obj
 
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
-        verify-menu verify-all level clean
+        verify-seq verify-menu verify-all level clean

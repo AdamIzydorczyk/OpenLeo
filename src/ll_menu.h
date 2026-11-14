@@ -5,6 +5,8 @@
  * ANIMACJE container (OPTIONS.PCX, verified format). Keys: up/down move,
  * Enter selects (returns index), Q quits (-2), Enter on the first item +
  * ESC is just Enter (ESC = advance semantics, never kills the app).
+ * Env LEO_MENU_SECS=N: show the menu N seconds then auto-quit (returns -3;
+ * CI hook so the menu render is covered by headless runs).
  */
 #ifndef LL_MENU_H
 #define LL_MENU_H
