@@ -96,6 +96,15 @@ pcx_selftest.exe: tools/pcx_selftest.c src/ll_pcx.c src/ll_pcx.h
 	    tools/pcx_selftest.c src/ll_pcx.c
 
 llrs_selftest: tools/llrs_selftest.c src/llrs.c src/llrs.h
+
+# ll_level: M3 viewer - prints a level's .DES wiring, shows its PCX art
+# and plays its PCM parallax track from the ETAPY block.
+ll_level: tools/ll_level.c src/llrs.c src/ll_pcx.c src/ll_config.h
+	$(CC) -O2 -std=gnu11 -Wall -Wextra -Isrc $(CFLAGS) -o $@ \
+	    tools/ll_level.c src/llrs.c src/ll_pcx.c $(LIBS)
+
+level: ll_level
+	./ll_level $(DATA) $(LEVEL) $(ARGS)
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
 	    -Isrc -o $@ tools/llrs_selftest.c src/llrs.c
 
@@ -122,6 +131,7 @@ verify-all: verify verify-skip verify-win verify-llrs verify-pcx
 
 clean:
 	rm -f ll_cutscene ll_cutscene.exe llrs_selftest llrs_selftest.exe \
-	      pcx_selftest pcx_selftest.exe *.o *.obj
+	      pcx_selftest pcx_selftest.exe ll_level *.o *.obj
 
-.PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx verify-all clean
+.PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
+        verify-all level clean
