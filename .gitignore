@@ -1,0 +1,8 @@
+# Build outputs
+ll_cutscene
+ll_cutscene.exe
+*.o
+*.obj
+
+# Vendored build toolchain / SDL2 MinGW (kept out of this repo; see Makefile)
+/vendor
