@@ -1,5 +1,6 @@
 /* ll_mod.c - MOD player for the Longsoft repack variant (see ll_mod.h
- * for the verified container layout).  Standard ProTracker playback
+ * for the verified container layout: standard header, full numbered
+ * pattern set, contiguous samples).  Standard ProTracker playback
  * semantics, integer-only math, fixed 44.1 kHz output. */
 #include "ll_mod.h"
 
@@ -50,11 +51,11 @@ static int16_t note_period(int idx, int fine)
 }
 
 /* sample-frame step in 16.16 for the Amiga clock:
- * inc = 7093789.2/(2*period)/44100 * 65536 = 52782351/period/10      */
+ * inc = 7093789.2/(2*period)/44100 * 65536 = 5278235/period           */
 static uint32_t period_inc(int period)
 {
     if (period < 32) period = 32;
-    return (uint32_t)(52782351 / (uint32_t)period);
+    return (uint32_t)(5278235u / (uint32_t)period);
 }
 
 static const int8_t sin32[32] = {
@@ -85,18 +86,18 @@ int ll_mod_open(ll_mod *m, const unsigned char *img, size_t len,
     if (!m->nseq || m->nseq > 128) {
         snprintf(err, errsz, "bad songlen %u", m->nseq); return 1;
     }
-    /* pattern table -> first-appearance unique remap (loader FUN_000131b8):
-     * the file stores only unique pattern IDs, once each, in order. */
-    int ids_seen[128], stored[128], npat = 0;
-    for (unsigned i = 0; i < m->nseq; i++) {
-        int id = img[1268 + i], j;
-        for (j = 0; j < npat; j++)
-            if (ids_seen[j] == id) break;
-        if (j == npat && npat < 128) { ids_seen[npat++] = id; }
-        stored[i] = j;
-    }
+    /* Pattern table at 952 (standard place): these repacks store the
+     * numbered pattern set whole, slots 0..max+1, one after another --
+     * the engine loader (MODGAP_13000) sets DAT_000aee99 = max(table)+1
+     * and FUN_00012d14 reads exactly that many patterns, so positions
+     * index the slots directly.  TUNGA: max id 30 -> 31 slots, and the
+     * sample region then starts at 1084 + 31*1024 = 32828, matching
+     * the byte-exact sample boundaries at EOF. */
+    int npat = 0;
+    for (unsigned i = 0; i < 128; i++)
+        if (img[952 + i] + 1 > npat) npat = img[952 + i] + 1;
     size_t patbytes = (size_t)npat * m->nch * 256;
-    if (1084 + patbytes > len) {
+    if (!npat || 1084 + patbytes > len) {
         snprintf(err, errsz, "patterns exceed file (%d x %u ch)", npat, m->nch);
         return 1;
     }
@@ -104,41 +105,27 @@ int ll_mod_open(ll_mod *m, const unsigned char *img, size_t len,
     m->pat = img + 1084;
     int *map = (int *)malloc(sizeof(int) * m->nseq);
     if (!map) { snprintf(err, errsz, "oom"); return 1; }
-    for (unsigned i = 0; i < m->nseq; i++) map[i] = stored[i];
+    for (unsigned i = 0; i < m->nseq; i++) map[i] = img[952 + i];
     m->pos2pat = map;
 
-    /* extension instrument directory: count byte + 29-byte records
-     * (engine FUN_000132b0); ext instruments are sized but not played
-     * in v1 (the on-screen game used instruments 1..31 on these songs). */
-    size_t pd = 1084 + patbytes, p = pd;
-    int ext = 0;
-    if (p < len) {
-        int c = img[p];
-        if (c > 0 && c <= LL_MOD_MAXSMP - 31 && p + 1 + (size_t)c * 29 <= len)
-            ext = c;
-    }
-    if (ext) p += 1 + (size_t)ext * 29;
-
-    /* sample data: contiguous in directory order, clamped at EOF
-     * (engine reads min(len, remaining) and zero-fills the buffer) */
-    m->nsmp = 31 + ext;
-    if (m->nsmp > LL_MOD_MAXSMP) m->nsmp = LL_MOD_MAXSMP;
-    size_t region = len - p, off = 0;
+    /* Sample data: contiguous right after the pattern set, in directory
+     * order, using the STANDARD 30-byte instrument records at 20:
+     * len (words BE) @+22, finetune @+24, volume @+25, loop start (words
+     * BE) @+26, loop length (words BE) @+28 -- exactly the fields the
+     * engine copies at +0x16..+0x1C.  The engine reads min(len, file
+     * remaining) and zero-fills, so dlen clamps at EOF; TUNGA fits the
+     * region exactly: 32828 + 171396 = 204224 = file size. */
+    size_t p = 1084 + patbytes, off = 0;
+    m->nsmp = 31 > LL_MOD_MAXSMP ? LL_MOD_MAXSMP : 31;
+    size_t region = len - p;
     for (int i = 0; i < m->nsmp; i++) {
-        uint32_t L = 0;
-        if (i < 31) {
-            const unsigned char *e = img + 20 + 30 * i;
-            L = (uint32_t)((e[0] << 8 | e[1])) * 2u;
-            m->smp[i].fine = (e[6] >> 4) & 0x0F;
-            m->smp[i].vol  = e[7] > 64 ? 64 : e[7];
-            m->smp[i].loop_start = (uint32_t)((e[8] << 8 | e[9])) * 2u;
-            m->smp[i].loop_len   = (uint32_t)((e[10] << 8 | e[11])) * 2u;
-        } else {
-            const unsigned char *e = img + pd + 1 + (size_t)(i - 31) * 29;
-            L = (uint32_t)((e[0] << 8 | e[1])) * 2u;   /* sized only */
-            m->smp[i].vol = 64;
-        }
+        const unsigned char *e = img + 20 + 30 * i;
+        uint32_t L = (uint32_t)((e[22] << 8) | e[23]) * 2u;
         m->smp[i].len = L;
+        m->smp[i].fine = e[24] & 0x0F;
+        m->smp[i].vol  = e[25] > 64 ? 64 : e[25];
+        m->smp[i].loop_start = (uint32_t)((e[26] << 8) | e[27]) * 2u;
+        m->smp[i].loop_len   = (uint32_t)((e[28] << 8) | e[29]) * 2u;
         size_t avail = off < region ? region - off : 0;
         m->smp[i].dlen = L < avail ? L : (uint32_t)avail;
         m->smp[i].data = img + p + off;
@@ -163,15 +150,15 @@ void ll_mod_start(ll_mod_state *st, const ll_mod *m)
     st->gvol = 64;
 }
 
-/* note word (6/8CHN layout, engine FUN_00012c40): b0 = inst-bit5 |
- * period-hi4, b1 = period-lo, b2 = inst-lo4 | effect, b3 = param. */
+/* note word (standard 4-byte entry): b0 = inst-hi4 | period-hi4,
+ * b1 = period-lo, b2 = inst-lo4 | effect, b3 = param. */
 static void rd_entry(const ll_mod *m, int pat, int row, int chn,
                      int *period, int *inst, int *eff, int *par)
 {
     const unsigned char *e =
         m->pat + (size_t)pat * m->nch * 256 + (size_t)(row * m->nch + chn) * 4;
     *period = ((e[0] & 0x0F) << 8) | e[1];
-    *inst = (e[0] & 0x10) | (e[2] >> 4);
+    *inst = (e[0] & 0xF0) | (e[2] >> 4);
     *eff = e[2] & 0x0F;
     *par = e[3];
 }
@@ -392,15 +379,20 @@ void ll_mod_mix(ll_mod_state *st, int16_t *dst, size_t frames)
                 continue;
             const ll_mod_smp *s = &m->smp[sidx - 1];
             if (!s->dlen || !st->v[c].inc) continue;
-            uint32_t pos = st->v[c].pos >> 16;
-            if (pos >= s->dlen) {
+            uint32_t pos = st->v[c].pos;
+            uint32_t idx = pos >> 16;
+            if (idx >= s->dlen) {
                 if (s->loop_len > 2 && s->loop_start < s->dlen) {
                     st->v[c].pos = (uint32_t)s->loop_start << 16;
-                    pos = s->loop_start;
+                    pos = st->v[c].pos; idx = s->loop_start;
                 } else { st->v[c].act = 0; continue; }
             }
-            if (pos >= s->dlen) continue;
-            int samp = (int)(signed char)s->data[pos] * 256; /* s8 -> s16 */
+            if (idx >= s->dlen) continue;
+            int s0 = (int)(signed char)s->data[idx] * 256; /* s8 -> s16 */
+            int s1 = idx + 1 < s->dlen
+                       ? (int)(signed char)s->data[idx + 1] * 256 : s0;
+            int samp = s0 + (int)(((int64_t)(s1 - s0) *
+                                   (int)(pos & 0xFFFF)) >> 16); /* linear */
             int vol = st->v[c].vol * st->gvol;               /* 0..4096 */
             int v = samp * vol / 4096;
             /* saturating add (never signed-overflow; CI runs under UBSan) */

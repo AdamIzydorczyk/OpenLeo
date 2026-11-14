@@ -1,8 +1,8 @@
 /* mod_selftest.c - CI harness for src/ll_mod.c (MOD player).
  *
  * usage: mod_selftest FILE.MOD [MS] [OUT.WAV]
- * Prints the parse summary (Longsoft repack layout: unique-pattern
- * remap count, clamped sample extents) and an FNV-1a-64 hash of the
+ * Prints the parse summary (standard MOD layout with the whole numbered
+ * pattern set and contiguous samples) and an FNV-1a-64 hash of the
  * first MS ms (default 3000) of deterministic 44.1 kHz stereo render.
  * The hash must match byte-exact between linux and wine runs.
  * OUT.WAV writes the render for human listening.
@@ -43,7 +43,7 @@ int main(int argc, char **argv)
     }
     const char *bn = strrchr(argv[1], '/');
     bn = bn ? bn + 1 : argv[1];
-    printf("parse %s: '%s' id=%s %uch nseq=%u uniqpat=%d nsmp=%d\n",
+    printf("parse %s: '%s' id=%s %uch nseq=%u npat=%d nsmp=%d\n",
            bn, m.title, m.id, m.nch, m.nseq, m.npat_stored, m.nsmp);
     for (int i = 0; i < m.nsmp; i++)
         if (m.smp[i].len)

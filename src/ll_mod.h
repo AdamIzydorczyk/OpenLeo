@@ -4,29 +4,32 @@
  * '<name>.MOD' payloads (level .des files select them via `muzyka=` -
  * verified: RAN.DES->ran.mod, TUNGA1.DES->tunga.mod, KADMAR1.DES->
  * piramid.mod, ...).  The files are standard Amiga .MOD headers
- * (title@0, 31x30B instrument dir@20, songlen byte@950, 128-entry
- * pattern table@1268, id string@1080) but a LONGSOFT-REPACKED body
- * (Ghidra ModPlayer RE 2026-11-14, loader FUN_00012d14/FUN_000131b8):
- *   - pattern table entries are original pattern IDs; the loader
- *     REMAPS them to first-appearance order and stores only the UNIQUE
- *     patterns back-to-back at offset 1084 (nch*256 B each, note words
- *     in the 6/8-channel layout: p hi/lo + 5-bit inst + effect byte),
- *   - after the patterns an optional extension instrument directory:
- *     1 count byte + count 29-byte records (instruments 32+; the game
- *     reads extra entries until the count byte, FUN_000132b0),
- *   - then sample data in directory order; the game clamps each read
- *     to the remaining file bytes (FUN_00013300), so these shipped
- *     tracks have truncated sample data and the buffer is zero-filled
- *     (CALL 0x749a0 after alloc).
+ * (title@0, 31x30B instrument dir@20 with STANDARD fields len-words-BE
+ * @rec+22, fine@+24, vol@+25, loop-start-words@+26, loop-len@+28,
+ * songlen byte@950, 128-entry pattern table@952, id string@1080).
+ * The body follows the engine loader exactly (Ghidra MODGAP_13000 /
+ * FUN_00012d14 RE 2026-11-14, TUNGA byte-exact verification):
+ *   - DAT_000aee99 = max(pattern table)+1, and the file stores the
+ *     WHOLE numbered pattern set back-to-back at 1084 (nch*256 B per
+ *     slot, standard 4-byte note words); positions index slots direct,
+ *   - sample data follows immediately, contiguous in directory order;
+ *     the game clamps reads to the remaining file bytes and zero-fills
+ *     the rest.  TUNGA proves the layout: 1084+31*1024 = 32828 and the
+ *     31 directory lengths sum to exactly 171396 = 204224-32828,
+ *   - no extension directory in any shipped track (earlier claims of a
+ *     unique-pattern remap and 29-byte ext dir were parsing artifacts;
+ *     the engine's FUN_000132b0 ext init never fires on these files).
  * Verified per-file: songlen byte@950 (TUNGA 38, RAN 28, ZARIA 43,
  * KARA 58, LEW 33, RAN1 2, ENA2 40, MAPKA 10); engine period->note
  * table 61 entries 1712..56 at VA 0xa7272 (Amiga); signature table
  * M.K./M!K!/FLT4/4CHN/6CHN/8CHN/CD81/OKTA/16CN/32CN at 0xa7204.
  *
- * Playback semantics: standard ProTracker tick model (50 Hz ticks,
- * speed = ticks/row, Fxx tempo), effect subset 0-9,A-F + E1,E2,E5,E6,
- * E9,EA,EB; sample playback 8-bit unsigned with loop; note cut-off and
- * volume on the engine voice handlers (FUN_00015484 etc).
+ * Playback semantics: standard ProTracker tick model (fixed 50 Hz ticks,
+ * Fxx<0x20 = speed in ticks/row; no tempo effects appear in these files),
+ * effect subset 0-9,A-F + E1,E2,E5,E6,E9,EA,EB; sample playback 8-bit
+ * signed with loop, linear interpolation, Amiga period clock
+ * (inc = 5278235/period in 16.16); note cut-off and volume on the
+ * engine voice handlers (FUN_00015484 etc).
  *
  * Deterministic: pure integer mix at fixed rate; ll_mod_render() is the
  * CI oracle (FNV of the first N ms of the song), used by tools/
@@ -55,7 +58,7 @@ typedef struct {
     unsigned char nch;
     unsigned nseq;                 /* song positions                    */
     const int   *pos2pat;          /* nseq -> stored pattern index      */
-    int          npat_stored;      /* unique patterns = pattern blocks  */
+    int          npat_stored;      /* numbered pattern slots in file    */
     int          nsmp;
     ll_mod_smp   smp[LL_MOD_MAXSMP];
     const unsigned char *pat;      /* npat_stored * nch*256 bytes       */

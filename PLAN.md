@@ -578,38 +578,52 @@ piramid, ENA1->podwoda, ENA2->ena2, KADMAR2->kadmar2, LONA->lona,
 SADES->sades, ZARIA1->zaria); the payload is `<STEM>.MOD` in the SOUND
 container (22 tracks, all parse).
 
-**Longsoft MOD repack layout** (Ghidra loader RE - FUN_00012eb0 open,
-FUN_00012d14 pattern loop, FUN_000131b8 pattern remap, FUN_000132b0 ext
-instrument dir, FUN_00013300 sample clamp, FUN_00012c40 note parse,
-FUN_00013600 mixer tick; all 8 test tracks consistent):
-- standard 1084 B header kept (songlen BYTE @950, pattern table @1268,
-  id string @1080), but table entries are ORIGINAL pattern ids;
-- loader stores only the UNIQUE patterns (first-appearance order)
-  back-to-back at 1084, nch*256 B each; e.g. TUNGA 38pos/4uniq,
-  RAN 28/8, ZARIA 43/10, KARA 58/10, LEW 33/8, RAN1 2/1, ENA2 40/7;
-- u16 @952 holds repack garbage markers (ignored);
-- note words use the 6/8CHN encoding for ALL ids incl. 4-channel:
-  period=(b0&0xF)<<8|b1, inst=(b0&0x10)|(b2>>4), eff=b2&0xF, param=b3;
-- after patterns: optional ext instrument dir = 1 count byte + count
-  29 B records (counts 0..2 observed; content murky - instruments 32+
-  are counted but not played);
-- then sample data contiguous in directory order, clamped at EOF with
-  zero-fill (FUN_00013300) - the shipped tracks' 31 sample lengths
-  overrun the payload (TUNGA smp06 partial, 7..31 absent) and the
-  directory volume byte is 0 on most instruments; the engine defaults
-  those voices to full volume (vol 0 -> 64), else songs would be silent.
-Engine tables recovered: 61-entry period table 1712..56 @0xa7272 (Amiga
-fine-0), 10-id signature table @0xa7204 (M.K./M!K!/FLT4/4CHN/6CHN/8CHN/
-CD81/OKTA/16CN/32CN).
+**MOD files are STANDARD, not repacked** (CORRECTED 2026-11-14 - the
+earlier "unique-pattern remap + 29 B ext dir + clamped/truncated
+samples" model below was a parsing artifact and is WRONG; it made the
+loader place sample data inside pattern bytes):
+- standard 1084 B header: songlen byte @950, filler @951, 128-entry
+  pattern table @952, id string @1080; instrument directory @20 is 31 x
+  STANDARD 30 B records (len-words BE @rec+22, fine @+24, vol @+25,
+  loopstart-words @+26, looplen-words @+28) - exactly the fields the
+  engine copies at +0x16..+0x1C in MODGAP_13000;
+- engine sets DAT_000aee99 = max(pattern table)+1 and FUN_00012d14
+  loads that many NUMBERED pattern slots back-to-back at 1084
+  (nch*256 B each); positions index slots directly (TUNGA max id 30
+  -> 31 slots);
+- sample data follows immediately after the pattern set, contiguous in
+  directory order; every shipped track fits BYTE-EXACT with no clamp:
+  TUNGA 1084+31*1024 = 32828, sum of dir lengths 171396 = 204224-32828;
+  RAN 1084+14*1024 = 15420, sum 111842 = 127262-15420; ENA2 (npat 30)
+  and MAPKA (6CHN, npat 10) likewise exact;
+- directory volumes are real (64/48/42/24...) - the old "vol byte 0"
+  reading was the wrong field offset;
+- note words are the STANDARD 4-byte encoding: per=(b0&0xF)<<8|b1,
+  inst=(b0&0xF0)|(b2>>4), eff=b2&0xF, param=b3; period histograms
+  120..856 are valid ProTracker values, instruments 1..30 all name-
+  matched in the directory ('crash_cymbal_2_b-3', 'square_wave_c4'...);
+- the one engine quirk: every pattern row0 ch0 carries F0x SPEED
+  (TUNGA/RAN/ENA2 F04, some TUNGA patterns F02/F06; MAPKA F03/F04);
+  no Fxx>=0x20 tempo effect exists in any file, B only B1/B2, MAPKA
+  has D0 row jumps;
+- engine tables: 61-entry period table 1712..56 @0xa7272 (Amiga
+  fine-0), 10-id signature table @0xa7204 (M.K./M!K!/FLT4/4CHN/6CHN/
+  8CHN/CD81/OKTA/16CN/32CN).
 
-**Player** `src/ll_mod.c`: standard ProTracker tick model (tick frames =
-tempo*44100/6250, tempo/speed via Fxx), 16x12 fine-tune period tables,
-effects 0-9,A-F + E1,E2,E5,E9,EA,EB; s8 samples with loop; alternating
-L/R pan; song loops. Deterministic pure-integer 44.1 kHz stereo mix ->
-`ll_mod_render()` is the CI oracle: `make verify-mod` renders 3 s of
-TUNGA/RAN/ENA2, FNV-1a-64 over the s16 words, linux == wine byte-exact
-(TUNGA fnv=ef4c4a42b6f77a23; autocorrelation 0.75 at exactly the
-row grid (speed6xtempo125=5292 fr) proves it's the song, not noise).
+**Player** `src/ll_mod.c`: 50 Hz tick model (tick_len = tempo*44100/
+6250 = exactly 882 frames at the never-overridden default tempo 125),
+speed from F0x -> 80 ms rows at F04; effects 0-9,A-F + E1,E2,E5,E9,EA,
+EB; s8 samples, loop, LINEAR interpolation, alternating L/R pan, song
+loops. Amiga period clock inc = 5278235/period (16.16) - the first
+version used 52782351/period (10x too fast!) and the wrong sample
+region; together they put fundamentals at 2.6-18 kHz instead of
+200-600 Hz, which is exactly the "sounds strange / noisy" report.
+Spectral check vs ffmpeg's own TUNGA.mod decode: top peaks identical
+(349/350/442/587/589 Hz), band energy 20 Hz-12 kHz within +-2 points.
+Deterministic pure-integer 44.1 kHz stereo mix -> `ll_mod_render()` is
+the CI oracle: `make verify-mod` renders 3 s of TUNGA/RAN/ENA2,
+FNV-1a-64 linux == wine byte-exact (TUNGA fnv=e21ee1d2b63508a5,
+RAN b030b60db7c8c54c, ENA2 eea5e519512fb8ef).
 Wired into `ll_level_show()`: block "5c" resolves `muzyka=` -> SOUND ->
 SDL_OpenAudioDevice callback pump (SDL_InitSubSystem(AUDIO)); LEO_NO_MUSIC
 or --no-audio disables. `mod_selftest FILE.MOD [MS] [OUT.WAV]` renders
