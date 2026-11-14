@@ -102,6 +102,41 @@ def decode(blob):
     return rows
 
 
+def dump_op(op):
+    """Render one decoded op in the seq_patchdump text format."""
+    if op[0] == "copy":
+        return "c" + op[1].hex()
+    return "f%02x.%d" % (op[1], op[2])
+
+
+def dump_rows(rows):
+    """prow lines for one decoded blob (list of (gap, ops))."""
+    out = []
+    for gap, ops in rows:
+        toks = " ".join(dump_op(o) for o in ops) or "-"
+        out.append("prow %s %s" % ("-1" if gap is None else gap, toks))
+    return out
+
+
+def dump_payload(payload):
+    """Full-file dump matching tools/seq_patchdump.c: for every element
+    entry blob 'patch len L rows R' + prows + 'pend' (or FAIL)."""
+    import seq_parse
+    st = seq_parse.seq_parse(payload)
+    out = []
+    for e in st["els"]:
+        for a in e.get("arr", []):
+            try:
+                rows = decode(a)
+            except PatchError:
+                out.append("patch len %d pend FAIL" % len(a))
+                continue
+            out.append("patch len %d rows %d" % (len(a), len(rows)))
+            out.extend(dump_rows(rows))
+            out.append("pend")
+    return "".join(s + "\n" for s in out)
+
+
 def main():
     total = bad = 0
     maxrows = 0

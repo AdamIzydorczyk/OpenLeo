@@ -4,10 +4,11 @@ payload stored in the game containers (ANIMACJE, ETAPY, LEVELDES). Extracts
 each id=1 record with a .SEQ key from the top-level table AND from every
 nested id=2 index block, checks the python reference consumes the payload
 byte-exactly (consumed == size), then diffs the C dumper's output against
-the python dump.
+the python dump. The frame-patch rows of every entry blob are diffed the
+same way (src/ll_seq.c ll_seq_patch_walk vs tools/seq_patch.py).
 
-usage: verify_seq.py DATA_DIR SEQ_TOOL [SEQ_TOOL ...]
-       SEQ_TOOL may be 'wine ./seq_selftest.exe' (quote it).
+usage: verify_seq.py DATA_DIR [--grammar TOOL ...] [--patch TOOL ...]
+       TOOL may be 'wine ./seq_selftest.exe' (quote it).
 """
 import os
 import shlex
@@ -17,6 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import seq_parse  # noqa: E402
+import seq_patch  # noqa: E402
 
 
 def records_of(path):
@@ -71,10 +73,22 @@ def records_of(path):
 
 
 def main():
-    data, tools = sys.argv[1], sys.argv[2:]
+    args = sys.argv[1:]
+    if not args:
+        print(__doc__)
+        return 2
+    data, grammar, patch, mode = args[0], [], [], "grammar"
+    for a in args[1:]:
+        if a == "--grammar":
+            mode = "grammar"
+        elif a == "--patch":
+            mode = "patch"
+        else:
+            (grammar if mode == "grammar" else patch).append(a)
+
     tmp = "/tmp/opencode/seqver"
     os.makedirs(tmp, exist_ok=True)
-    cases = []            # (label, raw_path, expected_text bytes)
+    cases = []            # (label, raw_path, grammar_text, patch_text)
     fails = 0
     for cont in ("ANIMACJE", "ETAPY", "LEVELDES"):
         p = os.path.join(data, cont)
@@ -91,7 +105,8 @@ def main():
             try:
                 st = seq_parse.seq_parse(payload)
                 txt = seq_parse.dump_text(payload)
-            except seq_parse.SeqError as ex:
+                ptxt = seq_patch.dump_payload(payload)
+            except (seq_parse.SeqError, seq_patch.PatchError) as ex:
                 fails += 1
                 print(f"PY-FAIL {label}: {ex}")
                 continue
@@ -99,33 +114,36 @@ def main():
                 fails += 1
                 print(f"PY-SLACK {label}: {st['consumed']} != {size}")
                 continue
-            cases.append((label, raw, txt.encode()))
+            cases.append((label, raw, txt.encode(), ptxt.encode()))
 
     n = len(cases) + fails
-    exp = b"".join(c[2] for c in cases)
-    for tool in tools:
-        # NB: wine truncates large PIPED stdout (~120KB), so capture to a
-        # file (file writes through wine are proven byte-exact elsewhere).
-        cap = os.path.join(tmp, "tool_out.bin")
-        with open(cap, "wb") as fh:
-            subprocess.run(shlex.split(tool) + [c[1] for c in cases],
-                           stdout=fh, check=True)
-        out = open(cap, "rb").read().replace(b"\r", b"")
-        if out == exp:
-            continue
-        pos, located = 0, False
-        for label, _, e in cases:
-            if out[pos:pos + len(e)] != e:
-                print(f"MISMATCH {label} [{tool}]")
-                located = True
-                break
-            pos += len(e)
-        if not located:
-            print(f"EXTRA/TRUNCATED OUTPUT [{tool}] "
-                  f"({len(out)} vs {len(exp)} bytes)")
-        fails += 1
+    for kind, tools, idx in (("grammar", grammar, 2), ("patch", patch, 3)):
+        exp = b"".join(c[idx] for c in cases)
+        for tool in tools:
+            # NB: wine truncates large PIPED stdout (~120KB), so capture to
+            # a file (file writes through wine are proven byte-exact
+            # elsewhere).
+            cap = os.path.join(tmp, "tool_out.bin")
+            with open(cap, "wb") as fh:
+                subprocess.run(shlex.split(tool) + [c[1] for c in cases],
+                               stdout=fh, check=True)
+            out = open(cap, "rb").read().replace(b"\r", b"")
+            if out == exp:
+                continue
+            pos, located = 0, False
+            for ci, (label, _, _, _) in enumerate(cases):
+                e = cases[ci][idx]
+                if out[pos:pos + len(e)] != e:
+                    print(f"MISMATCH {kind} {label} [{tool}]")
+                    located = True
+                    break
+                pos += len(e)
+            if not located:
+                print(f"EXTRA/TRUNCATED {kind} OUTPUT [{tool}] "
+                      f"({len(out)} vs {len(exp)} bytes)")
+            fails += 1
     print(f"SEQ check: {n - fails}/{n} payloads byte-exact "
-          f"(C == python, exact consumption)")
+          f"(C == python, grammar + patch rows, exact consumption)")
     return 1 if (fails or n == 0) else 0
 
 

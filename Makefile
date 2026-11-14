@@ -64,7 +64,7 @@ verify-skip: ll_cutscene
 # Same two proofs for the Windows .exe, run under wine.
 # Z: = wine drive mapped to /, so $(DATA) is addressed as Z:$(DATA).
 WINEPREFIX ?= /tmp/opencode/wineprefix
-verify-win: ll_cutscene.exe llrs_selftest.exe pcx_selftest.exe seq_selftest.exe
+verify-win: ll_cutscene.exe llrs_selftest.exe pcx_selftest.exe seq_selftest.exe seq_patchdump.exe
 	WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	  wine ./ll_cutscene.exe Z:$(DATA)/INTRO_P.IS --ppm 1020 \
 	  Z:/tmp/opencode/c_win.ppm
@@ -79,7 +79,8 @@ verify-win: ll_cutscene.exe llrs_selftest.exe pcx_selftest.exe seq_selftest.exe
 	  python3 tools/verify_pcx.py $(DATA) ./llrs_selftest.exe \
 	  "wine ./pcx_selftest.exe"
 	env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
-	  python3 tools/verify_seq.py $(DATA) "wine ./seq_selftest.exe"
+	  python3 tools/verify_seq.py $(DATA) --grammar "wine ./seq_selftest.exe" \
+	  --patch "wine ./seq_patchdump.exe"
 	@for F in ANIMACJE ETAPY SOUND LEVELDES; do \
 	  if env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	      wine ./llrs_selftest.exe $(DATA)/$$F 2>/dev/null | tr -d '\r' \
@@ -101,6 +102,10 @@ pcx_selftest.exe: tools/pcx_selftest.c src/ll_pcx.c src/ll_pcx.h
 seq_selftest.exe: tools/seq_selftest.c src/ll_seq.c src/ll_seq.h
 	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
 	    tools/seq_selftest.c src/ll_seq.c
+
+seq_patchdump.exe: tools/seq_patchdump.c src/ll_seq.c src/ll_seq.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Isrc -o $@ \
+	    tools/seq_patchdump.c src/ll_seq.c
 
 llrs_selftest: tools/llrs_selftest.c src/llrs.c src/llrs.h
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
@@ -134,13 +139,19 @@ verify-pcx: pcx_selftest llrs_selftest
 	python3 tools/verify_pcx.py $(DATA) ./llrs_selftest ./pcx_selftest
 
 # src/ll_seq.c byte-for-byte agreement with tools/seq_parse.py on every
-# .SEQ payload in ANIMACJE/ETAPY/LEVELDES (49 blobs, exact consumption).
+# .SEQ payload in ANIMACJE/ETAPY/LEVELDES (172 blobs, exact consumption),
+# plus the frame-patch row decode (ll_seq_patch_walk vs tools/seq_patch.py).
 seq_selftest: tools/seq_selftest.c src/ll_seq.c src/ll_seq.h
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
 	    -Isrc -o $@ tools/seq_selftest.c src/ll_seq.c
 
-verify-seq: seq_selftest
-	python3 tools/verify_seq.py $(DATA) ./seq_selftest
+seq_patchdump: tools/seq_patchdump.c src/ll_seq.c src/ll_seq.h
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	    -Isrc -o $@ tools/seq_patchdump.c src/ll_seq.c
+
+verify-seq: seq_selftest seq_patchdump
+	python3 tools/verify_seq.py $(DATA) --grammar ./seq_selftest \
+	  --patch ./seq_patchdump
 
 verify-menu: ll_cutscene
 	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=5 LEO_SKIP_USER=1 LEO_MENU_AUTO=1 \
@@ -164,6 +175,7 @@ verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq veri
 clean:
 	rm -f ll_cutscene ll_cutscene.exe llrs_selftest llrs_selftest.exe \
 	      pcx_selftest pcx_selftest.exe seq_selftest seq_selftest.exe \
+	      seq_patchdump seq_patchdump.exe \
 	      ll_level *.o *.obj
 
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \

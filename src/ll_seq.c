@@ -116,3 +116,131 @@ void ll_seq_free(ll_seq *s)
     free(s->ents);
     memset(s, 0, sizeof *s);
 }
+
+/* --- frame-patch decoder (grammar of FUN_0001dc80 draw blitter) -------- */
+
+int ll_seq_patch_walk(const uint8_t *blob, uint32_t len,
+                      ll_seq_patch_row_cb cb, void *ctx)
+{
+    uint32_t pos = 0;
+    int nrows = 0;
+
+    while (pos < len) {
+        uint8_t h = blob[pos];
+        if (!(h & 0x80))
+            return -1;                       /* row header high bit */
+        uint32_t rlen = h & 0x7F;
+        pos++;
+        if (rlen > len - pos)
+            return -1;                       /* row overruns blob */
+        const uint8_t *c = blob + pos;
+        pos += rlen;
+        ll_seq_patch_op ops[128];
+        int nops = 0;
+        int gap = -1;
+        if (rlen) {
+            gap = c[0];
+            const uint8_t *q = c + 1, *end = c + rlen;
+            int at_op = 1, last_fill = 0;
+            while (q < end) {
+                if (at_op) {
+                    uint8_t op = *q++;
+                    if (op >= 0x80) {        /* fill op + value byte */
+                        if (q >= end) return -1;
+                        ops[nops].kind = 1;
+                        ops[nops].b = NULL;
+                        ops[nops].val = *q++;
+                        ops[nops].cnt = op & 0x7F;
+                        nops++;
+                        last_fill = 1;
+                    } else {                 /* copy op, op bytes */
+                        if (q + op > end) return -1;
+                        ops[nops].kind = 0;
+                        ops[nops].b = q;
+                        ops[nops].val = 0;
+                        ops[nops].cnt = op;
+                        nops++;
+                        q += op;
+                        last_fill = 0;
+                    }
+                    at_op = 0;
+                } else {                     /* marker position */
+                    uint8_t b = *q;
+                    if (b >= 0x80) return -1;      /* mid-content header */
+                    if (b < 0x40) { q++; at_op = 1; continue; }
+                    if (last_fill) {         /* short copy */
+                        uint8_t cnt = b & 0x3F;
+                        if (q + 1 + cnt > end) return -1;
+                        ops[nops].kind = 0;
+                        ops[nops].b = q + 1;
+                        ops[nops].val = 0;
+                        ops[nops].cnt = cnt;
+                        nops++;
+                        q += 1 + cnt;
+                        last_fill = 0;
+                    } else {                 /* short fill */
+                        if (q + 2 > end) return -1;
+                        ops[nops].kind = 1;
+                        ops[nops].b = NULL;
+                        ops[nops].val = q[1];
+                        ops[nops].cnt = b & 0x3F;
+                        nops++;
+                        q += 2;
+                        last_fill = 1;
+                    }
+                }
+            }
+        }
+        cb(ctx, nrows, gap, ops, nops);
+        nrows++;
+    }
+    return nrows;
+}
+
+/* --- frame-patch blitter (draw semantics: gap advance + run paints) ---- */
+
+typedef struct {
+    uint8_t *canvas;
+    int cw, ch, x, y;
+} patch_paint;
+
+static void patch_row_paint(void *vctx, int row, int gap,
+                            const ll_seq_patch_op *ops, int nops)
+{
+    patch_paint *pp = vctx;
+    if (gap < 0)
+        return;                              /* empty row: nothing drawn */
+    int px = pp->x + gap, py = pp->y + row;
+    for (int i = 0; i < nops; i++) {
+        const ll_seq_patch_op *o = &ops[i];
+        for (int k = 0; k < o->cnt; k++) {
+            if (px >= 0 && px < pp->cw && py >= 0 && py < pp->ch)
+                pp->canvas[(size_t)py * pp->cw + px] =
+                    o->kind == 0 ? o->b[k] : (uint8_t)o->val;
+            px++;
+        }
+    }
+}
+
+int ll_seq_patch_draw(const uint8_t *blob, uint32_t len, uint8_t *canvas,
+                      int cw, int ch, int x, int y)
+{
+    patch_paint pp = { canvas, cw, ch, x, y };
+    return ll_seq_patch_walk(blob, len, patch_row_paint, &pp);
+}
+
+/* Elements are animation frames: entries are sprite chunks side by side,
+ * chunks 0..arr_n-2 are 80 px wide and the last is b15 px wide (blitter
+ * called with w=0x50 per chunk, w=int16(b15) for the tail). Screen pos of
+ * the frame = (-f0, -f2) from the element bbox (FUN_000420b0). */
+int ll_seq_draw_elem(const ll_seq *s, const ll_seq_elem *e,
+                     uint8_t *canvas, int cw, int ch, int x, int y)
+{
+    for (uint32_t i = 0; i < e->arr_n; i++) {
+        const ll_seq_ent *t = &s->ents[e->arr_first + i];
+        if (ll_seq_patch_draw(s->blob + t->off, t->len, canvas, cw, ch,
+                              x + 80 * (int)i, y) < 0)
+            return -1;
+    }
+    return 0;
+}

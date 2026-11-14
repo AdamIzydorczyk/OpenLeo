@@ -60,4 +60,37 @@ typedef struct {
 int  ll_seq_parse(const uint8_t *blob, uint32_t len, ll_seq *out);
 void ll_seq_free(ll_seq *s);
 
+/* --- frame-patch rendering (M4-A, from blitter FUN_0001dc80 raw disasm) ---
+ * Entry blobs (ll_seq_ent .off/.len) are length-prefixed sprite rows:
+ *   row := (0x80|len) content[len];  content := gap run*
+ *   op pos: C < 0x80 copy C bytes | F >= 0x80 fill F&0x7f bytes, 1 value B
+ *   marker pos (after any run): B < 0x40 gap | 0x40..0x7f after COPY run =
+ *   fill (B&0x3f)+value byte, after FILL run = copy B&0x3f bytes
+ * The game blits rows onto a 400-byte pitch; chunks: entries 0..arr_n-2 are
+ * 80 px wide, the last entry is b15 px wide, x cursor += 80. Element screen
+ * position = (-f0, -f2) (bbox derived from negated f0/f2, FUN_000420b0).
+ *
+ * ll_seq_patch_walk decodes one entry blob, invoking cb per row (gap -1 =
+ * empty row; ops array valid only during the call). Returns rows decoded,
+ * -1 malformed (cb may have seen earlier rows already).
+ * ll_seq_patch_draw paints the decoded palette indices into an 8bpp canvas
+ * (clip to cw/ch). ll_seq_draw_elem paints all chunks of an element with
+ * origin (x,y). */
+typedef struct {
+    int kind;                /* 0 = copy (b), 1 = fill (val) */
+    const uint8_t *b;        /* copy payload (points into blob) */
+    int val;                 /* fill value */
+    int cnt;                 /* run length in pixels */
+} ll_seq_patch_op;
+
+typedef void (*ll_seq_patch_row_cb)(void *ctx, int row, int gap,
+                                    const ll_seq_patch_op *ops, int nops);
+
+int ll_seq_patch_walk(const uint8_t *blob, uint32_t len,
+                      ll_seq_patch_row_cb cb, void *ctx);
+int ll_seq_patch_draw(const uint8_t *blob, uint32_t len, uint8_t *canvas,
+                      int cw, int ch, int x, int y);
+int ll_seq_draw_elem(const ll_seq *s, const ll_seq_elem *e,
+                     uint8_t *canvas, int cw, int ch, int x, int y);
+
 #endif /* LL_SEQ_H */
