@@ -331,6 +331,12 @@ static void run_menu(const char *data, int audio)
     const char *dem = getenv("LEO_DEMO");      /* demo: auto-pick NEW GAME */
     int secs_hook = getenv("LEO_MENU_SECS") != NULL;
     for (;;) {
+        /* FIX-01 (deep dive X-01): the sticky app-quit flag unwinds the
+         * menu loop when the window was closed during any screen here
+         * (.IS corner, level, chapter movie). Checked at the top so
+         * every continue path re-enters this test first. */
+        if (plat_quit_requested())
+            break;
         int sel;
         int map_mode = 0;
         char lvlname[32] = "";
@@ -506,6 +512,9 @@ static void run_menu(const char *data, int audio)
                     is_player_run(p, audio, 0, 0);
                     break;
                 }
+            if (plat_quit_requested())
+                break;   /* FIX-01: window closed during the chapter .IS:
+                          * the level must NOT open after it */
             const char *lv = getenv("LEO_DEMO_LEVEL");
             ll_level_show(data, lv && *lv ? lv : lvlname, 0.0, audio);
             continue; /* ESC in the scene: back to the chapter map */
@@ -593,8 +602,9 @@ static void run_demo_chain(const char *d, int audio)
         sprintf(p, "%s%s", d, boot[k]);
         int rc = is_player_run(p, audio, 0, dsf);
         free(p);
-        if (rc == 1 || dsf)
-            break; /* error (or CI fast-forward): straight to the menu */
+        if (rc == 1 || dsf || plat_quit_requested())
+            break; /* error, CI fast-forward, or FIX-01 window close (X-01):
+                    * stop the chain - main skips the menu on the same flag */
     }
 }
 
@@ -696,7 +706,10 @@ int main(int argc, char **argv)
                 d = "."; /* classic cwd default; data_probe reports the gaps */
         }
         run_demo_chain(d, audio);
-        run_menu(d, audio);
+        if (!plat_quit_requested())  /* FIX-01: a window close during the
+                                      * boot chain quits, it does NOT open
+                                      * the menu (was: menu reopened) */
+            run_menu(d, audio);
         return 0;
     }
 
@@ -720,7 +733,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "[leo] no FILE.IS given: starting the original boot"
                         " demo chain from DATA %s\n", d);
         run_demo_chain(d, audio);
-        run_menu(d, audio);
+        if (!plat_quit_requested())  /* FIX-01: close during boot chain quits */
+            run_menu(d, audio);
         return 0;
     }
 
@@ -753,11 +767,11 @@ int main(int argc, char **argv)
      * "skip this scene, continue with the next one" - the same handoff the
      * original demo chain makes; only an error (rc==1) ends the chain. */
     int rc = is_player_run(file, audio, from, skip_at);
-    for (int k = 0; k < nthen && rc != 1; k++)
+    for (int k = 0; k < nthen && rc != 1 && !plat_quit_requested(); k++)
         rc = is_player_run(then[k], audio, 0, 0);
     if (rc == 2)
         rc = 0; /* skipped forward == normal handoff in chained mode */
-    if (menu_data)
+    if (menu_data && !plat_quit_requested())
         run_menu(menu_data, audio);
     return rc;
 }

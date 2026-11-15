@@ -720,6 +720,31 @@ ll_view/ll_audio as backend-private helpers).
   vram_full_sha256 on a manual re-capture is not automatically a
   regression.
 
+## PR-25 — FIX-01: quit propagation (DONE 2026-11-15)
+
+- Deep dive Part B FIX-01 / X-01: closing the window only ended the
+  CURRENT .IS/level; main happily opened the next one (menu reopened,
+  several closes needed to quit; the P-04 raise-on-close symptom).
+- Design (per Part B ruling): FLAG ONLY - no new player return code, all
+  existing 0/1/2 + menu codes unchanged. platform.h gains
+  plat_quit_requested()/plat_request_quit(): sticky, never cleared.
+  SDL backend latches on SDL_QUIT and on WINDOWEVENT_CLOSE (belt and
+  braces; not surfaced - LL_EV_QUIT contract untouched). Dummy backend
+  latches when LL_EV_QUIT dequeues - same contract, scriptable via
+  plat_dummy_inject.
+- main.c glue unwinds on the flag: demo chain break, menu entry skipped,
+  menu loop top-of-loop break, chapter .IS -> level guard, CLI --then
+  chain + --menu guard. Screens still END through their own paths; only
+  the NEXT screen is skipped.
+- New test hook: LEO_QUIT_AFTER_MS=N (platform_sdl) pushes a real
+  SDL_QUIT N ms after the FIRST poll. verify-quit (PX_DATA-wrapped):
+  headless --demo run must exit 0 in <10 s with NO 'menu:' line;
+  measured: LOGO.IS ends at frame 13 (quit=1), chain unwinds, clean 0.
+  platform_selftest +3 checks (no flag before QUIT; QUIT latches sticky;
+  survives polls / plat_request_quit idempotent) - 33 checks total.
+- Same-shape CI behaviour verified fixture-free (named SKIP). Full local
+  suite stays green; .exe cross-build clean under vendored clang.
+
 ## Next — pick from the Deferred list below
 
 Nothing queued from the review's "worth fixing" set: all of it has

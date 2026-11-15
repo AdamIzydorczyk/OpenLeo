@@ -36,6 +36,7 @@ static struct {
     SDL_AudioDeviceID adev;       /* 0 = no device (per-playback, P-13) */
     ll_event       q[64];
     unsigned       qh, qt;        /* event ring: [qh, qt)               */
+    int            quit_req;      /* FIX-01: sticky app-quit (X-01)     */
 } v;
 
 int plat_init(const char *title, int w, int h)
@@ -164,6 +165,31 @@ int plat_poll(ll_event *ev)
 {
     if (!ev)
         return 0;
+    /* FIX-01 automated test hook: LEO_QUIT_AFTER_MS=N injects a window
+     * close N ms after the FIRST poll (not process start) - lets a
+     * headless leg prove the whole quit-unwind path: main unwinds, no
+     * further scene opens. */
+    {
+        static uint64_t t_first;
+        static uint64_t nms;
+        static int fired = 0, armed = -1;
+        if (armed < 0) {
+            const char *qam = getenv("LEO_QUIT_AFTER_MS");
+            nms = qam ? (uint64_t)atof(qam) : 0;
+            armed = nms > 0;
+        }
+        if (armed) {
+            if (!t_first)
+                t_first = (uint64_t)SDL_GetTicks();
+            if (!fired && (uint64_t)SDL_GetTicks() >= t_first + nms) {
+                SDL_Event x;
+                SDL_memset(&x, 0, sizeof x);
+                x.type = SDL_QUIT;
+                SDL_PushEvent(&x);
+                fired = 1;
+            }
+        }
+    }
     if (v.qh == v.qt) {
         /* Translate SDL events until one maps to an engine event (same
          * per-frame drain contract as the old screens' SDL_PollEvent
@@ -178,6 +204,7 @@ int plat_poll(ll_event *ev)
             ll_event o = { LL_EV_NONE, 0, -1, -1 };
             if (e.type == SDL_QUIT) {
                 o.type = LL_EV_QUIT;
+                v.quit_req = 1;             /* FIX-01: sticky app quit */
             } else if (e.type == SDL_KEYDOWN) {
                 o.key = map_key(e.key.keysym.sym);
                 if (!o.key)
@@ -193,6 +220,14 @@ int plat_poll(ll_event *ev)
                 o.type = LL_EV_MOTION;
                 o.x = e.motion.x;
                 o.y = e.motion.y;
+            } else if (e.type == SDL_WINDOWEVENT
+                       && e.window.event == SDL_WINDOWEVENT_CLOSE) {
+                /* FIX-01: belt-and-braces - SDL posts SDL_QUIT alongside
+                 * this today, but a WM close must latch quit even if the
+                 * QUIT pairing ever changes. Not surfaced: the engine's
+                 * LL_EV_QUIT contract stays exactly as it was. */
+                v.quit_req = 1;
+                continue;
             } else {
                 /* key-up and everything else: the engine input model
                  * is press-based (T-15), exactly like the old pumps. */
@@ -208,6 +243,10 @@ int plat_poll(ll_event *ev)
     v.qh = (v.qh + 1) % (sizeof v.q / sizeof v.q[0]);
     return 1;
 }
+
+/* FIX-01: sticky quit accessors (platform.h contract). */
+int plat_quit_requested(void) { return v.quit_req; }
+void plat_request_quit(void)  { v.quit_req = 1; }
 
 /* Monotonic ns clock - the ONE source the engine derives pacing from
  * (tips T-07); same conversion the player used before this file. */

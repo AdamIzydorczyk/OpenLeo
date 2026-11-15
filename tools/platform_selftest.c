@@ -88,6 +88,12 @@ int main(int argc, char **argv)
     /* ---- engine-level input contract (keys + mouse) ---- */
     ll_event e;
     check("empty queue -> poll returns 0", plat_poll(&e) == 0);
+    /* FIX-01 (deep dive X-01): sticky app-quit contract, exactly as the
+     * SDL backend behaves on a window close: latched when LL_EV_QUIT
+     * surfaces, NEVER cleared; screens still end through their normal
+     * paths - the app glue unwinds on this flag instead. */
+    check("no quit request before any QUIT event (FIX-01)",
+          plat_quit_requested() == 0);
     ll_event kd = { LL_EV_KEYDOWN, LLKEY_RETURN, -1, -1 };
     ll_event bt = { LL_EV_BUTTON_DOWN, LLBTN_LEFT, 142, 97 };
     ll_event mo = { LL_EV_MOTION, 0, 260, 31 };
@@ -106,6 +112,13 @@ int main(int argc, char **argv)
           g3.x == 260 && g3.y == 31 &&
           plat_poll(&g4) == 1 && g4.type == LL_EV_QUIT);
     check("queue drains -> poll returns 0", plat_poll(&e) == 0);
+    check("dequeued QUIT latches a sticky quit request (FIX-01)",
+          plat_quit_requested() == 1);
+    check("quit request survives every later poll (never auto-cleared)",
+          plat_poll(&e) == 0 && plat_quit_requested() == 1);
+    plat_request_quit();                               /* must be idempotent */
+    check("plat_request_quit stays sticky (FIX-01)",
+          plat_quit_requested() == 1);
     plat_raise();                              /* must not crash */
     check("plat_raise is safe headless", 1);
 

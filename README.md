@@ -94,7 +94,9 @@ scenes), `LEO_SKIP_USER=1` (auto-skip reported as a user ESC skip),
 `LEO_MENU_PPM=PATH` + `LEO_MENU_PPM_TICK=N` (dump the composed 320x200
 frame), `LEO_MENU_PPM_DIR=DIR` + `LEO_MENU_PPM_MAX=N` (dump every composed
 map frame map_NNNN.ppm for the golden-master pose scan),
-`LEO_MENU_PICK=<char>` / `LEO_MENU_NAV=k` (fire / cycle + Enter).
+`LEO_MENU_PICK=<char>` / `LEO_MENU_NAV=k` (fire / cycle + Enter),
+`LEO_QUIT_AFTER_MS=N` (inject a window close N ms after the first frame —
+proves the FIX-01 quit-unwind path headlessly; used by verify-quit).
 
 ## Naming
 

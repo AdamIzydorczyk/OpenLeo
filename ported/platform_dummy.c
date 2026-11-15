@@ -24,6 +24,7 @@ static struct {
     size_t   a_queued;          /* bytes "in the FIFO" (nothing drains) */
     ll_event q[64];
     unsigned qh, qt;            /* ring: [qh,qt) */
+    int      quit_req;          /* FIX-01: sticky app-quit (X-01) */
 } d;
 
 int plat_init(const char *title, int w, int h)
@@ -59,9 +60,16 @@ int plat_poll(ll_event *ev)
     if (!ev || d.qh == d.qt)
         return 0;
     *ev = d.q[d.qh];
+    if (ev->type == LL_EV_QUIT)
+        d.quit_req = 1;         /* FIX-01: same sticky contract as SDL (X-01) */
     d.qh = (d.qh + 1) % (sizeof d.q / sizeof d.q[0]);
     return 1;
 }
+
+/* FIX-01: sticky quit accessors (platform.h contract); the dummy backend
+ * also offers scripted control via plat_dummy_inject(LL_EV_QUIT). */
+int plat_quit_requested(void) { return d.quit_req; }
+void plat_request_quit(void)  { d.quit_req = 1; }
 
 uint64_t plat_now_ns(void)
 {

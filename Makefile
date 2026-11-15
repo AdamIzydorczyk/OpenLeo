@@ -610,6 +610,24 @@ else
 	@echo "verify-sel: SKIP (needs $(DATA)/ETAPY/INFO/MAPKA; see the restaging recipe in NEXT_STEPS.md"
 endif
 
+# FIX-01 (deep dive X-01): a window close must QUIT THE APP, not just the
+# current screen. LEO_QUIT_AFTER_MS=N (platform_sdl) injects a window close
+# N ms after the first poll. Expected: the boot chain unwinds at the close,
+# the menu NEVER opens (no "menu:" line), clean exit 0. Without the fix the
+# old flow replayed the remaining .IS scenes and reopened the menu (hang).
+verify-quit: ll_cutscene
+ifeq ($(PX_DATA),1)
+	@env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy LEO_QUIT_AFTER_MS=500 \
+	    timeout 10 ./ll_cutscene --demo $(DATA) \
+	    > /tmp/opencode/quit_chain.log 2>&1; \
+	rc=$$?; \
+	if [ $$rc -eq 0 ] && ! grep -q '^menu:' /tmp/opencode/quit_chain.log; \
+	then echo "quit propagation: window close unwinds chain + menu (FIX-01, ok)"; \
+	else echo "quit propagation FAILED (rc=$$rc)"; cat /tmp/opencode/quit_chain.log; exit 1; fi
+else
+	@echo "verify-quit: SKIP (needs $(DATA)/LOGO.IS boot chain; see the restaging recipe in NEXT_STEPS.md"
+endif
+
 # STATUS.LEO savegame + LONGSOFT.CFG codec (ported/ll_save.c, FUN_0005dae0/
 # FUN_0005dcc0 grammar): byte-exact round-trips of the shipped files.
 # Originals are user-supplied and NEVER in git: the check SKIPs if absent.
@@ -868,7 +886,7 @@ else
 	@echo "verify-golden: SKIP (the port pose-dump half needs game data $(DATA); without a pose dump the golden contract cannot be exercised)"
 endif
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music verify-utf8 verify-fuzz verify-platform verify-userdir verify-arch verify-golden verify-cmake
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-quit verify-save verify-music verify-utf8 verify-fuzz verify-platform verify-userdir verify-arch verify-golden verify-cmake
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
@@ -883,6 +901,6 @@ clean:
 
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
         verify-seq verify-pcm verify-mod verify-level verify-help verify-menu \
-        verify-sel verify-save verify-music verify-utf8 verify-fuzz \
+        verify-sel verify-quit verify-save verify-music verify-utf8 verify-fuzz \
         verify-platform verify-userdir verify-cmake verify-all level clean package package-win package-linux \
         verify-golden verify-arch golden_rig golden_rig_cd golden_rig_ddir

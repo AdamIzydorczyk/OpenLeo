@@ -113,6 +113,17 @@ void plat_raise(void);
  * backend here and never surfaced. */
 int plat_poll(ll_event *ev);
 
+/* FIX-01 (deep dive X-01): sticky application-quit request. The backend
+ * sets it the moment it surfaces LL_EV_QUIT (window close / Alt+F4 / WM
+ * close); plat_request_quit() sets it directly. NEVER cleared - screens
+ * still end through their own normal paths (all existing return codes
+ * unchanged); the app glue (main.c) checks this after every screen and
+ * unwinds instead of opening the next one. Without it, closing the
+ * window only ended the CURRENT cutscene/level and the next screen
+ * opened again - several closes to quit. */
+int plat_quit_requested(void);
+void plat_request_quit(void);
+
 /* Monotonic clock (ns) + an absolute wake-up, for fixed-step pacing
  * (tips T-05/T-06). plat_now_ns never goes backwards; plat_sleep_until
  * returns no earlier than the given timestamp. */
