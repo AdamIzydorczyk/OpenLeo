@@ -62,6 +62,11 @@
 #ifndef TICK_HZ
 #define TICK_HZ 70
 #endif
+/* FIX-07 (X-08): this knob is INTENTIONALLY unused in the port. It only
+ * documents the ORIGINAL's 70 Hz engine beat; the port's loop periods
+ * (20 ms level, 30 ms menu/map, measured behaviour since the first
+ * working build) are deadline-scheduled via plat_sleep_until, not
+ * derived from it. Do not wire the loops to it. */
 
 /* Case-insensitive filesystem lookup (Windows/DOS FAT). Native Linux
  * builds may set 0; a small dir-scan fallback is cheap either way. */

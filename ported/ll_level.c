@@ -1027,6 +1027,7 @@ static void help_pages(const llrs *hd, const llrs_slot *hdrecs, unsigned nhdrec,
     uint64_t t_end = plat_now_ns() +
                      (uint64_t)((auto_close ? lim : 0.0) * 1e9);
     int page = 0, quit = 0;
+    uint64_t t_tick = plat_now_ns();   /* FIX-07: fixed 20 ms grid here too */
     while (!quit && (!auto_close || plat_now_ns() < t_end)) {
         ll_event e;
         while (plat_poll(&e)) {               /* F11/Alt+Enter are consumed
@@ -1073,7 +1074,13 @@ static void help_pages(const llrs *hd, const llrs_slot *hdrecs, unsigned nhdrec,
             }
             scene_ppm(hppm, w, h, canvas, pal);
         }
-        plat_sleep_until(plat_now_ns() + 20000000ull);   /* 20 ms, as before */
+        t_tick += 20000000ull;               /* FIX-07: fixed 50 Hz grid */
+        {
+            uint64_t n = plat_now_ns();
+            if (n > t_tick + 100000000ull)   /* >100 ms behind: resync, */
+                t_tick = n;                  /* never fast-forward */
+        }
+        plat_sleep_until(t_tick);
     }
     for (int k = 0; k < np; k++) {
         ll_seq_free(&pages[k].seq);
@@ -1642,7 +1649,9 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
          * timing on the single platform clock (ns). */
         uint64_t t_end = secs > 0 ? plat_now_ns() + (uint64_t)(secs * 1e9)
                                   : 0;
-        uint64_t t_prev = plat_now_ns();
+        uint64_t t_prev_ms = plat_now_ns() / 1000000ull; /* FIX-07 (X-08): ms clock: */
+        uint64_t t_tick = plat_now_ns();   /* dt from absolute time, no loss */
+        int scroll_acc = 0;                /* per-frame; sub-px scroll acc */
         while (!esc && (!t_end || plat_now_ns() < t_end)) {
             /* Focus: raised once at window creation (FIX-02); no
              * per-tick poll, no raise on pointer-enter. P-10: F11/
@@ -1676,13 +1685,15 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                     }
                 }
             }
-            uint64_t now = plat_now_ns();
-            unsigned dt = (unsigned)((now - t_prev) / 1000000ull);
-            t_prev = now;
+            uint64_t now_ms = plat_now_ns() / 1000000ull;
+            unsigned dt = (unsigned)(now_ms - t_prev_ms);
+            t_prev_ms = now_ms;
             if (dt > 200)
                 dt = 200;
             if (autoscroll) {
-                cam += 50 * (int)dt / 1000;
+                scroll_acc += 50 * (int)dt;  /* FIX-07: 50 px/s exact over */
+                cam += scroll_acc / 1000;    /* time (old 50*dt/1000 lost  */
+                scroll_acc %= 1000;          /* <1 px to truncation per tick) */
                 if (cam > cam_max)
                     cam = 0;
             }
@@ -1699,7 +1710,13 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             }
             paint(canvas, lut, cw, ch);
             ll_music_pump();
-            plat_sleep_until(plat_now_ns() + 20000000ull);  /* 20 ms tick */
+            t_tick += 20000000ull;               /* FIX-07: fixed 50 Hz grid */
+            {
+                uint64_t n = plat_now_ns();
+                if (n > t_tick + 100000000ull)   /* >100 ms behind: resync, */
+                    t_tick = n;                  /* never fast-forward */
+            }
+            plat_sleep_until(t_tick);
         }
         ll_music_stop();
         /* no window teardown: P-03 keeps it up for the next screen

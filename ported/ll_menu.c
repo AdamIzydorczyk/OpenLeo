@@ -506,6 +506,10 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
     /* CI hook: LEO_MENU_SECS=N shows the menu N seconds then auto-quits */
     const char *sece = getenv("LEO_MENU_SECS");
     uint64_t t_deadline = sece ? now_ms() + 1000 * (uint64_t)atof(sece) : 0;
+    uint64_t t_sched = now_ms();  /* FIX-07 (X-08): fixed 30 ms grid for
+                                   * the tick loop; the inner poll waits ON
+                                   * the grid, so tick anims run at their
+                                   * nominal rate instead of 30 ms + work */
     while (!quit) {
         if (tick == 0 && nz) {      /* CI: LEO_MENU_PICK fires a zone key */
             const char *pk = getenv("LEO_MENU_PICK");
@@ -644,7 +648,10 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         plat_present_argb(fb, W, H);
 
         ll_event e;
-        uint64_t t_next = now_ms() + 30;
+        t_sched += 30;
+        if (now_ms() > t_sched + 100)            /* FIX-07: stalled out -> */
+            t_sched = now_ms();                  /* resync, never fast-forward */
+        uint64_t t_next = t_sched;
         while (!quit) {
             /* Focus: raised once at window creation (FIX-02); no
              * per-tick poll, no raise on pointer-enter. */
@@ -963,6 +970,10 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
     unsigned tick = 0;
     const char *sece = getenv("LEO_MENU_SECS");
     uint64_t t_deadline = sece ? now_ms() + 1000 * (uint64_t)atof(sece) : 0;
+    uint64_t t_sched = now_ms();  /* FIX-07 (X-08): fixed 30 ms grid for
+                                   * the tick loop; the inner poll waits ON
+                                   * the grid, so tick anims run at their
+                                   * nominal rate instead of 30 ms + work */
     while (!quit) {
         if (base)
             memcpy(fb, base, (size_t)MAP_LW * MAP_LH * sizeof *base);
@@ -1068,7 +1079,10 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         plat_present_argb(disp, MAP_W, MAP_H);
 
         ll_event e;
-        uint64_t t_next = now_ms() + 30;
+        t_sched += 30;
+        if (now_ms() > t_sched + 100)            /* FIX-07: stalled out -> */
+            t_sched = now_ms();                  /* resync, never fast-forward */
+        uint64_t t_next = t_sched;
         while (!quit) {
             /* Focus: raised once at window creation (FIX-02); no
              * per-tick poll, no raise on pointer-enter. */

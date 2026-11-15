@@ -280,25 +280,69 @@ int plat_quit_requested(void) { return v.quit_req; }
 void plat_request_quit(void)  { v.quit_req = 1; }
 
 /* Monotonic ns clock - the ONE source the engine derives pacing from
- * (tips T-07); same conversion the player used before this file. */
+ * (tips T-07). The old double-based conversion (the player's original)
+ * is gone; see FIX-06 inside. */
 uint64_t plat_now_ns(void)
 {
-    return (uint64_t)(((double)SDL_GetPerformanceCounter())
-                      * (1e9 / (double)SDL_GetPerformanceFrequency()));
+    /* FIX-06 (deep dive X-06): exact integer conversion - the old
+     * double path lost ns precision above 2^53 counters. Safe for any
+     * frequency up to ~1.8e10 (Windows QPC = 1e7, Linux clock = 1e9):
+     * c%f < f, so (c%f)*1e9 < f*1e9 must stay < UINT64_MAX = 1.8e19. */
+    uint64_t f = SDL_GetPerformanceFrequency();
+    uint64_t c = SDL_GetPerformanceCounter();
+    return (c / f) * 1000000000ull + (c % f) * 1000000000ull / f;
 }
+
+#if defined(_WIN32)
+#ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
+#define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
+#endif
+#include <windows.h>
+/* FIX-06 (X-09): Win10 1803+ high-resolution waitable timer (~0.5 ms
+ * accuracy). The handle is per-call, so this is thread-safe - the ll_level
+ * music thread sleeps here too (ll_level.c). Older Windows falls back to
+ * SDL_Delay, whose ~1 ms period SDL2 already improves via timeBeginPeriod. */
+static void os_sleep_ns(uint64_t ns)
+{
+    HANDLE t = CreateWaitableTimerExW(NULL, NULL,
+                   CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+    if (t) {
+        LARGE_INTEGER due;
+        due.QuadPart = -(LONGLONG)(ns / 100ull);   /* relative, 100 ns units */
+        if (SetWaitableTimer(t, &due, 0, NULL, NULL, FALSE))
+            WaitForSingleObject(t, INFINITE);
+        CloseHandle(t);
+        return;
+    }
+    SDL_Delay((Uint32)(ns / 1000000ull));
+}
+#else
+#include <time.h>
+static void os_sleep_ns(uint64_t ns)
+{
+    struct timespec ts;
+    ts.tv_sec = (time_t)(ns / 1000000000ull);
+    ts.tv_nsec = (long)(ns % 1000000000ull);
+    nanosleep(&ts, NULL);        /* EINTR: the caller loop re-checks */
+}
+#endif
 
 void plat_sleep_until(uint64_t ns)
 {
-    /* Same 2 ms spin-window as the old is_player wait_until: far away
-     * sleeps coarsely (cheap), near deadlines poll tightly (frame
-     * accuracy), and neither ever overshoots the deadline. */
-    static const uint64_t SLACK = 2000000ull;
+    /* FIX-06 (deep dive X-09): sleep IN THE OS until 0.3 ms before the
+     * deadline, then yield-spin to hit it tightly. The old form spun
+     * SDL_Delay(0) for a fixed 2 ms window of every 20-30 ms tick
+     * (~8-10% of a core on an idle screen); the 300 us window is ~7x
+     * cheaper and frame accuracy is unchanged (platform.h contract:
+     * never returns before the deadline). */
+    static const uint64_t SPIN = 300000ull;
     for (;;) {
         uint64_t now = plat_now_ns();
         if (now >= ns)
             return;
-        if (ns - now > SLACK)
-            SDL_Delay(2);
+        uint64_t left = ns - now;
+        if (left > SPIN)
+            os_sleep_ns(left - SPIN);
         else
             SDL_Delay(0);
     }

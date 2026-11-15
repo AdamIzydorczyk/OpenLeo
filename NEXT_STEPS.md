@@ -840,6 +840,9 @@ ll_view/ll_audio as backend-private helpers).
   the WINDRES change; the two new jobs run their exact steps locally
   first (asan fully; windows partially - the .exe smoke executed via
   the local binfmt path, real-MSYS2 proof lands with this CI run).
+- CI green run 43717359504 (PR-27b 4618d61): linux, windows-smoke
+  (first native Windows build+run in repo history) and asan all ok.
+  PR-27 CLOSED.
 - CI iteration (first run 43717009882: linux ok, both new jobs failed,
   exactly the expected first-run surface):
   1. windows-smoke: MSYS2 mingw-w64 gcc (16.2) ships NO libasan/
@@ -862,6 +865,47 @@ ll_view/ll_audio as backend-private helpers).
   counts 24/19/27 on platform_selftest/llrs/fuzz, runs green) both
   replicated; YAML parses.
 
+## PR-28 — FIX-06+07: timing core (DONE 2026-11-15)
+
+- FIX-06 (platform_sdl.c only; platform_dummy untouched per spec):
+  plat_now_ns is now exact integer math ((c/f)*1e9 + (c%f)*1e9/f; safe
+  for f <= ~1.8e10, comment proves the bound) - the old double path
+  lost precision. plat_sleep_until rewritten: OS-sleep until 300 us
+  before the deadline, yield-spin the rest (old: SDL_Delay(2) coarse
+  steps + SDL_Delay(0) spin for 2 ms of every tick). os_sleep_ns:
+  Win32 high-res waitable timer (CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
+  #ifndef-guarded; per-call handle = THREAD-SAFE - the ll_level music
+  thread sleeps through this), falling back to SDL_Delay on pre-1803
+  Windows; POSIX nanosleep (EINTR: caller loop re-checks). windows.h/
+  time.h included locally in the #if _WIN32 block - verify-arch still
+  ok (it only pins SDL includes; windows.h allowed by the spec).
+  Cross-builds zero-warning with vendored llvm-mingw (headers fine;
+  CI's Ubuntu mingw gets the #ifndef guard for the newer constant).
+- FIX-07 (ll_level x2 loops, ll_menu x2 loops): level + help loops
+  moved to a fixed 20 ms t_tick grid (resync if >100 ms behind, never
+  fast-forward); dt now derived from an absolute ms clock (t_prev_ms)
+  - no per-frame truncation loss; autoscroll uses an integer sub-px
+  accumulator (scroll_acc += 50*dt; cam += /1000; %=1000) instead of
+  the lossy cam += 50*dt/1000. Menu + map loops: outer tick loop gets
+  the 30 ms t_sched grid (t_next = t_sched; inner wait loop and all
+  hooks untouched); TICK_HZ in ll_config.h documented INTENTIONALLY
+  UNUSED (option 2 of the spec; loops stay on measured 20/30 ms).
+- Measured acceptance (all hit):
+  * level: 500 ticks/10 s = 50.0 Hz, autoscroll px=499 (needs 500+-5)
+    - IDENTICAL under full-CPU load (16 yes-spinners).
+  * map: 334 ticks/10 s = 33.4 Hz (needs 33.3+-0.3).
+  * idle map-screen CPU: 370 ms -> 100 ms per 10 s = 1.0% of a core
+    (needs <=3%). Cutscene-run CPU also dropped 7.1 s -> 0.9 s per
+    LOGO play (music-thread sleeps were the hog).
+  * LOGO wall-clock byte-identical to before (10532 ms both runs,
+    same probe script); LEO_IS_WAV sha identical (cmp ok) - audio
+    master clock untouched.
+  * Instruments were temporary (guarded LEO_TIMING_LOG block + px/
+    tick counters) and are REMOVED - git grep shows no residue.
+- Tick-keyed hooks re-checked directly: verify-level passes incl. the
+  drift-sensitive 'tick 8: ED000002.SEQ state 1' grep and the
+  tick2!=tick8 animation proof; verify-help, verify-sel, verify-quit,
+  verify-platform, verify-arch all green before the full suite.
 ## Next — pick from the Deferred list below
 
 Nothing queued from the review's "worth fixing" set: all of it has
