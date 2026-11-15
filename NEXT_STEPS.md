@@ -906,6 +906,67 @@ ll_view/ll_audio as backend-private helpers).
   drift-sensitive 'tick 8: ED000002.SEQ state 1' grep and the
   tick2!=tick8 animation proof; verify-help, verify-sel, verify-quit,
   verify-platform, verify-arch all green before the full suite.
+- PR-28 pushed 42f3703; CI green run 43718104724 (all 3 jobs). CLOSED.
+## PR-29 — FIX-08 cutscene A/V sync (DONE 2026-11-15)
+
+- Step A (is_player.c ONLY; no new plat_* - plat_audio_queued_bytes already
+  existed in both backends + selftest; platform_dummy untouched):
+  enqueue_audio split into count_region (hold-time accounting, runs at
+  present time) + byte-feeding (runs on the look-ahead). queue_ahead()
+  keeps >= 150 ms queued (AUDIO_LEAD_NS) with a monotonic ci_audio
+  pointer = every live chunk queued exactly once, in order; the CURRENT
+  chunk is always topped up first; topped up again from wait_until's
+  loop (never while paused - device held, nothing drains). ESC/skip
+  sets ci_audio = nchunks (plus the existing plat_audio_clear). Legacy
+  period modes + no-audio keep the old exact-one-chunk branch verbatim.
+- Silent-chunk fill (found by review, needed by the data): chunks with
+  no ESC regions hold video for rep ticks at 70 Hz; the stream now
+  queues exactly rep*bps/70 zero bytes there (rep = st.repeat ?: fps
+  fallback - same expression as the video hold; 44100/70=630,
+  88200/70=1260 exact). This fixes a LATENT audible bug: in the old
+  model silent holds were absent from the stream, so ALL audio after a
+  silent chunk played early vs video (INTRO_P has a designed 1.786 s
+  pause at 192.694 s; LOGO 171 ms and AUTORZY 71 ms silent intros).
+  Without the fill, Step B would also have misread intentional pauses
+  as video being ahead and compressed the playback after them.
+- Step B: after sched_ns += hold, audio position = q_total - queued;
+  err = v_ns - a_ns - av_latency (46 ms default = one period at 22050
+  Hz, LEO_AV_LATENCY_MS override); if |err| > 20 ms correct half the
+  err capped +/-10 ms via explicit signed wraparound write to t0_ns;
+  gated off while paused (pause_shift keeps v/a locked across resume -
+  no error spike by construction).
+- Diagnostics (additive): LEO_AV_DEBUG=1 -> 'is_player: av
+  min_queued=%ums err=%+dms' once per second.
+- Measured acceptance (real ALSA device, dummy video):
+  * Before/after LEO_IS_WAV vs pristine 42f3703 binary (kept as
+    /tmp/opencode/ll_cutscene_base): LOGO/INTRO_P/AUTORZY differ ONLY
+    by inserted zero runs at exactly the silent-chunk positions
+    (zero_diff.py: every content sample identical; insertions
+    3780/39375/1575 samples, ZERO deletions). Pre-existing wavs
+    byte-identical for content.
+  * Full INTRO_P with LEO_AV_DEBUG: 185 per-second samples,
+    min_queued min 152 ms avg 200 (accept >=60); err range [-42,+26]
+    mean -1.1 ms; first sample (-42 at the 1 s boundary) is the
+    device start-up transient, inside the +/-20 band by t~2 s; no
+    spike around the 1.8 s beat (max +21); 1521/1521 presented, no
+    desync. 46 ms default latency confirmed correct in steady state.
+  * Skip path WITH audio (--skip-at 10): identical skip decision both
+    binaries, skip-target frame PPM byte-identical; new wav is a
+    strict prefix of base + 3150 B extra lead, all of it discarded by
+    the existing audio clear -> no stale audio beyond the bounded lead.
+  * Pause/resume: correct by construction (device holds queue -> lead
+    intact; pause_shift offsets v/a together; correction gated off).
+    Interactive key-press check deferred to the handheld/C1 session.
+- Regression: full verify-all exit 0 (only by-design no-regression
+  SKIP; golden 98.4% unchanged); fixture-free sim exit 0, 22 named
+  SKIPs; verify-skip byte-exact frame unchanged (uses --no-audio =
+  legacy branch); spot legs verify/verify-sel/verify-menu green;
+  zero-warning native + .exe builds.
+- Method notes: (1) rebuilding while a background capture loop execs
+  ./ll_cutscene per movie MIXES binary versions mid-capture - capture
+  from a pinned binary copy (ll_cutscene_base pattern) or rebuild
+  before starting; (2) LEO_IS_WAV files are RAW s16 LE despite the
+  extension (ffplay -f s16le -ar 22050).
 ## Next — pick from the Deferred list below
 
 Nothing queued from the review's "worth fixing" set: all of it has

@@ -63,6 +63,11 @@ typedef struct {
     unsigned     last_region; /* ESC bytes seen in the current chunk */
     int          stereo;   /* movie channels (gcd of region sizes) */
     unsigned     bps;      /* audio bytes/s: 88200 stereo / 44100 mono */
+    unsigned     ci_audio;  /* FIX-08 (X-02): next chunk whose audio has
+                             * NOT been queued yet (look-ahead pointer) */
+    uint64_t     q_total;   /* FIX-08: bytes ever queued (live chunks) -
+                             * together with queued_bytes this is the
+                             * AUDIO position clock for drift correction */
 } player;
 
 /* LEO_IS_WAV dump file: opened on the first audio byte by enqueue_audio,
@@ -99,7 +104,9 @@ static void close_wav(void)
 static void enqueue_audio(void *u, const uint8_t *pcm, unsigned len)
 {
     player *p = (player *)u;
-    p->last_region += len;     /* chunk hold time = this region's audio (ns) */
+    /* FIX-08 (X-02): the hold-time accounting moved to count_region -
+     * this callback now ONLY feeds bytes (padding, coalescing, WAV dump,
+     * live gate), so queuing audio can be decoupled from presenting. */
     if (!p->audio || !p->live || len == 0)
         return;
     unsigned pad = p->stereo ? ((4u - (len & 3u)) & 3u) : (len & 1u);
@@ -131,6 +138,66 @@ static void flush_audio(player *p)
     if (p->audio && p->alen) {
         plat_audio_queue(p->ascratch, p->alen);
         p->alen = 0;
+    }
+}
+
+/* FIX-08 (X-02) split half of the old enqueue_audio: ONLY counts the
+ * chunk's ESC region size, which is what sets its presentation hold
+ * (hold = last_region / bps). Runs per chunk at present time; feeding
+ * bytes is enqueue_audio's job now, which runs on the look-ahead. */
+static void count_region(void *u, const uint8_t *pcm, unsigned len)
+{
+    (void)pcm;
+    ((player *)u)->last_region += len;
+}
+
+/* FIX-08 (X-02): keep >= 150 ms (~3 device periods at 46 ms) of audio
+ * queued ahead of the video position. SDL pulls one period per callback;
+ * with only the current chunk queued (lead = one chunk hold, 14-157 ms)
+ * a scheduling hiccup drains the queue, SDL plays silence and audio
+ * permanently lags video. Audio and video still decode ONE pass in
+ * chunk order - every live chunk's bytes are queued exactly once, in
+ * order - so the LEO_IS_WAV dump is byte-for-byte what it was. */
+#define AUDIO_LEAD_NS 150000000ull
+
+static void queue_ahead(player *p, unsigned ci)
+{
+    /* never queue before live (start_frame gating needs the decoded frame
+     * count), never in legacy period modes, never past the end. The
+     * CURRENT chunk ci is always topped up first (ci_audio == ci), so a
+     * present deadline always finds its own audio queued. */
+    if (!p->audio || p->period || !p->live)
+        return;
+    if (p->ci_audio < ci)
+        p->ci_audio = ci;                /* first live chunk */
+    while (p->ci_audio < p->is.nchunks) {
+        uint64_t queued_ns = (uint64_t)plat_audio_queued_bytes()
+                             * 1000000000ull / p->bps;
+        if (p->ci_audio > ci && queued_ns >= AUDIO_LEAD_NS)
+            break;
+        unsigned before = p->alen;       /* matches player.alen (unsigned) */
+        is_walk_audio_range(&p->is, p->ci_audio, 1, enqueue_audio, p);
+        if (p->alen == before) {
+            /* Silent chunk (no ESC regions): the video hold is repeat
+             * ticks at 70 Hz (see is_player_run below) - the ORIGINAL
+             * keeps the DMA ticking with silence for exactly that long.
+             * Queue the same duration of silence here so the audio
+             * position clock tracks the video schedule; without it the
+             * drift correction would compress video after long pauses. */
+            unsigned rep = p->is.st.repeat ? p->is.st.repeat
+                              : (unsigned)(p->is.fps > 0 ? p->is.fps : 2);
+            uint64_t sil_bytes = (uint64_t)rep * p->bps / 70ull;
+            static const uint8_t zeros[1260];   /* one DMA block */
+            while (sil_bytes >= sizeof zeros) {
+                enqueue_audio(p, zeros, (unsigned)sizeof zeros);
+                sil_bytes -= sizeof zeros;
+            }
+            if (sil_bytes)
+                enqueue_audio(p, zeros, (unsigned)sil_bytes);
+        }
+        p->q_total += p->alen - before;
+        flush_audio(p);                  /* one queue call per chunk */
+        p->ci_audio++;
     }
 }
 
@@ -203,8 +270,9 @@ static void pump_input(player *p)
 
 /* fixed-timestep wait until absolute frame deadline (ns, on the t0_ns
  * schedule), drift-clamped; a pause offsets the deadline with the paused
- * time instead of rewinding the schedule (P-02) */
-static void wait_until(player *p, uint64_t deadline_ns)
+ * time instead of rewinding the schedule (P-02). ci = the chunk about to
+ * be presented: its look-ahead audio is topped up while waiting (FIX-08). */
+static void wait_until(player *p, uint64_t deadline_ns, unsigned ci)
 {
     static const uint64_t SLACK = 2000000ull; /* 2 ms: spin-wait instead */
     for (;;) {
@@ -221,6 +289,10 @@ static void wait_until(player *p, uint64_t deadline_ns)
         else
             plat_sleep_until(eff);
         pump_input(p);
+        if (!p->pause_at)
+            queue_ahead(p, ci);  /* FIX-08: keep the lead >= AUDIO_LEAD_NS
+                                  * across the whole wait; skipped while
+                                  * paused (device held, nothing drains) */
         if (p->quit || p->skip)
             return;
     }
@@ -372,6 +444,19 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     p.start_frame = start_frame;
     p.t0_ns = now_ns();             /* the ONE clock anchor (P-02) */
     uint64_t sched_ns = 0;          /* this chunk's presentation deadline */
+    /* FIX-08 (X-02) tuning + diagnostics (additive hooks):
+     * LEO_AV_LATENCY_MS overrides the nominal output latency subtracted in
+     * the A/V comparison (default 46 ms = one device period at 22050 Hz,
+     * samples=0); LEO_AV_DEBUG=1 prints 'is_player: av ...' once a second. */
+    const int av_debug = getenv("LEO_AV_DEBUG") != NULL;
+    uint64_t av_latency_ns = 46000000ull;
+    {
+        const char *alm = getenv("LEO_AV_LATENCY_MS");
+        if (alm && atof(alm) > 0.0)
+            av_latency_ns = (uint64_t)(atof(alm) * 1000000.0);
+    }
+    uint64_t av_next_ns = p.t0_ns + 1000000000ull; /* first second boundary */
+    unsigned  av_minq_ms = (unsigned)-1;
 
     for (unsigned ci = 0; ci < p.is.nchunks && !p.quit; ci++) {
         if (p.skip_at && p.presented >= p.skip_at) {
@@ -387,6 +472,7 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
              * frame - looks like a real skip, never a frozen mid-frame */
             plat_audio_clear();
             p.alen = 0; /* drop un-flushed coalesced audio too */
+            p.ci_audio = p.is.nchunks;  /* FIX-08: nothing more to queue */
             printf("is_player: ESC at frame %u -> skipping %u chunks\n",
                    p.presented, p.is.nchunks - ci);
             {
@@ -425,11 +511,17 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
          * only their presentation and audio are suppressed */
         p.live = p.is.st.frames + 1 > start_frame;
         p.last_region = 0;
-        is_walk_audio_range(&p.is, ci, 1, enqueue_audio, &p);
-        flush_audio(&p); /* one queue call per chunk (gapless) */
+        is_walk_audio_range(&p.is, ci, 1, count_region, &p);  /* hold time */
+        if (p.period || !p.audio) {
+            /* legacy/no-audio path: queue exactly this chunk, as before */
+            is_walk_audio_range(&p.is, ci, 1, enqueue_audio, &p);
+            flush_audio(&p);
+        } else {
+            queue_ahead(&p, ci);           /* FIX-08: look-ahead queue */
+        }
         if (p.live)
-            wait_until(&p, p.t0_ns + sched_ns); /* this chunk's presentation
-                                                   deadline */
+            wait_until(&p, p.t0_ns + sched_ns, ci); /* this chunk's presentation
+                                                       deadline */
         if (p.quit || p.skip)
             continue;
         is_decode_chunk(&p.is, ci, on_frame, &p, NULL);
@@ -455,6 +547,41 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
              * wall time: the clock anchors at the first live frame, as the
              * old per-frame model did */
             sched_ns += hold;
+            if (p.audio && !p.period && !p.pause_at && p.q_total) {
+                /* FIX-08 (X-02): audio position = bytes the device has
+                 * ALREADY consumed. A device underrun STALLS that count,
+                 * so video waits for audio instead of drifting ahead of a
+                 * gap permanently. Correct half the error per chunk, at
+                 * most 10 ms, so the motion stays smooth. */
+                size_t q_bytes = plat_audio_queued_bytes();
+                uint64_t played = p.q_total - (uint64_t)q_bytes;
+                int64_t a_ns = (int64_t)(played * 1000000000ull / p.bps);
+                uint64_t nown = now_ns();
+                int64_t v_ns = (int64_t)(nown - p.t0_ns - p.pause_shift);
+                int64_t err = v_ns - a_ns - (int64_t)av_latency_ns;
+                                            /* >0: video ahead of audio */
+                if (err > 20000000 || err < -20000000) {
+                    int64_t c = err / 2;
+                    if (c > 10000000)
+                        c = 10000000;
+                    if (c < -10000000)
+                        c = -10000000;
+                    /* t0_ns is uint64: the shift is written explicitly
+                     * as signed wraparound, not an unsigned += */
+                    p.t0_ns = (uint64_t)((int64_t)p.t0_ns + c);
+                }
+                if (av_debug) {
+                    unsigned q_ms = (unsigned)(q_bytes * 1000ull / p.bps);
+                    if (q_ms < av_minq_ms)
+                        av_minq_ms = q_ms;
+                    if (nown >= av_next_ns) {
+                        printf("is_player: av min_queued=%ums err=%+dms\n",
+                               av_minq_ms, (int)(err / 1000000));
+                        av_minq_ms = q_ms;
+                        av_next_ns = nown + 1000000000ull;
+                    }
+                }
+            }
             /* drift clamp: >2 holds late (debugger, compose stall) =
              * resync the anchor instead of trying to catch up */
             uint64_t now = now_ns();
