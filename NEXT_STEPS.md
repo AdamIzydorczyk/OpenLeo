@@ -1619,6 +1619,9 @@ Verification: full make -k verify-all with data rc=0 (all legs ok,
 verify-menu + verify-golden green incl. the mingw/wine halves);
 fixture-free make -k verify-all rc=0 with the named SKIPs; gcc +
 vendored llvm-mingw builds warning-free.
+ - PR-40 pushed f6fec38; CI run 43763544035: linux + asan green on
+   the first pass, windows-smoke hit the known flake (fixture-only
+   leg, passed unchanged on rerun --failed). CLOSED.
 Open from the same report, NOT actionable yet: "same issue is in
 movies" needs a concrete repro (which movie, which transition, what
 the artifact looks like) - the .IS decoder is golden-pinned byte-exact
