@@ -1138,7 +1138,7 @@ ll_view/ll_audio as backend-private helpers).
   awaiting confirmation/rollback call.
 ## Presentations — C1 / C2 / C3 (owner decisions, end of series 2026-11-15)
 
-### C1 — FIX-09 Part 2: one audio device for the session (X-10 half) - RULED: measure then implement; measure BLOCKED (handheld asleep) -> implemented PR-34; owner ear check "identical" -> alsa pin retired PR-35; measurement still staged
+### C1 — FIX-09 Part 2: one audio device for the session (X-10 half) - DONE end-to-end: implemented PR-34, owner ear check "identical" -> alsa pin retired PR-35, handheld measurement CONFIRMED 2->1 on wasapi (native 48k answer)
 - Question: keep the PR-12/P-03 design (device opened per playback, closed
   at scene end) or open ONE device for the process (spec Part 2; opens at
   the device's native rate, engine resamples).
@@ -1256,6 +1256,17 @@ ll_view/ll_audio as backend-private helpers).
   2->1: /tmp/opencode/cmwin_before vs /tmp/opencode/cmwin, one
   power-button press away) and the optional LEO_KEEP_PIPEWIRE ear check
   for pin removal. SERIES PR-25..34 COMPLETE.
+- HANDHELD MEASUREMENT DONE 2026-11-15 (ADAM-HANDHELD, wasapi, real
+  device, two-movie chain LOGO+PRAWA, same staged binaries):
+  BEFORE build = 2 device opens ('S16LSB 22050Hz 2ch' then '...1ch',
+  one per scene - the pop source confirmed on real hardware);
+  AFTER build = 1 device open ('S16LSB 48000Hz 2ch 4096' - WASAPI
+  answered its NATIVE rate exactly as Part 2 predicted), both scenes
+  played clean (125+142 frames). A/V on WASAPI: after worst
+  min_queued=72ms (floor 60 OK), worst |err|=40ms (at the acceptance
+  bound; first real-device note about the 46ms latency estimate under
+  a 4096-sample device - watch if anyone ever reports drift). C1 FULLY
+  CONFIRMED ON THE ORIGIN'S HARDWARE.
 
 ## PR-35 — FIX-09 tail: retire the automatic alsa pin (DONE 2026-11-15)
 
