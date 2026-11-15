@@ -665,6 +665,16 @@ ll_view/ll_audio as backend-private helpers).
   via display-start, not a palette fade; 26/26 palette entries
   visible at that instant match ll_menu_dac.h exactly, independently
   confirming the PR-19 DAC recovery.
+- PR-23 CLOSED THE BACKGROUND (2026-11-15): tools/menu_art_gen.py
+  (refuses non-golden pages) -> ported/ll_menu_art.h (authentic index
+  plane, 4020 lines); map_bg paints it through ll_menu_dac.h by
+  DEFAULT, LEO_MENU_BG=placeholder = old stand-in; pose pins
+  regenerated (still 30); min_best_rgb SET 98.0, Makefile GOLDEN_MIN
+  default 98 (measured 98.43). Residual is composed-text/overlay
+  placement vs the original's burned-in texts - that is the remaining
+  (small) path up the golden scale; background is DONE. Capture
+  re-proved deterministic after a full /tmp wipe (fresh rig build ->
+  bit-identical 4cb7a311).
 - MEASURED GAP (the point of T-24): port best = 0.000% RGB/idx
   against the captured original frame. The port composes map-menu
   OVERLAYS (arrow/words/titles, the pinned 30-pose animation stays

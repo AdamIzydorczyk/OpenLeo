@@ -10,6 +10,7 @@
 #include "ll_menu.h"
 #include "fs_ci.h"
 #include "ll_menu_dac.h"
+#include "ll_menu_art.h"
 #include "ll_pcx.h"
 #include "ll_seq.h"
 #include "ll_level.h"
@@ -834,6 +835,18 @@ static uint32_t menu_lut(int i)
 /* bg on the logical canvas; chs anchors are 640-space, halved here */
 static void map_bg(uint32_t *fb, const ll_menu_ch *chs, int nchs)
 {
+    /* The ORIGINAL's map background is the static landscape captured by
+     * the T-24 golden master (ll_menu_art.h: authentic index bytes,
+     * colored through ll_menu_dac.h - same index space as the .SEQ
+     * overlays). The art exists in no data container (PLAN S8b + asset
+     * hunt round 2), so these recovered bytes ARE the record.
+     * LEO_MENU_BG=placeholder selects the procedural stand-in below. */
+    const char *bgmode = getenv("LEO_MENU_BG");
+    if (!bgmode || strcmp(bgmode, "placeholder") != 0) {
+        for (int i = 0; i < MAP_LW * MAP_LH; i++)
+            fb[i] = ll_menu_dac[ll_menu_art[i]];
+        return;
+    }
     /* Placeholder for the globe+islands art (a CD data hole, PLAN 8b),
      * but using the REAL menu DAC tones recovered from the original
      * (ll_menu_dac.h): deep sea idx102 -> sea idx46 gradient, sea-blue

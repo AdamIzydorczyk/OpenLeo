@@ -341,8 +341,20 @@ frames; a hit = zero index-pair collisions, i.e. same picture under
 any re-palette) - best collision 0.55 (LOGO f107) = far from a
 match; combined with the verbatim byte-grep 0-hits (still valid, it
 used the right page) the art is NOT in any container: runtime-
-synthesized or lost. The port path is documented reconstruction
-scored against golden.* bytes, not asset decode.
+synthesized or lost. DECISION (2026-11-15, user-approved): embed the
+recovered picture as generated source - tools/menu_art_gen.py turns a
+--want-art capture into ported/ll_menu_art.h (authentic index plane,
+integrity-checked against the pinned idx sha), and map_bg() paints it
+through ll_menu_dac.h by DEFAULT (LEO_MENU_BG=placeholder selects the
+old procedural stand-in). MEASURED: port best vs the ORIGINAL art
+frame went 0.43% -> 98.43% RGB/idx, off-palette px 0. The residual
+~1.6% is COMPOSITION, not background: the original's page has its
+corner words/titles burned into the static frame at placements that
+differ from the port's .SEQ overlays and text draws; raising the
+score means matching those, not more art work. The runtime-
+synthesizer RE (iNFOSTREAM module / MENU.MNU) stays a deferred
+deep-dive. The capture pipeline re-proved bit-stable after a full
+host restart (2026-11-15: fresh rig build -> identical 4cb7a311).
 
 **Chapter launch chain, full-res (2026-11-14 hunt10, 449 frames @ ~2 Hz
 after `down` on the map menu):** chapter .IS conversation cutscenes

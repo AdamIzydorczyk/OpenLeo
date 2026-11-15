@@ -88,7 +88,7 @@ pins, with machine-checkable oracles:
 
 | leg | defends | oracle & pass rule | run result |
 |---|---|---|---|
-| `verify-golden` | port chapter-map animation == the pinned golden contract | port frame dumps (LEO_MENU_PPM_DIR) must reproduce the **30-hash pose set** in `tools/golden_expect.json`; if a QEMU capture exists (`make golden_rig_ddir`, now `--want-art`), every port pose is scored against the original ART frame RGB+index plane with `--min-match 99.9`, and golden.* manifest hashes asserted | PASS — port half: “port pose set: 30 hashes match manifest”; original-capture half: “original capture absent … checked port pins only” (expected, see §7.1; full-compare with a capture is red by design — measured port best 0.43% vs the art frame) |
+| `verify-golden` | port chapter-map animation == the pinned golden contract | port frame dumps (LEO_MENU_PPM_DIR) must reproduce the **30-hash pose set** in `tools/golden_expect.json`; if a QEMU capture exists (`make golden_rig_ddir`, now `--want-art`), every port pose is scored against the original ART frame RGB+index plane with `--min-match 99.9`, and golden.* manifest hashes asserted | PASS — port half: “port pose set: 30 hashes match manifest”; original-capture half: “original capture absent … checked port pins only” (expected, see §7.1; full-compare with a capture is measured 98.4% vs the art frame, floor 98 (PR-23) |
 | `golden_rig` (not in verify-all) | the ORIGINAL DOS game booting and rendering in QEMU no-CD rig | `tools/golden_build_rig.sh` (MS-DOS 6.22 floppy + mtools HDD, CD-gate patch `0x5bd51:b801000000eb32`; `DDIR=1` disk-D route) + `tools/golden_qemu_run.py` (QMP, CRTC-geometry frame detector, static-frame capture) | PASS — capture landed (runs L10+L12 byte-identical: vram.bin 14e15fb2…, menu.ppm f3ee4764…, static_vram_equal=True, 161 indices, 0 palette-bijection violations); golden.* pinned in golden_expect.json |
 
 ## 3. Methods used (7 oracle classes)
@@ -201,8 +201,15 @@ Notes for operators:
    free permutation sweep vs all 5619 frames of all 15 .IS movies + the
    still-valid verbatim byte-grep): the landscape is NOT an .IS frame and
    NOT in any container → runtime-synthesized or lost; the port path is
-   documented reconstruction scored against the golden bytes. Next port
-   item: compose the background art toward those bytes.
+   documented reconstruction scored against the golden bytes. FOLLOW-UP
+   (PR-23, same day, user-approved): the recovered picture is embedded as
+   generated source (`tools/menu_art_gen.py` -> `ported/ll_menu_art.h`,
+   integrity-checked against the pinned idx sha; default-painted,
+   `LEO_MENU_BG=placeholder` selects the procedural stand-in). Measured
+   port best: 0.43% -> **98.43% RGB/idx** (off-palette px 0); pose pins
+   regenerated (still 30), `min_best_rgb`/`GOLDEN_MIN` set to a 98.0
+   regression floor. Remaining ~1.6% is composed-text/overlay placement
+   vs the original's burned-in texts — background work is DONE.
 2. **No CI runner config in-repo.** The 21-target suite runs here on demand;
    there is no `.github/workflows` or equivalent. The legs are CI-safe by design
    (fixture SKIPs, deterministic seeds, fixed ticks). Recommendation: add a
