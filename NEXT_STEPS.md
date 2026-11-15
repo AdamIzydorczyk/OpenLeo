@@ -1210,11 +1210,6 @@ ll_view/ll_audio as backend-private helpers).
   build; first verify-all run had one self-inflicted failure (my own wine
   A/B run shared WINEPREFIX concurrently with the suite - lesson: never
   run wine while verify legs are using the prefix).
-- PR-33 pushed 61a00ee; CI green run 43741448274 (all 3 jobs). CLOSED.- Full suites: clean verify-all (with fixtures) ALL TESTS PASSED; fixture-free
-  sim exit 0 (22 named SKIPs); zero-warning on the vendored llvm-mingw
-  build; first verify-all run had one self-inflicted failure (my own wine
-  A/B run shared WINEPREFIX concurrently with the suite - lesson: never
-  run wine while verify legs are using the prefix).
 - PR-33 pushed 61a00ee; CI green run 43741448274 (all 3 jobs). CLOSED.
 
 ## PR-34 — C1: FIX-09 Part 2, one audio device for the session (DONE 2026-11-15)
@@ -1284,6 +1279,11 @@ ll_view/ll_audio as backend-private helpers).
 - The FIX-09 story is now fully closed: Part 1 (PR-30) + Part 2
   (PR-34) + pin retirement (PR-35). Only the staged handheld
   device-count measurement (2->1) remains as confirmation, not code.
+- PR-35 pushed 6177637; CI run 43743655530: windows-smoke failed on
+  the known transient dummy-backend clock flake ('sleep_until honors
+  the deadline (>=20ms) FAILED' on a loaded runner - code untouched by
+  this PR, passed on identical earlier runs; asan+linux green). Rerun
+  of the failed job: success. CLOSED.
 
 ## Next — pick from the Deferred list below
 
