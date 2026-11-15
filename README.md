@@ -107,7 +107,10 @@ make verify-all
 CI hooks used by verify-menu (env): `LEO_DEMO_SKIP_FRAMES` (auto-skip demo
 scenes), `LEO_SKIP_USER=1` (auto-skip reported as a user ESC skip),
 `LEO_MENU_AUTO=N` (auto-pick menu item), `LEO_LEVEL_SECS` (intro hold),
-`LEO_MENU_KEY=<char>` (auto-press a map corner: r = restart dialog),
+`LEO_MENU_KEY=<char>` (auto-press a map corner: r = restart dialog;
+`corner` = feed real Down keys + Enter through the map key handler,
+walking every chapter pose then activating RESTART — verifies the
+keyboard-only arrow/corner cycle headlessly),
 `LEO_MENU_SEL=i` (pre-select answer zone i, highlight only),
 `LEO_MENU_PPM=PATH` + `LEO_MENU_PPM_TICK=N` (dump the composed 320x200
 frame), `LEO_MENU_PPM_DIR=DIR` + `LEO_MENU_PPM_MAX=N` (dump every composed

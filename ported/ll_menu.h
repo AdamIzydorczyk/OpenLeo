@@ -39,12 +39,13 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
                  const ll_menu_anim *anims, int nanims);
 
 /* Hot-zone answer buttons (restart-confirm dialog): a zone is bound to
- * an anim tag; clicking the sprite's painted rect (canvas px, union over
- * frames) or pressing `key` (printable key, ASCII code, 0 = none) returns
- * `ret`
- * (negative, e.g. -10/-11/-12) instead of an item index.  The original
- * hit-testing came from the missing .MNU scripts, so these rects are the
- * sprite bboxes at the authored origins (reconstruction, PLAN 8b).
+ * an anim tag; pressing `key` (printable key, ASCII code, 0 = none)
+ * returns `ret` (negative, e.g. -10/-11/-12) instead of an item index.
+ * Input is keyboard-only (owner directive 2026-11-15); the zone rects
+ * stay as the drawn-extent bounds used for
+ * the selection underline (the original hit-testing came from the
+ * missing .MNU scripts; the rects are the sprite bboxes at the authored
+ * origins, reconstruction, PLAN 8b).
  * Keyboard selection (round 5): LEFT/RIGHT cycle EVERYTHING pickable -
  * answer zones first (in caller order, restart passes TAK, CNIE, X),
  * then the list rows; UP/DOWN ride the same cycle (the words sit side
@@ -52,7 +53,9 @@ int ll_menu_open(const unsigned char *bg_pcx, unsigned bg_len,
  * selected word gets a solid bright underline UNDER the sprite (mouse
  * hover: dim 1-px underline; boxes over the words covered them), rows
  * get the '>' marker; Enter/Space confirms the highlighted entry (Esc =
- * cancel, returns -1, E-06), t/n/x remain direct zone shortcuts.
+ * cancel, returns -1, E-06), t/n/x remain direct zone shortcuts. (The
+ * former mouse hover underline and row/zone clicks were removed
+ * 2026-11-15: keyboard-only, owner directive.)
  * Round 6 (user request: "TAK (YES) should be bright green on select, as
  * NIE (NO) by default"): the selected word is ALSO re-tinted along the
  * background palette's green ramp - its own sprite indices are blitted
@@ -98,15 +101,29 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
  * the visible double text; the word .SEQ files are button plates that
  * never appear on the map).  chs[] gives each chapter's title + island
  * anchor (640x400 coords); more than 6 chapters wrap onto extra anchor
- * rings.  anims = .SEQ overlays (the BERLO arrow cycles on its
- * period_ms).  Returns selected chapter index, -2 = wyjście/Esc,
- * -3 = LEO_MENU_SECS deadline (CI hook), -4/-5/-6 = the autorzy/opcje/
- * restart corner words (a/o/r keys). */
+ * rings.  A chapter MAY carry its real cursive title image: seq/
+ * seq_len = a raw ANIMACJE/MENU/LEVELxx.SEQ payload (owner-mapped to
+ * the chapter 2026-11-15; the original MENU.mnu binding is a CD data
+ * hole).  Then the map composites ALL its elements at their authored
+ * (-f0,-f2) positions instead of font-drawing the title; seq=NULL or
+ * an unparseable blob keeps the font-text fallback (RAN.01/JUNCTION
+ * have no image; dataless mode always falls back).
+ * anims = .SEQ overlays (the BERLO arrow cycles on its
+ * period_ms).  Keyboard input ONLY: arrows cycle chapters then the
+ * four corner words (WYJSCIE/RESTART/OPCJE/AUTORZY, marked by a
+ * bright bar at their recovered bbox - the corner words themselves
+ * are the ORIGINAL cursive text layer recovered from the captured
+ * menu VRAM, ll_menu_text.h), Enter/Space activates, a/o/r stay
+ * direct corner shortcuts.  Returns selected chapter index,
+ * -2 = wyjście/Esc, -3 = LEO_MENU_SECS deadline (CI hook),
+ * -4/-5/-6 = the autorzy/opcje/restart corner words. */
 typedef struct {
     const char *title;
     int ix, iy;              /* island centre the arrow points at */
     int rw, rh;              /* island half-extent in 640x400 px
                               * (0 = placeholder default 60/26) */
+    const unsigned char *seq; /* title image .SEQ payload or NULL */
+    unsigned seq_len;
 } ll_menu_ch;
 int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                      const ll_menu_anim *anims, int nanims,

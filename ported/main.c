@@ -409,17 +409,56 @@ static void run_menu(const char *data, int audio)
                     keep[m++] = i;
             n = m;
             if (n > 0) {
+                /* Owner-given chapter -> cursive title image mapping
+                 * (name readings supplied 2026-11-15; the original's
+                 * MENU.mnu binding is a CD data hole, PLAN 8b). The
+                 * data carries 11 title images; chapters without one
+                 * (RAN.01, JUNCTION) keep the font-text fallback. */
+                static const struct { const char *chapter, *rec; }
+                    ch_title[] = {
+                        { "ZARIA.01",  "LEVEL01.SEQ" },
+                        { "ZARIA.02",  "LEVEL02.SEQ" },
+                        { "SADES.06",  "LEVEL03.SEQ" },
+                        { "KADMAR.07", "LEVEL04.SEQ" },
+                        { "KADMAR2",   "LEVEL05.SEQ" },
+                        { "ENA.03",    "LEVEL06.SEQ" },
+                        { "ENA2",      "LEVEL07.SEQ" },
+                        { "LONA.05",   "LEVEL08.SEQ" },
+                        { "KARA.07",   "LEVEL09.SEQ" },
+                        { "TUNGA.11",  "LEVEL10.SEQ" },
+                        { "TUNGA2.12", "LEVEL11.SEQ" },
+                    };
+                unsigned char *tload[32];
+                int ntload = 0;
                 for (int i = 0; i < n; i++) {
                     chs[i].title = names[keep[i]];
                     chs[i].ix = anch[i % 6][0];
                     chs[i].iy = anch[i % 6][1];
                     chs[i].rw = anch[i % 6][2];
                     chs[i].rh = anch[i % 6][3];
+                    chs[i].seq = NULL;
+                    chs[i].seq_len = 0;
+                    for (unsigned k = 0;
+                         k < sizeof ch_title / sizeof *ch_title; k++)
+                        if (!strcasecmp(chs[i].title,
+                                        ch_title[k].chapter)) {
+                            unsigned l = 0;
+                            unsigned char *b =
+                                menu_record(data, ch_title[k].rec, &l);
+                            if (b && l) {
+                                chs[i].seq = b;
+                                chs[i].seq_len = l;
+                                tload[ntload++] = b;
+                            }
+                            break;
+                        }
                 }
-                printf("map: %d chapters, arrow starts on island 0\n", n);
-                printf("map: click = activate (island launches, corner "
-                       "acts); arrows + Enter/Space chapter; a/o/r corner "
-                       "keys; q/Esc quit\n");
+                printf("map: %d chapters, %d cursive title images loaded "
+                       "(owner mapping; rest font fallback), arrow starts "
+                       "on island 0\n", n, ntload);
+                printf("map: keyboard only - arrows cycle chapters + "
+                       "corner words, Enter/Space activates, a/o/r "
+                       "corner shortcuts, q/Esc quit\n");
                 ll_menu_anim m2[1];
                 int m2n = 0;
                 for (int i = 0; i < nanim; i++)
@@ -433,6 +472,8 @@ static void run_menu(const char *data, int audio)
                 unsigned char *back = menu_back(data, &blen);
                 sel = ll_menu_map_open(chs, n, m2, m2n, back, blen);
                 free(back);
+                for (int i = 0; i < ntload; i++)
+                    free(tload[i]);
             } else {
                 fprintf(stderr, "map: no chapters in %s/ETAPY, "
                         "falling back to list menu\n", data);

@@ -2,15 +2,17 @@
  * LUT, .SEQ sprite overlays, 8x8 bitmap font, cursor '>') into one
  * ARGB8888 buffer and hands it to the platform (platform.h, T-01):
  * plat_present_argb uploads exactly those pixels, unchanged. Input
- * arrives as ll_events - keys verbatim ASCII / LLKEY_*, mouse in
- * logical canvas coords (the P-10 /sc math stays deleted). This file
- * contains no SDL.
+ * arrives as ll_events; the menu and the chapter map are KEYBOARD-ONLY
+ * (owner directive 2026-11-15: "berlo should be controlled only by
+ * keyboard, clicking not necessary") - mouse/pointer events are ignored.
+ * This file contains no SDL.
  * Fixed pacing: event-driven with the platform sleep, no busy loop.
  * See ll_menu.h. */
 #include "ll_menu.h"
 #include "fs_ci.h"
 #include "ll_menu_dac.h"
 #include "ll_menu_art.h"
+#include "ll_menu_text.h"
 #include "ll_pcx.h"
 #include "ll_seq.h"
 #include "ll_level.h"
@@ -144,18 +146,7 @@ static void draw_text(uint32_t *fb, int w, int h, int x, int y, const char *s,
         draw_glyph(fb, w, h, x, y, *s, col);
 }
 
-/* 1-px outline (hover highlight on map zones/islands/corners) */
-static void draw_rect(uint32_t *fb, int w, int h, int x0, int y0, int x1,
-                      int y1, uint32_t col)
-{
-    for (int x = x0; x < x1; x++)
-        for (int y = y0; y < y1; y++)
-            if (x >= 0 && x < w && y >= 0 && y < h &&
-                (y == y0 || y == y1 - 1 || x == x0 || x == x1 - 1))
-                fb[(size_t)y * w + x] = col;
-}
-
-/* solid horizontal line (answer-word selection/hover underline: a box
+/* solid horizontal line (answer-word selection underline: a box
  * over the cursive words covered them, an under-line never does) */
 static void draw_hline(uint32_t *fb, int w, int h, int x0, int x1, int y,
                        uint32_t col)
@@ -423,7 +414,6 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
     }
 
     int sel = 0, quit = 0, ret = -1;
-    int hov_z = -1, hov_r = -1;    /* hover indicators (mouse motion)     */
     int zsel = -1;      /* keyboard-selected answer zone (-1 = list row) */
     unsigned tick = 0;   /* fixed 30 ms redraw ticks drive anim frames */
 
@@ -616,12 +606,11 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         if (top + list_rows < nitems)
             draw_text(fb, W, H, x0, y0 + 12 * list_rows - 2, "v",
                       0xFFAAAAAAu);
-        if (hov_r >= 0)            /* row hover: marker even without click */
-            draw_text(fb, W, H, x0 - 12, y0 + 12 * hov_r, ">",
-                      0xFFFFFF00u);
         /* answer-word indicators UNDER the cursive words (round 4's
          * outline boxes covered them): keyboard selection = solid bright
-         * 2-px underline, mouse hover = dim 1-px underline */
+         * 2-px underline. The menu is keyboard-only (owner directive
+         * 2026-11-15: "berlo should be controlled only by keyboard,
+         * clicking not necessary") - no mouse hover state exists. */
         for (int zi = 0; zi < nz; zi++) {
             if (zrect[zi][2] <= zrect[zi][0])
                 continue;
@@ -629,9 +618,6 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                 for (int t = 0; t < 2; t++)
                     draw_hline(fb, W, H, zrect[zi][0], zrect[zi][2],
                                zrect[zi][3] + 1 + t, 0xFFFFFF00u);
-            else if (zi == hov_z)
-                draw_hline(fb, W, H, zrect[zi][0], zrect[zi][2],
-                           zrect[zi][3] + 1, 0xFFB08000u);
         }
 
         {
@@ -665,49 +651,11 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                 if (e.type == LL_EV_QUIT) {
                     quit = 1;
                     ret = -2;
-                } else if (e.type == LL_EV_BUTTON_DOWN) {
-                    /* logical viewport: the platform already maps window
-                     * pixels to canvas coords (P-10; the old /sc is gone);
-                     * only the left button is surfaced (LLBTN_LEFT) */
-                    int mx = e.x, my = e.y;
-                    for (int j = 0; j < list_rows; j++) {
-                        int ry = y0 + 12 * j;
-                        if (my >= ry - 2 && my < ry + 10 && mx >= x0 - 14) {
-                            ret = top + j;
-                            quit = 1;
-                            break;
-                        }
-                    }
-                    if (!quit)
-                        for (int zi = 0; zi < nz; zi++)
-                            if (zrect[zi][2] > zrect[zi][0] &&
-                                mx >= zrect[zi][0] && mx < zrect[zi][2] &&
-                                my >= zrect[zi][1] && my < zrect[zi][3]) {
-                                printf("menu: click zone %s\n",
-                                       zones[zi].tag);
-                                ret = zones[zi].ret;
-                                quit = 1;
-                                break;
-                            }
-                } else if (e.type == LL_EV_MOTION) {
-                    int mx = e.x, my = e.y; /* logical coords */
-                    hov_r = -1;
-                    for (int j = 0; j < list_rows; j++) {
-                        int ry = y0 + 12 * j;
-                        if (my >= ry - 2 && my < ry + 10 && mx >= x0 - 14) {
-                            hov_r = j;
-                            break;
-                        }
-                    }
-                    hov_z = -1;
-                    for (int zi = 0; zi < nz; zi++)
-                        if (zrect[zi][2] > zrect[zi][0] &&
-                            mx >= zrect[zi][0] && mx < zrect[zi][2] &&
-                            my >= zrect[zi][1] && my < zrect[zi][3]) {
-                            hov_z = zi;
-                            break;
-                        }
                 } else if (e.type == LL_EV_KEYDOWN) {
+                    /* Keyboard-only input (owner directive 2026-11-15):
+                     * BUTTON_DOWN/MOTION handling was removed from this
+                     * loop - list rows and answer zones act via keys
+                     * only (zone keys, arrow cycle + Enter above). */
                     int k = e.key;      /* ASCII verbatim or LLKEY_* */
                     /* FIX-03 (X-04): arrow auto-repeat stays (cycling
                      * the highlight while held is the wanted feel);
@@ -829,14 +777,6 @@ static void draw_text1(uint32_t *fb, int x, int y, const char *s, uint32_t col)
         draw_glyph1(fb, x, y, *s, col);
 }
 
-static void draw_text1_r(uint32_t *fb, int xr, int y, const char *s, uint32_t col)
-{
-    int n = 0;
-    for (const char *p = s; *p; p++)
-        n++;
-    draw_text1(fb, xr - 8 * n, y, s, col);
-}
-
 static uint32_t menu_lut(int i)
 {
     /* Real menu DAC recovered from the original's VGA state (capture +
@@ -932,6 +872,64 @@ static int map_bg(uint32_t *fb, const ll_menu_ch *chs, int nchs,
     return 0;
 }
 
+/* Map keyboard handler (shared by the event loop and the LEO_MENU_KEY
+ * CI hook, so the arrow cycle + corner activation is exercised headless
+ * exactly as a user drives it). Keyboard-only input (owner directive
+ * 2026-11-15: "berlo should be controlled only by keyboard, clicking
+ * not necessary"): the map's BUTTON_DOWN corner/island click handling
+ * and MOTION hover feedback were removed. Arrows + Enter/Space act on
+ * chapters AND corner words (cycle below); a/o/r stay direct corner
+ * shortcuts; q/Esc quit. */
+static void map_key(int k, int repeat, int nchs, int *sel, int *cor,
+                    int *quit, int *ret)
+{
+    if (k == LLKEY_UP || k == LLKEY_LEFT
+        || k == LLKEY_DOWN || k == LLKEY_RIGHT) {
+        /* The arrow cycle walks all chapters, then the FOUR CORNER
+         * WORDS (owner 2026-11-15: corners must be reachable by
+         * keyboard too), clockwise from top-left: WYJSCIE, RESTART,
+         * OPCJE, AUTORZY. Auto-repeat stays enabled (FIX-03). */
+        int ntot = nchs + 4;
+        int pos = *cor < 0 ? *sel : nchs + *cor;
+        pos += (k == LLKEY_DOWN || k == LLKEY_RIGHT) ? 1 : ntot - 1;
+        pos %= ntot;
+        if (pos < nchs) { *sel = pos; *cor = -1; }
+        else *cor = pos - nchs;
+    } else if (repeat)
+        return;             /* FIX-03 (X-04): chapter cycling keeps
+                             * auto-repeat; confirm/select and letter
+                             * picks act on first press only (holding
+                             * Enter must not fall through the menu) */
+    else if (k == LLKEY_RETURN || k == ' ') {
+        *quit = 1;
+        if (*cor < 0) {
+            *ret = *sel;
+        } else {
+            static const int cret[4] = { -2, -6, -5, -4 };
+            static const char *const ctag[4] = { "wyjscie", "restart",
+                                                 "opcje", "autorzy" };
+            printf("map: corner %s\n", ctag[*cor]);
+            *ret = cret[*cor];
+        }
+    } else if (k == LLKEY_ESC || k == 'q') {
+        printf("map: wyjście\n");
+        *quit = 1;
+        *ret = -2;
+    } else if (k == 'a') {
+        printf("map: autorzy\n");
+        *quit = 1;
+        *ret = -4;
+    } else if (k == 'o') {
+        printf("map: opcje\n");
+        *quit = 1;
+        *ret = -5;
+    } else if (k == 'r') {
+        printf("map: restart\n");
+        *quit = 1;
+        *ret = -6;
+    }
+}
+
 int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                      const ll_menu_anim *anims, int nanims,
                      const unsigned char *back_pcx, unsigned back_len)
@@ -972,7 +970,8 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
 
     /* T-01/T-12: the platform owns the window; the map's logical
      * viewport IS the 640x400 display frame (island/corner coords
-     * already live in it, so the click/hover math stays 1:1). */
+     * already live in it). Input is keyboard-only since 2026-11-15,
+     * so no pointer math is needed. */
     if (plat_init("Lew Leon - chapter map", MAP_W, MAP_H) < 0) {
         menu_anims_free(aseq, nanims);
         ll_pcx_free(&back);
@@ -1002,8 +1001,15 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         memcpy(base, fb, (size_t)MAP_LW * MAP_LH * sizeof *base);
 
     int sel = 0, quit = 0, ret = -1;
-    int hov = -1;            /* island idx or corner code (-2/-4/-5/-6) */
+    int cor = -1;   /* keyboard-selected corner word (-1 = a chapter),
+                     * 0..3 = WYJSCIE/RESTART/OPCJE/AUTORZY */
     unsigned tick = 0;
+    /* The current chapter's cursive title image (ANIMACJE/MENU/
+     * LEVELxx.SEQ, owner-mapped; seq==NULL or parse failure = the
+     * font-text fallback). Parsed once per selection change. */
+    ll_seq tseq;
+    memset(&tseq, 0, sizeof tseq);
+    int tsel = -1, tseq_ok = 0;
     const char *sece = getenv("LEO_MENU_SECS");
     uint64_t t_deadline = sece ? now_ms() + 1000 * (uint64_t)atof(sece) : 0;
     uint64_t t_sched = now_ms();  /* FIX-07 (X-08): fixed 30 ms grid for
@@ -1017,11 +1023,33 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         /* .SEQ overlays composite at logical scale (the original authored
          * its sprite coords in the 320x200 space): x<0 parks the BERLO
          * arrow just left of the selected island's measured edge,
-         * vertically centred. The map carries no other overlays: the
-         * corner words are engine TEXT, and the word .SEQ files are
-         * button plates that never show here (owner-confirmed). */
-        if (aseq) {
+         * vertically centred. The corner words stay engine TEXT (the
+         * word .SEQ files are button plates that never show here,
+         * owner-confirmed) - but the SELECTED CHAPTER'S TITLE is real
+         * data when available: a LEVELxx.SEQ image (owner-mapped per
+         * chapter) composited as ALL its elements at their authored
+         * (-f0,-f2) positions, replacing the font text (owner
+         * directive 2026-11-15: "sprites instead of font text"). */
+        if (tsel != sel) {
+            tsel = sel;
+            if (tseq.els)
+                ll_seq_free(&tseq);
+            tseq_ok = chs[sel].seq && chs[sel].seq_len
+                      && ll_seq_parse(chs[sel].seq, chs[sel].seq_len,
+                                      &tseq) == 0 && tseq.count > 0;
+            if (!tseq_ok && tseq.els)
+                ll_seq_free(&tseq);
+            if (tseq_ok)
+                printf("map: title sprite %u elements for %s\n",
+                       tseq.count, chs[sel].title);
+        }
+        if (aseq || tseq_ok) {
             memset(cv, 0xFF, (size_t)MAP_LW * MAP_LH);  /* 0xFF = keep bg */
+            if (tseq_ok)
+                for (unsigned k = 0; k < tseq.count; k++)
+                    ll_seq_draw_elem(&tseq, &tseq.els[k], cv, MAP_LW,
+                                     MAP_LH, -SX(tseq.els[k].f0),
+                                     -SX(tseq.els[k].f2));
             int irw = chs[sel].rw > 0 ? chs[sel].rw / 2 : 30;
             for (int a = 0; a < nanims; a++) {
                 if (!aseq[a].els)
@@ -1042,22 +1070,40 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                     fb[i] = pal[cv[i]];
         }
 
-        /* Text layer, colors from the real menu DAC: idx15 green corner
-         * words, idx22 bright green title. The original engine draws
-         * these words itself (proved: the BACK.PCX -> captured-screen
-         * diff is exactly those letter pixels; bboxes WYJSCIE x4..110
-         * y4..39, RESTART x254..313 y2..17, OPCJE x259..313 y183..199,
-         * AUTORZY x2..66 y179..196, title x23..174 y45..81).
-         * Font-draw them exactly ONCE: skipped when the base is the
-         * baked capture fallback (its letters are already in the art -
-         * drawing both was the double-text defect). */
-        if (!baked_text) {
-            draw_text1(fb, 5, 5, "WYJSCIE", ll_menu_dac[15]);
-            draw_text1_r(fb, 315, 3, "RESTART", ll_menu_dac[15]);
-            draw_text1_r(fb, 315, 187, "OPCJE", ll_menu_dac[15]);
-            draw_text1(fb, 4, 180, "AUTORZY", ll_menu_dac[15]);
+        /* Corner words: the ORIGINAL cursive text layer, recovered
+         * pixel-exact from the captured menu VRAM (the BACK.PCX ->
+         * captured-screen diff IS the engine text; ll_menu_text.h
+         * carries the WYJSCIE/RESTART/OPCJE/AUTORZY entries - the
+         * title band of that diff is excluded because the port draws
+         * the selected chapter's real LEVELxx.SEQ title instead).
+         * Colors through the real menu DAC, like every other layer.
+         * Skipped on the baked-art fallback (its letters are already
+         * in the art - drawing both was the double-text defect).
+         * Font text remains ONLY for chapter titles without a data
+         * image (RAN.01/JUNCTION, or dataless mode). */
+        if (!baked_text)
+            for (int i = 0; i < LL_MENU_TEXT_N; i++)
+                fb[(size_t)ll_menu_text[i][1] * MAP_LW
+                   + ll_menu_text[i][0]] = pal[ll_menu_text[i][2]];
+        if (!tseq_ok)   /* font title only without a data image */
+            draw_text1(fb, 25, 62, chs[sel].title, ll_menu_dac[22]);
+
+        if (cor >= 0) { /* selected corner word: solid bright 2-px bar
+                         * at its recovered bbox edge (the dialog's
+                         * answer-zone selection language); clamped for
+                         * bottom words */
+            static const int cbb[4][4] = {
+                LL_MENU_TEXT_BB_WYJSCIE, LL_MENU_TEXT_BB_RESTART,
+                LL_MENU_TEXT_BB_OPCJE, LL_MENU_TEXT_BB_AUTORZY
+            };
+            int yb = cbb[cor][3] + 2;
+            if (yb + 1 >= MAP_LH)
+                yb = MAP_LH - 2;
+            draw_hline(fb, MAP_LW, MAP_LH, cbb[cor][0], cbb[cor][2],
+                       yb, 0xFFFFFF00u);
+            draw_hline(fb, MAP_LW, MAP_LH, cbb[cor][0], cbb[cor][2],
+                       yb + 1, 0xFFFFFF00u);
         }
-        draw_text1(fb, 25, 62, chs[sel].title, ll_menu_dac[22]);
 
         /* presentation = the original's 2x2 CRTC doubling of the logical
          * canvas (VRAM capture: even-aligned block equality 1.000) */
@@ -1100,25 +1146,9 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
             }
         }
 
-        if (hov >= 0 && hov < nchs)          /* hover outlines (drawn after
-                                              * the PPM hook: CI frames stay
-                                              * hover-free) */
-            draw_rect(disp, MAP_W, MAP_H,
-                      chs[hov].ix - chs[hov].rw - 3,
-                      chs[hov].iy - chs[hov].rh - 3,
-                      chs[hov].ix + chs[hov].rw + 4,
-                      chs[hov].iy + chs[hov].rh + 4, 0xFFFFFF00u);
-        else if (hov == -2)
-            draw_rect(disp, MAP_W, MAP_H, 2, 2, 130, 26, 0xFFFFFF00u);
-        else if (hov == -6)
-            draw_rect(disp, MAP_W, MAP_H, 506, 2, MAP_W - 2, 26,
-                      0xFFFFFF00u);
-        else if (hov == -5)
-            draw_rect(disp, MAP_W, MAP_H, 506, MAP_H - 40, MAP_W - 2,
-                      MAP_H - 2, 0xFFFFFF00u);
-        else if (hov == -4)
-            draw_rect(disp, MAP_W, MAP_H, 2, MAP_H - 52, 140, MAP_H - 2,
-                      0xFFFFFF00u);
+        /* (keyboard-only, 2026-11-15: the old mouse-hover outline boxes
+         * for islands/corners were removed; the selected chapter stays
+         * marked by the BERLO arrow sprite under plat_poll below) */
 
         plat_present_argb(disp, MAP_W, MAP_H);
 
@@ -1138,24 +1168,50 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
             }
             /* CI hook: LEO_MENU_KEY=a|o|r simulates a corner key at
              * tick 1, once per process (headless coverage of the
-             * autorzy/opcje/restart paths without looping forever) */
+             * autorzy/opcje/restart paths without looping forever).
+             * LEO_MENU_KEY=corner instead feeds ONE real key per tick
+             * through map_key (so each pose is actually composed):
+             * Down nchs+1 times - visiting EVERY chapter, then
+             * WYJSCIE, then RESTART - then Enter activates RESTART
+             * (same -6 downstream the 'r' legs prove), pinning the
+             * keyboard corner cycle end to end. */
             {
                 static int key_fired;
+                static unsigned fired_tick;
+                /* the inner poll (FIX-07) runs several times per grid
+                 * tick - the hook must act AT MOST ONCE per tick or
+                 * the injected walk runs at poll rate, not key rate */
                 const char *ke = getenv("LEO_MENU_KEY");
-                if (ke && tick == 1 && !key_fired++) {
+                if (ke && !key_fired && tick >= 1 && tick != fired_tick) {
+                    fired_tick = tick;
                     char kc = ke[0];
-                    if (kc == 'o') {
-                        printf("map: LEO_MENU_KEY -> opcje\n");
-                        quit = 1;
-                        ret = -5;
-                    } else if (kc == 'a') {
-                        printf("map: LEO_MENU_KEY -> autorzy\n");
-                        quit = 1;
-                        ret = -4;
-                    } else if (kc == 'r') {
-                        printf("map: LEO_MENU_KEY -> restart\n");
-                        quit = 1;
-                        ret = -6;
+                    if (kc == 'c') {
+                        if (tick == 1)
+                            printf("map: LEO_MENU_KEY -> corner "
+                                   "cycle\n");
+                        if (tick <= (unsigned)nchs + 1)
+                            map_key(LLKEY_DOWN, 0, nchs, &sel, &cor,
+                                    &quit, &ret);
+                        else if (tick == (unsigned)nchs + 2) {
+                            map_key(LLKEY_RETURN, 0, nchs, &sel, &cor,
+                                    &quit, &ret);
+                            key_fired = 1;    /* cycle done */
+                        }
+                    } else if (tick == 1) {
+                        key_fired = 1;
+                        if (kc == 'o') {
+                            printf("map: LEO_MENU_KEY -> opcje\n");
+                            quit = 1;
+                            ret = -5;
+                        } else if (kc == 'a') {
+                            printf("map: LEO_MENU_KEY -> autorzy\n");
+                            quit = 1;
+                            ret = -4;
+                        } else if (kc == 'r') {
+                            printf("map: LEO_MENU_KEY -> restart\n");
+                            quit = 1;
+                            ret = -6;
+                        }
                     }
                 }
             }
@@ -1163,97 +1219,9 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                 if (e.type == LL_EV_QUIT) {
                     quit = 1;
                     ret = -2;
-                } else if (e.type == LL_EV_BUTTON_DOWN) {
-                    /* logical viewport = the 640x400 display frame, and
-                     * island coords (chs[].ix/iy/rw/rh) live in that same
-                     * space, so events map 1:1 */
-                    int mx = e.x, my = e.y;
-                    if (mx < 130 && my < 26) {          /* WYJSCIE */
-                        printf("map: click WYJSCIE\n");
-                        quit = 1;
-                        ret = -2;
-                    } else if (mx > 505 && my < 26) {   /* RESTART */
-                        printf("map: click RESTART\n");
-                        quit = 1;
-                        ret = -6;
-                    } else if (mx > 505 && my > 360) {  /* OPCJE */
-                        printf("map: click OPCJE\n");
-                        quit = 1;
-                        ret = -5;
-                    } else if (mx < 140 && my > 348) {  /* AUTORZY */
-                        printf("map: click AUTORZY\n");
-                        quit = 1;
-                        ret = -4;
-                    } else {                            /* island select/launch */
-                        for (int i = 0; i < nchs; i++) {
-                            if (mx >= chs[i].ix - chs[i].rw
-                                && mx <= chs[i].ix + chs[i].rw
-                                && my >= chs[i].iy - chs[i].rh
-                                && my <= chs[i].iy + chs[i].rh) {
-                                sel = i;
-                                printf("map: island %d launch (click)\n", i);
-                                quit = 1;
-                                ret = i;
-                                break;
-                            }
-                        }
-                    }
-                } else if (e.type == LL_EV_MOTION) {
-                    /* hover feedback (user: mouse did nothing until the
-                     * click): outline the corner word / island under the
-                     * pointer; window is 1:1 (MAP_W x MAP_H) */
-                    int mx = e.x, my = e.y;
-                    hov = -1;
-                    if (mx < 130 && my < 26)
-                        hov = -2;                     /* WYJSCIE    */
-                    else if (mx > 505 && my < 26)
-                        hov = -6;                     /* RESTART    */
-                    else if (mx > 505 && my > 360)
-                        hov = -5;                     /* OPCJE      */
-                    else if (mx < 140 && my > 348)
-                        hov = -4;                     /* AUTORZY    */
-                    else
-                        for (int i = 0; i < nchs; i++)
-                            if (mx >= chs[i].ix - chs[i].rw
-                                && mx <= chs[i].ix + chs[i].rw
-                                && my >= chs[i].iy - chs[i].rh
-                                && my <= chs[i].iy + chs[i].rh) {
-                                hov = i;
-                                break;
-                            }
-                } else if (e.type == LL_EV_KEYDOWN) {
-                    int k = e.key;      /* ASCII verbatim or LLKEY_* */
-                    if (k == LLKEY_UP || k == LLKEY_LEFT)
-                        sel = (sel + nchs - 1) % nchs;
-                    else if (k == LLKEY_DOWN || k == LLKEY_RIGHT)
-                        sel = (sel + 1) % nchs;
-                    else if (e.repeat)
-                        continue;       /* FIX-03 (X-04): chapter cycling
-                                         * keeps auto-repeat; confirm/select
-                                         * and letter picks act on first
-                                         * press only (holding Enter must
-                                         * not fall through the menu) */
-                    else if (k == LLKEY_RETURN || k == ' ') {
-                        quit = 1;
-                        ret = sel;
-                    } else if (k == LLKEY_ESC || k == 'q') {
-                        printf("map: wyjście\n");
-                        quit = 1;
-                        ret = -2;
-                    } else if (k == 'a') {
-                        printf("map: autorzy\n");
-                        quit = 1;
-                        ret = -4;
-                    } else if (k == 'o') {
-                        printf("map: opcje\n");
-                        quit = 1;
-                        ret = -5;
-                    } else if (k == 'r') {
-                        printf("map: restart\n");
-                        quit = 1;
-                        ret = -6;
-                    }
-                }
+                } else if (e.type == LL_EV_KEYDOWN)
+                    map_key(e.key, e.repeat, nchs, &sel, &cor,
+                            &quit, &ret);
             }
             int64_t left = (int64_t)(t_next - now_ms());
             ll_music_pump();

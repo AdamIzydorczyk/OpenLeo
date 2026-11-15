@@ -482,6 +482,17 @@ ifeq ($(PX_DATA),1)
 	then echo "menu anim FAILED: frames t2 == t8 (nothing animates)"; exit 1; \
 	else echo "menu anim: BERLO frame cycles on screen (t2 != t8, ok)"; fi
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 \
+	    LEO_MENU_KEY=corner LEO_MENU_SECS=2 timeout 90 \
+	    ./ll_cutscene --demo $(DATA) > /tmp/opencode/menu_corner.log 2>&1; \
+	rc=$$?; \
+	if [ $$rc -eq 0 ] \
+	   && grep -q 'map: LEO_MENU_KEY -> corner cycle' /tmp/opencode/menu_corner.log \
+	   && grep -q 'map: corner restart' /tmp/opencode/menu_corner.log \
+	   && [ "$$(grep -c 'map: title sprite' /tmp/opencode/menu_corner.log)" -eq 11 ]; \
+	then echo "corner cycle: arrow walk renders all 11 cursive title poses, " \
+	     "Enter activates RESTART (keyboard-only, ok)"; \
+	else echo "corner cycle FAILED (rc=$$rc)"; cat /tmp/opencode/menu_corner.log; exit 1; fi
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 \
 	    LEO_MENU_KEY=r LEO_MENU_SECS=1 LEO_MENU_PPM=/tmp/opencode/menu_rst.ppm \
 	    LEO_MENU_PPM_TICK=10 timeout 60 \
 	    ./ll_cutscene --demo $(DATA) > /tmp/opencode/menu_rst.log 2>&1; \
@@ -505,7 +516,7 @@ ifeq ($(PX_DATA),1)
 	   && grep -q 'restart confirmed (tak) -> new game' \
 	      /tmp/opencode/menu_tak.log \
 	   && grep -q 'map: LEO_MENU_SECS expired' /tmp/opencode/menu_tak.log; \
-	then echo "restart-confirm TAK: answer buttons (click/key), restart -> new game -> back to map (ok)"; \
+	then echo "restart-confirm TAK: answer buttons (keys), restart -> new game -> back to map (ok)"; \
 	else echo "restart-confirm TAK FAILED (rc=$$rc)"; cat /tmp/opencode/menu_tak.log; exit 1; fi
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	    LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_KEY=r \

@@ -1400,14 +1400,83 @@ secrets on the way.
   PR-35 ('sleep_until honors the deadline (>=20ms)', code untouched by
   this PR). Rerun --failed: all three jobs success. CLOSED.
 
+## PR-37 — keyboard-only menus + real cursive text: corner words, title
+sprites, corner cycle (DONE 2026-11-15, owner directives)
+
+Owner asked, in order: "berlo should be controled only by keyboard,
+clicking not necessary"; "Sprites instead of font text"; "in menu i
+cant choose in corners titles other than 'autors' and still there are
+simply text not stylised". All three shipped; every step is DATA
+(owner-supplied mapping + bytes recovered from the golden capture).
+
+1. KEYBOARD-ONLY map + restart dialog: BUTTON_DOWN corner/island click
+   handling and MOTION hover feedback removed (draw_text1_r/draw_rect
+   helpers dropped with them); help text, README and Makefile echoes
+   updated. LEO_* hooks and return codes unchanged (additive only).
+2. CURSIVE CHAPTER-TITLE SPRITES: ll_menu_ch gains seq/seq_len (raw
+   ANIMACJE/MENU/LEVELxx.SEQ payload); the map compositor parses on
+   selection change and draws ALL elements simultaneously at their
+   authored (-f0,-f2) anchors, skipping the font title. main.c carries
+   the OWNER-READ mapping (2026-11-15): LEVEL01..11 -> ZARIA.01,
+   ZARIA.02, SADES.06, KADMAR.07, KADMAR2, ENA.03, ENA2, LONA.05,
+   KARA.07, TUNGA.11, TUNGA2.12; RAN.01/JUNCTION (no image exists -
+   11 titles for 13 chapters) and dataless mode keep the font-text
+   fallback. Data-side binding routes were exhausted first (ETAPY
+   slots are hash order, no chapter metadata anywhere, original
+   LEO.EXE has zero LEVELxx refs - the binding lived in the missing
+   MENU.mnu, CD data hole, PLAN 8b).
+3. ORIGINAL CURSIVE CORNER WORDS: the captured-VRAM vs BACK_idx.bin
+   diff IS the engine text layer: corner words 2406 px + title band
+   2370 px = 100% of the capture's text ink (±26). The four corner
+   words are embedded in ported/ll_menu_text.h as recovered (x,y,
+   palette-idx) entries + per-word bbox macros and blitted through
+   the menu DAC - pixel-exact: all 1886 corner-ink px of the captured
+   frame now match the port frame EXACTLY (verify script method:
+   sample even rows/cols of the PPM vs ll_menu_dac[cap_idx], title
+   band excluded). Skipped on the baked-art fallback (same no-double-
+   text rule as PR-36). The title band of that diff is NOT embedded:
+   full template match proved the captured map title is engine cursive
+   TEXT, not any LEVELxx sprite (best IoU 0.23), and the engine text
+   font has no asset in any container.
+4. CORNER WORDS BY KEYBOARD: the map KEYDOWN handler extracted as
+   map_key(); arrows now cycle 13 chapters then the 4 corners
+   (clockwise WYJSCIE/RESTART/OPCJE/AUTORZY), Enter/Space activates
+   (-2/-6/-5/-4, log 'map: corner <tag>'), a/o/r shortcuts kept.
+   Selection marker = solid bright 2px bar at the word's recovered
+   bbox edge (dialog answer-zone language; clamped for bottom words).
+5. CI PIN: LEO_MENU_KEY extended with 'corner' - feeds Down x(nchs+1)
+   + Enter through map_key, ONE key per grid tick (guard added: the
+   FIX-07 inner poll runs several times per tick, the hook must not
+   fire at poll rate - first attempt walked 2 poses/tick and
+   activated a chapter by accident). New verify-menu leg pins the
+   marker line, exactly 11 'map: title sprite' poses (every mapped
+   chapter rendered once), 'map: corner restart' and the proven
+   restart-confirm downstream.
+6. GOLDEN RE-PIN (honest, by-design frame change): 30 pose hashes in
+   tools/golden_expect.json regenerated from the new deterministic
+   30 ms-grid frames; measured best vs the ART frame 92.4516% RGB
+   (UP from PR-36's 92.088% - the corner words are now exact),
+   worst pose in the cycle 92.348%; min_best_rgb KEPT at 92.0 (floor
+   unchanged, margin widened 0.088 -> 0.37 pt). Remaining residual
+   is exactly: the captured title band (engine text of the
+   then-selected chapter - unrecoverable as data), the two font-
+   fallback titles and 43 off-palette px = the BERLO arrow (the
+   capture shows NO arrow ink at all - consistent with the owner's
+   "sprite disapeares" memory of the original).
+Verification: native + llvm-mingw builds warning-free; full
+make -k verify-all rc=0 INCLUDING the new corner-cycle leg;
+fixture-free sim rc=0 (22 named SKIPs); verify-arch ok; pixel checks
+above from LEO_MENU_PPM frames. Not pinned headless: interactive
+arrow-walk UI feel (owner to try - 'corner' covers the code path).
+
 ## Next — pick from the Deferred list below
 
-PR-36 left two named, evidence-backed follow-ups (best PR-37 material):
-(1) recover the ORIGINAL cursive font glyph shapes from the captured
-menu text (bbox diffs in the PR-36 record; the QEMU rig
-tools/golden_qemu_run.py / make golden_rig can capture more chapter
-titles for glyph coverage - the entire 7.9% golden residual is exactly
-the text areas, so a matching font closes most of it); (2) PCM parallax layer row-windows
+PR-37 leaves one named golden follow-up: recover the ORIGINAL engine
+text FONT (the cursive used for corner words AND chapter titles).
+The capture's title band (2370 px) + corner words (2406 px) give
+glyph coverage for A,C,E,I,J,O,P,R,S,T,U,W,Y,Z only - closing the
+last ~5.8% needs more captured words (golden_rig can script more
+menu states) or a font reconstruction. PCM parallax layer row-windows
 read "0x0 rows" on RAN.01's plan2/plan1.pcm stack - the tlo ORDER is
 resolved (PR-36), the window semantics are the open question
 (verify-pcm owns the decoder oracle).
