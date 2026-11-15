@@ -38,6 +38,17 @@ jobs:
             gcc-mingw-w64-x86-64 binutils-mingw-w64-x86-64 \
             cmake python3
 
+      - name: Provision SDL2 for the Windows target
+        # Ubuntu apt has no mingw SDL2; the Makefile's SDL_WIN points at the
+        # vendored layout, so CI unpacks the SAME official SDL2 mingw devel
+        # tarball (zlib-licensed OSS, not game data) into vendor/. Identical
+        # version to the local gitignored copy keeps the two builds equal.
+        run: |
+          mkdir -p vendor
+          curl -fsSLo /tmp/sdl.tar.gz \
+            https://www.libsdl.org/release/SDL2-devel-2.32.10-mingw.tar.gz
+          tar -xzf /tmp/sdl.tar.gz -C vendor
+
       - name: Python tools compile check (the suite's oracles are Python)
         run: python3 -m compileall -q tools
 
