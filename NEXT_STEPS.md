@@ -1659,12 +1659,40 @@ measured 90.73; the +1.0pt is the authentic center art restored) -
 min_best_rgb stays 90.0, margin +1.74pt. full make -k verify-all
 rc=0 (verify-menu/verify-golden green), fixture-free rc=0 with named
 SKIPs, gcc + vendored llvm-mingw warning-free.
-Open from the same report, NOT actionable yet: "same issue is in
-movies" needs a concrete repro (which movie, which transition, what
-the artifact looks like) - the .IS decoder is golden-pinned byte-exact
-vs the python reference, so any movie defect is in presentation, not
-decode; and the owner's screenshot could not be read (this tool has
-no image input).
+Open from the same report, NOW REPRODUCED + DIAGNOSED (2026-11-15):
+owner gave the concrete repro: "when start zaria 1 intro character on
+it moves right and behind him left fragments of his model that
+disappear after while". Method + findings:
+- C == oracle on the actual movie: ZARIA1.IS sampled every 5th frame
+  0..240 (49 frames) - ll_cutscene --ppm N vs tools/is_decode.py
+  frames --ppm: all byte-identical (/tmp/opencode/zaria1). So the
+  port shows exactly the data's accumulation states.
+- Presentation adds no state: is_player present() re-linearizes +
+  re-uploads the FULL persistent fb every frame (is_player.c:211-225,
+  platform_sdl.c:86-116); no dirty rects. IS_OP_SKIP (is_stream.c:
+  264-273) advances write cursors without writing - old pixels
+  persist; that semantic is pinned against a live 230k-event trace of
+  the original engine (is_stream.h:3-6).
+- The data itself: 184,855 SKIP ops in 243 frames; per-frame change
+  windows move right (f13 diff-bbox x22..115 -> f19 x60..160); stale
+  px from the object's earlier positions survive ~10-20 frames before
+  later frames repaint them.
+- Gemini read of decoded frames f00..f40: a pterosaur-like creature
+  flies left-to-right over a jungle dusk scene; "textbook inter-frame
+  (delta) compression ghosting... detached fragments matching its
+  previous body/wing coordinates... linger ~10-20 frames then clear".
+  Exactly the owner's description.
+Conclusion: NOT a port defect - it is the original 1997 video data's
+own encoding (aggressive skip-coding at 8 fps); the original game
+showed the same trails, same durations (pacing is the pinned
+audio-block clock). Option IF the owner wants it cleaned: a port-side
+temporal filter (e.g. blank a px when N consecutive frames leave it
+unchanged while its neighbourhood moves) - explicitly non-faithful,
+changes the golden-pinned frame contract; needs the owner's call.
+(The Gemini vision-model wiring used for this diagnosis - owner's API
+key, gemini-3.8-flash via the generativelanguage REST API - is now a
+standing tool for visual defect triage; this model itself still has
+no image input.)
 
 ## Next — pick from the Deferred list below
 

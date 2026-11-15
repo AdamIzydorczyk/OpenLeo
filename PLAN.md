@@ -112,6 +112,16 @@ Error strings found in EXE: Watcom runtime + custom: `Blad zakresu w ...::check 
      6-bit table `v<<2` with occasional +3 per entry, consistent per entry).
    * All 15 .IS decode to EOF, zero desync (INTRO_P: 2388 chunks -> 1521
      frames, 189 PAL ops, 2363 ESC ops).
+   * Movie "leftover fragments" (owner report 2026-11-15, ZARIA1 intro):
+     DATA-INHERENT, not a port defect - verified by C==is_decode.py
+     byte-exact on ZARIA1.IS every 5th frame (0..240), by the 184,855
+     SKIP ops + stale-pixel persistence (~10-20 frames) measured in the
+     decode, and by a Gemini vision read of the decoded frames ("a
+     flying creature moves right leaving textbook delta-codec ghost
+     fragments that clear later"). The original showed the same trails.
+     A port-side temporal filter could clean it but is non-faithful and
+     breaks the pinned frame contract; owner's call. Full record:
+     NEXT_STEPS.md (PR-40 thread, movie follow-up).
    * **Audio (SOLVED 2026-11-14 — this was the "horrible logo video sound"
      bug):** the ESC region is raw **s16 little-endian at 22050 Hz**, MONO or
      STEREO per movie: every region is a whole number of DMA blocks, 1260 B
