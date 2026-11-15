@@ -105,8 +105,9 @@ jobs:
   # MSYS2 MINGW64 builds and runs the SDL-free headless selftests (the
   # T-01 dummy backend - no display needed), runs them against the
   # repo-committed fixtures, and smoke-starts the REAL ll_cutscene.exe
-  # linked against MSYS2's SDL2. platform_selftest is always an
-  # ASan/UBSan build, so this is also native-Windows sanitizer coverage.
+  # linked against MSYS2's SDL2. Sanitizer flags are switched off here
+  # (SAN=, MSYS2 gcc has no asan runtime) - sanitizer coverage lives in
+  # the asan job; this job proves the native Windows toolchain path.
   windows-smoke:
     runs-on: windows-latest
     timeout-minutes: 30
@@ -126,7 +127,12 @@ jobs:
 
       - name: Build the headless selftests natively
         shell: msys2 {0}
-        run: make -j platform_selftest llrs_selftest pcx_selftest seq_selftest seq_patchdump pcm_selftest mod_selftest
+        # SAN=: MSYS2's mingw-w64 gcc ships no libasan/libubsan (measured
+        # on the first run of this job: cannot find -lasan), so the
+        # always-on sanitizer flags of the tool rules are switched off
+        # here (Makefile SAN ?=, PR-27b). Sanitizer coverage stays on
+        # the asan job; this job's value is native build + real runs.
+        run: make -j SAN= platform_selftest llrs_selftest pcx_selftest seq_selftest seq_patchdump pcm_selftest mod_selftest
 
       - name: Run them (committed fixtures only; no game-data staging)
         shell: msys2 {0}
@@ -159,7 +165,13 @@ jobs:
         run: |
           mkdir -p /tmp/leo-smoke
           cp ll_cutscene.exe /tmp/leo-smoke/
-          cp /mingw64/bin/libSDL2*.dll /tmp/leo-smoke/
+          # The .exe links MSYS2's libSDL2 DLL; copy it plus any runtime
+          # DLLs that build depends on (winpthread/gcc are system DLLs in
+          # the official libsdl.org build but NOT guaranteed in MSYS2's).
+          for d in /mingw64/bin/libSDL2*.dll /mingw64/bin/libwinpthread*.dll \
+                   /mingw64/bin/libgcc_s_seh*.dll /mingw64/bin/libstdc++*.dll; do
+            if [ -f "$d" ]; then cp "$d" /tmp/leo-smoke/; fi
+          done
           cd /tmp/leo-smoke
           export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
           set +e
@@ -195,8 +207,9 @@ jobs:
           A="-O1 -g -std=gnu11 -Wall -Wextra -DPLATFORM_LINUX=1 \
              -fsanitize=address,undefined -fno-omit-frame-pointer"
           make -j"$(nproc)" CFLAGS="$A $(pkg-config --cflags sdl2)" \
-            ll_cutscene ll_level ll_save llrs_selftest pcx_selftest \
-            seq_selftest seq_patchdump pcm_selftest mod_selftest
+            ll_cutscene ll_level ll_save platform_selftest \
+            llrs_selftest pcx_selftest seq_selftest seq_patchdump \
+            pcm_selftest mod_selftest
 
       - name: Run the committed-fixture paths under the sanitizers
         env:

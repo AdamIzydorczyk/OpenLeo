@@ -840,6 +840,27 @@ ll_view/ll_audio as backend-private helpers).
   the WINDRES change; the two new jobs run their exact steps locally
   first (asan fully; windows partially - the .exe smoke executed via
   the local binfmt path, real-MSYS2 proof lands with this CI run).
+- CI iteration (first run 43717009882: linux ok, both new jobs failed,
+  exactly the expected first-run surface):
+  1. windows-smoke: MSYS2 mingw-w64 gcc (16.2) ships NO libasan/
+     libubsan ('cannot find -lasan' on every selftest link). Fix: the
+     Makefile's 8 hardcoded -fsanitize flags became SAN ?= -fsanitize
+     =address,undefined (same override pattern as WINDRES ?=), and
+     windows-smoke builds with SAN= (plain native builds; sanitizer
+     coverage stays on the asan job - honest trade-off, not a loss of
+     the job's actual point: native toolchain build + real runs).
+  2. asan: exit 127 - the build list omitted platform_selftest (it
+     existed locally from earlier builds, not on a fresh checkout).
+     Fix: added to the make target list (its own rule always keeps
+     $(SAN)).
+  3. Hardened proactively: the .exe smoke now copies libwinpthread/
+     libgcc_s_seh/libstdc++ DLLs alongside libSDL2 (the official
+     libsdl.org SDL2.dll imports only system DLLs - verified by
+     llvm-objdump -p - but MSYS2's own build may differ).
+  Locally after the change: plain path (make -B SAN= <7 tools>,
+  nm asan count = 0, all real runs green) AND default path (nm asan
+  counts 24/19/27 on platform_selftest/llrs/fuzz, runs green) both
+  replicated; YAML parses.
 
 ## Next — pick from the Deferred list below
 

@@ -37,6 +37,12 @@ CFLAGS   ?= -O2 -std=gnu11 -Wall -Wextra -DPLATFORM_LINUX=1 \
             $(shell pkg-config --cflags sdl2)
 LIBS     := $(shell pkg-config --libs sdl2) -lm
 
+# Sanitizer flags for the tool/selftest rules (always on by default since
+# PR-11; FIX-12 made them overridable: MSYS2's mingw-w64 gcc ships NO
+# libasan/libubsan, so the CI windows-smoke job passes SAN= for plain
+# builds. The linux asan job keeps the sanitizer coverage.)
+SAN      ?= -fsanitize=address,undefined
+
 ll_cutscene: $(SRC) $(HDRS)
 	$(CC) $(CFLAGS) -Iported -o $@ $(SRC) $(LIBS)
 
@@ -265,11 +271,11 @@ seq_patchdump.exe: tools/seq_patchdump.c ported/ll_seq.c ported/ll_seq.h
 	    tools/seq_patchdump.c ported/ll_seq.c
 
 llrs_selftest: tools/llrs_selftest.c ported/llrs.c ported/llrs.h ported/fs_ci.c
-	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra $(SAN) \
 	    -Iported -o $@ tools/llrs_selftest.c ported/llrs.c ported/fs_ci.c
 
 pcm_selftest: tools/pcm_selftest.c ported/ll_pcm.c ported/ll_pcm.h
-	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra $(SAN) \
 	    -Iported -o $@ tools/pcm_selftest.c ported/ll_pcm.c
 
 pcm_selftest.exe: tools/pcm_selftest.c ported/ll_pcm.c ported/ll_pcm.h
@@ -315,7 +321,7 @@ endif
 # ported/ll_pcx.c byte-for-byte agreement with tools/pcx_dump.py on every PCX
 # payload inside ANIMACJE/ETAPY.
 pcx_selftest: tools/pcx_selftest.c ported/ll_pcx.c ported/ll_pcx.h
-	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra $(SAN) \
 	    -Iported -o $@ tools/pcx_selftest.c ported/ll_pcx.c
 
 verify-pcx: pcx_selftest llrs_selftest
@@ -329,11 +335,11 @@ endif
 # .SEQ payload in ANIMACJE/ETAPY/LEVELDES (172 blobs, exact consumption),
 # plus the frame-patch row decode (ll_seq_patch_walk vs tools/seq_patch.py).
 seq_selftest: tools/seq_selftest.c ported/ll_seq.c ported/ll_seq.h
-	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra $(SAN) \
 	    -Iported -o $@ tools/seq_selftest.c ported/ll_seq.c
 
 seq_patchdump: tools/seq_patchdump.c ported/ll_seq.c ported/ll_seq.h
-	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra $(SAN) \
 	    -Iported -o $@ tools/seq_patchdump.c ported/ll_seq.c
 
 verify-seq: seq_selftest seq_patchdump
@@ -549,7 +555,7 @@ endif
 # and renders deterministically; linux vs wine hash parity is the oracle.
 # Payloads come straight out of the SOUND llrs container.
 mod_selftest: tools/mod_selftest.c ported/ll_mod.c ported/ll_mod.h
-	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra $(SAN) \
 	    -Iported -o $@ tools/mod_selftest.c ported/ll_mod.c
 
 mod_selftest.exe: tools/mod_selftest.c ported/ll_mod.c ported/ll_mod.h
@@ -565,7 +571,7 @@ platform_selftest: tools/platform_selftest.c ported/platform.h \
         ported/platform_dummy.c ported/platform_common.c ported/fs_ci.c \
         ported/is_stream.c ported/is_stream.h
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -DPLAT_BACKEND_DUMMY=1 \
-	    -fsanitize=address,undefined -Iported -o $@ \
+	    $(SAN) -Iported -o $@ \
 	    tools/platform_selftest.c ported/platform_dummy.c \
 	    ported/platform_common.c ported/fs_ci.c ported/is_stream.c -lm
 
@@ -728,7 +734,7 @@ package: package-win package-linux
 # real formats.
 fuzz: tools/fuzz.c ported/is_stream.c ported/llrs.c ported/ll_pcx.c \
       ported/ll_seq.c ported/ll_pcm.c ported/ll_mod.c ported/fs_ci.c
-	$(CC) -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra $(SAN) \
 	    -Iported -o $@ tools/fuzz.c ported/is_stream.c ported/llrs.c \
 	    ported/ll_pcx.c ported/ll_seq.c ported/ll_pcm.c ported/ll_mod.c \
 	    ported/fs_ci.c -lm
