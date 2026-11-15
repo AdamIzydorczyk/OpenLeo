@@ -100,9 +100,12 @@ def main():
         # index -> color, consistency-checked exactly like menu_dac_gen
         flat_c = g.reshape(-1, 3)
         cols, inv = np.unique(flat_c, axis=0, return_inverse=True)
-        cid = inv.reshape(400, 640)[0::2, 0::2].astype(np.int64)
+        # numpy>=2.0 returns inverse with the input's shape; bincount needs
+        # a flat index array, and numpy<2 returns it flat already.
+        inv = np.ravel(inv).astype(np.int64)
+        cid = inv.reshape(400, 640)[0::2, 0::2]
         M = np.bincount(idx.ravel().astype(np.int64) * len(cols)
-                        + cid.ravel())
+                       + cid.ravel(), minlength=256 * len(cols))
         per = M.reshape(256, len(cols))
         bad = [i for i in range(256) if (per[i] > 0).sum() > 1]
         if bad:

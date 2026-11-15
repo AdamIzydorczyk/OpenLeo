@@ -537,6 +537,25 @@ ll_view/ll_audio as backend-private helpers).
   data -> SKIP; no QEMU capture -> checks the port pose pins only,
   so the leg runs in ordinary CI). verify-all is now 38 legs.
 
+## PR-20 — test-suite cold-run fixes + TEST_REPORT.md (DONE 2026-11-15)
+
+- Cold-tree end-to-end run of verify-all (make clean first) for the report
+  exposed two latent Makefile dependency bugs that stale worktree binaries
+  had always masked: verify-win RUNS the linux twins ./ll_level and ./ll_save
+  (frames it cmps against) but only listed the .exe twins as prerequisites,
+  and verify-level's PCM-canvas check runs an undeclared ./pcm_selftest
+  (masked by sibling ordering). Both now declared; the single-invocation
+  verify-all is green from a cold tree (61 emitted proofs, 0 warnings on
+  gcc + vendored clang). No product-code changes were needed.
+- tools/golden_menu_cmp.py: numpy>=2.0 compatibility (np.unique's inverse
+  is now same-shape; ravel + explicit int64 before bincount). Latent
+  because the capture-compare path never ran in port-pins-only CI mode.
+- TEST_REPORT.md: full-suite report (21-leg inventory, oracle methods, this
+  run's evidence census, defects found+fixed, fixture bootstrap, gap list).
+  Environment note: a 04:27 reboot wiped the tmpfs /tmp fixtures; the
+  restage recipe above (LL.iso -> iso_stage + LEO_HDD -> hd_files + repo-
+  root save fixtures + py_last frame) restored the suite unchanged.
+
 ## Next — pick from the Deferred list below
 
 Nothing queued from the review's "worth fixing" set: all of it has

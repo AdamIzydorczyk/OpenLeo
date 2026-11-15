@@ -79,7 +79,12 @@ verify-skip: ll_cutscene
 # Same two proofs for the Windows .exe, run under wine.
 # Z: = wine drive mapped to /, so $(DATA) is addressed as Z:$(DATA).
 WINEPREFIX ?= /tmp/opencode/wineprefix
-verify-win: ll_cutscene.exe ll_level.exe llrs_selftest.exe pcx_selftest.exe seq_selftest.exe seq_patchdump.exe pcm_selftest.exe mod_selftest.exe ll_save.exe
+# NOTE ll_level (the LINUX twin) is a prerequisite too: several legs below
+# compare the wine frame against a FRESH linux run (the old "stale binary
+# in the worktree" accident made a clean-tree run fail here on 2026-11-15).
+verify-win: ll_cutscene ll_level ll_save ll_cutscene.exe ll_level.exe llrs_selftest.exe \
+            pcx_selftest.exe seq_selftest.exe seq_patchdump.exe \
+            pcm_selftest.exe mod_selftest.exe ll_save.exe
 	WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	  wine ./ll_cutscene.exe Z:$(DATA)/INTRO_P.IS --ppm 1020 \
 	  Z:/tmp/opencode/c_win.ppm
@@ -300,7 +305,9 @@ verify-seq: seq_selftest seq_patchdump
 # by the HD-install ED000002.MOV state machine (LEO_HD_DIR). Fixed-tick PPM
 # dumps must differ (motion) and must be composited over the bare background.
 # LEO_HELP_SECS=0 skips the help overlay for the pure-scene dumps.
-verify-level: ll_level
+# (pcm_selftest is a prerequisite: the PCM-canvas check below compares the
+# scene view against its FNV line; sibling-target ordering used to mask it.)
+verify-level: ll_level pcm_selftest
 	@for T in 2 8; do env -u DISPLAY SDL_VIDEODRIVER=dummy \
 	  SDL_AUDIODRIVER=dummy LEO_HD_DIR=/tmp/opencode/hd_files \
 	  LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
