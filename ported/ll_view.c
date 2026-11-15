@@ -50,14 +50,20 @@ int ll_view_create(ll_view *v, const char *title, int logical_w,
             memset(&g, 0, sizeof g);
             return -1;
         }
+        /* FIX-02 (deep dive X-03): the ONE raise, at creation. The
+         * original P-04 intent was "never steal focus": raising on
+         * pointer-enter or scene switch popped the window over the
+         * user's work (Windows taskbar flash). Nothing else raises. */
+        SDL_RaiseWindow(g.win);
     } else {
         /* scene switch in the SAME window (P-03): new title + default
          * geometry; in desktop-fullscreen the display mode rules.
-         * Raised once here; per-tick focus polling is gone (P-04). */
+         * NO raise here (FIX-02): the window was raised once at
+         * creation; a re-entry the user is looking at already owns
+         * focus, and one they are not must not steal it. */
         SDL_SetWindowTitle(g.win, title);
         if (!(SDL_GetWindowFlags(g.win) & SDL_WINDOW_FULLSCREEN))
             SDL_SetWindowSize(g.win, logical_w * sc, logical_h * sc);
-        SDL_RaiseWindow(g.win);
     }
     SDL_RenderSetLogicalSize(g.ren, logical_w, logical_h);
     g.logical_w = logical_w;
@@ -84,21 +90,20 @@ int ll_view_handle_event(const SDL_Event *e, SDL_Window *win)
 {
     if (!win)
         return 0;
-    if (e->type == SDL_WINDOWEVENT &&
-        e->window.windowID == SDL_GetWindowID(win)) {
-        /* P-04: re-grab focus only when the pointer re-enters the
-         * window (user came back); never while the user is alt-tabbed
-         * away. Replaces the old per-tick SDL_RaiseWindow poll. */
-        if (e->window.event == SDL_WINDOWEVENT_ENTER)
-            SDL_RaiseWindow(win);
-        return 0;
-    }
+    /* FIX-02 (X-03): the SDL_WINDOWEVENT_ENTER raise block is GONE.
+     * Raising on pointer-enter made the game window pop over whatever
+     * the user had focused (P-04 regression); the window is raised
+     * exactly once, at creation (ll_view_create above). */
     if (e->type != SDL_KEYDOWN)
         return 0;
     SDL_Keycode k = e->key.keysym.sym;
     int alt = (e->key.keysym.mod & (KMOD_LALT | KMOD_RALT)) != 0;
     if (k != SDLK_F11 && !(k == SDLK_RETURN && alt))
         return 0;
+    if (e->key.repeat)
+        return 1;            /* FIX-03 (X-04): held key auto-repeat -
+                              * CONSUME it (must not leak into the engine
+                              * as LLKEY_RETURN) but toggle exactly once */
     int on = (SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN) != 0;
     SDL_SetWindowFullscreen(win, on ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
     return 1;

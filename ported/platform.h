@@ -48,6 +48,10 @@ typedef struct {
     int type;
     int key;
     int x, y;
+    int repeat;   /* FIX-03 (deep dive X-04): 1 = OS auto-repeat of a
+                   * held key (KEYDOWN). Toggle/confirm keys must act on
+                   * the FIRST press only; movement keys (arrows) keep
+                   * acting on repeats. 0 everywhere else. */
 } ll_event;
 
 enum {
@@ -101,10 +105,11 @@ void plat_present(const uint8_t *idx8, const uint8_t pal[768], int w,
  * conversion, so pixels are unchanged by definition. */
 void plat_present_argb(const uint32_t *fb, int w, int h);
 
-/* Ask the window manager for focus (dialog/screen re-entry). On
- * X11/XWayland this is a hard input grab, on Wayland the WM decides -
- * callers must therefore keep pointer/keyboard handling tolerant.
- * No-op when no window exists. */
+/* Request the window manager's attention (kept for existing callers).
+ * As of FIX-02 (deep dive X-03) this is a NO-OP in every backend: the
+ * window is raised exactly ONCE at creation (ll_view_create in the SDL
+ * backend); screen re-entry happens in that same window and must not
+ * steal focus from the user's current work (P-04 original intent). */
 void plat_raise(void);
 
 /* Pop the next engine event into *ev. Returns 1 if an event was filled,

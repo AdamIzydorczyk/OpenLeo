@@ -745,6 +745,47 @@ ll_view/ll_audio as backend-private helpers).
 - Same-shape CI behaviour verified fixture-free (named SKIP). Full local
   suite stays green; .exe cross-build clean under vendored clang.
 
+## PR-26 — FIX-02/03/04/05: window hygiene bundle (DONE 2026-11-15)
+
+- FIX-02 (X-03, P-04 regression fix per ruling C8): the window is now
+  raised EXACTLY ONCE at creation (ll_view_create). Removed: the
+  WINDOWEVENT_ENTER raise in ll_view_handle_event, the raise on every
+  scene-switch in ll_view_create's else branch, and the
+  SDL_RaiseWindow+SDL_SetWindowInputFocus body of plat_raise (the
+  hard X11 grab was the taskbar-flash offender). plat_raise stays in
+  the API as a documented no-op (callers untouched, selftest still
+  calls it); platform.h + the four stale "re-raises on pointer-enter"
+  comments (ll_menu x2, ll_level x2) updated to the raised-once rule.
+- FIX-03 (X-04, no scancodes per ruling C4): ll_event gains a tail
+  field `repeat` (1 = OS auto-repeat). SDL backend fills it from
+  e.key.repeat; dummy needs no change (structs pass through - proven
+  by new selftest check, 34 checks total). All 5 existing ll_event
+  initializers got explicit ', 0' (CFLAGS carry -Wextra). Gates:
+  ll_view consumes F11/Alt+Enter repeats (toggle ONCE, must return 1
+  so a repeated Alt+Enter cannot leak into the engine as RETURN);
+  is_player ignores repeats outright (q/ESC/space are all toggles);
+  ll_menu dialogs filter repeats except arrow NAV cycles; map screen
+  filters after the arrow chain; ll_level filters ESC/q and the 'p'
+  autoscroll toggle but keeps arrow scrolling; help page ESC is
+  first-press-only (was: holding ESC closed help AND escaped the
+  level). Arrows keep auto-repeat everywhere.
+- FIX-04 (X-05): platform_sdl present_last() helper = the former
+  identical Clear/Copy/Present tails of plat_present+plat_present_argb
+  (single implementation now, pixels untouched); called after
+  ll_view_handle_event hits (fullscreen toggle) and on EXPOSED/
+  SIZE_CHANGED/RESTORED - the drain's window handling merged into one
+  switch with the FIX-01 CLOSE latch. Pause + F11/resize now keeps
+  the frame visible instead of black.
+- FIX-05 (X-07/W-02): ll_audio logs the REAL accepted spec - fmt_name()
+  switch over AUDIO_* values (no *SYS alias cases: duplicate-value
+  error) + SDL_GetCurrentAudioDriver(). Measured: 'device S16LSB
+  22050Hz 2ch 1024 samples (driver dummy)' / '(driver alsa)' - the
+  old always-'?' line is gone. Comment fixed: SDL 2.32 Windows
+  default is wasapi, not directsound. fmt_name lives at file scope
+  (C: no nested functions - the deep dive's snippet was illustrative).
+- verify-quit/verify-sel/verify-platform/verify-arch green locally;
+  full suite + fixture-free sim run next as always.
+
 ## Next — pick from the Deferred list below
 
 Nothing queued from the review's "worth fixing" set: all of it has

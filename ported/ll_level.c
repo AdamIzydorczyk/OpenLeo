@@ -1037,7 +1037,11 @@ static void help_pages(const llrs *hd, const llrs_slot *hdrecs, unsigned nhdrec,
                 quit = 1;                     /* click closes, like a key */
             else if (e.type == LL_EV_KEYDOWN) {
                 int k = e.key;                /* ASCII verbatim or LLKEY_* */
-                if (k == LLKEY_ESC)
+                if (k == LLKEY_ESC && !e.repeat)
+                    /* FIX-03 (X-04): holding ESC must close the help
+                     * page ONLY - the repeats must not leak through and
+                     * also ESC the level itself. Page keys (RIGHT/
+                     * RETURN/SPACE/PGDN) keep auto-repeat on purpose. */
                     quit = 1;
                 else if (k == LLKEY_RIGHT || k == LLKEY_RETURN ||
                          k == ' ' || k == LLKEY_PGDN)
@@ -1592,9 +1596,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             fprintf(stderr, "ll_level: no window: %s\n", plat_last_error());
             goto done;
         }
-        plat_raise(); /* focus over the menu window that had it; on
-                       * Wayland the WM decides - the backend re-raises
-                       * on pointer-enter (P-04) */
+        plat_raise(); /* FIX-02: now a documented no-op (window raised
+                       * once at creation); call kept for API parity */
         uint32_t lut[256];
         if (!pcm_owner || img.idx)
             for (int i = 0; i < 256; i++)
@@ -1641,14 +1644,16 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                                   : 0;
         uint64_t t_prev = plat_now_ns();
         while (!esc && (!t_end || plat_now_ns() < t_end)) {
-            /* P-04: no per-tick focus poll - the backend re-raises on
-             * pointer-enter only. P-10: F11/Alt+Enter are consumed by
-             * the backend and never surface here. */
+            /* Focus: raised once at window creation (FIX-02); no
+             * per-tick poll, no raise on pointer-enter. P-10: F11/
+             * Alt+Enter are consumed by the backend and never
+             * surface here. */
             ll_event e;
             while (plat_poll(&e)) {
                 if (e.type == LL_EV_QUIT ||
-                    (e.type == LL_EV_KEYDOWN &&
+                    (e.type == LL_EV_KEYDOWN && !e.repeat &&
                      (e.key == LLKEY_ESC || e.key == 'q')))
+                    /* FIX-03 (X-04): exit keys act on first press */
                     esc = 1;
                 else if (e.type == LL_EV_KEYDOWN && cam_max > 0) {
                     int k = e.key;      /* ASCII verbatim or LLKEY_* */
@@ -1660,7 +1665,11 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                         cam = 0;
                     else if (k == LLKEY_END)
                         cam = cam_max;
-                    else if (k == 'p') {
+                    else if (k == 'p' && !e.repeat) {
+                        /* FIX-03: camera motion (LEFT/RIGHT) keeps
+                         * auto-repeat - holding an arrow scrolls. p is a
+                         * TOGGLE: first press only, holding it must not
+                         * flicker autoscroll on/off. */
                         autoscroll = !autoscroll;
                         printf("ll_level: autoscroll %s\n",
                                autoscroll ? "on (50 px/s)" : "off");

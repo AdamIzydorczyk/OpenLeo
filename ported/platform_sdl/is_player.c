@@ -165,6 +165,10 @@ static void pump_input(player *p)
             p->quit = 1;
             p->quit_reason = "window close";
         } else if (e.type == LL_EV_KEYDOWN) {
+            if (e.repeat)
+                continue;   /* FIX-03 (X-04): every key the player acts
+                             * on is a toggle/confirm (q, ESC-skip, Space
+                             * pause): act on the first press only */
             if (e.key == 'q') {
                 p->quit = 1;
                 p->quit_reason = "q";

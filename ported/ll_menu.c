@@ -646,8 +646,8 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
         ll_event e;
         uint64_t t_next = now_ms() + 30;
         while (!quit) {
-            /* P-04: no per-tick focus poll - the platform re-raises on
-             * pointer-enter only. */
+            /* Focus: raised once at window creation (FIX-02); no
+             * per-tick poll, no raise on pointer-enter. */
             if (t_deadline && now_ms() >= t_deadline) {
                 printf("menu: LEO_MENU_SECS expired (auto-quit)\n");
                 quit = 1;
@@ -702,6 +702,14 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                         }
                 } else if (e.type == LL_EV_KEYDOWN) {
                     int k = e.key;      /* ASCII verbatim or LLKEY_* */
+                    /* FIX-03 (X-04): arrow auto-repeat stays (cycling
+                     * the highlight while held is the wanted feel);
+                     * everything else here CONFIRMS - zone letters
+                     * (t/n/x), Enter/Space, ESC, q - first press only. */
+                    int nav = (k == LLKEY_RIGHT || k == LLKEY_LEFT
+                               || k == LLKEY_UP || k == LLKEY_DOWN);
+                    if (e.repeat && !nav)
+                        continue;
                     int zhit = 0;
                     for (int zi = 0; zi < nz; zi++)
                         if (zones[zi].key && k == (int)zones[zi].key) {
@@ -1062,8 +1070,8 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         ll_event e;
         uint64_t t_next = now_ms() + 30;
         while (!quit) {
-            /* P-04: no per-tick focus poll - the platform re-raises on
-             * pointer-enter only. */
+            /* Focus: raised once at window creation (FIX-02); no
+             * per-tick poll, no raise on pointer-enter. */
             if (t_deadline && now_ms() >= t_deadline) {
                 printf("map: LEO_MENU_SECS expired (auto-quit)\n");
                 quit = 1;
@@ -1161,6 +1169,12 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                         sel = (sel + nchs - 1) % nchs;
                     else if (k == LLKEY_DOWN || k == LLKEY_RIGHT)
                         sel = (sel + 1) % nchs;
+                    else if (e.repeat)
+                        continue;       /* FIX-03 (X-04): chapter cycling
+                                         * keeps auto-repeat; confirm/select
+                                         * and letter picks act on first
+                                         * press only (holding Enter must
+                                         * not fall through the menu) */
                     else if (k == LLKEY_RETURN || k == ' ') {
                         quit = 1;
                         ret = sel;

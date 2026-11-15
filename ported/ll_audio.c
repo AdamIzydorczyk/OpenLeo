@@ -12,9 +12,29 @@
  * PipeWire, 2026-11-14) delivered squeaking or silent streams for
  * BOTH the callback and QueueAudio paths while the alsa backend
  * played the very same bytes clean. Only fires when SDL would
- * auto-pick pipewire, so Windows (directsound) and older/user-pinned
- * setups are untouched; LEO/SDL_AUDIODRIVER in the environment
- * always wins. */
+ * auto-pick pipewire, so Windows (wasapi by default in SDL 2.32) and
+ * older/user-pinned setups are untouched; LEO/SDL_AUDIODRIVER in the
+ * environment always wins. */
+/* FIX-05 (deep dive X-07): name the REAL SDL AUDIO_* format values (no
+ * *SYS aliases: they duplicate the LSB/MSB cases). The old fmt[] table
+ * indexed a made-up 0x800F mask and always printed "?". */
+static const char *fmt_name(SDL_AudioFormat f)
+{
+    switch (f) {
+    case AUDIO_U8:     return "U8";
+    case AUDIO_S8:     return "S8";
+    case AUDIO_S16LSB: return "S16LSB";
+    case AUDIO_S16MSB: return "S16MSB";
+    case AUDIO_U16LSB: return "U16LSB";
+    case AUDIO_U16MSB: return "U16MSB";
+    case AUDIO_S32LSB: return "S32LSB";
+    case AUDIO_S32MSB: return "S32MSB";
+    case AUDIO_F32LSB: return "F32LSB";
+    case AUDIO_F32MSB: return "F32MSB";
+    default:           return "?";
+    }
+}
+
 int ll_audio_session_init(void)
 {
     if (SDL_WasInit(SDL_INIT_AUDIO))
@@ -52,15 +72,15 @@ SDL_AudioDeviceID ll_audio_open(const SDL_AudioSpec *want)
     /* P-13: allowed_changes=0 means SDL converts silently to what the
      * backend really runs; log the accepted spec so capture/diagnostic
      * runs can be trusted. */
-    static const char *const fmt[] = {
-        "U8", "S8", "S16LSB", "S16MSB", "S16SYS", "S32LSB",
-        "S32MSB", "S32SYS", "F32LSB", "F32MSB", "F32SYS",
-    };
-    unsigned f = have.format & 0x800F;
-    fprintf(stderr, "ll_audio: device %s %uHz %uch %u samples\n",
-            f < sizeof fmt / sizeof fmt[0] ? fmt[f] : "?",
-            (unsigned)have.freq, (unsigned)have.channels,
-            (unsigned)have.samples);
+    /* Print the accepted spec + the driver that actually answered, so
+     * capture/diagnostic lines can be trusted (FIX-05; the 'll_audio:
+     * device' prefix is what diagnostics key on - only its content got
+     * honest). */
+    fprintf(stderr, "ll_audio: device %s %uHz %uch %u samples (driver %s)\n",
+            fmt_name(have.format), (unsigned)have.freq,
+            (unsigned)have.channels, (unsigned)have.samples,
+            SDL_GetCurrentAudioDriver() ? SDL_GetCurrentAudioDriver()
+                                        : "?");
     return dev;
 }
 

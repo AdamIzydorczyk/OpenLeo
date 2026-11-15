@@ -94,15 +94,17 @@ int main(int argc, char **argv)
      * paths - the app glue unwinds on this flag instead. */
     check("no quit request before any QUIT event (FIX-01)",
           plat_quit_requested() == 0);
-    ll_event kd = { LL_EV_KEYDOWN, LLKEY_RETURN, -1, -1 };
-    ll_event bt = { LL_EV_BUTTON_DOWN, LLBTN_LEFT, 142, 97 };
-    ll_event mo = { LL_EV_MOTION, 0, 260, 31 };
-    ll_event qt = { LL_EV_QUIT, 0, -1, -1 };
+    ll_event kd = { LL_EV_KEYDOWN, LLKEY_RETURN, -1, -1, 0 };
+    ll_event bt = { LL_EV_BUTTON_DOWN, LLBTN_LEFT, 142, 97, 0 };
+    ll_event mo = { LL_EV_MOTION, 0, 260, 31, 0 };
+    ll_event qt = { LL_EV_QUIT, 0, -1, -1, 0 };
+    ll_event rp = { LL_EV_KEYDOWN, ' ', -1, -1, 1 };  /* FIX-03: held SPACE */
     plat_dummy_inject(&kd);
     plat_dummy_inject(&bt);
     plat_dummy_inject(&mo);
     plat_dummy_inject(&qt);
-    ll_event g1, g2, g3, g4;
+    plat_dummy_inject(&rp);
+    ll_event g1, g2, g3, g4, g5;
     check("poll delivers injected events in order (incl. mouse coords)",
           plat_poll(&g1) == 1 && g1.type == LL_EV_KEYDOWN &&
           g1.key == LLKEY_RETURN &&
@@ -111,6 +113,9 @@ int main(int argc, char **argv)
           plat_poll(&g3) == 1 && g3.type == LL_EV_MOTION &&
           g3.x == 260 && g3.y == 31 &&
           plat_poll(&g4) == 1 && g4.type == LL_EV_QUIT);
+    check("KEYDOWN auto-repeat flag passes through untouched (FIX-03)",
+          plat_poll(&g5) == 1 && g5.type == LL_EV_KEYDOWN &&
+          g5.key == ' ' && g5.repeat == 1);
     check("queue drains -> poll returns 0", plat_poll(&e) == 0);
     check("dequeued QUIT latches a sticky quit request (FIX-01)",
           plat_quit_requested() == 1);

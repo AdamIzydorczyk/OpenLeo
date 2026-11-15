@@ -61,6 +61,21 @@ int plat_init(const char *title, int w, int h)
     return 0;
 }
 
+/* FIX-04 (deep dive X-05): re-show the backend's CURRENT texture - the
+ * last presented frame - without touching a single pixel. The window
+ * system invalidates the surface on expose/restore/resize and a fullscreen
+ * toggle swaps the surface outright; while the engine is idle (pause,
+ * audio drain, 2 s end-hold) nothing presents, and the window would stay
+ * black or show garbage. Pixels are unchanged by construction. */
+static void present_last(void)
+{
+    if (!v.tex || !v.view.ren)
+        return;
+    SDL_RenderClear(v.view.ren);
+    SDL_RenderCopy(v.view.ren, v.tex, NULL, NULL);
+    SDL_RenderPresent(v.view.ren);
+}
+
 void plat_present(const uint8_t *idx8, const uint8_t pal[768], int w, int h)
 {
     if (!v.tex || !idx8 || !pal || w <= 0 || h <= 0)
@@ -90,9 +105,7 @@ void plat_present(const uint8_t *idx8, const uint8_t pal[768], int w, int h)
         }
         SDL_UnlockTexture(v.tex);
     }
-    SDL_RenderClear(v.view.ren);
-    SDL_RenderCopy(v.view.ren, v.tex, NULL, NULL);
-    SDL_RenderPresent(v.view.ren);
+    present_last();   /* the shared upload->clear->copy->flip tail (FIX-04) */
 }
 
 void plat_present_argb(const uint32_t *fb, int w, int h)
@@ -111,22 +124,17 @@ void plat_present_argb(const uint32_t *fb, int w, int h)
                    (const char *)fb + (size_t)y * w * 4, (size_t)w * 4);
         SDL_UnlockTexture(v.tex);
     }
-    SDL_RenderClear(v.view.ren);
-    SDL_RenderCopy(v.view.ren, v.tex, NULL, NULL);
-    SDL_RenderPresent(v.view.ren);
+    present_last();   /* the shared upload->clear->copy->flip tail (FIX-04) */
 }
 
 void plat_raise(void)
 {
-    if (!v.view.win)
-        return;
-    SDL_RaiseWindow(v.view.win);
-    /* X11/XWayland hard input grab; the pure Wayland backend ignores
-     * it (WM decides) - callers keep input handling tolerant (P-04). */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    SDL_SetWindowInputFocus(v.view.win);
-#pragma GCC diagnostic pop
+    /* FIX-02 (deep dive X-03): API no-op. The window is raised EXACTLY
+     * once at creation (ll_view_create); every screen re-entry happens
+     * in that SAME window, so raising again here could only steal focus
+     * from whatever the user switched to - and SDL_SetWindowInputFocus
+     * was a hard X11 grab that flashed the Windows taskbar. Callers
+     * (screens, selftest) stay; the request is simply ignored. */
 }
 
 /* SDL keysym -> engine key id (T-15: printables stay ASCII verbatim,
@@ -199,9 +207,14 @@ int plat_poll(ll_event *ev)
          * coordinates: SDL already un-scaled them for us (P-10). */
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
-            if (ll_view_handle_event(&e, v.view.win))
+            if (ll_view_handle_event(&e, v.view.win)) {
+                present_last();  /* FIX-04 (X-05): F11/Alt+Enter swapped
+                                  * the surface (fullscreen toggle) - the
+                                  * current frame must come straight back
+                                  * even while the engine is idle */
                 continue;
-            ll_event o = { LL_EV_NONE, 0, -1, -1 };
+            }
+            ll_event o = { LL_EV_NONE, 0, -1, -1, 0 };
             if (e.type == SDL_QUIT) {
                 o.type = LL_EV_QUIT;
                 v.quit_req = 1;             /* FIX-01: sticky app quit */
@@ -210,6 +223,9 @@ int plat_poll(ll_event *ev)
                 if (!o.key)
                     continue;
                 o.type = LL_EV_KEYDOWN;
+                o.repeat = e.key.repeat != 0;   /* FIX-03 (X-04): the
+                     * OS auto-repeat flag rides along; consumers decide
+                     * per key (toggle/confirm keys act first-press only) */
             } else if (e.type == SDL_MOUSEBUTTONDOWN
                        && e.button.button == SDL_BUTTON_LEFT) {
                 o.type = LL_EV_BUTTON_DOWN;
@@ -220,13 +236,28 @@ int plat_poll(ll_event *ev)
                 o.type = LL_EV_MOTION;
                 o.x = e.motion.x;
                 o.y = e.motion.y;
-            } else if (e.type == SDL_WINDOWEVENT
-                       && e.window.event == SDL_WINDOWEVENT_CLOSE) {
-                /* FIX-01: belt-and-braces - SDL posts SDL_QUIT alongside
-                 * this today, but a WM close must latch quit even if the
-                 * QUIT pairing ever changes. Not surfaced: the engine's
-                 * LL_EV_QUIT contract stays exactly as it was. */
-                v.quit_req = 1;
+            } else if (e.type == SDL_WINDOWEVENT) {
+                /* Window bookkeeping, never surfaced to the engine:
+                 * CLOSE latches the FIX-01 sticky quit (belt-and-braces -
+                 * SDL posts SDL_QUIT alongside today, but a WM close must
+                 * latch even if that pairing changes); EXPOSED /
+                 * SIZE_CHANGED / RESTORED mean the surface was
+                 * invalidated while the engine may be idle (pause, audio
+                 * drain, end-hold) - re-show the current texture, pixels
+                 * unchanged (FIX-04, X-05). Everything else (incl.
+                 * ENTER: FIX-02 raised-once policy) is ignored. */
+                switch (e.window.event) {
+                case SDL_WINDOWEVENT_CLOSE:
+                    v.quit_req = 1;
+                    break;
+                case SDL_WINDOWEVENT_EXPOSED:
+                case SDL_WINDOWEVENT_SIZE_CHANGED:
+                case SDL_WINDOWEVENT_RESTORED:
+                    present_last();
+                    break;
+                default:
+                    break;
+                }
                 continue;
             } else {
                 /* key-up and everything else: the engine input model
