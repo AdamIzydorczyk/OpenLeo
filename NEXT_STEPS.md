@@ -1050,8 +1050,10 @@ ll_view/ll_audio as backend-private helpers).
     pre-FIX-11 rationale for the pin is refuted on this compositor.
   * LEO_FORCE_X11=1: byte-identical old 'main: Wayland session
     detected...' line + driver x11. SDL_VIDEODRIVER=x11 honoured too.
-  * 150% sharpness remains an eyeball check for the owner (the
-    programmatic half - native wayland, input, clean run - is proven).
+  * 150% sharpness eyeball: PERFORMED by the owner 2026-11-15 - full
+    LOGO run on the native path at the owner's 150% scaling
+    ('window 640x480 (driver wayland)', presented=125/125), verdict
+    SHARP. PR-31's acceptance list is now fully closed.
 - Regression: full verify-all exit 0 (only by-design no-regression
   SKIP; golden 98.4% unchanged; the suite's own real-window leg now
   shows 'driver wayland' and passes unchanged); fixture-free sim exit
@@ -1160,7 +1162,7 @@ ll_view/ll_audio as backend-private helpers).
   unnecessary); (b) keep per-playback (worst case now bounded by PR-30
   fallback); (c) implement Part 2 without measuring.
 
-### C2 — Wayland default flip (FIX-11) - SHIPPED, needs confirm/rollback call
+### C2 — Wayland default flip (FIX-11) - CLOSED: shipped PR-31, owner 150% eyeball verdict "SHARP" 2026-11-15
 - PR-31 shipped default = SDL's own choice (spec steps 1-2), pin behind
   LEO_FORCE_X11=1 (byte-identical old lines), escape hatch proven live;
   classic SDL2 still picks X11-first (source-verified SDL_video.c:74-83)
@@ -1168,8 +1170,10 @@ ll_view/ll_audio as backend-private helpers).
 - Live proof: native Wayland window + keyboard WITHOUT any click
   (/dev/uinput synthetic key -> 'quit=1 (q)') = the pin's original
   rationale (focus never works) refuted on this compositor.
-- Open for the owner: 150%-fractional-scaling sharpness eyeball (the
-  programmatic half is done). Rollback = one line if wanted; flag stays.
+- Owner eyeball DONE 2026-11-15: native-Wayland LOGO run at 150%
+  fractional scaling -> 'sharp'. No rollback needed; LEO_FORCE_X11=1
+  stays as the escape hatch. All three owner rulings (C1/C2/C3) are
+  now fully closed.
 
 ### C3 — q = quit the app (FIX-01 step 6) - RULED: adopt -> shipped PR-33
 - Verified current semantics: q in a cutscene ENDS THAT SCENE (player
