@@ -1395,8 +1395,22 @@ secrets on the way.
   fix, exit 0); fixture-free sim exit 0 (22 named SKIPs); zero-warning
   llvm-mingw build; verify-arch ok in both modes; verify-pcx 65/65,
   verify-seq 1656/1656 (1 known-bad), verify-golden pose+full both ok.
+- PR-36 pushed 82727cd; CI run 43749480757: linux + asan green first
+  pass; windows-smoke failed on the SAME transient clock flake as
+  PR-35 ('sleep_until honors the deadline (>=20ms)', code untouched by
+  this PR). Rerun --failed: all three jobs success. CLOSED.
 
 ## Next — pick from the Deferred list below
+
+PR-36 left two named, evidence-backed follow-ups (best PR-37 material):
+(1) recover the ORIGINAL cursive font glyph shapes from the captured
+menu text (bbox diffs in the PR-36 record; the QEMU rig
+tools/golden_qemu_run.py / make golden_rig can capture more chapter
+titles for glyph coverage - the entire 7.9% golden residual is exactly
+the text areas, so a matching font closes most of it); (2) PCM parallax layer row-windows
+read "0x0 rows" on RAN.01's plan2/plan1.pcm stack - the tlo ORDER is
+resolved (PR-36), the window semantics are the open question
+(verify-pcm owns the decoder oracle).
 
 Nothing queued from the review's "worth fixing" set: all of it has
 landed, and T-01 is finished (T-24 tooling landed in PR-19: the
