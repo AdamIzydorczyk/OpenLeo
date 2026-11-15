@@ -1212,7 +1212,7 @@ ll_view/ll_audio as backend-private helpers).
   run wine while verify legs are using the prefix).
 - PR-33 pushed 61a00ee; CI green run 43741448274 (all 3 jobs). CLOSED.
 
-## PR-34 — C1: FIX-09 Part 2, one audio device for the session (IN PROGRESS 2026-11-15)
+## PR-34 — C1: FIX-09 Part 2, one audio device for the session (DONE 2026-11-15)
 
 - Owner ruling "all 3 changes" executed. Measure-first was blocked (the
   handheld never woke today; WOL does not work), so the implementation
@@ -1251,12 +1251,11 @@ ll_view/ll_audio as backend-private helpers).
   now answers 48000 S16 with the same A/V margins and a clean run -
   mechanically healthy. The 'squeak' was an AUDIO artifact the numbers
   cannot see: pin STAYS until an ear check says otherwise.
-- Full suites: verify-all (fixtures) ALL TESTS PASSED exit 0; fixture-free
-  sim exit 0 (22 named SKIPs); ll_level ASan+UBSan music run clean with
-  byte-exact verify_music.py. PR-34 pushed 4b94424; CI green run
-  43751679326 (all 3 jobs). CLOSED - pending the staged handheld
-  measurement (device lines 2->1) and the optional LEO_KEEP_PIPEWIRE
-  ear check for pin removal.
+- PR-34 pushed f7f716a; CI green run 43742345929 (all 3 jobs). CLOSED.
+  Open only as follow-ups: the STAGED handheld measurement (device lines
+  2->1: /tmp/opencode/cmwin_before vs /tmp/opencode/cmwin, one
+  power-button press away) and the optional LEO_KEEP_PIPEWIRE ear check
+  for pin removal. SERIES PR-25..34 COMPLETE.
 
 ## Next — pick from the Deferred list below
 
