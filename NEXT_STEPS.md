@@ -786,6 +786,61 @@ ll_view/ll_audio as backend-private helpers).
 - verify-quit/verify-sel/verify-platform/verify-arch green locally;
   full suite + fixture-free sim run next as always.
 
+- PR-26 pushed 656dbc5; CI green.
+
+## PR-27 — FIX-12: CI hardening (DONE 2026-11-15)
+
+- ci.yml only + one small Makefile variable (WINDRES ?=, same fallback
+  chain as XC; the .res rule now uses it so a native MSYS2 build can
+  point it at plain 'windres').
+- linux job: the SDL2 mingw tarball download is now sha256-PINNED
+  (83a5d740...38ff2, computed from the exact official libsdl.org URL;
+  a deliberately broken pin fails the job - acceptance criterion).
+  Both target sets are uploaded via actions/upload-artifact@v4 (name
+  openleo-<sha>, if-no-files-found: error). All 19 artifact names are
+  built by `make`/`make win`/verify-leg dependencies even when legs
+  SKIP - verified against the PR-26 CI log's target list.
+- NEW windows-smoke job (windows-latest, msys2/setup-msys2@v2 MINGW64):
+  first-ever NATIVE Windows build + RUN of the headless selftests
+  (platform_selftest is SDL-free by the T-01 design, so make
+  platform_selftest llrs_selftest pcx_selftest seq_selftest
+  seq_patchdump pcm_selftest mod_selftest compile natively; the rules
+  hardcode their flags - no $(CFLAGS) dependence - and use
+  -DPLAT_BACKEND_DUMMY=1), then RUN them for real against the
+  repo-committed fixtures: platform_selftest defaults to data/INTRO_P.IS
+  (in git), llrs_selftest over data/{ANIMACJE,ETAPY,SOUND} - all exit
+  0 locally first. platform_selftest is an ASan build, so this job is
+  also native-Windows sanitizer coverage. Then the REAL ll_cutscene.exe
+  builds natively (XC=gcc WINDRES=windres SDL_WIN=/mingw64 reuses the
+  cross rules) and smoke-runs from an EMPTY dir with dummy drivers:
+  expects exit 2 + 'usage:' on output (proven locally against the
+  cross-built .exe: '[leo] no DATA found...' + usage + rc=2). NOT
+  --help until FIX-13 lands (X-12: treated as FILE.IS today, and
+  fatal_msg would open a blocking message box); the YAML says to flip
+  it to --help/exit-0 in PR-32.
+- NEW asan job (ubuntu): CFLAGS-override ASan+UBSan build of
+  ll_cutscene ll_level ll_save + all tool selftests (O1 -g -fsanitize
+  as the fuzz leg composes them), then the REAL runs over committed
+  fixtures with ASAN_OPTIONS=detect_leaks=1:abort_on_error=1
+  UBSAN_OPTIONS=halt_on_error=1 + SDL dummy drivers (ruling C7's
+  documented leak-clean config). Replicated locally: zero warnings,
+  zero leaks/UB.
+- Deviations from the deep-dive spec (recorded for the owner): the
+  spec's 'make verify-platform verify-fuzz verify-llrs/pcx/seq/pcm/
+  mod' under asan/windows jobs would print all-SKIP (those legs are
+  PX_DATA-wrapped on $(DATA) staging); running the built binaries
+  against the COMMITTED data/ fixtures gives the real assertions
+  instead. Extending the data-backed legs to the committed containers
+  needs nested-container restaging machinery (fuzz over data/ exits 2:
+  'pcx corpus' needs extracted trees) - deliberately NOT built now.
+  Optional macos-latest build-only job: not added (spec marks it
+  optional; one more runner minute + brew volatility for build-only
+  signal). Revisit at series end if wanted.
+- Local gates: full verify-all exit 0 + fixture-free sim exit 0 after
+  the WINDRES change; the two new jobs run their exact steps locally
+  first (asan fully; windows partially - the .exe smoke executed via
+  the local binfmt path, real-MSYS2 proof lands with this CI run).
+
 ## Next — pick from the Deferred list below
 
 Nothing queued from the review's "worth fixing" set: all of it has

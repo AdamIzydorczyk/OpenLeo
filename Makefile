@@ -49,6 +49,11 @@ run: ll_cutscene
 # llvm-mingw cross toolchain (vendor/llvm-mingw, gitignored).
 XC        ?= $(shell command -v x86_64-w64-mingw32-gcc 2>/dev/null || \
                     echo vendor/llvm-mingw/bin/x86_64-w64-mingw32-clang)
+# Same fallback chain for windres (FIX-12: CI's windows-smoke job runs a
+# native MSYS2 build where the prefixed name does not exist; override
+# with WINDRES=windres there, exactly like XC=gcc SDL_WIN=/mingw64).
+WINDRES   ?= $(shell command -v x86_64-w64-mingw32-windres 2>/dev/null || \
+                    echo vendor/llvm-mingw/bin/x86_64-w64-mingw32-windres)
 SDL_WIN   ?= vendor/SDL2-2.32.10/x86_64-w64-mingw32
 XCFLAGS   := -O2 -std=gnu11 -Wall -Wextra -DPLATFORM_WIN=1 -Dmain=SDL_main \
              -Iported -I$(SDL_WIN)/include
@@ -67,9 +72,7 @@ ll_cutscene.exe: $(SRC) $(HDRS) resources/ll_cutscene.res
 # llvm-mingw (or any mingw windres).
 resources/ll_cutscene.res: resources/ll_cutscene.rc resources/app.manifest \
                           resources/ll_cutscene.ico
-	$(shell command -v x86_64-w64-mingw32-windres 2>/dev/null || \
-	        echo vendor/llvm-mingw/bin/x86_64-w64-mingw32-windres) \
-	    resources/ll_cutscene.rc -O coff -o $@
+	$(WINDRES) resources/ll_cutscene.rc -O coff -o $@
 
 # ---------------- tests (both platforms) ----------------
 # Byte-exactness oracle: headless --ppm output vs tools/is_decode.py.

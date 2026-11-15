@@ -10,6 +10,14 @@
 # run locally: LL.iso and the LEO_HDD/save originals are user-supplied,
 # copyrighted and gitignored on purpose, so they never reach the runner.
 # Local full run: stage fixtures per NEXT_STEPS.md, then `make -k verify-all`.
+#
+# FIX-12 (deep dive B-01) additions, this file only:
+# - the SDL2 mingw tarball download is sha256-pinned;
+# - both built target sets are uploaded as artifacts;
+# - windows-smoke: a NATIVE MSYS2/MINGW64 build + run (the .exe has so
+#   far only ever been cross-compiled and exercised under wine);
+# - asan: ASan/UBSan build of main + tools, run against the repo-committed
+#   fixtures (data/INTRO_P.IS, the ANIMACJE/ETAPY/SOUND containers).
 name: ci
 
 on:
@@ -43,10 +51,15 @@ jobs:
         # vendored layout, so CI unpacks the SAME official SDL2 mingw devel
         # tarball (zlib-licensed OSS, not game data) into vendor/. Identical
         # version to the local gitignored copy keeps the two builds equal.
+        # Pin: sha256 of https://www.libsdl.org/release/SDL2-devel-2.32.10-mingw.tar.gz
+        # (computed 2026-11-15 from that exact URL; bump together with the
+        # version - deliberately breaking this line must fail the job).
         run: |
           mkdir -p vendor
           curl -fsSLo /tmp/sdl.tar.gz \
             https://www.libsdl.org/release/SDL2-devel-2.32.10-mingw.tar.gz
+          echo "83a5d74012311edc3c0d40ea6faecbe57ad692aa033fa5dc273cc937e3938ff2  /tmp/sdl.tar.gz" \
+            | sha256sum -c -
           tar -xzf /tmp/sdl.tar.gz -C vendor
 
       - name: Python tools compile check (the suite's oracles are Python)
@@ -59,3 +72,149 @@ jobs:
 
       - name: Full suite (data-backed legs print clean SKIPs)
         run: make -k verify-all
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openleo-${{ github.sha }}
+          path: |
+            ll_cutscene
+            ll_level
+            ll_save
+            llrs_selftest
+            pcx_selftest
+            seq_selftest
+            seq_patchdump
+            pcm_selftest
+            mod_selftest
+            platform_selftest
+            fuzz
+            ll_cutscene.exe
+            ll_level.exe
+            ll_save.exe
+            llrs_selftest.exe
+            pcx_selftest.exe
+            seq_selftest.exe
+            seq_patchdump.exe
+            pcm_selftest.exe
+            mod_selftest.exe
+          if-no-files-found: error
+
+  # FIX-12 (B-01): the .exe targets have only ever been CROSS-built and
+  # run under wine. This job proves the native Windows toolchain path:
+  # MSYS2 MINGW64 builds and runs the SDL-free headless selftests (the
+  # T-01 dummy backend - no display needed), runs them against the
+  # repo-committed fixtures, and smoke-starts the REAL ll_cutscene.exe
+  # linked against MSYS2's SDL2. platform_selftest is always an
+  # ASan/UBSan build, so this is also native-Windows sanitizer coverage.
+  windows-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            make
+            pkg-config
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-binutils
+            mingw-w64-x86_64-SDL2
+
+      - name: Build the headless selftests natively
+        shell: msys2 {0}
+        run: make -j platform_selftest llrs_selftest pcx_selftest seq_selftest seq_patchdump pcm_selftest mod_selftest
+
+      - name: Run them (committed fixtures only; no game-data staging)
+        shell: msys2 {0}
+        run: |
+          ./platform_selftest
+          ./llrs_selftest data/ANIMACJE
+          ./llrs_selftest data/ETAPY
+          ./llrs_selftest data/SOUND
+          make verify-arch
+        # platform_selftest defaults to data/INTRO_P.IS (in git). The
+        # make-side verify-* legs would SKIP here (no $(DATA) staging) -
+        # running the built binaries directly gives the REAL assertions.
+
+      - name: Build the real .exe against native SDL2
+        shell: msys2 {0}
+        # XC/WINDRES/SDL_WIN point the existing cross rules at the native
+        # MSYS2 toolchain (-DPLATFORM_WIN=1, SDL_main, static runtime):
+        # the same recipe the Linux cross-build uses, natively.
+        run: make XC=gcc WINDRES=windres SDL_WIN=/mingw64 ll_cutscene.exe
+
+      - name: Smoke-run the .exe headless (no args, no game data)
+        shell: msys2 {0}
+        # From an EMPTY dir no DATA candidate exists (repo ./data and
+        # <exe>/data both absent), so main prints usage and exits 2.
+        # That proves: process starts, SDL2 links and loads, SDL_main
+        # runs, the CLI path completes cleanly. NOT --help yet: until
+        # FIX-13 it is treated as FILE.IS (message box would block a
+        # headless runner); switch this step to --help/exit-0 when
+        # FIX-13 lands (PR-32).
+        run: |
+          mkdir -p /tmp/leo-smoke
+          cp ll_cutscene.exe /tmp/leo-smoke/
+          cp /mingw64/bin/libSDL2*.dll /tmp/leo-smoke/
+          cd /tmp/leo-smoke
+          export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
+          set +e
+          out=$(./ll_cutscene.exe 2>&1)
+          rc=$?
+          set -e
+          printf '%s\n' "$out"
+          if [ "$rc" -ne 2 ]; then echo "windows smoke FAILED: exit $rc, expected 2"; exit 1; fi
+          printf '%s\n' "$out" | grep -q 'usage:' || { echo "windows smoke FAILED: no usage text"; exit 1; }
+          echo "windows smoke: native .exe starts, links SDL2, runs SDL_main (ok)"
+
+  # FIX-12 (B-01): ASan/UBSan build of the main binary + tools, run
+  # against the repo-committed fixtures (NOT the gitignored $(DATA)
+  # staging - the data-backed legs SKIP here too; what runs here is
+  # real: the full engine decode+present path through the dummy
+  # platform (platform_selftest, committed data/INTRO_P.IS) and the
+  # llrs codec over the three committed containers). SDL dummy drivers
+  # per the documented leak-clean config (plan ruling C7).
+  asan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install --no-install-recommends \
+            build-essential pkg-config libsdl2-dev python3
+
+      - name: Build with ASan+UBSan (flags as the fuzz leg composes them)
+        run: |
+          A="-O1 -g -std=gnu11 -Wall -Wextra -DPLATFORM_LINUX=1 \
+             -fsanitize=address,undefined -fno-omit-frame-pointer"
+          make -j"$(nproc)" CFLAGS="$A $(pkg-config --cflags sdl2)" \
+            ll_cutscene ll_level ll_save llrs_selftest pcx_selftest \
+            seq_selftest seq_patchdump pcm_selftest mod_selftest
+
+      - name: Run the committed-fixture paths under the sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: dummy
+        run: |
+          ./platform_selftest
+          ./llrs_selftest data/ANIMACJE
+          ./llrs_selftest data/ETAPY
+          ./llrs_selftest data/SOUND
+          ./ll_cutscene data/LOGO.IS --ppm 3 /tmp/asan_frame.ppm \
+            > /tmp/asan_main.log 2>&1
+          tail -1 /tmp/asan_main.log
+          make verify-arch
+        # NOTE: the selftest rules hardcode -fsanitize=address,undefined
+        # (always-on since PR-11), so the "sanitizer" part above is the
+        # strict option set + real committed bytes; the CFLAGS override
+        # sanitizes the MAIN binary, exercised by the --ppm decode path
+        # (measured locally: rc=0, leak-clean).
