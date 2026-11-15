@@ -28,7 +28,10 @@ def blocks_of(path):
         if 4 + 26 * cnt > len(blk):
             continue
         recs = []
-        for j in range(cnt):
+        # same sparse-table rule as ported/llrs.c (probed 2026-11-15): the
+        # header field counts USED records; the slot table continues past
+        # it with id==0 holes, and records sit at slot indices > cnt.
+        for j in range((len(blk) - 4) // 26):
             rk, ri, ro, rs = struct.unpack_from("<14sIII", blk, 4 + 26 * j)
             if ri == 1 and rk[:4].upper() != b"\0\0\0\0":
                 nm = rk.split(b"\0")[0].decode("latin1")

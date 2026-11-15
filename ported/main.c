@@ -54,8 +54,11 @@ static void ppm_cb(void *u, unsigned idx, const is_stream *s)
     }
 }
 
-/* read ANIMACJE/MENU/OPTIONS.PCX payload (malloc'd) or NULL */
-static unsigned char *menu_bg(const char *data, unsigned *len)
+/* read one ANIMACJE/MENU block record payload by exact name (malloc'd)
+ * or NULL. Case-insensitive: container names are matched case-insensitively
+ * everywhere else (llrs_find / llrs_open). */
+static unsigned char *menu_record(const char *data, const char *want,
+                                 unsigned *len)
 {
     char p[4096];
     llrs a;
@@ -69,10 +72,8 @@ static unsigned char *menu_bg(const char *data, unsigned *len)
         unsigned n = 0;
         if (llrs_block(&a, menu, &recs, &n) == 0) {
             for (unsigned k = 0; k < n; k++) {
-                const char *nm = recs[k].name;
                 if (recs[k].id == 1 &&
-                    (strcmp(nm, "OPTIONS.PCX") == 0 ||
-                     strcmp(nm, "options.pcx") == 0)) {
+                    strcasecmp(recs[k].name, want) == 0) {
                     long sz = llrs_read(&a, &recs[k], &out);
                     if (sz < 0)
                         out = NULL;
@@ -88,20 +89,41 @@ static unsigned char *menu_bg(const char *data, unsigned *len)
     return out;
 }
 
+/* read ANIMACJE/MENU/OPTIONS.PCX payload (malloc'd) or NULL */
+static unsigned char *menu_bg(const char *data, unsigned *len)
+{
+    return menu_record(data, "OPTIONS.PCX", len);
+}
+
+/* read ANIMACJE/MENU/BACK.PCX payload - the engine's CLEAN chapter-map
+ * landscape (proved 2026-11-15: diffed against the captured menu VRAM
+ * the only pixels that differ are the engine's own drawn text). Found
+ * only via the fixed sparse-table block scan (it sits at slot 80 of the
+ * MENU table, past the old parser's header-count cutoff). */
+static unsigned char *menu_back(const char *data, unsigned *len)
+{
+    return menu_record(data, "BACK.PCX", len);
+}
+
 /* read ANIMACJE/MENU title-screen .SEQ overlays in container order;
- * *nanim = count found. Caller frees payload + array.  x/y = fixed
- * logical-canvas origins for the map menu (AUTORZY.SEQ @ (4,180) is the
- * real bottom-left corner word sprite); x=-1 = park on the selected
+ * *nanim = count found. Caller frees payload + array.  x/y are fixed
+ * logical-canvas origins for the map menu; x=-1 = park on the selected
  * island (BERLO arrow).  RESTGRY/TAK/CNIE/X are the "restart gry?"
  * confirmation-dialog cursive sprites (VL OCR reads "restart gry?" and
  * "tak" on them; CNIE is the ornate cursive answer word, X the cross):
  * they compose over OPTIONS.PCX at their authored (-f0,-f2) origins on
  * the restart corner (reconstruction, PLAN 8b: the .MNU placement is a
- * CD data hole). */
+ * CD data hole).
+ * The corner-WORD .SEQ files (WYJSCIE/OPCJE/RESTART/AUTORZY/OPCJEBK)
+ * are deliberately NOT loaded: rasterized 2026-11-15 they decode as
+ * filled button PLATES (~50x16 bands, not letters), and the owner
+ * confirms no such plate ever shows on the chapter map - the original
+ * engine draws those words as its own cursive text, so the port font-
+ * draws them instead (single text layer; see ll_menu.c map compositor). */
 static ll_menu_anim *menu_anims(const char *data, int *nanim)
 {
     static const char *want[] = { "X.SEQ", "CNIE.SEQ", "BERLO.SEQ",
-                                  "AUTORZY.SEQ", "RESTGRY.SEQ", "TAK.SEQ" };
+                                  "RESTGRY.SEQ", "TAK.SEQ" };
     char p[4096];
     llrs a;
     *nanim = 0;
@@ -128,10 +150,12 @@ static ll_menu_anim *menu_anims(const char *data, int *nanim)
                         out[*nanim].len = (unsigned)sz;
                         out[*nanim].period_ms = 100;
                         out[*nanim].tag = want[w];
-                        out[*nanim].x =
-                            strcasecmp(want[w], "AUTORZY.SEQ") == 0 ? 4 : -1;
-                        out[*nanim].y =
-                            strcasecmp(want[w], "AUTORZY.SEQ") == 0 ? 180 : -1;
+                        out[*nanim].x = -1;  /* dialog sprites compose at
+                                              * their authored (-f0,-f2)
+                                              * origins; the BERLO arrow
+                                              * parks on the selected
+                                              * island (ll_menu.c) */
+                        out[*nanim].y = -1;
                         (*nanim)++;
                     }
                     break;
@@ -396,19 +420,19 @@ static void run_menu(const char *data, int audio)
                 printf("map: click = activate (island launches, corner "
                        "acts); arrows + Enter/Space chapter; a/o/r corner "
                        "keys; q/Esc quit\n");
-                ll_menu_anim m2[2];
+                ll_menu_anim m2[1];
                 int m2n = 0;
                 for (int i = 0; i < nanim; i++)
                     if (anims[i].tag && strcmp(anims[i].tag, "BERLO.SEQ") == 0) {
                         m2[m2n++] = anims[i];
                         break;
                     }
-                for (int i = 0; i < nanim && m2n < 2; i++)
-                    if (anims[i].tag &&
-                        strcmp(anims[i].tag, "AUTORZY.SEQ") == 0)
-                        m2[m2n++] = anims[i];
-                sel = ll_menu_map_open(chs, n, m2n ? m2 : anims,
-                                       m2n ? m2n : nanim);
+                /* the map's real base layer: ANIMACJE/MENU/BACK.PCX (may
+                 * be NULL -> ll_menu.c falls back to the captured art) */
+                unsigned blen = 0;
+                unsigned char *back = menu_back(data, &blen);
+                sel = ll_menu_map_open(chs, n, m2, m2n, back, blen);
+                free(back);
             } else {
                 fprintf(stderr, "map: no chapters in %s/ETAPY, "
                         "falling back to list menu\n", data);

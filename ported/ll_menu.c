@@ -799,9 +799,9 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
 #define MAP_W 640
 #define MAP_H 400
 
-/* The original composites in a 320x200 logical canvas (the .SEQ sprite
- * coords, e.g. AUTORZY.SEQ @ (4,180), are authored in that space) and
- * doubles 2x2 onto the 640x400 CRTC; hunt13's VRAM dump proved the fb is
+/* The original composites in a 320x200 logical canvas (its .SEQ sprite
+ * coords and engine text anchors are authored in that space) and doubles
+ * 2x2 onto the 640x400 CRTC; hunt13's VRAM dump proved the fb is
  * linear 8bpp 320x200.  We mirror that: everything composites at logical
  * scale, presentation + PPM merge to 640x400. */
 #define MAP_LW 320
@@ -847,22 +847,41 @@ static uint32_t menu_lut(int i)
     return ll_menu_dac[i & 0xFF];
 }
 
-/* bg on the logical canvas; chs anchors are 640-space, halved here */
-static void map_bg(uint32_t *fb, const ll_menu_ch *chs, int nchs)
+/* bg on the logical canvas; chs anchors are 640-space, halved here.
+ * back = decoded ANIMACJE/MENU/BACK.PCX (NULL = not available);
+ * placeholder = LEO_MENU_BG=placeholder was requested.  Returns 1 when
+ * the base carries the engine's text baked in (the captured fallback),
+ * 0 when it is clean (BACK.PCX or procedural). */
+static int map_bg(uint32_t *fb, const ll_menu_ch *chs, int nchs,
+                  const ll_pcx *back, int placeholder)
 {
-    /* The ORIGINAL's map background is the static landscape captured by
-     * the T-24 golden master (ll_menu_art.h: authentic index bytes,
-     * colored through ll_menu_dac.h - same index space as the .SEQ
-     * overlays). The art exists in no data container (PLAN S8b + asset
-     * hunt round 2), so these recovered bytes ARE the record.
-     * LEO_MENU_BG=placeholder selects the procedural stand-in below. */
-    const char *bgmode = getenv("LEO_MENU_BG");
-    if (!bgmode || strcmp(bgmode, "placeholder") != 0) {
+    if (!placeholder && back && back->idx) {
+        /* The ORIGINAL's data: BACK.PCX is the engine's clean map
+         * landscape - proved 2026-11-15 by diffing its decoded index
+         * plane against the captured menu VRAM: the only differing
+         * pixels are the engine-drawn text (green corner words +
+         * cursive chapter title). Its 768B tail palette is a standard
+         * VGA leftover (0/256 entries match the captured DAC); the
+         * indices live in the same index space as the .SEQ sprites,
+         * so color them through ll_menu_dac.h like the real frame. */
+        for (int i = 0; i < MAP_LW * MAP_LH; i++)
+            fb[i] = ll_menu_dac[back->idx[i]];
+        return 0;
+    }
+    if (!placeholder) {
+        /* No game data: fall back to the authentic composed frame
+         * captured by the T-24 golden master (ll_menu_art.h: real index
+         * bytes, colored through ll_menu_dac.h). CAUTION: this capture
+         * is the engine's screen, so its text is BAKED IN - the caller
+         * must not font-draw the corner words over it (that duplicate
+         * was the user-visible double-text defect). The art exists in
+         * no data container (asset hunt round 2), so these recovered
+         * bytes ARE the record for this fallback. */
         for (int i = 0; i < MAP_LW * MAP_LH; i++)
             fb[i] = ll_menu_dac[ll_menu_art[i]];
-        return;
+        return 1;
     }
-    /* Placeholder for the globe+islands art (a CD data hole, PLAN 8b),
+    /* Procedural stand-in (LEO_MENU_BG=placeholder),
      * but using the REAL menu DAC tones recovered from the original
      * (ll_menu_dac.h): deep sea idx102 -> sea idx46 gradient, sea-blue
      * sparkles, green/sand island blobs at the measured anchors. */
@@ -910,13 +929,27 @@ static void map_bg(uint32_t *fb, const ll_menu_ch *chs, int nchs)
                 fb[py * MAP_LW + px] = c;
             }
     }
+    return 0;
 }
 
 int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
-                     const ll_menu_anim *anims, int nanims)
+                     const ll_menu_anim *anims, int nanims,
+                     const unsigned char *back_pcx, unsigned back_len)
 {
     if (nchs < 1)
         return -1;
+
+    const char *bgmode = getenv("LEO_MENU_BG");
+    int placeholder = bgmode && strcmp(bgmode, "placeholder") == 0;
+    ll_pcx back;
+    memset(&back, 0, sizeof back);
+    int have_back = 0;
+    if (!placeholder && back_pcx && back_len &&
+        ll_pcx_decode(back_pcx, back_len, &back) == 0 &&
+        back.w == MAP_LW && back.h == MAP_LH)
+        have_back = 1;
+    else
+        ll_pcx_free(&back);
 
     ll_seq *aseq = nanims > 0 ? calloc((size_t)nanims, sizeof *aseq) : NULL;
     int nanim_ok = 0;
@@ -942,6 +975,7 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
      * already live in it, so the click/hover math stays 1:1). */
     if (plat_init("Lew Leon - chapter map", MAP_W, MAP_H) < 0) {
         menu_anims_free(aseq, nanims);
+        ll_pcx_free(&back);
         return -2;
     }
     plat_raise(); /* dialog re-entry: ask the WM for focus */
@@ -953,6 +987,7 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         free(cv);
         free(disp);
         menu_anims_free(aseq, nanims);
+        ll_pcx_free(&back);
         return -2;
     }
 
@@ -960,7 +995,8 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
     for (int i = 0; i < 256; i++)
         pal[i] = menu_lut(i);
 
-    map_bg(fb, chs, nchs);              /* background is static */
+    int baked_text = map_bg(fb, chs, nchs, have_back ? &back : NULL,
+                            placeholder);
     uint32_t *base = malloc((size_t)MAP_LW * MAP_LH * sizeof *base);
     if (base)
         memcpy(base, fb, (size_t)MAP_LW * MAP_LH * sizeof *base);
@@ -979,10 +1015,11 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
             memcpy(fb, base, (size_t)MAP_LW * MAP_LH * sizeof *base);
 
         /* .SEQ overlays composite at logical scale (the original authored
-         * its sprite coords in the 320x200 space): anims with x>=0 draw at
-         * their fixed origin (AUTORZY.SEQ @ (4,180) = the bottom-left
-         * corner word); x<0 parks the BERLO arrow just left of the
-         * selected island's measured edge, vertically centred */
+         * its sprite coords in the 320x200 space): x<0 parks the BERLO
+         * arrow just left of the selected island's measured edge,
+         * vertically centred. The map carries no other overlays: the
+         * corner words are engine TEXT, and the word .SEQ files are
+         * button plates that never show here (owner-confirmed). */
         if (aseq) {
             memset(cv, 0xFF, (size_t)MAP_LW * MAP_LH);  /* 0xFF = keep bg */
             int irw = chs[sel].rw > 0 ? chs[sel].rw / 2 : 30;
@@ -1005,14 +1042,21 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                     fb[i] = pal[cv[i]];
         }
 
-        /* corner words + chapter title at logical scale, colors from the
-         * real menu DAC: idx15 green words, idx22 bright green title
-         * (art bbox x50..342 y108..158 = logical 25..171 54..79).
-         * AUTORZY is NOT font-drawn: it is the real AUTORZY.SEQ sprite
-         * overlay (anim @ logical (4,180)). */
-        draw_text1(fb, 5, 5, "WYJSCIE", ll_menu_dac[15]);
-        draw_text1_r(fb, 315, 3, "RESTART", ll_menu_dac[15]);
-        draw_text1_r(fb, 315, 187, "OPCJE", ll_menu_dac[15]);
+        /* Text layer, colors from the real menu DAC: idx15 green corner
+         * words, idx22 bright green title. The original engine draws
+         * these words itself (proved: the BACK.PCX -> captured-screen
+         * diff is exactly those letter pixels; bboxes WYJSCIE x4..110
+         * y4..39, RESTART x254..313 y2..17, OPCJE x259..313 y183..199,
+         * AUTORZY x2..66 y179..196, title x23..174 y45..81).
+         * Font-draw them exactly ONCE: skipped when the base is the
+         * baked capture fallback (its letters are already in the art -
+         * drawing both was the double-text defect). */
+        if (!baked_text) {
+            draw_text1(fb, 5, 5, "WYJSCIE", ll_menu_dac[15]);
+            draw_text1_r(fb, 315, 3, "RESTART", ll_menu_dac[15]);
+            draw_text1_r(fb, 315, 187, "OPCJE", ll_menu_dac[15]);
+            draw_text1(fb, 4, 180, "AUTORZY", ll_menu_dac[15]);
+        }
         draw_text1(fb, 25, 62, chs[sel].title, ll_menu_dac[22]);
 
         /* presentation = the original's 2x2 CRTC doubling of the logical
@@ -1225,5 +1269,6 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
     free(cv);
     free(disp);
     menu_anims_free(aseq, nanims);
+    ll_pcx_free(&back);
     return ret;
 }

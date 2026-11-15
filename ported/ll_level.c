@@ -1563,6 +1563,16 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         printf("ll_level: obj %s/%s: %dx%d at (%d,%d)%s\n", objs[k].leaf,
                objs[k].key, objs[k].sw, objs[k].sh, objs[k].x, objs[k].y,
                objs[k].mov.nst ? " [mov]" : "");
+    if (getenv("LEO_LEVEL_NO_OBJ")) {
+        /* CI-only hook (PR-36): paint the bare background (no .des object
+         * compositing, logs/animation state above stay as-is). Needed by
+         * the help-overlay oracle: since the sparse-table scan JUNCTION
+         * has a live scene sprite, and that oracle asserts "help frame =
+         * bare bg + exactly the page window". */
+        printf("ll_level: LEO_LEVEL_NO_OBJ -> %d objects not composited\n",
+               nobj);
+        nobj = 0;
+    }
 
     /* Scroll camera over the back_rect world (horizontal only; the world
      * height exceeds the view vertically - no vertical pan recovered,

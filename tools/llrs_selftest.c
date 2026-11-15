@@ -40,7 +40,12 @@ static void dump_block(llrs *c, const char *path, const char *slotname)
         fprintf(stderr, "%s/%s: not an index block\n", path, slotname);
         return;
     }
-    printf("# %s / %s: %u records\n", path, slotname, n);
+    unsigned nused = 0;
+    for (unsigned k = 0; k < n; k++)
+        if (recs[k].id)
+            nused++;
+    printf("# %s / %s: %u table slots, %u used records\n", path, slotname,
+           n, nused);
     for (unsigned k = 0; k < n; k++)
         if (recs[k].id)
             printf("%8u  id=%u  off=0x%x  size=0x%x  %s\n", k, recs[k].id,

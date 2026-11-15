@@ -1,11 +1,16 @@
 /* ll_pcx.h - PCX image reader for Lew Leon asset payloads (OPTIONS.PCX,
- * JUNCTION.PCX, PLAN3.PCX, M15.PCX, KARA.PCX, PIORUN3.PCX - all six in the
- * containers verified byte-exact vs tools/pcx_dump.py). Game files are
- * standard 8bpp RLE BUT with a non-standard header: bytes 12..15 deviate
- * (planes byte = 64), there is no 0x0C palette marker - the VGA palette is
- * simply the LAST 768 bytes of the payload, and a few junk bytes may trail
- * the RLE stream. Verified decode rule: window fields @4..12, bpp@3, RLE
- * from offset 64 up to len-768, take exactly (x1+1)*(y1+1) pixels.
+ * JUNCTION.PCX, PLAN3.PCX, M15.PCX, KARA.PCX, PIORUN3.PCX - all 65 PCX
+ * records in the containers verified byte-exact vs tools/pcx_dump.py).
+ * Game files carry the STANDARD 128-byte PCX header (truth-pinned
+ * 2026-11-15: BACK.PCX decoded from offset 128 reproduces the captured
+ * menu VRAM index plane byte-identically; the old offset-64 rule shifted
+ * every pixel). Verified decode rule: window fields @4..12, bpp@3,
+ * byte-per-line u16 @66 (== width for even widths; MFAKE.PCX 13x13 uses
+ * the standard even-byte scanline pad, stride 14), RLE from offset 128
+ * up to len-768, rows counted at the stride and the first w bytes kept.
+ * There is no 0x0C palette marker - the VGA palette is simply the LAST
+ * 768 bytes of the payload, and a few junk bytes may trail the RLE
+ * stream (never reached).
  * Output: 8-bit indexed pixels + RGB palette, ready for the SDL present
  * path (same palette-LUT trick as the .IS player).
  */

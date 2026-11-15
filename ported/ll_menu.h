@@ -83,16 +83,25 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
                     const ll_menu_zone *zones, int nzones);
 
 /* Original title menu is a 640x400 chapter MAP (measured 2026-11-14 in
- * the QEMU baseline: corner words wyjście/restart/autorzy/opcje, green
- * chapter title, BERLO red-arrow sprite pointing at an island; keyboard
- * advances/activates the chapter at the arrow).  The globe+islands bg
- * art is a confirmed CD data hole (PLAN 8b) so the map is composed
- * procedurally at the measured island anchors.  chs[] gives each
- * chapter's title + island anchor (640x400 coords); more than 6
- * chapters wrap onto extra anchor rings.  anims = .SEQ overlays (the
- * BERLO arrow cycles on its period_ms).  Returns selected chapter index,
- * -2 = wyjście/Esc, -3 = LEO_MENU_SECS deadline (CI hook), -4/-5/-6 =
- * the autorzy/opcje/restart corner words (a/o/r keys). */
+ * the QEMU baseline: corner words wyjście/restart/autorzy/opcje drawn by
+ * the engine's own cursive text, green chapter title, BERLO red-arrow
+ * sprite pointing at an island; keyboard advances/activates the chapter
+ * at the arrow).  The base layer is back_pcx/back_len = the engine's
+ * CLEAN landscape record ANIMACJE/MENU/BACK.PCX (proved 2026-11-15 by
+ * diff vs the captured VRAM: it carries no text/sprites; indices live in
+ * the captured menu DAC's index space, so it is colored through
+ * ll_menu_dac.h).  back_pcx=NULL falls back to the captured composed
+ * frame embedded in the port (ll_menu_art.h, text baked in;
+ * LEO_MENU_BG=placeholder selects the procedural stand-in).  Corner
+ * words are font-drawn by the port EXCEPT on the baked-art fallback
+ * (their letters are already in that art - drawing them again showed
+ * the visible double text; the word .SEQ files are button plates that
+ * never appear on the map).  chs[] gives each chapter's title + island
+ * anchor (640x400 coords); more than 6 chapters wrap onto extra anchor
+ * rings.  anims = .SEQ overlays (the BERLO arrow cycles on its
+ * period_ms).  Returns selected chapter index, -2 = wyjście/Esc,
+ * -3 = LEO_MENU_SECS deadline (CI hook), -4/-5/-6 = the autorzy/opcje/
+ * restart corner words (a/o/r keys). */
 typedef struct {
     const char *title;
     int ix, iy;              /* island centre the arrow points at */
@@ -100,7 +109,8 @@ typedef struct {
                               * (0 = placeholder default 60/26) */
 } ll_menu_ch;
 int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
-                     const ll_menu_anim *anims, int nanims);
+                     const ll_menu_anim *anims, int nanims,
+                     const unsigned char *back_pcx, unsigned back_len);
 
 #ifdef __cplusplus
 }

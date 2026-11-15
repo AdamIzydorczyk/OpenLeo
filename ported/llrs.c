@@ -148,19 +148,30 @@ int llrs_block(const llrs *c, const llrs_slot *slot, llrs_slot **out,
         free(b);
         return 2;
     }
-    if (cnt == 0) {                /* a legal empty block: calloc(0) may
+    /* Probed 2026-11-15 on all 29 real index blocks (ANIMACJE/MENU + the
+     * ANIMACJE/ETAPY level blocks): the u32 header field is the count of
+     * USED records, NOT a table capacity - the 26-byte slots continue past
+     * it as a sparse free-table with id==0 holes (MENU declares 39 and
+     * its 39 records sit at slot indices 0..197 of a 199-slot payload;
+     * e.g. WYJSCIE.SEQ @ 81, RESTART.SEQ @ 104, OPCJE.SEQ @ 118).
+     * Reading only slots 0..cnt-1 lost every record at a higher slot -
+     * which is how the chapter-map corner words/BACK.PCX went "missing"
+     * from the data. So: parse ALL whole slots the payload holds;
+     * id==0 holes are kept, and the selftest pins used == cnt. */
+    size_t nslots = ((size_t)n - 4) / 26u;
+    if (nslots == 0) {             /* a legal empty block: calloc(0) may
                                     * return NULL, which is NOT an error */
         free(b);
         *out   = NULL;
         *nrecs = 0;
         return 0;
     }
-    llrs_slot *r = (llrs_slot *)calloc(cnt, sizeof *r);
+    llrs_slot *r = (llrs_slot *)calloc(nslots, sizeof *r);
     if (!r) {
         free(b);
         return 3;
     }
-    for (unsigned k = 0; k < cnt; k++) {
+    for (size_t k = 0; k < nslots; k++) {
         slot_fill(&r[k], b + 4 + 26 * k);
         /* sub-records carry ABSOLUTE offsets too: range-validate them
          * against the container, mirroring the top-level filter (E-07);
@@ -173,7 +184,7 @@ int llrs_block(const llrs *c, const llrs_slot *slot, llrs_slot **out,
     }
     free(b);
     *out   = r;
-    *nrecs = cnt;
+    *nrecs = (unsigned)nslots;
     return 0;
 }
 

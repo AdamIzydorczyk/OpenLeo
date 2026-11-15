@@ -50,8 +50,12 @@ void llrs_close(llrs *c);
 const llrs_slot *llrs_find(const llrs *c, const char *name);
 
 /* Nested index block of slot s (id==2, printable-key payload tables only).
- * Parses the block into recs (malloc'd, nrecs entries, id==0 kept for
- * key positions). Returns 0 on success. Caller frees via llrs_block_free. */
+ * The payload is a u32 count of USED records followed by a sparse 26-byte
+ * slot table that extends past that count with id==0 holes (probed on all
+ * 29 real blocks, 2026-11-15). Parses the block into recs (malloc'd,
+ * nrecs = every whole slot in the payload, id==0 kept for holes; callers
+ * must skip id==0 and must NOT assume records sit at indices < count).
+ * Returns 0 on success. Caller frees via llrs_block_free. */
 int  llrs_block(const llrs *c, const llrs_slot *s, llrs_slot **recs,
                 unsigned *nrecs);
 void llrs_block_free(llrs_slot *recs);

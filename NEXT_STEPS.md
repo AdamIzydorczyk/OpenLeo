@@ -1300,6 +1300,102 @@ ll_view/ll_audio as backend-private helpers).
   this PR, passed on identical earlier runs; asan+linux green). Rerun
   of the failed job: success. CLOSED.
 
+## PR-36 — chapter-map authenticity: sparse table + BACK.PCX base + PCX header truth (DONE 2026-11-15)
+
+Owner model for the title menu (confirmed 2026-11-15): the map base is the
+engine's own clean landscape, the corner words are engine-DRAWN text (no
+button plates - "never on the map"), and the double text the user saw in
+the port had to go. This PR delivers all three and cracks two container
+secrets on the way.
+
+- llrs nested-BLOCK FORMAT CRACKED (was: truncated read). The u32 at a
+  block payload's head is the count of USED records, NOT a table capacity:
+  the 26-byte slots continue past it as a sparse free-table with id==0
+  holes. Probed on all 29 real index blocks (ANIMACJE/MENU declares 39;
+  its 39 records sit at slot indices 0..197 of a 199-slot payload).
+  ported/llrs.c llrs_block now parses every whole slot; llrs.h documents
+  the contract; llrs_selftest prints "%u table slots, %u used records"
+  and verify-llrs pins 'MENU: 199 table slots, 39 used records' +
+  WYJSCIE.SEQ present (slot 81, past the old cutoff). Same rule applied
+  to the python verifiers (tools/verify_pcx.py, tools/verify_seq.py;
+  other helpers are top-level-only, unaffected).
+- What the hidden records turned out to fix (all re-pinned, all real):
+  verify-seq 172 -> 1656 blobs byte-exact C==python; TUNGA.11 shows
+  "11 animated object(s)" (STRUM1/STRUM2 were a FALSE "data hole");
+  RAN.01's true canvas = full tlo stack plan3.pcx,plan2.pcm,plan1.pcm
+  -> REAL bg PLAN3.PCX 960x400 (the old wrong bg was PLAN1.PCM 400x200
+  because only slot 0 was visible); help pages 1-5 join real
+  pomoc02/04/06/08/10.seq art (page 6 POMOC32.SEQ stays [CD]);
+  verify-help pixel oracle stays exact (1768==1768 px).
+- OGIEN_M.SEQ (ANIMACJE/TUNGA.11/DNGANI): genuine 1997 data defect -
+  even its FIRST element overruns the 689-byte payload; C and python
+  reject it identically (PARSE-FAIL both). tools/verify_seq.py keeps
+  extracting + comparing it under a documented KNOWN_BAD_SEQ allowlist
+  ("1 known-bad original-data defects accepted"), not a silent drop.
+- PCX HEADER TRUTH-PIN (the big one, latent since the first PR): the
+  decoder rule "non-standard header, RLE at offset 64" had only ever been
+  C==python-verified, never truth-checked. BACK.PCX (see below) proved
+  the game PCXs carry the STANDARD 128-byte header (0a050108, window
+  @4..12, byte-per-line u16 @66, zeros @120..127, RLE @128, palette =
+  raw last 768B, no 0x0C): decoded from 128 its index plane is
+  100.00% byte-identical to the captured menu VRAM outside the text
+  pixels; from 64 every pixel was shifted 64 bytes (0.2 row) and matched
+  3.8%. ported/ll_pcx.c + tools/pcx_dump.py now read the stride field
+  and count rows at it (standard even-byte scanline padding), keeping
+  the first w bytes - MFAKE.PCX (ETAPY/KADMAR2) turned out to be a
+  REAL 1997 13x13 solid-color test asset (stride 14 + one stray 0x0C
+  after the stream) handled natively, not a fixture bug. 65/65 payloads
+  stay byte-exact; BACK.PCX vs the proven capture plane: 100.00%.
+- The map now uses its REAL base: main.c gains menu_record()/menu_back()
+  (reads ANIMACJE/MENU/BACK.PCX - found only via the fixed block scan,
+  slot 80); ll_menu_map_open takes (back_pcx, back_len); ll_menu.c
+  map_bg() is a 3-way base: BACK.PCX (colored through ll_menu_dac.h -
+  its own tail palette is a standard-VGA leftover, 0/256 entries match
+  the captured DAC) -> captured-art fallback (ll_menu_art.h, text BAKED
+  IN) -> LEO_MENU_BG=placeholder procedural. map_bg returns baked_text
+  and the font corner words are drawn IFF !baked_text: that was the
+  double-text defect (capture fallback + font layer = words twice).
+  AUTORZY is font-drawn now at its measured anchor (the word .SEQ files
+  decode as filled button PLATES ~50x16 bands - not letters - and the
+  owner confirms no plate ever shows on the map; they stay excluded from
+  the map, still used by the restart dialog).
+  Measured engine-text bboxes (capture diff vs BACK, logical 320x200):
+  WYJSCIE x4..110 y4..39, RESTART x254..313 y2..17, OPCJE x259..313
+  y183..199, AUTORZY x2..66 y179..196, title x23..174 y45..81 - the
+  port draws at these anchors.
+- verify-menu re-ran with ZERO re-pinned expectations (all log pins and
+  the BERLO cycle still hold on the real base). Trap re-armed: the
+  wine frame legs compare .exe output against fresh linux frames, so
+  verify-menu now lists ll_cutscene.exe as a prerequisite (a stale
+  pre-PCX-fix .exe gave a false "win frame != linux").
+- verify-golden: port pose set re-pinned (30 hashes, BACK base); full
+  RGB vs the ORIGINAL capture frame: 3.773% (shifted) -> 92.088%; the
+  whole 3308-px residual is exactly the text areas (our 8x8 bitmap font
+  vs the original's cursive text engine). min_best_rgb 98.0 -> 92.0 and
+  GOLDEN_MIN 98 -> 92 are the honest floor: PR-23's 98.43% had been
+  measured with the captured SCREENSHOT as base - a screenshot is not
+  game data. PR-37 candidate that closes the rest: recover the original
+  cursive font from the capture glyphs (the QEMU rig can capture more
+  title pages for glyph coverage).
+- verify-win regression found + fixed in CI tooling: the sparse scan
+  lifted the .SEQ case count ~10x and wine's 32767-char CreateProcess
+  argv limit killed the batch (Traceback, "enough memory"? no - long
+  cmd line). tools/verify_seq.py now batches tool invocations (~20 KB
+  argv, concatenating outputs - C tools print per-file in argument
+  order, diff semantics unchanged).
+- Visual truth (VL review of port best frame vs the original capture):
+  landscape/ocean/islands identical positions, no shift/banding; every
+  corner word exactly ONCE, no ghost; title once; red arrow on the
+  green island. Verdict: "same screen, cleaner data, different font".
+- CI hygiene (additive, preserved all LEO_* hooks/returns): NEW hook
+  LEO_LEVEL_NO_OBJ=1 (ll_level CI-only: bare bg without .des object
+  compositing; needed because JUNCTION now HAS live scene sprites and
+  the help-overlay oracle asserts "help frame == bare bg + page").
+- Proofs: full verify-all (fixtures) green (re-run after the batching
+  fix, exit 0); fixture-free sim exit 0 (22 named SKIPs); zero-warning
+  llvm-mingw build; verify-arch ok in both modes; verify-pcx 65/65,
+  verify-seq 1656/1656 (1 known-bad), verify-golden pose+full both ok.
+
 ## Next — pick from the Deferred list below
 
 Nothing queued from the review's "worth fixing" set: all of it has
