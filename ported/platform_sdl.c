@@ -173,18 +173,45 @@ int plat_poll(ll_event *ev)
 {
     if (!ev)
         return 0;
-    /* FIX-01 automated test hook: LEO_QUIT_AFTER_MS=N injects a window
-     * close N ms after the FIRST poll (not process start) - lets a
-     * headless leg prove the whole quit-unwind path: main unwinds, no
-     * further scene opens. */
+    /* FIX-01 automated test hooks (additive; default off = shipped
+     * behaviour unchanged):
+     * LEO_QUIT_AFTER_MS=N injects a window close N ms after the FIRST
+     * poll (not process start) - lets a headless leg prove the whole
+     * quit-unwind path: main unwinds, no further scene opens.
+     * LEO_TEST_KEY_AFTER_MS=N + LEO_TEST_KEY=<k> injects one KEYDOWN
+     * N ms after the first poll, pushed through SDL's own queue so it
+     * travels the exact same translation path (map_key, repeat filter)
+     * as a physical press. <k> = a printable ASCII char (matched
+     * case-insensitively, 'q' for the FIX-01/C3 q-quits-the-app leg),
+     * or the names "esc" / "space". */
     {
         static uint64_t t_first;
         static uint64_t nms;
         static int fired = 0, armed = -1;
+        static SDL_Keycode tkey;
         if (armed < 0) {
             const char *qam = getenv("LEO_QUIT_AFTER_MS");
             nms = qam ? (uint64_t)atof(qam) : 0;
             armed = nms > 0;
+            const char *kam = getenv("LEO_TEST_KEY_AFTER_MS");
+            const char *knm = getenv("LEO_TEST_KEY");
+            uint64_t kn = kam ? (uint64_t)atof(kam) : 0;
+            if (kn > 0 && knm && knm[0]) {
+                if (!strcmp(knm, "esc"))
+                    tkey = SDLK_ESCAPE;
+                else if (!strcmp(knm, "space"))
+                    tkey = ' ';
+                else {
+                    int c = (unsigned char)knm[0];
+                    if (c >= 'A' && c <= 'Z')
+                        c += 'a' - 'A';      /* map_key is case-exact */
+                    tkey = (SDL_Keycode)c;
+                }
+                if (!armed) {               /* share the first-poll clock */
+                    nms = kn;
+                    armed = 1;
+                }
+            }
         }
         if (armed) {
             if (!t_first)
@@ -192,7 +219,12 @@ int plat_poll(ll_event *ev)
             if (!fired && (uint64_t)SDL_GetTicks() >= t_first + nms) {
                 SDL_Event x;
                 SDL_memset(&x, 0, sizeof x);
-                x.type = SDL_QUIT;
+                if (tkey) {
+                    x.type = SDL_KEYDOWN;
+                    x.key.keysym.sym = tkey;
+                    x.key.repeat = 0;
+                } else
+                    x.type = SDL_QUIT;
                 SDL_PushEvent(&x);
                 fired = 1;
             }

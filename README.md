@@ -62,6 +62,8 @@ on Windows `--console` attaches before any output and uses an
 unbuffered stream. A missing cutscene in an interactive menu surfaces
 as a message box.
 
+q mid-cutscene QUITS THE APP (owner ruling, FIX-01/C3): the scene chain
+and the menu never come back - same exit as closing the window.
 ESC mid-cutscene SKIPS it and the chain advances to the next scene or the
 title menu (original semantics): no frozen mid-intro frame, the app never
 dies. Menu keys: up/down, Enter picks; ESC = Enter. The restart-confirm
@@ -112,7 +114,11 @@ frame), `LEO_MENU_PPM_DIR=DIR` + `LEO_MENU_PPM_MAX=N` (dump every composed
 map frame map_NNNN.ppm for the golden-master pose scan),
 `LEO_MENU_PICK=<char>` / `LEO_MENU_NAV=k` (fire / cycle + Enter),
 `LEO_QUIT_AFTER_MS=N` (inject a window close N ms after the first frame —
-proves the FIX-01 quit-unwind path headlessly; used by verify-quit).
+proves the FIX-01 quit-unwind path headlessly; used by verify-quit),
+`LEO_TEST_KEY_AFTER_MS=N` + `LEO_TEST_KEY=q` (inject one synthetic KEYDOWN
+N ms after the first poll — pushed through SDL's queue, so it travels the
+full map_key/repeat-filter path; the other half of verify-quit proves q
+quits the app (FIX-01/C3)).
 
 Runtime policy hooks: `LEO_FORCE_X11=1` (under a Wayland session pin the
 video backend to X11/XWayland — the pre-FIX-11 default; default now is

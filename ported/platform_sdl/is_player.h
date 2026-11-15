@@ -30,7 +30,12 @@ extern "C" {
  * the final framebuffer as PPM after a skip (headless bug-hunting).
  * Window keys: q=quit, ESC=skip (returns 2), Space=pause/resume - the
  * pause holds the single presentation clock and works with or without an
- * audio device. */
+ * audio device.
+ * q (FIX-01/C3, owner ruling 2026-11-15): besides ending this cutscene
+ * it sets the sticky app-quit (plat_request_quit), so a chained
+ * --then/--demo run and the menu never come back - the program exits
+ * with the same rc as a window close. ESC keeps the original semantics
+ * (skip; the caller advances to the next scene / the title menu). */
 int is_player_run(const char *path, int audio, unsigned start_frame,
                   unsigned skip_at);
 

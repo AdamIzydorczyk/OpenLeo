@@ -239,6 +239,13 @@ static void pump_input(player *p)
             if (e.key == 'q') {
                 p->quit = 1;
                 p->quit_reason = "q";
+                /* FIX-01 / C3 ruling (2026-11-15): q quits the APPLICATION.
+                 * Same sticky flag the window close sets (platform.h); the
+                 * gates in main.c then unwind the scene chain AND the menu
+                 * - the program ends instead of advancing to the next
+                 * scene. ESC stays the original two-step (skip this
+                 * cutscene, continue): only q got the one-step semantics. */
+                plat_request_quit();
             } else if (e.key == LLKEY_ESC && !p->idle) {
                 /* original semantics: ESC SKIPS the intro/cutscene and the
                  * game continues - never freeze a mid-intro frame, never

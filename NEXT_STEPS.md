@@ -1138,7 +1138,7 @@ ll_view/ll_audio as backend-private helpers).
   awaiting confirmation/rollback call.
 ## Presentations — C1 / C2 / C3 (owner decisions, end of series 2026-11-15)
 
-### C1 — FIX-09 Part 2: one audio device for the session (X-10 half)
+### C1 — FIX-09 Part 2: one audio device for the session (X-10 half) - RULED: measure then implement (PR-34)
 - Question: keep the PR-12/P-03 design (device opened per playback, closed
   at scene end) or open ONE device for the process (spec Part 2; opens at
   the device's native rate, engine resamples).
@@ -1171,7 +1171,7 @@ ll_view/ll_audio as backend-private helpers).
 - Open for the owner: 150%-fractional-scaling sharpness eyeball (the
   programmatic half is done). Rollback = one line if wanted; flag stays.
 
-### C3 — q = quit the app (FIX-01 step 6) - currently NOT active (per ruling)
+### C3 — q = quit the app (FIX-01 step 6) - RULED: adopt -> shipped PR-33
 - Verified current semantics: q in a cutscene ENDS THAT SCENE (player
   returns 0; the chain advances to the next scene / the title menu);
   ONLY a window close (or LEO_QUIT_AFTER_MS) sets the sticky
@@ -1181,6 +1181,30 @@ ll_view/ll_audio as backend-private helpers).
   selftest + a verify-quit variant updated.
 - Risk note: q is our own affordance (no original binding); accidental
   quits mid-boot-chain are the argument for keeping status quo.
+
+## PR-33 — C3 adoption: q quits the app (DONE 2026-11-15)
+
+- Ruling executed ("all 3 changes"): C3 first, exactly as presented -
+  one line in the q handler, riding the machinery PR-25 built.
+- ported/platform_sdl/is_player.c pump_input: `q` now also calls
+  plat_request_quit() (the SAME sticky flag as a window close). ESC
+  keeps the original two-step (skip this scene, chain advances); the
+  is_player.h header comment documents the split.
+- New test hook (platform_sdl.c, additive, default off):
+  LEO_TEST_KEY_AFTER_MS=N + LEO_TEST_KEY=<key> pushes ONE synthetic
+  SDL_KEYDOWN through SDL's own queue N ms after the first poll, so it
+  travels the exact map_key/repeat-filter path of a physical press.
+  Shares the LEO_QUIT_AFTER_MS first-poll clock; accepts printable
+  chars (case-folded) or "esc"/"space".
+- verify-quit: second PX_DATA leg - synthetic q 300 ms into a
+  --demo boot chain must print 'quit=1 (q)', exit 0 and NEVER open
+  the menu. Proven non-vacuous: with the plat_request_quit() call
+  compiled out the leg fails exactly as the old behaviour predicts
+  (rc=124 - the menu opens and waits forever headless).
+- Live desktop proof (owner's Wayland session, no pins): real window,
+  seat-level synthetic key via /dev/uinput -> 'is_player: presented=99
+  decoded=99 quit=1 (q)', app exit rc 0, menu never opened.
+- README: key semantics + the new hook documented.
 
 ## Next — pick from the Deferred list below
 

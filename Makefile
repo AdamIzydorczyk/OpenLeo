@@ -637,6 +637,14 @@ ifeq ($(PX_DATA),1)
 	if [ $$rc -eq 0 ] && ! grep -q '^menu:' /tmp/opencode/quit_chain.log; \
 	then echo "quit propagation: window close unwinds chain + menu (FIX-01, ok)"; \
 	else echo "quit propagation FAILED (rc=$$rc)"; cat /tmp/opencode/quit_chain.log; exit 1; fi
+	@env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy LEO_TEST_KEY_AFTER_MS=300 \
+	    LEO_TEST_KEY=q timeout 10 ./ll_cutscene --demo $(DATA) \
+	    > /tmp/opencode/quit_key.log 2>&1; \
+	rc=$$?; \
+	if [ $$rc -eq 0 ] && grep -q 'quit=1 (q)' /tmp/opencode/quit_key.log \
+	   && ! grep -q '^menu:' /tmp/opencode/quit_key.log; \
+	then echo "q quits the app: synthetic q mid-LOGO ends the program, no menu (FIX-01/C3, ok)"; \
+	else echo "q-quits-app leg FAILED (rc=$$rc)"; cat /tmp/opencode/quit_key.log; exit 1; fi
 else
 	@echo "verify-quit: SKIP (needs $(DATA)/LOGO.IS boot chain; see the restaging recipe in NEXT_STEPS.md"
 endif
