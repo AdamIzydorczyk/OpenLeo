@@ -675,6 +675,21 @@ ll_view/ll_audio as backend-private helpers).
   (small) path up the golden scale; background is DONE. Capture
   re-proved deterministic after a full /tmp wipe (fresh rig build ->
   bit-identical 4cb7a311).
+- PR-24 CI (2026-11-15): .github/workflows/ci.yml runs on push/PR to main:
+  ubuntu-latest installs build-essential/libsdl2-dev/mingw-w64 (gcc+binutils
+  for windres)/cmake/python3, builds BOTH targets (vendored toolchains are
+  gitignored, system fallbacks used), compileall's tools/, then
+  'make -k verify-all'. Makefile now defines parse-time fixture probes
+  (PX_DATA = $(DATA)/INTRO_P.IS present; PX_HD/PX_SAVE = $(HD) save
+  fixtures; PX_WINREF = data + c_py + py_last oracle frames; PX_CMAKE)
+  and ifeq-wraps every fixture-backed leg - a bare runner prints a named
+  SKIP with the exact staging command and runs nothing stray (fixture-free
+  verify-all: exit 0). Recipe-level '@if ... exit 0' guards DON'T work for
+  this (make runs each recipe line in its own shell - the rest of the
+  target still executes); the parse-time wrap is what makes skips clean.
+  HD was moved next to DATA (probes need it defined early). verify-mod and
+  verify-platform gained PX_DATA wraps (they take $(DATA) too). The
+  full-fixture local run is unchanged (exit 0, all legs real).
 - MEASURED GAP (the point of T-24): port best = 0.000% RGB/idx
   against the captured original frame. The port composes map-menu
   OVERLAYS (arrow/words/titles, the pinned 30-pose animation stays

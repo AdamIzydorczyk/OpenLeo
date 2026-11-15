@@ -1,0 +1,50 @@
+# CI for the Lew Leon recompile. The Makefile suite is CI-safe by design:
+# every fixture-backed leg (game data, save originals, MS-DOS boot image,
+# QEMU golden rig) is wrapped in a parse-time probe and prints a named
+# SKIP with the exact staging command when its fixture is absent, so a
+# bare runner executes the hermetic half - both target builds, the codec
+# selftests, the fuzz corpus, the T-01 architecture pin and the cmake
+# build-parity check - and nothing else executes stray commands.
+#
+# The data-backed legs (byte-exact frame proofs, menu/golden comparisons)
+# run locally: LL.iso and the LEO_HDD/save originals are user-supplied,
+# copyrighted and gitignored on purpose, so they never reach the runner.
+# Local full run: stage fixtures per NEXT_STEPS.md, then `make -k verify-all`.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        # Native target: system SDL2 (the vendored vendor/SDL2-2.32.10 and
+        # vendor/llvm-mingw are gitignored, so the system fallbacks apply).
+        # Cross target: mingw-w64 gcc + windres (Makefile XC fallback path).
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install --no-install-recommends \
+            build-essential pkg-config libsdl2-dev \
+            gcc-mingw-w64-x86-64 binutils-mingw-w64-x86-64 \
+            cmake python3
+
+      - name: Python tools compile check (the suite's oracles are Python)
+        run: python3 -m compileall -q tools
+
+      - name: Build both targets
+        run: |
+          make -j"$(nproc)"
+          make -j"$(nproc)" win
+
+      - name: Full suite (data-backed legs print clean SKIPs)
+        run: make -k verify-all

@@ -210,11 +210,19 @@ Notes for operators:
    regenerated (still 30), `min_best_rgb`/`GOLDEN_MIN` set to a 98.0
    regression floor. Remaining ~1.6% is composed-text/overlay placement
    vs the original's burned-in texts — background work is DONE.
-2. **No CI runner config in-repo.** The 21-target suite runs here on demand;
-   there is no `.github/workflows` or equivalent. The legs are CI-safe by design
-   (fixture SKIPs, deterministic seeds, fixed ticks). Recommendation: add a
-   Linux job (make+win+wine+caveats: fixtures via artifact cache) and, ideally,
-   a real-Windows job on the handheld.
+2. **CI runner config — ADDED (PR-24, 2026-11-15).** `.github/workflows/ci.yml`
+   (ubuntu-latest: system toolchain builds BOTH targets — the vendored
+   llvm-mingw/SDL2 are gitignored, so the Makefile's system fallbacks apply —
+   a `python3 -m compileall tools` check, then `make -k verify-all`). The
+   Makefile now probes fixture presence at PARSE time (`PX_DATA`, `PX_HD`,
+   `PX_SAVE`, `PX_WINREF`, `PX_CMAKE`) and ifeq-wraps every data-backed leg,
+   so a fixture-free runner gets a named SKIP carrying the exact staging
+   command and NO stray command executes. Proven both ways on 2026-11-15:
+   fixture-free `make -k verify-all` exits 0 with clean SKIPs; the full
+   local fixture set is still exit 0 with all data legs actually running.
+   The copyrighted game data never reaches the runner (LL.iso is gitignored
+   by design), so the byte-exact frame proofs and golden comparison remain
+   local runs. The real-Windows job (handheld) is still open — see §7.3.
 3. **Windows proof is wine-based.** The actual Windows 11 target (ADAM-HANDHELD)
    is not in the automated loop (host currently unreachable over the lab link).
    The manifest/UCRT UTF-8 path is proven under wine emulation only.

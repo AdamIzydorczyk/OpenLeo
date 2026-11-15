@@ -6,6 +6,18 @@
 # original/ is the faithful-DOS blueprint (Ghidra output, not buildable).
 SHELL    := /bin/bash   # verify-llrs uses process substitution
 DATA     ?= /tmp/opencode/iso_stage/LEO
+HD       ?= /tmp/opencode/hd_files
+
+
+# --- fixture probes (evaluated once per make run). Data-backed legs are
+# wrapped in ifeq/else so a fixture-free machine (a CI runner) gets clean
+# SKIPs where NO stray command executes; the SKIP message always carries
+# the exact staging command. Partial staging still fails loudly (right).
+PX_DATA   := $(shell test -f '$(DATA)/INTRO_P.IS' && echo 1)
+PX_HD     := $(shell test -f '$(HD)/STATUS.LEO' && echo 1)
+PX_SAVE   := $(shell test -f '$(HD)/STATUS.LEO' && test -f '$(HD)/LONGSOFT.CFG' && echo 1)
+PX_WINREF := $(shell test -f '$(DATA)/INTRO_P.IS' && test -f /tmp/opencode/c_py/f01020.ppm && test -f /tmp/opencode/py_last/f01520.ppm && echo 1)
+PX_CMAKE  := $(shell command -v cmake 2>/dev/null)
 PYREF    ?= tools/is_decode.py
 
 SRC      := ported/main.c ported/is_stream.c ported/platform_sdl/is_player.c \
@@ -62,19 +74,27 @@ resources/ll_cutscene.res: resources/ll_cutscene.rc resources/app.manifest \
 # ---------------- tests (both platforms) ----------------
 # Byte-exactness oracle: headless --ppm output vs tools/is_decode.py.
 verify: ll_cutscene
+ifeq ($(PX_DATA),1)
 	./ll_cutscene $(DATA)/INTRO_P.IS --ppm 1020 /tmp/opencode/c_linux.ppm
 	python3 $(PYREF) frames $(DATA)/INTRO_P.IS /tmp/opencode/c_py --ppm \
 	    --only 1020
 	cmp /tmp/opencode/c_linux.ppm /tmp/opencode/c_py/f01020.ppm \
 	  && echo "linux .elf == python reference (byte-exact)"
+else
+	@echo "verify: SKIP (game data not staged: DATA=$(DATA); from LL.iso: bsdtar -xf LL.iso -C /tmp/opencode/iso_stage LEO)"
+endif
 
 # ESC-skip UX test: auto-terminates (LEO_DUMP_SKIP sets CI mode) and the
 # final held frame must equal the python reference of the last frame.
 verify-skip: ll_cutscene
+ifeq ($(PX_DATA),1)
 	LEO_DUMP_SKIP=/tmp/opencode/c_skip.ppm timeout 120 \
 	  ./ll_cutscene $(DATA)/INTRO_P.IS --skip-at 10 --no-audio
 	cmp /tmp/opencode/c_skip.ppm /tmp/opencode/py_last/f01520.ppm \
 	  && echo "linux skip-frame == python reference (byte-exact)"
+else
+	@echo "verify-skip: SKIP (needs $(DATA)/INTRO_P.IS; see the restaging recipe in NEXT_STEPS.md"
+endif
 
 # Same two proofs for the Windows .exe, run under wine.
 # Z: = wine drive mapped to /, so $(DATA) is addressed as Z:$(DATA).
@@ -85,6 +105,7 @@ WINEPREFIX ?= /tmp/opencode/wineprefix
 verify-win: ll_cutscene ll_level ll_save ll_cutscene.exe ll_level.exe llrs_selftest.exe \
             pcx_selftest.exe seq_selftest.exe seq_patchdump.exe \
             pcm_selftest.exe mod_selftest.exe ll_save.exe
+ifeq ($(PX_WINREF),1)
 	WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	  wine ./ll_cutscene.exe Z:$(DATA)/INTRO_P.IS --ppm 1020 \
 	  Z:/tmp/opencode/c_win.ppm
@@ -199,6 +220,9 @@ verify-win: ll_cutscene ll_level ll_save ll_cutscene.exe ll_level.exe llrs_selft
 	    && cmp /tmp/opencode/st_w.bin $(HD)/STATUS.LEO \
 	    && echo "win save codec == linux, byte-exact round-trip under wine (ok)"; \
 	else echo "verify-win save twin: SKIP (no $(HD)/STATUS.LEO)"; fi
+else
+	@echo "verify-win: SKIP (needs $(DATA) + python-oracle frames from 'make verify' + py_last frames; see the restaging recipe in NEXT_STEPS.md"
+endif
 
 ll_level.exe: tools/ll_level.c ported/ll_level.c ported/llrs.c ported/ll_pcx.c \
             ported/ll_pcm.c ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c \
@@ -213,7 +237,11 @@ ll_level.exe: tools/ll_level.c ported/ll_level.c ported/llrs.c ported/ll_pcx.c \
 # ported/ll_pcm.c byte-for-byte agreement with tools/verify_pcm.py on every
 # PCM parallax layer payload in ETAPY (byte-RLE plane, stride = w+80).
 verify-pcm: pcm_selftest
+ifeq ($(PX_DATA),1)
 	python3 tools/verify_pcm.py $(DATA) ./pcm_selftest
+else
+	@echo "verify-pcm: SKIP (needs $(DATA)/ETAPY/12; see the restaging recipe in NEXT_STEPS.md"
+endif
 
 # ported/llrs.c byte-for-byte agreement with tools/llrs_unpack.py on all four
 # containers, checked under ASan/UBSan.
@@ -284,7 +312,11 @@ pcx_selftest: tools/pcx_selftest.c ported/ll_pcx.c ported/ll_pcx.h
 	    -Iported -o $@ tools/pcx_selftest.c ported/ll_pcx.c
 
 verify-pcx: pcx_selftest llrs_selftest
+ifeq ($(PX_DATA),1)
 	python3 tools/verify_pcx.py $(DATA) ./llrs_selftest ./pcx_selftest
+else
+	@echo "verify-pcx: SKIP (needs $(DATA)/ETAPY/1/BACK000.PCX; see the restaging recipe in NEXT_STEPS.md"
+endif
 
 # ported/ll_seq.c byte-for-byte agreement with tools/seq_parse.py on every
 # .SEQ payload in ANIMACJE/ETAPY/LEVELDES (172 blobs, exact consumption),
@@ -298,8 +330,12 @@ seq_patchdump: tools/seq_patchdump.c ported/ll_seq.c ported/ll_seq.h
 	    -Iported -o $@ tools/seq_patchdump.c ported/ll_seq.c
 
 verify-seq: seq_selftest seq_patchdump
+ifeq ($(PX_DATA),1)
 	python3 tools/verify_seq.py $(DATA) --grammar ./seq_selftest \
 	  --patch ./seq_patchdump
+else
+	@echo "verify-seq: SKIP (needs $(DATA)/ANIMACJE; see the restaging recipe in NEXT_STEPS.md"
+endif
 
 # Level scene: TUNGA.11 = PLAN3.PCX bg + MOVEPLAT leaf .SEQ sprite animated
 # by the HD-install ED000002.MOV state machine (LEO_HD_DIR). Fixed-tick PPM
@@ -308,6 +344,7 @@ verify-seq: seq_selftest seq_patchdump
 # (pcm_selftest is a prerequisite: the PCM-canvas check below compares the
 # scene view against its FNV line; sibling-target ordering used to mask it.)
 verify-level: ll_level pcm_selftest
+ifeq ($(PX_DATA),1)
 	@for T in 2 8; do env -u DISPLAY SDL_VIDEODRIVER=dummy \
 	  SDL_AUDIODRIVER=dummy LEO_HD_DIR=/tmp/opencode/hd_files \
 	  LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
@@ -356,12 +393,16 @@ verify-level: ll_level pcm_selftest
 	  && grep -q "PCM view PLAN1.PCM 400x40 $$h" /tmp/opencode/lv_ran.log \
 	  && echo "PCM canvas: tlo stack picks PLAN1.PCM; scene view == ll_pcm oracle ($$h)" \
 	  || { echo "PCM canvas check FAILED"; cat /tmp/opencode/lv_ran.log; exit 1; }
+else
+	@echo "verify-level: SKIP (needs $(DATA)/ETAPY/12; see the restaging recipe in NEXT_STEPS.md"
+endif
 
 # Level help overlay (POMOC flow): HD .MNU page list + CD ETAPY .SEQ page
 # art. JUNCTION carries page art AND the whole scene is one .PCX, so the
 # help frame dump must be the bare bg plus exactly the page-0 window
 # (element anchor (-f0,-f2)), with a pixel count matching the python oracle.
 verify-help: ll_level llrs_selftest
+ifeq ($(PX_DATA),1)
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0.5 LEO_LEVEL_SECS=0.5 \
 	  timeout 120 ./ll_level $(DATA) TUNGA.11 \
@@ -381,8 +422,12 @@ verify-help: ll_level llrs_selftest
 	python3 tools/verify_help.py /tmp/opencode/help_junction.ppm \
 	  /tmp/opencode/bare_junction.ppm $(DATA)/ETAPY JUNCTION POMOC00.SEQ \
 	  99 215 3 33
+else
+	@echo "verify-help: SKIP (needs $(DATA)/ETAPY/HELP/INFO3.12P; see the restaging recipe in NEXT_STEPS.md"
+endif
 
 verify-menu: ll_cutscene
+ifeq ($(PX_DATA),1)
 	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=5 LEO_SKIP_USER=1 LEO_MENU_AUTO=1 \
 	    LEO_LEVEL_SECS=1 timeout 180 \
 	    ./ll_cutscene --demo $(DATA) > /tmp/opencode/menu_chain.log 2>&1; \
@@ -489,6 +534,9 @@ verify-menu: ll_cutscene
 	@cmp /tmp/opencode/rst_tak.ppm /tmp/opencode/wrst_tak.ppm \
 	  && echo "win selected TAK frame == linux frame (byte-exact, tint is palette-index math)" \
 	  || { echo "win selected TAK frame != linux"; cat /tmp/opencode/wrst_tak.log; exit 1; }
+else
+	@echo "verify-menu: SKIP (needs $(DATA)/ETAPY/INFO/MAPKA + ANIMACJE; see the restaging recipe in NEXT_STEPS.md"
+endif
 
 # MOD music: ported/ll_mod.c parses the Longsoft repack layout (ll_mod.h)
 # and renders deterministically; linux vs wine hash parity is the oracle.
@@ -515,13 +563,18 @@ platform_selftest: tools/platform_selftest.c ported/platform.h \
 	    ported/platform_common.c ported/fs_ci.c ported/is_stream.c -lm
 
 verify-platform: platform_selftest
+ifeq ($(PX_DATA),1)
 	@./platform_selftest $(DATA)/INTRO_P.IS > /tmp/opencode/plat_self.txt 2>&1 \
 	  && grep -q "NO SDL display/audio" /tmp/opencode/plat_self.txt \
 	  && grep -qc "(ok)" /tmp/opencode/plat_self.txt >/dev/null \
 	  && echo "verify-platform: headless engine path + clock/audio/input/fopen contract (ok)" \
 	  || { echo "verify-platform: FAILED"; cat /tmp/opencode/plat_self.txt; exit 1; }
+else
+	@echo "verify-platform: SKIP (platform_selftest takes $(DATA)/INTRO_P.IS as test data; the hermetic half of that selftest is exercised by other legs)"
+endif
 
 verify-mod: mod_selftest mod_selftest.exe
+ifeq ($(PX_DATA),1)
 	@for M in TUNGA RAN ENA2; do \
 	  python3 tools/pull_record.py $(DATA)/SOUND $$M.MOD /tmp/opencode/$$M.mod && \
 	  ./mod_selftest /tmp/opencode/$$M.mod 3000 > /tmp/opencode/mod_$${M}_l.txt && \
@@ -533,8 +586,12 @@ verify-mod: mod_selftest mod_selftest.exe
 	  echo "MOD $$M: parse+render linux == wine ($$(grep -o 'fnv=[0-9a-f]*' /tmp/opencode/mod_$${M}_l.txt))" || \
 	  { echo "MOD $$M FAILED"; cat /tmp/opencode/mod_$${M}_l.txt /tmp/opencode/mod_$${M}_w.txt 2>/dev/null; exit 1; }; \
 	done
+else
+	@echo "verify-mod: SKIP (needs $(DATA)/SOUND/TUNGA.MOD RAN.MOD ENA2.MOD via tools/pull_record.py; see the restaging recipe in NEXT_STEPS.md"
+endif
 
 verify-sel: ll_cutscene
+ifeq ($(PX_DATA),1)
 	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=5 LEO_SKIP_USER=1 LEO_MENU_AUTO=2 \
 	    LEO_LEVELSEL_AUTO=3 LEO_LEVEL_SECS=1 timeout 120 \
 	    ./ll_cutscene --demo $(DATA) > /tmp/opencode/sel_chain.log 2>&1; \
@@ -545,6 +602,9 @@ verify-sel: ll_cutscene
 	   && grep -q 'TUNGA2.DES wiring' /tmp/opencode/sel_chain.log; \
 	then echo "level select: MAPKA submenu + mapka.mod + TUNGA2.12 open (hooked, ok)"; \
 	else echo "level select FAILED (rc=$$rc)"; cat /tmp/opencode/sel_chain.log; exit 1; fi
+else
+	@echo "verify-sel: SKIP (needs $(DATA)/ETAPY/INFO/MAPKA; see the restaging recipe in NEXT_STEPS.md"
+endif
 
 # STATUS.LEO savegame + LONGSOFT.CFG codec (ported/ll_save.c, FUN_0005dae0/
 # FUN_0005dcc0 grammar): byte-exact round-trips of the shipped files.
@@ -556,10 +616,8 @@ verify-sel: ll_cutscene
 # drive='D'); pins below match the current files (word63=4, drive='H')
 # - same grammar. Re-pin again if the other copies resurface (/tmp is
 # not precious; the handheld install may still have them).
-HD       ?= /tmp/opencode/hd_files
 verify-save: ll_save
-	@if [ ! -f $(HD)/STATUS.LEO ] || [ ! -f $(HD)/LONGSOFT.CFG ]; then \
-	  echo "verify-save: SKIP (no $(HD)/STATUS.LEO / LONGSOFT.CFG)"; exit 0; fi
+ifeq ($(PX_SAVE),1)
 	@./ll_save status $(HD)/STATUS.LEO --roundtrip /tmp/opencode/st_rt.bin \
 	  > /tmp/opencode/save_dump.log 2>&1 && cmp $(HD)/STATUS.LEO \
 	  /tmp/opencode/st_rt.bin \
@@ -577,12 +635,16 @@ verify-save: ll_save
 	  && grep -q "drive='H'" /tmp/opencode/cfg_dump.log \
 	  && echo "LONGSOFT.CFG: 273 B blob round-trip + drive byte0 pinned (ok)" \
 	  || { echo "LONGSOFT.CFG round-trip FAILED"; cat /tmp/opencode/cfg_dump.log; exit 1; }
+else
+	@echo "verify-save: SKIP (needs $(HD)/STATUS.LEO + $(HD)/LONGSOFT.CFG; gitignored on purpose - real originals or copies from LEO_HDD inside LL.iso)"
+endif
 
 # Music path (E-09 pump thread + llrs/MOD join): a real level scene with
 # LEO_MUSIC_WAV must produce >= 1.5 s of s16 stereo at 44.1 kHz (the
 # thread refills the queue independently of the UI loop; the first chunk
 # is mixed synchronously at play).  Decode + clamp check is python-side.
 verify-music: ll_level
+ifeq ($(PX_DATA),1)
 	@rm -f /tmp/opencode/mus_ci.*.raw
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_MUSIC_WAV=/tmp/opencode/mus_ci LEO_HD_DIR=/tmp/opencode/hd_files \
@@ -593,6 +655,9 @@ verify-music: ll_level
 	grep -q 'll_music: playing tunga.MOD' /tmp/opencode/mus_ci.log || \
 	{ echo "music path: tunga.MOD never started"; cat /tmp/opencode/mus_ci.log; exit 1; }; \
 	python3 tools/verify_music.py /tmp/opencode/mus_ci
+else
+	@echo "verify-music: SKIP (needs $(DATA)/ETAPY/1/MUSIC.SSEQ; see the restaging recipe in NEXT_STEPS.md"
+endif
 
 # P-07 end-to-end: game data + output paths through a non-ASCII
 # directory (the review's "C:\Gry\Łódź\" case).  Linux proves the
@@ -603,6 +668,7 @@ verify-music: ll_level
 # environments without that manifest.  Do NOT run the wine legs under
 # LC_ALL=C: wine mangles non-ASCII argv before the app sees it.)
 verify-utf8: ll_cutscene ll_cutscene.exe
+ifeq ($(PX_DATA),1)
 	@mkdir -p "/tmp/opencode/Gry/Łódź" && \
 	  ln -sfn "$(DATA)" "/tmp/opencode/Gry/Łódź/LEO"
 	./ll_cutscene "/tmp/opencode/Gry/Łódź/LEO/INTRO_P.IS" --ppm 1020 \
@@ -619,6 +685,9 @@ verify-utf8: ll_cutscene ll_cutscene.exe
 	  wine ./ll_cutscene.exe --menu "Z:/tmp/opencode/Gry/Łódź/LEO" \
 	  --no-audio 2>&1 | tr -d '\r' | grep -q 'DATA .*Łódź.*: complete' \
 	  && echo "win utf-8 DATA dir: discovery + probe (ok)"
+else
+	@echo "verify-utf8: SKIP (data-backed half needs $(DATA)/INTRO_P.IS; the PIN_UTF8_DIR no-data half cannot run standalone)"
+endif
 
 package-win: ll_cutscene.exe
 	python3 tools/package.py --win
@@ -640,7 +709,11 @@ fuzz: tools/fuzz.c ported/is_stream.c ported/llrs.c ported/ll_pcx.c \
 	    ported/fs_ci.c -lm
 
 verify-fuzz: fuzz
+ifeq ($(PX_DATA),1)
 	@for s in 1 2 3; do ./fuzz $(DATA) $$s 400 /tmp/opencode || exit 1; done
+else
+	@echo "verify-fuzz: SKIP (no game data DATA=$(DATA); the hermetic corpus fuzz/in stays covered by the fuzz build)"
+endif
 
 # T-17: per-user save/config dir + one-time legacy import. The game
 # resolves STATUS.LEO in LEO_USER_DIR (an override for $LEO_USER_DIR),
@@ -648,6 +721,7 @@ verify-fuzz: fuzz
 # untouched), and LEO_SAVE still wins verbatim. Hermetic: a copy of the
 # binary next to a temp data dir so that dir is the auto-detected DATA.
 verify-userdir: ll_cutscene
+ifeq ($(PX_HD),1)
 	@if [ ! -f $(HD)/STATUS.LEO ]; then echo "verify-userdir: SKIP (no $(HD)/STATUS.LEO)"; exit 0; fi
 	@T=$$(mktemp -d /tmp/opencode/t17.XXXXXX); \
 	cp ll_cutscene $$T/; mkdir -p $$T/data $$T/user; \
@@ -667,12 +741,23 @@ verify-userdir: ll_cutscene
 	  | grep -q 'STATUS.LEO: 75 words' \
 	  || { echo "verify-userdir: LEO_SAVE override broken"; exit 1; }; \
 	rm -rf $$T; echo "verify-userdir: user-dir import-once + byte-identical + LEO_SAVE override (ok)"
+else
+	@echo "verify-userdir: SKIP (no $(HD)/STATUS.LEO; see the restaging recipe in NEXT_STEPS.md"
+endif
 
 # T-20 CMake parity check: the alternate build must produce the same
 # game. Skips cleanly when cmake isn't installed (the Makefile stays
 # the reference build either way).
 verify-cmake:
-	@command -v cmake >/dev/null 2>&1 || { echo "cmake not installed: skipping verify-cmake"; exit 0; }
+ifeq ($(PX_CMAKE),)
+	@echo "verify-cmake: SKIP (no cmake installed)"
+else
+ifeq ($(PX_DATA),)
+	@echo "verify-cmake: SKIP byte-exactness halves (no $(DATA)/INTRO_P.IS) - building BOTH cmake targets as the build-parity check"
+	$(RM) -r /tmp/opencode/cmbuild /tmp/opencode/cmwin
+	cmake -B /tmp/opencode/cmbuild -S . >/dev/null && cmake --build /tmp/opencode/cmbuild -j >/dev/null && echo "  cmake linux build: ok"
+	if [ -d '$(SDL_WIN)' ]; then PKG_CONFIG_LIBDIR=$(SDL_WIN)/lib/pkgconfig cmake -B /tmp/opencode/cmwin -S . -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-mingw-x86_64.cmake >/dev/null && cmake --build /tmp/opencode/cmwin -j >/dev/null && echo "  cmake windows cross-build: ok"; else echo "  cmake windows cross-build: SKIP (vendored SDL2 absent at $(SDL_WIN), gitignored on purpose; the Makefile win target still cross-builds with the system toolchain)"; fi
+else
 	cmake -B /tmp/opencode/cmbuild -S . >/dev/null && cmake --build /tmp/opencode/cmbuild -j >/dev/null
 	/tmp/opencode/cmbuild/ll_cutscene $(DATA)/INTRO_P.IS --ppm 1020 /tmp/opencode/cm_f1020.ppm
 	cmp /tmp/opencode/cm_f1020.ppm /tmp/opencode/c_py/f01020.ppm \
@@ -686,6 +771,8 @@ verify-cmake:
 	  --ppm 1020 Z:/tmp/opencode/cm_win.ppm
 	cmp /tmp/opencode/cm_win.ppm /tmp/opencode/c_py/f01020.ppm \
 	  && echo "cmake windows binary (+SDL2.dll) == python reference (byte-exact)"
+endif
+endif
 
 # T-01 end-state structural pin (free of compiling): ONLY the backend
 # and its private helpers may include SDL. Engine screens, the app glue
@@ -752,9 +839,7 @@ golden_rig_ddir:
 	    --sendkey-at "30=esc" --want-art --timeout 120
 
 verify-golden: ll_cutscene
-	@if [ ! -d "$(DATA)" ]; then \
-	    echo "golden-master: SKIP (game data fixture $(DATA) absent)"; \
-	    exit 0; fi
+ifeq ($(PX_DATA),1)
 	@mkdir -p $(GOLDEN)/port_frames; rm -f $(GOLDEN)/port_frames/map_*.ppm
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	    LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_SECS=4 \
@@ -775,6 +860,9 @@ verify-golden: ll_cutscene
 	    echo "golden-master: original capture absent (run: make golden_rig); "\
 	        "checked port pins only"; \
 	fi
+else
+	@echo "verify-golden: SKIP (the port pose-dump half needs game data $(DATA); without a pose dump the golden contract cannot be exercised)"
+endif
 
 verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-save verify-music verify-utf8 verify-fuzz verify-platform verify-userdir verify-arch verify-golden verify-cmake
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
