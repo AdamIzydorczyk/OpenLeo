@@ -1018,6 +1018,45 @@ ll_view/ll_audio as backend-private helpers).
   verify-all exit 0 (only by-design no-regression SKIP, golden 98.4%
   unchanged); fixture-free sim exit 0 with 22 named SKIPs; zero-warning
   native + llvm-mingw builds.
+- PR-30 pushed f2bfbc4; CI green run 43722275109 (all 3 jobs). CLOSED.
+## PR-31 — FIX-11 Wayland policy: LEO_FORCE_X11 hook, default = SDL's choice (DONE 2026-11-15)
+
+- plat_prepare_video: the X11/XWayland pin now runs ONLY with
+  LEO_FORCE_X11=1 (strict strcmp "1"); conditions + both log lines
+  byte-identical. Default: no forcing, SDL chooses. Explicit
+  SDL_VIDEODRIVER wins first (early return). Comment records the
+  verified reason: the old "never get keyboard focus" claim was about
+  PROGRAMMATIC raising, removed by FIX-02; classic SDL2 2.32 orders
+  X11 BEFORE Wayland in the src/video/SDL_video.c:74-83 bootstrap
+  table (verified against release-2.32.10),
+  so on classic SDL2 the default still lands X11 when DISPLAY is set;
+  the flip matters where SDL3/sdl2-compat prefers Wayland.
+  main.c + platform.h comments updated; README documents the hook (plus
+  gathered the other runtime policy hooks: LEO_KEEP_PIPEWIRE, LEO_AV_*).
+- New diagnostic (backend-private, verify-arch-clean): ll_view_create
+  logs once per process 'll_view: window WxH (driver %s)' - the
+  FIX-11 acceptance needs SDL_GetCurrentVideoDriver reported, and there
+  was no video startup line before (mirrors the 'll_audio: device'
+  pattern). ll_view.c gains its own stdio.h include for it.
+- This dev desktop IS a live KDE/Wayland session (WAYLAND_DISPLAY=
+  wayland-1 + XWayland :0) and links system SDL 2.32.74 = sdl2-compat
+  (same version as the FIX-09 finding) - so the flip is a REAL change
+  of behaviour here, and acceptance was run for real:
+  * default: 'll_view: window 640x480 (driver wayland)', no pin line,
+    LOGO plays, window-close quit clean.
+  * KEYBOARD WITHOUT CLICK (the core claim): a /dev/uinput synthetic
+    key (~3 s after launch, /tmp/opencode/uinput_key.c) reached the
+    native Wayland window with no user interaction: quit=1 (q). The
+    pre-FIX-11 rationale for the pin is refuted on this compositor.
+  * LEO_FORCE_X11=1: byte-identical old 'main: Wayland session
+    detected...' line + driver x11. SDL_VIDEODRIVER=x11 honoured too.
+  * 150% sharpness remains an eyeball check for the owner (the
+    programmatic half - native wayland, input, clean run - is proven).
+- Regression: full verify-all exit 0 (only by-design no-regression
+  SKIP; golden 98.4% unchanged; the suite's own real-window leg now
+  shows 'driver wayland' and passes unchanged); fixture-free sim exit
+  0, 22 named SKIPs; verify/quit/menu/arch/platform spot legs green;
+  zero-warning native + llvm-mingw builds.
 ## Next — pick from the Deferred list below
 
 Nothing queued from the review's "worth fixing" set: all of it has

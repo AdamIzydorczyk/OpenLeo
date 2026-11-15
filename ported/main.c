@@ -610,10 +610,11 @@ static void run_demo_chain(const char *d, int audio)
 
 int main(int argc, char **argv)
 {
-    /* P-04 focus policy: under Wayland sessions prefer X11/XWayland
-     * (SDL wayland windows never get keyboard focus there). The whole
-     * probe + its diagnostics live in the backend (T-01 phase 5);
-     * an explicit SDL_VIDEODRIVER still wins, headless is a no-op. */
+    /* FIX-11: video backend selection now lives entirely in the
+     * backend; default is SDL's own choice (X11-first on classic
+     * SDL2, Wayland-first on the modern stack), LEO_FORCE_X11=1
+     * restores the old X11/XWayland pin. An explicit
+     * SDL_VIDEODRIVER still wins, headless is a no-op. */
     plat_prepare_video();
 
     const char *file = NULL;

@@ -472,14 +472,25 @@ int plat_pref_dir(char *out, size_t cap)
 
 void plat_prepare_video(void)
 {
-    /* Verbatim move from main.c (T-01 phase 5): same conditions, same
-     * byte-identical diagnostics ("main: ..." prefixes kept - users
-     * and the docs quote them). Wayland sessions: SDL's wayland
-     * windows can NEVER get keyboard focus (WM policy), so pin X11
-     * (XWayland) where SDL_RaiseWindow + SetWindowInputFocus work;
-     * fall back to the default if no X server. An explicit
-     * SDL_VIDEODRIVER always wins. */
-    if (!SDL_getenv("SDL_VIDEODRIVER") && SDL_getenv("WAYLAND_DISPLAY")) {
+    /* FIX-11 (deep dive L-01): the pin's stated reason ("SDL wayland
+     * windows can never get keyboard focus") was about PROGRAMMATIC
+     * raising - and FIX-02 removed every programmatic raise except the
+     * one at creation, which Wayland compositors honour by giving a
+     * newly mapped window focus normally. Default is now SDL's own
+     * choice (classic SDL2 2.32 prefers X11 when DISPLAY is set - its
+     * bootstrap list in src/video/SDL_video.c is ordered x11 before
+     * wayland; under sdl2-compat/SDL3 the core prefers Wayland, which
+     * is the modern path we want). The old X11/XWayland block runs
+     * ONLY behind LEO_FORCE_X11=1 (XWayland costs sharpness under
+     * fractional scaling on either core); its conditions and byte-
+     * pinned log lines are unchanged. An explicit SDL_VIDEODRIVER
+     * still wins (env beats every non-OVERRIDE hint). */
+    if (SDL_getenv("SDL_VIDEODRIVER"))
+        return;
+    const char *fx = SDL_getenv("LEO_FORCE_X11");
+    if (!fx || strcmp(fx, "1") != 0)
+        return;
+    if (SDL_getenv("WAYLAND_DISPLAY")) {
         SDL_setenv("SDL_VIDEODRIVER", "x11", 1);
         int ok = SDL_InitSubSystem(SDL_INIT_VIDEO) == 0;
         SDL_QuitSubSystem(SDL_INIT_VIDEO);

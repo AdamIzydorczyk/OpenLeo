@@ -4,6 +4,7 @@
  * later call reconfigures it in place. */
 #include "ll_view.h"
 #include "platform.h"  /* plat_opt_* declarations (defined here) */
+#include <stdio.h>     /* FIX-11: the 'll_view: window' diagnostic */
 #include <string.h>
 
 /* The initial window multiple / fullscreen overrides (plat_opt_*) are
@@ -50,6 +51,14 @@ int ll_view_create(ll_view *v, const char *title, int logical_w,
             memset(&g, 0, sizeof g);
             return -1;
         }
+        /* FIX-11 diagnostics (mirrors the 'll_audio: device' line):
+         * the backend + geometry that actually answered, so Wayland
+         * vs XWayland behaviour is observable from a run log. Once
+         * per process: this creation block runs exactly once. */
+        fprintf(stderr, "ll_view: window %dx%d (driver %s)\n",
+                logical_w * sc, logical_h * sc,
+                SDL_GetCurrentVideoDriver() ? SDL_GetCurrentVideoDriver()
+                                            : "?");
         /* FIX-02 (deep dive X-03): the ONE raise, at creation. The
          * original P-04 intent was "never steal focus": raising on
          * pointer-enter or scene switch popped the window over the

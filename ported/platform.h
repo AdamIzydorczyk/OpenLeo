@@ -189,10 +189,10 @@ void plat_message_box(const char *title, const char *text);
  * NUL-terminated string within cap), -1 = none available. */
 int plat_pref_dir(char *out, size_t cap);
 
-/* One-time video backend selection (P-04 focus policy): under a
- * Wayland session prefer X11/XWayland, where the focus-grant calls
- * actually work; an explicit SDL_VIDEODRIVER always wins. Call once
- * at startup, before any plat_init. Headless: no-op. The two
+/* One-time video backend selection (FIX-11): default is SDL's own
+ * choice; LEO_FORCE_X11=1 re-enables the old X11/XWayland pin for
+ * Wayland sessions. An explicit SDL_VIDEODRIVER always wins. Call
+ * once at startup, before any plat_init. Headless: no-op. The two
  * diagnostic lines are user-facing and byte-pinned by the port. */
 void plat_prepare_video(void);
 

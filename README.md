@@ -104,6 +104,16 @@ map frame map_NNNN.ppm for the golden-master pose scan),
 `LEO_QUIT_AFTER_MS=N` (inject a window close N ms after the first frame —
 proves the FIX-01 quit-unwind path headlessly; used by verify-quit).
 
+Runtime policy hooks: `LEO_FORCE_X11=1` (under a Wayland session pin the
+video backend to X11/XWayland — the pre-FIX-11 default; default now is
+SDL's own choice, X11-first on SDL2 classic), `LEO_KEEP_PIPEWIRE=1`
+(skip the pin of the audio backend to alsa when SDL would pick its
+native pipewire backend; default pins alsa — re-test before changing),
+`LEO_AV_DEBUG=1` (per-second `is_player: av min_queued/err` A/V sync
+diagnostics) + `LEO_AV_LATENCY_MS=N` (nominal output latency used in
+that comparison, default 46 ms), `SDL_AUDIODRIVER`/`SDL_VIDEODRIVER`
+(user pins always win over our hints/defaults).
+
 ## Naming
 
 `is_*` = .IS cutscene format (oracle `tools/is_decode.py`); `llrs_*` = the
