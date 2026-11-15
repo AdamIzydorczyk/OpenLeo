@@ -1523,6 +1523,35 @@ incl. the .exe legs); fixture-free sim rc=0 (22 named SKIPs); native
    the first pass. CLOSED. Awaiting owner re-test of the corner
    cycle + bulawa-on-word feel (not pinnable headless).
 
+## PR-39 — map navigation restructured to TWO AXES per owner directive
+(DONE 2026-11-15)
+
+Owner: "mayby better do it that way, up, down arrow switch between
+choosing corner options and maps, left right switch between specific
+map or specyfic corner option". Replaced PR-37's single flat cycle
+(chapters then corners) in map_key():
+- Up/Down TOGGLE the selection MODE: chapter map <-> corner options.
+  Entering corner mode lands on WYJSCIE (index 0 = the corner-cycle
+  order already used by the return codes); leaving clears it (cor=-1,
+  bulawa back to the island). First press only - holding Up/Down
+  must not flicker the mode.
+- Left/Right move WITHIN the active group: chapters wrap among
+  chapters, corner words among corner words (auto-repeat stays on,
+  FIX-03).
+No new state: the mode IS (cor >= 0), so all PR-38 selection visuals
+(bulawa-on-word, variant pulse) carry over untouched; Enter/Space,
+a/o/r shortcuts and return codes unchanged.
+CI: the LEO_MENU_KEY=corner leg now walks the two axes: Right
+nchs-1x (every chapter pose - still 11 title-sprite logs), Down
+(corner mode -> 'map: corner art wyjscie'), Right ('corner art
+restart'), Enter ('map: corner restart'). All grep pins + -eq 11
+unchanged.
+Golden untouched: map frames never select corners, so the 30 pose
+hashes + 92.0 floor hold (verify-golden ok, best still 92.4516%).
+Verification: full make -k verify-all rc=0; fixture-free sim rc=0
+(22 named SKIPs); native + vendored llvm-mingw warning-free (the
+only 'warning:' lines in the logs are MESA-EGL runtime noise).
+
 ## Next — pick from the Deferred list below
 
 PR-37 leaves one named golden follow-up: recover the ORIGINAL engine

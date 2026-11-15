@@ -457,9 +457,9 @@ static void run_menu(const char *data, int audio)
                 printf("map: %d chapters, %d cursive title images loaded "
                        "(owner mapping; rest font fallback), arrow starts "
                        "on island 0\n", n, ntload);
-                printf("map: keyboard only - arrows cycle chapters + "
-                       "corner words, Enter/Space activates, a/o/r "
-                       "corner shortcuts, q/Esc quit\n");
+                printf("map: keyboard only - Up/Down switch map/corner "
+                       "mode, Left/Right cycle within, Enter/Space "
+                       "activates, a/o/r corner shortcuts, q/Esc quit\n");
                 /* corner-word cursive records (WYJSCIE/RESTART/OPCJE/
                  * AUTORZY order = the map's corner cycle order): the
                  * map swaps the SELECTED word to its emphasis variant

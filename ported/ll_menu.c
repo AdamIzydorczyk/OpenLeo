@@ -878,23 +878,33 @@ static int map_bg(uint32_t *fb, const ll_menu_ch *chs, int nchs,
  * 2026-11-15: "berlo should be controlled only by keyboard, clicking
  * not necessary"): the map's BUTTON_DOWN corner/island click handling
  * and MOTION hover feedback were removed. Arrows + Enter/Space act on
- * chapters AND corner words (cycle below); a/o/r stay direct corner
+ * chapters AND corner words (two axes below); a/o/r stay direct corner
  * shortcuts; q/Esc quit. */
 static void map_key(int k, int repeat, int nchs, int *sel, int *cor,
                     int *quit, int *ret)
 {
-    if (k == LLKEY_UP || k == LLKEY_LEFT
-        || k == LLKEY_DOWN || k == LLKEY_RIGHT) {
-        /* The arrow cycle walks all chapters, then the FOUR CORNER
-         * WORDS (owner 2026-11-15: corners must be reachable by
-         * keyboard too), clockwise from top-left: WYJSCIE, RESTART,
-         * OPCJE, AUTORZY. Auto-repeat stays enabled (FIX-03). */
-        int ntot = nchs + 4;
-        int pos = *cor < 0 ? *sel : nchs + *cor;
-        pos += (k == LLKEY_DOWN || k == LLKEY_RIGHT) ? 1 : ntot - 1;
-        pos %= ntot;
-        if (pos < nchs) { *sel = pos; *cor = -1; }
-        else *cor = pos - nchs;
+    if (k == LLKEY_UP || k == LLKEY_DOWN) {
+        /* TWO-AXIS navigation (owner 2026-11-15: "up, down arrow
+         * switch between choosing corner options and maps, left
+         * right switch between specific map or specyfic corner
+         * option"): Up/Down TOGGLE the selection MODE between the
+         * chapter map (cor = -1: the bulawa sits on the selected
+         * island) and the FOUR CORNER WORDS, clockwise from top-
+         * left: WYJSCIE, RESTART, OPCJE, AUTORZY (cor = 0..3: it
+         * moves onto the word). Entering corner mode lands on the
+         * first word. First press only: holding Up/Down must not
+         * flicker the mode. */
+        if (repeat)
+            return;
+        *cor = *cor < 0 ? 0 : -1;
+    } else if (k == LLKEY_LEFT || k == LLKEY_RIGHT) {
+        /* Move WITHIN the active group: chapters among chapters,
+         * corner words among corner words, both wrapping. Auto-
+         * repeat stays enabled (FIX-03). */
+        if (*cor < 0)
+            *sel = (*sel + (k == LLKEY_RIGHT ? 1 : nchs - 1)) % nchs;
+        else
+            *cor = (*cor + (k == LLKEY_RIGHT ? 1 : 3)) % 4;
     } else if (repeat)
         return;             /* FIX-03 (X-04): chapter cycling keeps
                              * auto-repeat; confirm/select and letter
@@ -1255,10 +1265,11 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
              * autorzy/opcje/restart paths without looping forever).
              * LEO_MENU_KEY=corner instead feeds ONE real key per tick
              * through map_key (so each pose is actually composed):
-             * Down nchs+1 times - visiting EVERY chapter, then
-             * WYJSCIE, then RESTART - then Enter activates RESTART
-             * (same -6 downstream the 'r' legs prove), pinning the
-             * keyboard corner cycle end to end. */
+             * Right nchs-1 times - visiting EVERY chapter pose, then
+             * Down to SWITCH TO corner mode (lands on WYJSCIE),
+             * Right to RESTART, then Enter activates it (same -6
+             * downstream the 'r' legs prove) - pinning the two-axis
+             * walk end to end. */
             {
                 static int key_fired;
                 static unsigned fired_tick;
@@ -1273,9 +1284,15 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                         if (tick == 1)
                             printf("map: LEO_MENU_KEY -> corner "
                                    "cycle\n");
-                        if (tick <= (unsigned)nchs + 1)
-                            map_key(LLKEY_DOWN, 0, nchs, &sel, &cor,
-                                    &quit, &ret);
+                        if (tick <= (unsigned)nchs - 1)
+                            map_key(LLKEY_RIGHT, 0, nchs, &sel,
+                                    &cor, &quit, &ret);
+                        else if (tick == (unsigned)nchs)
+                            map_key(LLKEY_DOWN, 0, nchs, &sel,
+                                    &cor, &quit, &ret);
+                        else if (tick == (unsigned)nchs + 1)
+                            map_key(LLKEY_RIGHT, 0, nchs, &sel,
+                                    &cor, &quit, &ret);
                         else if (tick == (unsigned)nchs + 2) {
                             map_key(LLKEY_RETURN, 0, nchs, &sel, &cor,
                                     &quit, &ret);

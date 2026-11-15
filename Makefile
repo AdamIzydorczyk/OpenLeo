@@ -491,9 +491,9 @@ ifeq ($(PX_DATA),1)
 	   && grep -q 'map: corner art restart' /tmp/opencode/menu_corner.log \
 	   && grep -q 'map: corner restart' /tmp/opencode/menu_corner.log \
 	   && [ "$$(grep -c 'map: title sprite' /tmp/opencode/menu_corner.log)" -eq 11 ]; \
-	then echo "corner cycle: arrow walk renders all 11 cursive title poses, " \
-	     "corner words swap to their .SEQ emphasis art, Enter activates " \
-	     "RESTART (keyboard-only, ok)"; \
+	then echo "corner cycle: two-axis walk (Right through all 11 cursive " \
+	     "title poses, Down into corner mode, Right to RESTART) with " \
+	     "word .SEQ emphasis art, Enter activates RESTART (ok)"; \
 	else echo "corner cycle FAILED (rc=$$rc)"; cat /tmp/opencode/menu_corner.log; exit 1; fi
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 \
 	    LEO_MENU_KEY=r LEO_MENU_SECS=1 LEO_MENU_PPM=/tmp/opencode/menu_rst.ppm \

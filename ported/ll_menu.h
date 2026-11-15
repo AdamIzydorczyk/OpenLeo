@@ -110,12 +110,15 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
  * an unparseable blob keeps the font-text fallback (RAN.01/JUNCTION
  * have no image; dataless mode always falls back).
  * anims = .SEQ overlays (the BERLO arrow cycles on its
- * period_ms).  Keyboard input ONLY: arrows cycle chapters then the
- * four corner words (WYJSCIE/RESTART/OPCJE/AUTORZY); the selection
+ * period_ms).  Keyboard input ONLY, TWO-AXIS model (owner directive
+ * 2026-11-15): Up/Down SWITCH the selection mode between the chapter
+ * map and the corner options; Left/Right cycle WITHIN the active
+ * group (chapters among chapters, the four corner words
+ * WYJSCIE/RESTART/OPCJE/AUTORZY among themselves).  The selection
  * cursor (BERLO, the original's menu pointer) MOVES ONTO the chosen
- * word and the word swaps to its .SEQ emphasis variant (words[]) -
- * bright bar at the recovered bbox only as fallback without the
- * word records.  Enter/Space activates, a/o/r stay direct corner
+ * word and the word pulses its .SEQ variants (words[]) - bright bar
+ * at the recovered bbox only as fallback without the word records.
+ * Enter/Space activates, a/o/r stay direct corner
  * shortcuts.  Returns selected chapter index,
  * -2 = wyjście/Esc, -3 = LEO_MENU_SECS deadline (CI hook),
  * -4/-5/-6 = the autorzy/opcje/restart corner words. */
