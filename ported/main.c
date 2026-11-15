@@ -698,6 +698,20 @@ int main(int argc, char **argv)
 #endif
     }
 
+    /* FIX-10 (deep dive W-01): ll_cutscene.exe embeds activeCodePage=
+     * UTF-8 (resources/app.manifest via the .rc), so normally GetACP()
+     * is CP_UTF8 and msvcrt paths are UTF-8. Warn once when that is
+     * not true - Windows < 10 1903 without the ACP switch, or an
+     * unpacked exe run without its manifest - instead of letting the
+     * first non-ASCII data path fail with a bare "not found". */
+#if defined(PLATFORM_WIN) && PLATFORM_WIN
+    if (GetACP() != CP_UTF8)
+        fprintf(stderr, "main: ANSI code page %u is not UTF-8 "
+                "(Windows < 10 1903 or missing manifest): data paths "
+                "with non-ASCII characters may not be found\n",
+                (unsigned)GetACP());
+#endif
+
     if (demo) {
         const char *d = demo_data;
         if (!d) {

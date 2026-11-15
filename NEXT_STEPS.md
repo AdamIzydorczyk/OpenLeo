@@ -967,6 +967,57 @@ ll_view/ll_audio as backend-private helpers).
   from a pinned binary copy (ll_cutscene_base pattern) or rebuild
   before starting; (2) LEO_IS_WAV files are RAW s16 LE despite the
   extension (ffplay -f s16le -ar 22050).
+- PR-29 pushed 79961aa; CI green run 43720858381 (all 3 jobs). CLOSED.
+## PR-30 — FIX-09 Part 1 + FIX-10 Part 1 + W-04 tail (DONE 2026-11-15)
+
+- FIX-09 Part 1 (ll_audio.c only): the pipewire->alsa pin uses
+  SDL_SetHint(SDL_HINT_AUDIODRIVER) instead of SDL_setenv (no leak into
+  child processes; the old "restore" path even left drv=pipewire in the
+  ENV - gone), skippable with new LEO_KEEP_PIPEWIRE=1, and a static
+  s_forced_alsa lets ll_audio_open retry a failed device open ONCE on
+  SDL's own choice (spec-shape block verbatim; safe under the
+  one-device contract). Spec-mandated source check done against
+  libsdl-org/SDL release-2.32.10 (tag name for 2.32.10 is
+  release-2.32.x, not SDL2_2_32_x): SDL_AudioInit reads the HINT
+  (src/audio/SDL_audio.c:969) and SDL_GetHint returns the ENV VAR value
+  unless the hint is SDL_HINT_OVERRIDE (src/SDL_hints.c:159-177) while
+  SDL_SetHint is non-override, and SDL_HINT_AUDIODRIVER ==
+  "SDL_AUDIODRIVER" (include/SDL_hints.h) - user pins still win.
+  Comment corrected: the '2.32.74' seen in the original investigation is
+  sdl2-compat over SDL3 (squeak likely the compat resampler); FIX-09
+  Part 2 (device at native rate, C1) is expected to make the pin
+  unnecessary - re-test before deleting.
+- Measured on the real desktop: default -> pin + alsa (as before);
+  LEO_KEEP_PIPEWIRE=1 -> driver pipewire, movie plays; user
+  SDL_AUDIODRIVER=dummy -> honoured verbatim; fallback forced with a
+  temporary env-hook at the first open (instrument removed, git grep
+  clean): 'alsa open failed (...), retrying with default driver' ->
+  device reopens on the default driver -> 125/125 presented. ALSA here
+  is shared-mix so the natural failure (busy device) can't be forced
+  locally - instrument stands in for it.
+- FIX-10 Part 1 (W-01): fs_ci.c wopen_utf8 = heap utf8_to_wide +
+  _wfopen per spec (the fixed wchar_t[4096] silently truncated long
+  paths and defeated the longPathAware manifest; MB_ERR_INVALID_CHARS
+  now rejects invalid UTF-8). main.c: GetACP()!=CP_UTF8 warning right
+  after the P-06 console block (fires only pre-1903 or manifest-less:
+  resources/app.manifest already carries activeCodePage=UTF-8 +
+  longPathAware, verified). README states the baseline: Win10 1903+,
+  ASCII-only paths older. Part 2 (wide stat/dir wrappers) stays
+  optional per spec - not a pre-1903 support goal.
+- W-04 tail (CMakeLists.txt): post-build copy of SDL2.dll next to
+  ll_cutscene.exe - for imported-target configs only when TYPE is
+  SHARED_LIBRARY (vcpkg-static unaffected), for the pkg-config path
+  (vendored mingw-xc SDL) by probing ../bin/SDL2.dll beside the lib
+  dir; WARNING when no DLL is found instead of silently shipping a
+  broken exe. verify-cmake windows cross-build now produces
+  ll_cutscene.exe + SDL2.dll together and the wine proof is
+  byte-exact; the Makefile's manual cp becomes a no-op fallback.
+  Manifest half of W-04 was already done (P-14b).
+- Regression: verify-utf8 (Gry/Lódź dir incl. win .exe byte-exact),
+  verify-win all wine legs, verify-platform, verify-music green; full
+  verify-all exit 0 (only by-design no-regression SKIP, golden 98.4%
+  unchanged); fixture-free sim exit 0 with 22 named SKIPs; zero-warning
+  native + llvm-mingw builds.
 ## Next — pick from the Deferred list below
 
 Nothing queued from the review's "worth fixing" set: all of it has

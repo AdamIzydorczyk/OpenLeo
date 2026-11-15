@@ -23,15 +23,31 @@
  * but the SDK we cross-link here is msvcrt.) */
 #include <windows.h>
 
+/* FIX-10 (W-01): heap conversion, no fixed wchar_t buffer - a 4096
+ * stack cap silently truncated long paths and silently defeated the
+ * longPathAware manifest. MB_ERR_INVALID_CHARS: reject invalid UTF-8
+ * instead of letting it become a wrong-but-openable path. */
+static wchar_t *utf8_to_wide(const char *s)
+{
+    int n = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, s, -1,
+                                NULL, 0);
+    if (n <= 0)
+        return NULL;
+    wchar_t *w = (wchar_t *)malloc((size_t)n * sizeof *w);
+    if (w && MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, s, -1,
+                                 w, n) <= 0) {
+        free(w);
+        w = NULL;
+    }
+    return w;
+}
 static FILE *wopen_utf8(const char *path, const char *mode)
 {
-    wchar_t pbuf[4096], mbuf[16];
-    wchar_t *pw = pbuf, *mw = mbuf;
-    if (MultiByteToWideChar(CP_UTF8, 0, path, -1, pbuf, 4096) == 0)
-        return NULL;
-    if (MultiByteToWideChar(CP_UTF8, 0, mode, -1, mbuf, 16) == 0)
-        return NULL;
-    return _wfopen(pw, mw);
+    wchar_t *pw = utf8_to_wide(path), *mw = utf8_to_wide(mode);
+    FILE *f = (pw && mw) ? _wfopen(pw, mw) : NULL;
+    free(pw);
+    free(mw);
+    return f;
 }
 
 FILE *ll_fopen_ci(const char *path, const char *mode)

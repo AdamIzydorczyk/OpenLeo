@@ -35,6 +35,12 @@ make win      # windows .exe (needs vendor/SDL2-2.32.10-mingw + llvm-mingw,
               # or a system x86_64-w64-mingw32-gcc; both gitignored)
 ```
 
+Supported Windows baseline: **Windows 10 1903+** — the embedded
+`resources/app.manifest` activates the UTF-8 code page, so game-data
+paths with non-ASCII characters (Polish folders etc.) resolve; on older
+Windows the game runs but only ASCII-only data paths work (the binary
+logs a `main: ANSI code page …` warning in that case).
+
 ## Run
 
 ```

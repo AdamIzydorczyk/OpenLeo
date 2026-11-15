@@ -102,3 +102,44 @@ if(_sdl2_target)
         endif()
     endforeach()
 endif()
+
+# W-04 (deep dive): this build links SDL2.dll dynamically (unlike the
+# Makefile's static single-file `make win`), so ship the DLL next to the
+# exe - without it the exe dies at LoadLibrary before main(). Manifest +
+# icon are already embedded via resources/ll_cutscene.rc above; MSVC
+# additionally needs the compat.h shim (header note, still open).
+if(WIN32)
+    set(_sdl2_dll "")
+    if(_sdl2_target)
+        get_target_property(_sdl2_type ${_sdl2_target} TYPE)
+        if(_sdl2_type STREQUAL "SHARED_LIBRARY")     # vcpkg-static etc: skip
+            set(_sdl2_dll "$<TARGET_FILE:${_sdl2_target}>")
+        endif()
+    else()
+        # pkg-config path (libsdl.org mingw-xc builds): SDL2.dll lives in
+        # the bin/ sibling of the reported lib dir, or beside it.
+        foreach(_d IN LISTS SDL2_LIBRARY_DIRS)
+            if(_sdl2_dll)
+                continue()
+            endif()
+            foreach(_c "${_d}/../bin/SDL2.dll" "${_d}/../SDL2.dll"
+                       "${_d}/SDL2.dll")
+                if(EXISTS "${_c}")
+                    set(_sdl2_dll "${_c}")
+                    break()
+                endif()
+            endforeach()
+        endforeach()
+    endif()
+    if(_sdl2_dll)
+        add_custom_command(TARGET ll_cutscene POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_sdl2_dll}" "$<TARGET_FILE_DIR:ll_cutscene>"
+            COMMENT "copying SDL2 runtime DLL next to ll_cutscene (W-04)"
+            VERBATIM)
+    else()
+        message(WARNING
+            "W-04: no SDL2.dll found to copy next to ll_cutscene.exe - "
+            "the build will need it shipped manually.")
+    endif()
+endif()
