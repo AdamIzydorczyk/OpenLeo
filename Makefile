@@ -709,15 +709,45 @@ verify-arch:
 # in git; frames stay in /tmp - the repo stores hashes only.
 #   make golden_rig   rebuilds images + capture (~5 min, needs LL.iso,
 #                     an MS-DOS 6.22 boot disk image, qemu, mtools)
+#   make golden_rig_cd  SAME capture on the CD-ATTACHED rig: the only
+#                     configuration the ORIGINAL is known to reach the
+#                     chapter map menu in (PLAN S6/hunt9-13; the no-CD
+#                     route stayed in its movie loop through 1500 s of
+#                     0.25 s-sampled attract, 2026-11-15). -cdrom LL.iso +
+#                     a real-mode ATAPI CD driver + MSCDEX on the floppy
+#                     (the S6 "-cdrom+UDVD2/MSCDEX rig with the 0x5bd51
+#                     patch instead of the ASPI-dependent NOP"). The CD
+#                     exists only inside the emulator running the ORIGINAL;
+#                     the PORT itself remains fully no-CD.
+#   make golden_rig_ddir the DISK-D control: no CD anywhere in the rig.
+#                     D: is a second virtual disk with a plain FAT \LEO\
+#                     (no MSCDEX, no driver - the user rule: data loads
+#                     from a directory, no mounting). If the map menu
+#                     appears here too, the original's gate is the PATH,
+#                     not the CD medium - and the golden capture runs on a
+#                     CD-free rig end to end.
 GOLDEN     ?= /tmp/opencode/golden
 GOLDEN_MIN ?= 99.9
 ISO        ?= LL.iso
 MSDOS622   ?= /tmp/opencode/msdos622_x/dos-622-disk1.img
+CDDRV      ?= /tmp/opencode/oakcdrom.sys
 
 golden_rig:
 	@ISO=$(ISO) MSDOS622=$(MSDOS622) GOLDEN=$(GOLDEN) \
 	    bash tools/golden_build_rig.sh
 	@python3 tools/golden_qemu_run.py --workdir $(GOLDEN) --timeout 1800
+
+golden_rig_cd:
+	@ISO=$(ISO) MSDOS622=$(MSDOS622) GOLDEN=$(GOLDEN) CD=1 CDDRV=$(CDDRV) \
+	    bash tools/golden_build_rig.sh
+	@python3 tools/golden_qemu_run.py --workdir $(GOLDEN) --cdrom $(ISO) \
+	    --timeout 1800
+
+golden_rig_ddir:
+	@ISO=$(ISO) MSDOS622=$(MSDOS622) GOLDEN=$(GOLDEN) DDIR=1 \
+	    bash tools/golden_build_rig.sh
+	@python3 tools/golden_qemu_run.py --workdir $(GOLDEN) \
+	    --ddisk $(GOLDEN)/leo_d.qcow2 --timeout 1800
 
 verify-golden: ll_cutscene
 	@if [ ! -d "$(DATA)" ]; then \
@@ -757,4 +787,5 @@ clean:
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
         verify-seq verify-pcm verify-mod verify-level verify-help verify-menu \
         verify-sel verify-save verify-music verify-utf8 verify-fuzz \
-        verify-platform verify-userdir verify-cmake verify-all level clean package package-win package-linux
+        verify-platform verify-userdir verify-cmake verify-all level clean package package-win package-linux \
+        verify-golden verify-arch golden_rig golden_rig_cd golden_rig_ddir

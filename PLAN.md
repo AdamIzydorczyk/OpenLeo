@@ -275,17 +275,46 @@ the selected chapter: studio cards ("LERYX LONGSOFT CD-PROJEKT",
 running, character enters at the bottom edge, scripted encounters (tree
 hollow + crocodile). So menu is the interactive chapter selector and
 `down` = activate, exactly like Enter.
-NOTE (2026-11-14, T-24 no-CD rig): that whole attract chain was measured
+NOTE (2026-11-14/15, T-24 no-CD rig): that whole attract chain was measured
 in the CD-attached rig above. The scripted no-CD rig (tools/golden_build_
 rig.sh + 0x5bd51 gate bypass, HDD-only, no MSCDEX/ASPI) reaches the game
 and runs the .IS chain at the real 70 Hz audio clock, but has been seen
 STAYING in the 480-line movie loop without the counter ever freezing
-(two runs with 0.25 s tick sampling: 871 s and 931+ s of attract);
-esc/spc/ret changed nothing. The frozen-counter map-menu state has NOT
-yet been observed on the no-CD route - the golden.* capture side stays
-open until it is (reaching it may need the CD attached, i.e. the
--cdrom+UDVD2/MSCDEX rig from S6 with the 0x5bd51 patch instead of the
-ASPI-dependent NOP).
+(three runs with 0.25 s tick sampling: 871 s, 931+ s, and a decisive
+1500 s run on 2026-11-15); esc/spc/ret changed nothing and the timeout
+screendumps show only 480-line movie frames (the DOS text buffer is empty
+- graphics mode, not an error prompt). The CD-attached route was then
+built and scripted (golden_build_rig.sh CD=1: CFG drive D + ATAPI CD
+driver + MSCDEX on the floppy, QEMU -cdrom LL.iso, the 0x5bd51 patch
+instead of the ASPI-dependent NOP - exactly the recipe above), and even
+WITH the CD attached it stayed in the movie loop for 1500 s (max_rate
+96-107.9 Hz) without ever freezing. So CD presence alone is NOT the gate
+either - what the scripted runs lacked and the S6 GUI sessions had is
+INPUT: "intro FMV plays, Esc opens the menu" (the verified-live note
+above). golden_qemu_run.py now injects keys via the monitor
+(--sendkey-at "T=KEY,"); the first Esc visibly re-phases the movie
+chain (rate profile differs from the unattended run), so input lands.
+The control experiment that separates "CD medium" from "a D: path that
+exists" is the DISK-D rig (golden_build_rig.sh DDIR=1 + --ddisk: D: =
+plain second FAT disk holding \LEO\, no CD, no MSCDEX, no driver) - it
+boots to the game in ~5 s and behaves IDENTICALLY to the CD rig (same
+movie chain, same key responses): confirmed, the route needs no CD.
+FRAME-DOMAIN FINDINGS (2026-11-15, 7 scripted runs L1-L7 with the
+frame-classifying driver - frame_journal.jsonl is the full state trail):
+the CRTC geometry is a reliable state fingerprint (640x480 = .IS movie
+chain, 720x400 = DOS text, 640x400 = the game's own canvas - the map
+menu's mode, per the chapter-launch chain below: "the black 400-line
+mode marks menu entry/exit"). Every early Esc (8-70 s after game start)
+flips to 640x400 for ~1 s and back (attract logic returns to the movie
+chain); in one run (L1) such an episode HELD - 640x400 from t=46.2 to
+t=70.8, black, then an ART frame (187 colors) after the next Esc. That
+is the live-verified "Esc opens the menu" behaviour reproduced under
+script; the frozen-40:6C counter never appeared in ANY run and is NOT a
+reliable menu detector on this rig (frame geometry replaced it as the
+primary trigger). A scripted capture of the static menu plane
+(vram.bin) has not landed yet - the first run whose detector saw the
+blips with correct code (L7) had no episode reach 2 s; the retry is
+mechanical (same schedule, current driver).
 
 **Chapter launch chain, full-res (2026-11-14 hunt10, 449 frames @ ~2 Hz
 after `down` on the map menu):** chapter .IS conversation cutscenes

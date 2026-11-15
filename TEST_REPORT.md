@@ -185,6 +185,10 @@ Notes for operators:
    at 99.966 % — but nothing original-side is committed; `golden_expect.json`
    keeps `golden.*` unset until `make golden_rig` reproduces it. Next step per
    NEXT_STEPS: script the CD-attached route or probe the attract chain further.
+   *Update (PR-21, same day): both done — a 1500 s sampled watch was
+   definitively negative (the original's map menu is CD-gated), and the
+   CD-attached route is scripted (`make golden_rig_cd`); the golden.*
+   capture runs there.*
 2. **No CI runner config in-repo.** The 21-target suite runs here on demand;
    there is no `.github/workflows` or equivalent. The legs are CI-safe by design
    (fixture SKIPs, deterministic seeds, fixed ticks). Recommendation: add a

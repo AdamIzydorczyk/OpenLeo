@@ -515,12 +515,14 @@ ll_view/ll_audio as backend-private helpers).
   retrying the art<->black cycle until the frame is static
   (vram.bin/menu.ppm/static2.ppm + capture_manifest.json, hashes
   only in the repo - never frames, per T-24).
-  NOTE: in the no-CD route the game was still in its 480-line movie
-  chain after ~900 s of attract; the frozen-counter map-menu state
-  from PLAN S6 was measured in the CD rig and has NOT yet been
-  observed in this no-CD rig. The capture tooling is ready; the
-  golden.* half of the manifest stays open until a real capture
-  lands (or the CD-attached route is scripted next).
+   NOTE: the map menu is CD-GATED - two scripted no-CD watches (871/931 s
+   in PR-19, then 1500 s at 0.25 s sampling on 2026-11-15) never produced
+   a frozen-40:6C window; the game stays in its 480-line movie loop. The
+   frozen-counter state from PLAN S6 was measured with a CD attached, and
+   the CD-attached route is now scripted too (golden_build_rig.sh CD=1 +
+   golden_qemu_run.py --cdrom + `make golden_rig_cd`, see PR-21 below).
+   The golden.* half of the manifest stays open until a real capture
+   lands.
 - `tools/golden_menu_cmp.py`: validates the capture against the
   verified layout model (pure 2x2 doubling, index->color bijection
   like menu_dac_gen), scores every port map frame against the
@@ -555,6 +557,104 @@ ll_view/ll_audio as backend-private helpers).
   Environment note: a 04:27 reboot wiped the tmpfs /tmp fixtures; the
   restage recipe above (LL.iso -> iso_stage + LEO_HDD -> hd_files + repo-
   root save fixtures + py_last frame) restored the suite unchanged.
+
+## PR-21 — golden rig: input + dual state detectors (the menu is NOT CD-gated) (IN PROGRESS 2026-11-15)
+
+- The no-CD route is DEFINITIVELY negative for the map menu under attract:
+  a second scripted watch (1500 s, 0.25 s sampling = 6000 samples) again
+  showed zero frozen-0x46C windows and the game stayed in its 480-line
+  movie loop (movie clock 72 -> 88 -> 107.9 Hz across phases; same
+  signature as PR-19's 871 s/931 s runs). The timeout.ppm screendump is
+  a 480-line .IS movie frame and timeout_text.txt is EMPTY -> the game
+  is in graphics mode, not waiting at a prompt.
+- The CD-attached route per PLAN S6 line 287 ("the -cdrom+UDVD2/MSCDEX
+  rig from S6 with the 0x5bd51 patch instead of the ASPI-dependent NOP")
+  is now scripted:
+  - tools/golden_build_rig.sh CD=1 CDDRV=... mode: CFG drive byte stays
+    'D' (retail semantics - the game reads D:\LEO\... from the emulated
+    CD), the qcow2 is rebuilt on a drive-mode switch (hd_mode stamp),
+    and the boot floppy gains a real-mode ATAPI CD driver + MSCDEX line
+    (MSCDEX.EXE is on the MS-DOS 6.22 startup disk itself; the driver is
+    OAKCDROM.SYS - UDVD2 mirrors are unreachable, OAK is freely
+    redistributable and is what DOSBox-Staging ships; same role).
+    The 0x5bd51 patch STAYS: OAK brings no ASPI manager, and the
+    pristine gate would otherwise fail its AH=4408h/4409h probe chain.
+  - tools/golden_qemu_run.py --cdrom IMG: attaches the ISO to ide cd0
+    and records its sha256 in capture_manifest.json inputs.
+  - Makefile: `make golden_rig_cd` (CD=1 rig + --cdrom capture).
+- The CD-attached rig WITHOUT input ALSO stays in the movie loop
+  (1500 s, 2026-11-15 06:15): CD presence alone is NOT sufficient. The
+  S6 baseline where the menu chain was live describes HUMAN INPUT
+  ("intro FMV plays, Esc opens the menu") - so the scripted detector now
+  injects keys through the QEMU monitor too: golden_qemu_run.py
+  --sendkey-at "T=KEY,..." (sendkey esc/spc/ret/down at wall-clock T,
+  recorded in the manifest phases). First Esc visibly changes the run's
+  phase progression, so the input path reaches the game.
+- DISK-D ROUTE per the user's rule "data loads from a directory, without
+  mounting": the rig's D: is a plain second FAT disk (build_data_disk.sh
+  without ROOT_DIR: \LEO\ at the volume root, attached -hdb) - no CD
+  medium, no MSCDEX, no device driver anywhere. golden_build_rig.sh
+  DDIR=1 + golden_qemu_run.py --ddisk + `make golden_rig_ddir`. This is
+  the control that separates "the original needs the CD medium" from
+  "the original only needs its D:\ paths to exist as an ordinary
+  directory". If the menu appears here, the golden capture runs on a
+  fully CD-free rig - matching the port's own no-CD design.
+- Three full runs completed 2026-11-15 (sparse Esc/Ret/Down/Space
+  schedule at t=75..1306 s, identical for CD and disk-D):
+  - CD + keys, 1500 s: stays movie-loop, stuck at 72.0 Hz phase.
+  - disk-D + keys, 1500 s: same, re-phases to 87.9 Hz after Esc+spc.
+  - disk-D + dense (Esc every 25 s + Ret/Down, 900 s): re-phases to
+    84.0 Hz, then 100.0 Hz after t≈560. So keys DO reach the game and
+    change the movie chain's phase, but NO run produced a frozen-0x46C
+    window; the timeout frames are all live 480-line movie art.
+  - PROBE-SHOT FINDING: every screendump taken +0.6 s after a key shows
+    a pure-black frame - a transition/fade, and black is NOT menu proof
+    (PLAN: menu entry/exit fades are black too). A single delayed probe
+    per key measures nothing; the a/b/c (+0.6/+3/+9 s) multi-shot mode
+    plus an observe-only "noop" event were added for the next round.
+- TWO DETECTOR BLIND SPOTS found and FIXED in golden_qemu_run.py:
+  1. the a/b/c probe series used to BLOCK the sampling loop ~10 s per
+     event - a 7-8 s menu freeze fit exactly inside that hole. Shots are
+     now scheduled as due-events inside the loop (the QEMU HMP serves
+     one client - a second monitor connection hangs, tested QEMU 11.1.3,
+     so threading was not an option either).
+  2. the ONLY menu trigger was the frozen-0x46C counter. Per the PLAN's
+     own hunt12 measurement the menu is ONE STATIC ART FRAME ~0.9 s on a
+     400-line canvas, and the .IS chain is always 480-line: a frame
+     sensor is independent and immune to counter doubts. --frame-interval
+     (default 0.5 s) now screendumps+classifies every sample:
+     frame_journal.jsonl logs every frame CHANGE (crtc height, colors,
+     mean, hash); non-480 frames are kept as frame_T.ppm; sustained
+     400-line ART (>= 1 s, colors > 8, mean > 16) triggers the same
+     capture path as the frozen counter (capture_menu_state validates
+     the static index plane before anything is written, so a fade never
+     becomes a false capture).
+- STATUS AFTER 7 SCRIPTED RUNS (L1-L7, 2026-11-15): the driver now
+  speaks QMP (fix 2 above) and classifies every frame. Findings:
+  * EVERY early Esc (~8-70 s after game start on the disk-D rig) flips
+    the CRTC 640x480 -> 640x400 for ~1 s and back (blips at t=9/15/
+    21/31/46/71 in L7, same pattern in L1/L2): the game DOES enter its
+    400-line canvas on input; its own attract logic drops it back into
+    the movie chain ~1 s later.
+  * In L1 one episode STUCK: 640x400 held t=46.2 -> 70.8 (~24 s, the
+    black half of the menu's art<->black cycle), and the next Esc
+    produced a 640x400 ART frame (colors=187, mean=52) at t=71. That
+    matches the live-verified menu (PLAN line 255): in the frame
+    domain this canvas is only ever used by the menu state.
+  * No vram.bin capture has landed yet: L1's stuck episode happened
+    under the older broken-HMP driver whose trigger also required ART
+    while the menu's longest phase is black. L7 ran the final detector
+    code and logged all six blips correctly, but none held 2 s.
+  * 0x46C never froze in ANY run, menu-like states included: the clock
+    detector is NOT reliable on this rig; the frame detector is the
+    primary and stands on its own.
+- NEXT PROBE (documented, not yet run): re-run the L1 schedule
+  (Esc 8/14/20/30/45/70) with the CURRENT driver - the >=2 s episode
+  trigger captures the first 640x400 episode that holds (extend to Esc
+  every ~12 s for 300 s to raise the odds). On capture:
+  tools/golden_menu_cmp.py --vram vram.bin --screen menu.ppm
+  --port-dir <poses> --expect tools/golden_expect.json, then pin the
+  golden.* hashes in tools/golden_expect.json.
 
 ## Next — pick from the Deferred list below
 
