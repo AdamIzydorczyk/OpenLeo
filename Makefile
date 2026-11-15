@@ -883,11 +883,18 @@ verify-arch:
 #                     not the CD medium - and the golden capture runs on a
 #                     CD-free rig end to end.
 GOLDEN     ?= /tmp/opencode/golden
-GOLDEN_MIN ?= 92   # full-compare floor: measured 92.088% (PR-36).
-                   # PR-23's 98.43% was measured against the captured
-                   # screenshot as base; the base is now the engine's own
-                   # BACK.PCX + port-drawn text, so the residual is the
-                   # font style (PR-37 cursive-font candidate closes it).
+GOLDEN_MIN ?= 90   # full-compare floor: PR-40 re-measure 90.7281% best /
+                   # 90.7188% worst pose. The -1.7pt drop from PR-37's
+                   # 92.4516% IS the reconstructed BERLO mace sprite
+                   # (~1600 px) drawn at the selection park: the
+                   # captures prove the original's mace never moves
+                   # (baked into BACK.PCX), so the owner-requested
+                   # moving red cursor must cost match vs one fixed
+                   # capture. PR-23's 98.43% was measured against the
+                   # captured screenshot as base; the base is now the
+                   # engine's own BACK.PCX + port-drawn text, so the
+                   # residual is the font style (PR-37 cursive-font
+                   # candidate closes it).
 # raise toward 99.9 as the composed texts/overlays converge
 ISO        ?= LL.iso
 MSDOS622   ?= /tmp/opencode/msdos622_x/dos-622-disk1.img

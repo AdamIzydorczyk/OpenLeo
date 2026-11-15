@@ -1555,6 +1555,77 @@ only 'warning:' lines in the logs are MESA-EGL runtime noise).
    the first pass. CLOSED. Awaiting owner re-test of the two-axis
    feel (not pinnable headless).
 
+## PR-40 — BERLO selection cursor reconstructed (owner defect report)
+
+Owner (2026-11-15, after PR-39 build): "after switching left some
+artifacts from previous state... on screen we see curently selected
+ZARIA 2, but for some reason is still wisible arrow form ZARIA 1,
+btw there is also some issue with color, arrow is grey not red".
+
+ROOT CAUSE (proven from data, no repro needed):
+- The red mace at logical x147..205 y94..136 is BAKED into
+  ANIMACJE/MENU/BACK.PCX. Both original captures (golden/menu_art.ppm,
+  menu_art2.ppm; vram.bin == menu_art's index plane) show ZERO
+  engine-drawn pixels over it: the baked mace never moves and the
+  engine never touches it.
+- BERLO.SEQ's 30 elements are a DELTA CHAIN over that art: their
+  union (each element drawn at el0-anchor-normalized authored
+  position) is a 37x44 px mace envelope, 986 px; slide-aligned onto
+  BACK's warm-color core it overlaps 82% (813/986) and the el0 canvas
+  origin lands on the art at (164,95) = BERLO_HOME. The chain's own
+  colors are dark olive/browns (31,23,0)/(32,39,7)/(104,96,40) -
+  the shading patches ADD, not the mace body (body = BACK's golds
+  (247,208,7)/(239,175,0) + reds).
+- The map path drew ONE chain element per 100 ms tick at the park =
+  a single delta fragment: a floating olive-grey smudge (the "grey
+  arrow") that also changed shape between ticks like leftover
+  artifacts. Measured in the old map_*.ppm walk frames (a 308px
+  smudge blob at the island0 park).
+
+FIX (ported/ll_menu.c): bake the FULL cursor once at map open -
+cchain = the 30-element accumulation (later elements overwrite) in
+el0-relative coords; cbase = BACK.PCX pixels of the warm class
+(r>g && r>=b: the mace art's reds/golds/sands) sampled at BERLO_HOME.
+At runtime composite the whole 44x52 sprite el0-anchored at the park
+(chain first, art pixels WIN where they exist - the captures show the
+original is the bright art; chain alone reads grey) then re-paint the
+current element's patch at its authored relative anchor = the chain's
+shimmer over the full sprite. Park/word anchors, corner clamps and
+the LEO_MENU_KEY t2!=t8 BERLO-cycle leg are untouched (still 2824 px
+differ between t2 and t8 frames). Without a decoded BACK (no-data /
+LEO_MENU_BG=placeholder) cbase is empty and only the chain layer
+exists - documented fallback.
+Proof the reconstruction lands right: frame diffs old-vs-new are
+confined to the 44x52 mace rect at the park (1596 px, bbox
+x63..106 y56..104 for island0), the park sprite's top colors are now
+the HOME art's colors ((247,208,7)x241, (200,135,0), (248,120,7),
+(239,175,0) - identical palette), and the baked home mace region is
+byte-unchanged in every frame.
+
+GOLDEN RE-PIN (honest, by-design): all 30 pose hashes regenerated;
+best vs the ART frame 90.7281% RGB (was 92.4516%), worst pose
+90.7188%. The -1.7pt IS the ~1600 px mace drawn at the park - the
+single fixed capture can never show a moving cursor (the original's
+never moves; selection feedback there is island art + engine cursive
+titles). min_best_rgb 92.0 -> 90.0 (margin +0.719pt over the worst
+pose), Makefile GOLDEN_MIN comment updated to match. The moving red
+cursor is an explicit owner directive, so this is the accepted look.
+Open question parked for the owner: with a moving cursor the BAKED
+center mace stays visible (faithful to the original) - hide/inpaint
+it when the cursor is elsewhere? Needs the owner's call.
+CI additions: none (the existing 30-frame/BERLO-cycle/corner pins all
+still pass unchanged).
+Verification: full make -k verify-all with data rc=0 (all legs ok,
+verify-menu + verify-golden green incl. the mingw/wine halves);
+fixture-free make -k verify-all rc=0 with the named SKIPs; gcc +
+vendored llvm-mingw builds warning-free.
+Open from the same report, NOT actionable yet: "same issue is in
+movies" needs a concrete repro (which movie, which transition, what
+the artifact looks like) - the .IS decoder is golden-pinned byte-exact
+vs the python reference, so any movie defect is in presentation, not
+decode; and the owner's screenshot could not be read (this tool has
+no image input).
+
 ## Next — pick from the Deferred list below
 
 PR-37 leaves one named golden follow-up: recover the ORIGINAL engine

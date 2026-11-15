@@ -718,9 +718,29 @@ copy/fill runs CHAIN at marker position (only a gap byte returns to an
 op position), matching tools/seq_patch.py. With this, AUTORZY decodes
 to a legible 8-colour word (measured in-frame ASCII art), and
 verify-seq stays green at 172/172 payloads. BERLO.SEQ frames decode
-byte-exact but each of its 30 elements is a DELTA patch whose base
-frame we do not reconstruct; the parked BERLO sprite reads as a small
-crowned figure - good enough, documented limitation.
+byte-exact but each of its 30 elements is a DELTA patch over a
+persistent base frame. PR-35 drew ONE element per tick at the park =
+a floating olive-grey smudge (the owner's PR-40 defect report "arrow
+is grey not red" + "arrow from previous state still visible").
+RESOLVED PR-40 (measurements 2026-11-15): the red mace at logical
+x147..205 y94..136 is BAKED into BACK.PCX; both original captures
+(menu_art/menu_art2/vram.bin) show ZERO engine-drawn pixels over it -
+the baked mace itself never moves. But the 30 BERLO elements ARE one
+persistent delta chain: their union is a 37x44 mace envelope whose
+element-0 canvas origin lands exactly on the baked art when placed at
+(164,95); 82% of envelope px hit warm mace-art colors (the chain
+colors are the dark/olive shading the patches ADD). The map now bakes
+the FULL cursor at open (chain accumulation + BACK art of the warm
+class r>g && r>=b sampled at that home) and composites it at the
+island/corner park - chain first, bright art pixels winning where
+they exist (the captures' mace is golds (247,208,7)/(239,175,0) +
+reds; the chain alone reads grey) - then re-paints the current
+element's patch at its authored relative anchor = the chain's
+shimmer. Golden re-pin: best 90.7281% vs the art frame (was
+92.4516%), min_best_rgb lowered 92 -> 90: the -1.7pt IS the ~1600px
+mace at the park, which the one fixed capture cannot show because
+the original's cursor never moves there; the moving red cursor is an
+explicit owner directive.
 **Menu dialog sprites placed (2026-11-14)**: none of the remaining
 ANIMACJE/MENU .SEQ sprites match the captured chapter-map frame at
 their element (-f0,-f2) origins (exact-index ratios 0.00-0.09, shift

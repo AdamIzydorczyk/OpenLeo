@@ -755,6 +755,60 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
 #define MAP_LW 320
 #define MAP_LH 200
 
+/* ---- BERLO mace cursor, reconstructed (measured 2026-11-15) ---------- *
+ * The two original menu-screen captures (golden/menu_art.ppm, the map
+ * state in golden/vram.bin) vs ANIMACJE/MENU/BACK.PCX prove:
+ *   - the red mace (red-core bbox x147..205 y94..136) is BAKED in
+ *     BACK.PCX; both captures show ZERO engine-drawn pixels over it;
+ *   - BERLO.SEQ's 30 elements are a DELTA chain over that mace, not
+ *     independent frames: their union is a 37x44 px mace envelope whose
+ *     element-0 canvas origin lands on the baked art when placed at
+ *     (164, 95) = BERLO_HOME below (82% of the envelope pixels land on
+ *     the warm mace art; chain colors are the dark/olive shading the
+ *     patches add).
+ * Drawing ONE element per tick (the old map path) painted a single
+ * delta patch = a floating olive-grey smudge at each island park -
+ * the owner's "arrow is grey not red" + "artifacts from previous
+ * state" (verified in map_*.ppm walk frames 2026-11-15). The map now
+ * bakes the WHOLE cursor once: base layer = BACK art pixels of the
+ * warm color class (r>g and r>=b: reds/oranges/golds/sand/browns of
+ * the mace art) sampled at home, chain layer = the 30-element
+ * accumulation (later elements overwrite, el0-anchor-relative); at
+ * runtime the full sprite composites at the park (chain first, art
+ * pixels winning wherever they exist - the captures show the original
+ * mace's dominant colors are the bright baked art: golds (247,208,7)/
+ * (239,175,0) and reds, the chain pixels alone are dark and read
+ * "grey"), and the current element's patch re-paints on top - the
+ * chain's shimmer, without the smudge. Cursor stays el0-anchored at
+ * the park; without a decoded
+ * BACK (no-data / placeholder base) only the chain layer exists. */
+#define BERLO_HOME_X 164        /* el0 canvas origin over the baked mace */
+#define BERLO_HOME_Y 95
+#define CUR_AW 44               /* envelope + margins (union: x-9..27, y-1..42) */
+#define CUR_AH 52
+#define CUR_OFFX 10
+#define CUR_OFFY 4
+
+/* composite an index sprite (0xFF = transparent) into a cv overlay buffer */
+static void overlay_idx(unsigned char *cv, int cw, int ch, int x, int y,
+                        const unsigned char *sp, int sw, int sh)
+{
+    for (int j = 0; j < sh; j++) {
+        int py = y + j;
+        if (py < 0 || py >= ch)
+            continue;
+        for (int i = 0; i < sw; i++) {
+            unsigned char v = sp[j * sw + i];
+            if (v == 0xFF)
+                continue;
+            int px = x + i;
+            if (px < 0 || px >= cw)
+                continue;
+            cv[py * cw + px] = v;
+        }
+    }
+}
+
 /* 1x 8x8 glyph at logical scale (originals are .SEQ sprites/art; this is
  * our documented placeholder font, same space, half the 640-space size) */
 static void draw_glyph1(uint32_t *fb, int x, int y, char c, uint32_t col)
@@ -1011,6 +1065,51 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
     if (base)
         memcpy(base, fb, (size_t)MAP_LW * MAP_LH * sizeof *base);
 
+    /* Bake the full mace cursor from the BERLO chain + BACK art (see the
+     * BERLO_* note above). cur_i = the map's cursor anim (x<0 marker). */
+    int cur_i = -1;
+    unsigned char *cbase = NULL, *cchain = NULL;
+    if (aseq)
+        for (int i = 0; i < nanims; i++)
+            if (anims[i].x < 0 && aseq[i].count > 0) {
+                cur_i = i;
+                break;
+            }
+    if (cur_i >= 0) {
+        cbase = malloc((size_t)CUR_AW * CUR_AH);
+        cchain = malloc((size_t)CUR_AW * CUR_AH);
+        if (cbase && cchain) {
+            memset(cbase, 0xFF, (size_t)CUR_AW * CUR_AH);
+            memset(cchain, 0xFF, (size_t)CUR_AW * CUR_AH);
+            const ll_seq_elem *e0 = &aseq[cur_i].els[0];
+            for (unsigned k = 0; k < aseq[cur_i].count; k++) {
+                const ll_seq_elem *e = &aseq[cur_i].els[k];
+                ll_seq_draw_elem(&aseq[cur_i], e, cchain, CUR_AW, CUR_AH,
+                                 CUR_OFFX + SX(e0->f0) - SX(e->f0),
+                                 CUR_OFFY + SX(e0->f2) - SX(e->f2));
+            }
+            if (have_back)
+                for (int y = 0; y < CUR_AH; y++)
+                    for (int x = 0; x < CUR_AW; x++) {
+                        int sx = BERLO_HOME_X + x - CUR_OFFX;
+                        int sy = BERLO_HOME_Y + y - CUR_OFFY;
+                        if (sx < 0 || sy < 0 || sx >= MAP_LW || sy >= MAP_LH)
+                            continue;
+                        unsigned char idx = back.idx[sy * MAP_LW + sx];
+                        uint32_t c = ll_menu_dac[idx];
+                        int r = (int)(c >> 16) & 255, g = (int)(c >> 8) & 255,
+                            b = (int)c & 255;
+                        if (r > g && r >= b)
+                            cbase[y * CUR_AW + x] = idx;
+                    }
+        } else {
+            free(cbase);
+            cbase = NULL;
+            free(cchain);
+            cchain = NULL;
+        }
+    }
+
     int sel = 0, quit = 0, ret = -1;
     int cor = -1;   /* keyboard-selected corner word (-1 = a chapter),
                      * 0..3 = WYJSCIE/RESTART/OPCJE/AUTORZY */
@@ -1047,7 +1146,11 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         /* .SEQ overlays composite at logical scale (the original authored
          * its sprite coords in the 320x200 space): x<0 parks the BERLO
          * arrow just left of the selected island's measured edge,
-         * vertically centred. The corner words stay engine TEXT (the
+         * vertically centred - as the FULL reconstructed mace sprite
+         * (BERLO_* note above: the single-element draw was a delta
+         * fragment = a grey smudge, the reconstruction is the red
+         * mace + its chain shimmer, matching the original's baked
+         * art). The corner words stay engine TEXT (the
          * corner-word .SEQ records ARE real text sprites - measured
          * 2026-11-15 each carries the word in TWO variants, the
          * bigger one being the selection EMPHASIS state (its authored
@@ -1150,6 +1253,28 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                         x = chs[sel].ix / 2 - irw - 14;
                         y = chs[sel].iy / 2 - 9;
                     }
+                }
+                if (a == cur_i && cchain) {
+                    /* whole reconstructed mace: chain shading baked
+                     * first, then the BACK art pixels win wherever they
+                     * exist (the captures show the original mace is the
+                     * bright baked art - golds/reds - the chain alone
+                     * is dark and reads "grey"), el0-anchored at (x, y),
+                     * then the current element's patch re-painted at
+                     * ITS authored position in the chain = the chain's
+                     * shimmer over the full sprite, exactly what the
+                     * original's persistent delta buffer shows */
+                    if (cchain)
+                        overlay_idx(cv, MAP_LW, MAP_LH, x - CUR_OFFX,
+                                    y - CUR_OFFY, cchain, CUR_AW, CUR_AH);
+                    if (cbase)
+                        overlay_idx(cv, MAP_LW, MAP_LH, x - CUR_OFFX,
+                                    y - CUR_OFFY, cbase, CUR_AW, CUR_AH);
+                    const ll_seq_elem *e0 = &aseq[a].els[0];
+                    ll_seq_draw_elem(&aseq[a], e, cv, MAP_LW, MAP_LH,
+                                     x + SX(e0->f0) - SX(e->f0),
+                                     y + SX(e0->f2) - SX(e->f2));
+                    continue;
                 }
                 ll_seq_draw_elem(&aseq[a], e, cv, MAP_LW, MAP_LH, x, y);
             }
@@ -1338,6 +1463,8 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
     if (tseq.els)
         ll_seq_free(&tseq);
     free(base);
+    free(cbase);
+    free(cchain);
     free(fb);
     free(cv);
     free(disp);
