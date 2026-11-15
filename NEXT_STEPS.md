@@ -1457,7 +1457,8 @@ simply text not stylised". All three shipped; every step is DATA
    30 ms-grid frames; measured best vs the ART frame 92.4516% RGB
    (UP from PR-36's 92.088% - the corner words are now exact),
    worst pose in the cycle 92.348%; min_best_rgb KEPT at 92.0 (floor
-   unchanged, margin widened 0.088 -> 0.37 pt). Remaining residual
+   unchanged, safety margin widened: worst pose +0.348 pt over the
+   floor, previously best pose only +0.088 over it). Remaining residual
    is exactly: the captured title band (engine text of the
    then-selected chapter - unrecoverable as data), the two font-
    fallback titles and 43 off-palette px = the BERLO arrow (the
@@ -1468,6 +1469,9 @@ make -k verify-all rc=0 INCLUDING the new corner-cycle leg;
 fixture-free sim rc=0 (22 named SKIPs); verify-arch ok; pixel checks
 above from LEO_MENU_PPM frames. Not pinned headless: interactive
 arrow-walk UI feel (owner to try - 'corner' covers the code path).
+ - PR-37 pushed 81a4711; CI run 43753633583: ALL THREE JOBS (linux,
+   asan, windows-smoke) green on the FIRST pass - the windows clock
+   flake did not recur. CLOSED.
 
 ## Next — pick from the Deferred list below
 
