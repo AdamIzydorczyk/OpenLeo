@@ -1,5 +1,5 @@
 {
- "note": "T-24 golden-master pins. Frames are NEVER stored in git (copyright rule, review tips T-24); only hashes. The port pose_hashes set pins the chapter-map animation: it is a fixed 30-frame cycle, so the set of distinct composed frames is deterministic even though how many frames a wall-clock capture window collects is not. golden.* (vram index-plane + original RGB hashes + indices_used) and min_best_rgb are filled only once the QEMU rig captured the original map-menu frame (make golden_rig); until then verify-golden runs port-pin mode. The earlier CD-rig capture that recovered the real menu DAC (PLAN S8b 'hunt13': index-plane sha256 ba16421b..., 209 used indices, source of ll_menu_dac.h) was a working file in /tmp and was not kept; a golden_rig capture must reproduce those facts before golden.* is pinned here. UPDATE 2026-11-15: golden.* is now PINNED from a scripted disk-D-rig capture, byte-identical across 2 independent runs (L10+L12, /tmp/opencode/golden_l1{0,2}/; workdir paths are tmp, the pins are the record). Facts: the ORIGINAL reaches the map-menu state under scripted input (Esc lands in the intro movie window, t=30 of the run); its 320x200 8bpp index page is at VRAM offset 0x20000 (LFB BAR +0x20000 = 0xfd020000; NOT vram+0 as the old hunt13 header claimed - display start is set); index->color is a clean function (0 bijection violations); the menu's art frame (screendump content-hash b880e203, byte-identical across 5 observations incl. one spontaneous attract hit at t=266) cycles with a near-black composed page; the pinned orig_rgb is the reconstructable frame of the STOPPED pair (mid-cycle). 26 of 26 palette entries visible at that instant match ll_menu_dac.h exactly (same palette space as PR-19's DAC recovery). measured port best = 0% RGB/idx: the port's map menu currently composes only the overlay poses (arrows/words/titles over black); the original's page is a full static landscape art frame. min_best_rgb is deliberately UNSET (no floor asserted yet; the 0% gap is the measured T-24 target signal, not an acceptance bar). One caveat: the stopped-page read hit a different page variant once (L11, 62d58767...) - the stop sometimes lands after the game re-composed; a mismatched re-capture is therefore not automatically a regression.",
+ "note": "T-24 golden-master pins. Frames are NEVER stored in git (copyright rule, review tips T-24); only hashes. The port pose_hashes set pins the chapter-map animation: it is a fixed 30-frame cycle, so the set of distinct composed frames is deterministic even though how many frames a wall-clock capture window collects is not. golden.* = the ORIGINAL's chapter-map MAIN ART frame (screendump sha1 b880e203ce52, byte-identical across every observation ever made: L7 t=30/t=266, A2/A3 cycles, A4 try 10 + A5 try 12 = two independent scripted captures, vram.bin 4cb7a311... byte-identical): captured with --want-art on the disk-D rig (Esc@30; menu cycles composed pages via display start - ART page at vram+0 read via LFB BAR 0xfd000000, near-black overlay half at vram offset 0x20000 = BAR 0xfd020000; the page is chosen by page_reproduces_screen, the only selector that cannot be fooled - content heuristics picked a wrong page in L11 and a mid-fade blend in A3). 209 used indices, zero index->color violations; idx-plane equals the ba16421b... bytes that produced ll_menu_dac.h in PR-19 - independently recovered. golden_black_page_info documents the menu's second page (its own deterministic hashes) but is NOT asserted by the comparator. The second landscape variant (2c4c0583, alternates with the target in the cycle) is unqualified: its page was never requested; re-capture via --want-art if needed. min_best_rgb deliberately UNSET: measured port best = 0.43% RGB / 6.4% index vs the art frame - the port composes overlay poses only, the original paints a full landscape; that gap is the T-24 target signal, not an acceptance bar. verify-golden stays green port-pins-only; full-compare mode is red by design until the background art lands.",
  "port": {
   "pose_hashes": [
    "02524de9ab5babe724015f8af6240be1b6cd47f0e03ed061c330903d249cc1fa",
@@ -35,9 +35,18 @@
   ]
  },
  "golden": {
-  "vram_idx_sha256": "046ee42c8ef4cc33d7e7250240d4794bcd16a116912a449058ae11bb19b884f5",
+  "vram_idx_sha256": "ba16421be3c0194889ae01295de119cf575c446e8f6ca4947cf9bd7b1baa162c",
+  "vram_full_sha256": "4cb7a31134b80106b72c9a63a670cbb5aea8623eaca0c457fc17751b7e678704",
+  "orig_rgb_sha256": "c53d04ab5933c5b54400eac472439cfd9cf27228d806aa8131f82a9562d8a80c",
+  "indices_used": 209
+ },
+ "golden_black_page_info": {
+  "note": "the menu's OTHER composed page (near-black overlay half)",
   "vram_full_sha256": "14e15fb2c61be39a1ea14b158c69e38a1daec15d9f403da194f41c05bbc55be0",
+  "vram_idx_sha256": "046ee42c8ef4cc33d7e7250240d4794bcd16a116912a449058ae11bb19b884f5",
   "orig_rgb_sha256": "ea0787f65f73b0013d03b359490e3125211b28ad5c1502ffb1544c0ded4192f5",
-  "indices_used": 161
+  "indices_used": 161,
+  "vram_window": "0xfd020000 (vram offset 0x20000)",
+  "screen_sha256": "f3ee47648d6ba080ffab59f9c5cc84d66a44ee6de07c5fa3edbe222e95021062"
  }
 }

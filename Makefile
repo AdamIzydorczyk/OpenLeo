@@ -741,13 +741,14 @@ golden_rig_cd:
 	@ISO=$(ISO) MSDOS622=$(MSDOS622) GOLDEN=$(GOLDEN) CD=1 CDDRV=$(CDDRV) \
 	    bash tools/golden_build_rig.sh
 	@python3 tools/golden_qemu_run.py --workdir $(GOLDEN) --cdrom $(ISO) \
-	    --timeout 1800
+	    --frame-interval 0.3 --sendkey-at "30=esc" --want-art --timeout 120
 
 golden_rig_ddir:
 	@ISO=$(ISO) MSDOS622=$(MSDOS622) GOLDEN=$(GOLDEN) DDIR=1 \
 	    bash tools/golden_build_rig.sh
 	@python3 tools/golden_qemu_run.py --workdir $(GOLDEN) \
-	    --ddisk $(GOLDEN)/leo_d.qcow2 --timeout 1800
+	    --ddisk $(GOLDEN)/leo_d.qcow2 --frame-interval 0.3 \
+	    --sendkey-at "30=esc" --want-art --timeout 120
 
 verify-golden: ll_cutscene
 	@if [ ! -d "$(DATA)" ]; then \
@@ -760,9 +761,12 @@ verify-golden: ll_cutscene
 	    timeout 120 ./ll_cutscene --demo $(DATA) >/dev/null 2>&1 || true
 	@python3 tools/golden_menu_cmp.py --port-dir $(GOLDEN)/port_frames \
 	    --expect tools/golden_expect.json --json $(GOLDEN)/cmp.json
-	@if [ -f $(GOLDEN)/vram.bin ] && [ -f $(GOLDEN)/menu.ppm ]; then \
+	@if [ -f $(GOLDEN)/vram.bin ] && { [ -f $(GOLDEN)/menu_art.ppm ] \
+	    || [ -f $(GOLDEN)/menu.ppm ]; }; then \
+	    SCREEN=$$( [ -f $(GOLDEN)/menu_art.ppm ] && echo menu_art.ppm \
+	        || echo menu.ppm ); \
 	    python3 tools/golden_menu_cmp.py --vram $(GOLDEN)/vram.bin \
-	        --screen $(GOLDEN)/menu.ppm \
+	        --screen $(GOLDEN)/$$SCREEN \
 	        --port-dir $(GOLDEN)/port_frames \
 	        --expect tools/golden_expect.json --json $(GOLDEN)/cmp.json \
 	        --min-match $(GOLDEN_MIN); \

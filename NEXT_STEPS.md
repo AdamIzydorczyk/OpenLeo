@@ -671,6 +671,20 @@ ll_view/ll_audio as backend-private helpers).
   green); the original's page is one static full-landscape art
   frame. Composing that background is the next port work item - and
   it is now measurable to the byte.
+- ART-PAGE CAPTURE LANDED (A4+A5, 2026-11-15, --want-art mode,
+  byte-identical): golden.* is now the MAIN LANDSCAPE frame itself -
+  screendump sha1 b880e203ce52, idx-plane ba16421b... (= EXACTLY the
+  hunt13 bytes that produced ll_menu_dac.h - independent recovery),
+  209 indices, zero bijection violations, full window 4cb7a311...,
+  orig-rgb c53d04ab.... The menu flips display start between two
+  pages: art at VRAM +0x0000, near-black overlay half at +0x20000
+  (its hashes kept as golden_black_page_info, informational). Recipe:
+  same run + --want-art (try-loop: sendkey esc keepalive -> stop ->
+  screendump -> frame must hash b880e203/2c4c0583/4b905f7e -> page
+  must reproduce it exactly). The 2c4c0583 second-landscape variant
+  alternates in the cycle; its page was never requested (qualify it
+  there if ever needed). Port best vs the ART frame: 0.43% RGB /
+  6.4% index (was 0% vs the near-black half).
 - VERIFY-GOLDEN BEHAVIOUR: CI stays green (no capture in $(GOLDEN)
   -> port-pins-only mode). With a capture present it asserts
   golden.* and then --min-match $(GOLDEN_MIN) vs port poses ->

@@ -311,21 +311,38 @@ t=70.8, black, then an ART frame (187 colors) after the next Esc. That
 is the live-verified "Esc opens the menu" behaviour reproduced under
 script; the frozen-40:6C counter never appeared in ANY run and is NOT a
 reliable menu detector on this rig (frame geometry replaced it as the
-primary trigger). THE CAPTURE LANDED (runs L10+L12, 2026-11-15,
-byte-identical artifacts): one Esc@30, the ART frame itself as the
-trigger, and the 320x200 8bpp index page read at VRAM offset 0x20000
-(display start is non-zero - the old hunt13 note "framebuffer at
-vram+0" does NOT hold on this rig; read_vram now locates the page by
-content). Index->color bijection holds with ZERO violations; golden.*
+primary trigger). THE CAPTURE LANDED (runs L10+L12 then
+A4+A5, 2026-11-15, byte-identical artifacts each time): one Esc@30 and
+the ART frame itself as the trigger. PAGE CORRECTION (A4/A5): the menu
+cycles by flipping the CRTC DISPLAY START between two resident pages -
+the full-landscape ART page is at VRAM +0x0000 (read via LFB BAR
+0xfd000000; hunt13's "page at vram+0" was RIGHT for it) and the
+near-black overlay half is at VRAM +0x20000 (BAR 0xfd020000) - so a
+single "page offset" claim was wrong either way; read_vram and the new
+--want-art path pick the page by CONTENT-IDENTITY: the page whose
+indices reproduce the frozen screendump with zero index->color
+violations (page_reproduces_screen). Heuristics are foolable: a
+distinct-byte scan took a wrong page once (L11) and content thresholds
+qualified a mid-fade blend (A3 try 11, colors=109 mean=17), so the
+golden target is the exact frame hash b880e203ce52 (sha1 of the
+screendump, byte-identical in every observation ever made). Index->color bijection holds with ZERO violations; golden.*
 is pinned in tools/golden_expect.json (161 used indices). The menu
 FLIPS COMPOSED PAGES (full-landscape art frame / near-black frame)
 via display-start - not a palette fade; the pinned snapshot is the
 near-black half with 26 palette entries visible, all 26 exactly
 matching ll_menu_dac.h (independent confirmation of the PR-19 DAC
-recovery). Measured port-vs-original best = 0% exact RGB: the
-original's map-menu page is a full static landscape, the port
-currently composes only the overlay poses - that measured 0% gap is
-the T-24 target from here on.
+recovery). Measured port-vs-original
+best against the ART frame: 0.43% RGB / 6.4% index - the original's
+map-menu page is a full static landscape, the port composes only the
+overlay poses; that gap is the T-24 target from here on. ASSET HUNT
+ROUND 2 (settled on the corrected bytes): palette-free permutation
+sweep of the art page vs EVERY frame of all 15 .IS movies (5619
+frames; a hit = zero index-pair collisions, i.e. same picture under
+any re-palette) - best collision 0.55 (LOGO f107) = far from a
+match; combined with the verbatim byte-grep 0-hits (still valid, it
+used the right page) the art is NOT in any container: runtime-
+synthesized or lost. The port path is documented reconstruction
+scored against golden.* bytes, not asset decode.
 
 **Chapter launch chain, full-res (2026-11-14 hunt10, 449 frames @ ~2 Hz
 after `down` on the map menu):** chapter .IS conversation cutscenes

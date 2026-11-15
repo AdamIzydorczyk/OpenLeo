@@ -217,16 +217,110 @@ def plane_ok(blob):
     return len(set(blob[:64000])) >= 40
 
 
-def capture_menu_state(h, wd):
-    """Inside a menu-candidate window: stop the VM and grab the index
-    plane. Preference order (all are REAL menu states, PLAN S6 says the
-    menu cycles art<->black, one art frame ~0.9 s):
-      1. two consecutive stopped reads IDENTICAL and non-black -> 'ok'
-         (the static menu ART frame: the golden master)
-      2. two consecutive stopped reads IDENTICAL but black       -> 'ok'
-         (the black half of the menu cycle; still the menu)
-      3. nothing stable                                        -> 'moving'
-    """
+def page_reproduces_screen(blob, px):
+    """True iff blob's 320x200 8bpp page, mapped through the screendump's
+    own index->color table, reproduces that screendump EXACTLY (after
+    undoing the 2x2 doubling). This is the only honest page selector: the
+    game rewrites the displayed page per menu half-cycle (artpage_probe,
+    2026-11-15: at a dark stop NO page anywhere matches the earlier art
+    frame, and content heuristics picked a wrong page once in L11), so
+    'does it explain the frozen screen' decides - not distinct-byte
+    counts or brightness."""
+    st = ppm_stats(px)
+    if not st or st[0] != 640 or st[1] != 400:
+        return False
+    body = px.split(b'\n', 3)
+    if len(body) < 4 or body[0].strip() != b'P6':
+        return False
+    raw = body[3]
+    if len(raw) < 640 * 400 * 3:
+        return False
+    page = memoryview(blob)[:64000]
+    colmap = {}
+    for y in range(400):
+        base = y * 1920
+        py = (y // 2) * 320
+        for x in range(640):
+            i = page[py + x // 2]
+            c = raw[base + 3 * x:base + 3 * x + 3]
+            prev = colmap.get(i)
+            if prev is None:
+                colmap[i] = c
+            elif prev != c:
+                return False            # one index, two colors: wrong page
+    for y in range(400):
+        base = y * 1920
+        py = (y // 2) * 320
+        for x in range(640):
+            if colmap[page[py + x // 2]] != raw[base + 3 * x:
+                                                base + 3 * x + 3]:
+                return False
+    return True
+
+
+def capture_menu_state(h, wd, want_art=False, max_tries=14):
+    """Inside a menu-candidate window: stop the VM, screendump FIRST (the
+    frozen screen is ground truth), then read the index pages and keep the
+    page that reproduces that screen. The menu FLIPS COMPOSED PAGES
+    (full-landscape art / near-black) every ~1.2 s, so one stop catches
+    whichever half is live. want_art=True keeps trying across cycles
+    until the ART half is caught with a verified page ('ok-art'); the
+    near-black half ('ok-dark') is kept as the documented fallback.
+    Frozen-clock mode (want_art=False) keeps the L10-proven static-pair
+    path: two identical stopped reads, never an all-zero pair (L8)."""
+    if want_art:
+        dark_blob, dark_window, tries = None, None, 0
+        while tries < max_tries:
+            tries += 1
+            h.cmd('sendkey esc')   # keepalive: repeated Esc keeps the
+            h.cmd('stop')          # menu's 400-line window open (L7/L8)
+            h.cmd('screendump ' + os.path.join(wd, 'stop_screen.ppm'))
+            px = ppm_read(os.path.join(wd, 'stop_screen.ppm'))
+            st = ppm_stats(px)
+            blob, window, shot = None, 0, None
+            # The golden TARGET is the exact landscape frame the sensor
+            # proved byte-stable across cycles (sha1 b880e203: seen in
+            # L7 t=30/t=266, A2/A3 cycles). Content thresholds alone
+            # qualified a mid-FADE frame once (A3 try 11: colors=109
+            # mean=17 = a blend, not the art), so the hash IS the gate.
+            fsh = hashlib.sha1(px).hexdigest() if px else ''
+            if st and st[0] == 640 and st[1] == 400:
+                if fsh.startswith('b880e203'):
+                    shot = 'menu_art.ppm'
+                elif fsh.startswith('2c4c0583'):
+                    shot = 'menu_art2.ppm'   # 2nd landscape variant the
+                elif fsh.startswith('4b905f7e'):
+                    shot = 'menu_black.ppm'  # menu cycles (A2 journal)
+                print('[cap try %d] screen %dx%d colors=%d mean=%d '
+                      'frame=%s%s' % (tries, st[0], st[1], st[2], st[3],
+                                      fsh[:8], ' TARGET' if shot ==
+                                      'menu_art.ppm' else ''), flush=True)
+                if shot:
+                    # latency matters: the 400-line window is ~10 s per
+                    # Esc. The page lives at display start (0x20000 ==
+                    # LFB BAR +0x20000, measured); only scan the rest
+                    # if that fails.
+                    for base in (0xfd020000, 0xfd000000, 0xfd010000,
+                                 0xfd030000):
+                        b = _xp_bytes(h, base)
+                        if page_reproduces_screen(b, px):
+                            blob, window = b, base
+                            break
+                    if blob is not None:
+                        with open(os.path.join(wd, shot), 'wb') as f:
+                            f.write(px)
+                        if shot == 'menu_art.ppm':
+                            read_vram.window = window
+                            h.cmd('cont')
+                            return blob, 'ok-art'
+                        if dark_blob is None:
+                            dark_blob, dark_window = blob, window
+            h.cmd('cont')
+            time.sleep(0.2)         # ~1/6 of the 1.2 s page-flip cycle
+        if dark_blob is not None:
+            read_vram.window = dark_window
+            return dark_blob, 'ok-dark'
+        return b'', 'moving'
     best_black = None
     for attempt in range(4):
         h.cmd('stop')
@@ -340,6 +434,12 @@ def main():
                          '.jsonl, art frames kept as frame_T.ppm.')
     ap.add_argument('--ram', type=int, default=32)
     ap.add_argument('--keep-running', action='store_true')
+    ap.add_argument('--want-art', action='store_true',
+                    help='catch the ART half of the menu cycle: retry the '
+                    'stop across art frames until the frozen screen IS the '
+                    'art frame and a VRAM page reproduces it exactly '
+                    '(page_reproduces_screen); the verified near-black '
+                    'page is kept as fallback')
     a = ap.parse_args()
 
     wd = a.workdir
@@ -402,10 +502,12 @@ def main():
         t0 = time.time()
         prev, prev_t, stable = None, None, 0
         max_rate, movie_seen, menu_t = 0.0, False, None
+        want_art = a.want_art
         fnext = a.frame_interval if a.frame_interval > 0 else 9e9
         fhash = None
         m_w = m_h = 0
         mode_t, art_seen = 0.0, False      # current CRTC episode
+        dark_blob, dark_shot = None, 'menu_black.ppm'
         journal = open(os.path.join(wd, 'frame_journal.jsonl'), 'w')
         while True:
             t = time.time() - t0
@@ -541,9 +643,31 @@ def main():
                         print('[t=%.0fs] menu ART frame seen (episode '
                               '%.1fs): capturing' % (t, t - mode_t),
                               flush=True)
-                    blob, status = capture_menu_state(h, wd)
-                    if status == 'ok' or (game400 and t - mode_t >= 6.0
-                                          and art_seen):
+                    blob, status = capture_menu_state(
+                        h, wd, want_art=want_art)
+                    if want_art and status == 'ok-art':
+                        manifest['menu_page_kind'] = 'art'
+                        manifest['static_vram_equal'] = True
+                        menu_t = t
+                        break
+                    if want_art and status in ('ok-dark', 'moving'):
+                        # the stop landed in the near-black half of the
+                        # cycle (the usual case: art shows ~0.6 s per
+                        # 1.2 s); keep watching for the next ART frame
+                        if status == 'ok-dark' and dark_blob is None:
+                            dark_blob, dark_shot = blob, \
+                                'menu_black.ppm'
+                        print('[t=%.0fs] stop landed on %s half, '
+                              'retrying on next art frame'
+                              % (t, status), flush=True)
+                        stable = 0.0
+                        main._fcap = getattr(main, '_fcap', 0) + 1
+                        art_seen = False
+                        continue
+                    if (not want_art) and (
+                            status == 'ok'
+                            or (game400 and t - mode_t >= 6.0
+                                and art_seen)):
                         if status != 'ok':
                             # strict static-pair never landed, but the
                             # mode episode itself is the menu signature
@@ -575,8 +699,18 @@ def main():
                       % (t, tick or -1, max_rate, stable), flush=True)
             time.sleep(SAMPLE_S)
 
-        shot = 'menu.ppm'
-        if not os.path.exists(os.path.join(wd, 'menu.ppm')):
+        if menu_t is None and want_art and dark_blob is not None:
+            # never caught the art half verified - fall back to the
+            # verified near-black page (still the menu, still a pin)
+            blob = dark_blob
+            manifest['menu_page_kind'] = 'dark'
+            manifest['static_vram_equal'] = True
+            menu_t = t
+        shot = 'menu_art.ppm' if manifest.get('menu_page_kind') == 'art' \
+            else 'menu.ppm'
+        if not os.path.exists(os.path.join(wd, shot)):
+            shot = 'menu.ppm'
+        if not os.path.exists(os.path.join(wd, shot)):
             shot = 'menu_black.ppm'      # black-half capture
         size = ppm_size(os.path.join(wd, shot))
         manifest['menu_screenshot'] = shot
@@ -591,7 +725,8 @@ def main():
         print('menu captured at t=%.1fs (frozen %.1fs, CRTC=%s)'
               % (menu_t, stable, size), flush=True)
 
-        for name in ('vram.bin', shot, 'menu_black.ppm', 'static2.ppm'):
+        for name in ('vram.bin', shot, 'menu_black.ppm',
+                     'menu_art.ppm', 'static2.ppm'):
             p = os.path.join(wd, name)
             if os.path.exists(p):
                 manifest['artifacts'][name] = {
