@@ -528,7 +528,16 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         }
         return;
     }
+    unsigned guard = 0;
     for (;;) {
+        /* FIX-13 (X-11): corrupt .MOV with all-zero frame durations would
+         * cycle states forever; one full pass without consuming time =
+         * stop. mov_parse() clamps ms to >=100 today (M4-C), so this is
+         * a belt-and-braces bound on the CYCLE itself (nst*MOV_MAXFR
+         * maxes at 1024 iterations per pass; 4096 = four passes). The
+         * E-03 hardening covered frame indices; durations end here. */
+        if (++guard > 4096)
+            break;
         mov_st *s = &o->mov.st[o->sti];
         if (s->nfr == 0 || o->fi >= s->nfr) { /* state end -> next state    */
             o->sti = (o->sti + 1) % o->mov.nst;
@@ -547,6 +556,53 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         o->y += f->dy;                        /* held                        */
         o->fi++;
     }
+}
+
+/* FIX-13 (X-11) selftest, test-only entry point (ll_level.h): proves the
+ * two .MOV duration invariants without any window or game data:
+ *   1. mov_parse clamps non-positive durations (the M4-C rule, pinned);
+ *   2. obj_advance terminates on an all-zero-ms cycle (the guard). The
+ *      proof is that this RETURNS - the CI legs run it under a timeout,
+ *      so a regression HANGS (caught) instead of passing silently. */
+int ll_mov_selftest(void)
+{
+    mov_t m;
+    mov_parse("[A]\n0,0\n1,0\n2,-5\n[B]\n0,5\n", &m);
+    if (m.nst != 2 || m.st[0].nfr != 3 || m.st[1].nfr != 1) {
+        fprintf(stderr, "mov selftest: FAILED parse shape "
+                        "(nst=%d nfr=%d/%d)\n",
+                m.nst, m.st[0].nfr, m.st[1].nfr);
+        return 1;
+    }
+    for (int k = 0; k < 3; k++)
+        if (m.st[0].fr[k].ms != 100u) {
+            fprintf(stderr, "mov selftest: FAILED zero/negative duration "
+                            "not clamped (frame %d ms=%u)\n",
+                    k, m.st[0].fr[k].ms);
+            return 1;
+        }
+    if (m.st[1].fr[0].ms != 5u) {
+        fprintf(stderr, "mov selftest: FAILED positive duration changed "
+                        "(ms=%u)\n", m.st[1].fr[0].ms);
+        return 1;
+    }
+    /* The corrupt shape X-11 describes, BUILT DIRECTLY to bypass the
+     * parser clamp (a future patch path or caller must not be able to
+     * hang the scene loop either): */
+    lvl_obj o;
+    memset(&o, 0, sizeof o);
+    o.mov.nst = 1;
+    o.mov.st[0].nfr = MOV_MAXFR;
+    for (int k = 0; k < MOV_MAXFR; k++)
+        o.mov.st[0].fr[k].ms = 0;
+    obj_advance(&o, 60000u);       /* without the guard: spins forever */
+    if (o.sti != 0) {              /* single state: must not wander     */
+        fprintf(stderr, "mov selftest: FAILED guard left state %d\n",
+                o.sti);
+        return 1;
+    }
+    printf("mov selftest: duration clamp + cycle guard terminate (ok)\n");
+    return 0;
 }
 
 /* current drawable element of an object (frame index from .MOV, clamped) */

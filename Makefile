@@ -357,6 +357,10 @@ endif
 # (pcm_selftest is a prerequisite: the PCM-canvas check below compares the
 # scene view against its FNV line; sibling-target ordering used to mask it.)
 verify-level: ll_level pcm_selftest
+# FIX-13 (X-11): .MOV duration clamp + obj_advance cycle-guard selftest -
+# data-free, so it runs in EVERY configuration (full suite and the
+# fixture-free CI simulation alike).
+	@timeout 30 ./ll_level --mov-selftest
 ifeq ($(PX_DATA),1)
 	@for T in 2 8; do env -u DISPLAY SDL_VIDEODRIVER=dummy \
 	  SDL_AUDIODRIVER=dummy LEO_HD_DIR=/tmp/opencode/hd_files \

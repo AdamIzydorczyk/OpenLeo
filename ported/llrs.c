@@ -94,7 +94,7 @@ int llrs_open(llrs *c, const char *path)
     }
     unsigned char *raw =
         (unsigned char *)malloc(26u * (size_t)c->cap);
-    if (!raw || fseek(c->f, 0x14, SEEK_SET) != 0
+    if (!raw || ll_fseek64(c->f, 0x14, SEEK_SET) != 0
         || fread(raw, 26, c->cap, c->f) != c->cap) {
         free(raw);
         llrs_close(c);

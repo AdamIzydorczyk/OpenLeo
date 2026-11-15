@@ -1057,6 +1057,78 @@ ll_view/ll_audio as backend-private helpers).
   shows 'driver wayland' and passes unchanged); fixture-free sim exit
   0, 22 named SKIPs; verify/quit/menu/arch/platform spot legs green;
   zero-warning native + llvm-mingw builds.
+- PR-31 pushed 45fbd26; CI green run 43723272576 (all 3 jobs). CLOSED.
+## PR-32 — FIX-13 robustness + CLI polish (X-11, X-12, B-02) + smoke flip (DONE 2026-11-15)
+
+- Item 1 (.MOV hang, X-11): obj_advance for(;;) got the spec's
+  unsigned guard/4096 break. Investigation note: the deep dive's
+  "all-zero ms cycles forever" shape is ALREADY clamped at load by
+  mov_parse's ms>0?ms:100u rule (M4-C, git-log-verified) - the guard
+  is defense-in-depth for any future loader/patch path, exactly what
+  the spec's alternative ("clamp OR bound") asks to guarantee.
+  Selftest per spec: ll_mov_selftest() exported via ll_level.h
+  (test-only, same tool-facing precedent as ll_level_anims), called
+  by 'll_level --mov-selftest': (a) pins the parser clamp (zero and
+  negative -> 100, positive kept), (b) builds an all-zero-ms mov_t
+  DIRECTLY (bypasses the clamp) and asserts obj_advance RETURNS.
+  Wired: verify-level line runs BEFORE the PX_DATA condition (data-
+  free, runs in the fixture-free sim too, wrapped in timeout 30) and
+  the asan CI job (ll_level already built there). META-PROVED not
+  vacuous: recompiling ll_level.c with the guard compiled out makes
+  the selftest hang (killed by timeout, rc=124). Local ASan/UBSan
+  build of the exact asan-job config: clean, exit 0.
+- Items 2-3 (buffering order): --console block (now + setvbuf _IONBF
+  after the freopens) + the FIX-10 GetACP warning moved as a unit to
+  directly after the arg loop, before the T-17 save block; main()
+  starts with setvbuf(stdout, _IOLBF, BUFSIZ). Windows A/B under
+  wine with bad LEO_SAVE: OLD binary (HEAD build) leaks 'll_save:
+  ... not loadable' into the pipe despite --console (the exact X-12
+  bug: printed before attach); NEW binary leaks NOTHING app-wise
+  (everything, save lines included, goes to the attached console).
+  The literal acceptance ('shown from cmd') needs an interactive
+  console; the A/B proves the ordering half deterministically.
+- Item 4 (CLI surface): ONE usage_text at file scope (extended with
+  --skip-at/--help/--version; 'usage:' prefix kept - the smoke
+  greps it). --help/-h -> stdout exit 0; --version -> 'OpenLeo
+  ll_cutscene 0.1.0' via new LEO_VERSION in ll_config.h (synced to
+  the .rc's FILEVERSION 0,1,0,0, not the spec's 'dev' - an existing
+  version string DOES exist there); unknown '-' args -> 'main:
+  unknown option X' + usage, exit 2; a lone '-' still means the
+  file. All proven native AND on the .exe under wine. Trailing-
+  value-less flags (--ppm with missing args etc.) now exit 2 too
+  (previously became FILE.IS).
+- Item 5: --then overflow warns 'main: --then limit (16) reached,
+  ignoring X' and the value is STILL consumed (pre-overflow the 17th
+  value leaked into file=). Proven with 18 --then args: exactly 2
+  warnings, T17/T18 named, LOGO + chain semantics untouched (chain
+  stops at first unopenable scene - pre-existing behavior).
+- Item 6: bare launch prints usage ONLY when pick_data_dir() fails;
+  with data only the [leo] notice line (verified: data found -> no
+  usage, demo runs; empty isolated dir -> usage+exit 2).
+- Item 7: missing_movie_box() helper + the three run_menu .IS call
+  sites (AUTORZY x2, chapter .IS table) show plat_message_box on
+  is_player_run==1, gated by !auto_i && !secs_hook (dummy backend's
+  box is a no-op anyway; the hooks mark automated legs).
+- Item 8 (B-02): WANT_CD_GATE + DATA_DIR_FROM_CFG removed from
+  ll_config.h (git grep: no use anywhere outside the file; PLAN.md's
+  historical mention left as history, same pattern as TICK_HZ).
+- Item 9: llrs.c index fseek -> ll_fseek64 (fs_ci.h already incl.).
+- X-12 follow-up beyond the table (diagnosed this session):
+  '--demo /nonexistent' "hang" = empty interactive menu after the
+  missing-data notice. Now: 'main: no game data in D (need an
+  ANIMACJE/ or ETAPY/ subdirectory)' + usage, exit 2 - same
+  predicate as find_data_candidate, same contract as the bare
+  launch. Every --demo CI leg uses real data dirs (audited).
+- CI: windows-smoke flipped to '--help' expecting exit 0 (the
+  FIX-12-anticipated flip, comment updated); asan job runs the
+  mov selftest. README: CLI contract paragraph added to ## Run.
+- Regression: full verify-all exit 0 (only by-design no-regression
+  SKIP; golden 98.4% unchanged; mov selftest green inside the suite);
+  fixture-free sim exit 0, still 22 named SKIPs (the selftest runs
+  there as real coverage); spot verify/verify-skip/verify-level/
+  verify-menu/verify-arch green; zero-warning native + llvm-mingw +
+  cmake-mingw builds (the latter re-exercised the PR-30 DLL copy).
+
 ## Next — pick from the Deferred list below
 
 Nothing queued from the review's "worth fixing" set: all of it has

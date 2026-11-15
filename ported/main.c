@@ -13,6 +13,7 @@
  * Usage: ll_cutscene FILE.IS [--ppm N OUT.ppm] [--from N] [--skip-at N]
  *          [--no-audio] [--then FILE.IS] [--menu DATA_DIR] [--demo [DATA_DIR]]
  *          [--console (windows: attach/alloc a console for diagnostics)]
+ *          [--help | -h | --version]
  */
 #include "ll_config.h"
 #include "is_stream.h"
@@ -315,6 +316,17 @@ static const char *detect_data_dir(void)
     return d[0] ? d : NULL;
 }
 
+/* FIX-13 (X-12): a missing cutscene in the GUI build surfaced NOTHING
+ * (the stderr line is invisible in a -mwindows launch). Call sites gate
+ * on !auto_i && !secs_hook: CI-hook runs must never reach a modal box.
+ * (The dummy backend's box is a no-op anyway; belt and braces.) */
+static void missing_movie_box(const char *path)
+{
+    char msg[4300];
+    snprintf(msg, sizeof msg, "%s not found in the game data", path);
+    plat_message_box("Lew Leon", msg);
+}
+
 static void run_menu(const char *data, int audio)
 {
     data_probe(data);
@@ -409,7 +421,8 @@ static void run_menu(const char *data, int audio)
         if (map_mode && sel == -4) {   /* autorzy corner */
             char p[4096];
             snprintf(p, sizeof p, "%s/AUTORZY.IS", data);
-            is_player_run(p, audio, 0, 0);
+            if (is_player_run(p, audio, 0, 0) == 1 && !auto_i && !secs_hook)
+                missing_movie_box(p);      /* FIX-13 (X-12) */
             continue;
         }
         if (map_mode && sel == -5) {   /* opcje corner: OPTIONS.PCX screen.
@@ -509,7 +522,9 @@ static void run_menu(const char *data, int audio)
                 if (strcmp(ch_is[k].lvl, lvlname) == 0) {
                     char p[4096];
                     snprintf(p, sizeof p, "%s/%s", data, ch_is[k].is);
-                    is_player_run(p, audio, 0, 0);
+                    if (is_player_run(p, audio, 0, 0) == 1 && !auto_i
+                        && !secs_hook)
+                        missing_movie_box(p);  /* FIX-13 (X-12) */
                     break;
                 }
             if (plat_quit_requested())
@@ -573,7 +588,8 @@ static void run_menu(const char *data, int audio)
                 break; /* chained runs do not re-play FMVs twice */
             char p[4096];
             snprintf(p, sizeof p, "%s/AUTORZY.IS", data);
-            is_player_run(p, audio, 0, 0);
+            if (is_player_run(p, audio, 0, 0) == 1 && !auto_i && !secs_hook)
+                missing_movie_box(p);      /* FIX-13 (X-12) */
         } else {
             break;
         }
@@ -608,8 +624,23 @@ static void run_demo_chain(const char *d, int audio)
     }
 }
 
+/* FIX-13 (X-12): ONE usage text for all three users - unknown option
+ * (stderr), --help/-h (stdout, exit 0) and the bare-launch error
+ * (stderr, exit 2; 2 is the existing usage-exit contract). Keep the
+ * "usage:" prefix: the windows CI smoke greps for it. */
+static const char usage_text[] =
+    "usage: %s FILE.IS [--ppm N OUT.ppm] [--from N] [--skip-at N]"
+    " [--no-audio] [--then FILE.IS] [--menu DATA_DIR] [--demo [DATA_DIR]]"
+    " [--console] [--scale N] [--fullscreen] [--help] [--version]\n";
+
 int main(int argc, char **argv)
 {
+    /* FIX-13 (X-12): line-buffer stdout from the first moment: logs
+     * survive a crash, and stdout/stderr interleave correctly when
+     * both go to one CI pipe. (Windows --console switches its own
+     * attached stream to unbuffered below.) */
+    setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
+
     /* FIX-11: video backend selection now lives entirely in the
      * backend; default is SDL's own choice (X11-first on classic
      * SDL2, Wayland-first on the modern stack), LEO_FORCE_X11=1
@@ -637,8 +668,13 @@ int main(int argc, char **argv)
         } else if (strcmp(argv[i], "--no-audio") == 0) {
             audio = 0;
         } else if (strcmp(argv[i], "--then") == 0 && i + 1 < argc) {
+            const char *v = argv[++i]; /* consumed even on overflow: the
+                                        * value must never become FILE */
             if (nthen < MAX_SCENES)
-                then[nthen++] = argv[++i];
+                then[nthen++] = v;
+            else /* FIX-13 (X-12): overflow used to drop silently */
+                fprintf(stderr, "main: --then limit (%d) reached, "
+                                "ignoring %s\n", MAX_SCENES, v);
         } else if (strcmp(argv[i], "--menu") == 0 && i + 1 < argc) {
             menu_data = argv[++i];
         } else if (strcmp(argv[i], "--demo") == 0) {
@@ -654,10 +690,61 @@ int main(int argc, char **argv)
             plat_opt_scale = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--fullscreen") == 0) {
             plat_opt_fullscreen = 1;
+        } else if (strcmp(argv[i], "--help") == 0 ||
+                   strcmp(argv[i], "-h") == 0) {
+            /* FIX-13 (X-12): help/version answer on stdout and exit 0;
+             * matched BEFORE the unknown-flag rejection below */
+            printf(usage_text, argv[0]);
+            return 0;
+        } else if (strcmp(argv[i], "--version") == 0) {
+            printf("OpenLeo ll_cutscene %s\n", LEO_VERSION);
+            return 0;
+        } else if (argv[i][0] == '-' && argv[i][1]) {
+            /* FIX-13 (X-12): unknown flags used to become FILE.IS. A
+             * lone "-" still means the file (dash convention kept). */
+            fprintf(stderr, "main: unknown option %s\n", argv[i]);
+            fprintf(stderr, usage_text, argv[0]);
+            return 2;
         } else {
             file = argv[i];
         }
     }
+
+    /* P-06: the windows build links -mwindows, so a plain launch has no
+     * console at all and every diagnostic is invisible. --console attaches
+     * to the parent console (launched from cmd) or allocates one, and
+     * points stdout/stderr at it; fatal errors additionally surface as a
+     * message box (fatal_msg).
+     * FIX-13 (X-12): this now runs DIRECTLY after the argument loop and
+     * before anything that prints (the T-17 save block below, the demo
+     * notices) - previously those early lines went nowhere. */
+    if (console_wanted) {
+#if defined(PLATFORM_WIN) && PLATFORM_WIN
+        if (AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole()) {
+            freopen("CONOUT$", "w", stdout);
+            freopen("CONOUT$", "w", stderr);
+            /* FIX-13 (X-12): an attached console writes through - no
+             * buffering, so diagnostics land before any later crash */
+            setvbuf(stdout, NULL, _IONBF, 0);
+        }
+#else
+        (void)0; /* linux: stdout/stderr already go somewhere */
+#endif
+    }
+
+    /* FIX-10 (deep dive W-01): ll_cutscene.exe embeds activeCodePage=
+     * UTF-8 (resources/app.manifest via the .rc), so normally GetACP()
+     * is CP_UTF8 and msvcrt paths are UTF-8. Warn once when that is
+     * not true - Windows < 10 1903 without the ACP switch, or an
+     * unpacked exe run without its manifest - instead of letting the
+     * first non-ASCII data path fail with a bare "not found". */
+#if defined(PLATFORM_WIN) && PLATFORM_WIN
+    if (GetACP() != CP_UTF8)
+        fprintf(stderr, "main: ANSI code page %u is not UTF-8 "
+                "(Windows < 10 1903 or missing manifest): data paths "
+                "with non-ASCII characters may not be found\n",
+                (unsigned)GetACP());
+#endif
 
     /* T-17: resolve the save in the per-user WRITABLE dir, keeping the
      * LEO_SAVE hook as an absolute override (API preserved). A legacy
@@ -683,42 +770,22 @@ int main(int argc, char **argv)
         }
     }
 
-    /* P-06: the windows build links -mwindows, so a plain launch has no
-     * console at all and every diagnostic is invisible. --console attaches
-     * to the parent console (launched from cmd) or allocates one, and
-     * points stdout/stderr at it; fatal errors additionally surface as a
-     * message box (fatal_msg). */
-    if (console_wanted) {
-#if defined(PLATFORM_WIN) && PLATFORM_WIN
-        if (AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole()) {
-            freopen("CONOUT$", "w", stdout);
-            freopen("CONOUT$", "w", stderr);
-        }
-#else
-        (void)0; /* linux: stdout/stderr already go somewhere */
-#endif
-    }
-
-    /* FIX-10 (deep dive W-01): ll_cutscene.exe embeds activeCodePage=
-     * UTF-8 (resources/app.manifest via the .rc), so normally GetACP()
-     * is CP_UTF8 and msvcrt paths are UTF-8. Warn once when that is
-     * not true - Windows < 10 1903 without the ACP switch, or an
-     * unpacked exe run without its manifest - instead of letting the
-     * first non-ASCII data path fail with a bare "not found". */
-#if defined(PLATFORM_WIN) && PLATFORM_WIN
-    if (GetACP() != CP_UTF8)
-        fprintf(stderr, "main: ANSI code page %u is not UTF-8 "
-                "(Windows < 10 1903 or missing manifest): data paths "
-                "with non-ASCII characters may not be found\n",
-                (unsigned)GetACP());
-#endif
-
     if (demo) {
         const char *d = demo_data;
         if (!d) {
             d = pick_data_dir();
             if (!d)
                 d = "."; /* classic cwd default; data_probe reports the gaps */
+        }
+        /* FIX-13 (X-12): --demo on a directory with NO game data used to
+         * land in an empty interactive menu - the "hangs forever in
+         * headless runs" report. Same predicate as find_data_candidate,
+         * same usage+exit-2 contract as the bare launch below. */
+        if (!have_sub(d, "ANIMACJE") && !have_sub(d, "ETAPY")) {
+            fprintf(stderr, "main: no game data in %s (need an ANIMACJE/"
+                            " or ETAPY/ subdirectory)\n", d);
+            fprintf(stderr, usage_text, argv[0]);
+            return 2;
         }
         run_demo_chain(d, audio);
         if (!plat_quit_requested())  /* FIX-01: a window close during the
@@ -729,10 +796,6 @@ int main(int argc, char **argv)
     }
 
     if (!file) {
-        static const char *usage =
-            "usage: %s FILE.IS [--ppm N OUT.ppm] [--from N] [--no-audio]"
-            " [--then FILE.IS] [--menu DATA_DIR] [--demo [DATA_DIR]]"
-            " [--console] [--scale N] [--fullscreen]\n";
         if (menu_data) {
             run_menu(menu_data, audio); /* menu-only run (no scene first) */
             return 0;
@@ -740,11 +803,14 @@ int main(int argc, char **argv)
         /* P-09: a bare launch (double-click, no CLI habits) behaved in the
          * original as "start the boot demo": do that when game data is
          * findable (T-17 chain); the usage error only remains when there
-         * is truly nothing to run. */
+         * is truly nothing to run.
+         * FIX-13 (X-12): the notice line is enough WITH data - the usage
+         * block now prints only on the d == NULL error. */
         const char *d = pick_data_dir();
-        fprintf(stderr, usage, argv[0]);
-        if (!d)
+        if (!d) {
+            fprintf(stderr, usage_text, argv[0]);
             return 2;
+        }
         fprintf(stderr, "[leo] no FILE.IS given: starting the original boot"
                         " demo chain from DATA %s\n", d);
         run_demo_chain(d, audio);

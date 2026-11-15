@@ -11,10 +11,13 @@
 
 int main(int argc, char **argv)
 {
+    /* FIX-13 (X-11): .MOV robustness selftest, no data needed */
+    if (argc == 2 && strcmp(argv[1], "--mov-selftest") == 0)
+        return ll_mov_selftest() ? 1 : 0;
     if (argc < 3) {
         fprintf(stderr,
                 "usage: %s DATA_DIR LEVEL [-t SECONDS] [--no-audio] "
-                "[--list]\n",
+                "[--list] [--mov-selftest]\n",
                 argv[0]);
         return 2;
     }

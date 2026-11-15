@@ -52,6 +52,16 @@ logs a `main: ANSI code page …` warning in that case).
 ./ll_level /path/to/LEO RAN.01             # level wiring (.DES) + intro art
 ```
 
+CLI contract (FIX-13): `--help`/`-h` prints usage (exit 0), `--version`
+prints the version (exit 0); unknown `--flags` are rejected with
+`main: unknown option` + usage (exit 2 — as are "nothing to run" bare
+launches and `--demo <dir>` on a directory without ANIMACJE/ETAPY;
+more than 16 `--then` entries warn on stderr and the extras are
+ignored). stdout is line-buffered from startup (logs survive a crash);
+on Windows `--console` attaches before any output and uses an
+unbuffered stream. A missing cutscene in an interactive menu surfaces
+as a message box.
+
 ESC mid-cutscene SKIPS it and the chain advances to the next scene or the
 title menu (original semantics): no frozen mid-intro frame, the app never
 dies. Menu keys: up/down, Enter picks; ESC = Enter. The restart-confirm

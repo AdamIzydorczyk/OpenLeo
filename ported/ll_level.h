@@ -22,6 +22,13 @@ int ll_level_show(const char *data_dir, const char *level, double secs,
  * 0 = block found, 1 = no container/block. */
 int ll_level_anims(const char *data_dir, const char *level);
 
+/* FIX-13 (X-11) .MOV selftest - TEST-ONLY, for tools/ll_level.c
+ * --mov-selftest and the CI legs (verify-level, asan). Pure CPU:
+ * pins the duration clamp in mov_parse and proves the obj_advance
+ * cycle guard terminates on an all-zero-ms script.
+ * 0 = ok, 1 = failed (prints why to stderr). */
+int ll_mov_selftest(void);
+
 /* Standalone music (singleton), used by the MAPKA level-select screen:
  * the engine plays "mapka.mod" from the SOUND container on entering the
  * map (FUN_0005dec0) and stops it on every exit (FUN_0005df20).

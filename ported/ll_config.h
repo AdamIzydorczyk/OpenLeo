@@ -34,18 +34,16 @@
 #define PLATFORM_WIN 0
 #endif
 
-/* CD-presence gate chain (PLAN S6: ll_cdcheck_chain vaddr 0x5bd50 and its
- * four subchecks). 1 = faithful retail behavior (original/); 0 = not
- * compiled at all (native linux/windows targets - data comes from a
- * directory). */
-#ifndef WANT_CD_GATE
-#define WANT_CD_GATE 0
-#endif
+/* FIX-13 (B-02): the two knobs that lived here - WANT_CD_GATE (retail
+ * CD-presence gate chain) and DATA_DIR_FROM_CFG (data drive from
+ * LONGSOFT.CFG byte0) - are REMOVED: grep proved no reference outside
+ * this file (an unused knob is a false promise). git history has the
+ * text if a CD-faithful build ever needs them. */
 
-/* Derive the data drive/dir from LONGSOFT.CFG byte0 (retail layout,
- * "X:\LEO\") instead of argv/env. Native builds: 0. */
-#ifndef DATA_DIR_FROM_CFG
-#define DATA_DIR_FROM_CFG 0
+/* FIX-13 (X-12): --version prints this. Keep in sync with FILEVERSION/
+ * PRODUCTVERSION (0,1,0,0) in resources/ll_cutscene.rc. */
+#ifndef LEO_VERSION
+#define LEO_VERSION "0.1.0"
 #endif
 
 /* Fixed-timestep pacing for the native ports (PLAN S6 "NATIVE PORTS").
