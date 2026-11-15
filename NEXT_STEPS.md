@@ -1210,6 +1210,11 @@ ll_view/ll_audio as backend-private helpers).
   build; first verify-all run had one self-inflicted failure (my own wine
   A/B run shared WINEPREFIX concurrently with the suite - lesson: never
   run wine while verify legs are using the prefix).
+- PR-33 pushed 61a00ee; CI green run 43741448274 (all 3 jobs). CLOSED.- Full suites: clean verify-all (with fixtures) ALL TESTS PASSED; fixture-free
+  sim exit 0 (22 named SKIPs); zero-warning on the vendored llvm-mingw
+  build; first verify-all run had one self-inflicted failure (my own wine
+  A/B run shared WINEPREFIX concurrently with the suite - lesson: never
+  run wine while verify legs are using the prefix).
 - PR-33 pushed 61a00ee; CI green run 43741448274 (all 3 jobs). CLOSED.
 
 ## PR-34 — C1: FIX-09 Part 2, one audio device for the session (DONE 2026-11-15)
