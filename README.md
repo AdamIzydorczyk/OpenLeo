@@ -130,6 +130,13 @@ diagnostics) + `LEO_AV_LATENCY_MS=N` (nominal output latency used in
 that comparison, default 46 ms), `SDL_AUDIODRIVER`/`SDL_VIDEODRIVER`
 (user pins always win over our hints/defaults).
 
+Audio runs as ONE device for the whole process, opened at the hardware's
+native rate (FIX-09 Part 2): each cutscene/MOD playback is a stream
+converted on the fly, scene changes never close/reopen the device (no
+WASAPI/Bluetooth reopen latency, no pop). The `ll_audio: device …` log
+line therefore appears exactly once per run. `LEO_IS_WAV`/`LEO_MUSIC_WAV`
+dumps stay byte-identical — they hold the un-converted source bytes.
+
 ## Naming
 
 `is_*` = .IS cutscene format (oracle `tools/is_decode.py`); `llrs_*` = the

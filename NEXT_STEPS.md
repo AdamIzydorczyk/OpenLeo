@@ -1138,7 +1138,7 @@ ll_view/ll_audio as backend-private helpers).
   awaiting confirmation/rollback call.
 ## Presentations — C1 / C2 / C3 (owner decisions, end of series 2026-11-15)
 
-### C1 — FIX-09 Part 2: one audio device for the session (X-10 half) - RULED: measure then implement (PR-34)
+### C1 — FIX-09 Part 2: one audio device for the session (X-10 half) - RULED: measure then implement; measure BLOCKED (handheld asleep) -> implemented PR-34, measurement staged
 - Question: keep the PR-12/P-03 design (device opened per playback, closed
   at scene end) or open ONE device for the process (spec Part 2; opens at
   the device's native rate, engine resamples).
@@ -1211,6 +1211,52 @@ ll_view/ll_audio as backend-private helpers).
   A/B run shared WINEPREFIX concurrently with the suite - lesson: never
   run wine while verify legs are using the prefix).
 - PR-33 pushed 61a00ee; CI green run 43741448274 (all 3 jobs). CLOSED.
+
+## PR-34 — C1: FIX-09 Part 2, one audio device for the session (IN PROGRESS 2026-11-15)
+
+- Owner ruling "all 3 changes" executed. Measure-first was blocked (the
+  handheld never woke today; WOL does not work), so the implementation
+  went first; the before/after measurement is fully staged for whenever
+  the device is on: /tmp/opencode/cmwin_before (a7a3388 build) vs
+  /tmp/opencode/cmwin (PR-34 build), instrument = count of
+  'll_audio: device' lines over a two-movie chain (expect 2->1, the
+  device line is now once per process).
+- ported/platform_sdl.c: ONE session device, opened at first use with a
+  48000 request + SDL_AUDIO_ALLOW_FREQUENCY_CHANGE (the backend answers
+  its NATIVE rate; here: S16LSB 48000). Every plat_audio_open is a
+  logical stream (SDL_NewAudioStream source->device), plat_audio_queue
+  converts on the feeding thread and lands the bytes in the device
+  queue immediately, plat_audio_close frees the stream, drops every
+  queued byte and pauses the device silent but does NOT close it,
+  plat_audio_queued_bytes scales device+stream bytes back to the
+  CALLER'S SOURCE byte format (uint64 math) so the FIX-08 clock and the
+  music low-water keep reading their own units.
+- ported/ll_audio.c: ll_audio_open takes allowed_changes + have_out
+  (accepted-spec log P-13 stays in one place, fallback retry passes the
+  same changes). Docs rewritten: the old "device is deliberately per-
+  playback / no resampling" contract is replaced by the session-device
+  model (engine WAV dumps stay UNresampled - only hardware bytes are).
+- platform.h + is_player.* comments updated to the new contract; API
+  and return codes byte-for-byte unchanged (callers see the old model).
+- Proven: exactly ONE device line across a --then chain + menu + menu
+  intros (4 plays, one process); A/V margins on the new clock far
+  inside spec (min_queued ~150 ms >= 60 required, |err| <= 16 ms <= 40
+  required, LEO_AV_DEBUG over real alsa); verify-music byte-exact
+  (verify_music.py unchanged); LEO_IS_WAV for LOGO byte-identical
+  710,640 B vs the a7a3388 build (acceptance 4); verify-platform,
+  verify-quit both halves green; zero-warning gcc + vendored
+  llvm-mingw (SDL2 API note: free is SDL_FreeAudioStream, not the
+  SDL3-style Delete name).
+- LEO_KEEP_PIPEWIRE=1 A/B (the pin-removal pre-test): native pipewire
+  now answers 48000 S16 with the same A/V margins and a clean run -
+  mechanically healthy. The 'squeak' was an AUDIO artifact the numbers
+  cannot see: pin STAYS until an ear check says otherwise.
+- Full suites: verify-all (fixtures) ALL TESTS PASSED exit 0; fixture-free
+  sim exit 0 (22 named SKIPs); ll_level ASan+UBSan music run clean with
+  byte-exact verify_music.py. PR-34 pushed 4b94424; CI green run
+  43751679326 (all 3 jobs). CLOSED - pending the staged handheld
+  measurement (device lines 2->1) and the optional LEO_KEEP_PIPEWIRE
+  ear check for pin removal.
 
 ## Next — pick from the Deferred list below
 

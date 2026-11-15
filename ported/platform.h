@@ -135,13 +135,19 @@ void plat_request_quit(void);
 uint64_t plat_now_ns(void);
 void plat_sleep_until(uint64_t ns);
 
-/* Audio device owned by the platform. plat_audio_open(rate,ch) opens one
- * device (0 = ok, device left playing; -1 = audio subsystem unavailable;
- * -2 = subsystem up but the device could not be opened - the player
- * keeps both old diagnostics distinct). plat_audio_close() releases it
- * (no-op when none is open). The engine mixes s16 already, so the
- * platform only moves bytes: queue bytes, ask how many are still
- * outstanding, pause/resume (for A/V-locked pausing), clear (skip). */
+/* Audio owned by the platform. As of FIX-09 Part 2 (X-10) the SDL
+ * backend keeps ONE device open for the whole process, opened at the
+ * device's native rate on first use; plat_audio_open(rate,ch) opens a
+ * logical stream at that rate on top of it (0 = ok, playing; -1 =
+ * stream already open OR audio subsystem unavailable; -2 = subsystem up
+ * but the device/stream could not be opened - the player keeps both
+ * old diagnostics distinct). plat_audio_close() releases the stream,
+ * dropping every queued byte (no scene tail leaks into the next), and
+ * holds the device silent (no-op when no stream is open; the device
+ * itself is NOT closed). The engine mixes s16 already, so the platform
+ * only moves bytes: queue bytes at rate,ch, ask how many are still
+ * OUTSTANDING IN THE CALLER'S SOURCE FORMAT, pause/resume (for
+ * A/V-locked pausing), clear (skip). */
 int    plat_audio_open(int rate_hz, int channels);
 void   plat_audio_close(void);
 void   plat_audio_queue(const void *bytes, size_t len);

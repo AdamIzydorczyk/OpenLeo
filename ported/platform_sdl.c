@@ -33,7 +33,14 @@ static struct {
     ll_view        view;          /* session window/renderer (P-03)     */
     SDL_Texture   *tex;           /* this backend owns its texture      */
     int            tex_w, tex_h;
-    SDL_AudioDeviceID adev;       /* 0 = no device (per-playback, P-13) */
+    SDL_AudioDeviceID adev;       /* FIX-09 Part 2 (X-10): ONE session
+                                   * device, opened at its native rate on
+                                   * first use, never closed per scene */
+    SDL_AudioSpec dev_have;       /* the accepted spec of that device */
+    SDL_AudioStream *as;          /* per-playback source->device stream */
+    size_t src_bps, dev_bps;      /* byte rates: source, device side */
+    int logical_open;             /* a stream is open (the old "device
+                                   * open" the plat_audio_* contract sees) */
     ll_event       q[64];
     unsigned       qh, qt;        /* event ring: [qh, qt)               */
     int            quit_req;      /* FIX-01: sticky app-quit (X-01)     */
@@ -382,53 +389,123 @@ void plat_sleep_until(uint64_t ns)
 
 int plat_audio_open(int rate_hz, int channels)
 {
-    if (v.adev || rate_hz <= 0 || (channels != 1 && channels != 2))
+    /* FIX-09 Part 2 (deep dive X-10): ONE device for the whole process,
+     * opened at the DEVICE's native rate on first use; every playback is
+     * a logical stream whose bytes SDL_AudioStream converts to the
+     * device spec (no more 22050 Hz device opens: WASAPI/Bluetooth cost
+     * 50-300 ms per reopen and pop). The plat_audio_* contract the
+     * engine sees is UNCHANGED: one stream at a time (-1 while one is
+     * open, as the old code returned with a device held), queue/
+     * pause/clear as before, and queued_bytes still counts in the
+     * CALLER's source format (ll_level low-water + the FIX-08 A/V clock
+     * keep reading their own bytes). A stream close clears every queued
+     * byte, so no scene tail leaks into the next one.
+     * Diagnostics contract: 'll_audio: device ...' now appears EXACTLY
+     * once per process (the device is opened once) - the acceptance
+     * line for this fix. */
+    if (v.logical_open) {
+        SDL_SetError("plat_audio_open: stream already open");
         return -1;
-    if (ll_audio_session_init() != 0)
-        return -1;                /* reason via plat_last_error */
-    SDL_AudioSpec want;
-    memset(&want, 0, sizeof want);
-    want.freq = rate_hz;
-    want.format = AUDIO_S16SYS;   /* s16 interleaved, engine-mixed */
-    want.channels = (Uint8)channels;
-    /* samples=0 + queue-only contract + accepted-spec log (P-13):
-     * enforced inside ll_audio_open. */
-    v.adev = ll_audio_open(&want);
-    if (!v.adev)
-        return -2;                /* subsystem ok, device failed */
-    SDL_PauseAudioDevice(v.adev, 0);   /* playing; engine feeds bytes */
+    }
+    if (rate_hz <= 0 || (channels != 1 && channels != 2))
+        return -1;
+    if (!v.adev) {
+        if (ll_audio_session_init() != 0)
+            return -1;                /* reason via plat_last_error */
+        SDL_AudioSpec want;
+        memset(&want, 0, sizeof want);
+        want.freq = 48000;            /* a REQUEST: FREQUENCY_CHANGE lets
+                                       * the backend answer its native rate */
+        want.format = AUDIO_S16SYS;
+        want.channels = 2;
+        /* samples=0 + queue-only contract + accepted-spec log (P-13):
+         * enforced inside ll_audio_open. */
+        v.adev = ll_audio_open(&want, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE,
+                               &v.dev_have);
+        if (!v.adev)
+            return -2;                /* subsystem ok, device failed */
+    }
+    v.as = SDL_NewAudioStream(AUDIO_S16SYS, (Uint8)channels, rate_hz,
+                              v.dev_have.format, v.dev_have.channels,
+                              v.dev_have.freq);
+    if (!v.as)
+        return -2;                    /* subsystem+device fine, stream died */
+    v.src_bps = (size_t)rate_hz * (size_t)channels * 2u;
+    v.dev_bps = (size_t)v.dev_have.freq * (size_t)v.dev_have.channels
+              * (size_t)(SDL_AUDIO_BITSIZE(v.dev_have.format) / 8u);
+    v.logical_open = 1;
+    SDL_PauseAudioDevice(v.adev, 0);  /* playing; engine feeds bytes */
     return 0;
 }
 
 void plat_audio_close(void)
 {
-    if (!v.adev)
+    if (!v.logical_open)
         return;
-    ll_audio_close(v.adev);       /* + ClearError, ll_audio.h */
-    v.adev = 0;
+    if (v.as) {
+        SDL_FreeAudioStream(v.as);
+        v.as = NULL;
+    }
+    /* Fresh start for the next stream: drop every queued byte, then hold
+     * the device silent. The DEVICE STAYS OPEN (FIX-09 Part 2) - the
+     * per-scene close/reopen with its WASAPI latency and pop is gone. */
+    SDL_ClearQueuedAudio(v.adev);
+    SDL_PauseAudioDevice(v.adev, 1);
+    v.logical_open = 0;
+    v.src_bps = v.dev_bps = 0;
+    SDL_ClearError();                 /* no stale error for later
+                                       * unrelated SDL calls (as the old
+                                       * ll_audio_close did) */
 }
 
 void plat_audio_queue(const void *bytes, size_t len)
 {
-    if (v.adev && bytes && len)
-        SDL_QueueAudio(v.adev, bytes, (Uint32)len);
+    if (!v.logical_open || !v.as || !bytes || !len)
+        return;
+    if (SDL_AudioStreamPut(v.as, bytes, (int)len) < 0)
+        return;
+    /* Convert on the feeding thread: the caller's bytes reach the device
+     * queue right away, exactly like the old direct SDL_QueueAudio, so
+     * "queued" stays a truthful measure of what the device must play. */
+    char scratch[4096];
+    for (;;) {
+        int avail = SDL_AudioStreamAvailable(v.as);
+        if (avail <= 0)
+            break;
+        int want = avail < (int)sizeof scratch ? avail : (int)sizeof scratch;
+        int got = SDL_AudioStreamGet(v.as, scratch, want);
+        if (got <= 0)
+            break;
+        SDL_QueueAudio(v.adev, scratch, (Uint32)got);
+    }
 }
 
 size_t plat_audio_queued_bytes(void)
 {
-    return v.adev ? (size_t)SDL_GetQueuedAudioSize(v.adev) : 0;
+    /* In the caller's SOURCE format (FIX-09 Part 2 invariant): device-
+     * side bytes scale back by the exact integral byte-rate ratio, and
+     * so do the stream's buffered converted bytes. uint64 math. */
+    if (!v.logical_open || !v.as || !v.src_bps || !v.dev_bps)
+        return 0;
+    uint64_t dev_q = (uint64_t)SDL_GetQueuedAudioSize(v.adev) * v.src_bps;
+    uint64_t str_q = (uint64_t)(Uint32)SDL_AudioStreamAvailable(v.as)
+                   * v.src_bps;
+    return (size_t)((dev_q + str_q) / v.dev_bps);
 }
 
 void plat_audio_pause(int paused)
 {
-    if (v.adev)
+    if (v.adev && v.logical_open)
         SDL_PauseAudioDevice(v.adev, paused ? 1 : 0);
 }
 
 void plat_audio_clear(void)
 {
-    if (v.adev)
-        SDL_ClearQueuedAudio(v.adev);
+    if (!v.logical_open)
+        return;
+    if (v.as)
+        SDL_AudioStreamClear(v.as);
+    SDL_ClearQueuedAudio(v.adev);
 }
 
 const char *plat_last_error(void)

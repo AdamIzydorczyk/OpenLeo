@@ -13,9 +13,11 @@
  * paths while the alsa backend played the very same bytes clean. NOTE
  * (FIX-09): the "SDL 2.32.74" first observed with this is sdl2-COMPAT
  * over SDL3, so the squeak is most likely the compat layer's resampler,
- * not PipeWire; FIX-09 Part 2 (opening the device at its native rate)
- * is expected to remove the need for this pin - re-test before
- * deleting it. The pin only fires when SDL would auto-pick pipewire,
+ * not PipeWire; FIX-09 Part 2 is now implemented (ONE session device at
+ * its native rate, all conversion through SDL_AudioStream), which
+ * removes the 22050 device opens the squeak was seen with. The pin
+ * stays until re-tested on the original hardware (LEO_KEEP_PIPEWIRE=1
+ * exercises the unpinned path end-to-end; re-test before deleting). The pin only fires when SDL would auto-pick pipewire,
  * so Windows (wasapi by default in SDL 2.32) and older/user-pinned
  * setups are untouched, and a user's SDL_AUDIODRIVER in the
  * environment always wins. Verified against SDL 2.32.10 sources
@@ -82,7 +84,9 @@ int ll_audio_session_init(void)
     return 0;
 }
 
-SDL_AudioDeviceID ll_audio_open(const SDL_AudioSpec *want)
+SDL_AudioDeviceID ll_audio_open(const SDL_AudioSpec *want,
+                                int allowed_changes,
+                                SDL_AudioSpec *have_out)
 {
     /* Enforce the device contract (ll_audio.h) rather than trusting
      * callers: default-size buffer, queue API only. */
@@ -90,7 +94,8 @@ SDL_AudioDeviceID ll_audio_open(const SDL_AudioSpec *want)
     w.callback = NULL;
     w.samples = 0;
     SDL_AudioSpec have;
-    SDL_AudioDeviceID dev = SDL_OpenAudioDevice(NULL, 0, &w, &have, 0);
+    SDL_AudioDeviceID dev = SDL_OpenAudioDevice(NULL, 0, &w, &have,
+                                                allowed_changes);
     if (!dev && s_forced_alsa) {
         /* FIX-09 (deep dive L-02): alsa initialised but cannot open a
          * device (no pipewire-alsa/pulse-alsa plugin, Flatpak sandbox,
@@ -104,10 +109,12 @@ SDL_AudioDeviceID ll_audio_open(const SDL_AudioSpec *want)
         SDL_QuitSubSystem(SDL_INIT_AUDIO);
         SDL_SetHint(SDL_HINT_AUDIODRIVER, NULL);
         if (SDL_InitSubSystem(SDL_INIT_AUDIO) == 0)
-            dev = SDL_OpenAudioDevice(NULL, 0, &w, &have, 0);
+            dev = SDL_OpenAudioDevice(NULL, 0, &w, &have, allowed_changes);
     }
     if (!dev)
         return 0;
+    if (have_out)
+        *have_out = have;
     /* P-13: allowed_changes=0 means SDL converts silently to what the
      * backend really runs; log the accepted spec so capture/diagnostic
      * runs can be trusted. */
