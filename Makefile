@@ -297,6 +297,7 @@ level: ll_level
 	./ll_level $(DATA) $(LEVEL) $(ARGS)
 
 verify-llrs: llrs_selftest
+ifeq ($(PX_DATA),1)
 	@for F in ANIMACJE ETAPY SOUND LEVELDES; do \
 	  if diff <(./llrs_selftest $(DATA)/$$F) \
 	      <(python3 tools/llrs_unpack.py list $(DATA)/$$F 2>/dev/null) >/dev/null; \
@@ -304,6 +305,9 @@ verify-llrs: llrs_selftest
 	  else echo "$$F: MISMATCH"; exit 1; fi; done
 	@echo "MENU index block (39 records):"
 	./llrs_selftest --block $(DATA)/ANIMACJE MENU | head -3
+else
+	@echo "verify-llrs: SKIP (the C-vs-python container comparison needs $(DATA) staged - see the restaging recipe in NEXT_STEPS.md)"
+endif
 
 # ported/ll_pcx.c byte-for-byte agreement with tools/pcx_dump.py on every PCX
 # payload inside ANIMACJE/ETAPY.
