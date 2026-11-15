@@ -727,33 +727,38 @@ them so the verify-seq C==py dump stays byte-identical); short
 copy/fill runs CHAIN at marker position (only a gap byte returns to an
 op position), matching tools/seq_patch.py. With this, AUTORZY decodes
 to a legible 8-colour word (measured in-frame ASCII art), and
-verify-seq stays green at 172/172 payloads. BERLO.SEQ frames decode
-byte-exact but each of its 30 elements is a DELTA patch over a
-persistent base frame. PR-35 drew ONE element per tick at the park =
-a floating olive-grey smudge (the owner's PR-40 defect report "arrow
-is grey not red" + "arrow from previous state still visible").
-RESOLVED PR-40 (measurements + a vision-model read of the original
-BACK.PCX center, 2026-11-15): the object at logical x147..205
-y94..136 is island DECORATION (sand + two stepped-pyramid shapes +
-palms) baked into BACK.PCX, NOT a mace - Gemini (gemini-3.8-flash)
-read the crop and said so; both original captures (menu_art/
-menu_art2/vram.bin) show ZERO engine-drawn pixels over it. The 30
-BERLO elements ARE one persistent delta chain: their union is a
-37x44 mace silhouette, and the ACCUMULATION of all elements (later
-overwriting earlier, el0-relative) is the complete cursor sprite in
-the file's own palette (olive outline, golds, reds). The map now
-bakes that full chain at open and composites it at the island/corner
-park, then re-paints the current element's patch at its authored
-relative anchor = the chain's shimmer. v1 had also filled the
-silhouette from BACK art sampled at a "(164,95) home" calibration -
-that was an accidental fit against the island decoration and painted
-pyramid/sand patches inside the cursor (owner: "mace rendered with
-part of background, moving with it"); v2 removed it. No erasure of
-the island decoration: it is authentic art present in every original
-capture (owner's preference asked). Golden: pose hashes re-pinned,
-best 91.7375% (v1 measured 90.7281), min_best_rgb 92 -> 90 stands:
-the one fixed capture cannot show a cursor at the parks, and the
-moving cursor is an explicit owner directive.
+verify-seq stays green at 172/172 payloads. BERLO.SEQ decodes
+byte-exact; per-element measurement (2026-11-15) later showed its 30
+elements are COMPLETE one-per-tick POSES, not delta patches. The
+PR-35 map path composited the current element over one that was
+still partly on screen = a muddy olive-grey mix (the owner's PR-40
+defect report "arrow is grey not red" + "arrow from previous state
+still visible"; fixed in PR-40 v3 by rebuilding the canvas from the
+base each tick - see the next paragraph).
+RESOLVED PR-40 (measurements + a vision-model read, 2026-11-15,
+three iterations, all recorded in NEXT_STEPS.md): the object at
+logical x147..205 y94..136 is island DECORATION (sand + two
+stepped-pyramid shapes + palms) baked into BACK.PCX, NOT a mace -
+Gemini (gemini-3.8-flash) read the crop and said so; both original
+captures (menu_art/menu_art2/vram.bin) show ZERO engine-drawn pixels
+over it. Per-element measurement (seq_parse + seq_patch) settles the
+cursor: each of the 30 BERLO elements is a COMPLETE pose of the mace
+(~200-310 px, 15..27 x 35-37, width varies per pose = the authored
+rotation, anchors sway ~1 px; golds idx223/224/218/230 + reds/browns
+idx90..95; each element also carries a 36-byte palette override, not
+applied - raw indices already hit the DAC golds). It is a normal
+one-pose-per-tick animation script, NOT a delta chain (the "union =
+complete cursor" reading came from measuring the union, not the
+elements). v1 filled a silhouette from BACK art at a "(164,95)
+home" fit = pyramid/sand patches inside the cursor; v2 baked the
+union of 30 poses = "mace copying itself during rotating"; v3 is
+correct: draw ONLY the current element per tick, anchored el0-at-the
+park (authored sway reads as one mace moving), canvas rebuilt from
+base each tick so poses never overlap. The island decoration stays:
+authentic art in every original capture (owner's preference asked).
+Golden: poses re-pinned, best 92.4594% (a ~200px pose overlaps the
+static original capture better than the pre-cursor baseline 92.4516);
+min_best_rgb 92 -> 90 stands.
 **Menu dialog sprites placed (2026-11-14)**: none of the remaining
 ANIMACJE/MENU .SEQ sprites match the captured chapter-map frame at
 their element (-f0,-f2) origins (exact-index ratios 0.00-0.09, shift

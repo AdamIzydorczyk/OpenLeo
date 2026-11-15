@@ -27,10 +27,10 @@ typedef struct {
     int x, y;                 /* origin in the 320x200 logical canvas the
                                * original authored .SEQ coords in (doubled
                                * 2x2 on the 640x400 CRTC).  x<0 in the map
-                               * menu = park on the selected island; the
-                               * BERLO cursor composites there as the
-                               * FULL accumulated chain sprite (see the BERLO_
-                               * note in ll_menu.c), not a single delta frame. */
+                               * menu = park on the selected island;
+                               * the BERLO cursor there draws ONE complete
+                               * pose per anim frame (see the BERLO_* note
+                               * in ll_menu.c). */
 } ll_menu_anim;
 
 /* bg_pcx: raw PCX payload (ll_pcx input) or NULL for black background.

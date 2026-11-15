@@ -1659,6 +1659,34 @@ measured 90.73; the +1.0pt is the authentic center art restored) -
 min_best_rgb stays 90.0, margin +1.74pt. full make -k verify-all
 rc=0 (verify-menu/verify-golden green), fixture-free rc=0 with named
 SKIPs, gcc + vendored llvm-mingw warning-free.
+FOLLOW-UP v3 (same thread, minutes later): owner: "now mace copying
+itself during rotating". Re-measured BERLO.SEQ per ELEMENT
+(seq_parse + seq_patch, the C-verified pair): every element is a
+COMPLETE pose of the mace (~200-310 painted px, 15..27 x 35-37,
+per-pose width varies = the authored rotation; anchors sway ~1px;
+top colors idx223/224/218/230 golds + idx90..95 reds/browns). The
+"30-element delta accumulation = one complete cursor" premise was
+WRONG - it is a normal one-frame-per-tick animation script, and the
+v2 union bake fused 30 poses into one 986px sprite = literally
+"copying itself". (The old "delta chain" reading came from measuring
+the UNION size, not per-element completeness.) PR-40 v3: no baking
+at all - each tick draws ONLY the current element, anchored el0-at-
+the-park so the ~1px authored anchor sway reads as one mace moving;
+the canvas rebuilds from the base every tick so poses never overlap.
+Also checked: each element carries an embedded 18-entry palette
+override (w0&3, 36 bytes) - NOT applied (the raw indices hit the
+menu DAC's golds/reds directly and the vision read accepts the
+colors; recorded for future reference).
+v3 verification (p40e): EVERY dumped frame shows exactly ONE
+mace-colored blob, ~150-225 px, bbox 15..25 x 35-37 (the pose's own
+shape), parked at the correct island/corner as the walk advances;
+home region untouched; Gemini: "single clean mace... no ghost copies"
+at island AND at the word-adjacent crop. Gates: pose hashes
+re-pinned; best vs ART 92.4594% - ABOVE the pre-cursor baseline
+(92.4516): a ~200px cursor overlaps the original's static frame
+better than the 986px v2 blob; floor 90 unchanged. verify-menu green
+unchanged; full verify-all rc=0 with data and fixture-free; warning-
+free gcc + llvm-mingw.
 Open from the same report, NOW REPRODUCED + DIAGNOSED (2026-11-15):
 owner gave the concrete repro: "when start zaria 1 intro character on
 it moves right and behind him left fragments of his model that
@@ -1693,6 +1721,20 @@ changes the golden-pinned frame contract; needs the owner's call.
 key, gemini-3.8-flash via the generativelanguage REST API - is now a
 standing tool for visual defect triage; this model itself still has
 no image input.)
+Owner follow-up: "some time before it worked correctly, hard to say
+which change broke it". Checked: the .IS codec is UNTOUCHED since the
+first snapshot (git log --follow on is_stream.*: only moves/renames),
+frame content is therefore identical in every past build; ZARIA1
+pacing is also identical across the 2026-11-14 audio-block re-pin
+(3bfd8a8): every ZARIA1 chunk's ESC region is exactly 176 B = one
+DMA block = 14.29 ms in the new model, and the old uniform model was
+1/8 s per chunk - both 8 fps, ~30 s. What DID change on Nov 14-15:
+LOGO/INTRO_P-type pacing (they ran 2x slow before: their region math
+was wrong) and the A/V sync machinery (PR-28/29 exact clock +
+look-ahead queue, PR-34 native-rate device). Asked the owner which
+build they compared and what "correctly" looked like (no fragments vs
+smooth motion vs A/V). Note for future: if ghost-trails ever need
+smoothing it must be an explicit non-faithful option (see above).
 
 ## Next — pick from the Deferred list below
 
