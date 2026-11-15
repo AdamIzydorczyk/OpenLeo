@@ -37,9 +37,10 @@
 
 #include <SDL2/SDL.h>
 
-/* Bring up the audio subsystem once (idempotent; applies the
- * pipewire->alsa pin only when SDL would auto-pick pipewire; an
- * explicit SDL_AUDIODRIVER always wins). 0 = ok, -1 = unavailable. */
+/* Bring up the audio subsystem once (idempotent; since PR-35 the
+ * driver is SDL's own choice - LEO_PIN_ALSA=1 opts back into pinning
+ * alsa when SDL would auto-pick pipewire; an explicit SDL_AUDIODRIVER
+ * always wins). 0 = ok, -1 = unavailable. */
 int ll_audio_session_init(void);
 
 /* Open the session device (call after session_init; the platform

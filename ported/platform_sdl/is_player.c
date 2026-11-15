@@ -406,11 +406,12 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
     }
 
     if (audio) {
-        /* The pipewire->alsa audio pin, the ONE session device (FIX-09
-         * Part 2) and this stream all live behind plat_audio_open
-         * (ll_audio.h). A subsystem failure (-1) also implies the
-         * device failed - the old code printed both lines in exactly
-         * that case, kept verbatim. */
+        /* The audio driver policy (default = SDL's own choice since
+         * PR-35; LEO_PIN_ALSA=1 pins alsa), the ONE session device
+         * (FIX-09 Part 2) and this stream all live behind
+         * plat_audio_open (ll_audio.h). A subsystem failure (-1) also
+         * implies the device failed - the old code printed both lines
+         * in exactly that case, kept verbatim. */
         int arc = plat_audio_open(22050, p.stereo ? 2 : 1);
         if (arc == -1)
             fprintf(stderr, "is_player: audio init failed: %s\n",

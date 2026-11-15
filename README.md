@@ -122,9 +122,12 @@ quits the app (FIX-01/C3)).
 
 Runtime policy hooks: `LEO_FORCE_X11=1` (under a Wayland session pin the
 video backend to X11/XWayland — the pre-FIX-11 default; default now is
-SDL's own choice, X11-first on SDL2 classic), `LEO_KEEP_PIPEWIRE=1`
-(skip the pin of the audio backend to alsa when SDL would pick its
-native pipewire backend; default pins alsa — re-test before changing),
+SDL's own choice, X11-first on SDL2 classic), `LEO_PIN_ALSA=1` (opt in
+to pinning the audio backend to alsa when SDL would pick its native
+pipewire backend — the pre-PR-35 default; the default is now SDL's own
+choice, which the owner's A/B ear test showed is clean on the
+native-rate device. `LEO_KEEP_PIPEWIRE=1` is accepted as a no-op for
+compatibility),
 `LEO_AV_DEBUG=1` (per-second `is_player: av min_queued/err` A/V sync
 diagnostics) + `LEO_AV_LATENCY_MS=N` (nominal output latency used in
 that comparison, default 46 ms), `SDL_AUDIODRIVER`/`SDL_VIDEODRIVER`

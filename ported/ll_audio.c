@@ -7,20 +7,20 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Initialize the audio subsystem, dodging SDL2 >= 2.32's native
- * "pipewire" backend, which on the dev desktop (2026-11-14) delivered
- * squeaking or silent streams for BOTH the callback and QueueAudio
- * paths while the alsa backend played the very same bytes clean. NOTE
- * (FIX-09): the "SDL 2.32.74" first observed with this is sdl2-COMPAT
- * over SDL3, so the squeak is most likely the compat layer's resampler,
- * not PipeWire; FIX-09 Part 2 is now implemented (ONE session device at
- * its native rate, all conversion through SDL_AudioStream), which
- * removes the 22050 device opens the squeak was seen with. The pin
- * stays until re-tested on the original hardware (LEO_KEEP_PIPEWIRE=1
- * exercises the unpinned path end-to-end; re-test before deleting). The pin only fires when SDL would auto-pick pipewire,
- * so Windows (wasapi by default in SDL 2.32) and older/user-pinned
- * setups are untouched, and a user's SDL_AUDIODRIVER in the
- * environment always wins. Verified against SDL 2.32.10 sources
+/* Initialize the audio subsystem. History: SDL2 >= 2.32's native
+ * "pipewire" backend on the dev desktop (2026-11-14) delivered
+ * squeaking or silent streams - but that was observed opening the
+ * DEVICE at 22050 Hz through sdl2-COMPAT, and the culprit is now
+ * attributed to that path, not to PipeWire. With FIX-09 Part 2 (ONE
+ * session device at the hardware's native rate, conversion through
+ * SDL_AudioStream) the owner A/B ear test (2026-11-15, LOGO played
+ * back-to-back pinned vs unpinned: "seems identical") retired the
+ * automatic pin: the default is SDL's own choice. The pin survives as
+ * an opt-in escape hatch for environments where a bare pipewire stream
+ * still behaves badly: LEO_PIN_ALSA=1. It only fires when SDL would
+ * auto-pick pipewire, so Windows (wasapi by default in SDL 2.32) and
+ * user-pinned setups are untouched, and a user's SDL_AUDIODRIVER in
+ * the environment always wins. Verified against SDL 2.32.10 sources
  * (release-2.32.10): SDL_AudioInit consults
  * SDL_GetHint(SDL_HINT_AUDIODRIVER) - src/audio/SDL_audio.c:969 - and
  * SDL_GetHint prefers the ENV VAR over a non-OVERRIDE hint
@@ -57,9 +57,13 @@ int ll_audio_session_init(void)
         return 0;
     if (SDL_getenv("SDL_AUDIODRIVER"))
         return SDL_InitSubSystem(SDL_INIT_AUDIO) == 0 ? 0 : -1;
-    /* FIX-09: LEO_KEEP_PIPEWIRE=1 opts out of the pin entirely (use
-     * SDL's own choice - the path FIX-09 Part 2 aims to make safe). */
-    if (SDL_getenv("LEO_KEEP_PIPEWIRE"))
+    /* PR-35 (FIX-09 pin retirement, owner A/B ear test): default is
+     * SDL's own choice. LEO_PIN_ALSA=1 restores the automatic alsa pin
+     * for environments where a bare pipewire stream misbehaves. The
+     * former opt-out LEO_KEEP_PIPEWIRE=1 is the default now; it stays
+     * accepted as a no-op so nobody's setup breaks. */
+    const char *pin = SDL_getenv("LEO_PIN_ALSA");
+    if (!pin || strcmp(pin, "1") != 0)
         return SDL_InitSubSystem(SDL_INIT_AUDIO) == 0 ? 0 : -1;
     if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0)
         return -1;
@@ -72,8 +76,7 @@ int ll_audio_session_init(void)
         SDL_SetHint(SDL_HINT_AUDIODRIVER, "alsa");
         if (SDL_InitSubSystem(SDL_INIT_AUDIO) == 0) {
             s_forced_alsa = 1;
-            printf("ll_audio: SDL pipewire backend unreliable, "
-                   "audio on alsa driver\n");
+            printf("ll_audio: alsa driver pinned (LEO_PIN_ALSA=1)\n");
             return 0;
         }
         /* alsa absent: drop our hint so SDL picks its own default again

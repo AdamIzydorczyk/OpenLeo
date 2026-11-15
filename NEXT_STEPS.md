@@ -1138,7 +1138,7 @@ ll_view/ll_audio as backend-private helpers).
   awaiting confirmation/rollback call.
 ## Presentations — C1 / C2 / C3 (owner decisions, end of series 2026-11-15)
 
-### C1 — FIX-09 Part 2: one audio device for the session (X-10 half) - RULED: measure then implement; measure BLOCKED (handheld asleep) -> implemented PR-34, measurement staged
+### C1 — FIX-09 Part 2: one audio device for the session (X-10 half) - RULED: measure then implement; measure BLOCKED (handheld asleep) -> implemented PR-34; owner ear check "identical" -> alsa pin retired PR-35; measurement still staged
 - Question: keep the PR-12/P-03 design (device opened per playback, closed
   at scene end) or open ONE device for the process (spec Part 2; opens at
   the device's native rate, engine resamples).
@@ -1256,6 +1256,29 @@ ll_view/ll_audio as backend-private helpers).
   2->1: /tmp/opencode/cmwin_before vs /tmp/opencode/cmwin, one
   power-button press away) and the optional LEO_KEEP_PIPEWIRE ear check
   for pin removal. SERIES PR-25..34 COMPLETE.
+
+## PR-35 — FIX-09 tail: retire the automatic alsa pin (DONE 2026-11-15)
+
+- C1's last open thread closed by the owner's A/B ear test on this
+  desktop: LOGO played back-to-back pinned (alsa) vs unpinned
+  (pipewire) on the new native-rate session device - verdict "seems
+  identical". The automatic pin is therefore RETIRED.
+- ll_audio.c session_init: default = SDL's own choice (pipewire on
+  this stack). The pin survives as opt-in LEO_PIN_ALSA=1 (same
+    mechanism: hint not env, user SDL_AUDIODRIVER still wins, same
+    one-shot open-failure fallback via s_forced_alsa). The pin's log
+    line changed honestly to 'll_audio: alsa driver pinned
+    (LEO_PIN_ALSA=1)' (nothing keys on the old text; prefix intact).
+    LEO_KEEP_PIPEWIRE=1 stays accepted as a no-op (it is the default
+    now) so no existing setup or script breaks.
+- Live proofs (this machine, real audio): default run -> 'driver
+  pipewire' device line, no pin line; LEO_PIN_ALSA=1 -> 'alsa driver
+  pinned' + 'driver alsa'. verify-platform/verify-music/verify-quit
+  green; zero-warning mingw. Full verify-all (fixtures) ALL TESTS
+  PASSED exit 0; fixture-free sim exit 0 (22 named SKIPs).
+- The FIX-09 story is now fully closed: Part 1 (PR-30) + Part 2
+  (PR-34) + pin retirement (PR-35). Only the staged handheld
+  device-count measurement (2->1) remains as confirmation, not code.
 
 ## Next — pick from the Deferred list below
 
