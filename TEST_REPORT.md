@@ -89,7 +89,7 @@ pins, with machine-checkable oracles:
 | leg | defends | oracle & pass rule | run result |
 |---|---|---|---|
 | `verify-golden` | port chapter-map animation == the pinned golden contract | port frame dumps (LEO_MENU_PPM_DIR) must reproduce the **30-hash pose set** in `tools/golden_expect.json`; if a QEMU capture exists (`make golden_rig`), every port pose is scored against the original RGB+index plane with `--min-match 99.9`, and golden.* manifest hashes asserted | PASS — port half: “port pose set: 30 hashes match manifest”; original-capture half: “original capture absent … checked port pins only” (expected, see §7.1) |
-| `golden_rig` (not in verify-all) | the ORIGINAL DOS game booting and rendering in QEMU no-CD rig | `tools/golden_build_rig.sh` (MS-DOS 6.22 floppy + mtools HDD, CD-gate patch `0x5bd51:b801000000eb32`) + `tools/golden_qemu_run.py` (70 Hz PIT clock detect, static-frame capture) | ready, capture half open |
+| `golden_rig` (not in verify-all) | the ORIGINAL DOS game booting and rendering in QEMU no-CD rig | `tools/golden_build_rig.sh` (MS-DOS 6.22 floppy + mtools HDD, CD-gate patch `0x5bd51:b801000000eb32`; `DDIR=1` disk-D route) + `tools/golden_qemu_run.py` (QMP, CRTC-geometry frame detector, static-frame capture) | PASS — capture landed (runs L10+L12 byte-identical: vram.bin 14e15fb2…, menu.ppm f3ee4764…, static_vram_equal=True, 161 indices, 0 palette-bijection violations); golden.* pinned in golden_expect.json |
 
 ## 3. Methods used (7 oracle classes)
 
@@ -177,18 +177,27 @@ Notes for operators:
 
 ## 7. Honest gaps and open items
 
-1. **Golden-master original-side capture is open.** The QEMU no-CD rig boots,
-   passes the CD gate and plays the attract chain at the real 70 Hz clock, but
-   the frozen-counter map-menu state has not yet been *observed and captured*
-   in the scripted no-CD rig (PLAN S6 measured it with a CD attached). The
-   comparison machinery works — a pre-cleanup dev capture scored the port poses
-   at 99.966 % — but nothing original-side is committed; `golden_expect.json`
-   keeps `golden.*` unset until `make golden_rig` reproduces it. Next step per
-   NEXT_STEPS: script the CD-attached route or probe the attract chain further.
-   *Update (PR-21, same day): both done — a 1500 s sampled watch was
-   definitively negative (the original's map menu is CD-gated), and the
-   CD-attached route is scripted (`make golden_rig_cd`); the golden.*
-   capture runs there.*
+1. **Golden-master original-side capture: LANDED (PR-21b, 2026-11-15).** The
+   scripted no-CD disk-D rig reaches the map-menu state (one `Esc` landing in
+   the intro-movie window at t≈30 s of the run) and the driver captures its
+   static index plane: two independent runs produced byte-identical artifacts
+   (`vram.bin` 14e15fb2…, `menu.ppm` f3ee4764…, static_vram_equal=True, 161
+   used indices, zero index→color violations). `golden.*` is now PINNED in
+   `tools/golden_expect.json` (hashes only, per the no-binary-commits rule).
+   Facts learned: the menu's 320x200 8bpp page sits at VRAM offset 0x20000
+   (display start is set — the old hunt13 "vram+0" note is corrected;
+   read_vram locates the page by content); the menu FLIPS COMPOSED PAGES
+   (full-landscape art / near-black) via display-start, the art frame being
+   byte-identical across observations (content-hash b880e203) — it IS the
+   capture trigger; the frozen-0x46C clock never froze in any run and is not
+   a reliable menu signal. The 26 palette entries visible at the captured
+   instant match `ll_menu_dac.h` 26/26 (independent confirmation of PR-19).
+   MEASURED GAP: port best = 0.000% RGB/idx vs the captured original frame —
+   the port composes only the map-menu overlay poses, the original's page is
+   one full static landscape; `min_best_rgb` deliberately unset (0% is the
+   target signal, not an acceptance bar), so `verify-golden` stays green in
+   port-pins mode and full-compare mode is red by design when a capture is
+   present in `$(GOLDEN)`. Next port item: compose the background art.
 2. **No CI runner config in-repo.** The 21-target suite runs here on demand;
    there is no `.github/workflows` or equivalent. The legs are CI-safe by design
    (fixture SKIPs, deterministic seeds, fixed ticks). Recommendation: add a

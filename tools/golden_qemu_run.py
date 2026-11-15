@@ -132,11 +132,10 @@ def read_tick(h):
     return int(m.group(1), 16) if m else None
 
 
-def read_vram(h):
-    """xp /65536b 0xfd000000, 4 chunks of 16 KiB -> 256 KiB."""
+def _xp_bytes(h, base, total=65536, chunk=16384):
     blob = bytearray()
-    for i in range(4):
-        r = h.cmd('xp /%db 0x%x' % (16384, 0xfd000000 + i * 16384))
+    for i in range(total // chunk):
+        r = h.cmd('xp /%db 0x%x' % (chunk, base + i * chunk))
         n = 0
         for line in r.splitlines():
             _, _, rest = line.partition(':')
@@ -145,9 +144,30 @@ def read_vram(h):
                 if re.fullmatch(r'[0-9a-fA-F]{2}', tok):
                     blob.append(int(tok, 16))
                     n += 1
-        if n != 16384:
+        if n != chunk:
             raise SystemExit('xp chunk %d parsed %d bytes' % (i, n))
     return bytes(blob)
+
+
+def read_vram(h):
+    """64 KiB index-plane window, auto-located. The ORIGINAL puts its
+    visible page at a NON-ZERO display start: measured 2026-11-15
+    (vram_probe.py, frozen menu frame) the menu's 320x200 8bpp index
+    page lives at VRAM offset 0x20000 (read via LFB BAR 0xfd020000:
+    161 distinct indices, index->color bijection vs the undoubled
+    screendump = ZERO violations). Scan all four 64 KiB LFB pages and
+    the A0000 aperture; the first page with real 8bpp content wins.
+    Returns (bytes, base); manifest records it as vram_window."""
+    last, last_nd = None, 0
+    for base in (0xfd020000, 0xfd000000, 0xfd010000, 0xfd030000,
+                 0xa0000):
+        blob = _xp_bytes(h, base)
+        nd = len(set(blob[:64000]))
+        if nd > last_nd:
+            last, last_nd = blob, nd
+        if nd >= 40:
+            return blob, base
+    return last, 0
 
 
 def screen_mean(path):
@@ -210,7 +230,8 @@ def capture_menu_state(h, wd):
     best_black = None
     for attempt in range(4):
         h.cmd('stop')
-        blob = read_vram(h)
+        blob, window = read_vram(h)
+        read_vram.window = window
         art = plane_ok(blob)
         if art:
             h.cmd('screendump ' + os.path.join(wd, 'menu.ppm'))
@@ -219,14 +240,21 @@ def capture_menu_state(h, wd):
         h.cmd('cont')
         time.sleep(0.5)
         h.cmd('stop')
-        blob2 = read_vram(h)
-        if blob == blob2:
+        blob2, window2 = read_vram(h)
+        if window == 0 and window2 != 0:
+            blob, blob2, window = blob2, blob2, window2
+            art = plane_ok(blob)
+        if blob == blob2 and (art or set(blob[:64000]) != {0}):
+            # identical stopped pair with real content = a genuine static
+            # frame; an ALL-ZERO pair is a wrong-window artifact, never
+            # a capture (L8 lesson, 2026-11-15)
             if art:
                 h.cmd('screendump ' + os.path.join(wd, 'static2.ppm'))
                 return blob, 'ok'
             best_black = blob
         else:
             best_black = best_black or (blob2 if not plane_ok(blob2)
+                                        and set(blob2[:64000]) != {0}
                                         else None)
         h.cmd('cont')
         time.sleep(1.0)
@@ -500,13 +528,18 @@ def main():
                     manifest['tick_log'].append(
                         {'t': round(t, 1), 'tick': tick})
                 game400 = (m_w, m_h) == (640, 400)
+                # THE trigger is the ART frame itself: measured L7
+                # 2026-11-15, the menu's static art frame appears ~0.6 s
+                # per cycle and is BYTE-IDENTICAL across cycles (journal
+                # hash b880e203 at t=30 AND t=266). A '>= 2 s episode'
+                # gate can never fire; the frame IS the event.
                 if (menu_t is None and
-                        ((game400 and t - mode_t >= 2.0 and art_seen
+                        ((game400 and art_seen
                           and getattr(main, '_fcap', 0) < 6)
                          or (stable >= FREEZE_S and movie_seen))):
                     if game400:
-                        print('[t=%.0fs] 400-line EPISODE %.1fs with art '
-                              'frames: capturing' % (t, t - mode_t),
+                        print('[t=%.0fs] menu ART frame seen (episode '
+                              '%.1fs): capturing' % (t, t - mode_t),
                               flush=True)
                     blob, status = capture_menu_state(h, wd)
                     if status == 'ok' or (game400 and t - mode_t >= 6.0
@@ -547,6 +580,8 @@ def main():
             shot = 'menu_black.ppm'      # black-half capture
         size = ppm_size(os.path.join(wd, shot))
         manifest['menu_screenshot'] = shot
+        manifest['vram_window'] = ('0x%x' % getattr(read_vram, 'window',
+                                                    0))
         with open(os.path.join(wd, 'vram.bin'), 'wb') as f:
             f.write(blob)
         manifest['phases'].append(

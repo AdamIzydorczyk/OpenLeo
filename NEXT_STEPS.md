@@ -648,13 +648,38 @@ ll_view/ll_audio as backend-private helpers).
   * 0x46C never froze in ANY run, menu-like states included: the clock
     detector is NOT reliable on this rig; the frame detector is the
     primary and stands on its own.
-- NEXT PROBE (documented, not yet run): re-run the L1 schedule
-  (Esc 8/14/20/30/45/70) with the CURRENT driver - the >=2 s episode
-  trigger captures the first 640x400 episode that holds (extend to Esc
-  every ~12 s for 300 s to raise the odds). On capture:
-  tools/golden_menu_cmp.py --vram vram.bin --screen menu.ppm
-  --port-dir <poses> --expect tools/golden_expect.json, then pin the
-  golden.* hashes in tools/golden_expect.json.
+- CAPTURE LANDED (L10+L12, 2026-11-15, scripted disk-D rig, single
+  Esc@30): the ART frame ITSELF is the trigger (the menu shows it
+  ~0.6 s per appearance - any 'hold >= 2 s' gate can never fire;
+  screendump content-hash b880e203 byte-identical across 5
+  observations, twice spontaneously). The 320x200 index page is at
+  VRAM offset 0x20000 (read_vram scans LFB pages + A0000 and takes
+  the page with real 8bpp content; NOT vram+0 as the hunt13-era
+  header implied - display start is set). Stopped-pair reads are
+  IDENTICAL, the comparator's index->color bijection holds with ZERO
+  violations, and both runs' artifacts are byte-identical: golden.*
+  is now PINNED in tools/golden_expect.json (idx-plane sha
+  046ee42c..., 161 indices; orig-rgb reconstruct ea0787f6...; full
+  window 14e15fb2...). The captured instant is the menu's near-black
+  composed half - the menu FLIPS COMPOSED PAGES (art / near-black)
+  via display-start, not a palette fade; 26/26 palette entries
+  visible at that instant match ll_menu_dac.h exactly, independently
+  confirming the PR-19 DAC recovery.
+- MEASURED GAP (the point of T-24): port best = 0.000% RGB/idx
+  against the captured original frame. The port composes map-menu
+  OVERLAYS (arrow/words/titles, the pinned 30-pose animation stays
+  green); the original's page is one static full-landscape art
+  frame. Composing that background is the next port work item - and
+  it is now measurable to the byte.
+- VERIFY-GOLDEN BEHAVIOUR: CI stays green (no capture in $(GOLDEN)
+  -> port-pins-only mode). With a capture present it asserts
+  golden.* and then --min-match $(GOLDEN_MIN) vs port poses ->
+  currently RED by design (best 0%): that is the target signal, not
+  a regression. Caveat recorded in the manifest note: one re-run
+  produced a different page variant (L11 62d58767...) - the VM stop
+  can land after the game re-composed - so a differing
+  vram_full_sha256 on a manual re-capture is not automatically a
+  regression.
 
 ## Next — pick from the Deferred list below
 

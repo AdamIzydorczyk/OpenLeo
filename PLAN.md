@@ -311,10 +311,21 @@ t=70.8, black, then an ART frame (187 colors) after the next Esc. That
 is the live-verified "Esc opens the menu" behaviour reproduced under
 script; the frozen-40:6C counter never appeared in ANY run and is NOT a
 reliable menu detector on this rig (frame geometry replaced it as the
-primary trigger). A scripted capture of the static menu plane
-(vram.bin) has not landed yet - the first run whose detector saw the
-blips with correct code (L7) had no episode reach 2 s; the retry is
-mechanical (same schedule, current driver).
+primary trigger). THE CAPTURE LANDED (runs L10+L12, 2026-11-15,
+byte-identical artifacts): one Esc@30, the ART frame itself as the
+trigger, and the 320x200 8bpp index page read at VRAM offset 0x20000
+(display start is non-zero - the old hunt13 note "framebuffer at
+vram+0" does NOT hold on this rig; read_vram now locates the page by
+content). Index->color bijection holds with ZERO violations; golden.*
+is pinned in tools/golden_expect.json (161 used indices). The menu
+FLIPS COMPOSED PAGES (full-landscape art frame / near-black frame)
+via display-start - not a palette fade; the pinned snapshot is the
+near-black half with 26 palette entries visible, all 26 exactly
+matching ll_menu_dac.h (independent confirmation of the PR-19 DAC
+recovery). Measured port-vs-original best = 0% exact RGB: the
+original's map-menu page is a full static landscape, the port
+currently composes only the overlay poses - that measured 0% gap is
+the T-24 target from here on.
 
 **Chapter launch chain, full-res (2026-11-14 hunt10, 449 frames @ ~2 Hz
 after `down` on the map menu):** chapter .IS conversation cutscenes

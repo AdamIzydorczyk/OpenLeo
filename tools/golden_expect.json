@@ -1,37 +1,43 @@
 {
-  "note": "T-24 golden-master pins. Frames are NEVER stored in git (copyright rule, review tips T-24); only hashes. The port pose_hashes set pins the chapter-map animation: it is a fixed 30-frame cycle, so the set of distinct composed frames is deterministic even though how many frames a wall-clock capture window collects is not. golden.* (vram index-plane + original RGB hashes + indices_used) and min_best_rgb are filled only once the QEMU rig captured the original map-menu frame (make golden_rig); until then verify-golden runs port-pin mode. The earlier CD-rig capture that recovered the real menu DAC (PLAN S8b 'hunt13': index-plane sha256 ba16421b..., 209 used indices, source of ll_menu_dac.h) was a working file in /tmp and was not kept; a golden_rig capture must reproduce those facts before golden.* is pinned here.",
-  "port": {
-    "pose_hashes": [
-      "02524de9ab5babe724015f8af6240be1b6cd47f0e03ed061c330903d249cc1fa",
-      "0d9c210bf352cf9b6b9de560e49b8cc4a6fb70efceaf6ea7ee4b31b36f2cd908",
-      "0dd8ccb0f63e2f410162dedc2cab5fcf541933b766e29ba6b513d151db676e8b",
-      "2188c3c5976b30965e33533dd13bc008596236581593a3e55a1653740854b689",
-      "2a96069adc9e814d56759b645f46c5488291e648a0150001b014f22b211d108b",
-      "2e0dfd99e39fcb3f3372d4033b2935edf482bf388f8346d9fb0be3a1566e3697",
-      "3893750840ba310e2d0c1d2bf498aad441a344a6a66b4b251706891fa49556b2",
-      "39340b6fabaf54d4293531222f4ae0e7935bf3beb4d1ab9c5b765cc2917ee269",
-      "3bec02f7d1d9bb4b39a679b834e266d375cff97204f3a67d8dba93fb340a8d0f",
-      "3f1592897c9081c98d2b1b24124fff31db117abbcf6072c741c1140d56ab96a6",
-      "4de389b8e08b1baaafb66c7ebf2fe86f702c5d261759f8f7aa2d61ad8dc44c49",
-      "582e026459c3277ed1c4714cd4988a20307b272b493cbf4d0a8d330aa3cb7db0",
-      "5f2daf27c5ba894f3e2573f72eccd391a3758c75042f88ac0f2ea77f91cd2898",
-      "5fc651483da6323386b8bf55aa26aeae9ea481614098d63846f5568627fffc22",
-      "77921f8c661ae8437af230524d151843c9b31c6b5045cd2b1fadddb76842407a",
-      "89b829d8c50e75667294a681ca199f9b3151a110de2129227f90ba2a213749e3",
-      "91e713d12b834d255c7ef91d3753d5a44d84eefba736a34a2049fd56de0b17ce",
-      "9442549af410b0fe7258c35a3568aa8329ab113b537caedb9ed5a1470e6e2825",
-      "9733462a7e54dc30ec0098b5b1cf18ea7ededdad72d2ed85116ebbbc4ed8584d",
-      "9d76a221ad0ed9c03f9b1d5e0d1dedbc333f5c6c4f4adb4b734c855e381cd24d",
-      "a1f0a53a9935b8ce7395fc11848bc836a3d9c1dded0c0234492fbe41ac6b9e4f",
-      "ac9841fa23ed1b5a3293fc8466ba3159cc3e0f93c264c63a1acf2c83d703be14",
-      "afe18d36caacf9eecc9d89c804ad2e4c6ab0ddbd2234186d73787b4c4d0d4251",
-      "b15c6dec025a5ffab9ed909237f250904f75a57cd318846dfea71b44e4da0bfb",
-      "b88cc77b30c4a403cd3b871257f3735e73812f11c6d24ed201ef0d805a9ade11",
-      "b918b10b96aa6fe2f7b3994c640b9523ddea6ee5e82742be9acd5eea6132fe6f",
-      "d1e2a5722f94a1af068fed398d54e28fd1e12ec1c4ef686d6d1c6ee04f58ef75",
-      "d994481eb64c7447582dc1f508dcc466a65131dbb9728aea4aaddf8ff5c8f58e",
-      "f885cc5c21e66d72a2645d913c778ad5a7b423a749ce480ae338776c5f7d9ca7",
-      "f9922357e905c885ecd2a2d9b52f8b7c4f4547b3bf6769948c59a62635dd14e1"
-    ]
-  }
+ "note": "T-24 golden-master pins. Frames are NEVER stored in git (copyright rule, review tips T-24); only hashes. The port pose_hashes set pins the chapter-map animation: it is a fixed 30-frame cycle, so the set of distinct composed frames is deterministic even though how many frames a wall-clock capture window collects is not. golden.* (vram index-plane + original RGB hashes + indices_used) and min_best_rgb are filled only once the QEMU rig captured the original map-menu frame (make golden_rig); until then verify-golden runs port-pin mode. The earlier CD-rig capture that recovered the real menu DAC (PLAN S8b 'hunt13': index-plane sha256 ba16421b..., 209 used indices, source of ll_menu_dac.h) was a working file in /tmp and was not kept; a golden_rig capture must reproduce those facts before golden.* is pinned here. UPDATE 2026-11-15: golden.* is now PINNED from a scripted disk-D-rig capture, byte-identical across 2 independent runs (L10+L12, /tmp/opencode/golden_l1{0,2}/; workdir paths are tmp, the pins are the record). Facts: the ORIGINAL reaches the map-menu state under scripted input (Esc lands in the intro movie window, t=30 of the run); its 320x200 8bpp index page is at VRAM offset 0x20000 (LFB BAR +0x20000 = 0xfd020000; NOT vram+0 as the old hunt13 header claimed - display start is set); index->color is a clean function (0 bijection violations); the menu's art frame (screendump content-hash b880e203, byte-identical across 5 observations incl. one spontaneous attract hit at t=266) cycles with a near-black composed page; the pinned orig_rgb is the reconstructable frame of the STOPPED pair (mid-cycle). 26 of 26 palette entries visible at that instant match ll_menu_dac.h exactly (same palette space as PR-19's DAC recovery). measured port best = 0% RGB/idx: the port's map menu currently composes only the overlay poses (arrows/words/titles over black); the original's page is a full static landscape art frame. min_best_rgb is deliberately UNSET (no floor asserted yet; the 0% gap is the measured T-24 target signal, not an acceptance bar). One caveat: the stopped-page read hit a different page variant once (L11, 62d58767...) - the stop sometimes lands after the game re-composed; a mismatched re-capture is therefore not automatically a regression.",
+ "port": {
+  "pose_hashes": [
+   "02524de9ab5babe724015f8af6240be1b6cd47f0e03ed061c330903d249cc1fa",
+   "0d9c210bf352cf9b6b9de560e49b8cc4a6fb70efceaf6ea7ee4b31b36f2cd908",
+   "0dd8ccb0f63e2f410162dedc2cab5fcf541933b766e29ba6b513d151db676e8b",
+   "2188c3c5976b30965e33533dd13bc008596236581593a3e55a1653740854b689",
+   "2a96069adc9e814d56759b645f46c5488291e648a0150001b014f22b211d108b",
+   "2e0dfd99e39fcb3f3372d4033b2935edf482bf388f8346d9fb0be3a1566e3697",
+   "3893750840ba310e2d0c1d2bf498aad441a344a6a66b4b251706891fa49556b2",
+   "39340b6fabaf54d4293531222f4ae0e7935bf3beb4d1ab9c5b765cc2917ee269",
+   "3bec02f7d1d9bb4b39a679b834e266d375cff97204f3a67d8dba93fb340a8d0f",
+   "3f1592897c9081c98d2b1b24124fff31db117abbcf6072c741c1140d56ab96a6",
+   "4de389b8e08b1baaafb66c7ebf2fe86f702c5d261759f8f7aa2d61ad8dc44c49",
+   "582e026459c3277ed1c4714cd4988a20307b272b493cbf4d0a8d330aa3cb7db0",
+   "5f2daf27c5ba894f3e2573f72eccd391a3758c75042f88ac0f2ea77f91cd2898",
+   "5fc651483da6323386b8bf55aa26aeae9ea481614098d63846f5568627fffc22",
+   "77921f8c661ae8437af230524d151843c9b31c6b5045cd2b1fadddb76842407a",
+   "89b829d8c50e75667294a681ca199f9b3151a110de2129227f90ba2a213749e3",
+   "91e713d12b834d255c7ef91d3753d5a44d84eefba736a34a2049fd56de0b17ce",
+   "9442549af410b0fe7258c35a3568aa8329ab113b537caedb9ed5a1470e6e2825",
+   "9733462a7e54dc30ec0098b5b1cf18ea7ededdad72d2ed85116ebbbc4ed8584d",
+   "9d76a221ad0ed9c03f9b1d5e0d1dedbc333f5c6c4f4adb4b734c855e381cd24d",
+   "a1f0a53a9935b8ce7395fc11848bc836a3d9c1dded0c0234492fbe41ac6b9e4f",
+   "ac9841fa23ed1b5a3293fc8466ba3159cc3e0f93c264c63a1acf2c83d703be14",
+   "afe18d36caacf9eecc9d89c804ad2e4c6ab0ddbd2234186d73787b4c4d0d4251",
+   "b15c6dec025a5ffab9ed909237f250904f75a57cd318846dfea71b44e4da0bfb",
+   "b88cc77b30c4a403cd3b871257f3735e73812f11c6d24ed201ef0d805a9ade11",
+   "b918b10b96aa6fe2f7b3994c640b9523ddea6ee5e82742be9acd5eea6132fe6f",
+   "d1e2a5722f94a1af068fed398d54e28fd1e12ec1c4ef686d6d1c6ee04f58ef75",
+   "d994481eb64c7447582dc1f508dcc466a65131dbb9728aea4aaddf8ff5c8f58e",
+   "f885cc5c21e66d72a2645d913c778ad5a7b423a749ce480ae338776c5f7d9ca7",
+   "f9922357e905c885ecd2a2d9b52f8b7c4f4547b3bf6769948c59a62635dd14e1"
+  ]
+ },
+ "golden": {
+  "vram_idx_sha256": "046ee42c8ef4cc33d7e7250240d4794bcd16a116912a449058ae11bb19b884f5",
+  "vram_full_sha256": "14e15fb2c61be39a1ea14b158c69e38a1daec15d9f403da194f41c05bbc55be0",
+  "orig_rgb_sha256": "ea0787f65f73b0013d03b359490e3125211b28ad5c1502ffb1544c0ded4192f5",
+  "indices_used": 161
+ }
 }
