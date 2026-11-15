@@ -1519,6 +1519,9 @@ with no corner selected are UNCHANGED -> golden pose hashes and the
 Verification: full make -k verify-all rc=0 (new corner-art pins green
 incl. the .exe legs); fixture-free sim rc=0 (22 named SKIPs); native
 + llvm-mingw warning-free.
+ - PR-38 pushed fe2cf12; CI run 43758144143: all three jobs green on
+   the first pass. CLOSED. Awaiting owner re-test of the corner
+   cycle + bulawa-on-word feel (not pinnable headless).
 
 ## Next — pick from the Deferred list below
 
