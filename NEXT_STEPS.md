@@ -1129,6 +1129,59 @@ ll_view/ll_audio as backend-private helpers).
   verify-menu/verify-arch green; zero-warning native + llvm-mingw +
   cmake-mingw builds (the latter re-exercised the PR-30 DLL copy).
 
+- PR-32 pushed 8b4f908; CI green run 43724602260 (all 3 jobs, incl. the
+  flipped windows --help smoke + asan mov selftest). CLOSED.
+- SERIES PR-25..32 COMPLETE (c0d959a, 656dbc5, 816a9a0, 4618d61, 42f3703,
+  79961aa, f2bfbc4, 45fbd26, 8b4f908 - all CI green). Owner decisions
+  C1/C2/C3 presented below (## Presentations section); C2 default flip
+  already shipped per its ruling ("implement behind the flag" - done),
+  awaiting confirmation/rollback call.
+## Presentations — C1 / C2 / C3 (owner decisions, end of series 2026-11-15)
+
+### C1 — FIX-09 Part 2: one audio device for the session (X-10 half)
+- Question: keep the PR-12/P-03 design (device opened per playback, closed
+  at scene end) or open ONE device for the process (spec Part 2; opens at
+  the device's native rate, engine resamples).
+- Evidence gathered: Part 1 shipped in PR-30 (hint not env, one-shot
+  open-failure fallback proven end-to-end, LEO_KEEP_PIPEWIRE=1). On this
+  desktop the UNPINNED path plays fine (native pipewire, LOGO 125/125) -
+  the original 'pipewire squeaks' predates the discovery that the system
+  SDL 2.32.74 is sdl2-compat; squeak was likely the compat resampler,
+  not PipeWire. PR-29's A/V sync now measures DEVICE-CONSUMED bytes;
+  a mid-chain device reopen creates a gap that clock cannot see (the
+  look-ahead bounds it, but continuous play is what the design wants).
+- Not measurable here: ALSA shared-mix cannot show a reopen pop. The
+  decisive 2-minute test on the exact risk hardware (handheld, WASAPI):
+  push ll_cutscene.exe+SDL2.dll+two .IS, run A.IS --then B.IS, count
+  'll_audio: device' lines = one line per real WASAPI open/close cycle
+  = one pop candidate. Handheld asleep (physical wake needed).
+- Options: (a) measure first (recommended: wake handheld), then likely
+  implement Part 2 (PR-30's own comment predicts the alsa pin becomes
+  unnecessary); (b) keep per-playback (worst case now bounded by PR-30
+  fallback); (c) implement Part 2 without measuring.
+
+### C2 — Wayland default flip (FIX-11) - SHIPPED, needs confirm/rollback call
+- PR-31 shipped default = SDL's own choice (spec steps 1-2), pin behind
+  LEO_FORCE_X11=1 (byte-identical old lines), escape hatch proven live;
+  classic SDL2 still picks X11-first (source-verified SDL_video.c:74-83)
+  so the flip only takes effect on the SDL3/sdl2-compat stack.
+- Live proof: native Wayland window + keyboard WITHOUT any click
+  (/dev/uinput synthetic key -> 'quit=1 (q)') = the pin's original
+  rationale (focus never works) refuted on this compositor.
+- Open for the owner: 150%-fractional-scaling sharpness eyeball (the
+  programmatic half is done). Rollback = one line if wanted; flag stays.
+
+### C3 — q = quit the app (FIX-01 step 6) - currently NOT active (per ruling)
+- Verified current semantics: q in a cutscene ENDS THAT SCENE (player
+  returns 0; the chain advances to the next scene / the title menu);
+  ONLY a window close (or LEO_QUIT_AFTER_MS) sets the sticky
+  plat_quit_requested that unwinds every screen (verify-quit).
+- Adopt = one line: plat_request_quit() in the q handler -> q anywhere
+  quits the app; clean pair with existing ESC=skip; needs the player
+  selftest + a verify-quit variant updated.
+- Risk note: q is our own affordance (no original binding); accidental
+  quits mid-boot-chain are the argument for keeping status quo.
+
 ## Next — pick from the Deferred list below
 
 Nothing queued from the review's "worth fixing" set: all of it has
