@@ -722,25 +722,28 @@ byte-exact but each of its 30 elements is a DELTA patch over a
 persistent base frame. PR-35 drew ONE element per tick at the park =
 a floating olive-grey smudge (the owner's PR-40 defect report "arrow
 is grey not red" + "arrow from previous state still visible").
-RESOLVED PR-40 (measurements 2026-11-15): the red mace at logical
-x147..205 y94..136 is BAKED into BACK.PCX; both original captures
-(menu_art/menu_art2/vram.bin) show ZERO engine-drawn pixels over it -
-the baked mace itself never moves. But the 30 BERLO elements ARE one
-persistent delta chain: their union is a 37x44 mace envelope whose
-element-0 canvas origin lands exactly on the baked art when placed at
-(164,95); 82% of envelope px hit warm mace-art colors (the chain
-colors are the dark/olive shading the patches ADD). The map now bakes
-the FULL cursor at open (chain accumulation + BACK art of the warm
-class r>g && r>=b sampled at that home) and composites it at the
-island/corner park - chain first, bright art pixels winning where
-they exist (the captures' mace is golds (247,208,7)/(239,175,0) +
-reds; the chain alone reads grey) - then re-paints the current
-element's patch at its authored relative anchor = the chain's
-shimmer. Golden re-pin: best 90.7281% vs the art frame (was
-92.4516%), min_best_rgb lowered 92 -> 90: the -1.7pt IS the ~1600px
-mace at the park, which the one fixed capture cannot show because
-the original's cursor never moves there; the moving red cursor is an
-explicit owner directive.
+RESOLVED PR-40 (measurements + a vision-model read of the original
+BACK.PCX center, 2026-11-15): the object at logical x147..205
+y94..136 is island DECORATION (sand + two stepped-pyramid shapes +
+palms) baked into BACK.PCX, NOT a mace - Gemini (gemini-3.8-flash)
+read the crop and said so; both original captures (menu_art/
+menu_art2/vram.bin) show ZERO engine-drawn pixels over it. The 30
+BERLO elements ARE one persistent delta chain: their union is a
+37x44 mace silhouette, and the ACCUMULATION of all elements (later
+overwriting earlier, el0-relative) is the complete cursor sprite in
+the file's own palette (olive outline, golds, reds). The map now
+bakes that full chain at open and composites it at the island/corner
+park, then re-paints the current element's patch at its authored
+relative anchor = the chain's shimmer. v1 had also filled the
+silhouette from BACK art sampled at a "(164,95) home" calibration -
+that was an accidental fit against the island decoration and painted
+pyramid/sand patches inside the cursor (owner: "mace rendered with
+part of background, moving with it"); v2 removed it. No erasure of
+the island decoration: it is authentic art present in every original
+capture (owner's preference asked). Golden: pose hashes re-pinned,
+best 91.7375% (v1 measured 90.7281), min_best_rgb 92 -> 90 stands:
+the one fixed capture cannot show a cursor at the parks, and the
+moving cursor is an explicit owner directive.
 **Menu dialog sprites placed (2026-11-14)**: none of the remaining
 ANIMACJE/MENU .SEQ sprites match the captured chapter-map frame at
 their element (-f0,-f2) origins (exact-index ratios 0.00-0.09, shift

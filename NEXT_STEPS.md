@@ -1611,8 +1611,10 @@ titles). min_best_rgb 92.0 -> 90.0 (margin +0.719pt over the worst
 pose), Makefile GOLDEN_MIN comment updated to match. The moving red
 cursor is an explicit owner directive, so this is the accepted look.
 Open question parked for the owner: with a moving cursor the BAKED
-center mace stays visible (faithful to the original) - hide/inpaint
-it when the cursor is elsewhere? Needs the owner's call.
+center object stays visible (faithful to the original) - hide/inpaint
+it when the cursor is elsewhere? Needs the owner's call. (RESOLVED by
+the v2 follow-up below: the vision read showed that object is island
+decoration, not a mace - it stays, authentic.)
 CI additions: none (the existing 30-frame/BERLO-cycle/corner pins all
 still pass unchanged).
 Verification: full make -k verify-all with data rc=0 (all legs ok,
@@ -1622,6 +1624,41 @@ vendored llvm-mingw builds warning-free.
  - PR-40 pushed f6fec38; CI run 43763544035: linux + asan green on
    the first pass, windows-smoke hit the known flake (fixture-only
    leg, passed unchanged on rerun --failed). CLOSED.
+FOLLOW-UP v2 (same owner thread, same day): after f6fec38 the owner
+reported "now is even worst, mace is rendered with part of background
+and moving with it around" + "and still there is same previous issue".
+Diagnosis needed eyes this tool does not have - the owner supplied a
+Gemini API key; wiring the REST endpoint (generativelanguage v1beta,
+model gemini-3.8-flash - 2.5-flash 404s for new users - inline_data
+base64 PNG parts) and sending crops DISPROVED the v1 premise: the
+BACK.PCX "home" region is island DECORATION (sand + two terracotta
+stepped-pyramid shapes + palms), NOT a mace. The (164,95) home
+calibration had been an accidental fit against that island coverage,
+and filling the cursor outline from BACK art painted pyramid/sand
+patches inside it - literally "part of background rendered with the
+mace, moving with it". PR-40 v2: the cursor is the FULL accumulated
+BERLO chain alone, in the file's own authored palette (dark olive
+outline, golds idx223/224/230, reds idx153/154/239/240) + the current
+element re-painted at its authored anchor (shimmer). Removed: the
+cbase BACK sampling, the BERLO_HOME_* calibration, and the v1.5
+envelope-mask variant + home-region inpaint (implemented and verified
+algorithmically correct in /tmp/opencode/p40c - 2464-px flood blob,
+frame == independent python simulation byte-for-byte - but the wrong
+design: the central object is AUTHENTIC original art, present in the
+original's own captures, so we do not erase it; OPEN QUESTION for the
+owner whether they want it removed anyway).
+v2 verification (p40d): home window byte-identical to BACK (the 4
+diff px are the park-3 chain cursor overlapping it, as in the
+original); island-0 park = one envelope-confined cluster 981px (of
+986 chain px, 5 cancelled by same-color overlap) at x64..100 y56..99;
+shimmer t2 vs t8 2821px; Gemini read of the new crop: "(1) clean
+mace-only cursor, no background pieces... olive-gold to golden-yellow
+with dark olive shadow outlines, ruby-red studs".
+Gates: 30 pose hashes re-pinned; best vs ART frame 91.7375% (v1
+measured 90.73; the +1.0pt is the authentic center art restored) -
+min_best_rgb stays 90.0, margin +1.74pt. full make -k verify-all
+rc=0 (verify-menu/verify-golden green), fixture-free rc=0 with named
+SKIPs, gcc + vendored llvm-mingw warning-free.
 Open from the same report, NOT actionable yet: "same issue is in
 movies" needs a concrete repro (which movie, which transition, what
 the artifact looks like) - the .IS decoder is golden-pinned byte-exact
