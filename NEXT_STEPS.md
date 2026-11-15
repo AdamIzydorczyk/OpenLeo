@@ -1551,6 +1551,9 @@ hashes + 92.0 floor hold (verify-golden ok, best still 92.4516%).
 Verification: full make -k verify-all rc=0; fixture-free sim rc=0
 (22 named SKIPs); native + vendored llvm-mingw warning-free (the
 only 'warning:' lines in the logs are MESA-EGL runtime noise).
+ - PR-39 pushed 0b631fa; CI run 43759690580: all three jobs green on
+   the first pass. CLOSED. Awaiting owner re-test of the two-axis
+   feel (not pinnable headless).
 
 ## Next — pick from the Deferred list below
 
