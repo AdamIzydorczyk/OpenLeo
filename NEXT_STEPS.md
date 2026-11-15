@@ -1473,6 +1473,53 @@ arrow-walk UI feel (owner to try - 'corner' covers the code path).
    asan, windows-smoke) green on the FIRST pass - the windows clock
    flake did not recur. CLOSED.
 
+## PR-38 — corner selection made VISIBLE: word .SEQ records are the
+cursive words themselves; bulawa moves onto the word (DONE 2026-11-15)
+
+Owner re-tested PR-37: "i still cant choose wyjscie, restart i opcje"
+and "when bulawa is on autorzy text isnt animated" + "and bulawa is
+under text". Diagnosis: the corner cycle WORKED (CI-proven) but was
+INVISIBLE - the BERLO cursor stayed parked on the last chapter island
+(which sits right under the bottom-left corner text - that is the
+"bulawa under text" the owner saw) and only a thin bar marked the
+selection. The feedback layer was wrong, not the input.
+
+DATA DISCOVERY (re-examined the word records, tools/seq_render.py):
+ANIMACJE/MENU/WYJSCIE/RESTART/OPCJE/AUTORZY.SEQ are NOT button plates
+(the PR-36-era "filled plates" reading was WRONG and is corrected in
+the code comments) - they ARE the cursive words: 2 nearly-identical
+variants each, and the bigger variant's authored (-f0,-f2) anchor
+lands EXACTLY on the recovered captured-text bbox (AUTORZY 64x18 at
+(4,180) vs text bbox x2..66 y179..196; IoU vs captured ink: emphasis
+variant 0.70-0.77 vs plain 0.49-0.57). The two variants are the
+engine's own normal/bold pair - the only record of the original's
+corner-word SELECTION animation.
+
+Fix (ll_menu.c map compositor + ll_menu_word plumbing in main.c):
+- selected corner -> the word ALTERNATES its two .SEQ variants at
+  their authored anchors (600 ms bold pulse - the only animation the
+  records hold); plain captured-text layer pixels inside the selected
+  bbox are skipped (replace, never double).
+- the BERLO selection cursor (the original menu's pointer) MOVES from
+  the island onto the selected corner word (centered, clamped inside
+  the canvas) - exactly the "bulawa over the text" the owner
+  described; it keeps cycling its 30 frames there (animated).
+- bright-bar marker stays ONLY as fallback (dataless/baked base/parse
+  fail). Data flows as ll_menu_word words[4] (WYJSCIE/RESTART/OPCJE/
+  AUTORZY order = corner cycle order), loaded via menu_record.
+- CI: the LEO_MENU_KEY=corner leg now also pins 'map: corner art
+  wyjscie/restart' (both word records parsed during the walk).
+Pixel-verified from map_0013..15 pose frames: with RESTART selected -
+emphasis variant paints 573 px at its authored anchor, the three
+UNselected words stay pixel-exact vs the capture (0 wrong of
+1899 ink px), bulawa pixels appear at the word center and are GONE
+from the island; no corner selected = no bulawa at any word. Frames
+with no corner selected are UNCHANGED -> golden pose hashes and the
+92.0 floor hold untouched (verify-golden ok, best still 92.4516%).
+Verification: full make -k verify-all rc=0 (new corner-art pins green
+incl. the .exe legs); fixture-free sim rc=0 (22 named SKIPs); native
++ llvm-mingw warning-free.
+
 ## Next — pick from the Deferred list below
 
 PR-37 leaves one named golden follow-up: recover the ORIGINAL engine

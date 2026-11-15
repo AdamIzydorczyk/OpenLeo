@@ -114,12 +114,13 @@ static unsigned char *menu_back(const char *data, unsigned *len)
  * they compose over OPTIONS.PCX at their authored (-f0,-f2) origins on
  * the restart corner (reconstruction, PLAN 8b: the .MNU placement is a
  * CD data hole).
- * The corner-WORD .SEQ files (WYJSCIE/OPCJE/RESTART/AUTORZY/OPCJEBK)
- * are deliberately NOT loaded: rasterized 2026-11-15 they decode as
- * filled button PLATES (~50x16 bands, not letters), and the owner
- * confirms no such plate ever shows on the chapter map - the original
- * engine draws those words as its own cursive text, so the port font-
- * draws them instead (single text layer; see ll_menu.c map compositor). */
+ * The corner-WORD .SEQ files (WYJSCIE/OPCJE/RESTART/AUTORZY) are NOT
+ * part of this list either: they are cursive WORD sprites (two variants
+ * each - measured 2026-11-15: the bigger variant's authored anchor
+ * lands exactly on the captured corner-text bbox; the earlier "button
+ * plate" reading was wrong). They load separately as ll_menu_word[]
+ * for the map's selection-emphasis swap; OPCJEBK.SEQ (the options
+ * button background) stays unused. */
 static ll_menu_anim *menu_anims(const char *data, int *nanim)
 {
     static const char *want[] = { "X.SEQ", "CNIE.SEQ", "BERLO.SEQ",
@@ -459,6 +460,22 @@ static void run_menu(const char *data, int audio)
                 printf("map: keyboard only - arrows cycle chapters + "
                        "corner words, Enter/Space activates, a/o/r "
                        "corner shortcuts, q/Esc quit\n");
+                /* corner-word cursive records (WYJSCIE/RESTART/OPCJE/
+                 * AUTORZY order = the map's corner cycle order): the
+                 * map swaps the SELECTED word to its emphasis variant
+                 * (see ll_menu_word in ll_menu.h) */
+                ll_menu_word words[4];
+                static const char *const wrec[4] = { "WYJSCIE.SEQ",
+                    "RESTART.SEQ", "OPCJE.SEQ", "AUTORZY.SEQ" };
+                memset(words, 0, sizeof words);
+                for (int k = 0; k < 4; k++) {
+                    unsigned l = 0;
+                    unsigned char *b = menu_record(data, wrec[k], &l);
+                    if (b && l) {
+                        words[k].seq = b;
+                        words[k].len = l;
+                    }
+                }
                 ll_menu_anim m2[1];
                 int m2n = 0;
                 for (int i = 0; i < nanim; i++)
@@ -470,10 +487,12 @@ static void run_menu(const char *data, int audio)
                  * be NULL -> ll_menu.c falls back to the captured art) */
                 unsigned blen = 0;
                 unsigned char *back = menu_back(data, &blen);
-                sel = ll_menu_map_open(chs, n, m2, m2n, back, blen);
+                sel = ll_menu_map_open(chs, n, m2, m2n, back, blen, words);
                 free(back);
                 for (int i = 0; i < ntload; i++)
                     free(tload[i]);
+                for (int k = 0; k < 4; k++)
+                    free((void *)words[k].seq);
             } else {
                 fprintf(stderr, "map: no chapters in %s/ETAPY, "
                         "falling back to list menu\n", data);

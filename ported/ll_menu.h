@@ -96,10 +96,11 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
  * ll_menu_dac.h).  back_pcx=NULL falls back to the captured composed
  * frame embedded in the port (ll_menu_art.h, text baked in;
  * LEO_MENU_BG=placeholder selects the procedural stand-in).  Corner
- * words are font-drawn by the port EXCEPT on the baked-art fallback
- * (their letters are already in that art - drawing them again showed
- * the visible double text; the word .SEQ files are button plates that
- * never appear on the map).  chs[] gives each chapter's title + island
+ * words are the ORIGINAL cursive text layer recovered from the
+ * captured VRAM (ll_menu_text.h; skipped on the baked-art fallback -
+ * their letters are already in that art, drawing both was the double-
+ * text defect); the words[] records add the SELECTION EMPHASIS swap
+ * (see ll_menu_word).  chs[] gives each chapter's title + island
  * anchor (640x400 coords); more than 6 chapters wrap onto extra anchor
  * rings.  A chapter MAY carry its real cursive title image: seq/
  * seq_len = a raw ANIMACJE/MENU/LEVELxx.SEQ payload (owner-mapped to
@@ -110,11 +111,12 @@ int ll_menu_open_ex(const unsigned char *bg_pcx, unsigned bg_len,
  * have no image; dataless mode always falls back).
  * anims = .SEQ overlays (the BERLO arrow cycles on its
  * period_ms).  Keyboard input ONLY: arrows cycle chapters then the
- * four corner words (WYJSCIE/RESTART/OPCJE/AUTORZY, marked by a
- * bright bar at their recovered bbox - the corner words themselves
- * are the ORIGINAL cursive text layer recovered from the captured
- * menu VRAM, ll_menu_text.h), Enter/Space activates, a/o/r stay
- * direct corner shortcuts.  Returns selected chapter index,
+ * four corner words (WYJSCIE/RESTART/OPCJE/AUTORZY); the selection
+ * cursor (BERLO, the original's menu pointer) MOVES ONTO the chosen
+ * word and the word swaps to its .SEQ emphasis variant (words[]) -
+ * bright bar at the recovered bbox only as fallback without the
+ * word records.  Enter/Space activates, a/o/r stay direct corner
+ * shortcuts.  Returns selected chapter index,
  * -2 = wyjście/Esc, -3 = LEO_MENU_SECS deadline (CI hook),
  * -4/-5/-6 = the autorzy/opcje/restart corner words. */
 typedef struct {
@@ -125,9 +127,24 @@ typedef struct {
     const unsigned char *seq; /* title image .SEQ payload or NULL */
     unsigned seq_len;
 } ll_menu_ch;
+
+/* The four corner-WORD records ANIMACJE/MENU/WYJSCIE/RESTART/OPCJE/
+ * AUTORZY.SEQ in that order (same index as the corner cycle and the
+ * return codes): measured 2026-11-15 these ARE the cursive words -
+ * two nearly-identical variants each (the bigger one's authored anchor
+ * lands exactly on the recovered text bbox); while a word is SELECTED
+ * the map alternates the variants at its authored (-f0,-f2) anchors -
+ * a bold PULSE, the only animation the word records hold and what
+ * the owner remembers as the word "animating" under the bulawa
+ * cursor. NULL payload = no pulse, bright-bar marker fallback. */
+typedef struct {
+    const unsigned char *seq;
+    unsigned len;
+} ll_menu_word;
 int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                      const ll_menu_anim *anims, int nanims,
-                     const unsigned char *back_pcx, unsigned back_len);
+                     const unsigned char *back_pcx, unsigned back_len,
+                     const ll_menu_word words[4]);
 
 #ifdef __cplusplus
 }

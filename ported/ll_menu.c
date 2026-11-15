@@ -932,7 +932,8 @@ static void map_key(int k, int repeat, int nchs, int *sel, int *cor,
 
 int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                      const ll_menu_anim *anims, int nanims,
-                     const unsigned char *back_pcx, unsigned back_len)
+                     const unsigned char *back_pcx, unsigned back_len,
+                     const ll_menu_word words[4])
 {
     if (nchs < 1)
         return -1;
@@ -1010,6 +1011,19 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
     ll_seq tseq;
     memset(&tseq, 0, sizeof tseq);
     int tsel = -1, tseq_ok = 0;
+    /* The selected CORNER WORD's own .SEQ record (ANIMACJE/MENU/
+     * WYJSCIE/RESTART/OPCJE/AUTORZY.SEQ): measured 2026-11-15 these
+     * ARE the cursive words - two variants each, the larger second
+     * element (more painted px, +2px extents) is the EMPHASIS state:
+     * its authored (-f0,-f2) anchor lands exactly on the captured
+     * text bbox. While selected, the word alternates the two variants
+     * (a bold pulse under the bulawa selection cursor - owner: "when
+     * bulawa is on autorzy text isnt animated"). Parsed once per
+     * corner change; no record / baked base = bright-bar marker
+     * fallback instead. */
+    ll_seq wseq;
+    memset(&wseq, 0, sizeof wseq);
+    int wcor = -1, wseq_ok = 0;
     const char *sece = getenv("LEO_MENU_SECS");
     uint64_t t_deadline = sece ? now_ms() + 1000 * (uint64_t)atof(sece) : 0;
     uint64_t t_sched = now_ms();  /* FIX-07 (X-08): fixed 30 ms grid for
@@ -1024,12 +1038,48 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
          * its sprite coords in the 320x200 space): x<0 parks the BERLO
          * arrow just left of the selected island's measured edge,
          * vertically centred. The corner words stay engine TEXT (the
-         * word .SEQ files are button plates that never show here,
-         * owner-confirmed) - but the SELECTED CHAPTER'S TITLE is real
-         * data when available: a LEVELxx.SEQ image (owner-mapped per
-         * chapter) composited as ALL its elements at their authored
-         * (-f0,-f2) positions, replacing the font text (owner
-         * directive 2026-11-15: "sprites instead of font text"). */
+         * corner-word .SEQ records ARE real text sprites - measured
+         * 2026-11-15 each carries the word in TWO variants, the
+         * bigger one being the selection EMPHASIS state (its authored
+         * anchor lands exactly on the captured cursive bbox); the
+         * unselected state stays the recovered captured-text layer,
+         * pixel-exact vs the original screen) - and the SELECTED
+         * CHAPTER'S TITLE is real data when available: a LEVELxx.SEQ
+         * image (owner-mapped per chapter) composited as ALL its
+         * elements at their authored (-f0,-f2) positions, replacing
+         * the font text (owner directive 2026-11-15: "sprites instead
+         * of font text"). */
+        static const int cbb[4][4] = {
+            LL_MENU_TEXT_BB_WYJSCIE, LL_MENU_TEXT_BB_RESTART,
+            LL_MENU_TEXT_BB_OPCJE, LL_MENU_TEXT_BB_AUTORZY
+        };
+        if (wcor != cor) {  /* corner selection changed: parse that word's
+                             * .SEQ - while selected, the word ALTERNATES
+                             * its two variants (a bold pulse: the only
+                             * animation the word records hold, and what
+                             * the owner remembers as the word animating
+                             * under the bulawa cursor: "when bulawa is
+                             * on autorzy text isnt animated"). Skipped
+                             * on the baked-art base (text is baked
+                             * there -> ghosting); the bright bar below
+                             * marks it instead. */
+            wcor = cor;
+            if (wseq.els)
+                ll_seq_free(&wseq);
+            wseq_ok = 0;
+            if (cor >= 0 && words && words[cor].seq && words[cor].len
+                && !baked_text
+                && ll_seq_parse(words[cor].seq, words[cor].len, &wseq) == 0
+                && wseq.count > 0) {
+                wseq_ok = 1;
+                static const char *const wtag[4] = { "wyjscie", "restart",
+                                                     "opcje", "autorzy" };
+                printf("map: corner art %s (%u variants, pulsing)\n",
+                       wtag[cor], wseq.count);
+            }
+            if (!wseq_ok && wseq.els)
+                ll_seq_free(&wseq);
+        }
         if (tsel != sel) {
             tsel = sel;
             if (tseq.els)
@@ -1043,13 +1093,26 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                 printf("map: title sprite %u elements for %s\n",
                        tseq.count, chs[sel].title);
         }
-        if (aseq || tseq_ok) {
+        if (aseq || tseq_ok || wseq_ok) {
             memset(cv, 0xFF, (size_t)MAP_LW * MAP_LH);  /* 0xFF = keep bg */
             if (tseq_ok)
                 for (unsigned k = 0; k < tseq.count; k++)
                     ll_seq_draw_elem(&tseq, &tseq.els[k], cv, MAP_LW,
                                      MAP_LH, -SX(tseq.els[k].f0),
                                      -SX(tseq.els[k].f2));
+            if (wseq_ok) {
+                /* the word ALTERNATES its two authored variants while
+                 * selected (600 ms) - the only animation the word
+                 * records contain, and what the owner remembers as the
+                 * word animating under the bulawa cursor. Each variant
+                 * composites at ITS OWN (-f0,-f2) anchor (they differ
+                 * by ~1 px - the swap reads as a bold pulse). */
+                unsigned wv = (unsigned)((uint64_t)tick * 30 / 600)
+                              % wseq.count;
+                const ll_seq_elem *we = &wseq.els[wv];
+                ll_seq_draw_elem(&wseq, we, cv, MAP_LW, MAP_LH,
+                                 -SX(we->f0), -SX(we->f2));
+            }
             int irw = chs[sel].rw > 0 ? chs[sel].rw / 2 : 30;
             for (int a = 0; a < nanims; a++) {
                 if (!aseq[a].els)
@@ -1060,8 +1123,23 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
                 const ll_seq_elem *e = &aseq[a].els[fr];
                 int x = anims[a].x, y = anims[a].y;
                 if (x < 0) {
-                    x = chs[sel].ix / 2 - irw - 14;
-                    y = chs[sel].iy / 2 - 9;
+                    /* selection cursor (BERLO = the original's menu
+                     * pointer): on a corner word it sits OVER the word
+                     * (owner: the bulawa belongs on the text, not under
+                     * it); otherwise it parks left of the selected
+                     * island */
+                    if (cor >= 0) {
+                        const int *bb = cbb[cor];
+                        x = (bb[0] + bb[1]) / 2 - 14;
+                        y = (bb[2] + bb[3]) / 2 - 9;
+                        if (x < 0) x = 0;
+                        if (y < 0) y = 0;
+                        if (x > MAP_LW - 28) x = MAP_LW - 28;
+                        if (y > MAP_LH - 18) y = MAP_LH - 18;
+                    } else {
+                        x = chs[sel].ix / 2 - irw - 14;
+                        y = chs[sel].iy / 2 - 9;
+                    }
                 }
                 ll_seq_draw_elem(&aseq[a], e, cv, MAP_LW, MAP_LH, x, y);
             }
@@ -1080,22 +1158,28 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
          * Skipped on the baked-art fallback (its letters are already
          * in the art - drawing both was the double-text defect).
          * Font text remains ONLY for chapter titles without a data
-         * image (RAN.01/JUNCTION, or dataless mode). */
+         * image (RAN.01/JUNCTION, or dataless mode). The SELECTED
+         * word's own pixels are skipped when its .SEQ emphasis
+         * variant was composited above (the variant REPLACES the
+         * plain word - that swap IS the original's selection
+         * animation). */
         if (!baked_text)
-            for (int i = 0; i < LL_MENU_TEXT_N; i++)
-                fb[(size_t)ll_menu_text[i][1] * MAP_LW
-                   + ll_menu_text[i][0]] = pal[ll_menu_text[i][2]];
+            for (int i = 0; i < LL_MENU_TEXT_N; i++) {
+                int tx = ll_menu_text[i][0], ty = ll_menu_text[i][1];
+                if (wseq_ok && cor >= 0
+                    && tx >= cbb[cor][0] && tx <= cbb[cor][1]
+                    && ty >= cbb[cor][2] && ty <= cbb[cor][3])
+                    continue;
+                fb[(size_t)ty * MAP_LW + tx] = pal[ll_menu_text[i][2]];
+            }
         if (!tseq_ok)   /* font title only without a data image */
             draw_text1(fb, 25, 62, chs[sel].title, ll_menu_dac[22]);
 
-        if (cor >= 0) { /* selected corner word: solid bright 2-px bar
-                         * at its recovered bbox edge (the dialog's
-                         * answer-zone selection language); clamped for
-                         * bottom words */
-            static const int cbb[4][4] = {
-                LL_MENU_TEXT_BB_WYJSCIE, LL_MENU_TEXT_BB_RESTART,
-                LL_MENU_TEXT_BB_OPCJE, LL_MENU_TEXT_BB_AUTORZY
-            };
+        if (cor >= 0 && !wseq_ok) { /* word record unavailable (dataless,
+                         * baked base, parse failure): fall back to the
+                         * solid bright 2-px bar at the recovered bbox
+                         * edge (the dialog's answer-zone selection
+                         * language); clamped for bottom words */
             int yb = cbb[cor][3] + 2;
             if (yb + 1 >= MAP_LH)
                 yb = MAP_LH - 2;
@@ -1232,6 +1316,10 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         }
         tick++;
     }
+    if (wseq.els)
+        ll_seq_free(&wseq);
+    if (tseq.els)
+        ll_seq_free(&tseq);
     free(base);
     free(fb);
     free(cv);
