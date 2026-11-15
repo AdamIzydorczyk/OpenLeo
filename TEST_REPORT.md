@@ -223,6 +223,13 @@ Notes for operators:
    The copyrighted game data never reaches the runner (LL.iso is gitignored
    by design), so the byte-exact frame proofs and golden comparison remain
    local runs. The real-Windows job (handheld) is still open — see §7.3.
+   Landed green: runs 43712552391/43712692409 caught two real bare-runner
+   gaps (no apt package for mingw SDL2 → CI now unpacks the official
+   SDL2-2.32.10-mingw tarball into vendor/; the cmake toolchain file
+   hardcoded the gitignored vendor clang → now falls back to system
+   mingw-w64 like Makefile XC; verify-llrs was the last un-probed data
+   leg → wrapped too). Run 43712890598: green in ~80 s, both cmake
+   targets genuinely cross-build on the runner.
 3. **Windows proof is wine-based.** The actual Windows 11 target (ADAM-HANDHELD)
    is not in the automated loop (host currently unreachable over the lab link).
    The manifest/UCRT UTF-8 path is proven under wine emulation only.
