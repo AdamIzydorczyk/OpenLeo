@@ -3153,6 +3153,37 @@ engine-side).
     jump (episodes 2 and 9 are on the playlist) confirms them.
   - Not ported: still no jump in the player sim.
 
+## PR-73 — episode 2 segments (0:53-0:55, 0:56-0:58, 7:44-7:47): a correction
+          (DONE 2026-11-16, owner supplied the timestamps)
+
+  - What they show: ZARIA II (episode 2, 480p): a drop from a branch, a
+    ledge climb with a jump (54.2-54.9 s), a stone-to-stone run past the
+    crocodile (464.8-466.6 s). All three scroll while the lion jumps, so no
+    clean static-camera jump; per-frame tracking (shorts colour + phase-
+    correlated camera, tools in /tmp/opencode/yt) is too noisy at 480p to
+    confirm the I/4 and G*30 hypotheses from them.
+  - They DO refute one PR-72 rule: the camera y is not held while airborne
+    (during the 54.2-54.5 s ledge jump the view rose ~45 units with the
+    lion), and the "feet at y ~175" mode of the first video is the world's
+    bottom clamp (ZARIA's ground is the last rows), not a rule: a lion
+    resting mid-level sat with his feet at ~128 of 200 (64% - the original
+    65% rule). follow_camy goes back to 65% (clamped to the world).
+    Kept from PR-72: the horizontal lead (100 facing right / 220 facing
+    left; a resting lion drifts toward ~145).
+  - Jump impulses in LEW.MOV (ZARIA): A_JUMP_S `I 120,-1200`, A_JUMP `I 150,
+    -1200`, A_PRE_JUMP `I 250,-1100`; with the two hypotheses (impulse/4,
+    gravity = G.y*30 = 1650) a standing jump rises 27 units in 0.18 s and
+    stays up 0.36 s. Untested on a second clean jump.
+
+  - Addendum (owner's 7:13-7:16 of episode 2, i.e. 433-436 s): the balloon
+    pickup is confirmed - the red balloon bursts into a ring of red sparks
+    (ZARIA's BAL A_DEAD plays `dym.seq`, PR-70), the lion then jumps up to
+    the crown ledge. It is not a plain jump in place: the lion rises ~65
+    units while the camera follows him vertically at up to ~6 units per video
+    frame (150 units/s) and scrolls back after the landing, i.e. the camera y
+    tracks the lion's y quickly (PR-73 correction stays 65%-follow). No clean
+    jump height could be read from it.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

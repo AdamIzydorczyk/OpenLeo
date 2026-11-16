@@ -1616,8 +1616,8 @@ static void play_advance(play_ctx *pl, const ll_play_keys *keys,
 /* Camera follow, measured on a playthrough video (5150 frames tracked by
  * the lion's colour, outside git): the lion's x on the 320-wide view sits at
  * ~95 while he walks right and ~215 while he faces left (so the view leads in
- * his facing direction), and his feet sit at y ~175 of 200 whenever he stands
- * on the ground (the vertical camera follows the floor, not the jumps).
+ * his facing direction); vertically the lion rests with his feet near 64% of
+ * the view and the camera follows him (jumps included), see follow_camy.
  * The rates of the camera's catch-up are NOT measured: the x offset eases
  * toward its target at 6 units per 20 ms tick (a viewer choice).
  * Walking speed from the same video: lion-locked camera shifts have a
@@ -1625,7 +1625,6 @@ static void play_advance(play_ctx *pl, const ll_play_keys *keys,
  * .MOV's T=90 cap. */
 #define CAM_LEAD_R 100
 #define CAM_LEAD_L 220
-#define CAM_FEET_Y 175
 
 static int follow_camx(play_ctx *pl, int cw, int cam_max)
 {
@@ -1644,11 +1643,13 @@ static int follow_camx(play_ctx *pl, int cw, int cam_max)
 
 static int follow_camy(play_ctx *pl, int ch, int cam_ymax)
 {
-    if (pl->p.grounded || !pl->camy_set) {
-        pl->camy_v = (int)pl->p.y - (ch * CAM_FEET_Y) / 200;
-        pl->camy_set = 1;
-    }
-    int y = pl->camy_v;
+    /* PR-73 correction of PR-72: the "feet at 175" mode of the video is the
+     * world's bottom clamp (ZARIA's ground is the last rows), not a rule. A
+     * lion resting mid-level sits with his feet at ~128 of 200 (64%, the old
+     * 65% rule) and the camera FOLLOWS him up and down, jumps included
+     * (episode 2, 54.2-54.6 s: the view rose ~45 units with a ledge jump). */
+    int y = (int)pl->p.y - (ch * 65) / 100;
+    (void)pl;
     if (y < 0)
         y = 0;
     if (y > cam_ymax)
