@@ -2317,6 +2317,13 @@ engine-side).
      ll_level --mov-selftest rc=0 with zero sanitizer output (same leg
      the CI asan job runs). verify-arch unchanged. Peak child RSS
      1113 MB on RAN.01 (pinned 1114, unchanged).
+   - PR-46 pushed c239ae0; CI run 43845936475: linux + windows-smoke +
+     asan ALL green on the first pass. On the runner the extended mov
+     selftest printed its new summary ("... per-state seq= art
+     selection + shape geometry (ok)") in BOTH the asan job and the
+     linux full suite, while verify-seq and verify-level printed their
+     named SKIPs (the runner stages no game data) - exactly as the
+     fixture-free contract requires. CLOSED.
 
 ## Next — pick from the Deferred list below
 
