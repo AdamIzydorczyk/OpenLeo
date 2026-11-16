@@ -1646,7 +1646,8 @@ algorithmically correct in /tmp/opencode/p40c - 2464-px flood blob,
 frame == independent python simulation byte-for-byte - but the wrong
 design: the central object is AUTHENTIC original art, present in the
 original's own captures, so we do not erase it; OPEN QUESTION for the
-owner whether they want it removed anyway).
+owner whether they want it removed anyway. (CLOSED 2026-11-16: owner
+ruled KEEP - the island decoration stays, no change was ever needed.)
 v2 verification (p40d): home window byte-identical to BACK (the 4
 diff px are the park-3 chain cursor overlapping it, as in the
 original); island-0 park = one envelope-confined cluster 981px (of
