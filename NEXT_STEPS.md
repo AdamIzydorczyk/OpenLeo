@@ -3129,6 +3129,30 @@ engine-side).
     trajectory came out. A pixel-accurate camera model (or a captured jump
     with a static camera) is still needed - until then no jump is ported.
 
+## PR-73 — first jump measurement from the video (5:16-5:19; notes only)
+          (2026-11-16, owner pointed at the segment)
+
+  - Segment (episode 1, 318.0-319.1 s, 25 fps, per-frame lion shorts colour
+    (158,0,0) + the lowest yellow shoe pixel): the lion stands on a ledge
+    (318.0-318.56), crouches (A_PRE_JUMP, two frames), jumps in place and
+    grabs a vine at the apex.
+  - Camera: it is NOT static for the whole segment - while the lion stands
+    still the camera keeps easing: his screen x drifts 215 -> 145 and his
+    feet y 146 -> 128 world units in ~0.55 s (decelerating), i.e. a standing
+    lion converges to ~x 145 (roughly the view centre), not to the walking
+    lead of 95/215 (PR-72). The easing is a visible rate to copy later.
+  - Jump (feet y, world units, takeoff at 318.60): 127.5, 119.5, 116.5,
+    114.5, 109.5 (apex, 318.76), 110.5, 114.0, 116.5, 119.0 (318.92). Net of
+    the camera drift (~0.5 u/frame) the rise is ~21 u in 0.16 s, the fall as
+    long: air time ~0.35 s. A parabola through that: v0 ~ 262 u/s upwards,
+    g ~ 1640 u/s^2.
+  - Relations that FIT (not proven): the impulse in A_PRE_JUMP's last frame
+    `I 250,-1100` divided by 4 gives vy -275 u/s (measured ~262); the state's
+    `G=300,55` second value x 30 = 1650 u/s^2 (measured ~1640). Two numeric
+    coincidences with different factors - treat as hypotheses until a second
+    jump (episodes 2 and 9 are on the playlist) confirms them.
+  - Not ported: still no jump in the player sim.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
