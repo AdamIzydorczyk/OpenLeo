@@ -3271,6 +3271,8 @@ engine-side).
     the frame-duration unit (worms animate at 4 ms frames; the lion's 6 ms
     walk frames use the same unit and looked fine to the owner, so do not
     change the unit without a DOSBox timing).
+    [RESOLVED in PR-79: the BY_X unit is movement units per frame, the
+    speed is F/4 px/s, measured on the video.]
 
 ## PR-77 investigation — F/FC directive parser and accumulator (IN PROGRESS 2026-11-16; no gameplay change)
 
@@ -3309,6 +3311,67 @@ engine-side).
   - Next: trace the movement-state vtable/caller around 0x52680 and the
     consumer of those context fields. Only then implement F/FC. No code change
     has been made; T1 remains in progress and jump units remain estimates.
+
+## PR-79 — BY_X scene objects WALK: units measured on the gameplay video (DONE 2026-11-16)
+
+  - Video geometry pinned first (this invalidated an earlier 2.0x/2.4x
+    reading - that test searched the wrong region): the 640x480 gameplay
+    video is a UNIFORM 2.0x of a 320x240 game screen. Proof: the LICHA
+    worm template scores 0.644 at 2.0x2.0 vs 0.593 at 2.0x2.4 (and 0.612
+    at 1.9x1.9); the on-screen lion is ~125 px tall = its 64 px art x
+    2.0; the f269 "unmatchable" lion is an IDLE el0 frame, right-facing,
+    occluded by foreground plants (confirmed by VL look at a labelled
+    candidate sheet). The video darkens rows ~x0.81 (scanline); matching
+    through it works; de-interlacing changes nothing.
+  - MEASURED units (ZARIA.01 = video frames 5102-9649):
+      * A BY_X frame list's 2nd field is MOVEMENT UNITS per animation
+        frame, not ms: the worm (authored 4) crawls 3.0-3.75 game px per
+        displayed frame; the rhino (authored 7) moves 7-10 px between
+        walk elements 5 and 6. BY_TIME frames keep the ms unit.
+      * Speed = F/4 game px/s: the worm (F=100,T=40) and the
+        camera-following lion A_WALK (F=100,T=20) both move 25 px/s
+        (camera band-shifts: median 2 px/video-frame = 25 px/s); the
+        NOSOROG rhino (F=180,T=40) tracks ~40-50 px/s = the 1.8x F
+        ratio. Equal F + different T -> same speed, so T is NOT speed;
+        T=(t1,t2) semantics stay unresolved and nothing was built on it.
+      * bounds= IS the patrol range: measured LICHA crawl 118->128 inside
+        its authored bounds=100,180; direction flips at the edges. All
+        levels' lion A_WALK is F=100 (RAN.01 400, KARA 150 = per-level
+        design), confirming F is the authored speed.
+  - Code: obj_walk() + the BY_X branch in obj_advance (ll_level.c).
+    v = |F|/4 px/s, position carried in fixed steps with a fractional
+    double carry (xa), frame advance when facc >= the frame's unit count,
+    bounds flip. The frame's 2nd slot (ll_mov_fr.ms) is read as units
+    only in BY_X states; the BY_TIME path is untouched. obj_transition
+    and the state-loop wrap keep the position when either end is BY_X
+    (walking is instance state, not per-state authored deltas).
+    Estimates (labelled in code): initial direction +1 (no .des key
+    names it; the video shows both directions for one script), and
+    BY_X with F=0 keeps the old time-driven frame advance without
+    moving (no measured F=0 walk state on video; a frozen list could
+    deadlock). Ground slope-follow (ll_plt_surface_at) deliberately NOT
+    applied to walkers yet - the measured worms stay on one line.
+  - Tests: obj_motion_selftest (data-free, wired into the .MOV chain):
+    F=100 walks exactly 10 px in 400 ms = F/4 px/s (mutations: F-as-px/s
+    -> 4x too far; time-driven -> never moves x and raises t);
+    unit-driven frames (fi=1 after 5 px on 4-unit frames; mutation:
+    never advancing); a state-loop wrap keeps the position (110, not
+    the 100 anchor; mutation: always-snap -> 0); bounds flip: 50x40 ms
+    steps inside 10..26 land at x=14 dir=-1 (mutation: no flip ->
+    x=70); GEN into a BY_TIME state and AC_BREAK_NEXT back keeps the
+    walked position (x=107; mutation: always-snap transitions -> 102).
+  - Pins moved: verify-play LICHA contact tick 138 -> 199 (the worm
+    patrols instead of sitting at x=120; the lion meets it head-on).
+    All other verify-play legs pass unchanged, including the RAN.01
+    EDGE0046 solid pin at tick 54 (that object is not a walker).
+  - Known tension, NOT touched here: ll_play.c reads the player's F/T
+    as "walk at +/-T cap, F=accel", contradicting these object
+    measurements (the lion's real A_WALK F=100,T=20 moves at 25 px/s
+    = F/4). Re-resolve player physics in T1 with the video as referee.
+  - Tools left in /tmp/opencode/yt: tms2.py (scale-sweep template match),
+    findseq.py (whole-segment .SEQ template tracker), plus w205.png,
+    lionmask.png, lionid.png. The .MOV inventory of all 105 BY_X states
+    (F/T/frame-unit matrix) supports the F model; see /tmp/opencode/mov.
 
 ## Next — pick from the Deferred list below
 

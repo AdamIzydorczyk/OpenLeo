@@ -395,8 +395,10 @@ int ll_level_anims(const char *dir, const char *level)
  * is the mirror flag - ll_mov_frame_ref, PR-49; non-positive durations clamped to 100 ms = the M4-C rule),
  * plus the player-facing extension documented in ll_play.h (F=/T=/G=
  * physics, TARGET(n)=COND transitions, control= flags, per-state seq=).
- * Scene objects here keep using only the frame-list semantics through
- * obj_advance/obj_elem below. */
+ * Scene objects read that too: control=BY_X states WALK at F/4 px/s and
+ * their frame lists' second field counts movement units (PR-79, measured
+ * on video: see obj_walk below); everything else keeps the frame-list
+ * time semantics through obj_advance/obj_elem. */
 
 /* ---------------- scene objects (PR-45: the authored scene) ------------
  * A level's own placement data (the sub-.des files its main .des names
@@ -485,6 +487,11 @@ typedef struct {                     /* one placement of a script        */
      * range, scope= detection range, energy= hit points). -1 = absent. */
     int damage, b0, b1, scope, energy;
     unsigned gen;                    /* PR-69: pending K_GEN1..4 pulses    */
+    /* PR-79: BY_X walking (see obj_walk): fractional-pixel carry, units
+     * accumulated toward the next frame, and the patrol direction
+     * (0 = never flipped: walks right - no .des key names it, estimate) */
+    double xa, facc;
+    signed char dir;
 } lvl_obj;
 
 typedef struct {                     /* one level's authored scene: the
@@ -666,23 +673,76 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
             continue;
         if (s->tr[t].tidx < 0 || s->tr[t].tidx == o->sti)
             continue;                         /* unresolved / keep this state */
+        int byx = (s->ctrl & LL_CTRL_BY_X) ||
+                  (mov->st[s->tr[t].tidx].ctrl & LL_CTRL_BY_X);
         o->sti = s->tr[t].tidx;
         o->fi = 0;
-        o->x = o->bx;
-        o->y = o->by;                         /* motion deltas are per state */
+        if (!byx) {
+            o->x = o->bx;
+            o->y = o->by;       /* motion deltas are per state; a BY_X
+                                 * position is instance state: walking
+                                 * creatures carry it across states */
+        }
+        o->facc = 0.0;
+        o->xa = 0.0;
         o->gen = 0;
         return 1;
     }
     return 0;
 }
 
+/* PR-79: BY_X states WALK, and the units are measured, not guessed
+ * (video ZARIA.01, geometry 2.0x of a 320x240 game screen, see HANDOFF):
+ * a state's F= value is its speed scale, fx/4 game px/s (the ZARIA.01
+ * worm F=100 and the camera-following lion A_WALK F=100 both move at
+ * 25 px/s; the NOSOROG rhino F=180 covers its track 1.8x faster, matching
+ * the F ratio); the frame list's second field is MOVEMENT UNITS per
+ * animation frame, not milliseconds (authored 4 for the worm, measured
+ * 3.0-3.75 px/frame; authored 7 for the rhino, measured 7-10 px between
+ * its walk elements). Time is NOT consumed by walking states. The initial
+ * facing has no data key: +1 (right) is the port's estimate; bounds= is
+ * the patrol range the flip happens at (measured: the LICHA worm stays
+ * inside 100,180). With F=0 nothing accumulates, so the state keeps the
+ * old time-driven frame advance without moving - an estimate: no measured
+ * F=0 walk state exists on video (a frozen frame list could deadlock,
+ * so this is the safe reading). */
+static void obj_walk(lvl_obj *o, const ll_mov_st *s, unsigned dt_ms)
+{
+    double dist = (double)(s->fx >= 0 ? s->fx : -s->fx) * dt_ms / 4000.0;
+
+    o->facc += dist;                          /* units toward the next frame */
+    o->xa += dist;
+    int px = (int)o->xa;
+    o->xa -= (double)px;                      /* carry the fraction to dt+1  */
+    if (px <= 0)
+        return;
+    int dir = o->dir < 0 ? -1 : 1;
+    o->x += dir * px;
+    if (o->b1 > o->b0) {                      /* bounds= patrol range: flip  */
+        if (dir > 0 && o->x >= o->b1)
+            o->dir = -1;
+        else if (dir < 0 && o->x <= o->b0)
+            o->dir = 1;
+    }
+}
+
 static void obj_advance(lvl_obj *o, unsigned dt_ms)
 {
     ll_mov_t *mov = (o->sc && o->sc->mov) ? o->sc->mov : NULL;
 
-    o->t += dt_ms;
     if (!mov || !mov->nst)          /* no script on these containers: stop */
+    {
+        o->t += dt_ms;
         return;
+    }
+    ll_mov_st *start = &mov->st[o->sti];
+    if ((start->ctrl & LL_CTRL_BY_X) && start->fx != 0)
+        obj_walk(o, start, dt_ms);
+    else {
+        o->t += dt_ms;
+        o->facc = 0.0;
+        o->xa = 0.0;
+    }
     unsigned guard = 0;
     for (;;) {
         /* FIX-13 (X-11): a corrupt .MOV with all-zero frame durations would
@@ -698,14 +758,21 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
             if (s->nfr == 0)
                 break;
             o->fi = 0;                          /* no way out: loop the state */
-            o->x = o->bx;
-            o->y = o->by;
+            if (!(s->ctrl & LL_CTRL_BY_X)) {    /* walking keeps its position */
+                o->x = o->bx;
+                o->y = o->by;
+            }
             o->gen = 0;
         }
         ll_mov_fr *f = &s->fr[o->fi];
-        if (o->t < f->ms)
+        int walk = (s->ctrl & LL_CTRL_BY_X) && s->fx != 0;
+        if (walk ? o->facc < (double)f->ms      /* units, not ms: the same    */
+                 : o->t < f->ms)                /* slot read both ways        */
             break;
-        o->t -= f->ms;
+        if (walk)
+            o->facc -= (double)f->ms;
+        else
+            o->t -= f->ms;
         o->x += f->dx;             /* the authored "N,ms, M dx,dy" motion  */
         o->y += f->dy;             /* directive of the frame being held    */
         o->gen |= f->gen;          /* `GEN K_GENn`: raised as the frame ends */
@@ -1184,6 +1251,140 @@ out:
     return rc;
 }
 
+/* PR-79 selftest, data-free: BY_X states walk at F/4 px/s, advance their
+ * frames by MOVEMENT UNITS (the frame list's second field, not ms), keep
+ * their position across state-list loops, and flip at the bounds= patrol
+ * range. A time-driven or wrong-scale mutation fails here: time-driven
+ * never moves x and raises t; F px/s moves 4x too far; a position reset
+ * at the state loop lands on the anchor. */
+static int obj_motion_selftest(void)
+{
+    static const char run[] =
+        "A_RUN\n\n[A_RUN]\ncontrol=BY_X\nF=100,0\nT=40,0\n1,4\n2,4\n";
+    static const char halt[] =
+        "A_RUN\n\n[A_RUN]\ncontrol=BY_X\nF=0,0\nT=30,0\n1,4\n2,4\n";
+    static const char hit[] =
+        "A_RUN\nA_HIT\n\n[A_RUN]\ncontrol=BY_X\nF=100,0\nT=40,0\n"
+        "A_HIT(1)=K_GEN1\n1,4,GEN K_GEN1\n2,4\n\n[A_HIT]\ncontrol=BY_TIME\n"
+        "A_RUN(1)=AC_BREAK_NEXT\n1,100\n";
+    int rc = 1;
+    ll_mov_t *m1 = calloc(1, sizeof *m1), *m2 = calloc(1, sizeof *m2);
+    obj_script s1, s2;
+    lvl_obj a, b;
+
+    if (!m1 || !m2)
+        goto out;
+    memset(&s1, 0, sizeof s1);
+    memset(&s2, 0, sizeof s2);
+    memset(&a, 0, sizeof a);
+    memset(&b, 0, sizeof b);
+    ll_mov_parse(run, m1);
+    ll_mov_parse(halt, m2);
+    s1.mov = m1;
+    s2.mov = m2;
+    a.sc = &s1;
+    b.sc = &s2;
+    if (m1->nst != 1 || m1->st[0].fx != 100 || m1->st[0].fr[0].ms != 4) {
+        fprintf(stderr, "motion selftest: FAILED F=/units did not parse "
+                        "(nst %d fx %d ms %u)\n", m1->nst, m1->st[0].fx,
+                        m1->st[0].fr[0].ms);
+        goto out;
+    }
+    /* 1. speed: 4 ticks x 100 ms at F=100 = 25 px/s = exactly 10 px
+     * (an F-as-px/s mutation moves 40; a time-driven model moves 0 and
+     * raises t); time is never consumed by walking states */
+    a.bx = a.x = 0;
+    a.b0 = a.b1 = -1;
+    for (int i = 0; i < 4; i++)
+        obj_advance(&a, 100);
+    if (a.x != 10 || a.t != 0) {
+        fprintf(stderr, "motion selftest: FAILED BY_X walk: x %d t %u"
+                        " (want 10 px at F/4 px/s, time untouched)\n",
+                a.x, a.t);
+        goto out;
+    }
+    /* 4 ticks x 50 ms = 5 px at 25 px/s (an F-as-px/s mutation moves
+     * 20). Frames advance on UNITS: the 4-unit frame completes once
+     * (fi=1) at 5 px. Then 4 more ticks: the second frame completes at
+     * 8 px, the state list ends and loops - a state loop that snapped to
+     * the anchor lands back on 100 instead of 110 */
+    memset(&a, 0, sizeof a);
+    a.sc = &s1;
+    a.bx = 100;
+    a.x = 100;
+    a.b0 = a.b1 = -1;
+    for (int i = 0; i < 4; i++)
+        obj_advance(&a, 50);
+    if (a.x != 105 || a.fi != 1 || a.t != 0) {
+        fprintf(stderr, "motion selftest: FAILED unit-driven frames: x %d"
+                        " fi %d t %u (want 105 px, frame index 1, no"
+                        " time consumed)\n", a.x, a.fi, a.t);
+        goto out;
+    }
+    for (int i = 0; i < 4; i++)
+        obj_advance(&a, 50);
+    if (a.x != 110 || a.sti != 0) {
+        fprintf(stderr, "motion selftest: FAILED state loop: x %d sti %d"
+                        " (want 110: a walker keeps its position)\n",
+                a.x, a.sti);
+        goto out;
+    }
+    /* 2. bounds= flip: patrol 10..26 starting at x=20 walking right
+     * (dir 0 = the initial estimate); 50 steps x 40 ms = 50 px of travel
+     * hits the right edge at step 6, the left edge at 22, the right edge
+     * again at 38, and stops at x=14 walking left. The anchor (20) is
+     * never re-occupied: a state loop must not snap a walker back. */
+    memset(&a, 0, sizeof a);
+    a.sc = &s1;
+    a.bx = 20;
+    a.x = 20;
+    a.b0 = 10;
+    a.b1 = 26;
+    for (int i = 0; i < 50; i++)
+        obj_advance(&a, 40);
+    if (a.x != 14 || a.dir != -1) {
+        fprintf(stderr, "motion selftest: FAILED bounds flip: x %d dir %d"
+                        " (want 14 walking left inside 10..26)\n",
+                a.x, a.dir);
+        goto out;
+    }
+    /* 3. F=0: no movement at all (the walk model has nothing to
+     * accumulate; the frame list falls back to time - estimate) */
+    b.bx = b.x = 5;
+    b.b0 = b.b1 = -1;
+    for (int i = 0; i < 100; i++)
+        obj_advance(&b, 40);
+    if (b.x != 5) {
+        fprintf(stderr, "motion selftest: FAILED F=0 walk state moved to"
+                        " x %d (want: stays at 5)\n", b.x);
+        goto out;
+    }
+    /* 4. a walker keeps its position ACROSS states: it GENs into a
+     * BY_TIME state and AC_BREAK_NEXTs back. Walking 5 px at tick 4
+     * enters A_HIT at x=105 (no snap to the 100 anchor), the hit frame
+     * ends at tick 6 back in A_RUN at x=105, and ticks 7-8 walk on:
+     * x=107. An always-snap mutation lands at 102 */
+    ll_mov_parse(hit, m2);
+    memset(&b, 0, sizeof b);
+    b.sc = &s2;
+    b.bx = 100;
+    b.x = 100;
+    b.b0 = b.b1 = -1;
+    for (int i = 0; i < 8; i++)
+        obj_advance(&b, 50);
+    if (b.x != 107 || b.sti != 0) {
+        fprintf(stderr, "motion selftest: FAILED cross-state carry: x %d"
+                        " sti %d (want 107 back in A_RUN: transitions keep"
+                        " a walker's position)\n", b.x, b.sti);
+        goto out;
+    }
+    rc = 0;
+out:
+    free(m1);
+    free(m2);
+    return rc;
+}
+
 static int obj_layer_selftest(void);
 
 /* FIX-13 (X-11) selftest, test-only entry point (ll_level.h): proves the
@@ -1192,7 +1393,12 @@ static int obj_layer_selftest(void);
  *      pinned);
  *   2. obj_advance terminates on an all-zero-ms cycle (the guard). The
  *      proof is that this RETURNS - the CI legs run it under a timeout,
- *      so a regression HANGS (caught) instead of passing silently. */
+ *      so a regression HANGS (caught) instead of passing silently.
+ * The chain this entry point also runs (PR-49..79) covers the frame
+ * grammar, anchored draw, shape geometry, push-out, object layers, the
+ * object state machine and the PR-79 walking model (obj_motion_selftest:
+ * speed F/4 px/s, unit-driven frame advance, bounds= flip, and no anchor
+ * snap at state loops or state transitions). */
 int ll_mov_selftest(void)
 {
     ll_mov_t *m = calloc(1, sizeof *m);
@@ -1335,7 +1541,8 @@ int ll_mov_selftest(void)
     /* PR-46: the element SHAPE geometry leg (no window, no game data). */
     if (seq_codec_selftest() != 0 || seq_anchor_selftest() != 0 ||
         seq_shape_selftest() != 0 || seq_push_selftest() != 0 ||
-        obj_layer_selftest() != 0 || obj_state_selftest() != 0) {
+        obj_layer_selftest() != 0 || obj_state_selftest() != 0 ||
+        obj_motion_selftest() != 0) {
         free(sc.mov);
         free(m);
         return 1;
@@ -1344,7 +1551,7 @@ int ll_mov_selftest(void)
     free(sc.mov);
     free(m);
     printf("mov selftest: duration clamp + cycle guard + per-state seq= art"
-           " selection + patch codecs + anchored draw + shape geometry + push-out + object layers + object state machine (ok)\n");
+           " selection + patch codecs + anchored draw + shape geometry + push-out + object layers + object state machine + object walking motion (ok)\n");
     return 0;
 }
 

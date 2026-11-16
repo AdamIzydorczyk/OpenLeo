@@ -190,17 +190,26 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 
 ## 7. Open questions (ranked by how much they block)
 
-0. SCENE OBJECT MOTION (floating FIXED in PR-78; animation speed and walking
-   still open): the owner reported only the
-   WORMS (LICHA) animate too fast, and that they float ~30 units above the
-   ground the lion walks on (lion feet 680 on ZARIA_A.PLT; LICHA placed at
-   y=650). licha3.mov A_RUN is `BY_X|CHECK_LN`, F=100 T=40 G=0,100, frames
-   `-n,4` (4 ms): the port animates scene objects by time only, never moves
-   them (no F/T/G physics) and never drops them onto the .PLT. Hypotheses to
-   verify, not facts: (a) BY_X states advance their frames by distance
-   travelled, not time; (b) CHECK_LN objects fall onto the ground line. The
-   lion looked fine to the owner, so ll_player's own frame advance may already
-   be right - compare ll_player_frame with obj_advance.
+0. SCENE OBJECT MOTION (SOLVED in PR-79, 2026-11-16): the units were
+   MEASURED on the gameplay video (geometry pinned: the 640x480 video is a
+   uniform 2.0x of a 320x240 game screen - worm template scores 0.644 at
+   2.0x2.0 vs 0.593 at 2.0x2.4, and the on-screen lion is ~125 px = art
+   64 px x 2.0). Facts: the frame list's 2nd field is MOVEMENT UNITS per
+   animation frame for BY_X states (worm authored 4 = measured 3.0-3.75
+   game px/frame; rhino authored 7 = measured 7-10), and ms elsewhere (the
+   BY_TIME path is unchanged). Speed = F/4 game px/s: ZARIA.01 worm
+   (F=100,T=40) and the camera-following lion A_WALK (F=100,T=20) both
+   move 25 px/s (camera shifts measured 2 px/video-frame = 25 game px/s);
+   the NOSOROG rhino (F=180) covers its track 1.8x faster = the F ratio.
+   Equal F + different T = same speed, so T is NOT speed - T's semantics
+   stay unresolved (no action taken; ll_play.c's older "walk at +/-T cap,
+   F=accel" reading contradicts these object measurements and must be
+   revisited in T1). bounds= IS the patrol range (measured: the worm stays
+   inside 100,180). Estimates (labelled in code): initial walk direction
+   +1 (no .des key names it; video shows both directions), and BY_X with
+   F=0 falls back to time-driven frames without moving (no measured F=0
+   walk state exists on video; a frozen list could deadlock). The former
+   hypotheses (a)/(b) are both confirmed: (b) landed in PR-78.
 1. F/FC frame directives (jump distance; also enemy/projectile motion) -
    parser evidence now narrows this: `F` and `FC` each parse an `(x,y)` pair
    into a directive record; the handler accumulates both coordinates into
@@ -249,10 +258,13 @@ box (`AC_RECT`) and the damage to enemies are decided (enemy hit method slot
 the contact damage. Done when: a scripted run kills one LICHA and a pin shows it.
 
 **T3. Enemy behaviour.**
-Patrol between `bounds=`, detect within `scope=`, `AC_ENEMY_ATC` attack, the
+Patrol between `bounds=` (LANDED in PR-79: BY_X states walk at F/4 px/s and
+flip at the bounds range), detect within `scope=`, `AC_ENEMY_ATC` attack, the
 `ATC_ON/OFF` directives and the `F` motions in their scripts. Needs T1's `F`
 semantics and open question 3. Done when: ZARIA.01's LICHA/PAJAK/NOSOROG move
 and attack in a headless run (log pins), and the contact damage uses the state.
+(Partially met: they MOVE - the verify-play pin now hits a WALKING LICHA at
+tick 199.)
 
 **T4. Signal bus, pickups, inventory.**
 Resolve open question 2, then: the `GEN`/signal delivery between objects, the
