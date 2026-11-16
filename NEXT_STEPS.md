@@ -3083,6 +3083,25 @@ engine-side).
     is assumed K_GEN1), the other pickups (GRABOBJ 0x3db90 handler, KORONA,
     SURPRISE), score/points, the pop sound.
 
+## PR-71 — the contact pass is ON by default (not on RAN.01) (DONE 2026-11-16)
+
+  - Every gate of the pass now comes from the game's code (list/flag/plane
+    gates PR-60/61, solid response PR-58/59, SEMI_SOLID PR-62, enemy damage
+    PR-68, balloon PR-70), so it is the default: LEO_PLAY_SOLID=0 turns it
+    off, =1 forces it on. RAN.01 is excluded by default: it is the balloon-
+    flight level (walkthrough: fly right, defend the canopy), its lion
+    walks only because the port has no balloon control mode, and the
+    invisible EDGE solids that stop that walk at x~135 cannot be judged.
+  - Measured with the default (600 ticks of held FWD/BKWD on the 11 other
+    levels): only ZARIA.01 FWD touches anything - the first LICHA at
+    x~100 (49 contacts, 10 hits, one respawn: the lion cannot jump or fight
+    yet, so it stays pushed against it); the rest of the walks are free.
+  - The pins that need the pass set LEO_PLAY_SOLID=1 explicitly (RAN.01
+    contact, ZARIA.01 LICHA hit); verify-all unchanged otherwise.
+  - Next: the lion's moves (jump, attack: the K_JUMP/K_FIRE/K_F1.. keys and
+    the lion's attack damage vs enemy energy=), the balloon control mode of
+    RAN, the unported signal bus (pickups, platforms, AC_* actions).
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

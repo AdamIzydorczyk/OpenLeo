@@ -173,10 +173,12 @@ with the .SEQ art each script state selects through its own `seq=`.
 is bounded: 24 placements, then the count of the rest; the same bound
 applies to the per-tick advance lines). `LEO_LEVEL_CAMY=<px>` sets the
 initial VERTICAL camera (CI; in play mode the camera follows the lion's
-feet, Up/Down pan it in the viewer). `LEO_PLAY_SOLID=1` (play mode)
-turns on the experimental solid-object contact pass (ll_seq_shape_push, the
-game's FUN_00053ae0 response for SOLID/SOLID2 objects; off by default - which
-object pairs the game tests is not resolved). `ll_level --mov-selftest` runs
+feet, Up/Down pan it in the viewer). `LEO_PLAY_SOLID=0|1` (play mode) forces the object-contact pass off/on:
+solid objects push the lion (ll_seq_shape_push, the game's FUN_00053ae0),
+enemies hurt him by their authored damage= (HUD energy/lives follow) and
+balloons heal him. Default: ON for every level except RAN.01 (the
+balloon-flight level, whose walking start is not what the game plays).
+`ll_level --mov-selftest` runs
 the hermetic .MOV duration/cycle + per-state art-selection + patch-codec
 + anchored-draw + element shape-geometry checks (no data needed).
 

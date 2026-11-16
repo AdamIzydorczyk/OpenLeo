@@ -1342,6 +1342,7 @@ typedef struct {
     ll_play_keys keys;                      /* held arrows (live path)    */
     int layer;                              /* the lion's layer = main_back */
     int energy, lives, lock;                /* PR-68: 100 / 6 / hurt-lock ticks */
+    int solid;                              /* PR-71: contact pass on/off      */
 } play_ctx;
 
 static ll_play_keys script_keys(const char *s, int tick)
@@ -1450,16 +1451,10 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                          int verbose, int tick)
 {
 
-    static int on = -1;
-
-    if (on < 0) {
-        const char *e = getenv("LEO_PLAY_SOLID");
-        on = e && *e && *e != '0';
-    }
     pl->p.support = 0;
     if (pl->lock > 0)
         pl->lock--;
-    if (!on || !pl->have || pl->p.sti >= pl->mov->nst)
+    if (!pl->solid || !pl->have || pl->p.sti >= pl->mov->nst)
         return;
     const ll_mov_st *ls = &pl->mov->st[pl->p.sti];
     if (ls->ctrl & LL_CTRL_ANTI_SOLID)
@@ -3347,6 +3342,12 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     play_ctx pl;
     memset(&pl, 0, sizeof pl);             /* LEO_PLAY wiring (4c below)   */
     pl.layer = par.ref;                    /* the lion lives on main_back  */
+    {   /* PR-71: the contact pass is ON for every level but RAN.01 (the
+         * balloon-flight level: its walking start is not what the game
+         * plays there); LEO_PLAY_SOLID=0/1 forces it either way */
+        const char *sv = getenv("LEO_PLAY_SOLID");
+        pl.solid = (sv && *sv) ? *sv != '0' : !ci_eq(level, "RAN.01");
+    }
     pl.energy = 100;                       /* 0x503ac: energy 100 at (re)start */
     pl.lives = 6;                          /* the playthrough video's start    */
     hud_t hud;
