@@ -190,26 +190,34 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 
 ## 7. Open questions (ranked by how much they block)
 
-0. SCENE OBJECT MOTION (SOLVED in PR-79, 2026-11-16): the units were
-   MEASURED on the gameplay video (geometry pinned: the 640x480 video is a
-   uniform 2.0x of a 320x240 game screen - worm template scores 0.644 at
-   2.0x2.0 vs 0.593 at 2.0x2.4, and the on-screen lion is ~125 px = art
-   64 px x 2.0). Facts: the frame list's 2nd field is MOVEMENT UNITS per
-   animation frame for BY_X states (worm authored 4 = measured 3.0-3.75
-   game px/frame; rhino authored 7 = measured 7-10), and ms elsewhere (the
-   BY_TIME path is unchanged). Speed = F/4 game px/s: ZARIA.01 worm
-   (F=100,T=40) and the camera-following lion A_WALK (F=100,T=20) both
-   move 25 px/s (camera shifts measured 2 px/video-frame = 25 game px/s);
-   the NOSOROG rhino (F=180) covers its track 1.8x faster = the F ratio.
-   Equal F + different T = same speed, so T is NOT speed - T's semantics
-   stay unresolved (no action taken; ll_play.c's older "walk at +/-T cap,
-   F=accel" reading contradicts these object measurements and must be
-   revisited in T1). bounds= IS the patrol range (measured: the worm stays
-   inside 100,180). Estimates (labelled in code): initial walk direction
-   +1 (no .des key names it; video shows both directions), and BY_X with
-   F=0 falls back to time-driven frames without moving (no measured F=0
-   walk state exists on video; a frozen list could deadlock). The former
-   hypotheses (a)/(b) are both confirmed: (b) landed in PR-78.
+0. SCENE OBJECT MOTION (SOLVED in PR-79, 2026-11-16; basis re-checked
+    2026-11-16 with direct vision - model unchanged, claims relabelled):
+    the 640x480 gameplay video IS a uniform 2.0x of a 320x240 game
+    screen (re-verified by eye: the on-screen worm is 38-40 game px =
+    its 38 px art x 2.0 on a 1-game-px grid; 2.4x is visibly too big).
+    DATA-INTERNAL (no video): the frame list's 2nd field is MOVEMENT
+    UNITS per animation frame for BY_X states and ms elsewhere - the
+    same LICHA3 .MOV authors 4 in its BY_X A_RUN list and 400/200 in
+    its BY_TIME states. Model: speed = |F|/4 game px/s, frame advance
+    on units, bounds= patrol flip, no time consumed while walking;
+    BY_X with F=0 falls back to time-driven frames without moving
+    (labelled estimate). CORROBORATED on video: the ZARIA.01 worm's
+    walk bursts average ~20-30 px/s with F=100 -> 25 px/s expected,
+    pause-then-walk bursts consistent with A_RUN vs A_ATAK state
+    gating; its 9x4-unit stride = 1.44 s matches the observed pose
+    rhythm; walk range consistent with the authored bounds. WITHDRAWN
+    (re-check): the per-frame "worm 3.0-3.75 px/frame / rhino 7-10 px"
+    numbers (pose deformation tracked, not locomotion), the camera-band
+    shift speeds (parallax + animation; the ground layer must be the
+    reference, and automated tracking there failed), and the "lion
+    25 px/s via camera follow" anchor. bounds= key is authored patrol
+    data; new census lead: bounds= exists only on placements whose
+    script has a CH_DIR state (8/8 sampled, 0/14 without) and 93/105
+    BY_X states carry CH_DIR - likely the flip flag (open for T3).
+    Estimates unchanged: initial walk direction +1; T's semantics stay
+    unresolved (ll_play.c's older "walk at +/-T cap, F=accel" reading
+    still contradicts the object data and must be revisited in T1).
+    The former hypotheses (a)/(b) are both confirmed: (b) landed in PR-78.
 1. F/FC frame directives (jump distance; also enemy/projectile motion) -
    parser evidence now narrows this: `F` and `FC` each parse an `(x,y)` pair
    into a directive record; the handler accumulates both coordinates into
@@ -259,7 +267,9 @@ the contact damage. Done when: a scripted run kills one LICHA and a pin shows it
 
 **T3. Enemy behaviour.**
 Patrol between `bounds=` (LANDED in PR-79: BY_X states walk at F/4 px/s and
-flip at the bounds range), detect within `scope=`, `AC_ENEMY_ATC` attack, the
+flip at the bounds range; re-check census: bounds= only exists on CH_DIR
+scripts and 93/105 BY_X states carry CH_DIR - resolve whether CH_DIR is
+the flip flag before wiring it), detect within `scope=`, `AC_ENEMY_ATC` attack, the
 `ATC_ON/OFF` directives and the `F` motions in their scripts. Needs T1's `F`
 semantics and open question 3. Done when: ZARIA.01's LICHA/PAJAK/NOSOROG move
 and attack in a headless run (log pins), and the contact damage uses the state.

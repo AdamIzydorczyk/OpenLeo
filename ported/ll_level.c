@@ -396,8 +396,10 @@ int ll_level_anims(const char *dir, const char *level)
  * plus the player-facing extension documented in ll_play.h (F=/T=/G=
  * physics, TARGET(n)=COND transitions, control= flags, per-state seq=).
  * Scene objects read that too: control=BY_X states WALK at F/4 px/s and
- * their frame lists' second field counts movement units (PR-79, measured
- * on video: see obj_walk below); everything else keeps the frame-list
+ * their frame lists' second field counts movement units - that slot is
+ * authored BOTH ways across the shipped scripts, and only BY_X states
+ * read it as units (PR-79; basis re-labelled 2026-11-16, the model
+ * stands: see obj_walk below). Everything else keeps the frame-list
  * time semantics through obj_advance/obj_elem. */
 
 /* ---------------- scene objects (PR-45: the authored scene) ------------
@@ -691,21 +693,30 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
     return 0;
 }
 
-/* PR-79: BY_X states WALK, and the units are measured, not guessed
- * (video ZARIA.01, geometry 2.0x of a 320x240 game screen, see HANDOFF):
- * a state's F= value is its speed scale, fx/4 game px/s (the ZARIA.01
- * worm F=100 and the camera-following lion A_WALK F=100 both move at
- * 25 px/s; the NOSOROG rhino F=180 covers its track 1.8x faster, matching
- * the F ratio); the frame list's second field is MOVEMENT UNITS per
- * animation frame, not milliseconds (authored 4 for the worm, measured
- * 3.0-3.75 px/frame; authored 7 for the rhino, measured 7-10 px between
- * its walk elements). Time is NOT consumed by walking states. The initial
- * facing has no data key: +1 (right) is the port's estimate; bounds= is
- * the patrol range the flip happens at (measured: the LICHA worm stays
- * inside 100,180). With F=0 nothing accumulates, so the state keeps the
- * old time-driven frame advance without moving - an estimate: no measured
- * F=0 walk state exists on video (a frozen frame list could deadlock,
- * so this is the safe reading). */
+/* PR-79: BY_X states WALK. The frame-list slot semantics are data-
+ * internal: the same .MOV authors the second frame-list field as ms for
+ * BY_TIME states (400/200) and as 4 for its BY_X state - ZARIA.01's
+ * LICHA3 A_RUN - so a BY_X frame list counts MOVEMENT UNITS per
+ * animation frame, not ms (no video needed; the PR-79 "measured
+ * 3.0-3.75 px/frame" per-frame claim was withdrawn in the 2026-11-16
+ * re-check: the blob centroid tracked pose deformation, the worm's walk
+ * cycle itself rears vertical S-coil poses, and the camera-band shift
+ * method tracked parallax layers, not the ground). The scale claim
+ * stands as CORROBORATED: on the video (geometry 2.0x of a 320x240
+ * screen, pinned) the ZARIA.01 worm's walk bursts average ~20-30 px/s
+ * with its authored F=100 -> |fx|/4 = 25 px/s, and its 9-frame x 4-unit
+ * stride cycle = 1.44 s, matching the observed stride rhythm; T's
+ * semantics stay unresolved and nothing is built on it. bounds= is the
+ * authored patrol key; the flip is modelled at its edges. New lead
+ * (2026-11-16 census): bounds= appears ONLY on placements whose script
+ * carries a CH_DIR state (8/8 sampled; 0/14 without), and 93 of the 105
+ * BY_X states carry CH_DIR - CH_DIR is likely the flip flag; not
+ * explored yet. The video also shows pause-in-place-then-walk bursts:
+ * state-gating (A_ATAK/DANGER vs A_RUN), not modelled. The initial
+ * facing has no data key: +1 (right) remains the port's estimate. With
+ * F=0 nothing accumulates, so the state keeps the old time-driven frame
+ * advance without moving: kept as the safe reading (a frozen list could
+ * deadlock; no shipped game shows a stationary BY_X walk). */
 static void obj_walk(lvl_obj *o, const ll_mov_st *s, unsigned dt_ms)
 {
     double dist = (double)(s->fx >= 0 ? s->fx : -s->fx) * dt_ms / 4000.0;

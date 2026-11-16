@@ -635,8 +635,9 @@ ifeq ($(PX_DATA),1)
 # PR-68: enemy stats from the placement file (damage=/bounds=/scope=/energy=):
 # ZARIA.01's first LICHA (120,650, damage 15) hurts the lion at tick 199.
 # (Pinned history: 163 while the worms floated 30 units up -> 138 after the
-# PR-78 CHECK_LN settle -> 199 with PR-79 walking: the worm now patrols its
-# bounds=100,180 range at F/4 = 25 px/s instead of sitting at x=120.)
+# PR-78 CHECK_LN settle -> 199 with PR-79 walking: the worm patrols its
+# bounds=100,180 range at the model speed (|F|/4 = 25 px/s) instead of
+# sitting at x=120. The tick itself is a model pin, not a video number.)
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SOLID=1 \
 	  LEO_PLAY_SCRIPT="1:FWD" LEO_LEVEL_PPM=/tmp/opencode/ly_hit.ppm \

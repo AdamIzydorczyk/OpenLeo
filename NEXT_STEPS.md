@@ -3373,6 +3373,50 @@ engine-side).
     lionmask.png, lionid.png. The .MOV inventory of all 105 BY_X states
     (F/T/frame-unit matrix) supports the F model; see /tmp/opencode/mov.
 
+### PR-79 verification re-check (same day, direct vision; PR-80, docs+labels only)
+
+  - CONFIRMED by eye: the 2.0x geometry (worm-sheet + 1-game-px grid:
+    on-screen worm 38-40 game px = MOVE.SEQ el6 38 px x2.0; 2.4x
+    visibly too long); the sprite reconstructions (strip_MOVE.png = the
+    green worm with blue eyes, strip_WALK.png = the lion cycle); the
+    vertical "rearing S-coil" poses in the video ARE the MOVE.SEQ art
+    (el0 18x27, el1 24x25) - an animation pose at fixed feet, so no
+    y-motion model is needed for walkers.
+  - DATA-INTERNAL (stronger than any video claim): LICHA3.MOV's A_RUN
+    is `control=BY_X` with every frame authored `N,4` while the same
+    file's BY_TIME states author `N,400`/`N,200` in the same slot -
+    the unit-vs-ms slot conflict is proven by the shipped data.
+  - CORROBORATED: walk-burst speeds ~20-30 px/s vs F=100 -> F/4 = 25
+    px/s; pause-in-place (A_ATAK/BY_TIME-style, and gated runs) between
+    walk bursts = the state machine, which the port already models
+    (walk only happens in BY_X states); observed range consistent with
+    authored bounds=100,180 (80 game px; the worm leaving the crop
+    window matches crossing its lower edge).
+  - WITHDRAWN from the record above (keep the text, distrust these
+    numbers): "worm 3.0-3.75 px per displayed frame" and "rhino 7-10
+    px between elements" (measured pose deformation, not locomotion);
+    "camera band-shifts 2 px/video-frame" as the speed method (the
+    y350-470 band mixes parallax layers and the worm's own animation;
+    whole-band and tree-template re-attempts stayed contradictory);
+    "lion at 25 px/s via camera follow" as an independent anchor. The
+    rhino 1.8x ratio note leans on the same suspect method.
+  - NEW CENSUS (lead for T3): across the sampled placement .des files,
+    bounds= appears ONLY on placements whose script has a CH_DIR state
+    (8/8 with, 0/14 without); across 777 extracted .MOV scripts / 2317
+    states: CH_DIR 556 states, BY_X 105 states, 93 BY_X states also
+    CH_DIR. CH_DIR is likely the direction-flip flag that pairs with
+    bounds=; resolve before wiring the flip to the flag itself.
+  - Methods that failed (do not retry naively): color-centroid blob
+    tracking on the ground band (foreground plants share the worm's
+    greens; 12-22k px plant blobs), blue-eye-color masks (the scene
+    has ~30-50 blue-cyan background blobs), band/region cross-
+    correlation for camera shift (parallax + animated scenery).
+  - No behavior change in PR-80: obj_walk/obj_advance/obj_transition
+    and obj_motion_selftest are unchanged; only the measurement-basis
+    wording in ll_level.c, HANDOFF.md and the Makefile pin comment is
+    relabelled. The verify-play tick-199 pin is a model pin, not a
+    video measurement.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
