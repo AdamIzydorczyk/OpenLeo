@@ -2127,6 +2127,11 @@ target failures; the fixture-free config (`DATA=<absent> HD=<absent>`)
 EXIT=0 with 23 named SKIPs, zero failures, and the selftest still
 running; verify-arch green (no new SDL include - ll_play/ll_level stay
 engine-side).
+  - PR-44 pushed 634cb82; CI run 43824561094: linux + asan +
+    windows-smoke ALL green on the first pass. On the runner the
+    hermetic leg printed the new summary line ("an authored-empty '0'
+    ground is data not an error") and the ten data legs printed their
+    named SKIP, exactly as the fixture-free contract requires. CLOSED.
 
 ## Next — pick from the Deferred list below
 
