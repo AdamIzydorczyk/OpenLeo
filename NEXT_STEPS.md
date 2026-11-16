@@ -2929,6 +2929,32 @@ engine-side).
     RAN.01 checked by eye at cam 0 and 3000 (mountains shift 240 px, no
     seam). README/Makefile wording updated.
 
+## PR-65 — world extent of the "back_rect hole" levels, and what a playthrough video shows
+          (DONE 2026-11-16)
+
+  - Reference material (kept OUTSIDE git, /tmp/opencode/yt/, never committed):
+    a 7-minute playthrough of ZARIA.01 ("Let's play ... Lew Leon PL - Pierwsze
+    Kroki", a YouTube video the owner suggested), frames at 6 s steps.
+    What it shows: the intro chain (LERYX LONGSOFT / CD PROJEKT credits, the
+    title, the story cutscenes), the island map with "start" on the first
+    (jungle) island, then ZARIA.01 itself: the game view is 640x400 inside
+    the 640x480 mode (black bars 40 px top and bottom), HUD = a lion head
+    with a red number at the bottom-left (6 on screen) and an item box at the
+    bottom-right; red balloons, banana bunches, rhino, a ladder that unrolls,
+    sign boards, the vulture that grabs the lion and carries it over the
+    treetops (the walkthrough's end of the level).
+  - Data fact checked against it: levels without back_rect (SADES.06,
+    TUNGA2.12, ZARIA.01/.02) took "one screen" as the world. The engine
+    clamps the camera to the reference layer (main_back), so that layer's own
+    art is the world: ZARIA.01/.02 2240x700, TUNGA2.12 2560x800, SADES.06
+    960x3000 (a vertical shaft, as the walkthrough's "swim down" says).
+    Measured proof: placements inside the world rose from 29 -> 53 of 53
+    (ZARIA.01), 63/63 (ZARIA.02), 118/118 (TUNGA2.12), 405/419 (SADES.06).
+  - Not done (evidence now available): the viewer window is the .PCX size
+    (960x475 on ZARIA) while the game's view is 640x400 with the HUD; adopting
+    it means cropping the layers to 640x400, adding the HUD (lives/energy
+    number, item box) and re-pinning the frame legs.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

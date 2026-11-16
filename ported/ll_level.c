@@ -2894,6 +2894,21 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     for (int q = 0; q < par.n; q++)
         printf(" %d,%d", par.sx[q], par.sy[q]);
     printf("\n");
+    if (world_w == 0)
+        for (int k = 0; k < nlay; k++)
+            if (lay_tix[k] == par.ref) {
+                /* PR-65: no back_rect (SADES, TUNGA2, ZARIA.01/.02: the CD
+                 * hole). The engine's camera is clamped to the reference
+                 * layer main_back (FUN_00057590 reads its extent), and the
+                 * reference layer's own art is the world: ZARIA.01's PLAN1
+                 * is 2240x700 - the same size KADMAR.07 authors as back_rect
+                 * - and a playthrough video scrolls over such a world. */
+                world_w = (int)lay[k].w;
+                world_h = (int)lay[k].h;
+                printf("ll_level: no back_rect: world %dx%d taken from the"
+                       " reference layer (main_back %d)\n", world_w, world_h,
+                       par.ref);
+            }
     int cw = (int)img.w, ch = (int)img.h;
     unsigned char *view = NULL;
     unsigned char scenepal[768];
