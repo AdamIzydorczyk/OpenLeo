@@ -491,9 +491,17 @@ typedef struct {                     /* one placement of a script        */
     unsigned gen;                    /* PR-69: pending K_GEN1..4 pulses    */
     /* PR-79: BY_X walking (see obj_walk): fractional-pixel carry, units
      * accumulated toward the next frame, and the patrol direction
-     * (0 = never flipped: walks right - no .des key names it, estimate) */
+     * (0 = never flipped: walks right - PR-81 shows that is what the
+     * authored frame sign draws). PR-81: face is the instance FACING set
+     * by walking in control=CH_DIR states (the census pairs bounds= with
+     * CH_DIR, and matching the art in both polarities the winner flips
+     * with the travel direction). frame numbers already carry the
+     * authored base facing in their sign (LICHA's art faces left, its
+     * walk list is all-negative and the game draws it facing RIGHT);
+     * face=-1 adds a second mirror on top. Initialized +1 at placement =
+     * no extra mirror, so non-walkers are unaffected. */
     double xa, facc;
-    signed char dir;
+    signed char dir, face;
 } lvl_obj;
 
 typedef struct {                     /* one level's authored scene: the
@@ -615,6 +623,19 @@ static int obj_visible(const lvl_obj *o, int cw, int ch, int cam, int camy)
     return 1;
 }
 
+/* The draw mirror of a placement: the authored frame sign (obj_elem) plus
+ * the facing a CH_DIR walker turned into (PR-81). face=+1 or 0 (never
+ * turned, or a non-walker: the placement builder sets +1) draws exactly
+ * what the frame line asks for; face=-1 adds one mirror, which is what
+ * the video shows - matching the worm art in BOTH polarities, the winner
+ * flips with the travel direction (head-right at t=204.4/211.2/212.4,
+ * head-left at t=206.9/208.0/213.2) and both polarities appear at
+ * x~330 one second apart (t=209.2 vs 210.0): one instance, turned. */
+static int obj_mirror_of(const lvl_obj *o, int authored)
+{
+    return authored ^ (o->face < 0 ? 1 : 0);
+}
+
 /* Draw one placement. The authored .des x,y is the OBJECT's position in
  * world coordinates (the PR-36/PR-44 scroll legs pin that: seen at x - cam);
  * the element subtracts its own anchor f0/f2 and a negative frame number
@@ -633,7 +654,10 @@ static void obj_draw(const lvl_obj *o, unsigned char *canvas, int cw,
     if (!a || !e)
         return;
     ll_seq_draw_elem_anchor(&a->seq, e, canvas, cw, ch, o->x - cam,
-                            o->y - camy, mirror, NULL);
+                            o->y - camy, obj_mirror_of(o, mirror), NULL);
+    /* PR-81: the facing a CH_DIR walker turned into is drawn on top of the
+     * authored frame sign; every other object keeps face=+1 and the plain
+     * authored mirror. Evidence in obj_walk's comment. */
 }
 
 /* PR-69: the object scripts are state machines, not a ring of states: a
@@ -685,6 +709,8 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
                                  * position is instance state: walking
                                  * creatures carry it across states */
         }
+        /* face is instance state too (PR-81): a creature that turned
+         * around stays turned around when it changes state */
         o->facc = 0.0;
         o->xa = 0.0;
         o->gen = 0;
@@ -707,16 +733,24 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
  * with its authored F=100 -> |fx|/4 = 25 px/s, and its 9-frame x 4-unit
  * stride cycle = 1.44 s, matching the observed stride rhythm; T's
  * semantics stay unresolved and nothing is built on it. bounds= is the
- * authored patrol key; the flip is modelled at its edges. New lead
- * (2026-11-16 census): bounds= appears ONLY on placements whose script
- * carries a CH_DIR state (8/8 sampled; 0/14 without), and 93 of the 105
- * BY_X states carry CH_DIR - CH_DIR is likely the flip flag; not
- * explored yet. The video also shows pause-in-place-then-walk bursts:
- * state-gating (A_ATAK/DANGER vs A_RUN), not modelled. The initial
- * facing has no data key: +1 (right) remains the port's estimate. With
- * F=0 nothing accumulates, so the state keeps the old time-driven frame
- * advance without moving: kept as the safe reading (a frozen list could
- * deadlock; no shipped game shows a stationary BY_X walk). */
+ * authored patrol key; the flip is modelled at its edges. CH_DIR (PR-81):
+ * the census pairs bounds= with CH_DIR (8/8 sampled placements; 0/14
+ * without; 93 of the 105 BY_X states carry it). The frame-number sign is
+ * the authored BASE facing - ZARIA.01's worm art faces left (the eye
+ * sits 11-20% from the left edge in all 9 poses) and its walk list is
+ * authored all-NEGATIVE, so the game draws it head-RIGHT - and matching
+ * the art in BOTH polarities on video, the polarity that wins flips
+ * with the travel direction: head-right while it travels right
+ * (t=204.4, 211.2, 212.4), head-left while it travels left (t=206.9,
+ * 208.0, 213.2), and both polarities at x~330 one second apart (209.2
+ * vs 210.0) = one instance turning around. So a CH_DIR state that turns
+ * at the bounds turns its facing too, mirrored on top of the frame
+ * sign. It also corroborates the initial direction +1 (right): that is
+ * what the authored sign draws. The video shows pause-in-place-then-
+ * walk bursts: state-gating (A_ATAK/DANGER vs A_RUN), not modelled.
+ * With F=0 nothing accumulates, so the state keeps the old time-driven
+ * frame advance without moving: kept as the safe reading (a frozen list
+ * could deadlock; no shipped game shows a stationary BY_X walk). */
 static void obj_walk(lvl_obj *o, const ll_mov_st *s, unsigned dt_ms)
 {
     double dist = (double)(s->fx >= 0 ? s->fx : -s->fx) * dt_ms / 4000.0;
@@ -730,10 +764,16 @@ static void obj_walk(lvl_obj *o, const ll_mov_st *s, unsigned dt_ms)
     int dir = o->dir < 0 ? -1 : 1;
     o->x += dir * px;
     if (o->b1 > o->b0) {                      /* bounds= patrol range: flip  */
-        if (dir > 0 && o->x >= o->b1)
+        if (dir > 0 && o->x >= o->b1) {
             o->dir = -1;
-        else if (dir < 0 && o->x <= o->b0)
+            if (s->ctrl & LL_CTRL_CH_DIR)
+                o->face = -1;             /* PR-81: CH_DIR = facing follows
+                                           * the movement direction */
+        } else if (dir < 0 && o->x <= o->b0) {
             o->dir = 1;
+            if (s->ctrl & LL_CTRL_CH_DIR)
+                o->face = 1;
+        }
     }
 }
 
@@ -1278,6 +1318,8 @@ static int obj_motion_selftest(void)
         "A_RUN\nA_HIT\n\n[A_RUN]\ncontrol=BY_X\nF=100,0\nT=40,0\n"
         "A_HIT(1)=K_GEN1\n1,4,GEN K_GEN1\n2,4\n\n[A_HIT]\ncontrol=BY_TIME\n"
         "A_RUN(1)=AC_BREAK_NEXT\n1,100\n";
+    static const char chd[] =
+        "A_RUN\n\n[A_RUN]\ncontrol=BY_X|CH_DIR\nF=100,0\nT=40,0\n1,4\n2,4\n";
     int rc = 1;
     ll_mov_t *m1 = calloc(1, sizeof *m1), *m2 = calloc(1, sizeof *m2);
     obj_script s1, s2;
@@ -1353,10 +1395,11 @@ static int obj_motion_selftest(void)
     a.b1 = 26;
     for (int i = 0; i < 50; i++)
         obj_advance(&a, 40);
-    if (a.x != 14 || a.dir != -1) {
+    if (a.x != 14 || a.dir != -1 || a.face != 0) {
         fprintf(stderr, "motion selftest: FAILED bounds flip: x %d dir %d"
-                        " (want 14 walking left inside 10..26)\n",
-                a.x, a.dir);
+                        " face %d (want 14 walking left inside 10..26,"
+                        " facing untouched without CH_DIR)\n",
+                a.x, a.dir, a.face);
         goto out;
     }
     /* 3. F=0: no movement at all (the walk model has nothing to
@@ -1387,6 +1430,67 @@ static int obj_motion_selftest(void)
         fprintf(stderr, "motion selftest: FAILED cross-state carry: x %d"
                         " sti %d (want 107 back in A_RUN: transitions keep"
                         " a walker's position)\n", b.x, b.sti);
+        goto out;
+    }
+    /* 5. PR-81 facing: the frame-number sign is the authored BASE facing
+     * (ZARIA.01's worm art faces left - the eye sits 11-20% from the
+     * left edge of all 9 poses - and its walk list is authored all
+     * NEGATIVE, so the game draws it head-RIGHT), and control=CH_DIR is
+     * what turns that facing when the walk turns at bounds=: the census
+     * pairs bounds= with CH_DIR (8/8 sampled placements, 0/14 without),
+     * and matching the art in both polarities on the video the winning
+     * polarity flips with the travel direction (head-right at
+     * t=204.4/211.2/212.4 while it moves right, head-left at
+     * t=206.9/208.0/213.2 while it moves left, both at x~330 one second
+     * apart = one instance turned around).
+     * 1 px per 40 ms tick at F=100: from x=20 in 10..26, 40 ticks reach
+     * the right edge (x=26) at tick 6, the left edge (x=10) at tick 22,
+     * the right edge again at tick 38, ending at x=24 facing left; 20
+     * more ticks: the left edge at tick 14, ending at x=16 facing right.
+     * Mutations: no facing update on the flip (face stays 1) or one that
+     * ignores the CH_DIR gate both fail here. */
+    ll_mov_parse(chd, m2);
+    if (!(m2->nst == 1 && (m2->st[0].ctrl & LL_CTRL_CH_DIR))) {
+        fprintf(stderr, "motion selftest: FAILED control=BY_X|CH_DIR did not"
+                        " parse (nst %d ctrl 0x%x)\n", m2->nst,
+                        m2->st[0].ctrl);
+        goto out;
+    }
+    memset(&b, 0, sizeof b);
+    b.sc = &s2;
+    b.face = 1;                          /* what the placement builder sets */
+    b.bx = 20;
+    b.x = 20;
+    b.b0 = 10;
+    b.b1 = 26;
+    for (int i = 0; i < 40; i++)
+        obj_advance(&b, 40);
+    if (b.x != 24 || b.face != -1) {
+        fprintf(stderr, "motion selftest: FAILED CH_DIR facing: x %d face %d"
+                        " (want 24 facing left after the bounds flip)\n",
+                b.x, b.face);
+        goto out;
+    }
+    for (int i = 0; i < 20; i++)
+        obj_advance(&b, 40);
+    if (b.x != 16 || b.face != 1) {
+        fprintf(stderr, "motion selftest: FAILED CH_DIR facing back: x %d"
+                        " face %d (want 16 facing right)\n", b.x, b.face);
+        goto out;
+    }
+    /* the draw mirror: authored sign preserved while facing right, XORed
+     * once turned (obj_mirror_of is what obj_draw passes to the draw) */
+    if (obj_mirror_of(&b, 0) != 0 || obj_mirror_of(&b, 1) != 1 ||
+        obj_mirror_of(&a, 1) != 1 || obj_mirror_of(&a, 0) != 0) {
+        fprintf(stderr, "motion selftest: FAILED draw mirror: facing right"
+                        " must keep the authored frame mirror, facing left"
+                        " must add one\n");
+        goto out;
+    }
+    b.face = -1;
+    if (obj_mirror_of(&b, 1) != 0 || obj_mirror_of(&b, 0) != 1) {
+        fprintf(stderr, "motion selftest: FAILED draw mirror: a turned"
+                        " CH_DIR walker must draw the other polarity\n");
         goto out;
     }
     rc = 0;
@@ -1694,7 +1798,11 @@ static const ll_seq_elem *obj_shape_elem(const lvl_obj *o, int *mirror,
     ll_frame_ref r = ll_mov_frame_ref(s->fr[fi].frame);
     if (r.blank || r.idx >= (int)a->seq.count)
         return NULL;
-    *mirror = r.mirror;
+    /* PR-81: the shape belongs to the sprite as it is DRAWN, so a turned
+     * CH_DIR walker (obj_walk keeps face) uses the same polarity as
+     * obj_draw - otherwise the push box would sit mirrored relative to
+     * the art (ll_seq_shape_push takes the object polarity directly). */
+    *mirror = obj_mirror_of(o, r.mirror);
     *seq = &a->seq;
     return &a->seq.els[r.idx];
 }
@@ -2954,6 +3062,8 @@ static void des_place_file(place_ctx *pc, const char *fname,
                 o->src = (unsigned char)pc->cur_src;
                 o->layer = (unsigned char)pc->cur_layer;
                 o->sti = sc->mov ? sc->mov->start_st : 0;   /* declared start */
+                o->face = 1;     /* PR-81: base facing = the authored draw
+                                  * (the frame sign already encodes it) */
                 o->bx = o->x = x;      /* authored position, y down: no
                                         * invented bottom-anchor. Only the
                                         * script's own " M dx,dy" frames move

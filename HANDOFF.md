@@ -187,6 +187,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | camera | ll_level.c `follow_camx/camy` | lead 100/220, ease 6 u/tick, feet 65% | video, ease rate invented |
 | contact pass default | ll_level.c | on except RAN.01 | RAN is the balloon level |
 | SEMI_SOLID | `play_collide` | only the r/5 shift | velocity add (kind 13) unit unknown |
+| SOLID push polarity | `obj_shape_elem` | shape uses the DRAW polarity incl. CH_DIR facing | consistency, not decompile-pinned (PR-81) |
 
 ## 7. Open questions (ranked by how much they block)
 
@@ -211,12 +212,21 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
     shift speeds (parallax + animation; the ground layer must be the
     reference, and automated tracking there failed), and the "lion
     25 px/s via camera follow" anchor. bounds= key is authored patrol
-    data; new census lead: bounds= exists only on placements whose
-    script has a CH_DIR state (8/8 sampled, 0/14 without) and 93/105
-    BY_X states carry CH_DIR - likely the flip flag (open for T3).
-    Estimates unchanged: initial walk direction +1; T's semantics stay
-    unresolved (ll_play.c's older "walk at +/-T cap, F=accel" reading
-    still contradicts the object data and must be revisited in T1).
+    data. SOLVED in PR-81 (the census lead is closed): walkers DO turn
+    to face their direction. The frame-number sign is the authored
+    BASE facing (ZARIA.01's worm art faces left - eye pixels 11-20%
+    from the left edge in all 9 poses - and its walk list is authored
+    all-NEGATIVE, so the game draws it head-right), and CH_DIR is what
+    turns that facing at the bounds flip: bounds= appears only on
+    placements with a CH_DIR state (8/8 vs 0/14) and matching the art
+    in BOTH polarities on video, the winning polarity flips with the
+    travel direction (head-right at t=204.4/211.2/212.4, head-left at
+    t=206.9/208.0/213.2; both at x~330 one second apart = one instance
+    turned around). Initial walk direction +1 is therefore NOT an
+    estimate any more: it is what the authored sign draws. T's
+    semantics stay unresolved (ll_play.c's older "walk at +/-T cap,
+    F=accel" reading still contradicts the object data and must be
+    revisited in T1).
     The former hypotheses (a)/(b) are both confirmed: (b) landed in PR-78.
 1. F/FC frame directives (jump distance; also enemy/projectile motion) -
    parser evidence now narrows this: `F` and `FC` each parse an `(x,y)` pair
@@ -267,14 +277,15 @@ the contact damage. Done when: a scripted run kills one LICHA and a pin shows it
 
 **T3. Enemy behaviour.**
 Patrol between `bounds=` (LANDED in PR-79: BY_X states walk at F/4 px/s and
-flip at the bounds range; re-check census: bounds= only exists on CH_DIR
-scripts and 93/105 BY_X states carry CH_DIR - resolve whether CH_DIR is
-the flip flag before wiring it), detect within `scope=`, `AC_ENEMY_ATC` attack, the
+flip at the bounds range; CH_DIR landed in PR-81 as the facing flip - the
+census pairs bounds= with CH_DIR and the video's winning art polarity flips
+with the travel direction), detect within `scope=`, `AC_ENEMY_ATC` attack, the
 `ATC_ON/OFF` directives and the `F` motions in their scripts. Needs T1's `F`
 semantics and open question 3. Done when: ZARIA.01's LICHA/PAJAK/NOSOROG move
 and attack in a headless run (log pins), and the contact damage uses the state.
-(Partially met: they MOVE - the verify-play pin now hits a WALKING LICHA at
-tick 199.)
+(Partially met: they MOVE and TURN - the verify-play pin now hits a WALKING
+LICHA at tick 199. Still open: the pause-in-place vs walk-burst state gating,
+and `scope=`.)
 
 **T4. Signal bus, pickups, inventory.**
 Resolve open question 2, then: the `GEN`/signal delivery between objects, the

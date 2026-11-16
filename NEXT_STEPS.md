@@ -3417,6 +3417,85 @@ engine-side).
     relabelled. The verify-play tick-199 pin is a model pin, not a
     video measurement.
 
+## PR-81 — CH_DIR: walkers TURN TO FACE their direction (DONE 2026-11-16)
+
+  - Question: the PR-79 walk never changed which way the sprite faced.
+    Answer from the shipped data + video: yes, they rotate.
+  - Authored base facing (data): ZARIA.01's worm art is MOVE.SEQ: the
+    eye pixels sit 11-20% from the LEFT edge in all 9 poses (el0..el8),
+    so the unmirrored art is head-LEFT; the walk list is authored all-
+    NEGATIVE (-1,4 .. -9,4 - the sign is the mirror flag, PR-49), so
+    the game draws that worm head-RIGHT. 379 of the 1282 BY_X frame
+    entries game-wide are negative; e.g. KADMAR.07_0_0 A_WALK mixes
+    both signs, so the sign cannot be a per-frame animation trick.
+  - MEASURED polarity on video (the method that worked: cv2
+    matchTemplate of every MOVE.SEQ pose >=30 px wide, x2 scale,
+    masked TM_CCOEFF_NORMED, template colors x0.81 for the scanline
+    darkening, both polarities of every pose as separate templates,
+    ground band y350..445 only). A score >=0.55 window is a worm;
+    WHICH polarity wins is the facing. ZARIA.01 t=203.5-216.5:
+
+      | window      | winning polarity | on-screen x   | travel |
+      |-------------|----------------|---------------|--------|
+      | 204.4-204.9 | head-RIGHT     | 216 -> 254    | right  |
+      | 206.9-207.6 | head-LEFT      | 498 -> 472    | left   |
+      | 208.0-208.9 | head-LEFT      | 440 -> 384    | left   |
+      | 209.2-209.6 | head-LEFT      | 378 -> 346    | left   |
+      | 210.0-210.8 | head-RIGHT     | 332 -> 278    | right  |
+      | 211.2-212.0 | head-RIGHT     | 244 -> 314    | right  |
+      | 212.4-212.8 | head-RIGHT     | 336 -> 364    | right  |
+      | 213.2-214.0 | head-LEFT      | 360 -> 298    | left   |
+      | 214.4-214.5 | head-LEFT      | 260 -> 230    | left   |
+
+    Polarity tally 44 head-LEFT frames / 38 head-RIGHT. Every segment
+    faces its on-screen travel direction, and the polarity flips at the
+    same place within one second (x~330-350 at 209.2 vs 210.0): one
+    instance turned around. The on-screen dx is camera-contaminated,
+    the polarity flip is not.
+  - CENSUS (extends the PR-80 lead, /tmp/opencode/chdir_census.txt):
+    bounds= appears ONLY on placements whose script has a CH_DIR state:
+    8 of 8 sampled placements with CH_DIR carry bounds=, 0 of 14
+    without (sampled .des in /tmp/opencode/mus/zdes). Over the 777
+    extracted .MOV scripts / 2317 states: CH_DIR 556, BY_X 105, 93
+    states carry both. So bounds= pairs with CH_DIR, not with BY_X.
+  - Model: `face` is instance state on lvl_obj (+1 at placement = "draw
+    exactly what the frame line asks"), obj_walk sets it ONLY at the
+    bounds flip and ONLY when that state carries LL_CTRL_CH_DIR;
+    obj_mirror_of(o, authored) XORs it onto the authored frame sign,
+    used by obj_draw AND obj_shape_elem (a shape belongs to the sprite
+    as drawn - the SOLID push at play_collide now uses the same
+    polarity as the picture; the game's own polarity source for that
+    call is not decompile-pinned, so this is labelled as consistency,
+    not as a RE fact). face survives state changes (obj_transition
+    note). Non-walkers and non-CH_DIR states are untouched.
+  - The initial direction +1 (right) is no longer a bare estimate: the
+    authored sign (all-negative walk list over head-left art) draws
+    head-right, which is what the worm does at its start, and the
+    video agrees.
+  - Tests: obj_motion_selftest test 2 now also asserts face is
+    UNTOUCHED when the state has no CH_DIR; new test 5 parses
+    `control=BY_X|CH_DIR` (the separator handling is ll_mov_parse's),
+    walks 20..26->10 in 40 ticks and requires x=24 face=-1, then 20
+    more ticks: x=16 face=+1, and pins obj_mirror_of both ways
+    (facing right keeps the authored mirror, facing left adds one).
+    Mutations caught: M1 facing updated regardless of CH_DIR (fails
+    test 2), M2 facing never turned (fails test 5), M3 obj_mirror_of
+    ignores face (fails the mirror check). Baseline green.
+  - Pins: NO verify-play pin moved. The ZARIA.01 LICHA contact at tick
+    199 is unchanged - the worm is on its first outbound leg there,
+    where face is still +1, and the hit test shares the same push call
+    so the polarity is identical either way. verify-all EXIT=0.
+  - Still open in this area (NOT modelled): the pause-in-place -> walk
+    burst gating (A_ATAK/DANGER vs A_RUN), and whether CH_DIR also
+    means anything beyond the facing flip (its name = "change
+    direction"; the bounds flip is the only direction change the data
+    shows for these placements).
+  - Tools/artifacts in /tmp/opencode/yt: the polarity matcher (inline,
+    re-run as needed), head_dir.png, head_dir2.png, worm_heads.png
+    (both hits were the LION's head - the eye-color blob method is
+    dead, the template method is the one that works), worm_sheet.png,
+    gp.mp4.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
