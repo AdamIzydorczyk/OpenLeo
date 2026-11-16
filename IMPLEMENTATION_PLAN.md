@@ -1,5 +1,8 @@
 # IMPLEMENTATION_PLAN.md — executing the Nov-2026 deep dive (PR-25+)
 
+> **EXECUTED.** The PR-25+ work order below was carried out in PR-25..PR-35
+> (records in NEXT_STEPS.md); it is kept as the rationale behind those PRs.
+
 Input: `PORT_DEEP_DIVE_2026-11.md` (at `4c48dd0`). Every load-bearing
 claim was spot-checked against the code at HEAD before planning: ENTER
 raise (ll_view.c:92-93), SetWindowInputFocus (platform_sdl.c:127), the

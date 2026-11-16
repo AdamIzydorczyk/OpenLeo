@@ -1,5 +1,9 @@
 # Improvement proposals - native ports (linux + windows, src/)
 
+> **HISTORICAL (2026-11-14, before PR-7).** This proposal list predates the
+> `src/` -> `ported/` move and was worked off through PR-7..PR-35; the code
+> now lives under `ported/` and the status is in NEXT_STEPS.md.
+
 Analysis of the current builds (2026-11-14) and concrete proposals, ranked
 by impact. Current measurements are from the verified cutscene-demo state:
 shared `src/` codec + `src/platform_sdl/is_player.c`, exercised on INTRO_P

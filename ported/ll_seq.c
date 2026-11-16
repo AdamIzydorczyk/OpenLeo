@@ -489,9 +489,14 @@ static int anch_x(const ll_seq_elem *e)
     return e->f0 == SENT_7FFF ? 0 : (int)(short)e->f0;
 }
 
+/* the game gates BOTH shifts on f0 alone (machine code of FUN_00042a70 /
+ * the draw methods: `if (*param_1 != 0x7fff) { y -= f2; x -= f0 }`); on the
+ * shipped data f2 is the sentinel exactly when f0 is (14126 elements with
+ * both real, 180 with both sentinel, none mixed), so this differs from a
+ * per-field test only on data that does not exist */
 static int anch_y(const ll_seq_elem *e)
 {
-    return e->f2 == SENT_7FFF ? 0 : (int)(short)e->f2;
+    return e->f0 == SENT_7FFF ? 0 : (int)(short)e->f2;
 }
 
 void ll_seq_shape_wh(const ll_seq_elem *e, int *w, int *h, int *n)

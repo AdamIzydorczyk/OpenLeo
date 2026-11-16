@@ -178,9 +178,10 @@ int ll_seq_draw_elem_map(const ll_seq *s, const ll_seq_elem *e,
  * solid. The "inline palette+sprite" wording PR-45 shipped for those 169
  * tables was wrong on both counts, and the reports say so now.
  * Positioning, identical at both call sites: the caller's position is
- * shifted by the element's anchor - x -= f0', y -= f2', where f' = 0 when
- * the field holds the 0x7fff ctor sentinel - and with facing < 0 the x
- * shift is (total_w - f0') instead and the two margin lists swap (the
+ * shifted by the element's anchor - x -= f0, y -= f2, BOTH skipped when f0
+ * holds the 0x7fff ctor sentinel - and with facing < 0 the x
+ * shift is (total_w - f0) instead (none for the sentinel) and the two margin
+ * lists swap (the
  * element is mirrored). Row i of the shape then sits at that y + i. The hit
  * test and the push-out both begin by testing the element's margin-list
  * pointer, so an element WITHOUT lists (the loader's implicit full-rectangle
@@ -224,8 +225,8 @@ int ll_seq_shape_empty(const ll_seq *s, const ll_seq_elem *e);
 /* FUN_00042a70: do the positioned shapes overlap? 1/0. Positions are the
  * caller-frame x/y the game passes to its wrappers (the f0/f2 anchor shift
  * and the facing mirror happen inside, exactly as in the game). The row
- * window is the game's: the element whose adjusted y is LOWER is read from
- * row 0, the other one from the distance between them, over the shorter
+ * window is the game's: the element lower ON SCREEN (the numerically larger
+ * adjusted y, y grows downward) is read from row 0, the other one from the distance between them, over the shorter
  * remaining span (0x42b85..0x42be6; see shape_window in ll_seq.c, where a
  * transposed version of exactly this was fixed on 2026-11-16). A row takes
  * part only when neither element's left margin there is the empty marker;

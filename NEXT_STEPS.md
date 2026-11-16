@@ -4,7 +4,8 @@ Working plan derived from `OpenLeo_native_port_review.md` (P/E/M) and
 `OpenLeo_porting_tips.md` (T). Update the status lines here as items
 land; the review/tips files stay as the detailed work orders.
 
-## Status as of 2026-11-14 (through PR-19, all pushed)
+## Status as of 2026-11-14 (through PR-19, all pushed; later PRs have their own
+## records below - the newest is the last `## PR-nn` heading before `## Next`)
 
 Done and verified green (full `make verify-all` incl. wine parity):
 
@@ -558,7 +559,7 @@ ll_view/ll_audio as backend-private helpers).
   restage recipe above (LL.iso -> iso_stage + LEO_HDD -> hd_files + repo-
   root save fixtures + py_last frame) restored the suite unchanged.
 
-## PR-21 — golden rig: input + dual state detectors (the menu is NOT CD-gated) (IN PROGRESS 2026-11-15)
+## PR-21 — golden rig: input + dual state detectors (the menu is NOT CD-gated) (DONE: the capture landed, see its own record and PR-37/PR-40)
 
 - The no-CD route is DEFINITIVELY negative for the map menu under attract:
   a second scripted watch (1500 s, 0.25 s sampling = 6000 samples) again
@@ -2163,7 +2164,9 @@ engine-side).
     in two forms (PLAN 8 grammar). obj_art.found separates "no such
     record" (data hole, named exactly) from "record is there, element
     carries the inline palette+sprite form" (VIEWER gap, reported as
-    such, never counted as data): 953 of 960 authored art names are on
+    such, never counted as data) [RETRACTED in PR-46: those byte lists
+    are per-row collision margins, the 169 tables are invisible solids
+    the original never drew - not a viewer gap]: 953 of 960 authored art names are on
     this CD - 784 patch-form (drawn), 169 inline-form (draw nothing,
     incl. all 48 RAN.01 ANIBACK EDGE*.SEQ), 7 true holes. The old
     build's 469 stem-join "data hole" notes were false; the new
@@ -2193,7 +2196,7 @@ engine-side).
     fixture-free config EXIT=0 with named SKIPs and the mov selftest
     still running; verify-arch unchanged (no new SDL include). ASan/
     LSan/UBSan run of ll_level (selftest + full-data level + preview)
-    clean. Peak child RSS unchanged (1114 MB).
+    clean. Peak child RSS unchanged (1114 MB; a one-off measurement, no pin exists in the Makefile or CI).
   - PR-45 pushed 3cb067d; CI run 43836226298: linux + asan +
     windows-smoke ALL green on the first pass. On the runner the
     hermetic mov selftest printed its extended summary ("per-state seq=
@@ -2231,8 +2234,9 @@ engine-side).
       the viewer has no object-collider model to use them with YET.
     * loader FUN_00041f60: no lists -> rect straight from the words;
       lists -> FUN_000420b0 derives the bbox. Positioning (identical in
-      every consumer): x -= f0', y -= f2', f' = 0 for the 0x7fff ctor
-      sentinel; facing < 0 uses (tw - f0') and swaps the margin lists.
+      every consumer): x -= f0, y -= f2, both skipped when f0 is the 0x7fff ctor
+      sentinel (the game gates on f0 alone; corrected in PR-47's doc
+      pass); facing < 0 uses (tw - f0) and swaps the margin lists.
       The game's box h = (last_row - first_row) + 2 (one row MORE than
       the scanned rows - its own arithmetic, reproduced); no read ever
       leaves the declared rows.
@@ -2246,7 +2250,7 @@ engine-side).
       VA = file offset + 0xf000): the decompiled text of FUN_00042a70/
       FUN_00042de0 loses their register arguments ("unaff_EBX"), so the
       row window was read from the code at 0x42b85..0x42be6 /
-      0x42f21..0x42f7c: the element with the LOWER adjusted y indexes
+      0x42f21..0x42f7c: the element lower on screen (larger adjusted y) indexes
       from row 0, the other from the distance between them, over the
       shorter remaining span (min(rows_a+dy, rows_b) / min(rows_b-dy,
       rows_a)). The shape_window the tree shipped was TRANSPOSED -
@@ -2526,6 +2530,48 @@ engine-side).
     (DEMOTEXT, anchor -86,-91, f4/f6 identical) is drawn at (86,91) from
     its object position, exactly as the data says.
 
+## PR-52 — documentation pass, the `A` glyph, an independent MOD parse oracle
+          (rest of VERIFICATION_2026-11-16.md, DONE 2026-11-16)
+
+  - README: the 18 undocumented LEO_* hooks the audit found (LEO_DATA,
+    LEO_HD_DIR - required by its own --play example -, LEO_USER_DIR,
+    LEO_SAVE, LEO_NO_MUSIC, LEO_DEMO*, LEO_LEVELSEL_AUTO, LEO_MENU_SECS,
+    LEO_MENU_BG, LEO_HELP_SECS/PPM, LEO_LEVEL_CAM/NO_OBJ, LEO_DUMP_SKIP,
+    LEO_IS_*) are now listed; every hook the code reads is documented
+    (checked by grep). verify list corrected (65 PCX, 23 PCM, the 7 targets
+    that were missing, py-refs), the `make ll_level` build step, a
+    Documents map. ported/README.md rewritten (it claimed the Makefile
+    builds original/).
+  - Historical documents carry banners (TEST_REPORT, IMPROVEMENTS,
+    PORT_DEEP_DIVE, IMPLEMENTATION_PLAN); stale statements fixed in place:
+    NEXT_STEPS header/PR-21 status, "golden capture half open" (landed in
+    PR-37/PR-40), the P-05 pipewire note (removed in PR-35), the unpinned
+    "RSS pinned 1114", the PR-45 record's "inline palette+sprite viewer
+    gap" (now carries an inline RETRACTED pointer to PR-46), PLAN's
+    `src/` and 172-payload counts (reading note).
+  - Anchor wording corrected everywhere (PLAN 8h, NEXT_STEPS PR-46,
+    ll_seq.h): both shifts are skipped when f0 is the 0x7fff sentinel (the
+    game gates on f0 alone). The shape code and its python twin now do
+    exactly that (identical on all shipped data: 14126 both real, 180 both
+    sentinel, none mixed - verify-seq still 1656/1656). The "LOWER adjusted
+    y" window wording now says lower ON SCREEN = numerically larger y.
+  - G-9 was a real font bug, not a missing glyph: the built-in 8x8 `A`
+    was a diamond, so "(BACK)" drew as "(B<>CK)" on the restart screen
+    and in every list menu. Fixed; no pin moved (30 golden pose hashes and
+    the 92.4594% best match are unchanged).
+  - New oracle tools/verify_mod_parse.py, written from the public
+    ProTracker layout (not from ll_mod.c): title, signature, channels,
+    song length, pattern-slot count, and every sample's length / present
+    bytes / loop / volume / finetune for all 22 SOUND tracks, compared with
+    mod_selftest's parse summary: 22/22, mutation-checked (a wrong pattern
+    count fails 0/22). Wired into verify-mod. Honest limit: the MIXER still
+    has no independent oracle (verify-mod's render hashes prove linux ==
+    wine, i.e. determinism).
+  - Still open from the audit: the PCM layer format (PR-50), second anchor
+    pair f4/f6 (identical to f0/f2 on the data), SEQ_REV_X/Y and the other
+    unmodeled control= flags, frame 0's placeholder, the real camera and
+    backdrop parallax (PR-51 viewer policies), a mixer oracle.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
@@ -2603,9 +2649,9 @@ resolved (PR-36), the window semantics are the open question
 
 Nothing queued from the review's "worth fixing" set: all of it has
 landed, and T-01 is finished (T-24 tooling landed in PR-19: the
-golden.* capture half stays open until the no-CD rig is shown to
-reach the map-menu state - next step there would be scripting the
-CD-attached route or probing the attract chain further). Open
+the original-side capture half LANDED in PR-37/PR-40: verify-golden
+compares the port's chapter map against a real capture of the original
+when the fixture is present). Open
 candidates: the Deferred big architecture items, or the user's call
 (T-11 4:3 aspect default, T-22 AppImage).
 
@@ -2615,8 +2661,8 @@ candidates: the Deferred big architecture items, or the user's call
   (ll_view session) + PR-12 (ll_audio session). The device itself is
   per-playback by design; see the PR-12 note.
 - P-04 focus stealing - DONE in PR-10 (raise on WINDOWEVENT_ENTER).
-- P-05 Wayland/X11 (current pipewire->alsa swap works; revisit if
-  users report issues).
+- P-05 Wayland/X11 - the automatic pipewire->alsa pin was REMOVED in
+  PR-35 (SDL's own choice is the default; LEO_PIN_ALSA=1 opts in).
 - E-08/T-14 palette codec fidelity (frozen: pixel output must not
   change).
 - T-01 platform abstraction - DONE (PR-14 interface + headless
@@ -2630,7 +2676,7 @@ candidates: the Deferred big architecture items, or the user's call
   T-16 Polish text, T-17 save/config separation (STATUS.LEO codec
   itself is done), T-19 startup data validation, T-23 structured RE
   traces, T-24 golden-master vs original EXE (tooling + port pins
-  DONE in PR-19; the original-side capture half open), T-26 engine state
+  DONE in PR-19; the original-side capture landed in PR-37/PR-40), T-26 engine state
   machine. T-25 parser fuzzing - DONE in PR-11 (tools/fuzz.c);
   extending it later = more kinds (.des text) + a longer seed list.
   T-17 writable-state (user dir + save resolution + XDG data search +

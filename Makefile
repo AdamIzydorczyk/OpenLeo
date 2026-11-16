@@ -914,6 +914,7 @@ endif
 
 verify-mod: mod_selftest mod_selftest.exe
 ifeq ($(PX_DATA),1)
+	@python3 tools/verify_mod_parse.py $(DATA)/SOUND ./mod_selftest
 	@for M in TUNGA RAN ENA2; do \
 	  python3 tools/pull_record.py $(DATA)/SOUND $$M.MOD /tmp/opencode/$$M.mod && \
 	  ./mod_selftest /tmp/opencode/$$M.mod 3000 > /tmp/opencode/mod_$${M}_l.txt && \

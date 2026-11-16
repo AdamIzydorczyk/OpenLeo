@@ -1,5 +1,11 @@
 # Test report — Lew Leon native port (ported/)
 
+> **HISTORICAL (2026-11-15, tree c5be46c = PR-19).** Counts in this report
+> (21 test targets, 172 .SEQ payloads, 6 PCX payloads) are superseded: the
+> suite now compares 1656 .SEQ, 65 PCX and 23 PCM payloads, and verify-all
+> has more targets. The current evidence is the PR record in NEXT_STEPS.md
+> and VERIFICATION_2026-11-16.md.
+
 Date: 2026-11-15 (full cold-tree suite run)
 Tree: `main` @ `c5be46c` — “PR-19: T-24 golden-master rig + pins” (PR-1..19 all landed)
 Host: CachyOS x86-64, gcc 16.2.1, vendored llvm-mingw clang 23.1.5, wine-11.21,

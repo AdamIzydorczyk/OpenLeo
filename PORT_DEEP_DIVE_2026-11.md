@@ -1,5 +1,9 @@
 # OpenLeo — Windows/Linux port deep dive (Nov 2026)
 
+> **HISTORICAL snapshot (4c48dd0).** Its findings were executed as the PR-25+
+> fix series (see IMPLEMENTATION_PLAN.md and the PR-25..PR-35 records in
+> NEXT_STEPS.md); do not read its open items as current.
+
 **Snapshot:** `4c48dd0` ("docs: PR-24 landed green")
 **Scope:** `ported/` (SDL2 backend, view/audio/session, cutscene player, level/menu loops, filesystem/paths, entry point), build and CI (`Makefile`, `CMakeLists.txt`, `.github/workflows/ci.yml`, `resources/app.manifest`).
 **Method:** I re-read the earlier review documents (`OpenLeo_native_port_review.md`, `OpenLeo_porting_tips.md`, `NEXT_STEPS.md`, `IMPROVEMENTS.md`), checked each "DONE" claim against the current code, and audited the platform-facing code paths. SDL2 behaviour was checked against the vendored 2.32.10 source. Nothing was built or run on Windows for this review, so the runtime claims below are inferred from reading the code. Each item has a verification step.

@@ -541,6 +541,13 @@ only the Makefile rule adds per-target flags/libs. Variant knobs
 
 ## 8. M3 findings (asset format recon, 2026-11-14)
 
+> Reading note (PR-47 doc pass): sections 8..8c were written against the
+> original `src/` layout and the first 172 container .SEQ payloads; the code
+> is now under `ported/` and verify-seq walks 1656 payloads (ANIMACJE +
+> ETAPY + LEVELDES, nested). Where the text says `src/ll_seq.c` read
+> `ported/ll_seq.c`; the counts of 8 through 8c are history, 8h has the
+> current ones.
+
 llrs containers (reader ported+verified: `src/llrs.c`, `make verify-llrs`):
 - ETAPY/ANIMACJE level slots (id=2) -> 5200B nested index blocks; id=1
   records = named payloads, id=2 = leaf blocks (5200B sprite data), id=0 =
@@ -1429,10 +1436,10 @@ scan; probes /tmp/opencode/pr45_census.py, pr45_join.py, pr45_forms.py):
   real element is neither (w0=0/4 never occurs in the data). Row i of a
   shape is solid from x = left[i] to x = total_w - right[i] inside the
   element frame, total_w = int16(b19)*0x50 + int16(b15), rows =
-  int16(b17), byte 0xFF = empty row; positioning adds the anchor
-  (x -= f0', y -= f2', f' = 0 when the field is the 0x7fff ctor
-  sentinel) and facing < 0 mirrors (x shift becomes tw - f0', the two
-  lists swap). Of the 953 art tables the levels actually name, 784 carry
+  int16(b17), byte 0xFF = empty row; positioning subtracts the anchor
+  (x -= f0, y -= f2; BOTH skipped when f0 is the 0x7fff ctor sentinel)
+  and facing < 0 mirrors (x shift becomes tw - f0, none for the sentinel,
+  the two lists swap). Of the 953 art tables the levels actually name, 784 carry
   patch art (drawn; most ALSO carry shape margins) and 169 are shape-
   only - single-element invisible solids that the ORIGINAL game never
   drew either (every draw path needs a patch array), including all 48 of
@@ -1449,7 +1456,7 @@ scan; probes /tmp/opencode/pr45_census.py, pr45_join.py, pr45_forms.py):
   w = 1 - total_w, h = 1 - rows, which the port reproduces and flags
   shape_empty). The hit test's row window was re-read from the machine
   code (FUN_00042a70 0x42b85..0x42be6, FUN_00042de0 0x42f21..0x42f7c):
-  the element with the LOWER adjusted y is indexed from row 0, the other
+  the element lower on screen (numerically larger adjusted y) is indexed from row 0, the other
   from the distance between them, over the shorter remaining span - the
   window PR-45 shipped was transposed and is fixed, with direction pins
   in --mov-selftest (a synthetic 9-element .SEQ, constants derived twice

@@ -12,7 +12,7 @@ RE source (2026-11-16, full decompilation, build/decompiled/all):
   FUN_00042a70  span-overlap hit test between two positioned elements
                 (its row window re-read from the machine code of
                 build/leo/leo.elf, 0x42b85..0x42be6: the element with the
-                LOWER adjusted y is indexed from row 0).
+                LOWER-on-screen (numerically LARGER adjusted y) is indexed from row 0).
   FUN_00042de0  push-out: read in the machine code but NOT modeled here or
                 in the port - the decompiled text loses its register
                 arguments and some operand identities are unresolved (the
@@ -86,7 +86,8 @@ def anch_x(e):
 
 
 def anch_y(e):
-    return 0 if e["f2"] == SENT else sx(e["f2"])
+    # the game gates both shifts on f0 alone (see ported/ll_seq.c anch_y)
+    return 0 if e["f0"] == SENT else sx(e["f2"])
 
 
 def shape_wh(e):
@@ -136,7 +137,7 @@ def pos(g, e, x, y, facing, tw):
 
 def window(a, ay2, b, by2):
     """the row window, machine-code verified 2026-11-16 (see shape_window
-    in ported/ll_seq.c): the element with the LOWER adjusted y is read
+    in ported/ll_seq.c): the element lower on screen (the numerically larger adjusted y) is read
     from row 0, the other one from the distance between them."""
     ah, bh = sx(a["b17"]), sx(b["b17"])
     dy = ay2 - by2

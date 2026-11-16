@@ -49,6 +49,10 @@ logs a `main: ANSI code page …` warning in that case).
                                            # -> INTRO_P.IS -> title menu ->
                                            # level intro (NEW GAME = RAN.01)
 ./ll_cutscene A.IS --then B.IS --menu /path/to/LEO   # manual scene chain
+                                           # (`make ll_level` builds it: the default
+                                           # `make` target builds ll_cutscene only;
+                                           # set LEO_HD_DIR=<HD install> for the
+                                           # authored scene and the lion's scripts)
 ./ll_level /path/to/LEO RAN.01             # level wiring (.DES) + intro art
 ./ll_level /path/to/LEO RAN.01 --play      # PLAYABLE level (M4-B): the lion walks
                                            # on the level's own ground (its .plt,
@@ -89,11 +93,13 @@ make verify-all
 # verify-skip  linux ESC-skip final frame == python reference
 # verify-win   same two proofs for the .exe, run under wine
 # verify-llrs  ported/llrs.c == tools/llrs_unpack.py on all 4 containers
-# verify-pcx   ported/ll_pcx.c == tools/pcx_dump.py on all 6 container PCX payloads
+# verify-pcx   ported/ll_pcx.c == tools/pcx_dump.py on all 65 container PCX payloads
 # verify-seq   ported/ll_seq.c == tools/seq_parse.py on EVERY container .SEQ
 #              payload (grammar walk + patch rows + element shape geometry)
-# verify-pcm   ported/ll_pcm.c == tools/verify_pcm.py on every PCM parallax layer
-# verify-mod   MOD music renderer: deterministic render linux == wine
+# verify-pcm   ported/ll_pcm.c == tools/verify_pcm.py on all 23 PCM parallax layers
+# verify-mod   MOD player: parse of all 22 tracks == an independent
+#              spec-derived python summary; render deterministic linux == wine
+#              (determinism only - there is no independent mixer oracle)
 # verify-level level scene: .DES wiring + .SEQ/.MOV anims + scroll camera
 # verify-play  playable prototype (M4-B): real LEW.MOV physics + the level's
 #              own ground (.plt, or the sub-.des that carries the same
@@ -110,7 +116,16 @@ make verify-all
 #              the user-supplied originals are absent; never in git)
 # verify-music MOD player behind plat_audio (threaded session, dummy-safe)
 # verify-arch  structural pin: only platform_sdl*/ll_view/ll_audio may
-#              include SDL (T-01 end-state; compile-free grep)
+#              include SDL, and nothing else may include those two headers
+#              (T-01 end-state; compile-free grep)
+# verify-quit  closing the window / quit propagation through every screen
+# verify-utf8  UTF-8 and case-insensitive data paths (byte-exact read/write)
+# verify-fuzz  parser fuzzing (llrs/pcx/seq/pcm/mod), sanitizers on
+# verify-platform  headless engine path: clock/audio/input/fopen contract
+# verify-userdir  per-user save dir: import-once, byte-identical, LEO_SAVE
+# verify-cmake the alternate CMake build produces the same game
+# py-refs      (prerequisite, not a test) regenerates the python reference
+#              frames the byte-exact legs compare against
 # verify-golden T-24: ORIGINAL game in the QEMU rig vs the port's chapter
 #              map; the repo pins (tools/golden_expect.json) are HASHES
 #              only - never frames. Skips entirely when the game fixture
@@ -159,6 +174,29 @@ feet, Up/Down pan it in the viewer). `ll_level --mov-selftest` runs
 the hermetic .MOV duration/cycle + per-state art-selection + patch-codec
 + anchored-draw + element shape-geometry checks (no data needed).
 
+Data, save and CI hooks (every `LEO_*` variable the code reads is listed
+here or in the paragraphs above):
+- `LEO_DATA=<dir>` - the game data directory (the CD's `LEO` tree with
+  `INTRO_P.IS`, `ANIMACJE`, `ETAPY`, ...), overriding the discovery chain.
+- `LEO_HD_DIR=<dir>` - the HD-install overlay (`ANIMACJE`/`ETAPY` holding
+  the `.MOV` scripts and level blocks). Without it a level has no authored
+  scene and no player scripts (`ll_level` says "no HD ANIMACJE"); the
+  `--play` examples above need it.
+- `LEO_USER_DIR=<dir>` - per-user save/config directory, used verbatim;
+  `LEO_SAVE=<file>` - the `STATUS.LEO` to read instead of the user dir's.
+- `LEO_NO_MUSIC=1` - no level/menu music. `LEO_DEMO_LEVEL=<LEVEL>` - the
+  level a confirmed restart starts (default `RAN.01`).
+- CI/headless drivers: `LEO_DEMO=1` / `LEO_MENU_AUTO=1` (auto-pick NEW
+  GAME), `LEO_LEVELSEL_AUTO=<n>` (pick level n in the level list),
+  `LEO_MENU_SECS=<s>` and `LEO_HELP_SECS=<s>` (auto-close the menu / the
+  help overlay after s seconds; unset = wait for a key, as the original),
+  `LEO_HELP_PPM=<file>` (dump the help frame), `LEO_MENU_BG=placeholder`
+  (flat menu background instead of the decoded art), `LEO_LEVEL_NO_OBJ=1`
+  (do not composite scene objects), `LEO_LEVEL_CAM=<px>` (initial camera
+  x), `LEO_DUMP_SKIP=<file>` (write the frame at an ESC skip and quit).
+- intro-player timing diagnostics: `LEO_IS_PERIOD_MS=<ms>` (uniform frame
+  hold), `LEO_IS_FPS_DIRECT=1` (the oldest "byte = fps" reading).
+
 Runtime policy hooks: `LEO_FORCE_X11=1` (under a Wayland session pin the
 video backend to X11/XWayland — the pre-FIX-11 default; default now is
 SDL's own choice, X11-first on SDL2 classic), `LEO_PIN_ALSA=1` (opt in
@@ -189,3 +227,15 @@ project glue that is neither wire format. One SDL2 platform layer
 ## Both native builds are no-CD and use fixed-timestep pacing (the original's
 execution-rate-bound busy loop would run thousands of times too fast on
 modern hardware).
+
+## Documents
+
+- `NEXT_STEPS.md` - the per-PR record (what changed, how it was verified,
+  CI result) and the open-work lists; start at its last PR record.
+- `PLAN.md` - the reverse-engineering facts (formats, grammars, measured
+  counts); section 8h covers the level scene.
+- `VERIFICATION_2026-11-16.md` - the full-suite audit behind PR-47..PR-51.
+- `TEST_REPORT.md`, `IMPROVEMENTS.md`, `PORT_DEEP_DIVE_2026-11.md`,
+  `IMPLEMENTATION_PLAN.md`, `OpenLeo_native_port_review.md`,
+  `OpenLeo_porting_tips.md` - historical work orders and snapshots; each
+  carries a banner saying what superseded it.
