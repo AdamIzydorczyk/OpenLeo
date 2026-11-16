@@ -169,6 +169,62 @@ def hit(g, a, ax, ay, fa, b, bx, by, fb):
     return 0
 
 
+def _tdiv(a, b):
+    """C signed division (truncates toward zero), like idiv."""
+    q = abs(a) // abs(b)
+    return q if (a < 0) == (b < 0) else -q
+
+
+def push(g, a, ax, ay, fa, b, bx, by, fb):
+    """FUN_00042de0 + FUN_00042cf0 (PR-58) -> (ret, out1, out2). Written
+    from the machine code, row by row, independent of the C port."""
+    aw, ah, an = shape_wh(a)
+    bw, bh, bn = shape_wh(b)
+    if an <= 0 or bn <= 0:
+        return 0, 0, 0
+    ax2, ay2, al = pos(g, a, ax, ay, fa, aw)
+    bx2, by2, bl = pos(g, b, bx, by, fb, bw)
+    oa, ob, m = window(a, ay2, b, by2)
+    if m < 1:
+        return 0, 0, 0
+
+    def edge(e, w, x, l, o):
+        t = 6 * x + 3 * w
+        for r in (0, m // 2, m - 1):
+            t += g.marg(e, l, o + r) - g.marg(e, 1 - l, o + r)
+        return t
+
+    def scan(ea, la, oa_, eb, lb, ob_, xedge, xb):
+        best = first = last = 0
+        for i in range(m):
+            pen = xedge - g.marg(ea, la, oa_ + i) - (g.marg(eb, lb, ob_ + i) + xb)
+            if pen > 0:
+                if best == 0:
+                    best, first = pen, i
+                elif pen > best:
+                    best = pen
+                last = i
+        if best == 0:
+            return 0, 0, 0
+        d = g.marg(eb, lb, ob_ + first) - g.marg(eb, lb, ob_ + last)
+        dr = abs(first - last)
+        if dr == 0 or d == 0:
+            return best, best, 0
+        return (best, _tdiv(best * dr, abs(d) + dr), _tdiv(dr * d, abs(d) + dr))
+
+    d1 = by2 + bh - ay2
+    d2 = ay2 + ah - by2
+    v = -d1 if d1 < d2 else d2
+    if edge(b, bw, bx2, bl, ob) > edge(a, aw, ax2, al, oa):
+        r, o1, o2 = scan(a, 1 - al, oa, b, bl, ob, ax2 + aw, bx2)
+    else:
+        r, o1, o2 = scan(b, 1 - bl, ob, a, al, oa, bx2 + bw, ax2)
+        r, o1, o2 = -r, -o1, -o2
+    if abs(v) < max(abs(o1), abs(o2)):
+        o1, o2 = 0, v
+    return r, o1, o2
+
+
 # the deterministic self-test grid: every shape element tested against
 # ITSELF at fixed offsets and all four facing combinations (the same
 # grid on both sides of the oracle, derived only from the element's own
@@ -220,6 +276,9 @@ def dump_text(data):
             h = hit(g, e, xoff, yoff, fa, e, 0, 0, fb)
             out.append("shapehit %d xoff %d yoff %d fa %d fb %d hit %d"
                        % (k, xoff, yoff, fa, fb, h))
+            r, o1, o2 = push(g, e, xoff, yoff, fa, e, 0, 0, fb)
+            out.append("shapepush %d xoff %d yoff %d fa %d fb %d ret %d dx %d dy %d"
+                       % (k, xoff, yoff, fa, fb, r, o1, o2))
     out.append("shapeend")
     return "\n".join(out) + "\n"
 

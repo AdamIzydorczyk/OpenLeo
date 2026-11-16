@@ -132,6 +132,12 @@ int main(int argc, char **argv)
                                          e, 0, 0, t_fb[k]);
                 printf("shapehit %u xoff %d yoff %d fa %d fb %d hit %d\n",
                        i, xoff[k], yoff[k], t_fa[k], t_fb[k], h);
+                int o1, o2;
+                int r = ll_seq_shape_push(&s, e, xoff[k], yoff[k], t_fa[k],
+                                          e, 0, 0, t_fb[k], &o1, &o2);
+                printf("shapepush %u xoff %d yoff %d fa %d fb %d ret %d dx %d"
+                       " dy %d\n", i, xoff[k], yoff[k], t_fa[k], t_fb[k], r,
+                       o1, o2);
             }
         }
         printf("shapeend\n");

@@ -2734,6 +2734,36 @@ engine-side).
   - Prints `ll_level: parallax: ...` per level. verify-all green (data and
     fixture-free). No new hooks.
 
+## PR-58 — the push-out is modeled (FUN_00042de0 + FUN_00042cf0)
+          (DONE 2026-11-16; first step of the collision line)
+
+  - What blocked it (PR-46): the callers' operands. Resolved now from the
+    caller FUN_00053030 (0x5309x/0x5313x) and the object vtable slots, read
+    out of the LE image: the common object vtable has slot +0x48 =
+    FUN_00023aa0 (the current frame's shape element), +0x50 = FUN_00053e40
+    (facing -1/+1 from the element's mirror flag), and FUN_00052d30 /
+    FUN_00052dc0 give the screen-space position (object position minus
+    the camera offset of its layer, 0x57500/0x57530). So the call is
+    push(elemA, posA, elemB, facA, posB, facB, &dx, &dy).
+  - The helper's "w" is A's right edge (ax + tw) and its EBX is B's x
+    (branch 1), or B's right edge and A's x (branch 2, outputs and result
+    negated). The earlier note's "clamp against |position.x + total_w|" was
+    wrong: the clamp value is the VERTICAL overlap candidate
+    v = (by+bh-ay < ay+ah-by) ? -(by+bh-ay) : ay+ah-by, and it replaces
+    the push (0, v) when it is smaller than both |dx| and |dy|.
+  - FUN_00053ae0 (the caller of 53030) packs dx/dy into the {0,1,dx,dy}
+    message it sends to B; its own use of the return value limits the
+    sliding to +-4 (0x53b4c..0x53b8e). Not ported yet.
+  - Proof: ll_seq_shape_push (ported/ll_seq.c) + python twin
+    (tools/shape_geom.py push): verify-seq now diffs a `shapepush` line for
+    every shape element x 17 offsets (14306 elements, byte-exact), and
+    --mov-selftest has a hand-derived 7-case leg (rectangle, slope with
+    first/last interpolation, reverse branch, mirrored facing);
+    mutation-tested twice (branch flip, interpolation sign).
+  - Next in this line: the caller FUN_00053ae0 / slot +0x10 message, which
+    objects collide with which (the 13 control= flags: SOLID, SOLID2,
+    SEMI_SOLID, ANTI_SOLID ...), then gravity/ground for the lion.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

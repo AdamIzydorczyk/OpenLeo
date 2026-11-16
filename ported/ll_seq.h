@@ -235,32 +235,15 @@ int ll_seq_shape_hit(const ll_seq *s,
                      const ll_seq_elem *a, int ax, int ay, int afacing,
                      const ll_seq_elem *b, int bx, int by, int bfacing);
 
-/* NOT MODELED: the push-out. FUN_00042de0 and its helper FUN_00042cf0 were
- * read in the machine code of the LE image (build/leo/leo.elf) on
- * 2026-11-16 - the decompiled text of both loses their register arguments
- * (it says "unaff_EBX" and calls the helper with three made-up parameters),
- * and an earlier draft of this API that trusted it was wrong. What the
- * machine code does show:
- *   - the same +0x27 list-pointer gates, the same anchor/facing adjustments
- *     and the same row window as the hit test (window: 0x42f21..0x42f7c);
- *   - a per-element "edge position" sum 6*x + 3*total_w + (m_first-m'_first)
- *     + (m_mid-m'_mid) + (m_last-m'_last) compared between the two sides to
- *     choose which one to push (0x43034..0x431a0); in the other branch BOTH
- *     delta outputs and its own return value are negated (0x431eb..0x431f3);
- *   - the helper (0x42cf0) scans the window rows at
- *     w - list1[i] - (list2[i] + EBX), where EBX is a register input spilled
- *     at 0x42cfe, keeps the largest positive value and the first and last
- *     row index that reached it, and interpolates two outputs from those
- *     two rows and a margin difference (0x42d55..0x42dcf);
- *   - a final clamp: when max(|out1|,|out2|) exceeds |position.x +
- *     total_w| it zeroes one output and writes that value into the other
- *     (0x431f5..0x43230).
- * What is NOT settled: what the helper's "w" and its EBX addend actually
- * are (both call sites, 0x431a7 and 0x431c9, load them from slots that
- * could not be named), which margin list feeds the interpolation, and what
- * the two output pointers mean to the callers - those reach 42de0 at
- * 0x530d1/0x53184, through element-vtable calls (+0x48 get-current-element,
- * +0x50) that are not mapped yet. A shipped value would be a guess, so the
- * port stops at the hit test; tracked in NEXT_STEPS (M4-C). */
+/* FUN_00042de0 + FUN_00042cf0: the push-out between two positioned shapes
+ * (PR-58; operands resolved from the caller FUN_00053030 and the element
+ * vtable slots, see the comment on the definition in ll_seq.c). Returns the
+ * penetration (negative when B is to the left of A) and the (dx, dy) push in
+ * out1 and out2; 0/0/0 when the shapes do not overlap or an element carries
+ * no shape. A = the element that is moved. */
+int ll_seq_shape_push(const ll_seq *s,
+                      const ll_seq_elem *a, int ax, int ay, int afacing,
+                      const ll_seq_elem *b, int bx, int by, int bfacing,
+                      int *out1, int *out2);
 
 #endif /* LL_SEQ_H */

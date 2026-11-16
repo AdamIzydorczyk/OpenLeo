@@ -660,3 +660,148 @@ int ll_seq_shape_hit(const ll_seq *s,
     }
     return 0;
 }
+
+/* FUN_00042cf0 (machine code 0x42cf0..0x42dd7, operands resolved from its
+ * two call sites 0x431c0/0x431e0 on 2026-11-16): scan the window rows for
+ * the deepest overlap pen_i = xedge - l1[i] - (l2[i] + xb) (bytes, unsigned;
+ * the 0xff marker simply never overlaps). best = the largest positive pen,
+ * first = the first row with pen > 0, last = the LAST row with pen > 0 (the
+ * game updates it on every positive row, not only on a new maximum). Out:
+ * d = l2[first] - l2[last], dr = |first - last|; when d or dr is 0 the
+ * result is (best, 0), else (best*dr/(|d|+dr), dr*d/(|d|+dr)) with C
+ * truncating division - the push direction follows a slanted surface.
+ * Returns best (0 = no overlap, both outputs 0). */
+static int push_scan(const ll_seq *s, const ll_seq_elem *ea, int la, int oa,
+                     const ll_seq_elem *eb, int lb, int ob, int xedge, int xb,
+                     int rows, int *o1, int *o2)
+{
+    int best = 0, first = 0, last = 0, i;
+
+    for (i = 0; i < rows; i++) {
+        int pen = xedge - marg(s, ea, la, oa + i) -
+                  (marg(s, eb, lb, ob + i) + xb);
+        if (pen > 0) {
+            if (best == 0) {
+                best = pen;
+                first = i;
+            } else if (pen > best) {
+                best = pen;
+            }
+            last = i;
+        }
+    }
+    if (best == 0) {
+        *o1 = *o2 = 0;
+        return 0;
+    }
+    {
+        int d = marg(s, eb, lb, ob + first) - marg(s, eb, lb, ob + last);
+        int dr = first > last ? first - last : last - first;
+        int ad = d < 0 ? -d : d;
+
+        if (dr == 0 || ad == 0) {
+            *o1 = best;
+            *o2 = 0;
+        } else {
+            *o1 = best * dr / (ad + dr);
+            *o2 = dr * d / (ad + dr);
+        }
+    }
+    return best;
+}
+
+/* FUN_00042de0: the push-out between two positioned shapes. The register
+ * and stack operands (decompiler lost them) were resolved from the caller
+ * FUN_00053030 (0x5309x/0x5313x) and the vtable slots it calls (slot 0x48 =
+ * the frame's shape element, 0x50 = facing -1/+1, 0x52d30/0x52dc0 = the
+ * screen-space position): A = the element being moved, B = the other.
+ * out1/out2 = the (dx, dy) push (the caller FUN_00053ae0 packs them into the
+ * {0,1,dx,dy} message it sends to B); the return value is the penetration.
+ * Same gates, anchor/facing adjustment and row window as the hit test.
+ *   S_A = 6*ax + 3*aw + sum over rows (first, middle, last) of
+ *         (left - right) of A (middle = first + rows/2), same for B.
+ *   S_B > S_A: B is to the right of A: scan A's right margin vs B's left
+ *              (xedge = ax + aw, xb = bx).
+ *   else       B is to the left: scan B's right vs A's left (xedge = bx + bw,
+ *              xb = ax), then both outputs and the result are negated.
+ * Finally the vertical candidate v = (by+bh-ay < ay+ah-by) ? -(by+bh-ay)
+ * : ay+ah-by replaces the push (out1 = 0, out2 = v) when |v| is smaller
+ * than both |out1| and |out2|. (Hand-checked against 0x42f21..0x43240.) */
+int ll_seq_shape_push(const ll_seq *s,
+                      const ll_seq_elem *a, int ax, int ay, int afacing,
+                      const ll_seq_elem *b, int bx, int by, int bfacing,
+                      int *out1, int *out2)
+{
+    int aw, ah, an, bw, bh, bn;
+    int ax2, ay2, bx2, by2, al, bl;
+    int oa, ob, m, r, d1, d2, v, mx, m1, m2;
+    int sa, sb;
+
+    *out1 = *out2 = 0;
+    ll_seq_shape_wh(a, &aw, &ah, &an);
+    ll_seq_shape_wh(b, &bw, &bh, &bn);
+    if (an <= 0 || bn <= 0)
+        return 0;
+    if (afacing < 0) {
+        al = 1;
+        if (a->f0 != SENT_7FFF) {
+            ay2 = ay - anch_y(a);
+            ax2 = ax - (aw - anch_x(a));
+        } else {
+            ay2 = ay;
+            ax2 = ax;
+        }
+    } else {
+        al = 0;
+        ay2 = ay - anch_y(a);
+        ax2 = ax - anch_x(a);
+    }
+    if (bfacing < 0) {
+        bl = 1;
+        if (b->f0 != SENT_7FFF) {
+            by2 = by - anch_y(b);
+            bx2 = bx - (bw - anch_x(b));
+        } else {
+            by2 = by;
+            bx2 = bx;
+        }
+    } else {
+        bl = 0;
+        by2 = by - anch_y(b);
+        bx2 = bx - anch_x(b);
+    }
+    shape_window(a, ay2, b, by2, &oa, &ob, &m);
+    if (m < 1)
+        return 0;
+    m1 = m / 2;
+    m2 = m - 1;
+    sa = 6 * ax2 + 3 * aw;
+    sa += marg(s, a, al, oa) - marg(s, a, 1 - al, oa);
+    sa += marg(s, a, al, oa + m1) - marg(s, a, 1 - al, oa + m1);
+    sa += marg(s, a, al, oa + m2) - marg(s, a, 1 - al, oa + m2);
+    sb = 6 * bx2 + 3 * bw;
+    sb += marg(s, b, bl, ob) - marg(s, b, 1 - bl, ob);
+    sb += marg(s, b, bl, ob + m1) - marg(s, b, 1 - bl, ob + m1);
+    sb += marg(s, b, bl, ob + m2) - marg(s, b, 1 - bl, ob + m2);
+    d1 = by2 + bh - ay2;
+    d2 = ay2 + ah - by2;
+    v = d1 < d2 ? -d1 : d2;
+    if (sb > sa) {
+        r = push_scan(s, a, 1 - al, oa, b, bl, ob, ax2 + aw, bx2, m,
+                      out1, out2);
+    } else {
+        r = push_scan(s, b, 1 - bl, ob, a, al, oa, bx2 + bw, ax2, m,
+                      out1, out2);
+        *out1 = -*out1;
+        *out2 = -*out2;
+        r = -r;
+    }
+    mx = (*out2 < 0 ? -*out2 : *out2);
+    if ((*out1 < 0 ? -*out1 : *out1) > mx)
+        mx = *out1 < 0 ? -*out1 : *out1;
+    if ((v < 0 ? -v : v) < mx) {
+        *out1 = 0;
+        *out2 = v;
+    }
+    return r;
+}

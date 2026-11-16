@@ -939,6 +939,66 @@ static int seq_shape_selftest(void)
     return 0;
 }
 
+/* PR-58: the push-out (ll_seq_shape_push, FUN_00042de0 + FUN_00042cf0)
+ * pinned from a 2-element hand-built .SEQ: E0 = a 20x4 full rectangle (all
+ * margins 0), E1 = a slanted shape (left margins 0,2,4,6). Every expected
+ * number was derived by hand from the machine code and reproduced by the
+ * independent python twin (tools/shape_geom.py push), never from this port:
+ *   P1 E0@0 vs E0@10  - depth 10 on every row, but the vertical candidate
+ *      (4) is smaller than the horizontal push, so (dx,dy) = (0,4);
+ *   P2/P3 E0@0 vs E0@18 and the reverse - depth 2 (horizontal wins), the
+ *      reverse branch negates the push AND the result;
+ *   P4/P5 E0 vs the slanted E1 at x=14 - rows 0..2 overlap by 6,4,2, so
+ *      best 6, first row 0, last row 2, d = 0-4 = -4, dr = 2:
+ *      dx = 6*2/6 = 2, dy = 2*(-4)/6 = -1 (C truncation); P5 is the mirror;
+ *   P6/P7 the mirrored facing: E0 facing -1 sits at x - 20; touching gives
+ *      nothing (P6), one pixel of overlap gives (1,0) (P7). */
+static int seq_push_selftest(void)
+{
+    static const unsigned char blob[] = {
+        0x02, 0x00, 0x02, 0x00, 0x00, 0x00, 0x14, 0x00, 0x04, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x14, 0x00, 0x04, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x04, 0x06, 0x00, 0x00,
+        0x00, 0x00,
+    };
+    static const struct {
+        int a, ax, fa, b, bx, fb;
+        int ret, dx, dy;
+    } c[] = {
+        { 0,  0,  1, 0, 10,  1,  10,  0,  4 },   /* P1 */
+        { 0,  0,  1, 0, 18,  1,   2,  2,  0 },   /* P2 */
+        { 0, 18,  1, 0,  0,  1,  -2, -2,  0 },   /* P3 */
+        { 0,  0,  1, 1, 14,  1,   6,  2, -1 },   /* P4 */
+        { 1, 14,  1, 0,  0,  1,  -6, -2,  1 },   /* P5 */
+        { 0,  0, -1, 0,  0,  1,   0,  0,  0 },   /* P6 */
+        { 0,  0, -1, 0, -1,  1,   1,  1,  0 },   /* P7 */
+    };
+    ll_seq sq;
+    unsigned i;
+
+    if (ll_seq_parse(blob, (uint32_t)sizeof blob, &sq) != 0 || sq.count != 2) {
+        fprintf(stderr, "push selftest: FAILED the synthetic .SEQ did not"
+                        " parse as built\n");
+        return 1;
+    }
+    for (i = 0; i < sizeof c / sizeof c[0]; i++) {
+        int o1, o2;
+        int r = ll_seq_shape_push(&sq, &sq.els[c[i].a], c[i].ax, 0, c[i].fa,
+                                  &sq.els[c[i].b], c[i].bx, 0, c[i].fb,
+                                  &o1, &o2);
+        if (r != c[i].ret || o1 != c[i].dx || o2 != c[i].dy) {
+            fprintf(stderr, "push selftest: FAILED P%u: ret %d dx %d dy %d"
+                            " (want %d %d %d)\n", i + 1, r, o1, o2,
+                    c[i].ret, c[i].dx, c[i].dy);
+            ll_seq_free(&sq);
+            return 1;
+        }
+    }
+    ll_seq_free(&sq);
+    return 0;
+}
+
 /* FIX-13 (X-11) selftest, test-only entry point (ll_level.h): proves the
  * two .MOV duration invariants without any window or game data:
  *   1. ll_mov_parse clamps non-positive durations (the M4-C rule,
@@ -1087,7 +1147,7 @@ int ll_mov_selftest(void)
 
     /* PR-46: the element SHAPE geometry leg (no window, no game data). */
     if (seq_codec_selftest() != 0 || seq_anchor_selftest() != 0 ||
-        seq_shape_selftest() != 0) {
+        seq_shape_selftest() != 0 || seq_push_selftest() != 0) {
         free(sc.mov);
         free(m);
         return 1;
@@ -1096,7 +1156,7 @@ int ll_mov_selftest(void)
     free(sc.mov);
     free(m);
     printf("mov selftest: duration clamp + cycle guard + per-state seq= art"
-           " selection + patch codecs + anchored draw + shape geometry (ok)\n");
+           " selection + patch codecs + anchored draw + shape geometry + push-out (ok)\n");
     return 0;
 }
 
