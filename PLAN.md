@@ -1218,15 +1218,30 @@ Data facts pinned 2026-11-16 (full CD + HD tree, sparse-correct scan):
 - .plt grammar (plain text): line 1 = polyline count; then
   "<segments> x,y;x,y;..." world coords, y DOWN, feet ride the top of
   the lines. The leading count counts SEGMENTS not points - the parser
-  scans every pair and ignores it.
+  scans every pair and ignores it. Point separators: ';' normally, but
+  '!' occurs in real files as an EXACT equivalent inside the same
+  polyline (ENA.PLT "1 1,560!7500,570;", ZARIA_A.PLT 10 times) -
+  treating them the same was needed for ENA.03/ZARIA.01 to wire at all.
 - .MOV EXTENDED grammar (superset of 8c's viewer subset): per state
   `control=BY_TIME|BY_X|CHECK_LN|CH_DIR|CHECK_ALL[_PLANE]|FRAME_REV`
-  flag lists, `F=ax,ay` accel px/s^2, `T=x,y` speed cap px/s (scalar
-  form exists too: "G=400"), `G=gx,gy` gravity px/s^2 (grounded states
-  G=0 + CHECK_LN), `seq=<stem>` PER-STATE art (one leaf's .SEQ set is
-  shared by all states), transitions `TARGET[(prio)]=COND[|COND...]`
-  with CONDS K_FWD/K_BKWD/K_UP/K_DOWN/K_GEN1..3/K_ANY/AC_BREAK_NEXT,
-  `!` negates, OR semantics, first match wins. Real values: walk
+  flag lists (more exist: CHECK_ANI, CHECK_ZW, CHECK_BASE_LN, SEQ_REV_X/Y,
+  ANTI_SOLID, BY_TY/BY_Y), `F=ax,ay` accel px/s^2, `T=x,y` speed cap
+  px/s (scalar form exists too: "G=400"), `G=gx,gy` gravity px/s^2
+  (grounded states G=0 + CHECK_LN), `seq=<stem>` PER-STATE art (one
+  leaf's .SEQ set is shared by all states), extra keys `sample=`,
+  `time=`, `time_scale=`; transitions `TARGET[(prio)]=COND[|COND...]`
+  where prio is usually a number (1..97) but CAN BE NON-NUMERIC ("x",
+  "X") and may be absent, CONDS K_FWD/K_BKWD/K_UP/K_DOWN/K_GEN1..3/
+  K_ANY/AC_BREAK_NEXT are implemented, and the data uses much more:
+  K_FIRE (253 uses), K_JUMP (76), K_ALT, K_F1..K_F12, K_GEN4 and a
+  family of engine-internal AC_* signals (AC_ONAIR, AC_ENEMY_ATC,
+  AC_LINA, AC_DRAB, AC_TIME, ...); comma-separated cond groups exist
+  (`A_ZAPAL(1)=K_FIRE,K_F3`). Unimplemented names evaluate FALSE (never
+  fire) - nothing guesses. `!` negates, OR semantics, first match wins.
+  A transition that targets its OWN state (KADMAR2's real
+  `A_MASZERUJ(x)=K_FWD`) means KEEP running: re-entering it restarts
+  the frame list (measured: animation frozen on frame 1 while the lion
+  slid) - self-targets therefore change nothing. Real values: walk
   F=400 T=90, A_STAY brake F=600, fall state A_START_LAD1 G=0,200 and
   its landing route A_LADOW(1)=K_GEN2.
 - player wiring per level (.des, zero level special-casing): `lew=`
@@ -1236,6 +1251,31 @@ Data facts pinned 2026-11-16 (full CD + HD tree, sparse-correct scan):
   `lew_rect=` bounds feet x and defines world-bottom death -> respawn.
   `speed=` is ignored: the real .MOV T= caps are the authored speeds
   (RAN.01 speed=40,80;... contradicts - .MOV T=90 wins in practice).
+  ALL 13 level .des files carry lew=/platformy=/pozycja=/lew_rect= -
+  the wiring is uniform game-wide (measured 2026-11-16).
+- GAME-WIDE player inventory (measured 2026-11-16 over the full CD +
+  HD-install trees, sparse-correct scan) - 10 of the 13 level blocks
+  run their OWN lion data in ll_level --play today:
+  RAN.01 (30 states), TUNGA.11 (36), ENA.03 (23, A_SWIM over the
+  single 1,560->7,500 ENA.PLT line), ENA2 (17), KARA.07 (23),
+  KADMAR.07 (37 - its .des names leaf "0", and ANIMACJE really has a
+  leaf called "0" with TURN/LOOKUP/JUMPS/LAZY2... .SEQ), KADMAR2 (14,
+  A_MASZERUJ marches), LONA.05 (40), ZARIA.01 (37, opens A_DRAP),
+  ZARIA.02 (31, opens A_SCIAG on the lift). Three do NOT wire because
+  their ground is not a .PLT: TUNGA2.12 and SADES.06 say
+  `platformy=platf.des`, JUNCTION says `platformy=none.des` -
+  ground-from-sub-.des is M4-C work, not a parser gap. The player
+  wiring resolves EVERYWHERE: checked 2026-11-16, all 13 .des `lew=`
+  name a leaf that exists AND a .MOV stem that exists (RAN.01
+  Lew.ran/LEW.MOV, ..., KADMAR.07 leaf "0"/0.MOV, TUNGA2.12 reuses
+  Lew.tun/LEW.MOV, SADES.06 Lew.sad, JUNCTION Lew.jun) - so in those
+  three cases only the GROUND file is missing. Note the two name
+  spaces differ: LEVELDES records are named after the CHAPTER (RAN.DES,
+  ENA1.DES, TUNGA1.DES, ZARIA1/2.DES, KADMAR1.DES) while the
+  ANIMACJE/ETAPY blocks are named after the STAGE (RAN.01, ENA.03,
+  TUNGA.11, ZARIA.01/.02, KADMAR.07) - the CLI takes the stage name,
+  as the preview path already did. .PLT files exist ONLY in the HD
+  install (the CD ETAPY carries .PCX/.PCM/.SEQ, never .PLT).
 - .SEQ draw anchor CONFIRMED from data (UJ09 f0=0x23/f2=0x45): f0,f2
   is the anchor offset INSIDE the sprite (feet at bottom), so the draw
   origin = (feet.x - cam - (short)f0, feet.y - (short)f2) - same
@@ -1260,10 +1300,17 @@ PX_DATA legs run the scripted LEO_PLAY_SCRIPT demo on REAL data and
 pin: LEW.RAN/LEW.MOV/RAN.PLT load lines, spawn snap (40,298),
 lew_rect bounds, the A_STAY->A_WALK_FWD->A_WALK_BKWD->A_STAY
 transition chain, the gap fall -> lew_rect death -> pozycja respawn
-(the .plt gap near x=314 is real authored geometry), and a render
+(the .plt gap near x=314 is real authored geometry), a render
 differential (same tick count, script NONE vs FWD -> lion pixels move,
-NONE frame stays at spawn), plus TUNGA.11 proving zero level
-special-casing. The live window path
+NONE frame stays at spawn), a LIVE-session leg (the platform key
+injector gained arrow names: LEO_TEST_KEY=right pushes a real
+SDL_KEYDOWN through map_key into the held-key tracking, so the live
+substep + camera-follow path is proven headless), a MULTI-LEVEL matrix
+(ENA.03, ENA2, KARA.07, KADMAR.07, KADMAR2, LONA.05, ZARIA.01,
+ZARIA.02 - each must wire its own LEW.* leaf + .MOV + .PLT and run a
+state by tick 30; ENA.03 additionally pins the ENA.PLT `!`-separator
+ground and the A_SWIM state), plus TUNGA.11
+proving zero level special-casing. The live window path
 tracks held arrows (platform KEYDOWN/KEYUP), steps physics on the same
 fixed 20 ms grid and follows the player with the camera.
 

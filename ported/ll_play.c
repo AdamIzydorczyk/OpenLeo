@@ -75,7 +75,14 @@ int ll_plt_parse(const char *text, ll_plt *out)
                 pts[npts].y = (int)b;
                 npts++;
                 q = end;
-                while (q < eol && (*q == ';' || *q == ',' || *q == ' '))
+                /* point terminators: ';' is the normal one, '!' appears in
+                 * real files as an equivalent separator inside the SAME
+                 * polyline (ENA.PLT: "1 1,560!7500,570;", ZARIA_A.PLT has
+                 * 10 of them) - the segment count prefix counts SEGMENTS
+                 * either way, so it is the same separator with a different
+                 * keystroke; treated identically. */
+                while (q < eol && (*q == ';' || *q == '!' || *q == ',' ||
+                                   *q == ' '))
                     q++;
             }
             if (npts >= 2) {
@@ -424,7 +431,15 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
             else if (st->tr[t].c[i].cond == LL_COND_K_BKWD)
                 p->walkdir = -1;
         }
-        if (st->tr[t].tidx >= 0) {
+        /* A transition that targets the state it is written in is REAL
+         * data (KADMAR2's marching state: "A_MASZERUJ(x)=K_FWD") and
+         * means KEEP this state: re-entering it would restart the frame
+         * list every tick (measured: the walk froze on frame 1 while the
+         * lion slid along at the state's speed). So a self-target leaves
+         * the state running untouched - only the facing update above
+         * applied. (Note the priority field takes non-numeric tokens
+         * too: "(x)".) */
+        if (st->tr[t].tidx >= 0 && st->tr[t].tidx != p->sti) {
             p->sti = st->tr[t].tidx;
             p->fi = 0;
             p->ft = 0;
@@ -565,7 +580,8 @@ static const char ST_MOV[] =
     "F=600,0\r\nT=90,90\r\nG=0,0\r\n"
     "A_WALK_BKWD(1)=K_BKWD\r\nA_WALK_FWD(1)=K_FWD\r\nseq=uj09\r\n1,6\r\n\r\n"
     "[A_WALK_FWD]\r\ncontrol=FRAME_REV|BY_X|CHECK_ALL|CH_DIR|CHECK_LN\r\n"
-    "F=400,0\r\nT=90,90\r\nG=0,0\r\nA_STAY(1)=!K_FWD\r\nseq=uj09\r\n"
+    "F=400,0\r\nT=90,90\r\nG=0,0\r\nA_STAY(1)=!K_FWD\r\n"
+    "A_WALK_FWD(x)=K_FWD\r\nseq=uj09\r\n"
     "1,6\r\n2,6\r\n\r\n"
     "[A_WALK_BKWD]\r\ncontrol=FRAME_REV|BY_X|CHECK_ALL|CH_DIR|CHECK_LN\r\n"
     "F=400,0\r\nT=90,90\r\nG=0,0\r\nA_STAY(1)=!K_BKWD\r\nseq=uj09\r\n"
@@ -602,6 +618,15 @@ int ll_play_selftest(void)
     CHECK(ll_plt_first_below(&plt, 250, 40, &hit) && hit.y == 100);
     ll_plt_free(&plt);
 
+    /* '!' inside one polyline = the same separator (real ENA.PLT writes
+     * "1 1,560!7500,570;", ZARIA_A.PLT uses it 10 times): without it the
+     * ENA.03 ground parsed to 0 lines and the level looked data-less. */
+    ll_plt plt2;
+    CHECK(ll_plt_parse("1\r\n1 0,100!700,100;\r\n", &plt2) == 0 &&
+          plt2.n == 1 && plt2.line[0].n == 2 &&
+          plt2.line[0].p[1].x == 700 && plt2.line[0].p[1].y == 100);
+    ll_plt_free(&plt2);
+
     /* .MOV extended grammar: physics numbers, flags, transitions, per-state
      * seq, M4-C clamp (frames say 6 ms -> 100) */
     CHECK(ll_mov_parse(ST_MOV, &m) == 3);
@@ -609,8 +634,13 @@ int ll_play_selftest(void)
     CHECK(m.st[1].fx == 400 && m.st[1].tx == 90 &&
           (m.st[1].ctrl & LL_CTRL_BY_X) && (m.st[1].ctrl & LL_CTRL_CHECK_LN));
     CHECK(strcmp(m.st[1].seqkey, "uj09") == 0);
-    CHECK(m.st[1].ntr == 1 && m.st[1].tr[0].tidx == 0 &&
+    CHECK(m.st[1].ntr == 2 && m.st[1].tr[0].tidx == 0 &&
           m.st[1].tr[0].c[0].cond == LL_COND_K_FWD && m.st[1].tr[0].c[0].neg == 1);
+    /* the self-target line parses too (its priority is the non-numeric
+     * token "x" - real KADMAR2 data), and matches its own state */
+    CHECK(m.st[1].tr[1].tidx == 1 &&
+          m.st[1].tr[1].c[0].cond == LL_COND_K_FWD &&
+          m.st[1].tr[1].c[0].neg == 0);
     CHECK(m.st[1].fr[0].ms == 6);                    /* author values kept */
     ll_mov_t m2;
     ll_mov_parse("X\n[A]\n0,0\n1,-5\n", &m2);
@@ -630,11 +660,15 @@ int ll_play_selftest(void)
     k.k_fwd = 1;
     int ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);
     CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 1);
-    int fell = 0, landed = 0;
+    int fell = 0, landed = 0, stev = 1, maxfi = 0;
     for (int t = 0; t < 400; t++) {                 /* walk until the pit */
         ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);
         if (ev & LL_PLAY_EV_AIR)
             fell = t;
+        if (ev & LL_PLAY_EV_STATE)
+            stev++;
+        if (p.fi > maxfi)
+            maxfi = p.fi;
         if (ev & LL_PLAY_EV_GROUND) {
             landed = t;
             break;
@@ -644,6 +678,14 @@ int ll_play_selftest(void)
             CHECK(p.y == 100);
     }
     CHECK(fell && landed > fell);
+    /* KADMAR2's real "A_MASZERUJ(x)=K_FWD" pattern (a state that
+     * re-targets ITSELF while its own key is held; here added to the
+     * mini .MOV as A_WALK_FWD(x)=K_FWD): keeping the state must neither
+     * restart its frame list nor report a transition - measured before
+     * the fix: one A_MASZERUJ -> A_MASZERUJ event per tick, the walk
+     * animation frozen on frame 1. */
+    CHECK(stev == 1);
+    CHECK(maxfi > 0);
     CHECK(p.grounded && p.y == 150);
     CHECK(p.vx > 50);                                /* kept momentum  */
     CHECK(p.gen[LL_COND_K_GEN2 - LL_COND_K_GEN1] == 1); /* landing pulse */
@@ -674,7 +716,9 @@ int ll_play_selftest(void)
     }
     ll_plt_free(&pl);
     if (!rc)
-        printf("play selftest: .plt physics + extended .MOV transitions"
-               " walk/turn/stop, edge fall, K_GEN2 landing pulse (ok)\n");
+        printf("play selftest: .plt physics (+ the '!' separator variant),"
+               " extended .MOV transitions walk/turn/stop, self-transition"
+               " keeps its state (frames keep running), edge fall, K_GEN2"
+               " landing pulse (ok)\n");
     return rc;
 }

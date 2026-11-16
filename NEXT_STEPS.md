@@ -1978,6 +1978,65 @@ six verify-play legs ok; fixture-free config runs the selftest and
 prints the named SKIP; `make` and `make win` warning-free; verify-arch
 green (ll_play.c/.h are SDL-free - the 4 allowed files unchanged);
 the ASan/LSan/UBSan recipe above rc=0 with zero output.
+
+PR-43 follow-up (same day): the LIVE window path was the one part of
+M4-B still unproven headless (the scripted legs drive `LEO_PLAY_SCRIPT`
+and bypass the session loop). Fixed by extending the existing key
+injector (platform_sdl.c `LEO_TEST_KEY`) with the arrow names
+`left`/`right`/`up`/`down` - it pushes a real SDL_KEYDOWN, so the
+event travels map_key -> LL_EV_KEYDOWN -> the held-key tracking ->
+fixed-substep physics -> camera follow; the injected RIGHT press makes
+the lion take the A_STAY -> A_WALK_FWD transition in a 2 s real
+session, which the new verify-play "live input" leg pins. Same
+injector also gained nothing else: no behaviour change for printable
+keys/esc/space (verify-quit/verify-menu legs unchanged and green).
+
+Then the same probe approach found two REAL-DATA grammar gaps (both
+fixed, both pinned):
+- `.plt` point separator `!` is an exact equivalent of `;` INSIDE one
+  polyline (real bytes: ENA.PLT `1 1,560!7500,570;`, ZARIA_A.PLT uses
+  it 10 times; the leading segment count still counts segments).
+  Before: those grounds parsed to 0 lines and ENA.03/ZARIA.01 reported
+  "lacks ground .PLT" - a false data hole. Now ENA.03 wires (1 line,
+  spawn snapped to 100,560, state A_SWIM) and ZARIA.01 gains 45 lines.
+- A transition that targets its OWN state (KADMAR2's real
+  `A_MASZERUJ(x)=K_FWD`) means KEEP running. Re-entering it reset the
+  frame list every tick - measured: 50 `A_MASZERUJ -> A_MASZERUJ`
+  events in 50 ticks, animation frozen on frame 1 while the lion slid
+  at the state's speed. Self-targets now change nothing (facing still
+  updates). Side fact from the same line: the priority token may be
+  NON-NUMERIC (`(x)`, `(X)`) - the parser never required a number.
+- `ll_level.c` also prints a leaf/.MOV name-mismatch diagnostic
+  instead of staying silent. Measured: it never fires - all 13 .des
+  name a leaf AND a .MOV that really exist; the code still never
+  guesses a script (ZARIA's leaves carry an extra LEWPL.MOV its .des
+  does not name).
+
+GAME-WIDE measurement (full CD + HD-install trees, sparse-correct
+scan; script /tmp/opencode/play_matrix.sh runs one headless --play
+per level block): 10 of the 13 level blocks run their OWN lion data
+unchanged - RAN.01 30, TUNGA.11 36, ENA.03 23, ENA2 17, KARA.07 23,
+KADMAR.07 37 (its .des names a leaf literally called "0", which
+really exists with TURN/LOOKUP/JUMPS/LAZY2 .SEQ), KADMAR2 14, LONA.05
+40, ZARIA.01 37, ZARIA.02 31. The 3 that stay preview-only are NOT
+parser gaps: TUNGA2.12/SADES.06 say `platformy=platf.des` and
+JUNCTION says `platformy=none.des` - ground defined inside a sub-.des
+is M4-C work. Also recorded in PLAN 8g: LEVELDES records are named
+after the CHAPTER (RAN.DES, ENA1.DES, KADMAR1.DES) while
+ANIMACJE/ETAPY blocks are named after the STAGE (RAN.01, ENA.03,
+KADMAR.07) - only the stage names work on the CLI, and .PLT exists
+only in the HD install.
+
+verify-play is now EIGHT legs (selftest, wiring, transitions,
+fall/respawn, render differential, live input, NEW multi-level matrix
+over ENA.03/ENA2/KARA.07/KADMAR.07/KADMAR2/LONA.05/ZARIA.01/
+ZARIA.02 with ENA.PLT `!` + A_SWIM pins, TUNGA.11); `--play-selftest`
+grew the matching coverage (`!` separator, self-transition keeps its
+state and lets frames keep running, non-numeric priority token).
+Unknown .MOV condition names in the real data (inventory measured:
+K_FIRE 253 uses, K_JUMP 76, AC_ONAIR 199, AC_ENEMY_ATC 144, K_F1..
+F12, K_ALT, ...) all evaluate FALSE - nothing is guessed; K_JUMP +
+the AC_* signals are the M4-C list.
  - PR-43 pushed 73dec71; CI run 43783591185: linux + asan +
    windows-smoke ALL green on the first pass. CLOSED. Ready-to-apply
    CI follow-up (NOT pushed: our gh token has no `workflow` scope, so
@@ -1990,20 +2049,31 @@ the ASan/LSan/UBSan recipe above rc=0 with zero output.
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opens the M4-C line when gameplay is
-wanted next: jump/crouch states from LEW.MOV (A_UP_*/A_DOWN_* exist
-with K_UP/K_DOWN wiring already in the transition layer), hand/foot
-interactions (K_GEN1 hand points: A_MA_KORONE crown climb etc.), the
-A_LADOW scripted-landing chain as a real landing route, and objects
-that react to the player (move platforms via their .MOV + player
-riding). None is blocked on data - RAN.01/TUNGA.11 carry complete
-player sets (see PLAN 8g). Small latent cleanup noticed on the way:
-tools/verify_help.py and tools/verify_pcm.py still scan nested index
-tables only `count` slots (the PR-36 sparse-table bug, same shape as
-the extract_record.py fix in this PR); their pins are dense on today's
-fixtures so they pass - fix them before using those probes on other
-levels. Also waiting for an owner-side one-liner (workflow files are
-outside our token's scope): the asan job + `ll_level --play-selftest`
-(see the PR-43 record).
+wanted next, and the game-wide measurement (see the PR-43 follow-up
+record) says exactly where the gaps are:
+- ground from a SUB-.des: TUNGA2.12/SADES.06 use `platformy=platf.des`
+  and JUNCTION `platformy=none.des` - the only 3 of 13 that do not run
+  their lion, all three for the same reason. Their .MOV/leaf art is
+  complete (Lew.tun / Lew.sad / Lew.jun all resolve).
+- the condition names the data uses but our runtime scores false:
+  K_JUMP (76 uses game-wide - the up-arrow route into the A_UP_*
+  states is the single most valuable one), K_FIRE (253), K_ALT,
+  K_F1..F12 and the engine-internal AC_* signals (AC_ONAIR 199,
+  AC_ENEMY_ATC 144, AC_LINA/AC_LINA_CATCH, AC_DRAB, AC_TIME...).
+  K_GEN1..3 stay the hook point for hand/foot interactions
+  (A_MA_KORONE crown climb etc.), and the authored A_LADOW landing
+  chain is the real replacement for the LL_PLAY_GRAVITY path.
+- objects that react to the player (move platforms via their own .MOV +
+  player riding).
+None of this is blocked on data - 10 of 13 levels already run their
+complete own player sets (see PLAN 8g). Small latent cleanup noticed on
+the way: tools/verify_help.py and tools/verify_pcm.py still scan
+nested index tables only `count` slots (the PR-36 sparse-table bug,
+same shape as the extract_record.py fix in this PR); their pins are
+dense on today's fixtures so they pass - fix them before using those
+probes on other levels. Also waiting for an owner-side one-liner
+(workflow files are outside our token's scope): the asan job +
+`ll_level --play-selftest` (see the PR-43 record).
 
 PR-37 leaves one named golden follow-up: recover the ORIGINAL engine
 text FONT (the cursive used for corner words AND chapter titles).

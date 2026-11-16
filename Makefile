@@ -491,6 +491,51 @@ ifeq ($(PX_DATA),1)
 	  && ! cmp -s /tmp/opencode/ly_p40_NONE.ppm /tmp/opencode/ly_p40_FWD.ppm \
 	  && echo "play render: lion drawn at the .SEQ anchor (-f0,-f2) walks on screen (NONE stays, FWD moves, ok)" \
 	  || { echo "play render check FAILED"; cat /tmp/opencode/ly_p40_NONE.log /tmp/opencode/ly_p40_FWD.log; exit 1; }
+# live window path (no PPM grid, no LEO_PLAY_SCRIPT): the platform key
+# injector presses RIGHT in a real session loop - held-key tracking, the
+# fixed-substep physics branch and the camera follow run exactly as a
+# player's arrows drive them (the A_STAY -> A_WALK_FWD line can only
+# come from that input).
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  LEO_TEST_KEY_AFTER_MS=300 LEO_TEST_KEY=right \
+	  ./ll_level $(DATA) RAN.01 --play --no-audio \
+	  > /tmp/opencode/ly_live.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play live loop FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_live.log; exit 1; fi
+	@grep -q 'play: LEW.RAN 30 state' /tmp/opencode/ly_live.log \
+	  && grep -q 'play: A_STAY -> A_WALK_FWD' /tmp/opencode/ly_live.log \
+	  && echo "play live input: a real KEYDOWN through platform_poll walks the lion (held-key + fixed substeps + camera follow, ok)" \
+	  || { echo "play live-input grep FAILED"; cat /tmp/opencode/ly_live.log; exit 1; }
+# the SAME runtime on the other level blocks that carry complete player
+# sets (inventory measured 2026-11-16 over the full CD + HD-install
+# trees: 10 of 13 run their own LEW.* art + .MOV + .PLT; TUNGA2.12 and
+# SADES.06 name their ground as platf.des and JUNCTION as none.des -
+# ground-from-.des is M4-C work, not a parser gap; KADMAR.07's lion
+# lives in a leaf literally named "0", which the .des names too).
+# ENA.03 additionally pins the '!' point-separator variant (ENA.PLT) on
+# real bytes: without it that ground parsed to zero lines.
+	@for L in ENA.03 ENA2 KARA.07 KADMAR.07 KADMAR2 LONA.05 ZARIA.01 ZARIA.02; do \
+	  env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	    LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0 \
+	    LEO_LEVEL_SECS=1 LEO_PLAY_SCRIPT="1:FWD" \
+	    LEO_LEVEL_PPM=/tmp/opencode/ly_multi_$$L.ppm \
+	    LEO_LEVEL_PPM_TICK=30 \
+	    ./ll_level $(DATA) $$L --play --no-audio \
+	    > /tmp/opencode/ly_multi_$$L.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play multi-level $$L FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_multi_$$L.log; exit 1; fi; \
+	  grep -qE 'play: [A-Za-z0-9_.]+ [0-9]+ state\(s\) on [0-9]+ polyline' \
+	      /tmp/opencode/ly_multi_$$L.log || { echo "play multi-level $$L not wired"; \
+	    cat /tmp/opencode/ly_multi_$$L.log; exit 1; }; \
+	  grep -qE 'play tick 30: state A_' /tmp/opencode/ly_multi_$$L.log || \
+	    { echo "play multi-level $$L never ran a state"; exit 1; }; \
+	done
+	@grep -q 'play: ENA.PLT: 1 polyline' /tmp/opencode/ly_multi_ENA.03.log \
+	  && grep -q 'spawn feet (100,560) grounded=1' /tmp/opencode/ly_multi_ENA.03.log \
+	  && grep -q 'play tick 30: state A_SWIM' /tmp/opencode/ly_multi_ENA.03.log \
+	  && echo "play multi-level: 8 more levels run their OWN lion data (zero special-casing); ENA.PLT '!' separator + the ENA.03 A_SWIM state prove the extended grammar on real bytes" \
+	  || { echo "play multi-level ENA.03 grep FAILED"; cat /tmp/opencode/ly_multi_ENA.03.log; exit 1; }
 # per-level data: TUNGA.11 has its OWN complete player set (LEW.TUN art,
 # 36-state LEW.MOV opening with the scripted A_GIVE_EGG egg intro,
 # TUNGA.PLT 7 lines, lew_rect -100..1570) - the runtime is generic,

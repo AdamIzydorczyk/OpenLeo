@@ -9,7 +9,11 @@
  * Data provenance (verified 2026-11-16 on LL.iso + the HD-install tree):
  *   <level>.plt   plain text (HD ETAPY block): a polyline count line, then
  *                 "n x,y;x,y;..." world-coordinate ground lines (RAN.01:
- *                 RAN.PLT 153 lines, TUNGA.11: TUNGA.PLT 7 lines).
+ *                 RAN.PLT 153 lines, TUNGA.11: TUNGA.PLT 7 lines). Point
+ *                 separators: ';' normally, '!' occurs as an EXACT
+ *                 equivalent inside the same polyline (ENA.PLT
+ *                 "1 1,560!7500,570;", ZARIA_A.PLT 10 times) - treated
+ *                 identically, the leading count still counts SEGMENTS.
  *   LEW.MOV       plain text (HD ANIMACJE player leaf, 8666 B in RAN.01):
  *                 the lion's real state machine - 30 states; each block
  *                 adds F=/T=/G= physics (acceleration px/s^2, speed cap
@@ -17,7 +21,14 @@
  *                 states G=0 + CHECK_LN, the real fall state A_START_LAD1
  *                 G=0,200), "TARGET(p)=COND" transitions (K_FWD/K_BKWD/
  *                 K_UP/K_DOWN/K_GEN1..3/K_ANY/AC_BREAK_NEXT, "!" negates,
- *                 "|" ORs) and per-state "seq=<stem>" art selection.
+ *                 "|" ORs; the priority token may be non-numeric - real
+ *                 KADMAR2 writes "A_MASZERUJ(x)=K_FWD" - and a transition
+ *                 targeting its OWN state means KEEP running, no frame
+ *                 reset and no event) and per-state "seq=<stem>" art
+ *                 selection. Condition names the data uses but this
+ *                 runtime does not model (K_FIRE, K_JUMP, K_ALT,
+ *                 K_F1..F12, the engine-internal AC_* signals) evaluate
+ *                 FALSE - nothing is guessed.
  * Physics constants therefore come from the data; the single project-owned
  * constant is LL_PLAY_GRAVITY (200 px/s^2, the same magnitude as the real
  * A_START_LAD1 G=) used only when a state marked CHECK_LN loses its ground
@@ -40,7 +51,9 @@ typedef struct { int x, y; } ll_xy;
 typedef struct { ll_xy *p; int n; } ll_poly;
 typedef struct { ll_poly *line; int n; } ll_plt;
 
-/* text: first non-empty line = polyline count, rest = "n x,y;x,y;..." .
+/* text: first non-empty line = polyline count, rest = "n x,y;x,y;..." with
+ * ';' or '!' point separators (equivalents in the real files); the leading
+ * per-line number counts SEGMENTS, so every coordinate pair is read.
  * 0 = parsed (garbage lines are skipped), 1 = no usable line. */
 int  ll_plt_parse(const char *text, ll_plt *out);
 void ll_plt_free(ll_plt *o);

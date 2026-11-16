@@ -190,7 +190,9 @@ int plat_poll(ll_event *ev)
      * travels the exact same translation path (map_key, repeat filter)
      * as a physical press. <k> = a printable ASCII char (matched
      * case-insensitively, 'q' for the FIX-01/C3 q-quits-the-app leg),
-     * or the names "esc" / "space". */
+     * or the names "esc" / "space" / "left" / "right" / "up" / "down"
+     * (the arrows: PR-43's live-play leg needs a HELD-key arrow, which
+     * the .des-driven LEO_PLAY_SCRIPT path does not exercise). */
     {
         static uint64_t t_first;
         static uint64_t nms;
@@ -208,6 +210,14 @@ int plat_poll(ll_event *ev)
                     tkey = SDLK_ESCAPE;
                 else if (!strcmp(knm, "space"))
                     tkey = ' ';
+                else if (!strcmp(knm, "left"))
+                    tkey = SDLK_LEFT;
+                else if (!strcmp(knm, "right"))
+                    tkey = SDLK_RIGHT;
+                else if (!strcmp(knm, "up"))
+                    tkey = SDLK_UP;
+                else if (!strcmp(knm, "down"))
+                    tkey = SDLK_DOWN;
                 else {
                     int c = (unsigned char)knm[0];
                     if (c >= 'A' && c <= 'Z')

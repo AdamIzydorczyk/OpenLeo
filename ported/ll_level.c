@@ -1830,6 +1830,30 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                             const llrs_slot *mv = rec_find(mrecs, nmrec,
                                                            movstem,
                                                            ".MOV");
+                            if (!mv) {
+                                /* Safety net: the .des names the script
+                                 * and all 13 of them name one that
+                                 * exists (measured 2026-11-16), so this
+                                 * never fires today - but we NEVER guess
+                                 * a .MOV (ZARIA's leaves carry an extra
+                                 * LEWPL.MOV that its .des does not
+                                 * name), so if a future level's name
+                                 * does not resolve, print what IS there
+                                 * and make the gap diagnosable. */
+                                for (unsigned k = 0; k < nmrec; k++) {
+                                    const char *dot
+                                        = strrchr(mrecs[k].name, '.');
+                                    if (mrecs[k].id == 1 &&
+                                        mrecs[k].name[0] && dot &&
+                                        ci_eq(dot, ".MOV"))
+                                        printf("ll_level: play: leaf %s"
+                                               " has no %s.MOV, it"
+                                               " carries %s (unused: the"
+                                               " .des names the"
+                                               " script)\n", pl.leaf,
+                                               movstem, mrecs[k].name);
+                                }
+                            }
                             unsigned char *mtxt = NULL;
                             if (mv && llrs_read(&han, mv, &mtxt) > 0) {
                                 pl.mov = calloc(1, sizeof *pl.mov);

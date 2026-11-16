@@ -93,7 +93,8 @@ make verify-all
 # verify-mod   MOD music renderer: deterministic render linux == wine
 # verify-level level scene: .DES wiring + .SEQ/.MOV anims + scroll camera
 # verify-play  playable prototype (M4-B): real LEW.MOV physics + .plt ground
-#              (hermetic selftest always; data legs on RAN.01/TUNGA.11)
+#              (hermetic selftest always; data legs on RAN.01 + live input +
+#               an 8-level matrix + TUNGA.11 - 10 levels run their own lion)
 # verify-help  help overlay: POMOC pages == python oracle
 # verify-menu  hooked demo chain: cutscene -> skip -> menu -> restart dialog
 #              + bright-green answer selection (tools/verify_green.py oracle)
@@ -127,7 +128,9 @@ proves the FIX-01 quit-unwind path headlessly; used by verify-quit),
 `LEO_TEST_KEY_AFTER_MS=N` + `LEO_TEST_KEY=q` (inject one synthetic KEYDOWN
 N ms after the first poll — pushed through SDL's queue, so it travels the
 full map_key/repeat-filter path; the other half of verify-quit proves q
-quits the app (FIX-01/C3)).
+quits the app (FIX-01/C3)). `LEO_TEST_KEY` also accepts the names
+`esc`/`space` and, since PR-43, the arrows `left`/`right`/`up`/`down`
+(the verify-play live leg needs a real arrow press).
 
 Playable-level hooks (M4-B, PR-43, used by verify-play): `LEO_PLAY=1`
 (the `--play` flag sets it) upgrades a level preview to the real
