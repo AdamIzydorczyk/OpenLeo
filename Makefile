@@ -359,16 +359,20 @@ else
 endif
 
 # Level scene: TUNGA.11 = PLAN3.PCX bg + MOVEPLAT leaf .SEQ sprite animated
-# by the HD-install ED000002.MOV state machine (LEO_HD_DIR). Fixed-tick PPM
+# Level scene (PR-45): the level's OWN placement data drives the scene.
+# TUNGA.11 reads the 7 placement files its main .des names through
+# zwierzaki=/animacje=/ani_plat=, places 69 of its 77 authored object entries
+# (8 stand at an x outside the world its own back_rect defines), and joins each
+# entry to its HD .MOV script AND to the .SEQ art that script selects for the
+# state it plays (the per-state seq= name, not the .mov stem). Fixed-tick PPM
 # dumps must differ (motion) and must be composited over the bare background.
-# PR-36 note: with the sparse-table block scan the .des placement join
-# resolves ALL 11 animated objects of TUNGA.11 (the old header-count cutoff
-# saw only 1; leaf records sit at high slot indices).
 # LEO_HELP_SECS=0 skips the help overlay for the pure-scene dumps.
 # (pcm_selftest stays a prerequisite for the sibling verify-pcm decoder
 # oracle; RAN.01 itself renders the real PLAN3.PCX tlo layer since PR-36.)
 verify-level: ll_level pcm_selftest
-# FIX-13 (X-11): .MOV duration clamp + obj_advance cycle-guard selftest -
+# FIX-13 (X-11): .MOV duration clamp + obj_advance cycle-guard selftest, plus
+# the PR-45 per-state art selection (a state draws exactly the .SEQ its own
+# seq= names; a missing name or an inline-form table draws nothing) -
 # data-free, so it runs in EVERY configuration (full suite and the
 # fixture-free CI simulation alike).
 	@timeout 30 ./ll_level --mov-selftest
@@ -380,20 +384,55 @@ ifeq ($(PX_DATA),1)
 	  ./ll_level $(DATA) TUNGA.11 > /tmp/opencode/lv_tick$$T.log 2>&1; \
 	  rc=$$?; if [ $$rc -ne 0 ]; then echo "level scene FAILED (rc=$$rc)"; \
 	    cat /tmp/opencode/lv_tick$$T.log; exit 1; fi; done
-	@grep -q 'show TUNGA.11: bg PLAN3.PCX 640x359, 11 animated object' \
+# the authored scene, read from the level's own data: 7 placement files, 77
+# entry lines -> 69 placed + 8 outside its own world, 43 scripts / 50 art
+# tables, ONE real art hole (ogien_m.SEQ), two stale count headers reported as
+# what they are, and the bare `none` keyword of ani_plat= never a fake hole.
+	@grep -q 'show TUNGA.11: bg PLAN3.PCX 640x359, 69 animated object' \
 	    /tmp/opencode/lv_tick8.log \
-	  && grep -q 'obj MOVEPLAT/ED000002.SEQ.*\[mov\]' /tmp/opencode/lv_tick8.log \
-	  && grep -q 'tick 8: ED000002.SEQ state 1 at' /tmp/opencode/lv_tick8.log \
-	  && echo "level scene: wiring + .SEQ sprite + .MOV state machine (ok)" \
-	  || { echo "level scene grep FAILED"; cat /tmp/opencode/lv_tick8.log; exit 1; }
-	@grep -q 'placement ANI3.DES' /tmp/opencode/lv_tick8.log \
-	  && grep -q 'tick 8: STRUM1.SEQ' /tmp/opencode/lv_tick8.log \
-	  && grep -q 'tick 8: STRUM2.SEQ' /tmp/opencode/lv_tick8.log \
-	  && echo "placement join: animacje= -> ANI3.DES -> ANIMACJE leaf grammar (ok; STRUM art resolves via the PR-36 sparse-table scan - it was a false 'data hole' before)" \
-	  || { echo "placement join FAILED"; cat /tmp/opencode/lv_tick8.log; exit 1; }
+	  && grep -q 'authored scene TUNGA.11: 7 placement file(s), 77 object' \
+	      /tmp/opencode/lv_tick8.log \
+	  && grep -q 'placement ANI3.DES (72 B, from animacje=)' \
+	      /tmp/opencode/lv_tick8.log \
+	  && grep -q 'its own count line says 20 but the file holds 10 entry' \
+	      /tmp/opencode/lv_tick8.log \
+	  && grep -q "the ani_plat list carries the bare 'none' keyword" \
+	      /tmp/opencode/lv_tick8.log \
+	  && grep -q 'obj ANIBACK/strum2.mov\[mov\]: art STRUM2.SEQ, 1 state(s), bbox 230x187 at (1494,503)' \
+	      /tmp/opencode/lv_tick8.log \
+	  && grep -q 'its seq= names ogien_m.SEQ in that ANIMACJE leaf: no such record' \
+	      /tmp/opencode/lv_tick8.log \
+	  && echo "authored scene: .des placement files -> placed objects, art chosen by each script's own seq=, stale count lines and data holes named exactly (ok)" \
+	  || { echo "authored scene grep FAILED"; cat /tmp/opencode/lv_tick8.log; exit 1; }
+# the scripts really run: fixed 40 ms x 8 ticks advance the cycle, and the
+# proof lines name the script (not a guessed .SEQ name) and say which state
+# and frame of it is showing
+	@grep -q 'tick 8: ANIBACK/strum1.mov state 0 frame 0' \
+	    /tmp/opencode/lv_tick8.log \
+	  && grep -q 'tick 8: ANIBACK/strum2.mov state 0 frame 1' \
+	    /tmp/opencode/lv_tick8.log \
+	  && grep -q 'tick 8: 57 more placement(s) advanced' \
+	      /tmp/opencode/lv_tick8.log \
+	  && echo "scene animation: the authored .MOV cycles advance on the fixed grid, proof bounded at 12 placements (ok)" \
+	  || { echo "scene animation grep FAILED"; cat /tmp/opencode/lv_tick8.log; exit 1; }
 	@if cmp -s /tmp/opencode/lv_tick2.ppm /tmp/opencode/lv_tick8.ppm; \
 	then echo "level anim FAILED: tick2 == tick8"; exit 1; \
-	else echo "level anim: platform moves on screen (tick2 != tick8, ok)"; fi
+	else echo "level anim: the authored scene changes on screen (tick2 != tick8, ok)"; fi
+# LEO_OBJ_ALL=1 prints EVERY placement (the default listing is bounded at 24):
+# proof that the platform script the old build knew (ED000002, 5 states) comes
+# from the level's own ani_plat data, at its authored coordinates
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0 LEO_LEVEL_SECS=1 \
+	  LEO_OBJ_ALL=1 \
+	  ./ll_level $(DATA) TUNGA.11 > /tmp/opencode/lv_objall.log 2>&1; \
+	  rc=$$?; if [ $$rc -ne 0 ]; then echo "LEO_OBJ_ALL leg FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/lv_objall.log; exit 1; fi
+	@grep -q 'obj MOVEPLAT/ed000002.mov\[mov\]: art ED000002.SEQ, 5 state(s), bbox 80x298 at (599,164)' \
+	    /tmp/opencode/lv_objall.log \
+	  && ! grep -q 'more placement(s) of those scripts' \
+	      /tmp/opencode/lv_objall.log \
+	  && echo "LEO_OBJ_ALL: all 69 placements named, the animated platform comes from ani_plat= with its authored x,y (ok)" \
+	  || { echo "LEO_OBJ_ALL grep FAILED"; cat /tmp/opencode/lv_objall.log; exit 1; }
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
 	  LEO_LEVEL_CAM=300 \
@@ -403,7 +442,7 @@ ifeq ($(PX_DATA),1)
 	    cat /tmp/opencode/lv_cam300.log; exit 1; fi
 	@grep -q 'world 2560x600 (back_rect 0,0), view 640x359, cam 300/1920' \
 	    /tmp/opencode/lv_cam300.log \
-	  && grep -q 'tick 8: STRUM2.SEQ' /tmp/opencode/lv_cam300.log \
+	  && grep -q 'tick 8: ANIBACK/strum2.mov' /tmp/opencode/lv_cam300.log \
 	  && ! cmp -s /tmp/opencode/lv_tick8.ppm /tmp/opencode/lv_cam300.ppm \
 	  && echo "scroll camera: back_rect world, world-X strum2 placement, wrapped bg pan (ok)" \
 	  || { echo "scroll camera check FAILED"; cat /tmp/opencode/lv_cam300.log; exit 1; }
@@ -413,10 +452,25 @@ ifeq ($(PX_DATA),1)
 	  ./ll_level $(DATA) RAN.01 > /tmp/opencode/lv_ran.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "RAN.01 level scene FAILED (rc=$$rc)"; \
 	    cat /tmp/opencode/lv_ran.log; exit 1; fi
+# the largest authored scene in the shipped game: 827 entries from 4 placement
+# files (CHMURY.DES from zwierzaki=), 82 scripts, 92 art tables. 48 of those
+# tables are the inline palette+sprite form the .SEQ draw path here does not
+# implement: reported as a VIEWER gap by exact name, never counted as data.
+# The proof listing is bounded (24 + the count of the rest).
 	@grep -q 'tlo.*= plan3.pcx,plan2.pcm,plan1.pcm' /tmp/opencode/lv_ran.log \
-	  && grep -q 'show RAN.01: bg PLAN3.PCX 960x400, 11 animated object' \
+	  && grep -q 'show RAN.01: bg PLAN3.PCX 960x400, 827 animated object' \
 	      /tmp/opencode/lv_ran.log \
-	  && echo "RAN.01 canvas: full tlo stack visible -> REAL bg PLAN3.PCX 960x400 + 11 objects (the truncated table showed only plan1.pcm = wrong bg). PCM layer row-windows (0x0 rows) stay an open question (verify-pcm owns the decoder oracle)." \
+	  && grep -q 'placement CHMURY.DES (16459 B, from zwierzaki=)' \
+	      /tmp/opencode/lv_ran.log \
+	  && grep -q 'authored scene RAN.01: 4 placement file(s), 827 object entry line(s) -> 827 placed' \
+	      /tmp/opencode/lv_ran.log \
+	  && grep -q '48 of them the inline palette+sprite form this viewer does' \
+	      /tmp/opencode/lv_ran.log \
+	  && grep -q 'its seq= names EDGE0000.SEQ: the record is there, but its element carries the inline palette+sprite form' \
+	      /tmp/opencode/lv_ran.log \
+	  && grep -q '\.\.\. 803 more placement(s) of those scripts' \
+	      /tmp/opencode/lv_ran.log \
+	  && echo "RAN.01 canvas: full tlo stack -> REAL bg PLAN3.PCX 960x400 + the 827 objects the level places, art forms distinguished honestly (PCM layer row-windows (0x0 rows) stay an open question: verify-pcm owns the decoder oracle)" \
 	  || { echo "RAN.01 canvas check FAILED"; cat /tmp/opencode/lv_ran.log; exit 1; }
 else
 	@echo "verify-level: SKIP (needs $(DATA)/ETAPY/12; see the restaging recipe in NEXT_STEPS.md"
@@ -588,6 +642,8 @@ ifeq ($(PX_DATA),1)
 	    cat /tmp/opencode/ly_noground.log; exit 1; fi
 	@grep -q 'play: NONE.DES: 0 polyline' /tmp/opencode/ly_noground.log \
 	  && grep -q 'has NO ground in its own data' /tmp/opencode/ly_noground.log \
+	  && grep -q 'authored scene JUNCTION: 0 placement file(s), 0 object' \
+	      /tmp/opencode/ly_noground.log \
 	  && ! grep -q 'lacks ground' /tmp/opencode/ly_noground.log \
 	  && ! grep -q 'not in the HD level block' /tmp/opencode/ly_noground.log \
 	  && ! grep -q 'll_level: placement' /tmp/opencode/ly_noground.log \

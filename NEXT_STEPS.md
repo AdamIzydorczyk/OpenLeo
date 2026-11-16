@@ -2133,16 +2133,90 @@ engine-side).
     ground is data not an error") and the ten data legs printed their
     named SKIP, exactly as the fixture-free contract requires. CLOSED.
 
+## PR-45 — M4-C step 2: the authored scene — placed objects run their own .MOV, art by each state's seq= (DONE 2026-11-16)
+
+  - What: replaced the PR-36 invented scene (one object per ANIMACJE leaf
+    .SEQ, joined by .mov stem) with the level's OWN scene. ll_level now
+    reads every file named by the three placement keys of the level's
+    main .des (`zwierzaki=`/`animacje=`/`ani_plat=` - 68 files game-wide,
+    0 references to missing records), parses all 2188 entry lines, and
+    joins each to the HD <LEAF>/<SCRIPT>.MOV script and, PER STATE, to
+    the .SEQ art that script's own `seq=` key names in the same leaf.
+    No fixed object cap (grown per level; measured maxima 246 art tables
+    / 164 scripts SADES.06, 827 placements RAN.01). The PR-36 fallback
+    scan is gone.
+  - Entry grammar (ll_level.c place_field/place_int/place_comma): the
+    game's own formatting is parsed as the game wrote it - spaces around
+    fields (109 lines, incl. RAN.01 DYMY.DES's 107 ", 16500, 360") are
+    the same names; a space INSIDE a field is not a name (this is what
+    keeps polyline lines out, no %n trick needed); 4 entries carry
+    parameters after the coordinates and 1 names a script with no
+    extension (KADMAR.07 `BERLO,dummy,sdfsdf,61,54`) - placed/reported
+    as authored, counted verbatim (`param_extra`/`entry_noext`), never
+    guessed at; count lines are never trusted (stale in 38 of 68 files,
+    reported with both numbers). The totals the binary prints (2188
+    entries, 1857 placed, 331 outside the level's own view) match the
+    independent python census (/tmp/opencode/pr45_census.py) exactly -
+    the earlier 2075/2188 gap was MY strict sscanf replica, fixed by
+    reading the formatting the data actually uses.
+  - Art-form distinction (a real data/art finding): .SEQ elements come
+    in two forms (PLAN 8 grammar). obj_art.found separates "no such
+    record" (data hole, named exactly) from "record is there, element
+    carries the inline palette+sprite form" (VIEWER gap, reported as
+    such, never counted as data): 953 of 960 authored art names are on
+    this CD - 784 patch-form (drawn), 169 inline-form (draw nothing,
+    incl. all 48 RAN.01 ANIBACK EDGE*.SEQ), 7 true holes. The old
+    build's 469 stem-join "data hole" notes were false; the new
+    report's holes are 27 real missing .MOV + 7 real missing art.
+  - Proof: --mov-selftest extended - data-free leg now pins per-state
+    seq= art selection (a state gets exactly its own table; names it
+    does not carry, and inline-form tables, draw NOTHING). verify-level
+    rewritten: TUNGA.11 authored-scene pins (7 files, 77->69+8, stale
+    count lines, the one ogien_m.SEQ hole named, bare 'none' never a
+    fake hole), fixed-grid advance naming the SCRIPT ("tick 8:
+    ANIBACK/strum1.mov state 0 frame 0", "57 more placement(s)
+    advanced"), tick2!=tick8 and cam300 PPM differentials, new
+    LEO_OBJ_ALL=1 leg (all 69 placements named; MOVEPLAT/ed000002.mov
+    art ED000002.SEQ at its authored 599,164 - now from the level's
+    own ani_plat=), RAN.01 canvas pins (827 objects, CHMURY.DES named,
+    48 inline tables distinguished by name from data). JUNCTION
+    authored-EMPTY scene positive pin added to the play leg
+    ("authored scene JUNCTION: 0 placement file(s), 0 object").
+  - Bounded prints (24 placements / 12 tick lines + counts of the rest);
+    LEO_OBJ_ALL=1 prints all (documented in README).
+  - Docs: PLAN 8h carries the full grammar/census facts (three keys,
+    68 files, 2188 entries, stale-count 38/68, spaces/extra-params/
+    no-ext entry, the seq= join vs the 439/681 stem coincidence, the
+    784/169/7 art-form split, per-level totals).
+  - Verification: make + make win clean; full verify-all incl. the
+    rewritten verify-level legs green on the real fixtures; the
+    fixture-free config EXIT=0 with named SKIPs and the mov selftest
+    still running; verify-arch unchanged (no new SDL include). ASan/
+    LSan/UBSan run of ll_level (selftest + full-data level + preview)
+    clean. Peak child RSS unchanged (1114 MB).
+  - PR-45 pushed (this commit); CI pending - result appended by the
+    CLOSED commit.
+
 ## Next — pick from the Deferred list below
 
-PR-43 (M4-B playable prototype) opened the M4-C line and PR-44 closed
-its first item; the game-wide measurement (see the PR-43 follow-up and
-PR-44 records) says exactly where the remaining gaps are:
+PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
+first item and PR-45 its second (the authored scene); the game-wide
+measurement (see the PR-43 follow-up, PR-44 and PR-45 records) says
+exactly where the remaining gaps are:
 - DONE in PR-44: ground from a SUB-.des (TUNGA2.12/SADES.06) and the
   authored-empty ground (JUNCTION). 12 of 13 level blocks now run
   their own lion; JUNCTION does not because its own data declares 0
   polylines (no floor) - that is the honest end of the level matrix,
   not a gap to close.
+- DONE in PR-45: the authored scene - all 68 placement files parsed,
+  2188 entries, real .MOV scripts per object, art per state via the
+  script's own seq=. All 13 levels report their own authored scene
+  (JUNCTION's is honestly 0).
+- the NEXT item the PR-45 census names: draw the INLINE .SEQ element
+  form (169 of the 953 art tables the levels actually name, incl. all
+  48 RAN.01 ANIBACK EDGE*.SEQ and 61 in SADES.06 - today they are
+  reported as a viewer gap and draw nothing). Grammar is already in
+  PLAN 8 ([n B palette][n B sprite] when w0&3, n=int16(b17)).
 - the condition names the data uses but our runtime scores false:
   K_JUMP (76 uses game-wide - the up-arrow route into the A_UP_*
   states is the single most valuable one), K_FIRE (253), K_ALT,
@@ -2152,8 +2226,13 @@ PR-44 records) says exactly where the remaining gaps are:
   (A_MA_KORONE crown climb etc.), and the authored A_LADOW landing
   chain is the real replacement for the LL_PLAY_GRAVITY path.
 - objects that react to the player (move platforms via their own .MOV +
-  player riding; the `ani_plat=` lists and the MOVEPLAT entries in the
-  sub-.des files are the data to read).
+  player riding; PR-45 already PLACES every authored object incl. the
+  ani_plat= platform scripts - what is left is the AC_* signal bus
+  that starts them and the player riding one);
+- the belka HUD (`BELKA.DES`/`BELKA1.DES` - 12 of 13 level blocks
+  name it through `belka=`, 0 orphan .des records game-wide says these
+  are all there is); `RAN.BLK`/`RAN.SUF` (blokady=/sufity=) are the
+  same pattern for their own keys.
 None of this is blocked on data - 12 of 13 levels already run their
 complete own player sets (see PLAN 8g). Small latent cleanup noticed on
 the way: tools/verify_help.py and tools/verify_pcm.py still scan

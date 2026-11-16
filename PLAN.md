@@ -1346,5 +1346,105 @@ proving zero level special-casing. The live window path
 tracks held arrows (platform KEYDOWN/KEYUP), steps physics on the same
 fixed 20 ms grid and follows the player with the camera.
 
+## 8h. Authored scene objects - M4-C (in progress, PR-45, 2026-11-16)
+
+The level viewer's scene is now the level's OWN: ll_level reads the place-
+ment files each level's main .des names and runs their real .MOV scripts,
+drawing the .SEQ art each script selects for the state it plays. The PR-36
+fallback (inventing one object per ANIMACJE leaf .SEQ, joined by .mov stem)
+is gone, and with it its false data holes.
+
+Data facts pinned 2026-11-16 (full CD + HD-install trees, sparse-correct
+scan; probes /tmp/opencode/pr45_census.py, pr45_join.py, pr45_forms.py):
+- THREE .des keys name the scene-object placement files: `zwierzaki=`
+  (18 references), `animacje=` (38), `ani_plat=` (12) - 68 files, every
+  reference resolving to a real record (0 missing). The other .des keys
+  own everything else (lew= the player, platformy= the ground, belka= the
+  HUD bar, sample=/sufity=/blokady=/demolist=). Every .des record inside
+  an HD level block is named by exactly one key of that level's main .des
+  (0 orphans game-wide), so this list is complete.
+- Placement-file grammar (68 files, 2188 entry lines): a count line, then
+  one entry per line "<LEAF>,<class>,<SCRIPT>.<ext>,<x>,<y>" (world x,y,
+  y down). The count line is NOT trusted - it disagrees with the real
+  entry count in 38 of the 68 files (ENA.03 ZWIERZ3.DES declares 88,
+  holds 134; RAN.01 DYMY.DES declares 186, holds 188), so every line is
+  read and the real number is what gets reported.
+- The game's own formatting variants, all measured, all parsed as the
+  same names or counted verbatim - never guessed at:
+  * spaces around the fields ("JROPE, dummy, jrope.mov, 490, 230" in
+    ZARIA.02 anipl2.des; ", 16500, 360" in RAN.01 dymy.des): 109 lines.
+    A space INSIDE a field means it is not a name - that is what keeps
+    polyline lines ("1 1495,147;...") out of the entry rule;
+  * 4 entries carry parameters after the coordinates (KADMAR.07
+    "KPALMA,xxx,kpal.mov,640,640       -37,-7  -1 100  0", ZARIA.01
+    "KAMIEN,dummy,kamien1.mov,1360,250,1308" x3): placed at their
+    authored x,y, parameters printed and counted;
+  * 1 entry names a script with no extension (KADMAR.07 ANI1.DES
+    "BERLO,dummy,sdfsdf,61,54"): a hole in the placement itself,
+    reported as such, nothing resolved from it;
+  * per-entry property lines (damage= / energy= / bounds= / scope=),
+    group headers, ';' and '//' comment lines, polyline lines: counted,
+    named in the summary;
+  * longest line in any of the 68 files is 207 bytes (buffer 512, any
+    longer line would be counted, not truncated in silence).
+- The scene join is LEAF -> SCRIPT -> PER-STATE ART, never the stem:
+  field 1 names the ANIMACJE leaf table on BOTH installs; the HD one
+  holds <LEAF>/<SCRIPT>.MOV, and every [STATE] block of a .MOV carries
+  "seq=<name>" naming <NAME>.SEQ in the SAME leaf on the CD. Measured
+  over the 708 distinct (level, leaf, script) triples the 2188 entries
+  use: 681 have their .MOV on the HD install (27 real data holes, named
+  exactly in the report); those 681 scripts name 960 distinct
+  (leaf, seq=) art pairs, 953 on this CD, 7 true art holes (e.g.
+  TUNGA.11 DNGANI/ogien_m.SEQ). The .mov stem matches one of its OWN
+  seq= names in only 439 of the 681 - joining by stem (PR-36) invented
+  the art of the other 242 and its 469 "data hole" notes were FALSE.
+- .SEQ art has TWO element forms (PLAN 8 grammar): the patch-array form
+  this viewer draws, and the inline [n B palette][n B sprite] form
+  (w0&3, no patch sub-blocks). Of the 953 art tables the levels
+  actually name, 784 are patch-form (drawn) and 169 are inline-form -
+  including all 48 of RAN.01 ANIBACK's EDGE*.SEQ. The inline form is a
+  VIEWER gap, never counted as a data hole: the record is reported as
+  what it is ("the record is there, but its element carries the inline
+  palette+sprite form"), its states draw nothing, and the totals
+  distinguish the two ("%d art table(s) (%d of them the inline...)" vs
+  "%d art name(s) are not on these containers"). Drawing that form is
+  the next recorded step.
+- Per-state art selection is pinned in --mov-selftest: a state gets
+  exactly the table its own seq= names; a state that names none, a name
+  that is not on these containers, and an inline-form table all draw
+  NOTHING (no other state's table is ever substituted).
+- Coordinates are checked against the view the level's OWN data defines
+  (back_rect, else the single screen its bg gives): 1857 of 2188
+  entries place; the 331 rejects are real - SADES.06 172, TUNGA2.12 83
+  (their .des carry NO back_rect, so the fallback is the bg width),
+  ZARIA.01 24, ZARIA.02 41, TUNGA.11 8 (outside its real 2560 world).
+- Current per-level scene totals (tool output, matches the python
+  census exactly; placed-scripts / art-tables / inline-form / script
+  holes): RAN.01 827 placed, 82 scripts, 92 art (48 inline); ENA.03
+  218, 55, 94; ENA2 57, 24, 23 (1 script hole); SADES.06 247, 164, 246
+  (61 inline, 5 script holes); TUNGA.11 69, 43, 50 (1 art hole:
+  ogien_m.SEQ); TUNGA2.12 35, 23, 35 (5 script holes); KADMAR.07 70,
+  32, 55 (6 script holes + the no-extension entry); KADMAR2 50, 22,
+  24; KARA.07 107, 46, 74; LONA.05 126, 30, 41 (4 script holes);
+  ZARIA.01 29, 11, 21; ZARIA.02 22, 14, 31; JUNCTION 0 (its lists all
+  say the bare none keyword - an authored empty scene, printed as 0
+  files / 0 entries).
+- Proof stays bounded: 24 placement lines then "... N more
+  placement(s) of those scripts", 12 tick lines then "tick N: M more
+  placement(s) advanced"; LEO_OBJ_ALL=1 prints every placement (CI
+  proves it on TUNGA.11: MOVEPLAT/ed000002.mov[mov] art ED000002.SEQ
+  5 states at its authored 599,164 - the one script the old invented
+  model showed, now from the level's own ani_plat=).
+
+CI (verify-level): .MOV selftest extended to pin the per-state seq= art
+selection (data-free leg, runs in every configuration); the TUNGA.11 leg
+now pins the authored scene end to end (7 placement files, 77 entries ->
+69 placed + 8 outside its own world, stale count lines reported as
+stale, the one true art hole named, the bare 'none' keyword never a
+fake hole), the fixed-grid cycle advance naming the SCRIPT
+("tick 8: ANIBACK/strum1.mov state 0 frame 0") and its bounded proof,
+and the RAN.01 canvas pins 827 placed objects + the inline-form
+distinction by exact name (EDGE0000.SEQ).
+
 ## 9. Legal/ethical
 Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.

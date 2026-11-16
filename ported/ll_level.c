@@ -397,22 +397,79 @@ int ll_level_anims(const char *dir, const char *level)
  * Scene objects here keep using only the frame-list semantics through
  * obj_advance/obj_elem below. */
 
-/* ---------------- scene objects ---------------------------------------- */
+/* ---------------- scene objects (PR-45: the authored scene) ------------
+ * A level's own placement data (the sub-.des files its main .des names
+ * through zwierzaki= / animacje= / ani_plat=) says which object scripts
+ * stand where: "<LEAF>,<class>,<script>.mov,<x>,<y>". The script is the
+ * HD ANIMACJE record of that exact name (ANIMACJE/<level>/<LEAF>/
+ * <SCRIPT>.MOV), and the ART is whatever that script selects for the
+ * state it is in: every [STATE] block carries "seq=<name>", naming
+ * ANIMACJE/<level>/<LEAF>/<NAME>.SEQ on the CD (measured over the 708
+ * distinct (level, leaf, script) triples the 2188 placement entries use,
+ * PLAN 8g - NOT the .mov stem, which matches one of its own seq= names in
+ * only 439 of the 681 scripts that exist).
+ * So the model is: one obj_script per distinct (<LEAF>,<SCRIPT>.MOV) the
+ * level references (art + parsed script loaded ONCE), and one lvl_obj per
+ * placement (RAN.01 places the same 2 cloud scripts 184 times). Nothing
+ * is instantiated that the level's data does not name. */
 
-typedef struct {
-    unsigned char *blob;      /* .SEQ payload (owned)                       */
-    ll_seq seq;
-    ll_mov_t *mov;              /* heap, PR-43; NULL = no script: cycle
-                                 * elements at 100 ms                       */
-    unsigned char *movtxt;    /* owned, or NULL                             */
-    int eidx0;                /* first element with patch data              */
-    int sw, sh;               /* sprite bbox size (from element chunks)     */
-    int bx, by;               /* base canvas anchor                         */
-    int x, y;                 /* current position (base + M deltas)         */
-    int sti, fi;              /* state / frame cursor                       */
-    unsigned t;               /* ms within current frame                    */
-    char key[16], leaf[16];
+#define OBJ_MAXART 16      /* distinct seq= names one .MOV selects; 10 is
+                            * the measured maximum (PLAN 8g) */
+
+typedef struct {           /* one .SEQ art table, owned by its script    */
+    char name[24];                    /* the seq= name, .SEQ form        */
+    unsigned char *blob;
+    ll_seq seq;                       /* parsed (owns the element table) */
+    int found;                        /* 0 = the record is not on these
+                                       * containers (a data hole)        */
+    int eidx0;                        /* first element with patch data;
+                                       * -1 with found=1 means the element
+                                       * table is the OTHER .SEQ form
+                                       * (inline palette+sprite, w0&3, no
+                                       * patch sub-blocks) - counted, and
+                                       * drawn as nothing: the patch path
+                                       * is the one the game's element
+                                       * chain gave us (PLAN 8) */
+    int sw, sh;                       /* sprite bbox (element chunks)    */
+} obj_art;
+
+typedef struct {                     /* one authored object script       */
+    char leaf[16], movname[24];      /* exactly as the placement names it */
+    unsigned char *movtxt;           /* owned, or NULL                    */
+    ll_mov_t *mov;                   /* owned, NULL = no script on these
+                                      * containers (a real data hole)     */
+    obj_art art[OBJ_MAXART];         /* distinct seq= art, deduped       */
+    int nart;
+    int ast[LMOV_MAXST];             /* state -> art index, -1 = missing */
+    int artmiss[OBJ_MAXART][24];     /* seq= names not on the CD, once   */
+    int nartmiss;                    /* ... counted                      */
+    int nartinline;                  /* art tables of the inline form     */
+    int nartover;                    /* seq= names beyond OBJ_MAXART     */
+    int ninst;                       /* placements using this script     */
+    /* what the script authors but the scene model does not act on yet
+     * (counts only: reported, never invented; see PLAN 8g) */
+    int ntrans, nflag_other, ndirect, nfield_other;
+} obj_script;
+
+typedef struct {                     /* one placement of a script        */
+    obj_script *sc;
+    int bx, by;                      /* authored anchor                  */
+    int x, y;                        /* current (anchor + authored M)    */
+    int sti, fi;                     /* state / frame cursor             */
+    unsigned t;                      /* ms within current frame          */
 } lvl_obj;
+
+typedef struct {                     /* one level's authored scene: the
+                                      * scripts its placement data names
+                                      * (shared art) + its placements    */
+    obj_script **set;                /* heap array of owned scripts     */
+    int nsc, capsc;
+    lvl_obj *objs;                   /* heap array, grows as needed     */
+    int nobj, capobj;
+} scene_owner;                       /* no fixed cap: the measured maxima in
+                                      * the shipped data are 164 scripts and
+                                      * 246 art tables (SADES.06) and 827
+                                      * placements (RAN.01) */
 
 typedef struct { int maxrow; } row_count_ctx;
 
@@ -441,36 +498,95 @@ static void elem_size(const ll_seq *s, const ll_seq_elem *e, int *w, int *h)
     }
 }
 
-/* Anchor heuristic until the SETUP mov->ED key join lets us use the .des
- * X,Y placement: x = |f0|; f2 >= 0 is a world-below coordinate, so tall
- * level sprites bottom-align in the view (the MENU scripts all carry
- * negative f0/f2 and draw at exactly (-f0,-f2), see ll_menu.c). */
-/* bottom-aligned y for tall level sprites (world y is a below-anchor) */
-static int bottom_y(int sh, int ch)
+/* The old bottom-anchor heuristic (x = |f0|, tall sprites bottom-aligned in
+ * the view) is GONE with PR-45: the .des placement coordinates ARE the
+ * authored position of the object, so nothing has to be guessed any more.
+ * (ll_menu.c keeps its own rule for MENU scripts, which really are drawn at
+ * (-f0,-f2).) */
+
+/* The art of the state an object is in: exactly the .SEQ that state names
+ * through seq=. If it names none, or names one this install does not carry,
+ * the object draws NOTHING - taking another state's table instead would be a
+ * guess, and the missing name is already reported once per script. An art
+ * table of the inline form (no patch sub-blocks) IS returned: the draw path
+ * skips it through its element index, and the report says why. */
+static const obj_art *obj_art_of(const lvl_obj *o)
 {
-    return sh < ch ? ch - sh : 0;
+    const obj_script *sc = o->sc;
+    if (!sc || o->sti < 0 || o->sti >= LMOV_MAXST)
+        return NULL;
+    int idx = sc->ast[o->sti];
+    if (idx < 0 || idx >= sc->nart)
+        return NULL;
+    const obj_art *a = &sc->art[idx];
+    return a->found ? a : NULL;
 }
 
-static void anchor_of(const ll_seq_elem *e, int sh, int ch, int *ax, int *ay)
+/* current drawable element of an object (frame index from .MOV, clamped;
+ * the element table is the art the CURRENT state selected, PR-45) */
+static const ll_seq_elem *obj_elem(const lvl_obj *o)
 {
-    int ex = (int)(short)e->f0, ey = (int)(short)e->f2;
-    *ax = ex < 0 ? -ex : ex;
-    *ay = ey < 0 ? -ey : bottom_y(sh, ch);
+    const obj_art *a = obj_art_of(o);
+    if (!a || a->seq.count == 0)
+        return NULL;
+    int idx = a->eidx0;                        /* signed throughout (E-03):
+                                                * corrupt .MOV frame data can
+                                                * be negative */
+    if (o->sc->mov && o->sti >= 0 && o->sti < o->sc->mov->nst) {
+        const ll_mov_st *s = &o->sc->mov->st[o->sti];
+        if (s->nfr > 0) {                      /* the cycle guard of
+                                                * obj_advance can stop with
+                                                * the cursor at the end of a
+                                                * state: hold the last frame */
+            int fi = o->fi < s->nfr ? o->fi : s->nfr - 1;
+            idx = s->fr[fi].frame;
+        }
+        if (idx < 0 || idx >= (int)a->seq.count)
+            idx = (int)a->seq.count - 1;
+    }
+    return &a->seq.els[idx];
+}
+
+/* Is this placement worth a draw pass in the view window? With RAN.01's 827
+ * cloud placements (a 28800 px world, most of them off screen) the pass must
+ * skip them, and skipping must match what ll_seq_draw_elem would do: patches
+ * are 80 px column strips drawn right and down from (x,y), so the real
+ * extent is the element bbox (elem_size), not a guess. */
+static int obj_visible(const lvl_obj *o, int cw, int ch, int cam)
+{
+    const obj_art *a = obj_art_of(o);      /* NULL: no art for this state */
+    if (!a || a->eidx0 < 0)                /* < 0: the inline form         */
+        return 0;
+    int x = o->x - cam, y = o->y;
+    if (x >= cw || y >= ch || x + a->sw < 0 || y + a->sh < 0)
+        return 0;
+    return 1;
+}
+
+/* Draw one placement. The authored .des x,y IS the draw origin (the
+ * PR-36/PR-44 scroll legs pin that: a placement's x is a world coordinate
+ * compared against back_rect and seen at x - cam); the element's f0/f2
+ * offsets are the MENU/player anchor convention and are NOT applied here.
+ * The art is the table the object's CURRENT state selected (obj_art_of). */
+static void obj_draw(const lvl_obj *o, unsigned char *canvas, int cw,
+                     int ch, int cam)
+{
+    if (!obj_visible(o, cw, ch, cam))
+        return;
+    const obj_art *a = obj_art_of(o);
+    const ll_seq_elem *e = obj_elem(o);
+    if (!a || !e)
+        return;
+    ll_seq_draw_elem(&a->seq, e, canvas, cw, ch, o->x - cam, o->y);
 }
 
 static void obj_advance(lvl_obj *o, unsigned dt_ms)
 {
+    ll_mov_t *mov = (o->sc && o->sc->mov) ? o->sc->mov : NULL;
+
     o->t += dt_ms;
-    if (!o->mov || !o->mov->nst) {              /* no script: cycle elements */
-        int n = (int)o->seq.count;
-        if (n <= 0)
-            return;
-        while (o->t >= 100) {
-            o->t -= 100;
-            o->fi = (o->fi + 1) % n;
-        }
+    if (!mov || !mov->nst)          /* no script on these containers: stop */
         return;
-    }
     unsigned guard = 0;
     for (;;) {
         /* FIX-13 (X-11): corrupt .MOV with all-zero frame durations would
@@ -482,13 +598,13 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
          * hardening covered frame indices; durations end here. */
         if (++guard > 4096)
             break;
-        ll_mov_st *s = &o->mov->st[o->sti];
+        ll_mov_st *s = &mov->st[o->sti];
         if (s->nfr == 0 || o->fi >= s->nfr) {   /* state end -> next state   */
-            o->sti = (o->sti + 1) % o->mov->nst;
+            o->sti = (o->sti + 1) % mov->nst;
             o->fi = 0;
             o->x = o->bx;
             o->y = o->by;                     /* motion deltas are per state */
-            s = &o->mov->st[o->sti];
+            s = &mov->st[o->sti];
             if (s->nfr == 0)
                 break;
         }
@@ -496,8 +612,8 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         if (o->t < f->ms)
             break;
         o->t -= f->ms;
-        o->x += f->dx;                        /* "M dx,dy" of the frame just  */
-        o->y += f->dy;                        /* held                        */
+        o->x += f->dx;             /* the authored "N,ms, M dx,dy" motion  */
+        o->y += f->dy;             /* directive of the frame being held    */
         o->fi++;
     }
 }
@@ -541,48 +657,99 @@ int ll_mov_selftest(void)
     /* The corrupt shape X-11 describes, BUILT DIRECTLY to bypass the
      * parser clamp (a future patch path or caller must not be able to
      * hang the scene loop either): */
-    lvl_obj o;
-    memset(&o, 0, sizeof o);
-    o.mov = calloc(1, sizeof *o.mov);
-    if (!o.mov) {
+    obj_script sc;
+    memset(&sc, 0, sizeof sc);
+    for (int k = 0; k < LMOV_MAXST; k++)
+        sc.ast[k] = -1;
+    sc.mov = calloc(1, sizeof *sc.mov);
+    if (!sc.mov) {
         fprintf(stderr, "mov selftest: FAILED out of memory\n");
         free(m);
         return 1;
     }
-    o.mov->nst = 1;
-    o.mov->st[0].nfr = LMOV_MAXFR;
+    sc.mov->nst = 1;
+    sc.mov->st[0].nfr = LMOV_MAXFR;
     for (int k = 0; k < LMOV_MAXFR; k++)
-        o.mov->st[0].fr[k].ms = 0;
+        sc.mov->st[0].fr[k].ms = 0;
+    lvl_obj o;
+    memset(&o, 0, sizeof o);
+    o.sc = &sc;
     obj_advance(&o, 60000u);       /* without the guard: spins forever */
     if (o.sti != 0) {              /* single state: must not wander     */
         fprintf(stderr, "mov selftest: FAILED guard left state %d\n",
                 o.sti);
-        free(o.mov);
+        free(sc.mov);
         free(m);
         return 1;
     }
-    free(o.mov);
-    free(m);
-    printf("mov selftest: duration clamp + cycle guard terminate (ok)\n");
-    return 0;
-}
 
-/* current drawable element of an object (frame index from .MOV, clamped) */
-static const ll_seq_elem *obj_elem(const lvl_obj *o)
-{
-    if (o->seq.count == 0)
-        return NULL;
-    int idx = o->eidx0;                        /* signed throughout (E-03):
-                                                * corrupt .MOV frame data can
-                                                * be negative */
-    if (o->mov && o->mov->nst) {
-        idx = o->mov->st[o->sti].fr[o->fi].frame;
-        if (idx < 0 || idx >= (int)o->seq.count)
-            idx = (int)o->seq.count - 1;
-    } else if (o->fi >= 0) {
-        idx = o->fi % (int)o->seq.count;
+    /* PR-45: the art an object draws is exactly the table its CURRENT state
+     * names through seq=. Built directly here (not through the parser):
+     * state 1 must get slot 1; a state that names no art, or names one this
+     * install does not carry (a reported data hole), must draw NOTHING -
+     * never another state's table. And an art table that IS there but holds
+     * the inline (no-patch-sub-block) form must be reported as that table and
+     * still never drawn. */
+    sc.mov->nst = 2;
+    sc.nart = 2;
+    sc.ast[0] = 0;
+    sc.ast[1] = -1;                       /* state names no seq= art */
+    sc.art[0].found = sc.art[1].found = 1;
+    sc.art[0].eidx0 = sc.art[1].eidx0 = 0;
+    sc.art[1].sw = sc.art[1].sh = 8;
+    o.sti = 1;
+    if (obj_art_of(&o) != NULL) {
+        fprintf(stderr, "mov selftest: FAILED a state without seq= drew"
+                        " another state's art (%p)\n", (void *)obj_art_of(&o));
+        free(sc.mov);
+        free(m);
+        return 1;
     }
-    return &o->seq.els[idx];
+    sc.ast[1] = 1;
+    if (obj_art_of(&o) != &sc.art[1]) {
+        fprintf(stderr, "mov selftest: FAILED a state did not select its own"
+                        " seq= art\n");
+        free(sc.mov);
+        free(m);
+        return 1;
+    }
+    if (!obj_visible(&o, 640, 400, 0)) {
+        fprintf(stderr, "mov selftest: FAILED a selected patch-art table was"
+                        " not drawable\n");
+        free(sc.mov);
+        free(m);
+        return 1;
+    }
+    sc.art[1].found = 0;                  /* authored name, no record here */
+    if (obj_art_of(&o) != NULL) {
+        fprintf(stderr, "mov selftest: FAILED a data-hole art name was"
+                        " drawn anyway\n");
+        free(sc.mov);
+        free(m);
+        return 1;
+    }
+    sc.art[1].found = 1;                  /* record is there ...            */
+    sc.art[1].eidx0 = -1;                 /* ... but it is the inline form  */
+    if (obj_art_of(&o) != &sc.art[1]) {
+        fprintf(stderr, "mov selftest: FAILED an inline-form art table was"
+                        " not reported as the state's own\n");
+        free(sc.mov);
+        free(m);
+        return 1;
+    }
+    if (obj_visible(&o, 640, 400, 0)) {
+        fprintf(stderr, "mov selftest: FAILED an inline-form art table was"
+                        " drawn anyway\n");
+        free(sc.mov);
+        free(m);
+        return 1;
+    }
+
+    free(sc.mov);
+    free(m);
+    printf("mov selftest: duration clamp + cycle guard + per-state seq= art"
+           " selection (ok)\n");
+    return 0;
 }
 
 /* find "<stem>.<ext>" (case-insensitive) in a block record list */
@@ -741,25 +908,25 @@ static void play_draw(const play_ctx *pl, unsigned char *canvas, int cw,
     ll_seq_draw_elem(s, e, canvas, cw, ch, x, y);
 }
 
-/* remove the scene objects that carry the player's own art leaf: the
- * player draws them from here on (one lion, driven by LEW.MOV) */
+/* Drop the placements that belong to the player's own art leaf: the player
+ * draws that one himself, driven by LEW.MOV. PR-45 measured that NO shipped
+ * placement names the player's leaf (the player's attached objects - POCISK,
+ * harpun, arrow, balon - are listed in the player leaf's own .des, which is
+ * the K_FIRE/POCISK feature, M4-D), so this is only the safety net that
+ * keeps exactly one lion on screen. Scripts are shared with the rest of the
+ * scene, so nothing is freed here: the placement goes, the script stays. */
 static void play_claim_leaf(lvl_obj *objs, int *nobj, const play_ctx *pl)
 {
     int w = 0;
     for (int k = 0; k < *nobj; k++) {
-        if (ci_eq(objs[k].leaf, pl->leaf)) {
-            ll_seq_free(&objs[k].seq);
-            free(objs[k].mov);
-            free(objs[k].movtxt);
-            free(objs[k].blob);
+        if (objs[k].sc && ci_eq(objs[k].sc->leaf, pl->leaf))
             continue;
-        }
         if (w != k)
             objs[w] = objs[k];
         w++;
     }
     if (w < *nobj)
-        printf("ll_level: play: claimed leaf %s (%d scene object(s) now"
+        printf("ll_level: play: claimed leaf %s (%d placement(s) now"
                " player-driven)\n", pl->leaf, *nobj - w);
     *nobj = w;
 }
@@ -814,247 +981,642 @@ static void bg_at(const ll_pcm *pcml, const ll_pcx *img, int pcm_owner,
         }
     }
 }
-/* 4b) .des placement join: HD-install sub-.des (ANI*.DES payloads in the
- *     level's ETAPY block) carry one "TYPE,name,mov,X,Y" object line per
- *     level object (verified grammar on TUNGA.11/ZARIA/LONA). TYPE names
- *     the ANIMACJE/<level> leaf block and the <mov> stem names one record
- *     inside that leaf (ELEM04.SEQ-style stems; TUNGA's strum1.mov art is
- *     absent from both trees - documented CD hole), X,Y is the world
- *     placement. Apply it for every line whose art exists: instantiate a
- *     copy at X,Y (bottom-align vertically like the anchor heuristic when
- *     Y exceeds the view) and retarget the fallback heuristic object with
- *     the same stem. Lines whose art is missing are logged and skipped. */
-static void des_place_lines(llrs *an, const llrs_slot *arecs, unsigned narec,
-                            llrs *hd_an,
-                            const llrs_slot *hrecs, unsigned nhrec,
-                            const char *txt, size_t len,
-                            lvl_obj *objs, int *nobj, int maxobj,
-                            int world_w, int ch, const char *level)
+/* 4b) the authored scene: the level's own placement data (PR-45) ---------
+ * A level says what stands where in sub-.des files that its main .des names
+ * through THREE keys - measured over all 13 shipped levels. Every .des record
+ * inside an HD level block is named by exactly one key of that level's main
+ * .des (0 orphans), and the three keys below are the ones that name SCENE
+ * objects; the rest belong to other features (lew= the player's own .des,
+ * platformy= the ground, belka= the HUD bar, sample= / sufity= / blokady= /
+ * demolist=). So the PR-36 fallback of inventing objects from every leaf .SEQ
+ * is gone:
+ *   zwierzaki=<up to 3 .des>  "animals": the scripted scene actors (RAN.01
+ *                             chmury.des = 184 cloud placements, ptaki.des)
+ *   animacje=<up to 3 .des>   "animations": props and effects (TUNGA.11
+ *                             ANI3.DES = the 11 objects this viewer showed
+ *                             by guessing before)
+ *   ani_plat=<up to 3 .des>   platform animations: 10 of those files are
+ *                             placement files, 1 holds polylines only and 2
+ *                             carry both (moving ground: ENA2 plat.des has
+ *                             31 polyline lines and 14 authored object
+ *                             entries) - the polylines are ground, owned by
+ *                             the platformy / AC_* signal work (M4-D)
+ * A bare `none` in such a list is the game's OWN keyword for "nothing here"
+ * (JUNCTION says animacje=none, RAN.01 says zwierzaki=chmury.des,ptaki.des,
+ * none): it is NOT a missing record and never a data hole. `none.des` on the
+ * other hand IS a real record name (JUNCTION's level block carries a
+ * NONE.DES holding literally "0"), and the exact-name match below resolves it
+ * normally.
+ *
+ * Inside a placement file (grammar measured over the 68 files the three keys
+ * name - 18 zwierzaki + 38 animacje + 12 ani_plat references, none of them
+ * naming a missing record - and 2188 entry lines, 2026-11-16): a count line,
+ * then one entry per line
+ *   "<LEAF>,<class>,<SCRIPT>.<ext>,<x>,<y>"        world x,y, y down
+ * Names padded with spaces are the game's own formatting (109 of the lines,
+ * e.g. RAN.01 dymy.des writes `, 16500, 360` and ZARIA.02 anipl2.des
+ * `JROPE, dummy, jrope.mov, 490, 230`): the name is the same, so they are
+ * parsed as the same name. 4 entries carry parameters after the coordinates
+ * (KADMAR.07 `KPALMA,xxx,kpal.mov,640,640  -37,-7  -1 100  0`, ZARIA.01
+ * `KAMIEN,dummy,kamien1.mov,1360,250,1308`): placed at their authored x,y,
+ * their extra parameters printed verbatim and counted, never guessed at. 1
+ * entry names a script with no extension at all (KADMAR.07 ANI1.DES
+ * `BERLO,dummy,sdfsdf,61,54`) - nothing resolves from it, and it is reported
+ * as the data hole in the placement that it is. Alongside the entries these
+ * files also carry per-entry property lines ("damage=100", "bounds=40,6550",
+ * "scope=0,0", "energy=150" for RAN.01's clouds: combat data this viewer does
+ * not model), group header lines, the game's own comment lines starting with
+ * ';' or '//' (SADES.06 ANIM2.DES carries the commented-out placement
+ * `;ANIBACK,none,chmury.mov,270,90`), and polyline lines of the shape
+ * platformy= files use. All of that is counted and named in the report.
+ * The count line is NOT trusted: it disagrees with the number of entry lines
+ * in 38 of the 68 files (ENA.03 ZWIERZ3.DES declares 88 and holds 134), so
+ * every line is read and the real number is what gets reported.
+ *
+ * The first field names the ANIMACJE leaf table on BOTH installs of the same
+ * level: the HD one holds <LEAF>/<SCRIPT>.MOV (the motion script, PLAN 8g),
+ * the CD one holds the art - and the art is whatever the script names for the
+ * state it is playing: every [STATE] block carries "seq=<name>", naming
+ * <NAME>.SEQ in the SAME leaf. Measured over the 708 distinct (level, leaf,
+ * script) triples those 2188 entries use: 681 have their .MOV on the HD
+ * install (27 are real data holes, listed by exact name below); those 681
+ * scripts name 960 distinct (leaf, seq=) art pairs, 953 of which are on this
+ * CD - 784 of them the patch-array form this viewer draws, 169 the inline
+ * palette+sprite form it cannot draw yet (reported by name too: a viewer gap,
+ * never a data hole); 7 art names are true holes. The .mov stem matches one
+ * of its OWN seq= names in only 439 of the 681, so joining by stem (what
+ * PR-36 did) invented the art of the rest and the 469 "not on these
+ * containers (data hole)" notes it printed were false.
+ * The <class> token (none / dummy / xxx / balonik.ani ...) is the game's
+ * object-class hint; the *.ani names match NO record anywhere in either
+ * container (0 .ANI records exist), so they are counted, never used to pick
+ * art. */
+
+static const char *const des_place_keys[] = { "zwierzaki", "animacje",
+                                              "ani_plat" };
+
+typedef struct {                    /* ANIMACJE of both installs; either may
+                                     * be absent on a partial install      */
+    llrs *cd;                       /* CD install: the .SEQ art            */
+    const llrs_slot *cd_blk;
+    llrs *hd;                       /* HD install: the .MOV scripts        */
+    const llrs_slot *hd_blk;
+} anim_ctx;
+
+typedef struct {                    /* counted while reading, never guessed */
+    int files, file_missing, entries, placed, coord_bad;
+    int nscript, nscript_missing;
+    int nart, nart_missing, art_inline, art_over, state_noart;
+    int prop, group, comment, class_hint, shortline, poly;
+    int param_extra, field_space, entry_noext, longline;
+    int ntrans, ctrl_other, directive, field_other, drop_st, drop_fr, drop_tr;
+} obj_stats;
+
+typedef struct {                    /* the scene being built for one level */
+    scene_owner *own;               /* owns the script set + placements     */
+    anim_ctx ac;
+    const char *level;
+    int world_w;
+    obj_stats st;
+} place_ctx;
+
+/* record of an exact name inside a level's ANIMACJE leaf table (leaf tables
+ * are nested: block -> id==2 leaf table -> records). Exact name only:
+ * nothing here is guessed by stem. */
+static int leaf_record(const llrs *c, const llrs_slot *blk, const char *leaf,
+                       const char *fname, llrs_slot *out)
 {
+    if (!c || !blk)
+        return 0;
+    llrs_slot *recs = NULL;
+    unsigned n = 0;
+    if (llrs_block(c, blk, &recs, &n))
+        return 0;
+    int found = 0;
+    for (unsigned k = 0; k < n && !found; k++) {
+        if (recs[k].id != 2 || !recs[k].name[0] || !ci_eq(recs[k].name, leaf))
+            continue;
+        llrs_slot *fr = NULL;
+        unsigned nf = 0;
+        if (llrs_block(c, &recs[k], &fr, &nf))
+            continue;
+        for (unsigned j = 0; j < nf; j++)
+            if (fr[j].id == 1 && fr[j].name[0] && ci_eq(fr[j].name, fname)) {
+                *out = fr[j];
+                found = 1;
+                break;
+            }
+        llrs_block_free(fr);
+    }
+    llrs_block_free(recs);
+    return found;
+}
+
+static void seq_geom(obj_art *a)
+{
+    a->eidx0 = -1;
+    for (unsigned e = 0; e < a->seq.count; e++)
+        if (a->seq.els[e].arr_n > 0) {
+            a->eidx0 = (int)e;
+            break;
+        }
+    if (a->eidx0 < 0)
+        return;
+    elem_size(&a->seq, &a->seq.els[a->eidx0], &a->sw, &a->sh);
+}
+
+static obj_script *obj_script_new(void)
+{
+    obj_script *sc = calloc(1, sizeof *sc);
+    if (!sc)
+        return NULL;
+    for (int k = 0; k < LMOV_MAXST; k++)
+        sc->ast[k] = -1;
+    return sc;
+}
+
+static void obj_script_free(obj_script *sc)
+{
+    if (!sc)
+        return;
+    for (int k = 0; k < sc->nart; k++) {
+        ll_seq_free(&sc->art[k].seq);
+        free(sc->art[k].blob);
+    }
+    free(sc->mov);
+    free(sc->movtxt);
+    free(sc);
+}
+
+static void scene_owner_free(scene_owner *own)
+{
+    if (!own)
+        return;
+    for (int k = 0; k < own->nsc; k++)
+        obj_script_free(own->set[k]);
+    free(own->set);
+    free(own->objs);
+    memset(own, 0, sizeof *own);
+}
+
+static obj_script *obj_script_find(const scene_owner *own, const char *leaf,
+                                   const char *movname)
+{
+    for (int k = 0; k < own->nsc; k++)
+        if (ci_eq(own->set[k]->leaf, leaf) &&
+            ci_eq(own->set[k]->movname, movname))
+            return own->set[k];
+    return NULL;
+}
+
+/* Add one authored script, or return the one already loaded for it (RAN.01
+ * places the same two cloud scripts 184 times: the .MOV parse and the .SEQ
+ * art are loaded ONCE per distinct name pair; the placements stay separate
+ * because each has its own position and its own place in the cycle).
+ * Data holes are recorded on the script with the exact names searched and
+ * reported once. */
+static obj_script *obj_script_get(place_ctx *pc, const char *leaf,
+                                 const char *movname)
+{
+    scene_owner *own = pc->own;
+    obj_stats *st = &pc->st;
+    obj_script *sc = obj_script_find(own, leaf, movname);
+    if (sc)
+        return sc;
+    sc = obj_script_new();
+    if (!sc)
+        return NULL;
+    snprintf(sc->leaf, sizeof sc->leaf, "%s", leaf);
+    snprintf(sc->movname, sizeof sc->movname, "%s", movname);
+
+    /* the script: HD ANIMACJE <level>/<LEAF>/<SCRIPT>.MOV, exact name */
+    llrs_slot sl;
+    if (leaf_record(pc->ac.hd, pc->ac.hd_blk, leaf, movname, &sl)) {
+        if (llrs_read(pc->ac.hd, &sl, &sc->movtxt) < 0)
+            sc->movtxt = NULL;
+    }
+    if (sc->movtxt) {
+        sc->mov = calloc(1, sizeof *sc->mov);
+        if (sc->mov)
+            ll_mov_parse((const char *)sc->movtxt, sc->mov);
+    }
+    if (!sc->mov || !sc->mov->nst) {
+        st->nscript_missing++;
+        printf("ll_level: obj %s/%s: no .MOV script in that HD ANIMACJE leaf"
+               " (data hole: the level places this object, the install does"
+               " not carry its script)\n", sc->leaf, sc->movname);
+    }
+
+    /* the art: each state names its own .SEQ through seq= (measured: up to
+     * 10 distinct names in one script), deduped by name. Three honest
+     * outcomes, never a guess: the record is there and holds patch art
+     * (drawable), the record is there but its element uses the inline
+     * palette+sprite form (kept, counted, drawn as nothing - this viewer's
+     * .SEQ path is the patch path), or the record is not on these
+     * containers (a data hole, reported by exact name). */
+    if (sc->mov) {
+        for (int k = 0; k < sc->mov->nst && k < LMOV_MAXST; k++) {
+            const char *key = sc->mov->st[k].seqkey;
+            if (!key[0]) {                  /* state names no art at all */
+                st->state_noart++;
+                continue;
+            }
+            char artname[24];
+            snprintf(artname, sizeof artname, "%s.SEQ", key);
+            int idx = -1;
+            for (int a = 0; a < sc->nart; a++)
+                if (ci_eq(sc->art[a].name, artname)) {
+                    idx = a;
+                    break;
+                }
+            if (idx < 0) {
+                if (sc->nart >= OBJ_MAXART) {
+                    sc->nartover++;
+                    st->art_over++;
+                    continue;
+                }
+                obj_art *a = &sc->art[sc->nart];
+                snprintf(a->name, sizeof a->name, "%s", artname);
+                long asz = -1;
+                int rec = leaf_record(pc->ac.cd, pc->ac.cd_blk, leaf,
+                                      artname, &sl);
+                if (rec)
+                    asz = llrs_read(pc->ac.cd, &sl, &a->blob);
+                if (asz >= 0 && ll_seq_parse(a->blob, (uint32_t)asz,
+                                             &a->seq) == 0) {
+                    a->found = 1;
+                    snprintf(a->name, sizeof a->name, "%s",
+                             sl.name);      /* report the record's own name */
+                    seq_geom(a);
+                    if (a->eidx0 < 0) {     /* the inline form */
+                        sc->nartinline++;
+                        st->art_inline++;
+                    }
+                } else {
+                    free(a->blob);
+                    a->blob = NULL;
+                    a->seq.count = 0;
+                }
+                if (!a->found) {
+                    sc->nartmiss++;
+                    st->nart_missing++;
+                    printf("ll_level: obj %s/%s: its seq= names %s in that"
+                           " ANIMACJE leaf: no such record (or no parsable"
+                           " .SEQ in it) on these containers (data hole) -"
+                           " the states that select it draw nothing\n",
+                           sc->leaf, sc->movname, artname);
+                } else if (a->eidx0 < 0) {
+                    printf("ll_level: obj %s/%s: its seq= names %s: the"
+                           " record is there, but its element carries the"
+                           " inline palette+sprite form (w0&3, no patch"
+                           " sub-blocks), which the .SEQ draw path here does"
+                           " not implement yet - those states draw nothing"
+                           " (viewer gap, not a data hole)\n",
+                           sc->leaf, sc->movname, a->name);
+                }
+                idx = sc->nart++;
+                st->nart++;
+            }
+            sc->ast[k] = idx;
+        }
+        for (int k = 0; k < sc->mov->nst; k++) {
+            const ll_mov_st *s = &sc->mov->st[k];
+            st->ntrans += s->ntr;
+            st->ctrl_other += s->ctrl_other;
+            st->directive += s->directive;
+            st->field_other += s->field_other;
+        }
+        st->drop_st += sc->mov->drop_st;
+        st->drop_fr += sc->mov->drop_fr;
+        st->drop_tr += sc->mov->drop_tr;
+    }
+
+    st->nscript++;
+    if (own->nsc == own->capsc) {
+        int nc = own->capsc ? own->capsc * 2 : 128;
+        obj_script **p = realloc(own->set, (size_t)nc * sizeof *p);
+        if (!p) {
+            obj_script_free(sc);
+            return NULL;
+        }
+        own->set = p;
+        own->capsc = nc;
+    }
+    own->set[own->nsc++] = sc;
+    return sc;
+}
+
+static lvl_obj *obj_slot(place_ctx *pc)
+{
+    scene_owner *own = pc->own;
+    if (own->nobj == own->capobj) {
+        int nc = own->capobj ? own->capobj * 2 : 64;
+        lvl_obj *p = realloc(own->objs, (size_t)nc * sizeof *p);
+        if (!p)
+            return NULL;
+        own->objs = p;
+        own->capobj = nc;
+    }
+    lvl_obj *o = &own->objs[own->nobj++];
+    memset(o, 0, sizeof *o);
+    return o;
+}
+
+/* One comma-separated name field of a placement line. Spaces around the field
+ * are the game's OWN formatting (measured: RAN.01 dymy.des writes `, 16500,
+ * 360` and ZARIA.02 anipl2.des `JROPE, dummy, jrope.mov, 490, 230`), so they
+ * are not part of the name; a name with a space INSIDE it is not a name (that
+ * is what distinguishes a polyline line "1 1495,147;..." from an entry).
+ * Returns the position AFTER the ',' that must follow the field, or NULL. */
+static const char *place_field(const char *p, const char *end, char *out,
+                               size_t cap)
+{
+    while (p < end && (*p == ' ' || *p == '\t'))
+        p++;
+    const char *e = p;
+    while (e < end && *e != ',')
+        e++;
+    if (e >= end)
+        return NULL;                      /* a field list needs a separator */
+    const char *t = e;
+    while (t > p && (t[-1] == ' ' || t[-1] == '\t'))
+        t--;
+    size_t n = (size_t)(t - p);
+    if (!n || n >= cap || memchr(p, ' ', n) || memchr(p, '\t', n))
+        return NULL;
+    memcpy(out, p, n);
+    out[n] = '\0';
+    return e + 1;
+}
+
+/* one integer of a placement line: spaces are allowed before it (see above);
+ * returns the position AFTER its last digit, or NULL if there are no digits */
+static const char *place_int(const char *p, const char *end, int *v)
+{
+    while (p < end && (*p == ' ' || *p == '\t'))
+        p++;
+    const char *s = p;
+    if (p < end && (*p == '-' || *p == '+'))
+        p++;
+    const char *d = p;
+    while (p < end && *p >= '0' && *p <= '9')
+        p++;
+    if (p == d)
+        return NULL;
+    *v = (int)strtol(s, NULL, 10);       /* digits only, no overflow: the
+                                          * widest coordinate is 6 characters */
+    return p;
+}
+
+/* the ',' between the two coordinates, spaces around it allowed */
+static const char *place_comma(const char *p, const char *end)
+{
+    while (p < end && (*p == ' ' || *p == '\t'))
+        p++;
+    if (p >= end || *p != ',')
+        return NULL;
+    return p + 1;
+}
+
+/* read one placement file: every line is classified, nothing is skipped in
+ * silence and nothing is invented */
+static void des_place_file(place_ctx *pc, const char *fname,
+                           const char *txt, size_t len)
+{
+    obj_stats *st = &pc->st;
     const char *p = txt, *end = txt + len;
+    int declared = -1, entries = 0;
     while (p < end) {
         const char *eol = p;
         while (eol < end && *eol != '\n' && *eol != '\r')
             eol++;
-        char typ[16] = "", nm[24] = "", mov[24] = "";
-        int x = 0, y = 0, used = 0;
-        int nf = sscanf(p, "%15[^,],%23[^,],%23[^,],%d,%d%n",
-                        typ, nm, mov, &x, &y, &used);
-        /* glibc scan sets swallow newlines into [^,] fields, so a bare
-         * count line can bleed into the next fields: reject any field or
-         * span that contains whitespace */
-        if (nf == 5 && (strpbrk(typ, " \t\r\n") || strpbrk(nm, " \t\r\n")
-                        || strpbrk(mov, " \t\r\n") || used > eol - p))
-            nf = 4;
-        if (!(nf == 5 && used > 8 && strchr(mov, '.'))
-            || x < 0 || x >= world_w) {
-            if (nf == 5 && strchr(mov, '.'))  /* world coord outside the
-                                               * back_rect extent: bad data */
-                printf("ll_level: des %s: %s/%s at (%d,%d) beyond back_rect"
-                       " (%d)\n", level, typ, mov, x, y, world_w);
-            p = eol;
-            while (p < end && (*p == '\n' || *p == '\r'))
-                p++;
-            continue;
+        const char *b = p;
+        while (b < eol && (*b == ' ' || *b == '\t'))
+            b++;
+        const char *e = eol;
+        while (e > b && (e[-1] == ' ' || e[-1] == '\t'))
+            e--;
+        size_t ll = (size_t)(e - b);
+        char line[512];
+        if (ll && ll < sizeof line) {
+            memcpy(line, b, ll);
+            line[ll] = '\0';
+        } else {
+            line[0] = '\0';              /* measured longest line in the 68
+                                          * shipped files is 207 bytes */
+            if (ll)
+                st->longline++;
         }
-        {
-            char stem[16];
-            stem_of(mov, stem, sizeof stem);
-            int done = 0;
-            for (int m = 0; m < *nobj; m++)   /* retarget fallback object */
-                if (objs[m].leaf[0] && ci_eq(objs[m].leaf, typ)) {
-                    char st2[16];
-                    stem_of(objs[m].key, st2, sizeof st2);
-                    if (ci_eq(st2, stem)) {
-                        objs[m].bx = objs[m].x = x;
-                        if (y + objs[m].sh <= ch)
-                            objs[m].by = objs[m].y = y;
-                        printf("ll_level: des-place %s/%s at (%d,%d)\n",
-                               typ, objs[m].key, objs[m].x, objs[m].y);
-                        done = 1;
+        int commas = 0;
+        for (const char *q = b; q < e; q++)
+            if (*q == ',')
+                commas++;
+
+        if (!ll)
+            ;                                   /* blank: nothing to say */
+        else if (line[0] == ';' || (ll > 1 && line[0] == '/' &&
+                                    line[1] == '/'))
+            st->comment++;                      /* the game's comment marks */
+        else if (declared < 0 && strspn(line, "0123456789") == ll)
+            declared = atoi(line);      /* header count: kept for the report,
+                                         * never used to stop reading */
+        else if (commas < 4) {                  /* no entry shape at all */
+            if (strchr(line, '='))
+                st->prop++;                     /* damage= / energy= / ... */
+            else if (strchr(line, ';'))
+                st->poly++;                     /* polyline data (ground) */
+            else
+                st->group++;
+        } else {
+            char leaf[16], cls[24], mov[24];
+            int x = 0, y = 0;
+            const char *eos = line + ll;
+            const char *c1 = place_field(line, eos, leaf, sizeof leaf);
+            const char *c2 = c1 ? place_field(c1, eos, cls, sizeof cls) : NULL;
+            const char *c3 = c2 ? place_field(c2, eos, mov, sizeof mov) : NULL;
+            const char *rx = c3 ? place_int(c3, eos, &x) : NULL;
+            const char *rc = rx ? place_comma(rx, eos) : NULL;
+            const char *ry = rc ? place_int(rc, eos, &y) : NULL;
+            if (!ry) {
+                /* four commas but not an entry: a polyline line, or a line
+                 * this reader cannot make sense of (both counted) */
+                if (strchr(line, ';'))
+                    st->poly++;
+                else
+                    st->shortline++;
+            } else if (!strchr(mov, '.')) {
+                st->entry_noext++;         /* the five authored fields parse,
+                                            * but the script field names no
+                                            * file: KADMAR.07 ANI1.DES carries
+                                            * `BERLO,dummy,sdfsdf,61,54`.
+                                            * Nothing resolves from it and
+                                            * nothing is guessed. */
+                if (st->entry_noext <= 4)
+                    printf("ll_level: placement %s: an entry names the script"
+                           " \"%s\", which is not a file name: nothing can be"
+                           " resolved for it (a data hole in the placement"
+                           " itself)\n", fname, mov);
+            } else {
+                entries++;                  /* a real entry line, whatever
+                                            * its coordinates say */
+                st->entries++;
+                for (const char *q = line; q < ry; q++)
+                    if (*q == ' ' || *q == '\t') {
+                        st->field_space++;   /* fields written with spaces
+                                              * around the commas: the name is
+                                              * the same, so it is parsed */
+                        break;
                     }
+                if (strstr(cls, ".ani"))
+                    st->class_hint++;  /* class hint, no .ANI record: never
+                                        * used to pick art */
+                const char *pm = ry;
+                while (pm < eos && *pm == ' ')
+                    pm++;
+                if (pm < eos) {             /* parameters after the authored
+                                             * coordinates: real data in 4 of
+                                             * the 2188 entries (KADMAR.07
+                                             * `kpal.mov,640,640  -37,-7 -1
+                                             * 100 0`, ZARIA.01 `kamien1.mov,
+                                             * 1360,250,1308`). Kept verbatim,
+                                             * never guessed at. */
+                    st->param_extra++;
+                    if (st->param_extra <= 4)
+                        printf("ll_level: placement %s: an entry's parameters"
+                               " after the coordinates (%s) are authored data"
+                               " this model does not act on; the object is"
+                               " still placed at (%d,%d)\n", fname, pm, x, y);
                 }
-            if (!done && arecs) {             /* instantiate from the leaf */
-                const llrs_slot *lf = NULL;
-                for (unsigned k = 0; k < narec; k++)
-                    if (arecs[k].id == 2 && arecs[k].name[0] &&
-                        ci_eq(arecs[k].name, typ))
-                        lf = &arecs[k];
-                if (!lf)
-                    printf("ll_level: des %s: leaf %s (%s) not in ANIMACJE"
-                           " (data hole)\n", level, typ, mov);
-                else if (*nobj < maxobj) {
-                    llrs_slot *lrec = NULL;
-                    unsigned nlrec = 0;
-                    const llrs_slot *sr = NULL;
-                    if (llrs_block(an, lf, &lrec, &nlrec) == 0)
-                        for (unsigned k = 0; k < nlrec; k++) {
-                            char st2[16];
-                            stem_of(lrec[k].name, st2, sizeof st2);
-                            if (lrec[k].id == 1 && ci_eq(st2, stem)) {
-                                sr = &lrec[k];
-                                break;
-                            }
-                        }
-                    if (!sr)
-                        printf("ll_level: des %s: %s/%s not on these"
-                               " containers (data hole)\n", level, typ, mov);
-                    else {
-                        lvl_obj *o = &objs[*nobj];
-                        memset(o, 0, sizeof *o);
-                        if (llrs_read(an, sr, &o->blob) >= 0 &&
-                            ll_seq_parse(o->blob, (uint32_t)sr->size,
-                                         &o->seq) == 0) {
-                            int first = -1;
-                            for (unsigned e = 0; e < o->seq.count; e++)
-                                if (o->seq.els[e].arr_n > 0) {
-                                    first = (int)e;
-                                    break;
-                                }
-                            if (first < 0) {
-                                /* no drawable element: release the parse
-                                 * too (the main object loop does this;
-                                 * this copy leaked the els table - found
-                                 * by an ASan run in PR-43) */
-                                ll_seq_free(&o->seq);
-                                free(o->blob);
-                                o->blob = NULL;
-                            } else {
-                                o->eidx0 = first;
-                                snprintf(o->key, sizeof o->key, "%s",
-                                         sr->name);
-                                snprintf(o->leaf, sizeof o->leaf, "%s",
-                                         lf->name);
-                                elem_size(&o->seq, &o->seq.els[first],
-                                          &o->sw, &o->sh);
-                                o->x = o->bx = x;
-                                o->y = o->by = (y + o->sh <= ch)
-                                                   ? y : bottom_y(o->sh, ch);
-                                if (hrecs) {
-                                    llrs_slot *mr = NULL;
-                                    unsigned nmr = 0;
-                                    const llrs_slot *hl = NULL;
-                                    for (unsigned k = 0; k < nhrec; k++)
-                                        if (hrecs[k].id == 2 &&
-                                            hrecs[k].name[0] &&
-                                            ci_eq(hrecs[k].name, typ))
-                                            hl = &hrecs[k];
-                                    if (hl &&
-                                        llrs_block(hd_an, hl, &mr,
-                                                   &nmr) == 0) {
-                                        const llrs_slot *mv =
-                                            rec_find(mr, nmr, stem, ".MOV");
-                                        if (mv &&
-                                            llrs_read(hd_an, mv,
-                                                      &o->movtxt) > 0) {
-                                            o->mov = calloc(1,
-                                                            sizeof *o->mov);
-                                            if (o->mov)
-                                                ll_mov_parse(
-                                                    (char *)o->movtxt,
-                                                    o->mov);
-                                        }
-                                        llrs_block_free(mr);
-                                    }
-                                }
-                                printf("ll_level: des-place %s/%s at (%d,%d)"
-                                       " (new copy)\n", typ, o->key,
-                                       o->x, o->y);
-                                (*nobj)++;
-                            }
-                        }
-                    }
-                    llrs_block_free(lrec);
+                if (x < 0 || x >= pc->world_w) {
+                    st->coord_bad++;   /* outside the level's own back_rect:
+                                        * counted, and not placed */
+                    goto next;
                 }
+                obj_script *sc = obj_script_get(pc, leaf, mov);
+                if (!sc)
+                    goto next;
+                sc->ninst++;
+                lvl_obj *o = obj_slot(pc);
+                if (!o)
+                    goto next;
+                o->sc = sc;
+                o->bx = o->x = x;      /* authored position, y down: no
+                                        * invented bottom-anchor. Only the
+                                        * script's own " M dx,dy" frames move
+                                        * it (285 of them game-wide). */
+                o->by = o->y = y;
+                st->placed++;
             }
         }
+next:
         p = eol;
         while (p < end && (*p == '\n' || *p == '\r'))
             p++;
     }
+    if (declared >= 0 && declared != entries)
+        printf("ll_level: placement %s: its own count line says %d but the"
+               " file holds %d entry line(s) - count lines are stale in 38"
+               " of the 68 shipped files, so every line is read\n",
+               fname, declared, entries);
+    st->files++;
 }
 
-static void des_placement(llrs *an, const llrs_slot *arecs, unsigned narec,
-                          llrs *hd_an,
-                          const llrs_slot *hrecs, unsigned nhrec,
-                          llrs *hd_ety, const llrs_slot *hd_blk2,
-                          const des_kv *kvs, int nk,
-                          lvl_obj *objs, int *nobj, int maxobj,
-                          int world_w, int ch, const char *level)
+static void des_placement(place_ctx *pc, llrs *hd_ety,
+                          const llrs_slot *hd_blk2, const des_kv *kvs, int nk)
 {
-    if (!hd_ety || !hd_blk2)
+    obj_stats *st = &pc->st;
+    if (!hd_ety || !hd_blk2) {
+        printf("ll_level: no HD ETAPY block for %s: the level's own placement"
+               " files are unreachable (data hole)\n", pc->level);
         return;
+    }
     llrs_slot *hrec2 = NULL;
     unsigned nh2 = 0;
     if (llrs_block(hd_ety, hd_blk2, &hrec2, &nh2))
         return;
 
-    /* the main .DES names the placement files: animacje=ani4.des,ani3.des
-     * A bare `none` in such a list is the game's OWN keyword for "nothing
-     * here" (measured in the real data: JUNCTION says animacje=none,
-     * RAN.01 says zwierzaki=chmury.des,ptaki.des,none) - it is NOT a
-     * missing record, so it must not be reported as a data hole. It does
-     * count as "the author answered this key", which keeps the fallback
-     * scan below from inventing placements the level never asked for.
-     * `none.des` on the other hand IS a real record name (JUNCTION's
-     * level block carries a NONE.DES holding literally "0"), and the
-     * exact-name match below resolves it normally. */
-    char list[512];
-    snprintf(list, sizeof list, "%s", des_get(kvs, nk, "animacje"));
-    char *save = NULL;
-    int touched = 0;
-    for (char *tok = strtok_r(list, ",", &save); tok;
-         tok = strtok_r(NULL, ",", &save)) {
-        while (*tok == ' ')
-            tok++;
-        if (!tok[0])
-            continue;
-        if (!strchr(tok, '.') && ci_eq(tok, "none")) {
-            printf("ll_level: des %s: the animacje list carries the bare"
-                   " 'none' keyword (the game's own 'nothing here':"
-                   " skipped, not a data hole)\n", level);
-            touched = 1;
-            continue;
-        }
-        const llrs_slot *dr = NULL;
-        for (unsigned k = 0; k < nh2; k++)
-            if (hrec2[k].id == 1 && hrec2[k].name[0] &&
-                ci_eq(hrec2[k].name, tok))
-                dr = &hrec2[k];
-        if (!dr) {
-            printf("ll_level: des %s: %s not in the HD level block"
-                   " (data hole)\n", level, tok);
-            continue;
-        }
-        unsigned char *txt = NULL;
-        if (llrs_read(hd_ety, dr, &txt) < 0)
-            continue;
-        printf("ll_level: placement %s (%u B)\n", dr->name, dr->size);
-        des_place_lines(an, arecs, narec, hd_an, hrecs, nhrec,
-                        (const char *)txt, (size_t)dr->size,
-                        objs, nobj, maxobj, world_w, ch, level);
-        free(txt);
-        touched = 1;
-    }
-    if (!touched) {                    /* no animacje= list: try any .DES */
-        for (unsigned k = 0; k < nh2; k++) {
-            const char *dot = strrchr(hrec2[k].name, '.');
-            if (hrec2[k].id != 1 || !dot || !ci_eq(dot, ".DES"))
+    for (unsigned kk = 0;
+         kk < sizeof des_place_keys / sizeof des_place_keys[0]; kk++) {
+        const char *key = des_place_keys[kk];
+        const char *raw = des_get(kvs, nk, key);
+        if (!raw[0])
+            continue;      /* key absent: the author says nothing about it
+                            * (no shipped level omits these three keys) */
+        char list[512];
+        snprintf(list, sizeof list, "%s", raw);
+        char *save = NULL;
+        for (char *tok = strtok_r(list, ",", &save); tok;
+             tok = strtok_r(NULL, ",", &save)) {
+            while (*tok == ' ')
+                tok++;
+            if (!tok[0])
                 continue;
+            if (!strchr(tok, '.') && ci_eq(tok, "none")) {
+                printf("ll_level: des %s: the %s list carries the bare 'none'"
+                       " keyword (the game's own 'nothing here': skipped,"
+                       " not a data hole)\n", pc->level, key);
+                continue;
+            }
+            const llrs_slot *dr = NULL;
+            for (unsigned k = 0; k < nh2; k++)
+                if (hrec2[k].id == 1 && hrec2[k].name[0] &&
+                    ci_eq(hrec2[k].name, tok))
+                    dr = &hrec2[k];
+            if (!dr) {
+                st->file_missing++;
+                printf("ll_level: des %s: %s (named by %s=) is not in the HD"
+                       " level block (data hole)\n", pc->level, tok, key);
+                continue;
+            }
             unsigned char *txt = NULL;
-            if (llrs_read(hd_ety, &hrec2[k], &txt) < 0)
+            if (llrs_read(hd_ety, dr, &txt) < 0)
                 continue;
-            printf("ll_level: placement %s (%u B)\n", hrec2[k].name,
-                   hrec2[k].size);
-            des_place_lines(an, arecs, narec, hd_an, hrecs, nhrec,
-                            (const char *)txt, (size_t)hrec2[k].size,
-                            objs, nobj, maxobj, world_w, ch, level);
+            printf("ll_level: placement %s (%u B, from %s=)\n", dr->name,
+                   dr->size, key);
+            des_place_file(pc, dr->name, (const char *)txt, (size_t)dr->size);
             free(txt);
         }
     }
     llrs_block_free(hrec2);
-}
 
+    printf("ll_level: authored scene %s: %d placement file(s), %d object"
+           " entry line(s) -> %d placed, %d at an x outside the view the"
+           " level's own data defines (its back_rect, or its single screen"
+           " where the data gives none), %d distinct script(s) / %d art"
+           " table(s) (%d of them the inline palette+sprite form this viewer"
+           " does not draw yet); %d script(s) and %d art name(s) are not on"
+           " these containers (data holes listed above)\n",
+           pc->level, st->files, st->entries, st->placed, st->coord_bad,
+           st->nscript, st->nart, st->art_inline, st->nscript_missing,
+           st->nart_missing);
+    if (st->prop || st->group || st->comment || st->class_hint ||
+        st->poly || st->shortline || st->param_extra || st->field_space ||
+        st->entry_noext || st->longline)
+        printf("ll_level: placement data the scene model does not act on"
+               " (counted, never invented): %d per-entry property line(s)"
+               " (damage/energy/bounds/scope), %d group header line(s),"
+               " %d comment line(s) (';' or '//'), %d object-class token(s)"
+               " (no .ANI record exists in any container), %d polyline"
+               " line(s) (moving ground: needs the AC_* signal bus), %d"
+               " entry line(s) with parameters beyond the coordinates"
+               " (listed above), %d entry line(s) whose fields are written"
+               " with spaces around the commas (parsed as the same names), %d"
+               " entry line(s) whose script field is not a file name (listed"
+               " above), %d line(s) this reader cannot classify\n",
+               st->prop, st->group, st->comment, st->class_hint, st->poly,
+               st->param_extra, st->field_space, st->entry_noext,
+               st->shortline + st->longline);
+    if (st->nscript)
+        printf("ll_level: those scripts author %d state transition(s), %d"
+               " control flag(s) with no model bit, %d frame signal"
+               " directive(s) (GEN / ATC_ON / ATC_OFF / WAIT / lock /"
+               " smpauto / GOTO), %d sound-or-scale field(s); %d state(s)"
+               " name no seq= art, %d state(s) / %d frame(s) / %d"
+               " transition(s) over cap - all parsed and counted, acted on"
+               " only once the AC_*/K_* signal bus lands (M4-D)\n",
+               st->ntrans, st->ctrl_other, st->directive, st->field_other,
+               st->state_noart, st->drop_st, st->drop_fr, st->drop_tr);
+}
 /* paint one 8bpp canvas through the palette LUT (shared present path).
  * The LUT stays the scene's own business (level PCX palettes AND the
  * documented grayscale fallback for blocks without a palette donor): the
@@ -1540,34 +2102,44 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         return 1;
     }
 
-    /* 4) objects: ANIMACJE/<level> leaf .SEQ sprites + HD-install .MOV
-     *    state machines (LEO_HD_DIR); missing HD is fine (static sprites).*/
-    lvl_obj objs[24];
-    int nobj = 0;
+    /* 4) the authored scene: what the level's OWN placement data places
+     *    (PR-45). The three placement keys of the main .des name the
+     *    sub-.des files; every entry in them names an ANIMACJE leaf; that
+     *    leaf's .MOV on the HD install is the motion script and each of its
+     *    states names its own .SEQ art through seq= (on the CD).
+     *    A missing HD install means no scripts (the placement files
+     *    themselves live in the HD container); a missing CD ANIMACJE means
+     *    the art of the scripts that are present is missing. Both are
+     *    reported by exact name as data holes, and nothing is invented:
+     *    PR-36's fallback scan of every leaf .SEQ and its one-script-per-
+     *    leaf collapsing are gone, and so is the 24-object cap (measured:
+     *    RAN.01 places 827 objects from 82 scripts, SADES.06 uses 264
+     *    scripts and 277 art tables - the arrays below grow instead). */
     play_ctx pl;
     memset(&pl, 0, sizeof pl);             /* LEO_PLAY wiring (4c below)   */
-    llrs an;
-    memset(objs, 0, sizeof objs);
+    scene_owner scene;                     /* scripts + placements, owned;
+                                           * freed at done: (E-05)         */
+    memset(&scene, 0, sizeof scene);
+
+    llrs an, hd_an, hd_ety;
+    memset(&an, 0, sizeof an);
+    memset(&hd_an, 0, sizeof hd_an);
+    memset(&hd_ety, 0, sizeof hd_ety);
+    int an_open = 0, have_hd = 0, have_hd_ety = 0;
     snprintf(p, sizeof p, "%s/ANIMACJE", dir);
-    llrs hd_an;
-    int have_hd = 0;
     const char *hd = getenv("LEO_HD_DIR");
     if (hd) {
         char hp[4096];
         snprintf(hp, sizeof hp, "%s/ANIMACJE", hd);
         have_hd = llrs_open(&hd_an, hp) == 0;
     }
-    const llrs_slot *hblk = NULL;
-    llrs_slot *hrecs = NULL;
-    unsigned nhrec = 0;
-    if (have_hd) {
-        hblk = find_or_stem(&hd_an, level);
-        if (hblk)
-            llrs_block(&hd_an, hblk, &hrecs, &nhrec);
+    const llrs_slot *ablk = NULL, *hblk = NULL, *hblk2 = NULL;
+    if (llrs_open(&an, p) == 0) {
+        an_open = 1;
+        ablk = find_or_stem(&an, level);
     }
-    llrs hd_ety;
-    int have_hd_ety = 0;
-    const llrs_slot *hblk2 = NULL;
+    if (have_hd)
+        hblk = find_or_stem(&hd_an, level);
     if (hd) {
         char hp[4096];
         snprintf(hp, sizeof hp, "%s/ETAPY", hd);
@@ -1581,139 +2153,35 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             }
         }
     }
-    llrs_slot *arecs = NULL;
-    unsigned narec = 0;
-    int an_open = 0;
-    if (llrs_open(&an, p) == 0) {
-        const llrs_slot *ablk = find_or_stem(&an, level);
-        an_open = 1;
-        if (ablk && llrs_block(&an, ablk, &arecs, &narec) == 0) {
-            for (unsigned k = 0; k < narec && nobj < 24; k++) {
-                if (arecs[k].id != 2 || !arecs[k].name[0])
-                    continue;
-                llrs_slot *fr = NULL;
-                unsigned nfr = 0;
-                if (llrs_block(&an, &arecs[k], &fr, &nfr))
-                    continue;
-                for (unsigned j = 0; j < nfr && nobj < 24; j++) {
-                    const char *dot = strrchr(fr[j].name, '.');
-                    if (fr[j].id != 1 || !fr[j].name[0] || !dot ||
-                        !ci_eq(dot, ".SEQ"))
-                        continue;
-                    lvl_obj *o = &objs[nobj];
-                    o->blob = NULL;
-                    if (llrs_read(&an, &fr[j], &o->blob) < 0 ||
-                        ll_seq_parse(o->blob, (uint32_t)fr[j].size,
-                                     &o->seq) != 0) {
-                        free(o->blob);
-                        o->blob = NULL;
-                        continue;
-                    }
-                    int first = -1;
-                    for (unsigned e = 0; e < o->seq.count; e++)
-                        if (o->seq.els[e].arr_n > 0) {
-                            first = (int)e;
-                            break;
-                        }
-                    if (first < 0) {
-                        ll_seq_free(&o->seq);
-                        free(o->blob);
-                        o->blob = NULL;
-                        continue;
-                    }
-                    o->eidx0 = first;
-                    snprintf(o->key, sizeof o->key, "%s", fr[j].name);
-                    snprintf(o->leaf, sizeof o->leaf, "%s", arecs[k].name);
-                    elem_size(&o->seq, &o->seq.els[first], &o->sw, &o->sh);
-                    anchor_of(&o->seq.els[first], o->sh, (int)img.h,
-                              &o->bx, &o->by);
-                    o->x = o->bx;
-                    o->y = o->by;
 
-                    /* matching .MOV from the HD install (same record key) */
-                    if (hrecs) {
-                        const llrs_slot *hleaf = NULL;
-                        for (unsigned m = 0; m < nhrec; m++)
-                            if (hrecs[m].id == 2 && hrecs[m].name[0] &&
-                                ci_eq(hrecs[m].name, arecs[k].name))
-                                hleaf = &hrecs[m];
-                        if (hleaf) {
-                            llrs_slot *mrecs = NULL;
-                            unsigned nmrec = 0;
-                            if (llrs_block(&hd_an, hleaf, &mrecs,
-                                           &nmrec) == 0) {
-                                char stem[16];
-                                stem_of(fr[j].name, stem, sizeof stem);
-                                const llrs_slot *mv = rec_find(mrecs, nmrec,
-                                                               stem, ".MOV");
-                                if (mv &&
-                                    llrs_read(&hd_an, mv, &o->movtxt) > 0) {
-                                    o->mov = calloc(1, sizeof *o->mov);
-                                    if (o->mov)
-                                        ll_mov_parse((char *)o->movtxt,
-                                                     o->mov);
-                                }
-                                llrs_block_free(mrecs);
-                            }
-                        }
-                    }
-                    nobj++;
-                }
-                llrs_block_free(fr);
-            }
-        }
-    }
-
-    /* One visible script per leaf object: the game shows one .SEQ per object
-     * (its .MOV state machine names it via seq=), so collapse each leaf
-     * group to the script the HD .MOV references, else the first one.
-     * (Objects were collected grouped by leaf.) */
-    for (int a = 0; a < nobj;) {
-        int b = a;
-        while (b < nobj && !strcmp(objs[b].leaf, objs[a].leaf))
-            b++;
-        int keep = a;
-        for (int m = a; m < b; m++) {
-            char stem[16];
-            stem_of(objs[m].key, stem, sizeof stem);
-            if (objs[m].mov && objs[m].mov->nst &&
-                ci_eq(stem, objs[m].mov->seqkey)) {
-                keep = m;
-                break;
-            }
-        }
-        if (keep != a) {
-            lvl_obj tmp = objs[a];
-            objs[a] = objs[keep];
-            objs[keep] = tmp;
-        }
-        for (int m = a + 1; m < b; m++) {
-            ll_seq_free(&objs[m].seq);
-            free(objs[m].mov);
-            free(objs[m].movtxt);
-            free(objs[m].blob);
-        }
-        if (b > a + 1)
-            memmove(&objs[a + 1], &objs[b],
-                    sizeof(lvl_obj) * (size_t)(nobj - b));
-        nobj -= b - a - 1;
-        a++;
-    }
-
-    /* 4b) .des X,Y placement join (HD sub-.des -> ANIMACJE leaf records);
-     *     X is a WORLD coordinate validated against back_rect */
-    des_placement(&an, arecs, narec, &hd_an, hrecs, nhrec,
-                  have_hd_ety ? &hd_ety : NULL, hblk2, kvs, nk,
-                  objs, &nobj, (int)(sizeof objs / sizeof objs[0]),
-                  world_w > 0 ? world_w : (int)img.w, (int)img.h, level);
-    if (arecs)
-        llrs_block_free(arecs);
-    if (an_open)
+    place_ctx pc;
+    memset(&pc, 0, sizeof pc);
+    pc.own = &scene;
+    pc.level = level;
+    pc.world_w = world_w > 0 ? world_w : (int)img.w;
+    pc.ac.cd = an_open ? &an : NULL;
+    pc.ac.cd_blk = ablk;
+    pc.ac.hd = have_hd ? &hd_an : NULL;
+    pc.ac.hd_blk = hblk;
+    if (!an_open)
+        printf("ll_level: no CD ANIMACJE for %s in %s: the art the object"
+               " scripts name is unreachable (data hole)\n", level, dir);
+    if (!have_hd)
+        printf("ll_level: no HD ANIMACJE for %s (LEO_HD_DIR is not set or"
+               " that install has no ANIMACJE): the object scripts of this"
+               " level are unreachable (data hole)\n", level);
+    des_placement(&pc, have_hd_ety ? &hd_ety : NULL, hblk2, kvs, nk);
+    lvl_obj *objs = scene.objs;        /* the print/draw loops below */
+    int nobj = scene.nobj;
+    if (an_open) {
         llrs_close(&an);
-    if (hrecs)
-        llrs_block_free(hrecs);
-    if (have_hd)
+        an_open = 0;                   /* done: must not close twice */
+    }
+    if (have_hd) {
         llrs_close(&hd_an);
+        have_hd = 0;
+    }
+    /* hd_ety stays open: the help overlay (5b) reads the same HD block */
     /* hd_ety stays open: the help overlay (5b) reads the same HD block */
 
     /* 4c) playable level prototype (M4-B, PR-43): LEO_PLAY upgrades the
@@ -2023,16 +2491,41 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
 
     printf("ll_level: show %s: bg %s %dx%d, %d animated object(s)\n", level,
            bgname, cw, ch, nobj);
-    for (int k = 0; k < nobj; k++)
-        printf("ll_level: obj %s/%s: %dx%d at (%d,%d)%s\n", objs[k].leaf,
-               objs[k].key, objs[k].sw, objs[k].sh, objs[k].x, objs[k].y,
-               objs[k].mov && objs[k].mov->nst ? " [mov]" : "");
+    /* Proof of the join, bounded: 24 placements in file order, then the
+     * count of the rest (RAN.01 places 827). LEO_OBJ_ALL=1 prints them all
+     * for probes. The line names leaf / script / the art the script's own
+     * seq= selected / the state count / the authored position. */
+    int obj_all = getenv("LEO_OBJ_ALL") != NULL;
+    int obj_shown = 0;
+    for (int k = 0; k < nobj; k++) {
+        if (!obj_all && obj_shown >= 24)
+            break;
+        const obj_script *sc = objs[k].sc;
+        int ai = objs[k].sti >= 0 && objs[k].sti < LMOV_MAXST
+                     ? sc->ast[objs[k].sti] : -1;
+        const obj_art *a = ai >= 0 && ai < sc->nart ? &sc->art[ai] : NULL;
+        const char *why =
+            !a ? " (this state names no seq= art)"
+               : !a->found ? " (no such record on these containers: data hole)"
+               : a->eidx0 < 0 ? " (inline palette+sprite form: not drawable"
+                              " here)"
+               : "";
+        printf("ll_level: obj %s/%s%s: art %s%s, %d state(s), bbox %dx%d at"
+               " (%d,%d)\n", sc->leaf, sc->movname,
+               sc->mov && sc->mov->nst ? "[mov]" : "[no script: data hole]",
+               a && a->name[0] ? a->name : "(none)", why,
+               sc->mov ? sc->mov->nst : 0, a ? a->sw : 0, a ? a->sh : 0,
+               objs[k].x, objs[k].y);
+        obj_shown++;
+    }
+    if (obj_shown < nobj)
+        printf("ll_level: ... %d more placement(s) of those scripts"
+               " (LEO_OBJ_ALL=1 prints them)\n", nobj - obj_shown);
     if (getenv("LEO_LEVEL_NO_OBJ")) {
-        /* CI-only hook (PR-36): paint the bare background (no .des object
-         * compositing, logs/animation state above stay as-is). Needed by
-         * the help-overlay oracle: since the sparse-table scan JUNCTION
-         * has a live scene sprite, and that oracle asserts "help frame =
-         * bare bg + exactly the page window". */
+        /* CI-only hook (PR-36): paint the bare background (no object
+         * compositing, the logs and animation state above stay as-is). Kept
+         * for the help-overlay oracle, which asserts "help frame = bare bg +
+         * exactly the page window". */
         printf("ll_level: LEO_LEVEL_NO_OBJ -> %d objects not composited\n",
                nobj);
         nobj = 0;
@@ -2073,12 +2566,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     const unsigned char *base = pcm_owner ? view : img.idx;
     memcpy(canvas, base, csz);
     bg_at(&pcml, &img, pcm_owner, pcm_band, cam, cw, ch, scratch, canvas);
-    for (int k = 0; k < nobj; k++) {
-        const ll_seq_elem *e = obj_elem(&objs[k]);
-        if (e)
-            ll_seq_draw_elem(&objs[k].seq, e, canvas, cw, ch,
-                             objs[k].x - cam, objs[k].y);
-    }
+    for (int k = 0; k < nobj; k++)
+        obj_draw(&objs[k], canvas, cw, ch, cam);
 
     const char *ppm = getenv("LEO_LEVEL_PPM");   /* CI: headless dump */
     if (ppm) {
@@ -2100,21 +2589,26 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                     obj_advance(&objs[k], 20);
             }
         } else {
+            int shown = 0;
             for (int k = 0; k < nobj; k++) { /* advance fixed-step then redraw */
                 for (int m = 0; m < ticks; m++)
                     obj_advance(&objs[k], 40);
-                printf("ll_level: tick %d: %s state %d at (%d,%d)\n", ticks,
-                       objs[k].key, objs[k].sti, objs[k].x, objs[k].y);
+                if (shown < 12) {             /* proof of the cycle, bounded */
+                    printf("ll_level: tick %d: %s/%s state %d frame %d at"
+                           " (%d,%d)\n", ticks, objs[k].sc->leaf,
+                           objs[k].sc->movname, objs[k].sti, objs[k].fi,
+                           objs[k].x, objs[k].y);
+                    shown++;
+                }
             }
+            if (shown < nobj)
+                printf("ll_level: tick %d: %d more placement(s)"
+                       " advanced\n", ticks, nobj - shown);
         }
         memcpy(canvas, base, csz);         /* same order as the live loop */
         bg_at(&pcml, &img, pcm_owner, pcm_band, cam, cw, ch, scratch, canvas);
-        for (int k = 0; k < nobj; k++) {
-            const ll_seq_elem *e = obj_elem(&objs[k]);
-            if (e)
-                ll_seq_draw_elem(&objs[k].seq, e, canvas, cw, ch,
-                                 objs[k].x - cam, objs[k].y);
-        }
+        for (int k = 0; k < nobj; k++)
+            obj_draw(&objs[k], canvas, cw, ch, cam);
         play_draw(&pl, canvas, cw, ch, cam);
         if (pcm_owner) {
             /* PCM canvas: CI hash of the bare window band (win_rows rows,
@@ -2281,12 +2775,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             memcpy(canvas, base, csz);
             bg_at(&pcml, &img, pcm_owner, pcm_band, cam, cw, ch, scratch,
                   canvas);
-            for (int k = 0; k < nobj; k++) {
-                const ll_seq_elem *el = obj_elem(&objs[k]);
-                if (el)
-                    ll_seq_draw_elem(&objs[k].seq, el, canvas, cw, ch,
-                                     objs[k].x - cam, objs[k].y);
-            }
+            for (int k = 0; k < nobj; k++)
+                obj_draw(&objs[k], canvas, cw, ch, cam);
             play_draw(&pl, canvas, cw, ch, cam);
             paint(canvas, lut, cw, ch);
             ll_music_pump();
@@ -2309,12 +2799,13 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
 done:                                 /* single cleanup path (E-05): every
                                        * way out of the scene runs this */
     free(canvas);
-    for (int k = 0; k < nobj; k++) {
-        ll_seq_free(&objs[k].seq);
-        free(objs[k].mov);
-        free(objs[k].movtxt);
-        free(objs[k].blob);
-    }
+    scene_owner_free(&scene);            /* scripts (their art + parsed
+                                          * .MOV) and placements: the only
+                                          * owners of scene memory (PR-45) */
+    if (an_open)
+        llrs_close(&an);
+    if (have_hd)
+        llrs_close(&hd_an);
     for (int k = 0; k < pl.nart; k++) {
         ll_seq_free(&pl.art[k].seq);
         free(pl.art[k].blob);

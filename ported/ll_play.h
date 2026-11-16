@@ -73,15 +73,25 @@ int  ll_plt_first_below(const ll_plt *o, int x, int from_y, ll_xy *hit);
  * EXTENDED version of the viewer's mov_t (ll_level.c PR-38): same frame
  * semantics (frame number indexes the .SEQ element list directly,
  * non-positive ms clamped to 100 - the M4-C rule), plus the physics /
- * transition grammar above. Caps sized for the real LEW.MOV (29 states,
- * <= 60 frames). */
+ * transition grammar above. Caps are sized from the shipped data, not
+ * guessed (measured over all 777 .MOV, PLAN 8g): 40 states in one file,
+ * 97 frames in one state, 30 transitions in one state, 4 condition parts
+ * in one expression. ll_mov_parse counts anything it had to drop. */
 #define LMOV_MAXST 64
 #define LMOV_MAXFR 128
-#define LMOV_MAXTR 6
-#define LMOV_MAXCON 4                       /* OR parts per transition     */
+#define LMOV_MAXTR 32
+#define LMOV_MAXCON 4                       /* parts per condition expr    */
 
-/* control= flags we act on; unknown names (FRAME_REV, BY_TIME details)
- * parse but change nothing yet (documented, PLAN 8f). */
+/* control= flags the model acts on. The real vocabulary is a | separated
+ * (rarely , separated) list; measured use counts (PLAN 8g):
+ *   BY_TIME 2101  FRAME_REV 798  CH_DIR 552  CHECK_LEW 535  DANGER 385
+ *   CHECK_ALL 356  CHECK_LN 340  CHECK_ANI 168  SOLID2 152  SOLID 141
+ *   ANTI_POCISK 121  BY_X 105  SEMI_SOLID 92  ANTI_SOLID 87
+ *   CHECK_ALL_PLANE 62  CHECK_ZW 47  SEQ_REV_Y 22  BY_Y 13  BY_TY 12
+ *   CHECK_BASE_LN 8  SEQ_REV_X 7  INV_V 3
+ * `BY_TY` is the data's own typo for BY_TIME (12 scripts). Names without a
+ * bit below are parsed, named here for the record, and counted in
+ * ctrl_other - never silently dropped, never invented into a behaviour. */
 enum {
     LL_CTRL_BY_TIME         = 1u,
     LL_CTRL_BY_X            = 2u,           /* walk states: move at speed  */
@@ -89,11 +99,21 @@ enum {
     LL_CTRL_CH_DIR          = 8u,
     LL_CTRL_CHECK_ALL       = 0x10u,
     LL_CTRL_CHECK_ALL_PLANE = 0x20u,
-    LL_CTRL_FRAME_REV       = 0x40u
+    LL_CTRL_FRAME_REV       = 0x40u,
+    LL_CTRL_BY_Y            = 0x80u,
+    LL_CTRL_SOLID           = 0x100u
 };
+#define LL_CTRL_NAMES \
+    X(BY_TIME) X(BY_X) X(BY_Y) X(BY_TY) X(CHECK_LN) X(CHECK_LEW) \
+    X(CHECK_ALL) X(CHECK_ALL_PLANE) X(CHECK_ANI) X(CHECK_ZW) X(CHECK_BASE_LN) \
+    X(CH_DIR) X(DANGER) X(SOLID) X(SOLID2) X(SEMI_SOLID) X(ANTI_SOLID) \
+    X(ANTI_POCISK) X(FRAME_REV) X(SEQ_REV_X) X(SEQ_REV_Y) X(INV_V)
 
 /* transition condition ids (K_ANY = any held key; OTHER = recognized
- * token we do not simulate - never true, logged once by the caller). */
+ * token we do not simulate - never true, logged once by the caller).
+ * The authored expressions also use ',' groups (466 of 2911), a leading
+ * '|' (49) and ';' inside a group (3); those parse as one OTHER token
+ * and are counted, not guessed into AND or OR. */
 enum {
     LL_COND_NONE = 0,
     LL_COND_K_FWD, LL_COND_K_BKWD, LL_COND_K_UP, LL_COND_K_DOWN,
@@ -115,12 +135,17 @@ typedef struct {
     unsigned ctrl;
     ll_mov_tr tr[LMOV_MAXTR]; int ntr;
     ll_mov_fr fr[LMOV_MAXFR]; int nfr;
+    /* authored content the model reads but does not act on (reported): */
+    int ctrl_other;                         /* control= names without a bit */
+    int directive;                          /* frame-line GEN/ATC/WAIT/...  */
+    int field_other;                        /* sample= time= time_scale=    */
 } ll_mov_st;
 typedef struct {
     ll_mov_st st[LMOV_MAXST];
     int nst;
     char seqkey[16];                        /* last seq= seen (viewer uses
                                              * this, matching old mov_t)   */
+    int drop_st, drop_fr, drop_tr;          /* cap overflows: reported     */
 } ll_mov_t;
 
 int ll_mov_parse(const char *text, ll_mov_t *m);   /* returns m->nst      */

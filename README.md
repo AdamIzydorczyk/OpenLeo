@@ -146,6 +146,15 @@ grid `LEO_LEVEL_PPM`/`LEO_LEVEL_PPM_TICK` dump frames on, so CI frames
 are deterministic); in a live window the arrows drive the lion directly.
 `ll_level --play-selftest` runs the hermetic .plt/.MOV/player checks
 (no data needed).
+Scene hooks (M4-C, PR-45, used by verify-level): the level preview now
+runs the level's OWN authored scene - the .MOV scripts of the objects
+its .des placement files (zwierzaki=/animacje=/ani_plat=) name, drawn
+with the .SEQ art each script state selects through its own `seq=`.
+`LEO_OBJ_ALL=1` prints EVERY placed object (the default proof listing
+is bounded: 24 placements, then the count of the rest; the same bound
+applies to the per-tick advance lines). `ll_level --mov-selftest` runs
+the hermetic .MOV duration/cycle + per-state art-selection checks (no
+data needed).
 
 Runtime policy hooks: `LEO_FORCE_X11=1` (under a Wayland session pin the
 video backend to X11/XWayland — the pre-FIX-11 default; default now is

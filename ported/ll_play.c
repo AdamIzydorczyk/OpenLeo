@@ -213,23 +213,29 @@ static int cond_id(const char *tok)
     return LL_COND_OTHER;
 }
 
-static void ctrl_flag(const char *tok, unsigned *f)
+static void ctrl_flag(const char *tok, unsigned *f, int *other)
 {
     static const struct { const char *n; unsigned bit; } tbl[] = {
         { "BY_TIME", LL_CTRL_BY_TIME },
         { "BY_X", LL_CTRL_BY_X },
+        { "BY_Y", LL_CTRL_BY_Y },
         { "CHECK_LN", LL_CTRL_CHECK_LN },
         { "CH_DIR", LL_CTRL_CH_DIR },
         { "CHECK_ALL_PLANE", LL_CTRL_CHECK_ALL_PLANE },  /* before CHECK_ALL */
         { "CHECK_ALL", LL_CTRL_CHECK_ALL },
         { "FRAME_REV", LL_CTRL_FRAME_REV },
+        { "SOLID", LL_CTRL_SOLID },
     };
     for (unsigned k = 0; k < sizeof tbl / sizeof tbl[0]; k++)
         if (strcasecmp(tbl[k].n, tok) == 0) {
             *f |= tbl[k].bit;
             return;
         }
-    /* unknown flag names (LOCK, ldir, ...) parse but do nothing (PLAN 8f) */
+    /* Named in the ll_play.h vocabulary but without a bit (CHECK_LEW,
+     * DANGER, SOLID2, ANTI_POCISK, ...), or a name we have never seen:
+     * counted so a missing behaviour is a known gap, never a silent one. */
+    if (other)
+        (*other)++;
 }
 
 /* "a,b" -> two ints; scalar form ("G=400", seen in real data) duplicates
@@ -296,6 +302,8 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                         nl = sizeof s->name - 1;
                     memcpy(s->name, line + 1, nl);
                     s->name[nl] = '\0';
+                } else {
+                    m->drop_st++;
                 }
             } else if (m->nst > 0) {
                 ll_mov_st *s = &m->st[m->nst - 1];
@@ -311,9 +319,53 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                          * matching the viewer's mov_parse. */
                         mf->ms = ms > 0 ? (unsigned)ms : 100u;
                         mf->dx = mf->dy = 0;
-                        const char *mvt = strstr(line, "M ");
-                        if (mvt)
-                            sscanf(mvt, "M %d,%d", &mf->dx, &mf->dy);
+                        /* A frame line may carry further fields. The one the
+                         * model acts on is the authored motion of THIS frame,
+                         * "N,ms, M dx,dy" (285 of 18617 shipped frame lines
+                         * carry it; there are no standalone "M" lines).
+                         * Everything else names game signals the scene model
+                         * has no bus for yet - GEN <signal>, ATC_ON/ATC_OFF,
+                         * WAIT <signal>, lock/unlock, smpauto/smp, GOTO_rel,
+                         * inline F= - so it is counted (measured 1568 such
+                         * lines, PLAN 8g), never dropped in silence. */
+                        const char *fc = strchr(line, ',');
+                        const char *rest = fc ? strchr(fc + 1, ',') : NULL;
+                        if (rest) {
+                            const char *q = rest + 1;
+                            int other_directive = 0;
+                            while (*q) {
+                                while (*q == ' ' || *q == ',')
+                                    q++;
+                                if (!*q)
+                                    break;
+                                char word[16];
+                                size_t wn = 0;
+                                while (*q && *q != ',' && *q != ' ' &&
+                                       wn + 1 < sizeof word)
+                                    word[wn++] = *q++;
+                                word[wn] = '\0';
+                                if (!wn)
+                                    continue;
+                                if (wn == 1 && (word[0] == 'M' ||
+                                                word[0] == 'm')) {
+                                    while (*q == ' ')
+                                        q++;
+                                    sscanf(q, "%d,%d", &mf->dx, &mf->dy);
+                                    continue;
+                                }
+                                int digits = 1;
+                                for (size_t k = 0; k < wn; k++)
+                                    if (word[k] < '0' || word[k] > '9')
+                                        digits = 0;
+                                if (digits)        /* tail of the M pair */
+                                    continue;
+                                other_directive = 1;
+                            }
+                            if (other_directive)
+                                s->directive++;
+                        }
+                    } else {
+                        m->drop_fr++;
                     }
                 } else if (strncmp(line, "seq=", 4) == 0) {
                     const char *v = line + 4;
@@ -332,9 +384,11 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                     snprintf(tmp, sizeof tmp, "%.*s", (int)sizeof tmp - 1,
                              line + 8);
                     char *save = NULL;
-                    for (char *tok = strtok_r(tmp, "| \t", &save); tok;
-                         tok = strtok_r(NULL, "| \t", &save))
-                        ctrl_flag(tok, &s->ctrl);
+                    /* '|' is the separator (1389 control lines); ',' appears
+                     * in 9 of them, so both split. */
+                    for (char *tok = strtok_r(tmp, "|, \t", &save); tok;
+                         tok = strtok_r(NULL, "|, \t", &save))
+                        ctrl_flag(tok, &s->ctrl, &s->ctrl_other);
                 } else if (line[0] == 'F' && line[1] == '=' &&
                            strlen(line) > 2) {
                     parse_pair(line + 2, &s->fx, &s->fy);
@@ -342,24 +396,34 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                     parse_pair(line + 2, &s->tx, &s->ty);
                 } else if (line[0] == 'G' && line[1] == '=') {
                     parse_pair(line + 2, &s->gx, &s->gy);
-                } else if (line[0] != ';' && strncmp(line, "time=", 5) != 0 &&
-                           strchr(line, '=') && s->ntr < LMOV_MAXTR) {
-                    /* transition: TARGET[(p)]=COND */
-                    ll_mov_tr *tr = &s->tr[s->ntr++];
-                    tr->tidx = -1;
-                    const char *eq = strchr(line, '=');
-                    const char *par = strchr(line, '(');
-                    size_t n = 0;
-                    const char *te = par && par < eq ? par : eq;
-                    for (const char *q = line; q < te && n + 1 < sizeof tr->target;
-                         q++)
-                        tr->target[n++] = *q;
-                    tr->target[n] = '\0';
-                    parse_cond(tr, eq + 1);
+                } else if (line[0] != ';' && strchr(line, '(') &&
+                           strchr(line, '=')) {
+                    /* transition: TARGET[(p)]=COND (all 2911 shipped ones
+                     * carry the parentheses) */
+                    if (s->ntr < LMOV_MAXTR) {
+                        ll_mov_tr *tr = &s->tr[s->ntr++];
+                        tr->tidx = -1;
+                        const char *eq = strchr(line, '=');
+                        const char *par = strchr(line, '(');
+                        size_t n = 0;
+                        const char *te = par && par < eq ? par : eq;
+                        for (const char *q = line;
+                             q < te && n + 1 < sizeof tr->target; q++)
+                            tr->target[n++] = *q;
+                        tr->target[n] = '\0';
+                        parse_cond(tr, eq + 1);
+                    } else {
+                        m->drop_tr++;
+                    }
+                } else if (line[0] != ';' && strchr(line, '=')) {
+                    /* state payload fields the model does not act on yet:
+                     * sample= (487, sound ids), time= (210), time_scale=
+                     * (115). Counted, never dropped in silence (PLAN 8g). */
+                    s->field_other++;
                 }
-                /* time=, POS, LOCK, unlock, ldir and other payload keys
-                 * parse but do nothing yet (PLAN 8f); the state preamble
-                 * before the first '[' is ignored, matching mov_parse */
+                /* the bare state names before the first '[' stay ignored,
+                 * matching mov_parse; ';' lines are the game's own comment
+                 * marker (774 of them, including an author note) */
             }
         }
         p = eol;
