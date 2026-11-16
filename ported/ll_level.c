@@ -26,9 +26,11 @@
  *   player     = with LEO_PLAY (M4-B, PR-43) the scene additionally runs
  *                the real lion: `lew=` leaf .SEQ art + that leaf's HD
  *                .MOV (physics/transitions), ground from `platformy=`
- *                .PLT, spawn `pozycja=`, bounds `lew_rect=`. Parsing and
- *                physics live in ll_play.c; this file only loads the
- *                data and draws the lion at the .SEQ anchor (-f0,-f2).
+ *                (a .PLT, or a sub-.des whose text carries the same
+ *                polyline grammar), spawn `pozycja=`, bounds `lew_rect=`.
+ *                Parsing and physics live in ll_play.c; this file only
+ *                loads the data and draws the lion at the .SEQ anchor
+ *                (-f0,-f2).
  */
 #include "ll_level.h"
 #include "fs_ci.h"
@@ -602,8 +604,12 @@ static const llrs_slot *rec_find(const llrs_slot *recs, unsigned n,
 /* ---------------- playable-level runtime (M4-B, PR-43) -------------------
  * LEO_PLAY wires the real player: art = every .SEQ in the ANIMACJE leaf
  * named by the .des `lew=<class>,<art leaf>,<mov>,<player des>` token 2,
- * script = the HD leaf's <stem>.MOV (ll_play.c), ground = the HD ETAPY
- * block's <stem>.PLT named by `platformy=`, spawn = `pozycja=`, bounds
+ * script = the HD leaf's <stem>.MOV (ll_play.c), ground = the ground
+ * polylines named by `platformy=` in the HD ETAPY level block - either
+ * the block's <stem>.PLT record or, for the levels that say so, a
+ * sub-.des record of the same block whose text IS the same polyline
+ * grammar (TUNGA2.12/SADES.06 platf.des; JUNCTION none.des = "0" = no
+ * ground), spawn = `pozycja=`, bounds
  * (and the fall-out-of-world respawn) = `lew_rect=`. The simulation and
  * the .MOV physics live in ll_play.c; this file only loads the data and
  * draws. If any piece is missing the level stays a preview and the gap
@@ -983,7 +989,16 @@ static void des_placement(llrs *an, const llrs_slot *arecs, unsigned narec,
     if (llrs_block(hd_ety, hd_blk2, &hrec2, &nh2))
         return;
 
-    /* the main .DES names the placement files: animacje=ani4.des,ani3.des */
+    /* the main .DES names the placement files: animacje=ani4.des,ani3.des
+     * A bare `none` in such a list is the game's OWN keyword for "nothing
+     * here" (measured in the real data: JUNCTION says animacje=none,
+     * RAN.01 says zwierzaki=chmury.des,ptaki.des,none) - it is NOT a
+     * missing record, so it must not be reported as a data hole. It does
+     * count as "the author answered this key", which keeps the fallback
+     * scan below from inventing placements the level never asked for.
+     * `none.des` on the other hand IS a real record name (JUNCTION's
+     * level block carries a NONE.DES holding literally "0"), and the
+     * exact-name match below resolves it normally. */
     char list[512];
     snprintf(list, sizeof list, "%s", des_get(kvs, nk, "animacje"));
     char *save = NULL;
@@ -994,6 +1009,13 @@ static void des_placement(llrs *an, const llrs_slot *arecs, unsigned narec,
             tok++;
         if (!tok[0])
             continue;
+        if (!strchr(tok, '.') && ci_eq(tok, "none")) {
+            printf("ll_level: des %s: the animacje list carries the bare"
+                   " 'none' keyword (the game's own 'nothing here':"
+                   " skipped, not a data hole)\n", level);
+            touched = 1;
+            continue;
+        }
         const llrs_slot *dr = NULL;
         for (unsigned k = 0; k < nh2; k++)
             if (hrec2[k].id == 1 && hrec2[k].name[0] &&
@@ -1697,7 +1719,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     /* 4c) playable level prototype (M4-B, PR-43): LEO_PLAY upgrades the
      * preview into the real controllable lion - art from the `lew=` leaf's
      * .SEQ scripts, motion from that leaf's HD .MOV (F=/T=/G= physics,
-     * K_* transitions), ground from the `platformy=` .PLT, spawn from
+     * K_* transitions), ground from the `platformy=` target (a .PLT or a
+     * sub-.des holding the same polylines), spawn from
      * `pozycja=`, bounds from `lew_rect=` (all of it RAN.01/TUNGA.11
      * data; simulation in ll_play.c). A missing piece is a data hole:
      * logged, and the level stays a preview. */
@@ -1878,19 +1901,39 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             }
         }
 
-        /* HD ETAPY: the ground polylines named by platformy= */
+        /* HD ETAPY: the ground polylines named by platformy=. TWO forms
+         * exist in the real data (measured 2026-11-16 over all 13 level
+         * blocks):
+         *   platformy=<stem>.plt  -> the level block's <stem>.PLT record
+         *                           (11 levels: ran.plt, tunga.plt, ...)
+         *   platformy=<name>.des  -> a SUB-.DES record of the same level
+         *                           block whose TEXT carries the very
+         *                           same polyline grammar: TUNGA2.12 and
+         *                           SADES.06 say platf.des and their
+         *                           PLATF.DES record starts
+         *                           "66\r\n1 1495,147;1529,147;" /
+         *                           "8\r\n1 863,166;959,166;" - count
+         *                           header and all. JUNCTION says
+         *                           none.des and its NONE.DES record is
+         *                           literally "0": that level has NO
+         *                           ground, which is data, not a gap.
+         * Same parser either way (ll_plt_parse). */
         const char *pltspec = des_get(kvs, nk, "platformy");
         char pltstem[16];
         stem_of(pltspec, pltstem, sizeof pltstem);
+        const char *pltdot = pltspec ? strrchr(pltspec, '.') : NULL;
+        int plt_is_des = pltdot && ci_eq(pltdot, ".des");
+        int ground_authored_empty = 0;
         if (have_hd_ety && hblk2) {
             llrs_slot *erecs = NULL;
             unsigned nerec = 0;
             if (llrs_block(&hd_ety, hblk2, &erecs, &nerec) == 0) {
-                const llrs_slot *pr = pltstem[0]
-                                          ? rec_find(erecs, nerec, pltstem,
-                                                     ".PLT")
-                                          : NULL;
-                if (!pr)
+                const llrs_slot *pr =
+                    pltstem[0]
+                        ? rec_find(erecs, nerec, pltstem,
+                                   plt_is_des ? ".DES" : ".PLT")
+                        : NULL;
+                if (!pr && !plt_is_des)
                     for (unsigned k = 0; k < nerec; k++) {
                         const char *dot = strrchr(erecs[k].name, '.');
                         if (erecs[k].id == 1 && erecs[k].name[0] && dot &&
@@ -1905,9 +1948,18 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 if (pr) {
                     unsigned char *ptxt = NULL;
                     if (llrs_read(&hd_ety, pr, &ptxt) > 0 &&
-                        ll_plt_parse((char *)ptxt, &pl.plt) == 0)
-                        printf("ll_level: play: %s: %d polyline(s)\n",
+                        ll_plt_parse((char *)ptxt, &pl.plt) == 0) {
+                        ground_authored_empty = pl.plt.n == 0;
+                        printf("ll_level: play: %s: %d polyline(s)",
                                pr->name, pl.plt.n);
+                        if (plt_is_des)
+                            printf(" (ground inside the sub-.des that"
+                                   " platformy= names)");
+                        if (ground_authored_empty)
+                            printf(" - the data says this level has NO"
+                                   " ground");
+                        printf("\n");
+                    }
                     free(ptxt);
                 }
             }
@@ -1958,10 +2010,14 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                    (int)pl.xmin, (int)pl.xmax, (int)pl.ydead);
             play_claim_leaf(objs, &nobj, &pl);
         } else {
-            printf("ll_level: play: level %s lacks %s: staying preview\n",
-                   level,
-                   !pl.mov ? "player .MOV"
-                           : pl.nart ? "ground .PLT" : "player .SEQ art");
+            printf("ll_level: play: level %s %s: staying preview\n", level,
+                   !pl.mov ? "lacks player .MOV"
+                           : !pl.nart ? "lacks player .SEQ art"
+                           : ground_authored_empty
+                               ? "has NO ground in its own data"
+                                 " (platformy= names a file declaring 0"
+                                 " polylines)"
+                               : "lacks ground (platformy=)");
         }
     }
 

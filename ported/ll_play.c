@@ -37,6 +37,7 @@ int ll_plt_parse(const char *text, ll_plt *out)
     out->n = 0;
     const char *p = text;
     int header_skipped = 0;
+    int declared = -1;            /* the header line's polyline count     */
     while (*p) {
         const char *eol = p;
         while (*eol && *eol != '\n' && *eol != '\r')
@@ -47,6 +48,7 @@ int ll_plt_parse(const char *text, ll_plt *out)
             int probe = 0;
             if (sscanf(p, "%d", &probe) == 1 && probe >= 0) {
                 header_skipped = 1;
+                declared = probe;
                 p = eol;
                 while (*p == '\n' || *p == '\r')
                     p++;
@@ -108,7 +110,12 @@ int ll_plt_parse(const char *text, ll_plt *out)
         while (*p == '\n' || *p == '\r')
             p++;
     }
-    return out->n > 0 ? 0 : 1;
+    /* A file that DECLARES zero polylines is complete and valid, not
+     * garbage: JUNCTION's platformy=none.des carries literally "0" -
+     * that level simply has no floor. Reporting it as n==0 (rc 0) keeps
+     * the difference between "authored empty" and "nothing usable here"
+     * (declared<0, or a count with no geometry) visible to the caller. */
+    return out->n > 0 || declared == 0 ? 0 : 1;
 }
 
 /* interpolate y of segment k at x (integer math, deterministic: the real
@@ -627,6 +634,16 @@ int ll_play_selftest(void)
           plt2.line[0].p[1].x == 700 && plt2.line[0].p[1].y == 100);
     ll_plt_free(&plt2);
 
+    /* an AUTHORED-EMPTY ground is data, not a parse failure: JUNCTION's
+     * platformy=none.des carries literally "0" (its level has no floor).
+     * A count with no geometry, or no count at all, stays a failure. */
+    ll_plt plt3;
+    CHECK(ll_plt_parse("0", &plt3) == 0 && plt3.n == 0);
+    ll_plt_free(&plt3);
+    CHECK(ll_plt_parse("3\r\n", &plt3) == 1 && plt3.n == 0);
+    CHECK(ll_plt_parse("nope\r\n1 0,0;5,0;\r\n", &plt3) == 0 && plt3.n == 1);
+    ll_plt_free(&plt3);
+
     /* .MOV extended grammar: physics numbers, flags, transitions, per-state
      * seq, M4-C clamp (frames say 6 ms -> 100) */
     CHECK(ll_mov_parse(ST_MOV, &m) == 3);
@@ -716,7 +733,8 @@ int ll_play_selftest(void)
     }
     ll_plt_free(&pl);
     if (!rc)
-        printf("play selftest: .plt physics (+ the '!' separator variant),"
+        printf("play selftest: .plt physics (+ the '!' separator variant,"
+               " + an authored-empty '0' ground is data not an error),"
                " extended .MOV transitions walk/turn/stop, self-transition"
                " keeps its state (frames keep running), edge fall, K_GEN2"
                " landing pulse (ok)\n");

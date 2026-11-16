@@ -509,10 +509,10 @@ ifeq ($(PX_DATA),1)
 	  || { echo "play live-input grep FAILED"; cat /tmp/opencode/ly_live.log; exit 1; }
 # the SAME runtime on the other level blocks that carry complete player
 # sets (inventory measured 2026-11-16 over the full CD + HD-install
-# trees: 10 of 13 run their own LEW.* art + .MOV + .PLT; TUNGA2.12 and
-# SADES.06 name their ground as platf.des and JUNCTION as none.des -
-# ground-from-.des is M4-C work, not a parser gap; KADMAR.07's lion
-# lives in a leaf literally named "0", which the .des names too).
+# trees: 12 of 13 run their own LEW.* art + .MOV + their own ground;
+# the ground is a .PLT for most and a sub-.des for two - see the leg
+# below. KADMAR.07's lion lives in an ANIMACJE leaf literally named
+# "0", which its .des names exactly, so it runs too).
 # ENA.03 additionally pins the '!' point-separator variant (ENA.PLT) on
 # real bytes: without it that ground parsed to zero lines.
 	@for L in ENA.03 ENA2 KARA.07 KADMAR.07 KADMAR2 LONA.05 ZARIA.01 ZARIA.02; do \
@@ -536,6 +536,64 @@ ifeq ($(PX_DATA),1)
 	  && grep -q 'play tick 30: state A_SWIM' /tmp/opencode/ly_multi_ENA.03.log \
 	  && echo "play multi-level: 8 more levels run their OWN lion data (zero special-casing); ENA.PLT '!' separator + the ENA.03 A_SWIM state prove the extended grammar on real bytes" \
 	  || { echo "play multi-level ENA.03 grep FAILED"; cat /tmp/opencode/ly_multi_ENA.03.log; exit 1; }
+# PR-44: the SECOND real form of `platformy=`. Two level blocks point it
+# at a sub-.des of their own block instead of a .PLT, and that record's
+# TEXT is the very same polyline grammar (count header and all): TUNGA2.12
+# and SADES.06 say platf.des, whose PLATF.DES record starts
+# "66\r\n1 1495,147;..." / "8\r\n1 863,166;...". Same parser, so these
+# two levels run their own lion on their own ground - no special casing.
+	@for L in TUNGA2.12 SADES.06; do \
+	  env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	    LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0 \
+	    LEO_LEVEL_SECS=1 LEO_PLAY_SCRIPT="1:FWD" \
+	    LEO_LEVEL_PPM=/tmp/opencode/ly_desground_$$L.ppm \
+	    LEO_LEVEL_PPM_TICK=30 \
+	    ./ll_level $(DATA) $$L --play --no-audio \
+	    > /tmp/opencode/ly_desground_$$L.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play ground-from-.des $$L FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_desground_$$L.log; exit 1; fi; \
+	  grep -q 'play: PLATF.DES: [0-9]* polyline' /tmp/opencode/ly_desground_$$L.log \
+	    || { echo "play ground-from-.des $$L: ground not read"; \
+	    cat /tmp/opencode/ly_desground_$$L.log; exit 1; }; \
+	  grep -qE 'spawn feet \([0-9]+,[0-9]+\) grounded=1' /tmp/opencode/ly_desground_$$L.log \
+	    || { echo "play ground-from-.des $$L: spawn not snapped on it"; exit 1; }; \
+	  grep -qE 'play tick 30: state A_' /tmp/opencode/ly_desground_$$L.log || \
+	    { echo "play ground-from-.des $$L never ran a state"; exit 1; }; \
+	done
+	@grep -q 'play: PLATF.DES: 66 polyline' /tmp/opencode/ly_desground_TUNGA2.12.log \
+	  && grep -q 'LEW.TUN 33 state(s) on 66 polyline' /tmp/opencode/ly_desground_TUNGA2.12.log \
+	  && grep -q 'spawn feet (50,320) grounded=1' /tmp/opencode/ly_desground_TUNGA2.12.log \
+	  && grep -q 'play: PLATF.DES: 8 polyline' /tmp/opencode/ly_desground_SADES.06.log \
+	  && grep -q 'LEW.SAD 37 state(s) on 8 polyline' /tmp/opencode/ly_desground_SADES.06.log \
+	  && grep -q 'spawn feet (20,166) grounded=1' /tmp/opencode/ly_desground_SADES.06.log \
+	  && echo "play ground-from-.des: platformy= has TWO real forms (a .PLT, or a sub-.des holding the same polylines) - both levels now run their own lion on their own ground" \
+	  || { echo "play ground-from-.des exact-count grep FAILED"; \
+	    cat /tmp/opencode/ly_desground_TUNGA2.12.log /tmp/opencode/ly_desground_SADES.06.log; \
+	    exit 1; }
+# ...and the THIRD answer a level can give: JUNCTION says platformy=none.des
+# and its NONE.DES record is literally "0". That is an AUTHORED empty
+# ground (the level has no floor), not a missing file, so it must print as
+# "has NO ground in its own data" and never as the "lacks"/"no .PLT" data
+# hole. Same rule for the bare `none` keyword in the other .des lists
+# (JUNCTION animacje=none, RAN.01 zwierzaki=...,none): it means "nothing
+# here", so no false 'not in the HD level block (data hole)' note and no
+# invented placements from the fallback scan.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0 LEO_LEVEL_SECS=1 \
+	  LEO_PLAY_SCRIPT="1:FWD" LEO_LEVEL_PPM=/tmp/opencode/ly_noground.ppm \
+	  LEO_LEVEL_PPM_TICK=30 \
+	  ./ll_level $(DATA) JUNCTION --play --no-audio \
+	  > /tmp/opencode/ly_noground.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play JUNCTION authored-empty FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_noground.log; exit 1; fi
+	@grep -q 'play: NONE.DES: 0 polyline' /tmp/opencode/ly_noground.log \
+	  && grep -q 'has NO ground in its own data' /tmp/opencode/ly_noground.log \
+	  && ! grep -q 'lacks ground' /tmp/opencode/ly_noground.log \
+	  && ! grep -q 'not in the HD level block' /tmp/opencode/ly_noground.log \
+	  && ! grep -q 'll_level: placement' /tmp/opencode/ly_noground.log \
+	  && echo "play authored-empty ground: platformy=none.des = '0' is DATA (no floor), reported as such, and the bare 'none' keyword is never a fake data hole" \
+	  || { echo "play authored-empty ground grep FAILED"; cat /tmp/opencode/ly_noground.log; \
+	    exit 1; }
 # per-level data: TUNGA.11 has its OWN complete player set (LEW.TUN art,
 # 36-state LEW.MOV opening with the scripted A_GIVE_EGG egg intro,
 # TUNGA.PLT 7 lines, lew_rect -100..1570) - the runtime is generic,

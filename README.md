@@ -51,8 +51,10 @@ logs a `main: ANSI code page …` warning in that case).
 ./ll_cutscene A.IS --then B.IS --menu /path/to/LEO   # manual scene chain
 ./ll_level /path/to/LEO RAN.01             # level wiring (.DES) + intro art
 ./ll_level /path/to/LEO RAN.01 --play      # PLAYABLE level (M4-B): the lion walks
-                                           # on the real .plt ground with the real
-                                           # LEW.MOV physics (arrows; LEO_PLAY_SCRIPT
+                                           # on the level's own ground (its .plt,
+                                           # or the sub-.des carrying the same
+                                           # polylines) with the real LEW.MOV
+                                           # physics (arrows; LEO_PLAY_SCRIPT
                                            # drives it headless, see verify-play)
 ```
 
@@ -92,9 +94,13 @@ make verify-all
 # verify-pcm   ported/ll_pcm.c == tools/verify_pcm.py on every PCM parallax layer
 # verify-mod   MOD music renderer: deterministic render linux == wine
 # verify-level level scene: .DES wiring + .SEQ/.MOV anims + scroll camera
-# verify-play  playable prototype (M4-B): real LEW.MOV physics + .plt ground
+# verify-play  playable prototype (M4-B): real LEW.MOV physics + the level's
+#              own ground (.plt, or the sub-.des that carries the same
+#              polylines)
 #              (hermetic selftest always; data legs on RAN.01 + live input +
-#               an 8-level matrix + TUNGA.11 - 10 levels run their own lion)
+#               an 8-level matrix + ground-from-.des (TUNGA2.12, SADES.06) +
+#               the authored-empty ground (JUNCTION says "0" = no floor) +
+#               TUNGA.11 - 12 of 13 levels run their own lion)
 # verify-help  help overlay: POMOC pages == python oracle
 # verify-menu  hooked demo chain: cutscene -> skip -> menu -> restart dialog
 #              + bright-green answer selection (tools/verify_green.py oracle)

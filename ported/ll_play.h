@@ -54,7 +54,9 @@ typedef struct { ll_poly *line; int n; } ll_plt;
 /* text: first non-empty line = polyline count, rest = "n x,y;x,y;..." with
  * ';' or '!' point separators (equivalents in the real files); the leading
  * per-line number counts SEGMENTS, so every coordinate pair is read.
- * 0 = parsed (garbage lines are skipped), 1 = no usable line. */
+ * 0 = parsed (garbage lines are skipped; a header that DECLARES 0
+ * polylines is a complete file that simply has no ground - JUNCTION's
+ * platformy=none.des is literally "0"), 1 = nothing usable. */
 int  ll_plt_parse(const char *text, ll_plt *out);
 void ll_plt_free(ll_plt *o);
 

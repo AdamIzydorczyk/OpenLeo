@@ -1246,7 +1246,8 @@ Data facts pinned 2026-11-16 (full CD + HD tree, sparse-correct scan):
   its landing route A_LADOW(1)=K_GEN2.
 - player wiring per level (.des, zero level special-casing): `lew=`
   token 2 names the art leaf (ANIMACJE) + token 3 the .MOV,
-  `platformy=` the .PLT (HD ETAPY), `pozycja=` spawn feet (snapped
+  `platformy=` the ground polylines (HD ETAPY, two real forms - see the
+  inventory note below), `pozycja=` spawn feet (snapped
   DOWN onto the first surface: RAN.01 40,200 -> shelf 0..135@298),
   `lew_rect=` bounds feet x and defines world-bottom death -> respawn.
   `speed=` is ignored: the real .MOV T= caps are the authored speeds
@@ -1254,22 +1255,46 @@ Data facts pinned 2026-11-16 (full CD + HD tree, sparse-correct scan):
   ALL 13 level .des files carry lew=/platformy=/pozycja=/lew_rect= -
   the wiring is uniform game-wide (measured 2026-11-16).
 - GAME-WIDE player inventory (measured 2026-11-16 over the full CD +
-  HD-install trees, sparse-correct scan) - 10 of the 13 level blocks
+  HD-install trees, sparse-correct scan) - 12 of the 13 level blocks
   run their OWN lion data in ll_level --play today:
-  RAN.01 (30 states), TUNGA.11 (36), ENA.03 (23, A_SWIM over the
+  RAN.01 (30 states), TUNGA.11 (36), TUNGA2.12 (33 - reuses the
+  LEW.TUN art leaf), ENA.03 (23, A_SWIM over the
   single 1,560->7,500 ENA.PLT line), ENA2 (17), KARA.07 (23),
   KADMAR.07 (37 - its .des names leaf "0", and ANIMACJE really has a
   leaf called "0" with TURN/LOOKUP/JUMPS/LAZY2... .SEQ), KADMAR2 (14,
-  A_MASZERUJ marches), LONA.05 (40), ZARIA.01 (37, opens A_DRAP),
-  ZARIA.02 (31, opens A_SCIAG on the lift). Three do NOT wire because
-  their ground is not a .PLT: TUNGA2.12 and SADES.06 say
-  `platformy=platf.des`, JUNCTION says `platformy=none.des` -
-  ground-from-sub-.des is M4-C work, not a parser gap. The player
-  wiring resolves EVERYWHERE: checked 2026-11-16, all 13 .des `lew=`
+  A_MASZERUJ marches), LONA.05 (40), SADES.06 (37), ZARIA.01 (37,
+  opens A_DRAP), ZARIA.02 (31, opens A_SCIAG on the lift).
+- `platformy=` has TWO real forms, and the ground grammar is identical
+  in both (measured on the level blocks' own records):
+  * `platformy=<stem>.plt` (11 levels) -> the level block's
+    <stem>.PLT record, e.g. RAN.01's RAN.PLT "153\r\n1 0,298;...".
+  * `platformy=<name>.des` (TUNGA2.12, SADES.06, JUNCTION) -> a
+    SUB-.DES record of the SAME level block whose TEXT is that exact
+    polyline grammar, count header and all: TUNGA2.12's PLATF.DES is
+    "66\r\n1 1495,147;1529,147;..." (66 lines), SADES.06's PLATF.DES
+    is "8\r\n1 863,166;..." (8 lines). One parser (ll_plt_parse) reads
+    both.
+  * the THIRD answer is an authored EMPTY ground: JUNCTION says
+    `platformy=none.des` and its NONE.DES record is literally "0" -
+    that level has no floor. ll_plt_parse accepts a header that
+    DECLARES 0 polylines (rc 0, n 0) so "authored empty" stays
+    distinguishable from "nothing usable here" (no count, or a count
+    with no geometry), and the level says "has NO ground in its own
+    data" instead of the "lacks ground" data-hole note.
+- a bare `none` inside a .des list (JUNCTION `animacje=none`,
+  RAN.01 `zwierzaki=chmury.des,ptaki.des,none`, `sample=none`,
+  `ani_plat=none,...`) is the game's OWN keyword for "nothing here",
+  NOT a missing record: it is skipped without a data-hole note and it
+  counts as an answer, so the fallback scan never invents placements a
+  level never asked for. `none.des` is a different thing - a real
+  record name (JUNCTION's block really carries NONE.DES).
+- The player wiring resolves EVERYWHERE: checked 2026-11-16, all 13
+  .des `lew=`
   name a leaf that exists AND a .MOV stem that exists (RAN.01
   Lew.ran/LEW.MOV, ..., KADMAR.07 leaf "0"/0.MOV, TUNGA2.12 reuses
-  Lew.tun/LEW.MOV, SADES.06 Lew.sad, JUNCTION Lew.jun) - so in those
-  three cases only the GROUND file is missing. Note the two name
+  Lew.tun/LEW.MOV, SADES.06 Lew.sad, JUNCTION Lew.jun) - JUNCTION is
+  the only level that stays a preview, and that is its own authored
+  data (no floor), not a gap. Note the two name
   spaces differ: LEVELDES records are named after the CHAPTER (RAN.DES,
   ENA1.DES, TUNGA1.DES, ZARIA1/2.DES, KADMAR1.DES) while the
   ANIMACJE/ETAPY blocks are named after the STAGE (RAN.01, ENA.03,
@@ -1309,7 +1334,14 @@ substep + camera-follow path is proven headless), a MULTI-LEVEL matrix
 (ENA.03, ENA2, KARA.07, KADMAR.07, KADMAR2, LONA.05, ZARIA.01,
 ZARIA.02 - each must wire its own LEW.* leaf + .MOV + .PLT and run a
 state by tick 30; ENA.03 additionally pins the ENA.PLT `!`-separator
-ground and the A_SWIM state), plus TUNGA.11
+ground and the A_SWIM state), a GROUND-FROM-.DES leg (TUNGA2.12,
+SADES.06: platformy= names a sub-.des of the level block - must read
+PLATF.DES 66 / 8 polylines, snap the spawn onto it (50,320)/(20,166)
+and run a state), an AUTHORED-EMPTY-GROUND leg (JUNCTION:
+platformy=none.des really holds "0", so the log must say
+"NONE.DES: 0 polyline(s)" + "has NO ground in its own data" and must
+NOT contain the 'lacks ground' or 'not in the HD level block' data-hole
+wording, nor any placement the level never asked for), plus TUNGA.11
 proving zero level special-casing. The live window path
 tracks held arrows (platform KEYDOWN/KEYUP), steps physics on the same
 fixed 20 ms grid and follows the player with the camera.

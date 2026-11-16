@@ -2015,7 +2015,7 @@ fixed, both pinned):
 GAME-WIDE measurement (full CD + HD-install trees, sparse-correct
 scan; script /tmp/opencode/play_matrix.sh runs one headless --play
 per level block): 10 of the 13 level blocks run their OWN lion data
-unchanged - RAN.01 30, TUNGA.11 36, ENA.03 23, ENA2 17, KARA.07 23,
+unchanged (SUPERSEDED by the PR-44 record below: 12 of 13). - RAN.01 30, TUNGA.11 36, ENA.03 23, ENA2 17, KARA.07 23,
 KADMAR.07 37 (its .des names a leaf literally called "0", which
 really exists with TURN/LOOKUP/JUMPS/LAZY2 .SEQ), KADMAR2 14, LONA.05
 40, ZARIA.01 37, ZARIA.02 31. The 3 that stay preview-only are NOT
@@ -2056,15 +2056,88 @@ the AC_* signals are the M4-C list.
    (rc=0, empty stderr) on the selftest, the scripted RAN.01 play,
    the live-key session and ENA.03. CLOSED.
 
+## PR-44 — M4-C step 1: the SECOND real form of `platformy=` (ground
+inside a sub-.des) + the authored-EMPTY ground + the bare `none`
+keyword (DONE 2026-11-16)
+
+The probe (`/tmp/opencode/play_matrix.sh`, one headless `--play` per
+level block) left 3 of 13 levels printing "lacks ground (platformy=)".
+Reading their own level blocks in the HD `ETAPY` container closed all
+three - and none of them was a missing file:
+- `platformy=` has TWO real forms and the ground grammar is IDENTICAL
+  in both. 11 levels name `<stem>.plt` (the block's <stem>.PLT
+  record). TUNGA2.12 and SADES.06 name `platf.des` - and that block's
+  PLATF.DES record's TEXT is the very same polyline file, count header
+  and all: "66\r\n1 1495,147;1529,147;\r\n..." and
+  "8\r\n1 863,166;...". So `ll_plt_parse` already parsed it; only the
+  RECORD RESOLUTION was missing (`stem_of` + `.DES` instead of
+  `.PLT`, one `plt_is_des` flag, no second parser). Both levels now
+  run their own lion on their own ground:
+  TUNGA2.12 `PLATF.DES: 66 polyline(s)` + LEW.TUN 33 states, spawn
+  snapped (50,320) grounded; SADES.06 8 polylines + LEW.SAD 37
+  states, spawn (20,166) grounded.
+- the THIRD answer is an AUTHORED EMPTY ground: JUNCTION says
+  `platformy=none.des` and its NONE.DES record is literally the byte
+  "0". That is data ("this level has no floor"), not a gap, so
+  `ll_plt_parse` now separates "declared 0" (a complete file: rc 0,
+  n 0) from "nothing usable" (no count, or a count with no geometry:
+  rc 1) - the `declared` value is kept, the selftest pins
+  `"0" -> 0`, `"3\r\n" -> 1`, and the log says
+  `play: NONE.DES: 0 polyline(s) ... the data says this level has NO
+  ground` followed by "has NO ground in its own data" instead of the
+  "lacks ground (platformy=)" data-hole note. Such a level stays a
+  preview: nothing in the data asks for walking on air.
+- a bare `none` in a .des list (JUNCTION `animacje=none`, RAN.01
+  `zwierzaki=chmury.des,ptaki.des,none`, `sample=none`,
+  `ani_plat=none,...`) is the game's OWN keyword for "nothing here" -
+  not a missing record. Before it produced 6 false
+  "not in the HD level block (data hole)" notes (RAN.01 x2,
+  JUNCTION x2, KARA.07, KADMAR.07). `des_placement` now skips it with
+  an honest keyword note and counts it as an ANSWER, so the
+  "no animacje= list: try any .DES" fallback no longer invents
+  placements the level never asked for (JUNCTION's preview stays at
+  its real 1 animated object, so the verify-help JUNCTION pixel pins
+  are untouched). `none.des` WITH the extension is a different thing -
+  a real record name, and it resolves to that NONE.DES normally.
+
+Result: 12 of 13 level blocks run their own lion data; the one that
+does not (JUNCTION) is that way BY ITS OWN DATA. PLAN 8g carries the
+grammar and the full per-level inventory.
+
+verify-play is now TEN legs: the eight from PR-43 + ground-from-.des
+(TUNGA2.12 / SADES.06: must read PLATF.DES 66 / 8 polylines, snap the
+spawn onto it (50,320)/(20,166) and run a state by tick 30) +
+authored-empty ground (JUNCTION: must print `NONE.DES: 0 polyline(s)`
+and "has NO ground in its own data", and must NOT contain the words
+"lacks ground", "not in the HD level block", or any invented
+"placement" line - the negatives are what pin the honesty).
+`--play-selftest`'s own summary line now names the new case ("an
+authored-empty '0' ground is data not an error"), which is the text
+CI prints.
+
+Verification (2026-11-16, script /tmp/opencode/verify_pr44_final.sh,
+summary /tmp/opencode/v44_summary.txt): `make` and `make win`
+warning-free; the ASan/LSan/UBSan `ll_level` build clean and every run
+rc=0 with ZERO sanitizer output - `--play-selftest`, and BOTH the
+`--play` and the plain-preview path of TUNGA2.12, SADES.06, JUNCTION
+and RAN.01 (the new code paths: sub-.des ground, authored-empty
+ground, the `none` keyword skip); `make -k verify-all` on the CD+HD
+fixtures EXIT=0 with all TEN verify-play legs reported ok and no
+target failures; the fixture-free config (`DATA=<absent> HD=<absent>`)
+EXIT=0 with 23 named SKIPs, zero failures, and the selftest still
+running; verify-arch green (no new SDL include - ll_play/ll_level stay
+engine-side).
+
 ## Next — pick from the Deferred list below
 
-PR-43 (M4-B playable prototype) opens the M4-C line when gameplay is
-wanted next, and the game-wide measurement (see the PR-43 follow-up
-record) says exactly where the gaps are:
-- ground from a SUB-.des: TUNGA2.12/SADES.06 use `platformy=platf.des`
-  and JUNCTION `platformy=none.des` - the only 3 of 13 that do not run
-  their lion, all three for the same reason. Their .MOV/leaf art is
-  complete (Lew.tun / Lew.sad / Lew.jun all resolve).
+PR-43 (M4-B playable prototype) opened the M4-C line and PR-44 closed
+its first item; the game-wide measurement (see the PR-43 follow-up and
+PR-44 records) says exactly where the remaining gaps are:
+- DONE in PR-44: ground from a SUB-.des (TUNGA2.12/SADES.06) and the
+  authored-empty ground (JUNCTION). 12 of 13 level blocks now run
+  their own lion; JUNCTION does not because its own data declares 0
+  polylines (no floor) - that is the honest end of the level matrix,
+  not a gap to close.
 - the condition names the data uses but our runtime scores false:
   K_JUMP (76 uses game-wide - the up-arrow route into the A_UP_*
   states is the single most valuable one), K_FIRE (253), K_ALT,
@@ -2074,8 +2147,9 @@ record) says exactly where the gaps are:
   (A_MA_KORONE crown climb etc.), and the authored A_LADOW landing
   chain is the real replacement for the LL_PLAY_GRAVITY path.
 - objects that react to the player (move platforms via their own .MOV +
-  player riding).
-None of this is blocked on data - 10 of 13 levels already run their
+  player riding; the `ani_plat=` lists and the MOVEPLAT entries in the
+  sub-.des files are the data to read).
+None of this is blocked on data - 12 of 13 levels already run their
 complete own player sets (see PLAN 8g). Small latent cleanup noticed on
 the way: tools/verify_help.py and tools/verify_pcm.py still scan
 nested index tables only `count` slots (the PR-36 sparse-table bug,
