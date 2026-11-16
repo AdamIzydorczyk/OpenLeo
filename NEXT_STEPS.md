@@ -2624,6 +2624,49 @@ engine-side).
     the tables at layer+0x20/+0x24), PCM-only window size (640x400 is a
     viewer choice), the second layer class's blitter modes.
 
+## PR-54 — the chapter map, read from the data and checked against the
+          original (DONE 2026-11-16)
+
+  - Ground truth: three screenshots of the ORIGINAL game supplied by the
+    owner (start, first island selected, game finished; kept OUTSIDE git in
+    /tmp/opencode/golden/user_refs/, game frames are never committed).
+  - Findings from the data (ANIMACJE/MENU):
+    * LEVELnn.SEQ = one level each: elements 0 = the level's ARROW, 1 = the
+      arrow's second state (LEVEL01's carries the red "start" label), 2 =
+      the dimmed grey arrow, 3 = the cursive TITLE. Anchors are ABSOLUTE
+      screen positions in 320x200 space (LEVEL01 title at (23,52) = where
+      "ZARIA I" stands in the screenshot, its arrow at (79,17)).
+    * The titles (decoded from element 3) in file order are 01 ZARIA I, 02
+      ZARIA II, 03 ENA I, 04 ENA II, 05 LONA, 06 SADES, 07 KADMAR I, 08
+      KADMAR II, 09 RAN, 10 KARA, 11 TUNGA I: this is the GAME ORDER; level
+      12 (TUNGA II) has no title image. The 2026-11-15 "owner-given" table
+      in main.c was wrong for 7 of the 11 files (03, 05, 06, 08, 09, 10,
+      11).
+    * Arrow colours are in the data: levels 1-4 red (palette 243/154),
+      5-8 green (23/24), 9-11 blue (121/118) - exactly the finished-game
+      screenshot (blue RAN/KARA/TUNGA I top and right, green LONA/SADES/
+      KADMAR bottom, red ZARIA/ENA around island 1).
+    * The thick red straight arrow that moves between the screenshots is
+      the MOUSE POINTER (MOUSE.SEQ); BERLO.SEQ's 30 frames are the yellow
+      mace (keyboard cursor, owner-directed, kept). MASK.PCM is a 320x200
+      dissolve dither mask (the transition), not art.
+    * No level name is hard-coded in the executable: the first level is
+      data/progress driven. The screenshot puts "start" on ZARIA I, so NEW
+      GAME starts ZARIA.01 (the old RAN.01 default was a guess; RAN is the
+      9th level).
+  - Port: chapters are cycled in game order; titles map by the data; the
+    selected chapter draws its arrow (element 0) and title (element 3)
+    instead of all four stacked; NEW GAME / restart / the demo chain start
+    ZARIA.01 (LEO_DEMO_LEVEL still overrides).
+  - Independent result: the golden comparison against the original's
+    captured screen rose from 92.46% to 99.57% pixel-exact (best pose);
+    the floor is now 99, the 30-pose manifest re-measured. The port frame
+    and the owner's second screenshot agree on title and arrow position.
+  - Not done (needs the game's progress rules): which arrows are VISIBLE
+    (one at game start, all after finishing - STATUS.LEO progress), the
+    "start" variant (element 1) before a level is touched, the grey element
+    2, the red mouse pointer, arrow animation. Recorded for the next step.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

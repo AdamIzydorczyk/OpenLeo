@@ -185,7 +185,7 @@ here or in the paragraphs above):
 - `LEO_USER_DIR=<dir>` - per-user save/config directory, used verbatim;
   `LEO_SAVE=<file>` - the `STATUS.LEO` to read instead of the user dir's.
 - `LEO_NO_MUSIC=1` - no level/menu music. `LEO_DEMO_LEVEL=<LEVEL>` - the
-  level a confirmed restart starts (default `RAN.01`).
+  level a confirmed restart starts (default `ZARIA.01`, the first level).
 - CI/headless drivers: `LEO_DEMO=1` / `LEO_MENU_AUTO=1` (auto-pick NEW
   GAME), `LEO_LEVELSEL_AUTO=<n>` (pick level n in the level list),
   `LEO_MENU_SECS=<s>` and `LEO_HELP_SECS=<s>` (auto-close the menu / the

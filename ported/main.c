@@ -359,7 +359,7 @@ static void run_menu(const char *data, int audio)
     unsigned char *bg = menu_bg(data, &blen);
     int nanim = 0;
     ll_menu_anim *anims = menu_anims(data, &nanim);
-    static const char *items[] = { "NEW GAME  (RAN.01)",
+    static const char *items[] = { "NEW GAME  (ZARIA.01)",
                                    "LEVELS    (MAPKA)",
                                    "CREDITS   (AUTORZY.IS)",
                                    "QUIT" };
@@ -410,25 +410,51 @@ static void run_menu(const char *data, int audio)
                     keep[m++] = i;
             n = m;
             if (n > 0) {
-                /* Owner-given chapter -> cursive title image mapping
-                 * (name readings supplied 2026-11-15; the original's
-                 * MENU.mnu binding is a CD data hole, PLAN 8b). The
-                 * data carries 11 title images; chapters without one
-                 * (RAN.01, JUNCTION) keep the font-text fallback. */
+                /* PR-54: chapter -> cursive title image mapping READ FROM
+                 * THE DATA. The 11 ANIMACJE/MENU/LEVELnn.SEQ records each
+                 * carry the level's name in their last element (decoded
+                 * 2026-11-16: 01 ZARIA I, 02 ZARIA II, 03 ENA I, 04 ENA II,
+                 * 05 LONA, 06 SADES, 07 KADMAR I, 08 KADMAR II, 09 RAN,
+                 * 10 KARA, 11 TUNGA I) and the number IS the level order:
+                 * ZARIA I is the first level, which a screenshot of the
+                 * original at game start confirms ("start" on its arrow).
+                 * The earlier owner-given table (name readings of
+                 * 2026-11-15) was wrong for 7 of 11 files. TUNGA2.12
+                 * ("TUNGA II") has no title image: font fallback. */
                 static const struct { const char *chapter, *rec; }
                     ch_title[] = {
                         { "ZARIA.01",  "LEVEL01.SEQ" },
                         { "ZARIA.02",  "LEVEL02.SEQ" },
-                        { "SADES.06",  "LEVEL03.SEQ" },
-                        { "KADMAR.07", "LEVEL04.SEQ" },
-                        { "KADMAR2",   "LEVEL05.SEQ" },
-                        { "ENA.03",    "LEVEL06.SEQ" },
-                        { "ENA2",      "LEVEL07.SEQ" },
-                        { "LONA.05",   "LEVEL08.SEQ" },
-                        { "KARA.07",   "LEVEL09.SEQ" },
-                        { "TUNGA.11",  "LEVEL10.SEQ" },
-                        { "TUNGA2.12", "LEVEL11.SEQ" },
+                        { "ENA.03",    "LEVEL03.SEQ" },
+                        { "ENA2",      "LEVEL04.SEQ" },
+                        { "LONA.05",   "LEVEL05.SEQ" },
+                        { "SADES.06",  "LEVEL06.SEQ" },
+                        { "KADMAR.07", "LEVEL07.SEQ" },
+                        { "KADMAR2",   "LEVEL08.SEQ" },
+                        { "RAN.01",    "LEVEL09.SEQ" },
+                        { "KARA.07",   "LEVEL10.SEQ" },
+                        { "TUNGA.11",  "LEVEL11.SEQ" },
+                        { "TUNGA2.12", NULL },
                     };
+                /* the map cycles the chapters in GAME order (the order of
+                 * the title images, then the rest as they were) */
+                {
+                    int ord[32], no = 0;
+                    for (unsigned k = 0; k < sizeof ch_title / sizeof *ch_title;
+                         k++)
+                        for (int i = 0; i < n; i++)
+                            if (!strcasecmp(names[keep[i]], ch_title[k].chapter))
+                                ord[no++] = keep[i];
+                    for (int i = 0; i < n; i++) {
+                        int dup = 0;
+                        for (int q = 0; q < no; q++)
+                            dup |= ord[q] == keep[i];
+                        if (!dup)
+                            ord[no++] = keep[i];
+                    }
+                    for (int i = 0; i < n; i++)
+                        keep[i] = ord[i];
+                }
                 unsigned char *tload[32];
                 int ntload = 0;
                 for (int i = 0; i < n; i++) {
@@ -441,8 +467,8 @@ static void run_menu(const char *data, int audio)
                     chs[i].seq_len = 0;
                     for (unsigned k = 0;
                          k < sizeof ch_title / sizeof *ch_title; k++)
-                        if (!strcasecmp(chs[i].title,
-                                        ch_title[k].chapter)) {
+                        if (ch_title[k].rec &&
+                            !strcasecmp(chs[i].title, ch_title[k].chapter)) {
                             unsigned l = 0;
                             unsigned char *b =
                                 menu_record(data, ch_title[k].rec, &l);
@@ -579,8 +605,8 @@ static void run_menu(const char *data, int audio)
                                 * map (secs 0; CI pins LEO_LEVEL_SECS) */
                 const char *lv = getenv("LEO_DEMO_LEVEL");
                 printf("menu: restart confirmed (tak) -> new game (%s)\n",
-                       lv && *lv ? lv : "RAN.01");
-                ll_level_show(data, lv && *lv ? lv : "RAN.01", 0.0, audio);
+                       lv && *lv ? lv : "ZARIA.01");
+                ll_level_show(data, lv && *lv ? lv : "ZARIA.01", 0.0, audio);
                 continue;
             }
             if (r2 == -3 || r2 == -2) {
@@ -619,14 +645,12 @@ static void run_menu(const char *data, int audio)
             continue; /* ESC in the scene: back to the chapter map */
         }
         if (sel == 0 && !map_mode) {
-            /* RAN.01 is the game's first level ("NEW GAME (RAN.01)"): its
-             * tlo= stack on this CD resolves to the PLAN1.PCM parallax
-             * plane (plan3.pcx/plan2.pcm AND the whole ANIMACJE leaf are
-             * CD holes, so it stays skeletal).  LEO_DEMO_LEVEL=<NAME>
-             * demos a richer level instead, e.g. TUNGA.11 (full PLAN3.PCX
-             * background + animated platforms). */
+            /* ZARIA I is the game's first level (PR-54: the map's "start"
+             * arrow sits on it in a screenshot of the original, and it is
+             * LEVEL01 in the data); the old RAN.01 default was a guess -
+             * RAN is the 9th level. LEO_DEMO_LEVEL=<NAME> demos another. */
             const char *lv = getenv("LEO_DEMO_LEVEL");
-            ll_level_show(data, lv && *lv ? lv : "RAN.01", 8.0, audio);
+            ll_level_show(data, lv && *lv ? lv : "ZARIA.01", 8.0, audio);
             break;
         } else if (sel == 1 && !map_mode) {
             /* LEVELS = the original MAPKA screen: the engine plays

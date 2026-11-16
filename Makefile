@@ -1225,7 +1225,9 @@ verify-arch:
 #                     not the CD medium - and the golden capture runs on a
 #                     CD-free rig end to end.
 GOLDEN     ?= /tmp/opencode/golden
-GOLDEN_MIN ?= 90   # full-compare floor: PR-40 re-measure 90.7281% best /
+GOLDEN_MIN ?= 99   # full-compare floor (PR-54: 99.57% best after the map drew
+                   # the data-mapped arrow + title only; was 90 at 92.46%).
+                   # History - PR-40: PR-40 re-measure 90.7281% best /
                    # 90.7188% worst pose. The -1.7pt drop from PR-37's
                    # 92.4516% IS the reconstructed BERLO mace sprite
                    # (~1600 px) drawn at the selection park: the

@@ -1157,10 +1157,21 @@ int ll_menu_map_open(const ll_menu_ch *chs, int nchs,
         if (aseq || tseq_ok || wseq_ok) {
             memset(cv, 0xFF, (size_t)MAP_LW * MAP_LH);  /* 0xFF = keep bg */
             if (tseq_ok)
-                for (unsigned k = 0; k < tseq.count; k++)
+                for (unsigned k = 0; k < tseq.count; k++) {
+                    /* PR-54: a LEVELnn.SEQ holds four elements (decoded
+                     * from the data, confirmed against screenshots of the
+                     * original): 0 = the level's arrow (red / green / blue
+                     * by world: palette 243-154 / 23-24 / 121-118), 1 = the
+                     * same arrow in its second state (LEVEL01's carries the
+                     * red "start" label), 2 = the dimmed grey arrow, 3 =
+                     * the cursive title. A SELECTED level shows its arrow
+                     * and its title - the old code stacked all four. */
+                    if (tseq.count == 4 && (k == 1 || k == 2))
+                        continue;
                     ll_seq_draw_elem(&tseq, &tseq.els[k], cv, MAP_LW,
                                      MAP_LH, -SX(tseq.els[k].f0),
                                      -SX(tseq.els[k].f2));
+                }
             if (wseq_ok) {
                 /* the word ALTERNATES its two authored variants while
                  * selected (600 ms) - the only animation the word
