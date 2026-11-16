@@ -593,6 +593,10 @@ llrs containers (reader ported+verified: `src/llrs.c`, `make verify-llrs`):
   total_w=int16(b19)*0x50+int16(b15) and byte 0xFF = empty row. w0&1 is
   the patch-art flag, w0&2 the shape flag. The BYTE grammar above always
   held and verify-seq never changed; see 8h for the geometry RE.)
+  (PR-48: the [for i=0..int16(b19)] patch arrays decode with one of TWO
+  row codecs chosen by w0&8 - clear = FUN_0001d9b8 (gap (cnt bytes gap)*,
+  no fills, 0x40..0x7f are long gaps), set = FUN_0001dc80, the grammar in
+  ll_seq.h. 106 w0=1 elements use the first; see NEXT_STEPS PR-48.)
   All 172 container .SEQ payloads (8 ANIMACJE/MENU + 33 ETAPY nested +
   131 leaf-block frame scripts; the 49-file recon corpus = 41 + 8
   byte-identical dupes) are consumed EXACTLY (parser end == payload size,

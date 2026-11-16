@@ -105,6 +105,27 @@ typedef struct {
 typedef void (*ll_seq_patch_row_cb)(void *ctx, int row, int gap,
                                     const ll_seq_patch_op *ops, int nops);
 
+/* TWO row codecs exist (PR-48; the game picks one per ELEMENT from w0&8,
+ * loader FUN_00041f60 stores obj+0x14 = w0&8):
+ *   LL_SEQ_CODEC_DC80  w0&8 set   FUN_0001dc80 - the grammar above
+ *   LL_SEQ_CODEC_D9B8  w0&8 clear FUN_0001d9b8 - row content is
+ *     gap (cnt bytes[cnt] gap)*: any byte < 0x80 in a gap position is a
+ *     plain advance (0x40..0x7f are LONG gaps, not markers), counts are
+ *     plain copy lengths, NO fill runs. Only 106 elements use it (all
+ *     w0 = 1: the player's LEW*.ZAR/I.SEQ and the BERLO map cursor), but
+ *     decoding them with the other codec shifts pixels (48 of those 106
+ *     blobs differ). ll_seq_elem_codec says which one an element uses;
+ *     ll_seq_draw_elem* apply it. ll_seq_patch_walk (no element known) is
+ *     the DC80 default - safe for counting rows, which both codecs frame
+ *     identically through the length byte. */
+#define LL_SEQ_CODEC_DC80 0
+#define LL_SEQ_CODEC_D9B8 1
+int ll_seq_elem_codec(const ll_seq_elem *e);
+int ll_seq_patch_walk_codec(const uint8_t *blob, uint32_t len, int codec,
+                            ll_seq_patch_row_cb cb, void *ctx);
+int ll_seq_patch_draw_codec(const uint8_t *blob, uint32_t len, int codec,
+                            uint8_t *canvas, int cw, int ch, int x, int y,
+                            const uint8_t *map);
 int ll_seq_patch_walk(const uint8_t *blob, uint32_t len,
                       ll_seq_patch_row_cb cb, void *ctx);
 int ll_seq_patch_draw(const uint8_t *blob, uint32_t len, uint8_t *canvas,

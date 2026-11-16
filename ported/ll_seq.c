@@ -119,8 +119,8 @@ void ll_seq_free(ll_seq *s)
 
 /* --- frame-patch decoder (grammar of FUN_0001dc80 draw blitter) -------- */
 
-int ll_seq_patch_walk(const uint8_t *blob, uint32_t len,
-                      ll_seq_patch_row_cb cb, void *ctx)
+static int walk_dc80(const uint8_t *blob, uint32_t len,
+                     ll_seq_patch_row_cb cb, void *ctx)
 {
     uint32_t pos = 0;
     int nrows = 0;
@@ -214,12 +214,100 @@ int ll_seq_patch_walk(const uint8_t *blob, uint32_t len,
     return nrows;
 }
 
+/* FUN_0001d9b8 (the blitter the game uses for elements with w0&8 CLEAR;
+ * verified 2026-11-16: its stream reads, walked WITHOUT the row length
+ * byte, land exactly on the declared row boundaries in 106/106 such blobs).
+ * Row content := gap (cnt bytes[cnt] gap)*: every byte below 0x80 in a gap
+ * position is a plain destination advance (so 0x40..0x7f are LONG gaps
+ * here, not the short fill/copy markers of FUN_0001dc80), a count byte is a
+ * plain copy length, and there are NO fill runs - a byte >= 0x80 in either
+ * position is the next row's header (the terminator the length byte
+ * already frames). Row framing, the empty row (len 0 = end marker) and the
+ * callback contract are identical to walk_dc80. */
+static int walk_d9b8(const uint8_t *blob, uint32_t len,
+                     ll_seq_patch_row_cb cb, void *ctx)
+{
+    uint32_t pos = 0;
+    int nrows = 0;
+
+    while (pos < len) {
+        uint8_t h = blob[pos];
+        if (!(h & 0x80))
+            return -1;                       /* row header high bit */
+        uint32_t rlen = h & 0x7F;
+        pos++;
+        if (rlen > len - pos)
+            return -1;                       /* row overruns blob */
+        const uint8_t *c = blob + pos;
+        pos += rlen;
+        ll_seq_patch_op ops[128];
+        int nops = 0;
+        int gap = -1;
+        if (rlen) {
+            const uint8_t *q = c + 1, *end = c + rlen;
+            gap = c[0];
+            if (gap >= 0x80)
+                return -1;
+            while (q < end) {
+                uint8_t cnt = *q;
+                if (cnt >= 0x80)
+                    return -1;               /* terminator inside content */
+                if (q + 1 + cnt > end)
+                    return -1;
+                ops[nops].kind = 0;
+                ops[nops].b = q + 1;
+                ops[nops].val = 0;
+                ops[nops].cnt = cnt;
+                nops++;
+                q += 1 + cnt;
+                if (q < end) {
+                    uint8_t g = *q;
+                    if (g >= 0x80)
+                        return -1;
+                    ops[nops].kind = 2;
+                    ops[nops].b = NULL;
+                    ops[nops].val = 0;
+                    ops[nops].cnt = g;
+                    nops++;
+                    q++;
+                }
+            }
+        }
+        cb(ctx, nrows, gap, ops, nops);
+        nrows++;
+    }
+    return nrows;
+}
+
+int ll_seq_elem_codec(const ll_seq_elem *e)
+{
+    /* the loader stores obj+0x14 = w0 & 8 and every draw entry branches on
+     * it: 0 -> FUN_0001d9b8 (no fills), else FUN_0001dc80 */
+    return (e->w0 & 8) ? LL_SEQ_CODEC_DC80 : LL_SEQ_CODEC_D9B8;
+}
+
+int ll_seq_patch_walk_codec(const uint8_t *blob, uint32_t len, int codec,
+                            ll_seq_patch_row_cb cb, void *ctx)
+{
+    return codec == LL_SEQ_CODEC_D9B8 ? walk_d9b8(blob, len, cb, ctx)
+                                      : walk_dc80(blob, len, cb, ctx);
+}
+
+/* codec-agnostic entry (row COUNTING and the dc80 default only: the row
+ * framing is the same in both codecs, the ops are not) */
+int ll_seq_patch_walk(const uint8_t *blob, uint32_t len,
+                      ll_seq_patch_row_cb cb, void *ctx)
+{
+    return walk_dc80(blob, len, cb, ctx);
+}
+
 /* --- frame-patch blitter (draw semantics: gap advance + run paints) ---- */
 
 typedef struct {
     uint8_t *canvas;
     const uint8_t *map;                      /* palette-index remap, NULL = identity */
     int cw, ch, x, y;
+    int codec;
 } patch_paint;
 
 static void patch_row_paint(void *vctx, int row, int gap,
@@ -257,8 +345,16 @@ int ll_seq_patch_draw(const uint8_t *blob, uint32_t len, uint8_t *canvas,
 int ll_seq_patch_draw_map(const uint8_t *blob, uint32_t len, uint8_t *canvas,
                           int cw, int ch, int x, int y, const uint8_t *map)
 {
-    patch_paint pp = { canvas, map, cw, ch, x, y };
-    return ll_seq_patch_walk(blob, len, patch_row_paint, &pp);
+    return ll_seq_patch_draw_codec(blob, len, LL_SEQ_CODEC_DC80, canvas, cw,
+                                   ch, x, y, map);
+}
+
+int ll_seq_patch_draw_codec(const uint8_t *blob, uint32_t len, int codec,
+                            uint8_t *canvas, int cw, int ch, int x, int y,
+                            const uint8_t *map)
+{
+    patch_paint pp = { canvas, map, cw, ch, x, y, codec };
+    return ll_seq_patch_walk_codec(blob, len, codec, patch_row_paint, &pp);
 }
 
 /* Elements are animation frames: entries are sprite chunks side by side,
@@ -277,8 +373,9 @@ int ll_seq_draw_elem_map(const ll_seq *s, const ll_seq_elem *e,
 {
     for (uint32_t i = 0; i < e->arr_n; i++) {
         const ll_seq_ent *t = &s->ents[e->arr_first + i];
-        if (ll_seq_patch_draw_map(s->blob + t->off, t->len, canvas, cw, ch,
-                                  x + 80 * (int)i, y, map) < 0)
+        if (ll_seq_patch_draw_codec(s->blob + t->off, t->len,
+                                    ll_seq_elem_codec(e), canvas, cw, ch,
+                                    x + 80 * (int)i, y, map) < 0)
             return -1;
     }
     return 0;

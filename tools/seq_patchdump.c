@@ -3,7 +3,9 @@
  * tools/seq_patch.py so make verify-seq can diff them.
  *
  * Format per entry blob:  patch len L rows R / prow <gap> <toks...> / pend
- * tokens: copy = c<hex>, fill = f<val2>.<cnt>; empty row tok = '-',
+ * tokens: copy = c<hex>, fill = f<val2>.<cnt>, inner gap = g<cnt> (PR-48:
+ * the gap values are compared too - they were invisible to the oracle);
+ * the codec is the ELEMENT's (w0&8, ll_seq_elem_codec); empty row tok = '-',
  * gap -1 = empty row. Decode failure prints "patch len L ... pend FAIL". */
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,9 +27,10 @@ static void rowprint(void *ctx, int row, int gap,
         printf(" -");
     for (int i = 0; i < nops; i++) {
         const ll_seq_patch_op *o = &ops[i];
-        if (o->kind == 2)
-            continue;                   /* gap byte: painter advance only,
-                                         * seq_patch.py emits no token */
+        if (o->kind == 2) {
+            printf(" g%d", o->cnt);     /* inner gap: painter advance */
+            continue;
+        }
         if (o->kind == 0) {
             printf(" c");
             for (int k = 0; k < o->cnt; k++) printf("%02x", o->b[k]);
@@ -70,13 +73,15 @@ int main(int argc, char **argv)
             for (uint32_t j = 0; j < e->arr_n; j++) {
                 const ll_seq_ent *t = &s.ents[e->arr_first + j];
                 const unsigned char *blob = s.blob + t->off;
-                int r = ll_seq_patch_walk(blob, t->len, rownoop, NULL);
+                int cd = ll_seq_elem_codec(e);
+                int r = ll_seq_patch_walk_codec(blob, t->len, cd, rownoop,
+                                                NULL);
                 if (r < 0) {
                     printf("patch len %u pend FAIL\n", t->len);
                     rc = 1;
                 } else {
                     printf("patch len %u rows %d\n", t->len, r);
-                    ll_seq_patch_walk(blob, t->len, rowprint, NULL);
+                    ll_seq_patch_walk_codec(blob, t->len, cd, rowprint, NULL);
                     printf("pend\n");
                 }
             }

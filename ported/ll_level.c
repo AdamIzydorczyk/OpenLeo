@@ -507,7 +507,8 @@ static void elem_size(const ll_seq *s, const ll_seq_elem *e, int *w, int *h)
         const ll_seq_ent *en = &s->ents[e->arr_first + k];
         *w += (k + 1 < e->arr_n) ? 80 : (int)(short)e->b15;
         row_count_ctx rc = { 0 };
-        ll_seq_patch_walk(s->blob + en->off, en->len, row_count_cb, &rc);
+        ll_seq_patch_walk_codec(s->blob + en->off, en->len,
+                                ll_seq_elem_codec(e), row_count_cb, &rc);
         if (rc.maxrow > *h)
             *h = rc.maxrow;
     }
@@ -633,6 +634,60 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         o->y += f->dy;             /* directive of the frame being held    */
         o->fi++;
     }
+}
+
+/* PR-48: the TWO patch row codecs (ll_seq.h), proven without game data.
+ * One row, written for FUN_0001d9b8 (w0&8 clear):
+ *     gap 2, copy 1 byte {7}, gap 0x45, copy 1 byte {9}
+ * The 0x45 is a plain 69-pixel advance there. FUN_0001dc80 (w0&8 set)
+ * reads the same byte in the marker position as a SHORT FILL (0x40..0x7f
+ * after a copy run), so the two codecs paint different pixels: this is
+ * exactly what moved 48 shipped blobs (the lion's LEW*.ZAR/I.SEQ, the BERLO
+ * map cursor) when PR-45/46 decoded every element with the dc80 rule. */
+static int seq_codec_selftest(void)
+{
+    static const unsigned char row[] = {
+        0x86, 0x02, 0x01, 0x07, 0x45, 0x01, 0x09,   /* the row            */
+        0x80,                                       /* end marker row     */
+    };
+    unsigned char a[100], b[100];
+    ll_seq_elem e1 = { 0 }, e15 = { 0 }, e12 = { 0 };
+    int i;
+
+    e1.w0 = 1;
+    e15.w0 = 15;
+    e12.w0 = 12;
+    if (ll_seq_elem_codec(&e1) != LL_SEQ_CODEC_D9B8 ||
+        ll_seq_elem_codec(&e15) != LL_SEQ_CODEC_DC80 ||
+        ll_seq_elem_codec(&e12) != LL_SEQ_CODEC_DC80) {
+        fprintf(stderr, "codec selftest: FAILED w0&8 does not pick the"
+                        " game's codec\n");
+        return 1;
+    }
+    memset(a, 0, sizeof a);
+    memset(b, 0, sizeof b);
+    if (ll_seq_patch_draw_codec(row, sizeof row, LL_SEQ_CODEC_D9B8, a, 100, 1,
+                                0, 0, NULL) < 0) {
+        fprintf(stderr, "codec selftest: FAILED d9b8 row rejected\n");
+        return 1;
+    }
+    for (i = 0; i < 100; i++) {
+        unsigned char want = i == 2 ? 7 : i == 72 ? 9 : 0;
+        if (a[i] != want) {
+            fprintf(stderr, "codec selftest: FAILED d9b8 pixel %d = %u"
+                            " (want %u)\n", i, a[i], want);
+            return 1;
+        }
+    }
+    /* the SAME bytes under the other codec must NOT give that picture
+     * (it may even be malformed there: both outcomes prove the split) */
+    if (ll_seq_patch_draw_codec(row, sizeof row, LL_SEQ_CODEC_DC80, b, 100, 1,
+                                0, 0, NULL) >= 0 && memcmp(a, b, sizeof a) == 0) {
+        fprintf(stderr, "codec selftest: FAILED dc80 decoded the d9b8 row"
+                        " identically (the codecs are not distinct)\n");
+        return 1;
+    }
+    return 0;
 }
 
 /* PR-46: the element SHAPE geometry (ll_seq_shape_*), proven without any
@@ -911,7 +966,7 @@ int ll_mov_selftest(void)
     }
 
     /* PR-46: the element SHAPE geometry leg (no window, no game data). */
-    if (seq_shape_selftest() != 0) {
+    if (seq_codec_selftest() != 0 || seq_shape_selftest() != 0) {
         free(sc.mov);
         free(m);
         return 1;
@@ -920,7 +975,7 @@ int ll_mov_selftest(void)
     free(sc.mov);
     free(m);
     printf("mov selftest: duration clamp + cycle guard + per-state seq= art"
-           " selection + shape geometry (ok)\n");
+           " selection + patch codecs + shape geometry (ok)\n");
     return 0;
 }
 

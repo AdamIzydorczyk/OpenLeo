@@ -11,7 +11,7 @@ within their own row set, so we composite per chunk with x offset
 import sys
 
 from seq_parse import seq_parse, sx
-from seq_patch import decode
+from seq_patch import decode, elem_codec
 
 
 RAMP = " .:-=+*#%@"
@@ -22,7 +22,7 @@ def sprite(elem):
     ents = elem.get("arr", [])
     nchunk = sx(elem["b19"])          # loop chunks = b19 count, tail = b15
     w = 80 * nchunk + sx(elem["b15"])
-    rows = [decode(a) for a in ents]
+    rows = [decode(a, elem_codec(elem['w0'])) for a in ents]
     h = max((len(r) for r in rows), default=0)
     canv = bytearray(h * w)           # 0 = untouched
     touched = bytearray(h * w)
@@ -35,6 +35,9 @@ def sprite(elem):
             px = x0 + gap
             for op in ops:
                 kind = op[0]
+                if kind == "gap":              # inner gap: advance only
+                    px += op[1]
+                    continue
                 if kind == "copy":
                     val, cnt = op[1], len(op[1])
                     get = lambda k: val[k]

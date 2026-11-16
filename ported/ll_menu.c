@@ -195,7 +195,8 @@ static void elem_extent(const ll_seq *s, const ll_seq_elem *e, int *w, int *h)
         const ll_seq_ent *en = &s->ents[e->arr_first + k];
         ww += (k + 1 < e->arr_n) ? 80 : (int)(short)e->b15;
         menu_rowctx rc = { 0 };
-        ll_seq_patch_walk(s->blob + en->off, en->len, menu_rowcount_cb, &rc);
+        ll_seq_patch_walk_codec(s->blob + en->off, en->len,
+                                ll_seq_elem_codec(e), menu_rowcount_cb, &rc);
         if (rc.maxrow > hh)
             hh = rc.maxrow;
     }
@@ -260,7 +261,8 @@ static int menu_tint_build(const ll_seq *s, unsigned char *map)
         const ll_seq_elem *e = &s->els[fr];
         for (unsigned k = 0; k < e->arr_n; k++) {
             const ll_seq_ent *en = &s->ents[e->arr_first + k];
-            ll_seq_patch_walk(s->blob + en->off, en->len, patch_hist_cb, seen);
+            ll_seq_patch_walk_codec(s->blob + en->off, en->len,
+                                ll_seq_elem_codec(e), patch_hist_cb, seen);
         }
     }
     int top = -1;
@@ -296,7 +298,8 @@ static int menu_tint_idle_build(const ll_seq *s, unsigned char *map)
         const ll_seq_elem *e = &s->els[fr];
         for (unsigned k = 0; k < e->arr_n; k++) {
             const ll_seq_ent *en = &s->ents[e->arr_first + k];
-            ll_seq_patch_walk(s->blob + en->off, en->len, patch_hist_cb, seen);
+            ll_seq_patch_walk_codec(s->blob + en->off, en->len,
+                                ll_seq_elem_codec(e), patch_hist_cb, seen);
         }
     }
     int top = -1;

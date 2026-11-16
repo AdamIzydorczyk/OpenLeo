@@ -256,6 +256,9 @@ static int run_seq(const unsigned char *b, uint32_t len)
         ll_seq_free(&s);
     if (ll_seq_patch_walk(b, len, seq_rowcb, NULL) >= 0)
         ok = 1;
+    if (ll_seq_patch_walk_codec(b, len, LL_SEQ_CODEC_D9B8, seq_rowcb,
+                                NULL) >= 0)
+        ok = 1;
     return ok;
 }
 

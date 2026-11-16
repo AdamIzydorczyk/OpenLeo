@@ -2373,6 +2373,43 @@ engine-side).
     verify-menu verify-level verify-play verify-arch verify-cmake on the
     fixtures EXIT=0.
 
+## PR-48 — TWO .SEQ row codecs: elements with w0&8 clear draw through
+          FUN_0001d9b8, not FUN_0001dc80 (G-1 of the audit, DONE 2026-11-16)
+
+  - Bug: ll_seq_patch_walk applied the FUN_0001dc80 row rule to EVERY
+    element. The game picks the blitter per element: the loader stores
+    obj+0x14 = w0&8 and the draw entry FUN_000426a0 calls FUN_0001d9b8
+    when it is 0, FUN_0001dc80 otherwise. FUN_0001d9b8 (earlier read as an
+    "erase variant", wrongly) has NO fill runs and treats every byte
+    < 0x80 in a gap position as a plain advance - 0x40..0x7f are LONG
+    gaps there, not dc80's short fill/copy markers. 106 elements use it
+    (all w0 = 1); 48 of their 106 blobs paint different pixels: the
+    player's LEW.ZAR/I.SEQ and LEW2.ZAR/I.SEQ (ZARIA.01/.02) and BERLO.SEQ
+    in KADMAR.07/KADMAR2/KARA.07.
+  - Independent evidence (not the port's own reading): the machine's
+    stream walk of FUN_0001d9b8 WITHOUT the row length byte lands exactly
+    on the declared row boundaries in 106/106 blobs (probe
+    /tmp/opencode/vis/d9b8_exact.py); each blob ends in exactly one
+    length-0 row, the end marker, in both codecs.
+  - Fix: ll_seq_patch_walk_codec / ll_seq_patch_draw_codec /
+    ll_seq_elem_codec (ll_seq.h); ll_seq_draw_elem_map and the element
+    walkers in ll_menu.c/ll_level.c use the element's codec;
+    ll_seq_patch_walk stays the dc80 default (row counting only).
+  - Oracle blind spot closed (audit F-2/F-6): seq_patch.py now emits the
+    inner gap as an op and both dumpers print it (g<cnt>), so the 630k
+    inner gaps are compared C == python (891 in LEW.ZAR/I.SEQ alone);
+    seq_patch.decode takes the codec; seq_render.sprite advances on gaps
+    and uses the element's codec (its pixel positions were off by up to
+    970 of 1768 on POMOC00 element 0). verify-seq: 1656/1656 byte-exact.
+  - Proof: --mov-selftest gained a data-free codec leg (a row where the
+    same bytes mean different pictures; w0 1/15/12 pick d9b8/dc80/dc80);
+    mutation-tested (forcing dc80 makes it fail). fuzz.c exercises the
+    d9b8 walker too.
+  - Not moved: the golden chapter-map comparison (30 pose hashes, best
+    92.4594%) is unchanged - the map cursor is not one of the 48 blobs,
+    so the original-capture comparison cannot corroborate this fix; the
+    machine-code walk above is the evidence.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
