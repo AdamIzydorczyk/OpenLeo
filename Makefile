@@ -274,7 +274,8 @@ ll_level.exe: tools/ll_level.c ported/ll_level.c ported/ll_play.c ported/llrs.c 
             ported/ll_pcm.c ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c \
             ported/ll_view.c ported/platform_sdl.c ported/platform_common.c \
             ported/ll_audio.c \
-            ported/ll_seq.h ported/ll_pcm.h ported/ll_mod.h ported/ll_config.h ported/fs_ci.h ported/ll_view.h ported/ll_audio.h ported/platform.h
+            ported/ll_seq.h ported/ll_pcm.h ported/ll_mod.h ported/ll_config.h ported/fs_ci.h ported/ll_view.h ported/ll_audio.h ported/platform.h \
+            ported/ll_play.h ported/llrs.h ported/ll_pcx.h
 	$(XC) $(XCFLAGS) $(XLD) -o $@ tools/ll_level.c ported/ll_level.c \
 	    ported/ll_play.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c ported/ll_seq.c ported/ll_mod.c \
 	    ported/fs_ci.c ported/ll_view.c ported/platform_sdl.c \
@@ -329,7 +330,8 @@ pcm_selftest.exe: tools/pcm_selftest.c ported/ll_pcm.c ported/ll_pcm.h
 ll_level: tools/ll_level.c ported/ll_level.c ported/ll_play.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c \
         ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c ported/ll_view.c ported/ll_audio.c \
         ported/platform_sdl.c ported/platform_common.c \
-        ported/ll_seq.h ported/ll_pcm.h ported/ll_mod.h ported/ll_config.h ported/fs_ci.h ported/ll_view.h ported/ll_audio.h ported/platform.h
+        ported/ll_seq.h ported/ll_pcm.h ported/ll_mod.h ported/ll_config.h ported/fs_ci.h ported/ll_view.h ported/ll_audio.h ported/platform.h \
+        ported/ll_play.h ported/llrs.h ported/ll_pcx.h
 	$(CC) -O2 -std=gnu11 -Wall -Wextra -Iported $(CFLAGS) -o $@ \
 	    tools/ll_level.c ported/ll_level.c ported/ll_play.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c \
 	    ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c ported/ll_view.c ported/ll_audio.c \

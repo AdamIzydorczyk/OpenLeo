@@ -27,6 +27,22 @@ Layout (mirrors the upstream repo at github.com/AdamIzydorczyk/OpenLeo):
 - `tools/` — python reference implementations + oracle/self-test harnesses.
 - `build/` — RE artifacts (leo.img, Ghidra project/logs; regenerate-only).
 
+## Status (2026-11-16) - read HANDOFF.md before changing anything
+
+**HANDOFF.md** is the map for whoever continues: what works, the rules
+(never guess data, no game data/frames in git, every change with a
+hand-derived test), the engine facts established from the machine code, every
+estimate still in the code, the open questions and the ordered task list.
+
+In short: the movies, sprites, parallax layers, music, title menu and
+chapter map are done and cross-checked; a level shows the game's own 320x200
+view (shown 2x) with per-layer scrolling, the authored objects as state
+machines, the HUD from `BELKA`, and a lion that walks on the level's ground,
+jumps (units estimated), collides with solids/enemies (their authored damage)
+and picks balloons. Still missing for a playable game: the lion's attack and
+other moves, enemy behaviour, pickups/inventory/signals, ladders/vines, level
+flow, RAN's balloon mode, sound effects. Play mode keys: arrows, Space = jump.
+
 ## Build
 
 ```
@@ -47,7 +63,7 @@ logs a `main: ANSI code page …` warning in that case).
 ./ll_cutscene /path/to/LEO/INTRO_P.IS      # data dir = user's original files
 ./ll_cutscene --demo /path/to/LEO          # boot chain: LOGO.IS -> PRAWA.IS
                                            # -> INTRO_P.IS -> title menu ->
-                                           # level intro (NEW GAME = RAN.01)
+                                           # level intro (NEW GAME = ZARIA.01)
 ./ll_cutscene A.IS --then B.IS --menu /path/to/LEO   # manual scene chain
                                            # (`make ll_level` builds it: the default
                                            # `make` target builds ll_cutscene only;

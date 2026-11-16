@@ -1,5 +1,10 @@
 # OpenLeo native port — next steps
 
+> **Start with HANDOFF.md** (the current map, rules, estimates, open
+> questions and the ordered task list). This file is the per-PR history:
+> each `## PR-nn` heading is one step with its evidence; the newest are at
+> the end, just before `## Next`. Numbering continues at PR-75.
+
 Working plan derived from `OpenLeo_native_port_review.md` (P/E/M) and
 `OpenLeo_porting_tips.md` (T). Update the status lines here as items
 land; the review/tips files stay as the detailed work orders.
@@ -3210,6 +3215,23 @@ engine-side).
   - Proof: data-free selftest in ll_play (hand-derived Euler numbers: apex
     24.3, 16-20 airborne ticks, return to the idle state), mutation-checked
     (impulse divisor 2 fails it). ZARIA.01 run: the jump arc matches.
+
+## PR-75 — handoff documentation, RE helper tools, Makefile header deps (DONE 2026-11-16)
+
+  - HANDOFF.md written (state, rules, machine layout, architecture, facts with
+    sources, every estimate in the code, open questions, ordered tasks T1-T11
+    with acceptance criteria, method notes, PR checklist); README got a status
+    section and its stale "NEW GAME = RAN.01" line is fixed; PLAN.md and this
+    file point to HANDOFF.md.
+  - tools/re/: the throw-away RE and video helpers used since PR-58
+    (container tree/cat/mov-extract, .SEQ contact sheet, disassembly recipe,
+    lion/camera tracking on the reference video) with a README; not part of
+    verify-all, paths hard-coded to /tmp/opencode.
+  - Makefile: ll_level / ll_level.exe now depend on ll_play.h, llrs.h and
+    ll_pcx.h (an edit of ll_play.h used to leave a stale binary - seen when a
+    mutation test appeared not to fail).
+  - Open from the F/FC investigation (not ported): `F x,y` and `FC x,y` frame
+    tails stay unparsed; the usage statistics are in HANDOFF section 7.
 
 ## Next — pick from the Deferred list below
 

@@ -1,3 +1,6 @@
+> **Historical.** The early milestones below (M0-M4) are kept for their RE
+> notes; the live map, rules and task list are in HANDOFF.md.
+
 # Lew Leon (Longsoft 1997) — decompile → rebuild plan
 
 ## 0. What we have
