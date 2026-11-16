@@ -2722,6 +2722,18 @@ engine-side).
     -> FAILED).
   - Caveat: RPT operands still do not set hold times (audio-clock paced).
 
+## PR-57 — PCM layer parallax read from the engine (DONE 2026-11-16)
+
+  - FUN_00057460/57500/57530: the level .des `speed=x,y;...` (one percent
+    pair per tlo layer, default 100*(i+1)/n) and `main_back=` (reference
+    layer R) give x_i = cx*X[i]/X[R], y_i = cy*Y[i]/Y[R] + (H_i-200)
+    - (H_R-200)*Y[i]/100. Replaces the viewer rule (proportional to the
+    layer/world size). tlo indices count absent (CD-hole) layers too.
+  - Not changed: the .PCX backdrop stays fixed (PR-51 viewer policy; the
+    engine would scroll it at its own speed, unverified against captures).
+  - Prints `ll_level: parallax: ...` per level. verify-all green (data and
+    fixture-free). No new hooks.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

@@ -1309,32 +1309,64 @@ static void scene_ppm(const char *path, int w, int h, const unsigned char *idx,
 
 /* PCM overlay layers (PR-53). tlo= names the background stack back to
  * front: the first .PCX is the backdrop, every .PCM is a TRANSPARENT overlay
- * painted over it in tlo order (ll_pcm.h). Where a layer is as wide/tall as
- * the world (KADMAR2 2560x1800, LONA.05 2480x600, TUNGA.11 2560x600 - the
- * back_rect itself) it scrolls 1:1 with the camera; a smaller layer scrolls
- * proportionally so that its far edge meets the world's far edge (VIEWER
- * RULE: the engine's per-layer parallax factors, FUN_00057460, are not
- * recovered; strips wrap modulo the layer width as in the engine), and a
- * layer shorter than the view sits on the bottom edge (the engine
- * offsets layers by (height - 200)). The .PCX backdrop itself does not
- * scroll (PR-51). */
+ * painted over it in tlo order (ll_pcm.h). Strips wrap modulo the layer
+ * width as in the engine; the .PCX backdrop itself does not scroll (PR-51,
+ * viewer policy).
+ *
+ * PR-57: the per-layer parallax is the engine's own (FUN_00057460/57500/
+ * 57530). The level .des carries `speed=x,y;x,y;...` - one percentage pair
+ * per tlo layer (default 100*(i+1)/n) - and `main_back=` names the
+ * reference layer R (the one that is the world). With camera (cx, cy):
+ *     x_i = cx * X[i] / X[R]
+ *     y_i = cy * Y[i] / Y[R] + (H_i - 200) - (H_R - 200) * Y[i] / 100
+ * (C integer division; 200 = the view height, here ch). */
 #define MAX_PCM_LAYERS 8
 
-static void layers_at(const ll_pcm *lay, int nlay, int cam, int camy, int cw,
-                      int ch, int world_w, int world_h, unsigned char *canvas)
+typedef struct {
+    int n;                      /* tlo layers, present or not */
+    int ref;                    /* main_back */
+    int sx[16], sy[16];         /* percent */
+} par_t;
+
+static void par_parse(par_t *pp, const char *speed, const char *mainback,
+                      int ntlo)
 {
+    memset(pp, 0, sizeof *pp);
+    pp->n = ntlo > 16 ? 16 : ntlo;
+    pp->ref = mainback && *mainback ? atoi(mainback) : 0;
+    for (int i = 0; i < pp->n; i++)
+        pp->sx[i] = pp->sy[i] = pp->n ? 100 * (i + 1) / pp->n : 100;
+    int i = 0;
+    const char *c = speed;
+    while (c && *c && i < pp->n) {
+        int a, b, used = 0;
+        if (sscanf(c, " %d , %d ;%n", &a, &b, &used) < 2 &&
+            sscanf(c, " %d , %d%n", &a, &b, &used) < 2)
+            break;
+        pp->sx[i] = a;
+        pp->sy[i] = b;
+        i++;
+        c += used;
+    }
+    if (pp->ref < 0 || pp->ref >= pp->n)
+        pp->ref = 0;
+}
+
+static void layers_at(const ll_pcm *lay, const int *tix, int nlay,
+                      const par_t *pp, int cam, int camy, int cw, int ch,
+                      int world_w, int world_h, unsigned char *canvas)
+{
+    (void)world_w;
     for (int k = 0; k < nlay; k++) {
         const ll_pcm *L = &lay[k];
-        long long sx = cam, sy = camy;
-        int dy = 0;
-        if (world_w > cw && (int)L->w > cw && (int)L->w < world_w)
-            sx = (long long)cam * ((int)L->w - cw) / (world_w - cw);
-        if ((int)L->h < ch) {
-            dy = ch - (int)L->h;
-            sy = 0;
-        } else if (world_h > ch && (int)L->h < world_h)
-            sy = (long long)camy * ((int)L->h - ch) / (world_h - ch);
-        ll_pcm_blit(L, canvas, cw, ch, (int)sx, (int)sy, 0, dy);
+        int i = tix[k];
+        long long xr = pp->sx[pp->ref] ? pp->sx[pp->ref] : 100;
+        long long yr = pp->sy[pp->ref] ? pp->sy[pp->ref] : 100;
+        long long sx = (long long)cam * pp->sx[i] / xr;
+        long long sy = (long long)camy * pp->sy[i] / yr +
+                       ((long long)L->h - ch) -
+                       ((long long)world_h - ch) * pp->sy[i] / 100;
+        ll_pcm_blit(L, canvas, cw, ch, (int)sx, (int)sy, 0, 0);
     }
 }
 
@@ -2410,6 +2442,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
      * Fallback: any .PCX in the block (KADMAR2's M15.PCX intro art). */
     char bgname[32] = "";
     int pcm_rec[MAX_PCM_LAYERS];    /* present tlo .PCM records, tlo order */
+    int pcm_tix[MAX_PCM_LAYERS];    /* each one's index in the FULL tlo list */
+    int ntlo = 0;                   /* tlo tokens, present or not */
     int npcm_rec = 0;
     const llrs_slot *bg = NULL;
     int bgpref = -1;                /* block index of first present tlo layer */
@@ -2421,6 +2455,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
              tok = strtok_r(NULL, ",", &save)) {
             while (*tok == ' ')
                 tok++;
+            const int tix = ntlo++;
             const char *dot = strrchr(tok, '.');
             if (!dot || !(ci_eq(dot, ".PCX") || ci_eq(dot, ".PCM")))
                 continue;
@@ -2438,8 +2473,10 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                         int dup = 0;
                         for (int q = 0; q < npcm_rec; q++)
                             dup |= pcm_rec[q] == (int)k;
-                        if (!dup)
+                        if (!dup) {
+                            pcm_tix[npcm_rec] = tix;
                             pcm_rec[npcm_rec++] = (int)k;
+                        }
                     }
                     break;
                 }
@@ -2474,6 +2511,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
      * The .PCX is the backdrop; every present .PCM is a TRANSPARENT overlay
      * decoded here and painted over it each frame (layers_at, ll_pcm.h). */
     ll_pcm lay[MAX_PCM_LAYERS];
+    int lay_tix[MAX_PCM_LAYERS];
     int nlay = 0;
     memset(lay, 0, sizeof lay);
     for (int q = 0; q < npcm_rec; q++) {
@@ -2498,9 +2536,18 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                p2.tile, 100.0 * (double)painted / ((double)p2.w * p2.h),
                (unsigned long long)ll_pcm_fnv(&p2), nlay + 1,
                bg ? bg->name : "an empty backdrop");
+        lay_tix[nlay] = pcm_tix[q];
         lay[nlay++] = p2;
     }
 
+    par_t par;
+    par_parse(&par, des_get(kvs, nk, "speed"), des_get(kvs, nk, "main_back"),
+              ntlo);
+    printf("ll_level: parallax: %d tlo layers, reference %d, speed%%", par.n,
+           par.ref);
+    for (int q = 0; q < par.n; q++)
+        printf(" %d,%d", par.sx[q], par.sy[q]);
+    printf("\n");
     int cw = (int)img.w, ch = (int)img.h;
     unsigned char *view = NULL;
     unsigned char scenepal[768];
@@ -3025,7 +3072,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     }
     const unsigned char *base = img.idx ? img.idx : view;
     memcpy(canvas, base, csz);
-    layers_at(lay, nlay, cam, camy, cw, ch, world_w, world_h, canvas);
+    layers_at(lay, lay_tix, nlay, &par, cam, camy, cw, ch, world_w,
+                  world_h, canvas);
     for (int k = 0; k < nobj; k++)
         obj_draw(&objs[k], canvas, cw, ch, cam, camy);
 
@@ -3067,7 +3115,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                        " advanced\n", ticks, nobj - shown);
         }
         memcpy(canvas, base, csz);         /* same order as the live loop */
-        layers_at(lay, nlay, cam, camy, cw, ch, world_w, world_h, canvas);
+        layers_at(lay, lay_tix, nlay, &par, cam, camy, cw, ch, world_w,
+                  world_h, canvas);
         for (int k = 0; k < nobj; k++)
             obj_draw(&objs[k], canvas, cw, ch, cam, camy);
         play_draw(&pl, canvas, cw, ch, cam, camy);
@@ -3213,7 +3262,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 camy = follow_camy(&pl, ch, cam_ymax);
             }
             memcpy(canvas, base, csz);
-            layers_at(lay, nlay, cam, camy, cw, ch, world_w, world_h, canvas);
+            layers_at(lay, lay_tix, nlay, &par, cam, camy, cw, ch, world_w,
+                  world_h, canvas);
             for (int k = 0; k < nobj; k++)
                 obj_draw(&objs[k], canvas, cw, ch, cam, camy);
             play_draw(&pl, canvas, cw, ch, cam, camy);
