@@ -1343,6 +1343,7 @@ typedef struct {
     int layer;                              /* the lion's layer = main_back */
     int energy, lives, lock;                /* PR-68: 100 / 6 / hurt-lock ticks */
     int solid;                              /* PR-71: contact pass on/off      */
+    int cam_ox, camy_v, camy_set;           /* PR-72: camera follow state      */
 } play_ctx;
 
 static ll_play_keys script_keys(const char *s, int tick)
@@ -1612,10 +1613,42 @@ static void play_advance(play_ctx *pl, const ll_play_keys *keys,
  * bbox origin = (-f0,-f2) relative to the feet point (ll_seq.h; verified
  * on UJ09.SEQ f0=35 f2=68, the walk cycle whose feet ARE the ground
  * line), so the draw origin is (x - cam - (short)f0, y - (short)f2). */
-/* viewer camera policy: the lion's feet sit 65% down the view */
-static int follow_camy(const play_ctx *pl, int ch, int cam_ymax)
+/* Camera follow, measured on a playthrough video (5150 frames tracked by
+ * the lion's colour, outside git): the lion's x on the 320-wide view sits at
+ * ~95 while he walks right and ~215 while he faces left (so the view leads in
+ * his facing direction), and his feet sit at y ~175 of 200 whenever he stands
+ * on the ground (the vertical camera follows the floor, not the jumps).
+ * The rates of the camera's catch-up are NOT measured: the x offset eases
+ * toward its target at 6 units per 20 ms tick (a viewer choice).
+ * Walking speed from the same video: lion-locked camera shifts have a
+ * median 75 units/s (3..5 per video frame at 25 fps) - consistent with the
+ * .MOV's T=90 cap. */
+#define CAM_LEAD_R 100
+#define CAM_LEAD_L 220
+#define CAM_FEET_Y 175
+
+static int follow_camx(play_ctx *pl, int cw, int cam_max)
 {
-    int y = (int)pl->p.y - (ch * 65) / 100;
+    int target = pl->p.walkdir < 0 ? CAM_LEAD_L : CAM_LEAD_R;
+    int d = target - pl->cam_ox;
+
+    (void)cw;
+    pl->cam_ox += d > 6 ? 6 : d < -6 ? -6 : d;
+    int c = (int)pl->p.x - pl->cam_ox;
+    if (c < 0)
+        c = 0;
+    if (c > cam_max)
+        c = cam_max;
+    return c;
+}
+
+static int follow_camy(play_ctx *pl, int ch, int cam_ymax)
+{
+    if (pl->p.grounded || !pl->camy_set) {
+        pl->camy_v = (int)pl->p.y - (ch * CAM_FEET_Y) / 200;
+        pl->camy_set = 1;
+    }
+    int y = pl->camy_v;
     if (y < 0)
         y = 0;
     if (y > cam_ymax)
@@ -3348,6 +3381,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         const char *sv = getenv("LEO_PLAY_SOLID");
         pl.solid = (sv && *sv) ? *sv != '0' : !ci_eq(level, "RAN.01");
     }
+    pl.cam_ox = CAM_LEAD_R;
     pl.energy = 100;                       /* 0x503ac: energy 100 at (re)start */
     pl.lives = 6;                          /* the playthrough video's start    */
     hud_t hud;
@@ -4030,11 +4064,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                     play_advance(&pl, &pl.keys, st2, 0, 0, objs, nobj);
                     used += st2;
                 }
-                cam = (int)pl.p.x - cw / 2;  /* camera follows the lion */
-                if (cam < 0)
-                    cam = 0;
-                if (cam > cam_max)
-                    cam = cam_max;
+                cam = follow_camx(&pl, cw, cam_max);  /* camera follows */
                 camy = follow_camy(&pl, ch, cam_ymax);
             }
             paint_base(canvas, base, img.idx ? (int)img.w : cw,

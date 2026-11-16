@@ -3102,6 +3102,33 @@ engine-side).
     the lion's attack damage vs enemy energy=), the balloon control mode of
     RAN, the unported signal bus (pickups, platforms, AC_* actions).
 
+## PR-72 — camera follow and walking speed measured on the playthrough video
+          (DONE 2026-11-16)
+
+  - Method (video kept outside git): the lion tracked by colour in all 5150
+    frames of the 7-minute ZARIA.01 playthrough (view cropped to the 640x400
+    picture, halved to 320x200 world units), plus a per-frame global shift of
+    the background by phase correlation. The accumulated camera path drifts
+    (several layers scroll at different rates), so only LOCAL facts were
+    used.
+  - Measured: the lion's x on the view clusters at ~95 (mode, 27-37% of the
+    width) while he walks right and ~200-230 while he faces left; his feet
+    sit at y ~175 of 200 whenever he stands (mode of 4829 tracked frames),
+    other values only during climbs/jumps/the vulture ride; in windows where
+    the lion is locked on screen the camera shift per video frame is 3..5
+    units (median 3 = 75 units/s at 25 fps) - consistent with the lion's
+    T=90 cap, which supports the units of the .MOV's F/T fields as px/s.
+  - Ported (viewer policy built on those facts): camera x leads in the facing
+    direction (lion at 100 facing right, 220 facing left, eased at 6 units
+    per 20 ms tick - the ease rate is a viewer choice), camera y follows the
+    FLOOR (feet at 175 while grounded, held while airborne). Replaces the
+    65%-down / centred follow.
+  - NOT obtained: jump units. The jump impulse (`I 250,-1100` in A_PRE_JUMP
+    with G=300,55) cannot be read as px/s (the apex would be thousands of
+    px); the tracked jumps are mixed with camera scrolling, so no clean
+    trajectory came out. A pixel-accurate camera model (or a captured jump
+    with a static camera) is still needed - until then no jump is ported.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
