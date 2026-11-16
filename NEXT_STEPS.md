@@ -2788,8 +2788,26 @@ engine-side).
     0x2f9f1, 0x38246) and the CHECK_LEW/CHECK_ALL gating decide it. With it
     on, RAN.01's verify-play fall pin (walk to x=314 and fall) changes.
   - Pinned by the new verify-play leg (contact line, default run clean).
-  - Next: read the 4 callers (who collides with whom), the kind-13 message,
-    then switch the pass on by default and fix the pins.
+  - Next: the plane gating below, the kind-13 message, then switch the pass
+    on by default and fix the pins.
+  - PR-59 follow-up RE (2026-11-16, no code change): WHO collides with whom.
+    FUN_0004b500(level, out, mover, list, flag) is the touch dispatcher: for
+    every non-null object of the level's object list `list` it calls the
+    object's slot +0x60 (is-active) and requires (obj.plane == mover.plane
+    [+0x24]) OR `flag`, obj != mover, then calls obj slot +0x78 (touch) with
+    the mover. Wrappers FUN_0004b6a0 / 0004b870 / 0004b890 pass the list ids
+    held in 0xa94e8 (=1), 0xcef44 (=0) and 0xa94ec (=2) with flag 0 or the
+    caller's. Slot +0x78 of the 62 common classes is FUN_000552e0 = {if
+    53ae0(this, mover) and this.slot+0x9c(mover) then 55230(this, mover)}
+    (55230 = the hit effects: DANGER/ANTI_POCISK events through slot +0xd0);
+    10 classes use FUN_00053c90, ~20 have their own. So the response is only
+    reached for objects in the SAME plane slot as the mover (the plany=
+    letters, e.g. TALAB: T tlo, A animacje, L Lew, A, B belka) unless the
+    caller sets the all-planes flag. The experiment's RAN.01 EDGE0046 stop is
+    therefore probably NOT what the game does (EDGE objects are in an A
+    plane, the lion in the L plane). Next: parse plany= and map placements to
+    plane slots, then gate play_collide on it and switch it on.
+
 
 ## Next — pick from the Deferred list below
 
