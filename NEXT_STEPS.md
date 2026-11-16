@@ -1937,14 +1937,28 @@ falls fall. `speed=` keys ignored (the .MOV T= caps are the authored
 speeds). No jump/crouch yet; K_UP/K_DOWN reach the transition layer
 but no states consume them in v1.
 
-Two fixes surfaced by the PR's own checks (both small, both pinned by
-the ASan run now part of the recipe below): `--play` uses
-`SDL_setenv` (the first `make win` run of this PR failed - mingw has
-no `setenv`; tools/ll_level.c already links SDL) and a PRE-EXISTING
-memory leak in the .des placement path (ll_level.c `des_place_lines`:
-the "no drawable element" branch freed the blob but not the parsed
-`els` table the main object loop frees) - ASan+LSan+UBSan are now
-clean (rc=0, zero errors) for the preview AND the play path on RAN.01.
+Two fixes surfaced by the PR's own checks: `--play` uses `SDL_setenv`
+(the first `make win` run of this PR failed - mingw has no `setenv`;
+tools/ll_level.c already links SDL) and a PRE-EXISTING memory leak in
+the .des placement path (ll_level.c `des_place_lines`: the "no
+drawable element" branch freed the blob but not the parsed `els` table
+the main object loop frees). Repro recipe (also what the ci.yml asan
+job now covers for the hermetic part - `--play-selftest` added there):
+
+    gcc -O1 -g -std=gnu11 -Wall -Wextra -fsanitize=address,undefined \
+        -Iported $(pkg-config --cflags sdl2) -o /tmp/opencode/ll_level_asan \
+        tools/ll_level.c ported/ll_level.c ported/ll_play.c ported/llrs.c \
+        ported/ll_pcx.c ported/ll_pcm.c ported/ll_seq.c ported/ll_mod.c \
+        ported/fs_ci.c ported/ll_view.c ported/ll_audio.c \
+        ported/platform_sdl.c ported/platform_common.c \
+        $(pkg-config --libs sdl2) -lm
+    LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+    LEO_PLAY_SCRIPT="1:FWD 100:BKWD" LEO_LEVEL_PPM_TICK=20 \
+    LEO_LEVEL_PPM=/tmp/x.ppm /tmp/opencode/ll_level_asan <DATA> RAN.01 --play
+
+Before the fix: "Direct leak of 20736 byte(s) in 432 object(s)" (also
+in the PREVIEW path - not a PR-43 regression). After: ASan+LSan+UBSan
+clean, rc=0, zero errors, for both the preview and the play run.
 
 Usage: `ll_level --play-selftest` (hermetic, always runs), `--play`
 or LEO_PLAY=1 on any level; headless CI driving: LEO_PLAY_SCRIPT=
@@ -1957,6 +1971,21 @@ further pinning the .plt-gap fall -> lew_rect death -> pozycja respawn
 fixture-free config prints its SKIP. verify-level pins unchanged (preview path untouched, and the
 new claim step is LEO_PLAY-gated; LEW leaves never appear in the
 scene lists on these two levels anyway - the 24-slot cap cuts them).
+
+Verification (2026-11-16): `make -k verify-all` with the CD+HD
+fixtures = EXIT=0 / "ALL TESTS PASSED (linux + windows + llrs)", the
+six verify-play legs ok; fixture-free config runs the selftest and
+prints the named SKIP; `make` and `make win` warning-free; verify-arch
+green (ll_play.c/.h are SDL-free - the 4 allowed files unchanged);
+the ASan/LSan/UBSan recipe above rc=0 with zero output.
+ - PR-43 pushed 73dec71; CI run 43783591185: linux + asan +
+   windows-smoke ALL green on the first pass. CLOSED. Ready-to-apply
+   CI follow-up (NOT pushed: our gh token has no `workflow` scope, so
+   this repo cannot change .github/workflows - owner applies it): in
+   the asan job, after the existing `./ll_level --mov-selftest` line
+   add `timeout 30 ./ll_level --play-selftest` - hermetic, so the
+   player physics gets sanitizer coverage without fixtures (verified
+   locally under the asan job's exact ASAN/UBSAN_OPTIONS: rc=0).
 
 ## Next — pick from the Deferred list below
 
@@ -1972,7 +2001,9 @@ tools/verify_help.py and tools/verify_pcm.py still scan nested index
 tables only `count` slots (the PR-36 sparse-table bug, same shape as
 the extract_record.py fix in this PR); their pins are dense on today's
 fixtures so they pass - fix them before using those probes on other
-levels.
+levels. Also waiting for an owner-side one-liner (workflow files are
+outside our token's scope): the asan job + `ll_level --play-selftest`
+(see the PR-43 record).
 
 PR-37 leaves one named golden follow-up: recover the ORIGINAL engine
 text FONT (the cursive used for corner words AND chapter titles).

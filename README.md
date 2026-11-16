@@ -129,6 +129,15 @@ N ms after the first poll — pushed through SDL's queue, so it travels the
 full map_key/repeat-filter path; the other half of verify-quit proves q
 quits the app (FIX-01/C3)).
 
+Playable-level hooks (M4-B, PR-43, used by verify-play): `LEO_PLAY=1`
+(the `--play` flag sets it) upgrades a level preview to the real
+controllable lion, `LEO_PLAY_SCRIPT="<tick>:<FWD|BKWD|UP|DOWN|NONE> ..."`
+holds each entry until the next one on the fixed 20 ms grid (the same
+grid `LEO_LEVEL_PPM`/`LEO_LEVEL_PPM_TICK` dump frames on, so CI frames
+are deterministic); in a live window the arrows drive the lion directly.
+`ll_level --play-selftest` runs the hermetic .plt/.MOV/player checks
+(no data needed).
+
 Runtime policy hooks: `LEO_FORCE_X11=1` (under a Wayland session pin the
 video backend to X11/XWayland — the pre-FIX-11 default; default now is
 SDL's own choice, X11-first on SDL2 classic), `LEO_PIN_ALSA=1` (opt in
