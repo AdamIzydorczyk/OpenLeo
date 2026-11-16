@@ -3252,6 +3252,26 @@ engine-side).
     the real unit from the machine code (the `time_scale=` state field and the
     frame-time consumer) or a DOSBox timing of a walk cycle.
 
+## PR-78 — ground-bound scene objects settle onto the .PLT (DONE 2026-11-16)
+
+  - Owner report from a live run: the worms (LICHA) floated ~30 units above
+    the lion's ground. Cause: ZARIA.01 places them at y=650 over a floor at
+    680, and the port drew every placement exactly where it was authored. The
+    lion's own authored spawn (pozycja 50,640) is also "in the air" and falls
+    onto the 680 line - the same rule applies to actors whose start state has
+    `CHECK_LN` (licha3.mov A_RUN: BY_X|CHECK_LN, G=0,100).
+  - Change: `obj_settle` drops such a placement onto the first ground line at
+    or below it (never up); play mode only; logs the count (ZARIA.01: 10).
+    The G= fall itself is instant, not simulated. Data-free test in the
+    object state selftest (settle 150 -> 180; non-CHECK_LN stays; an object
+    below every line stays), mutation-checked. Pin moved: LICHA contact is
+    now tick 138 (was 163: it hits earlier because it now stands at the
+    lion's height).
+  - NOT changed, still open: worm motion (BY_X F/T needs the patrol AI) and
+    the frame-duration unit (worms animate at 4 ms frames; the lion's 6 ms
+    walk frames use the same unit and looked fine to the owner, so do not
+    change the unit without a DOSBox timing).
+
 ## PR-77 investigation — F/FC directive parser and accumulator (IN PROGRESS 2026-11-16; no gameplay change)
 
   - Executable evidence (`build/leo/leo.elf`, VA = file offset + 0xf000):

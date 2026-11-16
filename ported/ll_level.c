@@ -1068,6 +1068,27 @@ static int seq_push_selftest(void)
  *   100 ms later the frame list of A_DEAD ends -> A_RUN again. */
 static int balloon_hit(int bx, int by, int rx, int ry, int rw, int rh);
 
+/* PR-78: a placement whose START state has CHECK_LN is a ground-bound actor
+ * (the lion's own spawn works the same way: authored pozycja 50,640 falls to
+ * the 680 line). Its authored y is where it is DROPPED from, so it settles on
+ * the first ground line at or below it. Evidence: licha3.mov A_RUN is
+ * `BY_X|CHECK_LN`, `G=0,100`, and ZARIA.01 places the worms at y=650 over a
+ * 680 floor (they floated 30 units above the lion's ground line). The fall is
+ * instant here (the G= fall itself is not simulated for scene objects).
+ * Returns 1 when the object moved. */
+static int obj_settle(lvl_obj *o, const ll_plt *plt)
+{
+    if (!o->sc || !o->sc->mov || o->sti >= o->sc->mov->nst)
+        return 0;
+    if (!(o->sc->mov->st[o->sti].ctrl & LL_CTRL_CHECK_LN))
+        return 0;
+    ll_xy hit;
+    if (!ll_plt_first_below(plt, o->bx, o->by, &hit) || hit.y == o->by)
+        return 0;
+    o->by = o->y = hit.y;
+    return 1;
+}
+
 static int obj_state_selftest(void)
 {
     static const char plain[] =
@@ -1120,6 +1141,41 @@ static int obj_state_selftest(void)
         balloon_hit(90, 71, 100, 50, 20, 30)) {      /* 81: below it       */
         fprintf(stderr, "object state selftest: FAILED balloon rect\n");
         goto out;
+    }
+    {   /* PR-78: a CHECK_LN start state drops onto the first line at or
+         * below it (150 -> 180 here); a BY_TIME-only one stays; a line
+         * ABOVE the object never pulls it up. */
+        static const char gnd[] = "A\n\n[A]\ncontrol=BY_X|CHECK_LN\n1,100\n";
+        static const char air[] = "A\n\n[A]\ncontrol=BY_TIME\n1,100\n";
+        static const char PLTT[] = "2\n1 0,100;500,100;\n1 0,180;500,180;\n";
+        ll_mov_t *mg = calloc(1, sizeof *mg), *ma = calloc(1, sizeof *ma);
+        obj_script sg, sa;
+        lvl_obj g, f, u;
+        ll_plt pt;
+        int ok = mg && ma && ll_plt_parse(PLTT, &pt) == 0;
+
+        if (ok) {
+            ll_mov_parse(gnd, mg);
+            ll_mov_parse(air, ma);
+            memset(&sg, 0, sizeof sg);
+            memset(&sa, 0, sizeof sa);
+            sg.mov = mg;
+            sa.mov = ma;
+            memset(&g, 0, sizeof g);
+            g.sc = &sg; g.bx = g.x = 200; g.by = g.y = 150;
+            f = g; f.sc = &sa;
+            u = g; u.by = u.y = 190;                  /* below every line */
+            ok = obj_settle(&g, &pt) == 1 && g.by == 180 && g.y == 180 &&
+                 obj_settle(&f, &pt) == 0 && f.by == 150 &&
+                 obj_settle(&u, &pt) == 0 && u.by == 190;
+            ll_plt_free(&pt);
+        }
+        free(mg);
+        free(ma);
+        if (!ok) {
+            fprintf(stderr, "object state selftest: FAILED CHECK_LN settle\n");
+            goto out;
+        }
     }
     rc = 0;
 out:
@@ -3747,6 +3803,13 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         if (pl.mov && pl.mov->nst > 0 && pl.nart > 0 && pl.plt.n > 0) {
             pl.have = 1;
             play_spawn(&pl);
+            {
+                int moved = 0;
+                for (int k = 0; k < nobj; k++)
+                    moved += obj_settle(&objs[k], &pl.plt);
+                printf("ll_level: play: %d ground-bound placement(s) settled"
+                       " onto the .PLT (CHECK_LN start state)\n", moved);
+            }
             printf("ll_level: play: %s %d state(s) on %d polyline(s):"
                    " spawn feet (%d,%d) grounded=%d bounds %d..%d"                   /* lew_rect */
                    " death below %d\n", pl.leaf, pl.mov->nst, pl.plt.n,

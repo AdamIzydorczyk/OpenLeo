@@ -190,7 +190,8 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 
 ## 7. Open questions (ranked by how much they block)
 
-0. SCENE OBJECT MOTION (owner-visible, 2026-11-16): the owner reports only the
+0. SCENE OBJECT MOTION (floating FIXED in PR-78; animation speed and walking
+   still open): the owner reported only the
    WORMS (LICHA) animate too fast, and that they float ~30 units above the
    ground the lion walks on (lion feet 680 on ZARIA_A.PLT; LICHA placed at
    y=650). licha3.mov A_RUN is `BY_X|CHECK_LN`, F=100 T=40 G=0,100, frames
