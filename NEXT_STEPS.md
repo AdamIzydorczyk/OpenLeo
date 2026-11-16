@@ -3496,6 +3496,88 @@ engine-side).
     dead, the template method is the one that works), worm_sheet.png,
     gp.mp4.
 
+## PR-82 — facing follows movement for EVERY mover, and for the lion (DONE 2026-11-16)
+
+  - Owner request: PR-81's turning must cover all moving enemies and the
+    player too, not just bounds-patrollers.
+  - CENSUS for that (all 777 extracted .MOV scripts, /tmp/opencode/mov):
+    CH_DIR is a per-STATE facing flag, not a walk flag: 556 CH_DIR
+    states vs 105 BY_X, only 93 overlap - most CH_DIR states are
+    BY_TIME/BY_Y. For the LION every LEW state carries CH_DIR EXCEPT
+    the direction-baked ones, whose direction lives in the frame sign
+    instead: RAN LEW A_GO_TO_BALON_R is authored `1,1...`, A_GO_TO_
+    BALON_L the SAME list authored `-1,1...` with NO CH_DIR; also
+    A_RZUT_W, A_JUMP_WLK, A_WALK_LEFT, KAMIEN A_GO carry no CH_DIR.
+    A_WALK_FWD vs A_WALK_BKWD carry identical ALL-POSITIVE frame lists
+    and both CH_DIR - the lion's art is one polarity (faces right) and
+    walking left is done by the facing flip. All 29 states in the whole
+    corpus that MIX frame polarities are turn/exit/death animations
+    (A_TURN, A_OBROT, A_TURNBACK, A_GOBACK, A_WALKOUTIGLO, A_ESCAPE,
+    A_WYJSCIE); SEQ_REV_X (a control name the port does not handle)
+    appears ONLY on the 7 A_TURN states, whose lists go `-,-,+,+...` =
+    the draw flips mid-sequence, i.e. a turn-around animation.
+    M-delta check: only 5 CH_DIR states carry `M dx,dy` frame motion at
+    all, and BY_TIME M motion is undone by the state-loop position
+    reset (obj_advance), so authored M motion is NOT a facing source.
+  - Model (implemented):
+      * objects: obj_walk sets face from the TRAVEL DIRECTION on every
+        step (not only at the bounds flip as in PR-81): identical
+        result today (this walk is the only object movement source and
+        dir only changes at a flip), correct the moment another source
+        exists (the DANGER charge of T3, `I` lunges).
+      * player: ll_player gains a `face` field (instance state, same
+        role as lvl_obj.face). ll_player_step sets face=walkdir ONLY
+        while the current state carries CH_DIR; direction-baked states
+        never touch it, and facing sticks across states without the
+        flag (the .MOV has no turn-back animation for standing still).
+        ll_player_mirror_of(authored) = authored XOR face - the exact
+        obj_mirror_of rule - used by play_draw AND the lion's shape in
+        play_collide (PR-81's "the shape keeps the drawn polarity").
+      * the player-side gate is inert in practice (face can only differ
+        from walkdir if a key-transition entered a non-CH_DIR state,
+        and every real K_FWD/K_BKWD target is a CH_DIR walk); it is
+        kept so both sides run ONE model.
+  - Video scan (new fact, negative): ZARIA.01 gameplay is 204-386 s of
+    gp.mp4; montages every 5 s over 250-386 s (yt/scan2-*, scan3.png)
+    show the lion RIGHT-facing in every sampled frame - this recording
+    is a rightward walkthrough end to end, so it cannot settle the
+    standing/left-facing question. The 115-160 s segment is a DIFFERENT
+    demo, not Lew Leon - do not use it.
+  - Tests:
+      * --play-selftest: face +1 at walk-FWD entry, -1 at walk-BKWD
+        entry (fixture flags are the real RAN LEW ones), STICKS at -1
+        in A_STAY (no CH_DIR), ll_player_mirror_of both ways; new GL
+        block reproduces A_GO_TO_BALON_L's shape (BY_X, no CH_DIR,
+        frames authored -1..-3, entered via K_GEN1 after a left walk):
+        walkdir set by the transition, face untouched, frame mirror 1
+        from the authored sign, and the combined draw mirror 0 - that
+        last value pins the CHOSEN always-XOR model, labelled as such
+        in the test comment (the alternative "no-CH_DIR means the
+        authored sign is absolute" is NOT excluded, see HANDOFF Q0).
+      * verify-play NEW leg "play facing": script `1:BKWD 2:NONE`
+        sampled at tick 2 - the lion taps BKWD one tick and returns to
+        A_STAY, so both runs' logs show state A_STAY, seq uj09, frame
+        1, pos 40,298, and the ONLY allowed canvas difference is the
+        sprite redrawn flipped in place. tools/ppm_flip_check.py
+        requires a real redraw (>=300 px; measured 1425 px over
+        x=17..62 y=85..143) strictly inside the lion's area. It
+        deliberately does NOT require a bitmap-perfect mirror: the
+        game's element draw (ll_seq.c, PR-49/65) mirrors EACH PATCH and
+        re-anchors it, and the flipped frame eyeballed by direct vision
+        (yt + magick crops, /tmp/opencode/lion_cmp.png) is unambiguously
+        the lion facing left with head/tail correctly swapped.
+  - Mutations caught: A play_draw ignores face (caught by the
+    ppm_flip leg: frames identical); B obj_walk never sets face (caught
+    by --mov-selftest test 5); C ll_player_step never sets face (caught
+    by --play-selftest "FAILED (line 910): p.face == -1"). LESSON:
+    `make` default target builds ll_cutscene ONLY - after editing a
+    source, rebuild the ll_level target (or run verify legs) before
+    mutating checks, or a stale binary fakes a pass.
+  - Pins: no existing pin moved (the FWD/NONE tick-40 legs run facing
+    +1, the ZARIA.01 tick-199 contact leg is on a face=+1 outbound
+    leg). verify-all EXIT=0, make/make win warning-free, both new
+    legs green in-suite.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

@@ -764,17 +764,25 @@ static void obj_walk(lvl_obj *o, const ll_mov_st *s, unsigned dt_ms)
     int dir = o->dir < 0 ? -1 : 1;
     o->x += dir * px;
     if (o->b1 > o->b0) {                      /* bounds= patrol range: flip  */
-        if (dir > 0 && o->x >= o->b1) {
+        if (dir > 0 && o->x >= o->b1)
             o->dir = -1;
-            if (s->ctrl & LL_CTRL_CH_DIR)
-                o->face = -1;             /* PR-81: CH_DIR = facing follows
-                                           * the movement direction */
-        } else if (dir < 0 && o->x <= o->b0) {
+        else if (dir < 0 && o->x <= o->b0)
             o->dir = 1;
-            if (s->ctrl & LL_CTRL_CH_DIR)
-                o->face = 1;
-        }
+        dir = o->dir < 0 ? -1 : 1;
     }
+    /* PR-81/82: CH_DIR states FACE the direction they travel (PR-81
+     * record: the art-vs-authored-sign census and the video, where the
+     * worm's winning draw polarity flips with its travel direction at the
+     * bounds). PR-82 sets it from the travel direction on every step
+     * instead of only at the bounds flip: identical result today (this
+     * walk is the port's only object movement source, and dir only
+     * changes at a flip), but it stays right the moment another source
+     * exists (the DANGER charge-then-walk of T3, `I` lunges). States
+     * without CH_DIR never touch facing - it is instance state and sticks
+     * (same model as ll_player_step). Applied by obj_mirror_of. */
+    if (s->ctrl & LL_CTRL_CH_DIR)
+        o->face = dir;                        /* PR-81: CH_DIR = facing follows
+                                               * the movement direction */
 }
 
 static void obj_advance(lvl_obj *o, unsigned dt_ms)
@@ -1880,6 +1888,13 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                        " energy %d\n", tick, o->x, o->y, pl->energy);
         }
     }
+    /* PR-82: the lion's facing (ll_player_step keeps it from the CH_DIR
+     * states, same flag and same model as obj_walk) decides which way his
+     * collision shape and his drawn sprite point, mirrored on top of the
+     * authored frame sign. The collision shape uses the DRAWN mirror,
+     * exactly like obj_shape_elem does for scene objects (PR-81 rule:
+     * the shape keeps the drawn polarity). */
+    int lm = ll_player_mirror_of(&pl->p, lr.mirror);
     for (int k = 0; k < nobj; k++) {
         const lvl_obj *o = &objs[k];
         if (!o->sc || !o->sc->mov || o->sti < 0 || o->sti >= o->sc->mov->nst)
@@ -1907,7 +1922,7 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
         int ly = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5);
         int d1, d2, r;
         r = ll_seq_shape_push(oseq, oe, o->x, o->y, om ? -1 : 1,
-                              le, lx, ly, lr.mirror ? -1 : 1, &d1, &d2);
+                              le, lx, ly, lm ? -1 : 1, &d1, &d2);
         if (d1 == 0 && d2 == 0)
             continue;
         int dx = (c & LL_CTRL_SOLID2) ? d1 : r;
@@ -2059,7 +2074,12 @@ static void play_draw(const play_ctx *pl, unsigned char *canvas, int cw,
     const ll_seq_elem *e = &s->els[r.idx];
     int x = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5) - cam;
     int y = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5) - camy;
-    ll_seq_draw_elem_anchor(s, e, canvas, cw, ch, x, y, r.mirror, NULL);
+    /* PR-82: the lion turns with his facing, same rule as obj_draw's
+     * obj_mirror_of (CH_DIR states set it from walkdir; direction-baked
+     * states like A_GO_TO_BALON_L draw with their authored sign and keep
+     * the facing as it was). */
+    ll_seq_draw_elem_anchor(s, e, canvas, cw, ch, x, y,
+                            ll_player_mirror_of(&pl->p, r.mirror), NULL);
 }
 
 /* Drop the placements that belong to the player's own art leaf: the player

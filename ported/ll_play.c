@@ -502,6 +502,7 @@ void ll_player_start(ll_player *p, const ll_mov_t *mov, double x, double y,
     p->y = y;
     p->grounded = grounded;
     p->walkdir = 1;
+    p->face = 1;
     int stay = ll_mov_find(mov, "A_STAY");
     p->sti = stay >= 0 ? stay : 0;
 }
@@ -592,6 +593,19 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
         break;
     }
     st = &p->mov->st[p->sti];
+    /* PR-82: CH_DIR ("change direction") is the flag whose meaning PR-81
+     * pinned for scene walkers - the DRAW turns with the movement
+     * direction (video + art evidence there). Every player state that can
+     * go either way carries it (measured: A_WALK_FWD/A_WALK_BKWD yes, with
+     * all-positive frame lists; the direction-baked A_GO_TO_BALON_L no,
+     * with its frames authored negative). So: while a CH_DIR state runs,
+     * facing follows walkdir; states that bake their direction into the
+     * frame sign never touch it, and facing stays as it was (the lion who
+     * walked left and stopped in A_STAY - no CH_DIR - keeps facing left;
+     * the .MOV data has no turn animation for that, A_TURN belongs to
+     * SEQ_REV_X turns, not to stopping). */
+    if (st->ctrl & LL_CTRL_CH_DIR)
+        p->face = p->walkdir < 0 ? -1 : 1;
     for (int i = 0; i < 3; i++)                        /* one-tick pulses */
         p->gen[i] = 0;
     p->broke = 0;
@@ -722,6 +736,11 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
     return ev;
 }
 
+int ll_player_mirror_of(const ll_player *p, int authored)
+{
+    return authored ^ (p->face < 0 ? 1 : 0);
+}
+
 int ll_player_frame(const ll_player *p)
 {
     if (!p->mov || p->sti >= p->mov->nst)
@@ -848,6 +867,7 @@ int ll_play_selftest(void)
     k.k_fwd = 1;
     int ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);
     CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 1);
+    CHECK(p.face == 1);                                /* PR-82: walking right */
     int fell = 0, landed = 0, stev = 1, maxfi = 0;
     for (int t = 0; t < 400; t++) {                 /* walk until the pit */
         ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);
@@ -888,6 +908,7 @@ int ll_play_selftest(void)
     k.k_bkwd = 1;
     ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);
     CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 2 && p.walkdir == -1);
+    CHECK(p.face == -1);                               /* PR-82: walking left  */
     double x0 = p.x;
     for (int t = 0; t < 20; t++)                    /* short reverse: stay
                                                      * on the lower shelf
@@ -902,6 +923,25 @@ int ll_play_selftest(void)
         CHECK(ll_player_frame(&p) >= 0);
         ll_player_step(&p, &pl, &k, 0, 2000, 20);
     }
+    /* PR-82: facing follows the walk (the fixture's control flags are
+     * the REAL RAN LEW ones: both walk states carry CH_DIR, A_STAY does
+     * not; all frames positive = the art faces right). While walking
+     * left in a CH_DIR state face is -1, and it STAYS -1 in A_STAY
+     * (instance state, like lvl_obj.face): a lion that walked left and
+     * stopped keeps facing left - no state in the real data flips back.
+     * The draw/collision mirror = authored sign XOR face. */
+    CHECK(p.face == -1);
+    CHECK(ll_player_mirror_of(&p, 0) == 1);          /* plain frame -> mirrored */
+    CHECK(ll_player_mirror_of(&p, 1) == 0);          /* authored mir -> plain   */
+    k.k_bkwd = 0;
+    ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);   /* !K_BKWD -> A_STAY    */
+    CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 0);
+    CHECK(p.face == -1);            /* no CH_DIR there: facing untouched    */
+    k.k_fwd = 1;
+    ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);   /* K_FWD -> walk right  */
+    CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 1);
+    CHECK(p.face == 1);             /* CH_DIR state: facing follows again   */
+    CHECK(ll_player_mirror_of(&p, 0) == 0);
     ll_plt_free(&pl);
     {   /* PR-74: the jump impulse (hand-derived, ESTIMATED units): `I 120,-1200`
          * -> vy = -300 u/s, vx = +30 u/s; g = 1650, 20 ms ticks, gravity
@@ -945,6 +985,59 @@ int ll_play_selftest(void)
         CHECK(back > 0 && q.sti == 0 && q.y == 100 && q.vx == 0);
         ll_plt_free(&jp);
         free(jm);
+    }
+    {   /* PR-82: states whose DIRECTION IS AUTHORED stay out of facing.
+         * The real shape is RAN LEW's A_GO_TO_BALON_L: control=BY_X with
+         * NO CH_DIR and frames authored NEGATIVE (-1..-12), while the
+         * walking states (A_WALK_FWD/BKWD, all-positive frames) all carry
+         * CH_DIR. So the authored sign is what the author used to aim
+         * those states, and facing is left exactly as the CH_DIR walks
+         * set it (instance state, like lvl_obj.face).
+         * ASSERTS THE CHOSEN MODEL's consequence, not a measured pixel:
+         * the draw mirror is always authored XOR face (the one
+         * video-pinned case, PR-81's worm, works that way - its states
+         * all carry CH_DIR). Whether the engine skips the instance facing
+         * ENTIRELY for a no-CH_DIR state is the open question recorded
+         * in HANDOFF (test that would settle it: a mirrored-polarity
+         * match on the RAN crown/balloon cutscene, or any left-facing
+         * standing lion on video - this game video walks right-only). */
+        static const char GL[] =
+            "A_STAY\nA_WALK_BKWD\nA_GO_TO_BALON_L\n\n[A_STAY]\n"
+            "control=BY_TIME\nF=600,0\nG=0,0\nA_WALK_BKWD(1)=K_BKWD\n"
+            "seq=uj09\n1,100\n\n[A_WALK_BKWD]\ncontrol=BY_X|CH_DIR\n"
+            "F=400,0\nT=90,90\nG=0,0\nA_GO_TO_BALON_L(1)=K_GEN1\n"
+            "seq=uj09\n1,100\n2,100\n\n"
+            "[A_GO_TO_BALON_L]\ncontrol=BY_X\nF=0,0\nT=90,90\nG=400,0\n"
+            "seq=uj09\n-1,1\n-2,1\n-3,1\n";
+        static const char GP[] = "1\n1 0,100;2000,100;\n";
+        ll_mov_t *gm = calloc(1, sizeof *gm);
+        ll_plt gp;
+        ll_player q;
+        ll_play_keys gk = { 0, 0, 0, 0, 0 };
+
+        CHECK(gm && ll_plt_parse(GP, &gp) == 0);
+        CHECK(ll_mov_parse(GL, gm) == 3);
+        CHECK(!(gm->st[2].ctrl & LL_CTRL_CH_DIR) &&
+              (gm->st[1].ctrl & LL_CTRL_CH_DIR));
+        ll_player_start(&q, gm, 500, 100, 1);
+        gk.k_bkwd = 1;
+        ll_player_step(&q, &gp, &gk, 0, 2000, 20);   /* -> walk left     */
+        CHECK(q.sti == 1 && q.face == -1);
+        gk.k_bkwd = 0;
+        q.gen[0] = 1;                                /* K_GEN1 trigger   */
+        ll_player_step(&q, &gp, &gk, 0, 2000, 20);   /* -> the baked state */
+        CHECK(q.sti == 2);
+        CHECK(q.walkdir == -1);                      /* the transition set it */
+        CHECK(q.face == -1);                         /* but facing is untouched */
+        {   /* and what gets drawn: authored mirror (1) XOR face (1) = 0
+             * under the chosen always-XOR model */
+            CHECK(ll_player_frame(&q) == -1);         /* the authored -1 frame */
+            ll_frame_ref fr = ll_mov_frame_ref(ll_player_frame(&q));
+            CHECK(fr.idx == 0 && fr.mirror == 1 && !fr.blank);
+            CHECK(ll_player_mirror_of(&q, fr.mirror) == 0);
+        }
+        ll_plt_free(&gp);
+        free(gm);
     }
     if (!rc)
         printf("play selftest: .plt physics (+ the '!' separator variant,"

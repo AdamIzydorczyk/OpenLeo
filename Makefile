@@ -666,6 +666,42 @@ ifeq ($(PX_DATA),1)
 	  && tools/frames_differ.sh /tmp/opencode/ly_p40_NONE.ppm /tmp/opencode/ly_p40_FWD.ppm \
 	  && echo "play render: lion drawn at the .SEQ anchor (-f0,-f2) walks on screen (NONE stays, FWD moves, ok)" \
 	  || { echo "play render check FAILED"; cat /tmp/opencode/ly_p40_NONE.log /tmp/opencode/ly_p40_FWD.log; exit 1; }
+# PR-82 render leg: the lion TURNS. A one-tap BKWD and back to A_STAY,
+# sampled at tick 2, leaves the lion at the same state (A_STAY), the same
+# frame number and the same position as the plain run (both .MOV walk
+# states carry CH_DIR, A_STAY does not, and face is instance state) - so
+# the ONLY difference allowed on the canvas is his sprite redrawn mirrored
+# in place: tools/ppm_flip_check.py requires a real redraw (>=300 px)
+# strictly inside his area. The facing rule itself is pinned data-free by
+# --play-selftest; this leg proves it reaches the screen.
+	@rm -f /tmp/opencode/ly_p2_NONE.ppm /tmp/opencode/ly_p2_TURN.ppm
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  LEO_PLAY_SCRIPT="1:NONE" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_p2_NONE.ppm LEO_LEVEL_PPM_TICK=2 \
+	  ./ll_level $(DATA) RAN.01 --play --no-audio \
+	  > /tmp/opencode/ly_p2_NONE.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play flip NONE FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_p2_NONE.log; exit 1; fi
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  LEO_PLAY_SCRIPT="1:BKWD 2:NONE" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_p2_TURN.ppm LEO_LEVEL_PPM_TICK=2 \
+	  ./ll_level $(DATA) RAN.01 --play --no-audio \
+	  > /tmp/opencode/ly_p2_TURN.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play flip TURN FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_p2_TURN.log; exit 1; fi
+	@grep -q 'play: A_STAY -> A_WALK_BKWD' /tmp/opencode/ly_p2_TURN.log \
+	  && grep -q 'play: A_WALK_BKWD -> A_STAY' /tmp/opencode/ly_p2_TURN.log \
+	  && grep -q 'play tick 2: state A_STAY seq uj09 frame 1 pos 40,298 grounded 1' \
+	      /tmp/opencode/ly_p2_TURN.log \
+	  && grep -q 'play tick 2: state A_STAY seq uj09 frame 1 pos 40,298 grounded 1' \
+	      /tmp/opencode/ly_p2_NONE.log \
+	  && python3 tools/ppm_flip_check.py /tmp/opencode/ly_p2_NONE.ppm \
+	         /tmp/opencode/ly_p2_TURN.ppm 0 110 60 220 300 \
+	  && echo "play facing: a CH_DIR walk state turns the lion around, and" \
+	     "A_STAY (no CH_DIR) keeps that facing and draws it (ok)" \
+	  || { echo "play facing check FAILED"; cat /tmp/opencode/ly_p2_NONE.log /tmp/opencode/ly_p2_TURN.log; exit 1; }
 # live window path (no PPM grid, no LEO_PLAY_SCRIPT): the platform key
 # injector presses RIGHT in a real session loop - held-key tracking, the
 # fixed-substep physics branch and the camera follow run exactly as a

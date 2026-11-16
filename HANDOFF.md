@@ -188,6 +188,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | contact pass default | ll_level.c | on except RAN.01 | RAN is the balloon level |
 | SEMI_SOLID | `play_collide` | only the r/5 shift | velocity add (kind 13) unit unknown |
 | SOLID push polarity | `obj_shape_elem` | shape uses the DRAW polarity incl. CH_DIR facing | consistency, not decompile-pinned (PR-81) |
+| player facing model | ll_play.c `face`, ll_level.c `play_draw/play_collide` | face follows walkdir only in CH_DIR states; draw/shape = authored XOR face, face sticks | flags real (LEW census, PR-82); the always-XOR rule for no-CH_DIR states is a model-consistency choice, NOT decompile- or video-pinned (HANDOFF Q0) |
 
 ## 7. Open questions (ranked by how much they block)
 
@@ -227,6 +228,34 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
     semantics stay unresolved (ll_play.c's older "walk at +/-T cap,
     F=accel" reading still contradicts the object data and must be
     revisited in T1).
+    EXTENDED in PR-82 (owner request "all moving enemies and the lion
+    too"): facing is now instance state for EVERY mover - obj_walk sets
+    it from the travel direction on every step (same result today),
+    and the LION got the same field: ll_player.face is set from
+    walkdir only while a CH_DIR state runs (census: every LEW state
+    carries CH_DIR except the direction-baked ones - A_GO_TO_BALON_R
+    authored +1.. vs A_GO_TO_BALON_L authored -1.. with NO CH_DIR,
+    A_WALK_FWD/BKWD carry identical all-positive lists + CH_DIR), and
+    play_draw/play_collide draw+collide him authored-XOR-face, exactly
+    like objects. Pinned by a new verify-play leg (BKWD-tap back to
+    A_STAY at tick 2: same state/frame/pos in both logs, only the
+    lion's sprite redraws flipped - tools/ppm_flip_check.py) and by
+    --play-selftest. STILL OPEN (unresolved either way, both readings
+    agree everywhere we can test): for a state WITHOUT CH_DIR, does
+    the engine still XOR the instance facing (the shipped choice,
+    consistent with the one video-pinned case whose states all carry
+    CH_DIR), or is the authored sign absolute there? Settling test: a
+    dual-polarity template match on the RAN crown/balloon cutscene if
+    any recording has the lion entering A_GO_TO_BALON_L while last
+    facing left, or any left-facing STANDING lion on video, or the
+    worm standing still after a turn (PR-81's test). The ZARIA.01
+    recording cannot answer it: montages over its whole 204-386 s span
+    show only right-facing walking (rightward walkthrough), and the
+    115-160 s part of that video is a different demo, not Lew Leon.
+    SEQ_REV_X (a control name not ported) appears only on the 7
+    A_TURN states, whose frame lists flip polarity mid-sequence = the
+    turn-around animation; how it drives facing mid-sequence is T1/T3
+    work.
     The former hypotheses (a)/(b) are both confirmed: (b) landed in PR-78.
 1. F/FC frame directives (jump distance; also enemy/projectile motion) -
    parser evidence now narrows this: `F` and `FC` each parse an `(x,y)` pair
@@ -284,8 +313,11 @@ with the travel direction), detect within `scope=`, `AC_ENEMY_ATC` attack, the
 semantics and open question 3. Done when: ZARIA.01's LICHA/PAJAK/NOSOROG move
 and attack in a headless run (log pins), and the contact damage uses the state.
 (Partially met: they MOVE and TURN - the verify-play pin now hits a WALKING
-LICHA at tick 199. Still open: the pause-in-place vs walk-burst state gating,
-and `scope=`.)
+LICHA at tick 199, and PR-82 generalized facing to follow the travel
+direction of every CH_DIR state for objects AND the lion, so a future
+charge/push source turns the sprite with it automatically. Still open: the
+pause-in-place vs walk-burst (DANGER) state gating, `scope=`, and the
+DANGER charge's own motion, which needs T1's `F`/`I` semantics.)
 
 **T4. Signal bus, pickups, inventory.**
 Resolve open question 2, then: the `GEN`/signal delivery between objects, the

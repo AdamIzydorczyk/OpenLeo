@@ -209,6 +209,12 @@ typedef struct {
     int grounded;
     int walkdir;                /* -1/1, set by K_BKWD/K_FWD transitions
                                  * (the real CH_DIR flag's effect)        */
+    signed char face;           /* PR-82: instance facing, -1/1, like
+                                 * lvl_obj.face (PR-81). Updated from walkdir
+                                 * only while the state carries CH_DIR;
+                                 * states that bake their direction into the
+                                 * frame sign (A_GO_TO_BALON_L) never touch
+                                 * it. Starts +1 = what the frames ask for. */
     int gen[3];                 /* K_GEN1..3 one-tick pulses (script
                                  * triggers, set by gameplay logic)       */
     int broke;                  /* AC_BREAK_NEXT pending (frame list just
@@ -236,6 +242,11 @@ void ll_player_start(ll_player *p, const ll_mov_t *mov, double x, double y,
 int  ll_player_step(ll_player *p, const ll_plt *ground,
                     const ll_play_keys *keys, double xmin, double xmax,
                     unsigned dt_ms);
+
+/* PR-82: the DRAW mirror of the current frame - the authored frame sign
+ * (ll_mov_frame_ref .mirror) XORed with the facing, exactly as
+ * ll_level's obj_mirror_of does for scene objects. */
+int  ll_player_mirror_of(const ll_player *p, int authored);
 
 /* Current .MOV frame NUMBER of the player (raw, as authored - NOT an element
  * index: feed it through ll_mov_frame_ref). */
