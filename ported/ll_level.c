@@ -476,6 +476,8 @@ typedef struct {                     /* one placement of a script        */
     int x, y;                        /* current (anchor + authored M)    */
     int sti, fi;                     /* state / frame cursor             */
     unsigned t;                      /* ms within current frame          */
+    unsigned char src;               /* which .des key placed it: 0 zwierzaki,
+                                      * 1 animacje, 2 ani_plat (PR-60)    */
 } lvl_obj;
 
 typedef struct {                     /* one level's authored scene: the
@@ -1329,6 +1331,12 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
         unsigned c = o->sc->mov->st[o->sti].ctrl;
         if (!(c & LL_CTRL_SOLID))
             continue;
+        /* FUN_00052780: the mover's own CHECK_ZW / CHECK_ANI pick the list
+         * it is tested against (ani_plat objects are reached through
+         * another path, not ported) */
+        if (o->src == 0 ? !(ls->ctrl & LL_CTRL_CHECK_ZW)
+                        : o->src == 1 ? !(ls->ctrl & LL_CTRL_CHECK_ANI) : 1)
+            continue;
         if (c & LL_CTRL_SEMI_SOLID) {
             if (!semi_seen++)
                 printf("ll_level: play: SEMI_SOLID contact model not ported"
@@ -1638,6 +1646,7 @@ typedef struct {                    /* counted while reading, never guessed */
 } obj_stats;
 
 typedef struct {                    /* the scene being built for one level */
+    int cur_src;                    /* des_place_keys index being read      */
     scene_owner *own;               /* owns the script set + placements     */
     anim_ctx ac;
     const char *level;
@@ -2131,6 +2140,7 @@ static void des_place_file(place_ctx *pc, const char *fname,
                 if (!o)
                     goto next;
                 o->sc = sc;
+                o->src = (unsigned char)pc->cur_src;
                 o->sti = sc->mov ? sc->mov->start_st : 0;   /* declared start */
                 o->bx = o->x = x;      /* authored position, y down: no
                                         * invented bottom-anchor. Only the
@@ -2171,6 +2181,7 @@ static void des_placement(place_ctx *pc, llrs *hd_ety,
          kk < sizeof des_place_keys / sizeof des_place_keys[0]; kk++) {
         const char *key = des_place_keys[kk];
         const char *raw = des_get(kvs, nk, key);
+        pc->cur_src = (int)kk;
         if (!raw[0])
             continue;      /* key absent: the author says nothing about it
                             * (no shipped level omits these three keys) */
@@ -3139,6 +3150,32 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                    " death below %d\n", pl.leaf, pl.mov->nst, pl.plt.n,
                    (int)pl.p.x, (int)pl.p.y, pl.p.grounded,
                    (int)pl.xmin, (int)pl.xmax, (int)pl.ydead);
+            {   /* PR-60 census: placements whose script has a SOLID state,
+                 * by the key that placed them (zwierzaki/animacje/ani_plat) */
+                int cnt[3][3] = { { 0 } };
+                for (int k = 0; k < nobj; k++) {
+                    const obj_script *sc = objs[k].sc;
+                    int has = 0;
+                    if (!sc || !sc->mov)
+                        continue;
+                    for (int q = 0; q < sc->mov->nst; q++) {
+                        unsigned cc = sc->mov->st[q].ctrl;
+                        if (cc & LL_CTRL_SOLID2)
+                            has = has < 2 ? 2 : has;
+                        else if (cc & LL_CTRL_SEMI_SOLID)
+                            has = has < 3 ? 3 : has;
+                        else if (cc & LL_CTRL_SOLID)
+                            has = has < 1 ? 1 : has;
+                    }
+                    if (has)
+                        cnt[objs[k].src < 3 ? objs[k].src : 0][has - 1]++;
+                }
+                printf("ll_level: play: placements with a SOLID state"
+                       " (SOLID/SOLID2/SEMI): zwierzaki %d/%d/%d animacje"
+                       " %d/%d/%d ani_plat %d/%d/%d\n", cnt[0][0], cnt[0][1],
+                       cnt[0][2], cnt[1][0], cnt[1][1], cnt[1][2],
+                       cnt[2][0], cnt[2][1], cnt[2][2]);
+            }
             play_claim_leaf(objs, &nobj, &pl);
         } else {
             printf("ll_level: play: level %s %s: staying preview\n", level,

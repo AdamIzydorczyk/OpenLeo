@@ -222,7 +222,10 @@ static void ctrl_flag(const char *tok, unsigned *f, int *other)
         { "CHECK_LN", LL_CTRL_CHECK_LN },
         { "CH_DIR", LL_CTRL_CH_DIR },
         { "CHECK_ALL_PLANE", LL_CTRL_CHECK_ALL_PLANE },  /* before CHECK_ALL */
-        { "CHECK_ALL", LL_CTRL_CHECK_ALL },
+        { "CHECK_ALL", LL_CTRL_CHECK_ALL | LL_CTRL_CHECK_ANI | LL_CTRL_CHECK_ZW },
+        { "CHECK_ANI", LL_CTRL_CHECK_ANI },
+        { "CHECK_ZW", LL_CTRL_CHECK_ZW },
+        { "CHECK_LEW", LL_CTRL_CHECK_LEW },
         { "FRAME_REV", LL_CTRL_FRAME_REV },
         { "SOLID", LL_CTRL_SOLID },
         { "SOLID2", LL_CTRL_SOLID | LL_CTRL_SOLID2 },

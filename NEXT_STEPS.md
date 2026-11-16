@@ -2809,6 +2809,36 @@ engine-side).
     plane slots, then gate play_collide on it and switch it on.
 
 
+## PR-60 — which list a mover collides with (experimental contact pass, gated)
+          (DONE 2026-11-16)
+
+  - FUN_00052780 (0x527b3..0x5282f): the MOVER's own state flags select the
+    object lists it is tested against: CHECK_LEW (0x200) -> Lew (FUN_0004bd30),
+    CHECK_ANI (0x40) -> the animacje= list (FUN_0004b890), CHECK_ZW (0x80)
+    -> the zwierzaki= list (FUN_0004b870); CHECK_ALL_PLANE (0x8000) is passed
+    as the dispatcher's all-planes flag. CHECK_ALL = ANI|ZW|LN (0x1c0).
+    List ids come from the level loader (0x4cd1d..0x4ceb5): each of the
+    keys zwierzaki=/animacje=/ani_plat= creates the next list ([level+0x40]++)
+    and stores its id in 0xcef44 / 0xa94ec / 0xa94e8; entry i of the key's
+    comma list becomes the placement file loaded into that list (0x4dd50 ->
+    0x4aaa0). The ani_plat list is reached by another path (not ported).
+  - Ported: lvl_obj.src (the key that placed it); ll_play bits CHECK_ANI,
+    CHECK_ZW, CHECK_LEW (CHECK_ALL = its own bit + ANI + ZW; the LN physics
+    is unchanged); play_collide tests a placement only when the lion's
+    CURRENT state carries the matching flag. Census line per level
+    ("placements with a SOLID state SOLID/SOLID2/SEMI by key"), measured:
+    RAN.01 animacje 432/0/0 (the EDGE solids), SADES.06 zwierzaki 19/0/0 +
+    animacje 4/64/0, KADMAR.07 animacje 7 + zwierzaki 6 semi, KARA.07 11 +
+    10 semi, KADMAR2 5 + 1 semi, TUNGA.11 4 + 2 semi, ENA.03 animacje 4
+    SOLID2, ZARIA.01/.02 only SEMI_SOLID (2 and 4), LONA/ENA2 none.
+  - STILL OPEN: the plane gate (obj.plane == mover.plane [+0x24]): where
+    [+0x24] is assigned (probably the entry index i of the key's list, the
+    lion's = main_back layer) was not confirmed, so the pass stays opt-in
+    (LEO_PLAY_SOLID=1); RAN.01 still shows the EDGE0046 contact because the
+    lion's walk state carries CHECK_ANI. SEMI_SOLID (the platforms of ZARIA,
+    KADMAR, KARA, TUNGA) needs the unresolved kind-13 message, so most of
+    the platform-like behaviour is still missing.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

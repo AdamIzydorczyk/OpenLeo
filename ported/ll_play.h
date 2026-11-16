@@ -110,7 +110,15 @@ enum {
     LL_CTRL_SOLID2          = 0x200u,       /* also sets LL_CTRL_SOLID    */
     LL_CTRL_SEMI_SOLID      = 0x400u,       /* also sets LL_CTRL_SOLID    */
     LL_CTRL_ANTI_SOLID      = 0x800u,
-    LL_CTRL_ANTI_POCISK     = 0x1000u
+    LL_CTRL_ANTI_POCISK     = 0x1000u,
+    /* PR-60: the mover's own list selectors (FUN_00052780 0x527b3..0x5282f):
+     * CHECK_ANI (0x40) = test against the animacje= objects, CHECK_ZW (0x80)
+     * = the zwierzaki= objects, CHECK_LEW (0x200) = against Lew; with
+     * CHECK_ALL_PLANE the plane gate is dropped. CHECK_ALL = ANI|ZW|LN in the game (0x1c0); here it
+     * keeps its own bit (the port's LN physics is unchanged) plus ANI|ZW. */
+    LL_CTRL_CHECK_ANI       = 0x2000u,
+    LL_CTRL_CHECK_ZW        = 0x4000u,
+    LL_CTRL_CHECK_LEW       = 0x8000u
 };
 #define LL_CTRL_NAMES \
     X(BY_TIME) X(BY_X) X(BY_Y) X(BY_TY) X(CHECK_LN) X(CHECK_LEW) \
