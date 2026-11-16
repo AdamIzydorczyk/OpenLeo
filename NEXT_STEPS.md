@@ -2045,6 +2045,16 @@ the AC_* signals are the M4-C list.
    add `timeout 30 ./ll_level --play-selftest` - hermetic, so the
    player physics gets sanitizer coverage without fixtures (verified
    locally under the asan job's exact ASAN/UBSAN_OPTIONS: rc=0).
+ - PR-43 follow-up pushed 47dea87; CI run 43821851544: linux + asan +
+   windows-smoke ALL green on the first pass (the 8 verify-play legs
+   ran on the real CD+HD fixtures there). Verification before pushing:
+   local `make -k verify-all` EXIT=0 / "ALL TESTS PASSED (linux +
+   windows + llrs)"; fixture-free config (`make -k verify-all
+   DATA=<absent> HD=<absent>`) EXIT=0 with 23 named SKIPs and the
+   selftest still running; `make` + `make win` warning-free;
+   verify-arch green; the ASan/LSan/UBSan ll_level build clean
+   (rc=0, empty stderr) on the selftest, the scripted RAN.01 play,
+   the live-key session and ENA.03. CLOSED.
 
 ## Next — pick from the Deferred list below
 
