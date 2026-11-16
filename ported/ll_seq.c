@@ -82,8 +82,8 @@ int ll_seq_parse(const uint8_t *blob, uint32_t len, ll_seq *out)
                 e->n = 0;
             } else {
                 e->n = n;
-                if (take(&r, (uint32_t)n, &e->pal) < 0) break;
-                if (take(&r, (uint32_t)n, &e->spr) < 0) break;
+                if (take(&r, (uint32_t)n, &e->ml) < 0) break;
+                if (take(&r, (uint32_t)n, &e->mr) < 0) break;
             }
         }
         if (!(w0 & 2 && !(w0 & 1))) {
@@ -280,6 +280,226 @@ int ll_seq_draw_elem_map(const ll_seq *s, const ll_seq_elem *e,
         if (ll_seq_patch_draw_map(s->blob + t->off, t->len, canvas, cw, ch,
                                   x + 80 * (int)i, y, map) < 0)
             return -1;
+    }
+    return 0;
+}
+
+
+
+/* --- element shape geometry ----------------------------------------------
+ * Statement-for-statement ports of the game's element-geometry functions
+ * (full decompilation of 2026-11-16: build/decompiled/all/FUN_000420b0,
+ * FUN_00042a70, FUN_00042de0, FUN_00042cf0; the loader side is the
+ * if/else in FUN_00041f60). Margin bytes are read UNSIGNED where the
+ * game reads unsigned (span tests and bbox values: 0xFF participates as
+ * the value 255, only the 0xFF RUNS AT ROW EDGES are skipped as empty)
+ * and SIGNED where the game reads signed (row counts, widths).
+ *
+ * The bounds matter, and no read ever leaves the lists: the left scan
+ * skips a LEADING run of the empty marker and takes its minimum over the
+ * rows after it; the right scan walks DOWN from the last row through a
+ * TRAILING run of the marker, then takes its minimum over the rows below
+ * that point. Inside those ranges the marker takes part in the minimum as
+ * the plain value 255 - the game reads it unsigned, and so does this port.
+ * 34 of the 14306 shape elements here declare rows whose margins are the
+ * marker EVERYWHERE (both lists; measured 2026-11-16, no element has only
+ * one list empty): both scans then end having found nothing, and the
+ * game's box math stores w = 1 - total_w, h = 1 - rows. That is a fact
+ * about its arithmetic, not a gap in the data, and the port reproduces it
+ * exactly. ll_seq_shape_empty() flags those elements, so the C-vs-python
+ * cross-check shows those lines agree too. */
+
+#define SHAPE_EMPTY 0xff             /* the game's "empty row" byte      */
+#define SENT_7FFF  0x7fff            /* the ctor sentinel the game tests */
+
+static int marg_x(const ll_seq *s, uint32_t off, int i)
+{
+    uint32_t p = off + (uint32_t)i;
+    if (i < 0 || p >= s->len)
+        return SHAPE_EMPTY;          /* a parsed element's lists are inside
+                                      * the payload, so this never fires;
+                                      * the guard keeps every read where the
+                                      * game's own read is */
+    return s->blob[p];
+}
+
+/* which = 0: the +0x27 list, 1: the +0x2f list (names as in the game's
+ * runtime element struct) */
+static int marg(const ll_seq *s, const ll_seq_elem *e, int which, int i)
+{
+    return marg_x(s, which ? e->mr : e->ml, i);
+}
+
+/* the game's *element != 0x7fff anchor tests (FUN_00041f60 no-lists
+ * branch, and the identical adjustments in FUN_00042a70/42de0) */
+static int anch_x(const ll_seq_elem *e)
+{
+    return e->f0 == SENT_7FFF ? 0 : (int)(short)e->f0;
+}
+
+static int anch_y(const ll_seq_elem *e)
+{
+    return e->f2 == SENT_7FFF ? 0 : (int)(short)e->f2;
+}
+
+void ll_seq_shape_wh(const ll_seq_elem *e, int *w, int *h, int *n)
+{
+    *w = (int)(short)e->b19 * 0x50 + (int)(short)e->b15;
+    *h = (int)(short)e->b17;
+    *n = (e->w0 & 3) ? *h : 0;
+}
+
+/* FUN_000420b0, statement for statement (short truncations included).
+ * The loader calls it exactly when w0&3 != 0; an element WITHOUT lists
+ * keeps the implicit rect FUN_00041f60 derives from the words instead. */
+void ll_seq_shape_bbox(const ll_seq *s, const ll_seq_elem *e,
+                       int *x, int *y, int *w, int *h)
+{
+    int rows = (int)(short)e->b17;
+    int tw = (int)(short)e->b19 * 0x50 + (int)(short)e->b15;
+    int t, b, l, r, i;
+
+    for (t = 0; t < rows && marg(s, e, 0, t) == 0xff; t++)
+        ;
+    l = tw;
+    for (i = t; i < rows; i++) {
+        int v = marg(s, e, 0, i);
+        if (v < l)
+            l = v;
+    }
+    b = rows - 1;
+    while (b > -1) {
+        if (marg(s, e, 1, b) != 0xff)
+            break;
+        b--;
+    }
+    r = tw;
+    for (i = b; i > -1; i--) {
+        int v = marg(s, e, 1, i);
+        if (v < r)
+            r = v;
+    }
+    /* game: +0x0c/+0x0e/+0x10/+0x12 = those four short values */
+    *x = (short)(l - anch_x(e));
+    *y = (short)(t - anch_y(e));
+    *w = (short)(((tw - r) - l) + 1);
+    *h = (short)((b - t) + 2);
+}
+
+/* 1 when the element declares margin rows but every margin byte of BOTH
+ * lists is the empty marker: no solid span at all (34 of the 14306 shape
+ * elements here; measured 2026-11-16, no element has only ONE list empty).
+ * This is the input of the degenerate case in the header note: the game's
+ * box math then stores w = 1 - total_w, h = 1 - rows, and this port
+ * reproduces that arithmetic exactly. The flag only names the case for
+ * the cross-check. */
+static int marg_all_empty(const ll_seq *s, uint32_t off, int n)
+{
+    int i;
+
+    for (i = 0; i < n; i++)
+        if (s->blob[off + (uint32_t)i] != SHAPE_EMPTY)
+            return 0;
+    return 1;
+}
+
+int ll_seq_shape_empty(const ll_seq *s, const ll_seq_elem *e)
+{
+    if (!(e->w0 & 3) || e->n <= 0
+        || e->ml + (uint32_t)e->n > s->len
+        || e->mr + (uint32_t)e->n > s->len)
+        return 0;
+    return marg_all_empty(s, e->ml, e->n) && marg_all_empty(s, e->mr, e->n);
+}
+
+/* the row-overlap window, identical in FUN_00042a70 (0x42b85..0x42be6) and
+ * FUN_00042de0 (0x42f21..0x42f7c) - read from the machine code of the LE
+ * image (build/leo/leo.elf) on 2026-11-16, because the decompiled text of
+ * these two functions loses the register arguments: with dy = ay2 - by2
+ * (the positions AFTER the anchor/facing adjustments) the game indexes the
+ * element whose y is lower from row 0 and the other one from the distance
+ * between them, and compares the shorter remaining span:
+ *   dy < 0  -> A from -dy, B from 0, count = min(rows_a + dy, rows_b)
+ *   dy >= 0 -> A from 0, B from dy,  count = min(rows_b - dy, rows_a)
+ * (0x42b97: eax = -dy, [esp+0x1c] = 0, then rows_a - eax vs rows_b;
+ * 0x42bb9: [esp+0x1c] = dy, eax = 0, then rows_b - dy vs rows_a; a count
+ * of 0 or less takes the "no overlap" return.)
+ * Rows a=[*oa, *oa+*m), b=[*ob, *ob+*m); *m <= 0 = no overlap. */
+static void shape_window(const ll_seq_elem *a, int ay2,
+                         const ll_seq_elem *b, int by2, int *oa, int *ob,
+                         int *m)
+{
+    int ah = (int)(short)a->b17, bh = (int)(short)b->b17;
+    int dy = ay2 - by2;
+
+    if (dy < 0) {
+        *oa = -dy;                  /* A's top rows are above B's: they   */
+        *ob = 0;                    /* take no part in the compare        */
+        *m = ah + dy;
+        if (*m > bh)
+            *m = bh;
+    } else {
+        *oa = 0;
+        *ob = dy;
+        *m = bh - dy;
+        if (*m > ah)
+            *m = ah;
+    }
+}
+
+/* FUN_00042a70. */
+int ll_seq_shape_hit(const ll_seq *s,
+                     const ll_seq_elem *a, int ax, int ay, int afacing,
+                     const ll_seq_elem *b, int bx, int by, int bfacing)
+{
+    int aw, ah, an, bw, bh, bn;
+    int ax2, ay2, bx2, by2, al, bl;
+    int oa, ob, m, i;
+
+    ll_seq_shape_wh(a, &aw, &ah, &an);
+    ll_seq_shape_wh(b, &bw, &bh, &bn);
+    if (an <= 0 || bn <= 0)       /* the game tests its +0x27 pointer */
+        return 0;
+    if (afacing < 0) {            /* facing mirrors: the two lists swap */
+        al = 1;
+        if (a->f0 != SENT_7FFF) {
+            ay2 = ay - anch_y(a);
+            ax2 = ax - (aw - anch_x(a));
+        } else {
+            ay2 = ay;
+            ax2 = ax;
+        }
+    } else {
+        al = 0;
+        ay2 = ay - anch_y(a);
+        ax2 = ax - anch_x(a);
+    }
+    if (bfacing < 0) {
+        bl = 1;
+        if (b->f0 != SENT_7FFF) {
+            by2 = by - anch_y(b);
+            bx2 = bx - (bw - anch_x(b));
+        } else {
+            by2 = by;
+            bx2 = bx;
+        }
+    } else {
+        bl = 0;
+        by2 = by - anch_y(b);
+        bx2 = bx - anch_x(b);
+    }
+    shape_window(a, ay2, b, by2, &oa, &ob, &m);
+    if (m < 1)
+        return 0;
+    for (i = 0; i < m; i++) {
+        int aml = marg(s, a, al, oa + i);
+        int amr = marg(s, a, 1 - al, oa + i);
+        int bml = marg(s, b, bl, ob + i);
+        int bmr = marg(s, b, 1 - bl, ob + i);
+        if (aml != 0xff && bml != 0xff &&
+            ax2 + aml < bx2 + bw - bmr &&
+            bx2 + bml < ax2 + aw - amr)
+            return 1;             /* the game returns true at the first row */
     }
     return 0;
 }

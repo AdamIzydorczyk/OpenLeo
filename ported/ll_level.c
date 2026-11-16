@@ -422,15 +422,29 @@ typedef struct {           /* one .SEQ art table, owned by its script    */
     ll_seq seq;                       /* parsed (owns the element table) */
     int found;                        /* 0 = the record is not on these
                                        * containers (a data hole)        */
-    int eidx0;                        /* first element with patch data;
-                                       * -1 with found=1 means the element
-                                       * table is the OTHER .SEQ form
-                                       * (inline palette+sprite, w0&3, no
-                                       * patch sub-blocks) - counted, and
-                                       * drawn as nothing: the patch path
-                                       * is the one the game's element
-                                       * chain gave us (PLAN 8) */
+    int eidx0;                        /* first element with patch art; -1
+                                       * with found=1 = the table carries
+                                       * NO patch art at all, only shape
+                                       * geometry (w0&2 without w0&1). The
+                                       * game's own draw paths all gate on
+                                       * its patch pointer array, so such a
+                                       * table was never drawn THERE either
+                                       * - invisible, and drawn as nothing
+                                       * here too (RE 2026-11-16, PLAN 8h) */
     int sw, sh;                       /* sprite bbox (element chunks)    */
+    /* the table's SHAPE facts (measured from its own elements, never
+     * invented): the first element that carries the per-row margin lists
+     * (the game's hit/push geometry, ll_seq_shape_*). */
+    int sidx0;                        /* first shape-bearing element, -1  */
+    int nshape;                       /* elements with margin lists       */
+    int stw, srows;                   /* that element's shape frame      */
+    int sbx, sby, sbw, sbh;           /* ... its FUN_000420b0 bbox      */
+    int nomargins;                    /* 1 = that element declares rows
+                                       * whose margin lists are BOTH wholly
+                                       * the empty marker: the game's own
+                                       * box math stores w = 1 - total_w,
+                                       * h = 1 - rows there (arithmetic,
+                                       * not a data gap)                */
 } obj_art;
 
 typedef struct {                     /* one authored object script       */
@@ -443,7 +457,8 @@ typedef struct {                     /* one authored object script       */
     int ast[LMOV_MAXST];             /* state -> art index, -1 = missing */
     int artmiss[OBJ_MAXART][24];     /* seq= names not on the CD, once   */
     int nartmiss;                    /* ... counted                      */
-    int nartinline;                  /* art tables of the inline form     */
+    int nartshape;                   /* art tables carrying shape only    */
+    int nartcarry;                   /* ... art AND shape (w0&1|w0&2)    */
     int nartover;                    /* seq= names beyond OBJ_MAXART     */
     int ninst;                       /* placements using this script     */
     /* what the script authors but the scene model does not act on yet
@@ -508,8 +523,10 @@ static void elem_size(const ll_seq *s, const ll_seq_elem *e, int *w, int *h)
  * through seq=. If it names none, or names one this install does not carry,
  * the object draws NOTHING - taking another state's table instead would be a
  * guess, and the missing name is already reported once per script. An art
- * table of the inline form (no patch sub-blocks) IS returned: the draw path
- * skips it through its element index, and the report says why. */
+ * table whose elements carry only shape geometry (no patch art at all) IS
+ * returned: the draw path skips it through its element index, and the report
+ * says why - the original game's draw paths gate on the patch array too, so
+ * it drew nothing from such a table either. */
 static const obj_art *obj_art_of(const lvl_obj *o)
 {
     const obj_script *sc = o->sc;
@@ -555,7 +572,7 @@ static const ll_seq_elem *obj_elem(const lvl_obj *o)
 static int obj_visible(const lvl_obj *o, int cw, int ch, int cam)
 {
     const obj_art *a = obj_art_of(o);      /* NULL: no art for this state */
-    if (!a || a->eidx0 < 0)                /* < 0: the inline form         */
+    if (!a || a->eidx0 < 0)             /* < 0: shape-only, nothing to draw */
         return 0;
     int x = o->x - cam, y = o->y;
     if (x >= cw || y >= ch || x + a->sw < 0 || y + a->sh < 0)
@@ -616,6 +633,153 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         o->y += f->dy;             /* directive of the frame being held    */
         o->fi++;
     }
+}
+
+/* PR-46: the element SHAPE geometry (ll_seq_shape_*), proven without any
+ * game data or window, from a 9-element .SEQ payload built by hand below.
+ * The bytes and every expected number were derived by hand from the game's
+ * own functions (FUN_000420b0, FUN_00042a70, and the loader's grammar) and
+ * independently reproduced by tools/shape_geom.py over the same payload -
+ * the port is checked against BOTH, never against itself. Pinned:
+ *   - the shape frame int16(b19)*0x50 + int16(b15) (E7: 1*0x50+8 = 88) and
+ *     the participation gate: an element without margin lists (E8, w0=1,
+ *     b17=0) has NO shape - it takes part in no hit test (H13);
+ *   - the box math: the edge-marker runs (E1: rows of 0xFF skipped at the
+ *     ends, so t=2/b=0 and h = b - t + 2 comes out 0), the all-empty
+ *     degenerate case (E2: BOTH lists wholly 0xFF -> the game stores
+ *     w = 1 - tw = -19, h = 1 - rows = -2, ll_seq_shape_empty = 1), the
+ *     anchor shift x -= f0, y -= f2 and its 0x7fff ctor sentinel (E3 vs
+ *     E4: the same box, shifted only for the non-sentinel element), and a
+ *     per-row RIGHT margin (E5: w = (tw - r) - l + 1 = 6);
+ *   - the hit test: the x and y adjacency bounds of a full-rectangle
+ *     shape (H1-H4: x=19 hits, x=20 does not; y=3 hits, y=4 does not -
+ *     the bounds are strict, exactly as the game's), the row window
+ *     (H5/H6: E6 sits one row ABOVE E7, so the game's window pairs E6's
+ *     rows 1..2 - left margin 19, right margin 5, i.e. x edges 19 and 15
+ *     - with E7's rows 0..1, and E7 overlaps at x=14 but only touches
+ *     those edges at x=15 (the game's compares are strict). With the
+ *     transposed window PR-46 fixes, the same positions paired E6's wide
+ *     row 0 with E7's row 1 instead, and answered hit at x=15 - wrong),
+ *     the anchor adjustments
+ *     (H7-H9b: same geometry, hit only when the anchor shift was applied,
+ *     and the sentinel element behaves as unshifted, H8), the facing
+ *     mirror (H11/H12: facing < 0 swaps the two margin lists and shifts
+ *     x by -(tw - f0'), so the mirrored narrow side faces the other way
+ *     and the hit disappears), and the empty-row skip (H14: E2's rows are
+ *     all the marker - no row takes part, no hit at any position). */
+static int seq_shape_selftest(void)
+{
+    /* built by tools/pr46_synth twin (kept in the PR record): 9 elements,
+     * 186 bytes, exact consumption asserted below through parse success
+     * plus the element count; shape-only elements (w0=2) carry no patch
+     * sub-blocks, E8 carries one empty array (its single sub-block). */
+    static const unsigned char blob[] = {
+        0x09, 0x00, 0x02, 0x00, 0x00, 0x00, 0x14, 0x00, 0x04, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x14, 0x00, 0x03, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0x02, 0x01, 0xff, 0xff,
+        0x02, 0x00, 0x00, 0x00, 0x14, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x02, 0x00,
+        0x00, 0x00, 0x0a, 0x00, 0x01, 0x00, 0x03, 0x00, 0x02, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x0a, 0x00, 0x01, 0x00,
+        0xff, 0x7f, 0xff, 0x7f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00,
+        0x00, 0x00, 0x0a, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x05, 0x02, 0x00, 0x00, 0x00, 0x14, 0x00, 0x04, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x13, 0x13, 0x00,
+        0x00, 0x05, 0x05, 0x00, 0x02, 0x00, 0x01, 0x00, 0x08, 0x00, 0x02, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    };
+    /* per element: shape frame, participation count, FUN_000420b0 box,
+     * shape_empty flag. E8 has no lists: box values are not applicable
+     * (ll_seq_shape_bbox is only called for elements WITH lists). */
+    static const struct {
+        int tw, rows, part;
+        int bx, by, bw, bh;
+        int empty;
+    } exp[] = {
+        {  20, 4, 4,   0,  0,  21,  5, 0 },   /* E0 full-rectangle     */
+        {  20, 3, 3,   2,  2,  18,  0, 0 },   /* E1 edge 0xFF runs     */
+        {  20, 3, 3,  20,  3, -19, -2, 1 },   /* E2 both lists empty   */
+        {  10, 1, 1,  -3, -2,  11,  2, 0 },   /* E3 anchor 3,2         */
+        {  10, 1, 1,   0,  0,  11,  2, 0 },   /* E4 anchor 0x7fff      */
+        {  10, 1, 1,   0,  0,   6,  2, 0 },   /* E5 right margin 5     */
+        {  20, 4, 4,   0,  0,  21,  5, 0 },   /* E6 narrow middle rows */
+        {  88, 2, 2,   0,  0,  89,  3, 0 },   /* E7 tw = 1*0x50 + 8    */
+        {   8, 0, 0,   0,  0,   0,  0, 0 },   /* E8 no lists: no shape */
+    };
+    /* a, ax, ay, fa, b, bx, by, fb, expected hit */
+    static const struct {
+        int a, ax, ay, fa, b, bx, by, fb, want;
+    } hits[] = {
+        { 0, 0, 0,  1, 0, 19, 0, 1, 1 },   /* H1  x edge, adjacent    */
+        { 0, 0, 0,  1, 0, 20, 0, 1, 0 },   /* H2  x edge, touching    */
+        { 0, 0, 0,  1, 0,  0, 3, 1, 1 },   /* H3  y window, 1 row     */
+        { 0, 0, 0,  1, 0,  0, 4, 1, 0 },   /* H4  y window, none left */
+        { 6, 0, -1, 1, 7, 15, 0, 1, 0 },   /* H5  window pairing      */
+        { 6, 0, -1, 1, 7, 14, 0, 1, 1 },   /* H6  window pairing      */
+        { 3, 0, 2,  1, 0,  8, 0, 1, 0 },   /* H7  anchor x shift      */
+        { 4, 0, 2,  1, 0,  8, 0, 1, 1 },   /* H8  sentinel: no shift  */
+        { 3, 0, 0,  1, 7,  0, 2, 1, 0 },   /* H9  anchor y: no rows   */
+        { 3, 0, 2,  1, 7,  0, 2, 1, 0 },   /* H9b anchor y puts A     */
+        { 3, 0, 4,  1, 7,  0, 2, 1, 1 },   /*     above, then below B */
+        { 5, 0, 0,  1, 0,  1, 0, 1, 1 },   /* H11 facing +: [0,5)     */
+        { 5, 0, 0, -1, 0,  1, 0, 1, 0 },   /* H12 facing -: [-10,0)   */
+        { 0, 0, 0,  1, 8,  0, 0, 1, 0 },   /* H13 no lists: no shape  */
+        { 2, 0, 0,  1, 0,  0, 0, 1, 0 },   /* H14 all rows empty      */
+    };
+    ll_seq sq;
+    unsigned i;
+
+    if (ll_seq_parse(blob, (uint32_t)sizeof blob, &sq) != 0 ||
+        sq.count != sizeof exp / sizeof exp[0]) {
+        fprintf(stderr, "shape selftest: FAILED the synthetic .SEQ did not"
+                        " parse as built\n");
+        return 1;
+    }
+    for (i = 0; i < sq.count; i++) {
+        const ll_seq_elem *e = &sq.els[i];
+        int tw, rows, part, bx = 0, by = 0, bw = 0, bh = 0, empty;
+
+        ll_seq_shape_wh(e, &tw, &rows, &part);
+        if (tw != exp[i].tw || rows != exp[i].rows || part != exp[i].part) {
+            fprintf(stderr, "shape selftest: FAILED E%u shape frame "
+                            "tw %d rows %d part %d (want %d %d %d)\n",
+                    i, tw, rows, part, exp[i].tw, exp[i].rows, exp[i].part);
+            ll_seq_free(&sq);
+            return 1;
+        }
+        if ((e->w0 & 3) && rows > 0)
+            ll_seq_shape_bbox(&sq, e, &bx, &by, &bw, &bh);
+        empty = ll_seq_shape_empty(&sq, e);
+        if (bx != exp[i].bx || by != exp[i].by || bw != exp[i].bw ||
+            bh != exp[i].bh || empty != exp[i].empty) {
+            fprintf(stderr, "shape selftest: FAILED E%u box %d %d %d %d"
+                            " empty %d (want %d %d %d %d empty %d)\n",
+                    i, bx, by, bw, bh, empty, exp[i].bx, exp[i].by,
+                    exp[i].bw, exp[i].bh, exp[i].empty);
+            ll_seq_free(&sq);
+            return 1;
+        }
+    }
+    for (i = 0; i < sizeof hits / sizeof hits[0]; i++) {
+        int got = ll_seq_shape_hit(&sq, &sq.els[hits[i].a],
+                                   hits[i].ax, hits[i].ay, hits[i].fa,
+                                   &sq.els[hits[i].b],
+                                   hits[i].bx, hits[i].by, hits[i].fb);
+        if (got != hits[i].want) {
+            fprintf(stderr, "shape selftest: FAILED E%d@%d,%d facing %d vs"
+                            " E%d@%d,%d facing %d: hit %d (want %d)\n",
+                    hits[i].a, hits[i].ax, hits[i].ay, hits[i].fa,
+                    hits[i].b, hits[i].bx, hits[i].by, hits[i].fb,
+                    got, hits[i].want);
+            ll_seq_free(&sq);
+            return 1;
+        }
+    }
+    ll_seq_free(&sq);
+    return 0;
 }
 
 /* FIX-13 (X-11) selftest, test-only entry point (ll_level.h): proves the
@@ -687,9 +851,10 @@ int ll_mov_selftest(void)
      * names through seq=. Built directly here (not through the parser):
      * state 1 must get slot 1; a state that names no art, or names one this
      * install does not carry (a reported data hole), must draw NOTHING -
-     * never another state's table. And an art table that IS there but holds
-     * the inline (no-patch-sub-block) form must be reported as that table and
-     * still never drawn. */
+     * never another state's table. And an art table that IS there but whose
+     * selected element carries only the SHAPE margins, no patch art (an
+     * invisible solid, PLAN 8h), must be reported as that table and still
+     * never drawn. */
     sc.mov->nst = 2;
     sc.nart = 2;
     sc.ast[0] = 0;
@@ -729,17 +894,24 @@ int ll_mov_selftest(void)
         return 1;
     }
     sc.art[1].found = 1;                  /* record is there ...            */
-    sc.art[1].eidx0 = -1;                 /* ... but it is the inline form  */
+    sc.art[1].eidx0 = -1;                 /* ... but shape-only, no patch   */
     if (obj_art_of(&o) != &sc.art[1]) {
-        fprintf(stderr, "mov selftest: FAILED an inline-form art table was"
+        fprintf(stderr, "mov selftest: FAILED a shape-only art table was"
                         " not reported as the state's own\n");
         free(sc.mov);
         free(m);
         return 1;
     }
     if (obj_visible(&o, 640, 400, 0)) {
-        fprintf(stderr, "mov selftest: FAILED an inline-form art table was"
+        fprintf(stderr, "mov selftest: FAILED a shape-only art table was"
                         " drawn anyway\n");
+        free(sc.mov);
+        free(m);
+        return 1;
+    }
+
+    /* PR-46: the element SHAPE geometry leg (no window, no game data). */
+    if (seq_shape_selftest() != 0) {
         free(sc.mov);
         free(m);
         return 1;
@@ -748,7 +920,7 @@ int ll_mov_selftest(void)
     free(sc.mov);
     free(m);
     printf("mov selftest: duration clamp + cycle guard + per-state seq= art"
-           " selection (ok)\n");
+           " selection + shape geometry (ok)\n");
     return 0;
 }
 
@@ -1041,12 +1213,17 @@ static void bg_at(const ll_pcm *pcml, const ll_pcx *img, int pcm_owner,
  * script) triples those 2188 entries use: 681 have their .MOV on the HD
  * install (27 are real data holes, listed by exact name below); those 681
  * scripts name 960 distinct (leaf, seq=) art pairs, 953 of which are on this
- * CD - 784 of them the patch-array form this viewer draws, 169 the inline
- * palette+sprite form it cannot draw yet (reported by name too: a viewer gap,
- * never a data hole); 7 art names are true holes. The .mov stem matches one
- * of its OWN seq= names in only 439 of the 681, so joining by stem (what
- * PR-36 did) invented the art of the rest and the 469 "not on these
- * containers (data hole)" notes it printed were false.
+ * CD (7 are true data holes). What those tables' elements carry (measured
+ * 2026-11-16 over exactly those joins, at element level): 8048 carry patch art AND the per-row shape
+ * margins (w0=15), 92 carry patch art only (w0=1), and 169 carry the margins
+ * with NO patch array at all (w0=2) - invisible solids: the original game's
+ * own draw paths are all gated on its patch pointer array, so it never drew
+ * those either. The report counts all three, and names the shape-only tables
+ * with the real geometry their margins give (ll_seq_shape_*): never a data
+ * hole, and no longer called a draw gap. The .mov stem matches one of its
+ * OWN seq= names in only 439 of the 681, so joining by stem (what PR-36 did)
+ * invented the art of the rest and the 469 "not on these containers (data
+ * hole)" notes it printed were false.
  * The <class> token (none / dummy / xxx / balonik.ani ...) is the game's
  * object-class hint; the *.ani names match NO record anywhere in either
  * container (0 .ANI records exist), so they are counted, never used to pick
@@ -1066,7 +1243,8 @@ typedef struct {                    /* ANIMACJE of both installs; either may
 typedef struct {                    /* counted while reading, never guessed */
     int files, file_missing, entries, placed, coord_bad;
     int nscript, nscript_missing;
-    int nart, nart_missing, art_inline, art_over, state_noart;
+    int nart, nart_missing, art_shapeonly, art_shapecarry, art_over,
+        state_noart;
     int prop, group, comment, class_hint, shortline, poly;
     int param_extra, field_space, entry_noext, longline;
     int ntrans, ctrl_other, directive, field_other, drop_st, drop_fr, drop_tr;
@@ -1120,9 +1298,30 @@ static void seq_geom(obj_art *a)
             a->eidx0 = (int)e;
             break;
         }
-    if (a->eidx0 < 0)
-        return;
-    elem_size(&a->seq, &a->seq.els[a->eidx0], &a->sw, &a->sh);
+    if (a->eidx0 >= 0)
+        elem_size(&a->seq, &a->seq.els[a->eidx0], &a->sw, &a->sh);
+
+    /* the shape side of the same table: which elements carry the per-row
+     * margin lists the game's hit/push geometry reads, and the bbox it
+     * computes from them (ll_seq_shape_bbox = FUN_000420b0). Counted and
+     * reported; the scene model does not use it to move anything yet. */
+    a->sidx0 = -1;
+    a->nshape = 0;
+    for (unsigned e = 0; e < a->seq.count; e++) {
+        int tw, rows, n;
+        ll_seq_shape_wh(&a->seq.els[e], &tw, &rows, &n);
+        if (!(a->seq.els[e].w0 & 3) || rows <= 0)
+            continue;
+        a->nshape++;
+        if (a->sidx0 < 0) {
+            a->sidx0 = (int)e;
+            a->stw = tw;
+            a->srows = rows;
+            ll_seq_shape_bbox(&a->seq, &a->seq.els[e],
+                              &a->sbx, &a->sby, &a->sbw, &a->sbh);
+            a->nomargins = ll_seq_shape_empty(&a->seq, &a->seq.els[e]);
+        }
+    }
 }
 
 static obj_script *obj_script_new(void)
@@ -1209,11 +1408,12 @@ static obj_script *obj_script_get(place_ctx *pc, const char *leaf,
 
     /* the art: each state names its own .SEQ through seq= (measured: up to
      * 10 distinct names in one script), deduped by name. Three honest
-     * outcomes, never a guess: the record is there and holds patch art
-     * (drawable), the record is there but its element uses the inline
-     * palette+sprite form (kept, counted, drawn as nothing - this viewer's
-     * .SEQ path is the patch path), or the record is not on these
-     * containers (a data hole, reported by exact name). */
+     * outcomes, never a guess: the record is there and carries patch art
+     * (drawable; counted further: how many of those ALSO carry the shape
+     * margins), the record is there but carries shape margins only (kept,
+     * counted, drawn as nothing - which is exactly what the original game
+     * drew from it too), or the record is not on these containers (a data
+     * hole, reported by exact name). */
     if (sc->mov) {
         for (int k = 0; k < sc->mov->nst && k < LMOV_MAXST; k++) {
             const char *key = sc->mov->st[k].seqkey;
@@ -1248,9 +1448,12 @@ static obj_script *obj_script_get(place_ctx *pc, const char *leaf,
                     snprintf(a->name, sizeof a->name, "%s",
                              sl.name);      /* report the record's own name */
                     seq_geom(a);
-                    if (a->eidx0 < 0) {     /* the inline form */
-                        sc->nartinline++;
-                        st->art_inline++;
+                    if (a->eidx0 < 0) {     /* shape margins, no patch art */
+                        sc->nartshape++;
+                        st->art_shapeonly++;
+                    } else if (a->nshape > 0) {   /* art AND shape (w0=15) */
+                        sc->nartcarry++;
+                        st->art_shapecarry++;
                     }
                 } else {
                     free(a->blob);
@@ -1267,12 +1470,22 @@ static obj_script *obj_script_get(place_ctx *pc, const char *leaf,
                            sc->leaf, sc->movname, artname);
                 } else if (a->eidx0 < 0) {
                     printf("ll_level: obj %s/%s: its seq= names %s: the"
-                           " record is there, but its element carries the"
-                           " inline palette+sprite form (w0&3, no patch"
-                           " sub-blocks), which the .SEQ draw path here does"
-                           " not implement yet - those states draw nothing"
-                           " (viewer gap, not a data hole)\n",
-                           sc->leaf, sc->movname, a->name);
+                           " record is there, and element %d of it carries the"
+                           " SHAPE margins only, no patch art: shape frame"
+                           " tw %d, %d rows, bbox %d %d %d %d%s - an invisible"
+                           " solid: every draw path in the original game needs"
+                           " a patch array, so it drew nothing from this table"
+                           " either, and this viewer has no object-collider"
+                           " model to use the shape as yet (not a data hole,"
+                           " not a draw gap)\n",
+                           sc->leaf, sc->movname, a->name, a->sidx0,
+                           a->stw, a->srows, a->sbx, a->sby, a->sbw, a->sbh,
+                           a->nomargins
+                               ? " (every margin byte of BOTH its lists is"
+                                 " the empty marker, so the box above is the"
+                                 " game's own degenerate result - w = 1 - tw"
+                                 " and h = 1 - rows - a fact about its"
+                                 " arithmetic, not a gap in the data)" : "");
                 }
                 idx = sc->nart++;
                 st->nart++;
@@ -1583,11 +1796,14 @@ static void des_placement(place_ctx *pc, llrs *hd_ety,
            " entry line(s) -> %d placed, %d at an x outside the view the"
            " level's own data defines (its back_rect, or its single screen"
            " where the data gives none), %d distinct script(s) / %d art"
-           " table(s) (%d of them the inline palette+sprite form this viewer"
-           " does not draw yet); %d script(s) and %d art name(s) are not on"
-           " these containers (data holes listed above)\n",
+           " table(s) (%d carry the patch art this viewer draws, %d of those"
+           " also carry the shape margins, %d carry shape geometry only -"
+           " invisible solids the original game never drew either); %d"
+           " script(s) and %d art name(s) are not on these containers (data"
+           " holes listed above)\n",
            pc->level, st->files, st->entries, st->placed, st->coord_bad,
-           st->nscript, st->nart, st->art_inline, st->nscript_missing,
+           st->nscript, st->nart, st->nart - st->art_shapeonly,
+           st->art_shapecarry, st->art_shapeonly, st->nscript_missing,
            st->nart_missing);
     if (st->prop || st->group || st->comment || st->class_hint ||
         st->poly || st->shortline || st->param_extra || st->field_space ||
@@ -2507,8 +2723,9 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         const char *why =
             !a ? " (this state names no seq= art)"
                : !a->found ? " (no such record on these containers: data hole)"
-               : a->eidx0 < 0 ? " (inline palette+sprite form: not drawable"
-                              " here)"
+               : a->eidx0 < 0 ? " (shape margins only, no patch art: an"
+                              " invisible solid, undrawn by the original game"
+                              " too)"
                : "";
         printf("ll_level: obj %s/%s%s: art %s%s, %d state(s), bbox %dx%d at"
                " (%d,%d)\n", sc->leaf, sc->movname,

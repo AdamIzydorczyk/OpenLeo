@@ -5,9 +5,12 @@ each id=1 record with a .SEQ key from the top-level table AND from every
 nested id=2 index block, checks the python reference consumes the payload
 byte-exactly (consumed == size), then diffs the C dumper's output against
 the python dump. The frame-patch rows of every entry blob are diffed the
-same way (ported/ll_seq.c ll_seq_patch_walk vs tools/seq_patch.py).
+same way (ported/ll_seq.c ll_seq_patch_walk vs tools/seq_patch.py), and
+so are the element SHAPE geometry results of every shape-bearing element
+(ported/ll_seq.c ll_seq_shape_* vs tools/shape_geom.py, PR-46).
 
 usage: verify_seq.py DATA_DIR [--grammar TOOL ...] [--patch TOOL ...]
+                          [--shape TOOL ...]
        TOOL may be 'wine ./seq_selftest.exe' (quote it).
 """
 import os
@@ -19,6 +22,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import seq_parse  # noqa: E402
 import seq_patch  # noqa: E402
+import shape_geom  # noqa: E402
 
 # Documented data defect in the 1997 original (surfaced 2026-11-15 when
 # the sparse-table scan made leaf records visible - PR-36 record):
@@ -93,13 +97,17 @@ def main():
         print(__doc__)
         return 2
     data, grammar, patch, mode = args[0], [], [], "grammar"
+    shape = []
     for a in args[1:]:
         if a == "--grammar":
             mode = "grammar"
         elif a == "--patch":
             mode = "patch"
+        elif a == "--shape":
+            mode = "shape"
         else:
-            (grammar if mode == "grammar" else patch).append(a)
+            {"grammar": grammar, "patch": patch,
+             "shape": shape}[mode].append(a)
 
     tmp = "/tmp/opencode/seqver"
     os.makedirs(tmp, exist_ok=True)
@@ -122,6 +130,7 @@ def main():
                 st = seq_parse.seq_parse(payload)
                 txt = seq_parse.dump_text(payload)
                 ptxt = seq_patch.dump_payload(payload)
+                stxt = shape_geom.dump_text(payload)
             except (seq_parse.SeqError, seq_patch.PatchError) as ex:
                 if label in KNOWN_BAD_SEQ:
                     nbad += 1
@@ -130,14 +139,20 @@ def main():
                 fails += 1
                 print(f"PY-FAIL {label}: {ex}")
                 continue
+            except (IndexError, KeyError) as ex:
+                fails += 1
+                print(f"PY-SHAPE-FAIL {label}: {ex}")
+                continue
             if st["consumed"] != size:
                 fails += 1
                 print(f"PY-SLACK {label}: {st['consumed']} != {size}")
                 continue
-            cases.append((label, raw, txt.encode(), ptxt.encode()))
+            cases.append((label, raw, txt.encode(), ptxt.encode(),
+                          stxt.encode()))
 
     n = len(cases) + fails + nbad
-    for kind, tools, idx in (("grammar", grammar, 2), ("patch", patch, 3)):
+    for kind, tools, idx in (("grammar", grammar, 2), ("patch", patch, 3),
+                             ("shape", shape, 4)):
         exp = b"".join(c[idx] for c in cases)
         # Batch the payload paths: wine/CreateProcess caps the command
         # line at 32767 chars, and the PR-36 sparse-table scan lifted the
@@ -183,9 +198,16 @@ def main():
                 print(f"EXTRA/TRUNCATED {kind} OUTPUT [{tool}] "
                       f"({len(out)} vs {len(exp)} bytes)")
             fails += 1
+    nsh = sum(1 for c in cases
+              for ln in c[4].split(b"\n") if ln.startswith(b"shape "))
+    nre = sum(1 for c in cases
+              for ln in c[4].split(b"\n")
+              if ln.startswith(b"shape ") and ln.endswith(b"shape_empty 1"))
     print(f"SEQ check: {n - fails}/{n} payloads byte-exact "
-          f"(C == python, grammar + patch rows, exact consumption; "
-          f"{nbad} known-bad original-data defects accepted)")
+          f"(C == python, grammar + patch rows + shape geometry "
+          f"({nsh} shape elements, {nre} with both margin lists empty - "
+          f"the input of the game's degenerate box case), exact "
+          f"consumption; {nbad} known-bad original-data defects accepted)")
     return 1 if (fails or n == 0) else 0
 
 

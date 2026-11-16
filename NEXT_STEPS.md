@@ -2202,11 +2202,129 @@ engine-side).
     printed their named SKIPs - exactly as the fixture-free contract
     requires. CLOSED.
 
+## PR-46 — M4-C step 3: the element SHAPE geometry — the w0&3 lists are
+          per-row collision margins, not art; the shipped wording
+          corrected (DONE 2026-11-16)
+
+  - What: the shape model ported (ported/ll_seq.c: ll_seq_shape_wh,
+    _bbox = FUN_000420b0 verbatim, _hit = FUN_00042a70, _empty) over
+    real data, a C-vs-python oracle for it (tools/shape_geom.py twin +
+    new tools/seq_shapedump.c: verify-seq --shape now dumps, per
+    payload, every element's shape frame + bbox + empty flag and a
+    17-position/facing self-test grid per shape element, compared
+    byte-exact on all 1656 container payloads), and the honest
+    reclassification of what PR-45 printed.
+  - RE (closes the reading; PLAN 8/8h carries the full facts):
+    * the w0&3 byte lists are per-row LEFT/RIGHT margins: row i is
+      solid on x = [left[i], tw - right[i]] with tw = int16(b19)*0x50 +
+      int16(b15), rows = int16(b17); byte 0xFF = empty row (skipped by
+      the edge scans, and a LEFT 0xFF takes that row out of the span
+      test; an INTERIOR 0xFF participates as 255). They are NOT
+      "palette + sprite": w0&1 = patch art, w0&2 = shape, and no real
+      element is neither (w0 = 0/4 never occurs).
+    * the 169 "inline" tables PR-45 named are w0=2 shape-only INVISIBLE
+      SOLIDS - every draw path in the game gates on the element's patch
+      pointer array (+0x1f), so the ORIGINAL game never drew them
+      either. "Viewer gap / drawing them is the next step" was wrong
+      twice; the reports now name them as solids with their measured
+      geometry (EDGE0000.SEQ: tw 28, 19 rows, bbox 1 0 28 20) and say
+      the viewer has no object-collider model to use them with YET.
+    * loader FUN_00041f60: no lists -> rect straight from the words;
+      lists -> FUN_000420b0 derives the bbox. Positioning (identical in
+      every consumer): x -= f0', y -= f2', f' = 0 for the 0x7fff ctor
+      sentinel; facing < 0 uses (tw - f0') and swaps the margin lists.
+      The game's box h = (last_row - first_row) + 2 (one row MORE than
+      the scanned rows - its own arithmetic, reproduced); no read ever
+      leaves the declared rows.
+    * measured degenerate case (replaces PR-45's WRONG "one byte past
+      the buffer" note, which is retracted): 34 shape elements declare
+      rows whose margin lists are BOTH wholly 0xFF - both scans end
+      having found nothing and the game stores w = 1 - tw, h = 1 - rows.
+      Flagged ll_seq_shape_empty / dump token "shape_empty 1", counted
+      on both sides of the oracle (no one-sided case exists in data).
+    * machine-code RE (build/leo/leo.elf, objdump of sliced chunks,
+      VA = file offset + 0xf000): the decompiled text of FUN_00042a70/
+      FUN_00042de0 loses their register arguments ("unaff_EBX"), so the
+      row window was read from the code at 0x42b85..0x42be6 /
+      0x42f21..0x42f7c: the element with the LOWER adjusted y indexes
+      from row 0, the other from the distance between them, over the
+      shorter remaining span (min(rows_a+dy, rows_b) / min(rows_b-dy,
+      rows_a)). The shape_window the tree shipped was TRANSPOSED -
+      fixed in ported/ll_seq.c (and in the python twin), pinned by two
+      direction cases in the new selftest leg.
+  - The push-out (FUN_00042de0 + helper FUN_00042cf0) is NOT modeled,
+    and ll_seq_shape_push + the oracle's push legs were REMOVED rather
+    than shipped half-resolved: the machine code shows the structure
+    (which side gets pushed decided by signed "edge position" sums
+    6*x + 3*tw + margin deltas at first/middle/last window row; the
+    helper scans w - list1[i] - (list2[i] + EBX) with EBX a spilled
+    register input (0x42cfe), keeps max penetration + first/last rows
+    reaching it and interpolates (0x42d55..0x42dcf); a final clamp
+    against |position.x + tw|), but the operand identities at both call
+    sites and the meaning of the two output pointers are unresolved -
+    the callers (0x530d1/0x53184) go through element-vtable slots
+    +0x48/+0x50 that are not mapped. A value computed from that would
+    be a guess: documented in ll_seq.h ("NOT MODELED") and in the
+    M4-C list instead.
+  - Proof: --mov-selftest gained a data-free shape-geometry leg (runs
+    in EVERY config incl. the CI asan job): a synthetic 9-element .SEQ
+    (186 B, grammar-exact: shape-only elements skip the patch
+    sub-blocks; the art-only element carries its one empty array)
+    parsed by ll_seq_parse, then pinned element-by-element against
+    hand-derived constants - wh incl. the b19*0x50 multiplier, edge
+    0xFF runs (h = 0 case), the both-empty degenerate box + the empty
+    flag, anchor shift and the 0x7fff sentinel, per-row right margin,
+    the no-lists participation gate, x/y adjacency bounds (x=19 hits /
+    x=20 not, y=3/4), the two window-direction pins, and the facing
+    list swap. The same payload run through the python twin produces
+    the identical table (two independent implementations; constants
+    never taken from the port itself).
+  - Wording pass: ll_level per-table reports + summary ("44 carry the
+    patch art this viewer draws, 44 of those also carry the shape
+    margins, 48 carry shape geometry only - invisible solids the
+    original game never drew either"), obj-listing why-strings, the
+    doc-comment census rewritten to element-level facts (8048 art+shape
+    elements w0=15, 92 art-only w0=1, 169 shape-only w0=2 across the
+    953 named tables), Makefile RAN.01 pins re-measured and re-pinned
+    (the new summary string + the EDGE0000 geometry line), README's
+    verify-seq line corrected (it still said "172 payloads"; the walk
+    recurses every container = 1656), PLAN 8 grammar annotation + 8h
+    rewritten.
+   - A new measured gap, named rather than guessed (probe over the HD
+     ANIMACJE block tree; facts in PLAN 8g): of the 777 HD .MOV
+     records, 775 carry control= flag lists (2256 lines) and 415 of
+     them carry at least one token our ctrl_flag table does not model -
+     13 distinct tokens: CHECK_LEW 535 lines/205 scripts, DANGER
+     385/195, CHECK_ANI 168/59, SOLID2 152/132, ANTI_POCISK 121/121,
+     SEMI_SOLID 92/25, ANTI_SOLID 87/30, CHECK_ZW 47/22, SEQ_REV_Y
+     22/10, BY_TY 12/7, CHECK_BASE_LN 8/8, SEQ_REV_X 7/7, INV_V 3/3.
+     Note the SOLID-family (SOLID is modelled as a bit; SOLID2/
+     SEMI_SOLID/ANTI_SOLID are not) - they are exactly the object-
+     collision behaviour the (unmodeled) push-out feeds, so this and
+     the push-out gap are one and the same line of work.
+   - Verification: make + make win warning-free; FULL verify-all on the
+     real fixtures EXIT=0 (no SKIPs) - the extended verify-seq printed
+     "1656/1656 payloads byte-exact (grammar + patch rows + shape
+     geometry, 14306 shape elements, 34 with both margin lists
+     empty)", verify-level green with the re-pinned RAN.01 strings and
+     the unchanged TUNGA.11/ED000002 pins; the standalone C-vs-python
+     shape cross-check over every payload diffed 0 lines (243202
+     shapehit lines, 146500 hits, 34 shape_empty - both sides).
+     Fixture-free config (DATA/HD pointed at an absent dir) EXIT=0:
+     21 named data SKIPs and the data-free legs still printed "(ok)"
+     (the extended mov selftest incl. shape geometry, the play
+     selftest, verify-arch). Local asan/ubsan/lsan build of
+     ll_level --mov-selftest rc=0 with zero sanitizer output (same leg
+     the CI asan job runs). verify-arch unchanged. Peak child RSS
+     1113 MB on RAN.01 (pinned 1114, unchanged).
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
-first item and PR-45 its second (the authored scene); the game-wide
-measurement (see the PR-43 follow-up, PR-44 and PR-45 records) says
+first item and PR-45 its second (the authored scene), PR-46 its third
+(the element SHAPE model, which also corrected PR-45's reading of the
+169 "inline" tables); the game-wide measurement (see the PR-43
+follow-up, PR-44, PR-45 and PR-46 records) says
 exactly where the remaining gaps are:
 - DONE in PR-44: ground from a SUB-.des (TUNGA2.12/SADES.06) and the
   authored-empty ground (JUNCTION). 12 of 13 level blocks now run
@@ -2217,11 +2335,19 @@ exactly where the remaining gaps are:
   2188 entries, real .MOV scripts per object, art per state via the
   script's own seq=. All 13 levels report their own authored scene
   (JUNCTION's is honestly 0).
-- the NEXT item the PR-45 census names: draw the INLINE .SEQ element
-  form (169 of the 953 art tables the levels actually name, incl. all
-  48 RAN.01 ANIBACK EDGE*.SEQ and 61 in SADES.06 - today they are
-  reported as a viewer gap and draw nothing). Grammar is already in
-  PLAN 8 ([n B palette][n B sprite] when w0&3, n=int16(b17)).
+- DONE in PR-46: the SHAPE model. The census item "draw the inline
+  .SEQ form (169 tables)" turns out to be the MISREADING itself:
+  those tables are w0=2 shape-only invisible solids - the original
+  game never drew them either (every draw path needs a patch array).
+  Nothing to draw; what the shapes actually feed is collision:
+  ll_seq_shape_hit is ported and oracle-covered, and the real item
+  is USING it - player-vs-object blocking against authored objects
+  (the 169 solid tables incl. RAN.01's 48 EDGE*/DYMY solids, and
+  the art+shape tables), with the push-out (FUN_00042de0/42cf0)
+  still unmodeled: its operands and outputs are unresolved through
+  unmapped vtable slots - see the ll_seq.h "NOT MODELED" note;
+  resolving them (or a caller-side RE of the +0x48/+0x50 slots)
+  comes before any push behavior ships.
 - the condition names the data uses but our runtime scores false:
   K_JUMP (76 uses game-wide - the up-arrow route into the A_UP_*
   states is the single most valuable one), K_FIRE (253), K_ALT,
@@ -2230,6 +2356,15 @@ exactly where the remaining gaps are:
   K_GEN1..3 stay the hook point for hand/foot interactions
   (A_MA_KORONE crown climb etc.), and the authored A_LADOW landing
   chain is the real replacement for the LL_PLAY_GRAVITY path.
+- the control= flag names the data uses but our ctrl_flag table has no
+  bit for (measured 2026-11-16, counts in the PR-46 record): 13
+  tokens in 415 of the 775 scripts that carry control= lines at all -
+  head of the list CHECK_LEW / DANGER / CHECK_ANI, and the collision
+  family SOLID2 / SEMI_SOLID / ANTI_SOLID (SOLID itself has a bit) -
+  counted as ctrl_other in every report, never silently dropped. The
+  SOLID family is the authored switch for the shape collision the
+  PR-46 model feeds, so resolving the push-out (ll_seq.h "NOT
+  MODELED") and these flags land together.
 - objects that react to the player (move platforms via their own .MOV +
   player riding; PR-45 already PLACES every authored object incl. the
   ani_plat= platform scripts - what is left is the AC_* signal bus

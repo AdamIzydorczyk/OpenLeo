@@ -8,19 +8,32 @@
  *
  *   blob    := u16 count; count x element
  *   element := u16 w0                        flag word (low nibble used)
- *              u16 b19, b15, b17             sub-block obj+0x19/0x15/0x17
+ *              u16 b19, b15, b17             the element's SHAPE frame:
+ *                                            total_w = int16(b19)*0x50 +
+ *                                            int16(b15), rows = int16(b17)
+ *                                            (obj+0x19/0x15/0x17)
  *              u16 f0, f2, f4, f6            obj+0x00..0x06 (f0 = id,
- *                                            0x7fff = ctor sentinel)
+ *                                            0x7fff = ctor sentinel,
+ *                                            f0/f2 = the anchor the shape
+ *                                            is positioned from)
  *              [u16 f8, u16 fA]              obj+0x08/0x0a, when w0&4
- *              [n bytes palette][n bytes sprite]   when w0&3,
- *                                            n = int16(b17), skipped n<=0
+ *              [n B left-margin][n B right-margin]  when w0&3, n =
+ *                                            int16(b17), skipped n<=0
+ *              (SHAPE geometry, NOT pixels: per-row margins of the
+ *               element's solid spans - see the geometry section below.
+ *               RE of 2026-11-16: w0&1 = carries patch art, w0&2 =
+ *               carries shape; an element never carries neither)
  *              [for i=0..int16(b19): u16 L; L bytes]  unless w0&2 && !(w0&1)
  *
- * This grammar consumes ALL 49 .SEQ payloads in ANIMACJE/ETAPY/LEVELDES
- * exactly (consumed == payload size). Reference: tools/seq_parse.py;
- * make verify-seq checks byte-exact agreement. The derived fields the
- * game computes at load (obj+0x0c..0x12 bbox, obj+0x14 = w0&8) are NOT
- * part of the blob; FUN_000420b0 recomputes them from parsed data.
+ * This grammar consumes every .SEQ payload the containers carry exactly
+ * (consumed == payload size) - measured on all 1656 extractable ones
+ * across ANIMACJE, ETAPY and LEVELDES; 4 of them are malformed in the
+ * 1997 original itself (tools/verify_seq.py names them and accepts them).
+ * Reference: tools/seq_parse.py; make verify-seq checks byte-exact
+ * agreement, with the frame-patch rows and the shape geometry of every
+ * element (ll_seq_shape_*) cross-checked the same way. The derived fields
+ * the game computes at load (obj+0x0c..0x12 bbox, obj+0x14 = w0&8) are
+ * NOT part of the blob; FUN_000420b0 recomputes them from parsed data.
  */
 #ifndef LL_SEQ_H
 #define LL_SEQ_H
@@ -38,8 +51,10 @@ typedef struct {
     uint16_t b19, b15, b17;      /* sub-block words                       */
     uint16_t f0, f2, f4, f6;     /* object header words                   */
     uint16_t f8, fA;             /* valid only when (w0 & 4)              */
-    int32_t  n;                  /* palette/sprite length, 0 = absent     */
-    uint32_t pal, spr;           /* byte offsets, valid when n > 0        */
+    int32_t  n;                  /* shape row count, 0 = no shape         */
+    uint32_t ml, mr;             /* left-/right-margin row lists, byte
+                                  * offsets into the blob, valid n > 0
+                                  * (the game's runtime fields +0x27/+0x2f)*/
     uint32_t arr_first, arr_n;   /* window into ll_seq.ents; arr_n = 0 +
                                   * arr_present for empty arrays          */
     uint8_t  arr_present;
@@ -107,5 +122,113 @@ int ll_seq_patch_draw_map(const uint8_t *blob, uint32_t len, uint8_t *canvas,
 int ll_seq_draw_elem_map(const ll_seq *s, const ll_seq_elem *e,
                          uint8_t *canvas, int cw, int ch, int x, int y,
                          const uint8_t *map);
+
+/* --- element SHAPE geometry (M4-C; RE of 2026-11-16 from the full
+ * decompilation in build/decompiled/all: FUN_000420b0 (its box math),
+ * FUN_00042a70 (hit test), FUN_00042de0 + FUN_00042cf0 (push-out),
+ * FUN_00041f60 (the loader's branch), FUN_000437a0 (the mirror blitter)).
+ * An element that carries w0&3 lists its shape as per-row margins: row i
+ * (i = 0..rows-1) is solid from x = left[i] to x = total_w - right[i]
+ * inside the element's own frame, where total_w = int16(b19)*0x50 +
+ * int16(b15) and rows = int16(b17). The byte 0xFF means "empty here":
+ * the span tests skip a row when either LEFT margin is 0xFF, and the box
+ * math skips only the run of 0xFF at the end it scans from - an interior
+ * 0xFF takes part in its minimum as the value 255, exactly as the game
+ * computes it. An element WITHOUT lists is the implicit full rectangle:
+ * the loader takes that branch when w0&3 == 0 and derives the rect
+ * straight from b15/b19/b17.
+ * What consumes the lists: the element hit test (FUN_00042a70, per-row
+ * span overlap between two positioned elements), the push-out
+ * (FUN_00042de0 + FUN_00042cf0), the box math (FUN_000420b0) and the
+ * mirror blitter (FUN_000437a0, which per row copies half of
+ * total_w - left - right). None of them decodes pixels - the art comes
+ * from the element's patch array - so a shape-only element (w0&2 without
+ * w0&1) was NEVER drawn by the original game either: it is an invisible
+ * solid. The "inline palette+sprite" wording PR-45 shipped for those 169
+ * tables was wrong on both counts, and the reports say so now.
+ * Positioning, identical at both call sites: the caller's position is
+ * shifted by the element's anchor - x -= f0', y -= f2', where f' = 0 when
+ * the field holds the 0x7fff ctor sentinel - and with facing < 0 the x
+ * shift is (total_w - f0') instead and the two margin lists swap (the
+ * element is mirrored). Row i of the shape then sits at that y + i. The hit
+ * test and the push-out both begin by testing the element's margin-list
+ * pointer, so an element WITHOUT lists (the loader's implicit full-rectangle
+ * case) takes part in NEITHER of them: no overlap, no push - it has a rect,
+ * no shape. Same when its row count is not positive.
+ * The functions below take element words plus caller-frame positions and
+ * reproduce the game's arithmetic statement for statement; no read ever
+ * leaves the declared rows, and the loops' bounds are reproduced exactly -
+ * including the right-margin walk, which runs off the top of the rows
+ * when every row there is empty.
+ * One measured degenerate case, ported as the game computes it (over all
+ * 14306 shape elements on these containers, 2026-11-16): 34 declare rows
+ * with BOTH margin lists entirely 0xFF, so both scans come out of the rows
+ * having found nothing and the box math stores w = 1 - total_w,
+ * h = 1 - rows - plus the game's own h off-by-one over the row range it
+ * scanned, which applies everywhere (h = (last_row - first_row) + 2).
+ * ll_seq_shape_empty() names the all-empty case so the C-vs-python
+ * cross-check is known to cover it. */
+
+/* int16(b19)*0x50 + int16(b15) and int16(b17): the implicit shape of an
+ * element WITHOUT lists, and the frame of the lists of one WITH them.
+ * *n is the row count (<= 0 = none). Always defined. */
+void ll_seq_shape_wh(const ll_seq_elem *e, int *w, int *h, int *n);
+
+/* FUN_000420b0 verbatim: element box in element-local coordinates for a
+ * shape-bearing element (f0/f2 sentinel handling included; w is the
+ * inclusive span its scans cover and h is one row MORE than those rows -
+ * the game's own arithmetic, reproduced). With no shape lists the loader
+ * uses the implicit rect instead (FUN_00041f60): x = f0==0x7fff ? 0 : -f0,
+ * y = f2==0x7fff ? 0 : -f2, w/h from b19/b15/b17; do not call this then. */
+void ll_seq_shape_bbox(const ll_seq *s, const ll_seq_elem *e,
+                       int *x, int *y, int *w, int *h);
+
+/* 1 when the element declares margin rows but EVERY margin byte of BOTH
+ * lists is the empty marker: no solid span at all (34 of the 14306 shape
+ * elements here, and no element with only ONE list empty). Not a data
+ * gap; it is the input of the second degenerate case above, and the flag
+ * lets the cross-check show that those lines agree on both sides. */
+int ll_seq_shape_empty(const ll_seq *s, const ll_seq_elem *e);
+
+/* FUN_00042a70: do the positioned shapes overlap? 1/0. Positions are the
+ * caller-frame x/y the game passes to its wrappers (the f0/f2 anchor shift
+ * and the facing mirror happen inside, exactly as in the game). The row
+ * window is the game's: the element whose adjusted y is LOWER is read from
+ * row 0, the other one from the distance between them, over the shorter
+ * remaining span (0x42b85..0x42be6; see shape_window in ll_seq.c, where a
+ * transposed version of exactly this was fixed on 2026-11-16). A row takes
+ * part only when neither element's left margin there is the empty marker;
+ * the first row whose spans overlap in x answers yes. */
+int ll_seq_shape_hit(const ll_seq *s,
+                     const ll_seq_elem *a, int ax, int ay, int afacing,
+                     const ll_seq_elem *b, int bx, int by, int bfacing);
+
+/* NOT MODELED: the push-out. FUN_00042de0 and its helper FUN_00042cf0 were
+ * read in the machine code of the LE image (build/leo/leo.elf) on
+ * 2026-11-16 - the decompiled text of both loses their register arguments
+ * (it says "unaff_EBX" and calls the helper with three made-up parameters),
+ * and an earlier draft of this API that trusted it was wrong. What the
+ * machine code does show:
+ *   - the same +0x27 list-pointer gates, the same anchor/facing adjustments
+ *     and the same row window as the hit test (window: 0x42f21..0x42f7c);
+ *   - a per-element "edge position" sum 6*x + 3*total_w + (m_first-m'_first)
+ *     + (m_mid-m'_mid) + (m_last-m'_last) compared between the two sides to
+ *     choose which one to push (0x43034..0x431a0); in the other branch BOTH
+ *     delta outputs and its own return value are negated (0x431eb..0x431f3);
+ *   - the helper (0x42cf0) scans the window rows at
+ *     w - list1[i] - (list2[i] + EBX), where EBX is a register input spilled
+ *     at 0x42cfe, keeps the largest positive value and the first and last
+ *     row index that reached it, and interpolates two outputs from those
+ *     two rows and a margin difference (0x42d55..0x42dcf);
+ *   - a final clamp: when max(|out1|,|out2|) exceeds |position.x +
+ *     total_w| it zeroes one output and writes that value into the other
+ *     (0x431f5..0x43230).
+ * What is NOT settled: what the helper's "w" and its EBX addend actually
+ * are (both call sites, 0x431a7 and 0x431c9, load them from slots that
+ * could not be named), which margin list feeds the interpolation, and what
+ * the two output pointers mean to the callers - those reach 42de0 at
+ * 0x530d1/0x53184, through element-vtable calls (+0x48 get-current-element,
+ * +0x50) that are not mapped yet. A shipped value would be a guess, so the
+ * port stops at the hit test; tracked in NEXT_STEPS (M4-C). */
 
 #endif /* LL_SEQ_H */

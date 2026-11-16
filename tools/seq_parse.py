@@ -15,7 +15,11 @@ through stream vtable slot +0x1c = read(dest, count-BYTES)):
                                               f0 = id, 0x7fff = sentinel)
              if w0&4:   u16 f8, u16 fA        (obj+0x08/+0x0a)
              if w0&3:   n = int16(b17);
-                        if n>0: n bytes "palette", n bytes "sprite"
+                        if n>0: n bytes left-margin rows,
+                                n bytes right-margin rows
+                        (SHAPE geometry, not pixels: per-row margins of
+                         the element's solid spans; w0&1 = carries patch
+                         art, w0&2 = carries shape, RE 2026-11-16)
              if !(w0&2 && !(w0&1)):          (array reader)
                         m = int16(b19); for i in 0..m (m>=0):
                         u16 L; L bytes
@@ -74,8 +78,8 @@ def seq_parse(data):
             nn = sx(e["b17"])
             e["n"] = nn
             if nn > 0:
-                e["pal"] = take(nn)
-                e["spr"] = take(nn)
+                e["ml"] = take(nn)     # left-margin row list  (+0x27)
+                e["mr"] = take(nn)     # right-margin row list (+0x2f)
         if not (w0 & 2 and not (w0 & 1)):
             m = sx(e["b19"])
             e["arr"] = []
@@ -102,7 +106,7 @@ def dump_text(data):
         if w0 & 3:
             line += " n %d" % e["n"]
             if e["n"] > 0:
-                line += " pal %s spr %s" % (e["pal"].hex(), e["spr"].hex())
+                line += " ml %s mr %s" % (e["ml"].hex(), e["mr"].hex())
         if "arr" in e:
             line += " arr %d" % len(e["arr"])
         out.append(line)

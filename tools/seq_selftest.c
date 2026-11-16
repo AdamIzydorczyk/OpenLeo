@@ -53,8 +53,8 @@ int main(int argc, char **argv)
             int n = SX(e->b17);
             printf(" n %d", n);
             if (n > 0) {
-                printf(" pal "); phex(s.blob + e->pal, (unsigned)n);
-                printf(" spr "); phex(s.blob + e->spr, (unsigned)n);
+                printf(" ml "); phex(s.blob + e->ml, (unsigned)n);
+                printf(" mr "); phex(s.blob + e->mr, (unsigned)n);
             }
         }
         if (e->arr_present) printf(" arr %u", e->arr_n);

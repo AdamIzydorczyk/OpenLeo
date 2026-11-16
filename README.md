@@ -90,7 +90,8 @@ make verify-all
 # verify-win   same two proofs for the .exe, run under wine
 # verify-llrs  ported/llrs.c == tools/llrs_unpack.py on all 4 containers
 # verify-pcx   ported/ll_pcx.c == tools/pcx_dump.py on all 6 container PCX payloads
-# verify-seq   ported/ll_seq.c == tools/seq_parse.py on all 172 container .SEQ payloads
+# verify-seq   ported/ll_seq.c == tools/seq_parse.py on EVERY container .SEQ
+#              payload (grammar walk + patch rows + element shape geometry)
 # verify-pcm   ported/ll_pcm.c == tools/verify_pcm.py on every PCM parallax layer
 # verify-mod   MOD music renderer: deterministic render linux == wine
 # verify-level level scene: .DES wiring + .SEQ/.MOV anims + scroll camera
@@ -153,8 +154,8 @@ with the .SEQ art each script state selects through its own `seq=`.
 `LEO_OBJ_ALL=1` prints EVERY placed object (the default proof listing
 is bounded: 24 placements, then the count of the rest; the same bound
 applies to the per-tick advance lines). `ll_level --mov-selftest` runs
-the hermetic .MOV duration/cycle + per-state art-selection checks (no
-data needed).
+the hermetic .MOV duration/cycle + per-state art-selection + element
+shape-geometry checks (no data needed).
 
 Runtime policy hooks: `LEO_FORCE_X11=1` (under a Wayland session pin the
 video backend to X11/XWayland — the pre-FIX-11 default; default now is

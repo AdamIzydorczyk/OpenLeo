@@ -582,10 +582,17 @@ llrs containers (reader ported+verified: `src/llrs.c`, `make verify-llrs`):
                                        stream-read, ctor 0x7fff is only
                                        a default that gets overwritten)
                [u16 f8,fA]            when w0&4
-               [n B palette][n B sprite]  when w0&3, n=int16(b17),
+               [n B left-margin][n B right-margin]
+                                      when w0&3, n=int16(b17),
                                        n<=0 reads nothing (game's
                                        negative-ESI loop)
                [for i=0..int16(b19): u16 L; L B]   unless w0&2 && !(w0&1)
+  (CORRECTED 2026-11-16, PR-46: those two byte lists were first labelled
+  "[palette][sprite]" - they are the per-row collision MARGINS: row i of
+  the element shape is solid from x=left[i] to x=total_w-right[i], with
+  total_w=int16(b19)*0x50+int16(b15) and byte 0xFF = empty row. w0&1 is
+  the patch-art flag, w0&2 the shape flag. The BYTE grammar above always
+  held and verify-seq never changed; see 8h for the geometry RE.)
   All 172 container .SEQ payloads (8 ANIMACJE/MENU + 33 ETAPY nested +
   131 leaf-block frame scripts; the 49-file recon corpus = 41 + 8
   byte-identical dupes) are consumed EXACTLY (parser end == payload size,
@@ -593,7 +600,8 @@ llrs containers (reader ported+verified: `src/llrs.c`, `make verify-llrs`):
   `src/ll_seq.c`, oracle `tools/seq_parse.py`, CI `make verify-seq`
   (ASan/UBSan, C==python dump diff, also under wine in verify-win).
   Derived object fields (obj+0x0c..0x12 bbox, obj+0x14 = w0&8) are
-  recomputed by FUN_000420b0, not stored in the blob. Text token
+  recomputed by FUN_000420b0 when w0&3 carries lists, from the words
+  directly otherwise (FUN_00041f60), not stored in the blob. Text token
   strings (BY_X/SOLID/CHECK_*) belong to .mnu text parsing (FUN_00051913),
   not .SEQ.
 - STATUS.LEO map pinned from FUN_0005dcc0 (writer) / FUN_0005dae0 (reader):
@@ -1223,9 +1231,17 @@ Data facts pinned 2026-11-16 (full CD + HD tree, sparse-correct scan):
   polyline (ENA.PLT "1 1,560!7500,570;", ZARIA_A.PLT 10 times) -
   treating them the same was needed for ENA.03/ZARIA.01 to wire at all.
 - .MOV EXTENDED grammar (superset of 8c's viewer subset): per state
-  `control=BY_TIME|BY_X|CHECK_LN|CH_DIR|CHECK_ALL[_PLANE]|FRAME_REV`
-  flag lists (more exist: CHECK_ANI, CHECK_ZW, CHECK_BASE_LN, SEQ_REV_X/Y,
-  ANTI_SOLID, BY_TY/BY_Y), `F=ax,ay` accel px/s^2, `T=x,y` speed cap
+  `control=BY_TIME|BY_X|CHECK_LN|CH_DIR|CHECK_ALL[_PLANE]|FRAME_REV|SOLID`
+  flag lists ('|' separates, 2256 control lines in 775 of the 777 HD
+  .MOV records, measured 2026-11-16). 13 further tokens exist in the
+  data and stay UNMODELED (counted as ctrl_other, never invented into
+  behaviour): CHECK_LEW 535 lines/205 scripts, DANGER 385/195,
+  CHECK_ANI 168/59, SOLID2 152/132, ANTI_POCISK 121/121, SEMI_SOLID
+  92/25, ANTI_SOLID 87/30, CHECK_ZW 47/22, SEQ_REV_Y 22/10, BY_TY
+  12/7, CHECK_BASE_LN 8/8, SEQ_REV_X 7/7, INV_V 3/3 (415 scripts carry
+  at least one). The SOLID family names the object-collision behaviour
+  the unmodeled push-out (8h) feeds, so they are one line of work.
+  `F=ax,ay` accel px/s^2, `T=x,y` speed cap
   px/s (scalar form exists too: "G=400"), `G=gx,gy` gravity px/s^2
   (grounded states G=0 + CHECK_LN), `seq=<stem>` PER-STATE art (one
   leaf's .SEQ set is shared by all states), extra keys `sample=`,
@@ -1346,7 +1362,7 @@ proving zero level special-casing. The live window path
 tracks held arrows (platform KEYDOWN/KEYUP), steps physics on the same
 fixed 20 ms grid and follows the player with the camera.
 
-## 8h. Authored scene objects - M4-C (in progress, PR-45, 2026-11-16)
+## 8h. Authored scene objects - M4-C (in progress, PR-45..PR-46, 2026-11-16)
 
 The level viewer's scene is now the level's OWN: ll_level reads the place-
 ment files each level's main .des names and runs their real .MOV scripts,
@@ -1398,31 +1414,62 @@ scan; probes /tmp/opencode/pr45_census.py, pr45_join.py, pr45_forms.py):
   TUNGA.11 DNGANI/ogien_m.SEQ). The .mov stem matches one of its OWN
   seq= names in only 439 of the 681 - joining by stem (PR-36) invented
   the art of the other 242 and its 469 "data hole" notes were FALSE.
-- .SEQ art has TWO element forms (PLAN 8 grammar): the patch-array form
-  this viewer draws, and the inline [n B palette][n B sprite] form
-  (w0&3, no patch sub-blocks). Of the 953 art tables the levels
-  actually name, 784 are patch-form (drawn) and 169 are inline-form -
-  including all 48 of RAN.01 ANIBACK's EDGE*.SEQ. The inline form is a
-  VIEWER gap, never counted as a data hole: the record is reported as
-  what it is ("the record is there, but its element carries the inline
-  palette+sprite form"), its states draw nothing, and the totals
-  distinguish the two ("%d art table(s) (%d of them the inline...)" vs
-  "%d art name(s) are not on these containers"). Drawing that form is
-  the next recorded step.
+- .SEQ element flags split ART from COLLISION GEOMETRY (RE 2026-11-16,
+  PR-46: decompilation of FUN_00041f60 (loader branch), FUN_000420b0
+  (box math), FUN_00042a70 (hit test), FUN_00042de0 + FUN_00042cf0
+  (push-out), FUN_000437a0 (mirror blitter), plus a machine-code re-read
+  of the LE image where the decompiler lost register arguments). This
+  replaces PR-45's "inline palette+sprite" reading, which was WRONG: the
+  two w0&3 byte lists are per-row LEFT/RIGHT collision margins.
+  w0&1 = the patch-art arrays this viewer draws, w0&2 = the shape; no
+  real element is neither (w0=0/4 never occurs in the data). Row i of a
+  shape is solid from x = left[i] to x = total_w - right[i] inside the
+  element frame, total_w = int16(b19)*0x50 + int16(b15), rows =
+  int16(b17), byte 0xFF = empty row; positioning adds the anchor
+  (x -= f0', y -= f2', f' = 0 when the field is the 0x7fff ctor
+  sentinel) and facing < 0 mirrors (x shift becomes tw - f0', the two
+  lists swap). Of the 953 art tables the levels actually name, 784 carry
+  patch art (drawn; most ALSO carry shape margins) and 169 are shape-
+  only - single-element invisible solids that the ORIGINAL game never
+  drew either (every draw path needs a patch array), including all 48 of
+  RAN.01 ANIBACK's EDGE*.SEQ. They are reported with their measured
+  geometry ("shape frame tw 28, 19 rows, bbox 1 0 28 20") as what they
+  are - not data holes, not draw gaps; the viewer still draws nothing
+  from them because it has no object-collider model to use a shape with
+  (M4-C).
+- The shape math is ported (ported/ll_seq.c: ll_seq_shape_wh/_bbox/
+  _hit/_empty, twin tools/shape_geom.py + tools/seq_shapedump.c): the
+  C-vs-python oracle is byte-exact over all 1656 container payloads
+  (14306 shape elements; 34 of them declare rows whose margin lists are
+  BOTH wholly the 0xFF marker - the game's own box math then stores
+  w = 1 - total_w, h = 1 - rows, which the port reproduces and flags
+  shape_empty). The hit test's row window was re-read from the machine
+  code (FUN_00042a70 0x42b85..0x42be6, FUN_00042de0 0x42f21..0x42f7c):
+  the element with the LOWER adjusted y is indexed from row 0, the other
+  from the distance between them, over the shorter remaining span - the
+  window PR-45 shipped was transposed and is fixed, with direction pins
+  in --mov-selftest (a synthetic 9-element .SEQ, constants derived twice
+  independently). The push-out (42de0 + 42cf0) is NOT modeled: its
+  machine code shows the structure (per-side edge sums 6*x + 3*tw +
+  three margin-row deltas, a max-penetration scan of w - list1[i] -
+  (list2[i] + reg), an interpolator, a final clamp) but the operand
+  identities and the two output pointers are unresolved through unmapped
+  vtable slots (0x530d1/0x53184 call through +0x48/+0x50); a shipped
+  value would be a guess, per the ll_seq.h "NOT MODELED" note (M4-C).
 - Per-state art selection is pinned in --mov-selftest: a state gets
   exactly the table its own seq= names; a state that names none, a name
-  that is not on these containers, and an inline-form table all draw
-  NOTHING (no other state's table is ever substituted).
+  that is not on these containers, and a shape-only (no-patch) table all
+  draw NOTHING (no other state's table is ever substituted).
 - Coordinates are checked against the view the level's OWN data defines
   (back_rect, else the single screen its bg gives): 1857 of 2188
   entries place; the 331 rejects are real - SADES.06 172, TUNGA2.12 83
   (their .des carry NO back_rect, so the fallback is the bg width),
   ZARIA.01 24, ZARIA.02 41, TUNGA.11 8 (outside its real 2560 world).
 - Current per-level scene totals (tool output, matches the python
-  census exactly; placed-scripts / art-tables / inline-form / script
-  holes): RAN.01 827 placed, 82 scripts, 92 art (48 inline); ENA.03
+  census exactly; placed-scripts / art-tables / shape-only / script
+  holes): RAN.01 827 placed, 82 scripts, 92 art (48 shape-only); ENA.03
   218, 55, 94; ENA2 57, 24, 23 (1 script hole); SADES.06 247, 164, 246
-  (61 inline, 5 script holes); TUNGA.11 69, 43, 50 (1 art hole:
+  (61 shape-only, 5 script holes); TUNGA.11 69, 43, 50 (1 art hole:
   ogien_m.SEQ); TUNGA2.12 35, 23, 35 (5 script holes); KADMAR.07 70,
   32, 55 (6 script holes + the no-extension entry); KADMAR2 50, 22,
   24; KARA.07 107, 46, 74; LONA.05 126, 30, 41 (4 script holes);
@@ -1437,14 +1484,17 @@ scan; probes /tmp/opencode/pr45_census.py, pr45_join.py, pr45_forms.py):
   model showed, now from the level's own ani_plat=).
 
 CI (verify-level): .MOV selftest extended to pin the per-state seq= art
-selection (data-free leg, runs in every configuration); the TUNGA.11 leg
+selection AND the shape geometry (a data-free synthetic .SEQ leg, runs in
+every configuration: window direction, anchor + 0x7fff sentinel, facing
+list swap, degenerate all-empty box); the TUNGA.11 leg
 now pins the authored scene end to end (7 placement files, 77 entries ->
 69 placed + 8 outside its own world, stale count lines reported as
 stale, the one true art hole named, the bare 'none' keyword never a
 fake hole), the fixed-grid cycle advance naming the SCRIPT
 ("tick 8: ANIBACK/strum1.mov state 0 frame 0") and its bounded proof,
-and the RAN.01 canvas pins 827 placed objects + the inline-form
-distinction by exact name (EDGE0000.SEQ).
+and the RAN.01 canvas pins 827 placed objects + the shape-only
+distinction by exact name with measured geometry (EDGE0000.SEQ:
+tw 28, 19 rows, bbox 1 0 28 20).
 
 ## 9. Legal/ethical
 Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.

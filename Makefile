@@ -113,7 +113,7 @@ WINEPREFIX ?= /tmp/opencode/wineprefix
 # compare the wine frame against a FRESH linux run (the old "stale binary
 # in the worktree" accident made a clean-tree run fail here on 2026-11-15).
 verify-win: ll_cutscene ll_level ll_save ll_cutscene.exe ll_level.exe llrs_selftest.exe \
-            pcx_selftest.exe seq_selftest.exe seq_patchdump.exe \
+            pcx_selftest.exe seq_selftest.exe seq_patchdump.exe seq_shapedump.exe \
             pcm_selftest.exe mod_selftest.exe ll_save.exe
 ifeq ($(PX_WINREF),1)
 	WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
@@ -131,7 +131,7 @@ ifeq ($(PX_WINREF),1)
 	  "wine ./pcx_selftest.exe"
 	env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
 	  python3 tools/verify_seq.py $(DATA) --grammar "wine ./seq_selftest.exe" \
-	  --patch "wine ./seq_patchdump.exe"
+	  --patch "wine ./seq_patchdump.exe" --shape "wine ./seq_shapedump.exe"
 	@python3 tools/verify_pcm.py $(DATA) "wine ./pcm_selftest.exe" \
 	  Z:/tmp/opencode/pcm_verify.tmp \
 	  | tr -d '\r' | tail -1 | grep -q '4/4 payloads byte-exact' \
@@ -271,6 +271,10 @@ seq_patchdump.exe: tools/seq_patchdump.c ported/ll_seq.c ported/ll_seq.h
 	$(XC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ \
 	    tools/seq_patchdump.c ported/ll_seq.c
 
+seq_shapedump.exe: tools/seq_shapedump.c ported/ll_seq.c ported/ll_seq.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ \
+	    tools/seq_shapedump.c ported/ll_seq.c
+
 llrs_selftest: tools/llrs_selftest.c ported/llrs.c ported/llrs.h ported/fs_ci.c
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra $(SAN) \
 	    -Iported -o $@ tools/llrs_selftest.c ported/llrs.c ported/fs_ci.c
@@ -341,7 +345,9 @@ endif
 
 # ported/ll_seq.c byte-for-byte agreement with tools/seq_parse.py on every
 # .SEQ payload in ANIMACJE/ETAPY/LEVELDES (172 blobs, exact consumption),
-# plus the frame-patch row decode (ll_seq_patch_walk vs tools/seq_patch.py).
+# plus the frame-patch row decode (ll_seq_patch_walk vs tools/seq_patch.py)
+# and the element SHAPE geometry (ll_seq_shape_* vs tools/shape_geom.py:
+# the FUN_000420b0/42a70/42de0/42cf0 ports, PR-46).
 seq_selftest: tools/seq_selftest.c ported/ll_seq.c ported/ll_seq.h
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra $(SAN) \
 	    -Iported -o $@ tools/seq_selftest.c ported/ll_seq.c
@@ -350,10 +356,14 @@ seq_patchdump: tools/seq_patchdump.c ported/ll_seq.c ported/ll_seq.h
 	$(CC) -O1 -g -std=gnu11 -Wall -Wextra $(SAN) \
 	    -Iported -o $@ tools/seq_patchdump.c ported/ll_seq.c
 
-verify-seq: seq_selftest seq_patchdump
+seq_shapedump: tools/seq_shapedump.c ported/ll_seq.c ported/ll_seq.h
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra $(SAN) \
+	    -Iported -o $@ tools/seq_shapedump.c ported/ll_seq.c
+
+verify-seq: seq_selftest seq_patchdump seq_shapedump
 ifeq ($(PX_DATA),1)
 	python3 tools/verify_seq.py $(DATA) --grammar ./seq_selftest \
-	  --patch ./seq_patchdump
+	  --patch ./seq_patchdump --shape ./seq_shapedump
 else
 	@echo "verify-seq: SKIP (needs $(DATA)/ANIMACJE; see the restaging recipe in NEXT_STEPS.md"
 endif
@@ -372,7 +382,7 @@ endif
 verify-level: ll_level pcm_selftest
 # FIX-13 (X-11): .MOV duration clamp + obj_advance cycle-guard selftest, plus
 # the PR-45 per-state art selection (a state draws exactly the .SEQ its own
-# seq= names; a missing name or an inline-form table draws nothing) -
+# seq= names; a missing name or a shape-only table draws nothing) -
 # data-free, so it runs in EVERY configuration (full suite and the
 # fixture-free CI simulation alike).
 	@timeout 30 ./ll_level --mov-selftest
@@ -454,8 +464,9 @@ ifeq ($(PX_DATA),1)
 	    cat /tmp/opencode/lv_ran.log; exit 1; fi
 # the largest authored scene in the shipped game: 827 entries from 4 placement
 # files (CHMURY.DES from zwierzaki=), 82 scripts, 92 art tables. 48 of those
-# tables are the inline palette+sprite form the .SEQ draw path here does not
-# implement: reported as a VIEWER gap by exact name, never counted as data.
+# tables carry the element SHAPE margins only, no patch art (w0=2): invisible
+# solids the ORIGINAL game never drew either - reported with their measured
+# geometry, not counted as data holes or draw gaps.
 # The proof listing is bounded (24 + the count of the rest).
 	@grep -q 'tlo.*= plan3.pcx,plan2.pcm,plan1.pcm' /tmp/opencode/lv_ran.log \
 	  && grep -q 'show RAN.01: bg PLAN3.PCX 960x400, 827 animated object' \
@@ -464,9 +475,9 @@ ifeq ($(PX_DATA),1)
 	      /tmp/opencode/lv_ran.log \
 	  && grep -q 'authored scene RAN.01: 4 placement file(s), 827 object entry line(s) -> 827 placed' \
 	      /tmp/opencode/lv_ran.log \
-	  && grep -q '48 of them the inline palette+sprite form this viewer does' \
+	  && grep -q '48 carry shape geometry only - invisible solids the original' \
 	      /tmp/opencode/lv_ran.log \
-	  && grep -q 'its seq= names EDGE0000.SEQ: the record is there, but its element carries the inline palette+sprite form' \
+	  && grep -q 'its seq= names EDGE0000.SEQ: the record is there, and element 0 of it carries the SHAPE margins only, no patch art: shape frame tw 28, 19 rows, bbox 1 0 28 20' \
 	      /tmp/opencode/lv_ran.log \
 	  && grep -q '\.\.\. 803 more placement(s) of those scripts' \
 	      /tmp/opencode/lv_ran.log \
