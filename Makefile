@@ -493,7 +493,7 @@ ifeq ($(PX_DATA),1)
 	  ./ll_level $(DATA) TUNGA.11 > /tmp/opencode/lv_cam300.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "scroll camera FAILED (rc=$$rc)"; \
 	    cat /tmp/opencode/lv_cam300.log; exit 1; fi
-	@grep -q 'world 2560x600 (back_rect 0,0), view 640x359, cam 300/1920' \
+	@grep -q 'world 2560x600 (back_rect 0,0), view 320x200, cam 300/2240' \
 	    /tmp/opencode/lv_cam300.log \
 	  && grep -q 'tick 8: ANIBACK/strum2.mov' /tmp/opencode/lv_cam300.log \
 	  && tools/frames_differ.sh /tmp/opencode/lv_tick8.ppm /tmp/opencode/lv_cam300.ppm \
@@ -546,7 +546,7 @@ ifeq ($(PX_DATA),1)
 	@python3 tools/verify_pcm.py $(DATA) ./pcm_selftest > /tmp/opencode/pcm_oracle.txt
 	@F=$$(grep -o 'fnv=[0-9a-f]*' /tmp/opencode/lv_k2a.log | head -1); \
 	  grep -q 'PCM PLAN_.PCM: transparent overlay layer 2560 px x 1800 rows (32 strips of 80, tiles of 16), 100.0% painted.*over an empty backdrop' /tmp/opencode/lv_k2a.log \
-	  && grep -q 'show KADMAR2: bg PLAN_.PCM 640x400' /tmp/opencode/lv_k2a.log \
+	  && grep -q 'show KADMAR2: bg PLAN_.PCM 320x200' /tmp/opencode/lv_k2a.log \
 	  && grep -q "KADMAR2/PLAN_.PCM: 2560x1800, 32 strips.* $$F" /tmp/opencode/pcm_oracle.txt \
 	  && tools/frames_differ.sh /tmp/opencode/lv_k2a.ppm /tmp/opencode/lv_k2b.ppm \
 	  && echo "KADMAR2 (PCM-only): the 2560x1800 layer is the scene, its hash == the python oracle's, and it scrolls with the camera (ok)" \

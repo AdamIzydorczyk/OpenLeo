@@ -1517,6 +1517,8 @@ static void scene_ppm(const char *path, int w, int h, const unsigned char *idx,
  *     y_i = cy * Y[i] / Y[R] + (H_i - 200) - (H_R - 200) * Y[i] / 100
  * (C integer division; 200 = the view height, here ch). */
 #define MAX_PCM_LAYERS 8
+#define LVL_VIEW_W 320          /* the engine's view, world units */
+#define LVL_VIEW_H 200
 
 typedef struct {
     int n;                      /* tlo layers, present or not */
@@ -1596,8 +1598,9 @@ static void obj_layer_cam(const lvl_obj *o, const par_t *pp, const ll_pcm *lay,
 }
 
 static void paint_base(unsigned char *canvas, const unsigned char *base,
-                       int cw, int ch, int scrolls, const par_t *pp,
-                       int bg_tix, int cam);
+                       int bw, int bh, int cw, int ch, int scrolls,
+                       const par_t *pp, int bg_tix, int cam, int camy,
+                       int world_h);
 
 /* PR-61 selftest: per-layer object scroll, hand-derived from 57500/57530.
  * speeds 40,80;70,70;100,100 (RAN.01), main_back 2, cam 1000/camy 100, view
@@ -1634,23 +1637,24 @@ static int obj_layer_selftest(void)
                         " 400,-20)\n", c, cy);
         return 1;
     }
-    {   /* the backdrop: cw 10, speeds 50,50;100,100 ref 1, cam 14 -> shift 7 */
-        unsigned char base[20], out[20];
+    {   /* the backdrop: base 10x4, view 6x2, speeds 50,50;100,100 ref 1, cam
+         * 14 -> x shift 7; camy 2 -> y = 2*50/100 + (4-2) - (4-2)*50/100 = 2 */
+        unsigned char base[40], out[12];
         par_t p2;
 
         par_parse(&p2, "50,50;100,100", "1", 2);
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 40; i++)
             base[i] = (unsigned char)i;
-        paint_base(out, base, 10, 2, 1, &p2, 0, 14);
+        paint_base(out, base, 10, 4, 6, 2, 1, &p2, 0, 14, 2, 4);
         for (int y = 0; y < 2; y++)
-            for (int x = 0; x < 10; x++)
-                if (out[y * 10 + x] != y * 10 + (x + 7) % 10) {
-                    fprintf(stderr, "layer selftest: FAILED backdrop shift at"
-                                    " %d,%d: %d\n", x, y, out[y * 10 + x]);
+            for (int x = 0; x < 6; x++)
+                if (out[y * 6 + x] != (y + 2) * 10 + (x + 7) % 10) {
+                    fprintf(stderr, "layer selftest: FAILED backdrop at %d,%d:"
+                                    " %d\n", x, y, out[y * 6 + x]);
                     return 1;
                 }
-        paint_base(out, base, 10, 2, 0, &p2, 0, 14);   /* PCM-only: no shift */
-        if (memcmp(out, base, sizeof base) != 0) {
+        paint_base(out, base, 6, 2, 6, 2, 0, &p2, 0, 14, 2, 4); /* PCM-only */
+        if (memcmp(out, base, 12) != 0) {
             fprintf(stderr, "layer selftest: FAILED unscrolled base\n");
             return 1;
         }
@@ -1658,34 +1662,40 @@ static int obj_layer_selftest(void)
     return 0;
 }
 
-/* PR-64: the .PCX backdrop is the first tlo layer and scrolls like every
- * other: x = cam * X[i] / X[R] (FUN_00057500), wrapping modulo the image
- * width as the engine's strips do (RAN.01: 40% of a 28800 px world). Its
- * vertical parallax is NOT applied: the engine's view is 200 rows
- * (0xc8 in 57460) while this viewer shows the whole image height, so a
- * vertical offset would only open blank rows at the bottom. */
+/* PR-64/66: the .PCX backdrop is the first tlo layer and scrolls like every
+ * other (FUN_00057500/57530): x = cam * X[i] / X[R] wrapping modulo the image
+ * width (RAN.01: 40% of a 28800 px world - a 960 px image necessarily wraps,
+ * so the engine tiles it too); y = cam_y * Y[i] / Y[R] + (H_i - 200) -
+ * (H_R - 200) * Y[i] / 100 with the engine's 200-row view, clamped to the
+ * image. base is bw x bh; a view-sized base (PCM-only levels, bw == cw) is
+ * copied as is. */
 static void paint_base(unsigned char *canvas, const unsigned char *base,
-                       int cw, int ch, int scrolls, const par_t *pp,
-                       int bg_tix, int cam)
+                       int bw, int bh, int cw, int ch, int scrolls,
+                       const par_t *pp, int bg_tix, int cam, int camy,
+                       int world_h)
 {
-    long long sx = 0;
+    long long sx = 0, sy = 0;
 
     if (scrolls && pp->n > 0 && bg_tix < pp->n) {
         long long xr = pp->sx[pp->ref] ? pp->sx[pp->ref] : 100;
+        long long yr = pp->sy[pp->ref] ? pp->sy[pp->ref] : 100;
         sx = (long long)cam * pp->sx[bg_tix] / xr;
-        sx %= cw;
-        if (sx < 0)
-            sx += cw;
+        sy = (long long)camy * pp->sy[bg_tix] / yr + (bh - ch) -
+             ((long long)world_h - ch) * pp->sy[bg_tix] / 100;
     }
-    if (sx == 0) {
-        memcpy(canvas, base, (size_t)cw * (size_t)ch);
-        return;
-    }
-    for (int y = 0; y < ch; y++) {
-        const unsigned char *r = base + (size_t)y * (size_t)cw;
+    sx %= bw;
+    if (sx < 0)
+        sx += bw;
+    if (sy > bh - ch)
+        sy = bh - ch;
+    if (sy < 0)
+        sy = 0;
+    memset(canvas, 0, (size_t)cw * (size_t)ch);
+    for (int y = 0; y < ch && sy + y < bh; y++) {
+        const unsigned char *r = base + (size_t)(sy + y) * (size_t)bw;
         unsigned char *d = canvas + (size_t)y * (size_t)cw;
-        memcpy(d, r + sx, (size_t)(cw - sx));
-        memcpy(d + (cw - sx), r, (size_t)sx);
+        for (int x = 0; x < cw; x++)
+            d[x] = r[(sx + x) % bw];
     }
 }
 
@@ -2460,6 +2470,28 @@ static void paint(const unsigned char *canvas, const uint32_t lut[256],
     plat_present_argb(s_paint_buf, w, h);
 }
 
+/* the scene: the 320x200 world window shown 2x (nearest neighbour) */
+static void paint2x(const unsigned char *canvas, const uint32_t lut[256],
+                    int w, int h)
+{
+    size_t need = (size_t)w * 2 * (size_t)h * 2;
+    if (s_paint_n < need) {
+        uint32_t *nb = realloc(s_paint_buf, need * sizeof *nb);
+        if (!nb)
+            return;
+        s_paint_buf = nb;
+        s_paint_n = need;
+    }
+    for (int y = 0; y < h; y++) {
+        uint32_t *r0 = s_paint_buf + (size_t)y * 2 * (size_t)w * 2;
+        const unsigned char *sp = canvas + (size_t)y * w;
+        for (int x = 0; x < w; x++)
+            r0[2 * x] = r0[2 * x + 1] = lut[sp[x]];
+        memcpy(r0 + (size_t)w * 2, r0, (size_t)w * 2 * sizeof *r0);
+    }
+    plat_present_argb(s_paint_buf, w * 2, h * 2);
+}
+
 /* ---------------- level help overlay (original POMOC flow) --------------
  * POMOC1.MNU (HD-install ETAPY block) wires the help: static=x,y,pomocNN.seq
  * lines list page art (text baked into .SEQ frame patches); the .SEQ
@@ -2909,7 +2941,12 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                        " reference layer (main_back %d)\n", world_w, world_h,
                        par.ref);
             }
-    int cw = (int)img.w, ch = (int)img.h;
+    /* PR-66: the game's view is 320x200 world units (0x140/0xc8 in the camera
+     * clamp FUN_00057590 and the layer offsets), shown 2x as 640x400 - a
+     * playthrough video shows exactly that (art ~2x the size of the native
+     * sprites, a 640x400 picture inside the 640x480 mode). The scene canvas
+     * is the 320x200 world window; the window magnifies it. */
+    int cw = LVL_VIEW_W, ch = LVL_VIEW_H;
     unsigned char *view = NULL;
     unsigned char scenepal[768];
     memset(scenepal, 0, sizeof scenepal);
@@ -2921,8 +2958,6 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
          * the palette is the block's BACK.PCX - it equals the backdrop
          * palette on 8 of the 11 levels that have both, and it is the one
          * that makes KADMAR2's layer natural masonry instead of noise. */
-        cw = world_w > 0 && world_w < 640 ? world_w : 640;
-        ch = world_h > 0 && world_h < 400 ? world_h : 400;
         view = calloc((size_t)cw, (size_t)ch);
         int gray = 1;
         for (unsigned k = 0; k < nrec && gray; k++)
@@ -3373,7 +3408,9 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     }
 
     printf("ll_level: show %s: bg %s %dx%d, %d animated object(s)\n", level,
-           bgname, cw, ch, nobj);
+           bgname, img.idx ? (int)img.w : cw, img.idx ? (int)img.h : ch, nobj);
+    printf("ll_level: view %dx%d world units, shown 2x as %dx%d\n", cw, ch,
+           cw * 2, ch * 2);
     /* Proof of the join, bounded: 24 placements in file order, then the
      * count of the rest (RAN.01 places 827). LEO_OBJ_ALL=1 prints them all
      * for probes. The line names leaf / script / the art the script's own
@@ -3459,7 +3496,9 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         goto done;
     }
     const unsigned char *base = img.idx ? img.idx : view;
-    paint_base(canvas, base, cw, ch, img.idx != NULL, &par, bg_tix, cam);
+    paint_base(canvas, base, img.idx ? (int)img.w : cw,
+               img.idx ? (int)img.h : ch, cw, ch, img.idx != NULL, &par,
+               bg_tix, cam, camy, world_h);
     layers_at(lay, lay_tix, nlay, &par, cam, camy, cw, ch, world_w,
                   world_h, canvas);
     objs_draw(objs, nobj, canvas, cw, ch, cam, camy, &par, lay, lay_tix,
@@ -3502,8 +3541,9 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 printf("ll_level: tick %d: %d more placement(s)"
                        " advanced\n", ticks, nobj - shown);
         }
-        paint_base(canvas, base, cw, ch, img.idx != NULL, &par, bg_tix,
-                   cam);               /* same order as the live loop */
+        paint_base(canvas, base, img.idx ? (int)img.w : cw,
+                   img.idx ? (int)img.h : ch, cw, ch, img.idx != NULL, &par,
+                   bg_tix, cam, camy, world_h);               /* same order as the live loop */
         layers_at(lay, lay_tix, nlay, &par, cam, camy, cw, ch, world_w,
                   world_h, canvas);
         objs_draw(objs, nobj, canvas, cw, ch, cam, camy, &par, lay, lay_tix,
@@ -3517,7 +3557,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         /* T-01/T-12: the platform owns the window (logical viewport = the
          * scene view size cw x ch; resizable, HiDPI-ready, F11/Alt+Enter
          * desktop-fullscreen handled by the backend). */
-        if (plat_init("Lew Leon - level scene", cw, ch) < 0) {
+        if (plat_init("Lew Leon - level scene", cw * 2, ch * 2) < 0) {
             fprintf(stderr, "ll_level: no window: %s\n", plat_last_error());
             goto done;
         }
@@ -3650,14 +3690,15 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                     cam = cam_max;
                 camy = follow_camy(&pl, ch, cam_ymax);
             }
-            paint_base(canvas, base, cw, ch, img.idx != NULL, &par, bg_tix,
-                       cam);
+            paint_base(canvas, base, img.idx ? (int)img.w : cw,
+                       img.idx ? (int)img.h : ch, cw, ch, img.idx != NULL,
+                       &par, bg_tix, cam, camy, world_h);
             layers_at(lay, lay_tix, nlay, &par, cam, camy, cw, ch, world_w,
                   world_h, canvas);
             objs_draw(objs, nobj, canvas, cw, ch, cam, camy, &par, lay, lay_tix,
                       nlay, world_h);
             play_draw(&pl, canvas, cw, ch, cam, camy);
-            paint(canvas, lut, cw, ch);
+            paint2x(canvas, lut, cw, ch);
             ll_music_pump();
             t_tick += 20000000ull;               /* FIX-07: fixed 50 Hz grid */
             {

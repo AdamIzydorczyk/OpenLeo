@@ -2955,6 +2955,29 @@ engine-side).
     it means cropping the layers to 640x400, adding the HUD (lives/energy
     number, item box) and re-pinning the frame legs.
 
+## PR-66 — the level view is 320x200 world units, shown 2x (DONE 2026-11-16)
+
+  - Evidence: the playthrough video (outside git) shows the art at ~2x the
+    size of the native sprites inside a 640x400 picture (chunky, pixel-
+    doubled leaves; the red fruits 2.5x ours), and the engine's constants say
+    the same: the camera clamp (FUN_00057590) and the layer offsets use
+    0x140 x 0xc8 = 320x200. So the scene canvas is the 320x200 window onto
+    the world and the window shows it magnified 2x (640x400). Before this the
+    viewer drew a window the size of the backdrop image (960x475 ...), i.e.
+    unscaled and far too wide.
+  - ll_level: LVL_VIEW_W/H; canvas 320x200 for every level (PCM-only levels
+    too); paint2x for the window; the CI PPM dumps stay at the logical
+    320x200. cam_max/camy follow use the new size; the engine's own
+    formulas are now literal (200-row view): paint_base applies the full
+    backdrop parallax, y included (clamped to the image) - the PR-64
+    restriction is lifted.
+  - Checked by eye against the video frame at 205 s: ZARIA.01's spawn now
+    shows the same tree, backdrop and scale as the original. Pins updated
+    (view 320x200; the "show" line keeps the image size, a new "view" line
+    names the logical and the displayed size). Not done: the HUD (lion head +
+    number bottom-left, item box bottom-right) and the exact camera follow
+    (the video keeps the lion lower than 65% of the view).
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
