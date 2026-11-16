@@ -2883,6 +2883,34 @@ engine-side).
     announced and counted, not applied (its unit scale is unresolved). The
     pass is still opt-in (LEO_PLAY_SOLID=1).
 
+## PR-63 — hit effects: what the code says, and the one number it does not (DONE 2026-11-16, RE only + a data fact)
+
+  - FUN_00055230 (the effect of a touch, called by the common touch handler
+    552e0 after the push-out): A = the object touched, B = the mover.
+    A with ANTI_POCISK (0x80000) calls B's slot +0xd0 (the hit method) with
+    (source A, 0, 0); if A.slot+0x40() it goes through FUN_00055130, else A
+    with DANGER (0x2000) calls B.hit(A, 0, [level+0x54]) - the damage is the
+    LEVEL's danger_power. The .des key danger_power (scanned at 0x4cf2e into
+    level+0x54) is authored in NONE of the 12 levels (checked in the CD
+    LEVELDES and the HD ETAPY/ANIMACJE; ll_level now prints it per level), so
+    the real value is whatever the level object holds un-initialised (its
+    ctor 0x4a5d4 never writes +0x54) - not recoverable from the files.
+  - The hit method of the common class (38 vtables, 0x41180): ignore while
+    the invulnerability timer [+0xee] is set, else energy [+0xad] -= damage
+    and [+0xee] = 75. Lew's own (11 vtables, FUN_00050ed0): ignored in
+    states [+0x11a] 6 and 7, with damage 0, or while [+0x126] is set; only
+    when the lion is flagged friendly-fire-safe it needs the source to be an
+    enemy (slot +0x40); it then records the source's slot 0xc / 0x70 results,
+    drains its pending-message list, and unless the hurt lock [+0x102] is
+    active enters the hurt state (slot 0xe4(1)) and subtracts the damage
+    (FUN_00054550: [+0xad] -= damage). Energy starts at 100 (0x503ac: [+0xad]
+    = 0x64 on respawn), lives are the global 0xa94f0 (decremented at
+    0x50406 on respawn; STATUS.LEO word 63).
+  - So the mechanism is known but the damage number is not: nothing was
+    ported (a number would be a guess). Open: the allocator's initial value
+    (5c320) or a default set by a path not yet found; the invulnerability
+    constants (75 ticks, hurt lock 30).
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

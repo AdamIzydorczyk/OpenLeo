@@ -2826,6 +2826,10 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     par_t par;
     par_parse(&par, des_get(kvs, nk, "speed"), des_get(kvs, nk, "main_back"),
               ntlo);
+    printf("ll_level: danger_power=%s (the damage a DANGER object deals, the\n"
+           "ll_level:   game keeps it in level+0x54)\n",
+           des_get(kvs, nk, "danger_power")[0] ? des_get(kvs, nk, "danger_power")
+                                              : "(not authored)");
     printf("ll_level: parallax: %d tlo layers, reference %d, speed%%", par.n,
            par.ref);
     for (int q = 0; q < par.n; q++)
