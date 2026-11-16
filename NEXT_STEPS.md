@@ -2194,8 +2194,13 @@ engine-side).
     still running; verify-arch unchanged (no new SDL include). ASan/
     LSan/UBSan run of ll_level (selftest + full-data level + preview)
     clean. Peak child RSS unchanged (1114 MB).
-  - PR-45 pushed (this commit); CI pending - result appended by the
-    CLOSED commit.
+  - PR-45 pushed 3cb067d; CI run 43836226298: linux + asan +
+    windows-smoke ALL green on the first pass. On the runner the
+    hermetic mov selftest printed its extended summary ("per-state seq=
+    art selection (ok)") in both the asan job and the linux full suite,
+    while the rewritten verify-level leg and the verify-play legs
+    printed their named SKIPs - exactly as the fixture-free contract
+    requires. CLOSED.
 
 ## Next — pick from the Deferred list below
 
