@@ -454,6 +454,7 @@ ifeq ($(PX_DATA),1)
 	      /tmp/opencode/lv_tick8.log \
 	  && grep -q 'its seq= names ogien_m.SEQ in that ANIMACJE leaf: no such record' \
 	      /tmp/opencode/lv_tick8.log \
+	  && grep -q 'hud: belka.des: 5 item(s)' /tmp/opencode/lv_tick8.log \
 	  && echo "authored scene: .des placement files -> placed objects, art chosen by each script's own seq=, stale count lines and data holes named exactly (ok)" \
 	  || { echo "authored scene grep FAILED"; cat /tmp/opencode/lv_tick8.log; exit 1; }
 # the scripts really run: fixed 40 ms x 8 ticks advance the cycle, and the

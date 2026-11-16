@@ -1699,6 +1699,137 @@ static void paint_base(unsigned char *canvas, const unsigned char *base,
     }
 }
 
+/* PR-67: the HUD strip (belka=<level .des>, HD ETAPY block). Grammar read
+ * from all 12 shipped BELKA files: optional `key=on|off` lines (tools, crown),
+ * then items, each an `x,y` line followed by an `[N ]<name>.seq` line - the
+ * first item carries N = 10 (its ten frames). By position: 0 the energy head
+ * (ten frames, front-facing at full energy turning away), 1 the lives digits,
+ * 2 the tools icons, 3 the item-count digits, 4 the item frame, 5 the crown.
+ * Coordinates are in the 320x200 view (285,165 -> the bottom-right box of the
+ * playthrough video). The .SEQ art is the level's CD ETAPY record.
+ * Not modeled: inventory (the item box shows its empty frame), the crown, and
+ * the real lives/energy: the HUD shows full energy and the 6 lives the
+ * playthrough video starts with (STATUS.LEO's fields are not mapped). */
+#define HUD_MAXIT 8
+typedef struct {
+    int n;
+    int tools_off;
+    struct {
+        int x, y;
+        unsigned char *blob;
+        ll_seq seq;
+        int ok;
+    } it[HUD_MAXIT];
+} hud_t;
+
+static void hud_free(hud_t *h)
+{
+    for (int i = 0; i < h->n; i++)
+        if (h->it[i].ok) {
+            ll_seq_free(&h->it[i].seq);
+            free(h->it[i].blob);
+        }
+    memset(h, 0, sizeof *h);
+}
+
+static void hud_load(hud_t *h, llrs *hd_ety, const llrs_slot *hblk,
+                     llrs *cd_ety, const llrs_slot *recs, unsigned nrec,
+                     const char *belka)
+{
+    memset(h, 0, sizeof *h);
+    if (!hd_ety || !hblk || !belka || !belka[0])
+        return;
+    llrs_slot *hr = NULL;
+    unsigned nh = 0;
+    if (llrs_block(hd_ety, hblk, &hr, &nh))
+        return;
+    char *txt = NULL;
+    for (unsigned k = 0; k < nh && !txt; k++)
+        if (hr[k].id == 1 && ci_eq(hr[k].name, belka)) {
+            unsigned char *t = NULL;
+            long n = llrs_read(hd_ety, &hr[k], &t);
+            if (n > 0) {
+                txt = malloc((size_t)n + 1);
+                if (txt) {
+                    memcpy(txt, t, (size_t)n);
+                    txt[n] = '\0';
+                }
+            }
+            free(t);
+        }
+    llrs_block_free(hr);
+    if (!txt)
+        return;
+    int px = -1, py = -1;
+    for (char *save = NULL, *ln = strtok_r(txt, "\r\n", &save); ln;
+         ln = strtok_r(NULL, "\r\n", &save)) {
+        int a, b;
+        char nm[32];
+        if (strncmp(ln, "tools=off", 9) == 0) {
+            h->tools_off = 1;
+        } else if (strchr(ln, '=')) {
+            continue;
+        } else if (sscanf(ln, "%d,%d", &a, &b) == 2 && !strstr(ln, ".")) {
+            px = a;
+            py = b;
+        } else if (px >= 0 && h->n < HUD_MAXIT &&
+                   (sscanf(ln, "%d %31s", &a, nm) == 2 ||
+                    sscanf(ln, "%31s", nm) == 1)) {
+            int i = h->n++;
+            h->it[i].x = px;
+            h->it[i].y = py;
+            px = -1;
+            for (unsigned k = 0; k < nrec; k++)
+                if (recs[k].id == 1 && ci_eq(recs[k].name, nm)) {
+                    unsigned char *raw = NULL;
+                    long n = llrs_read(cd_ety, &recs[k], &raw);
+                    if (n > 0 && ll_seq_parse(raw, (uint32_t)n,
+                                              &h->it[i].seq) == 0) {
+                        h->it[i].blob = raw;
+                        h->it[i].ok = 1;
+                    } else {
+                        free(raw);
+                    }
+                }
+        }
+    }
+    free(txt);
+    printf("ll_level: hud: %s: %d item(s) (energy head, lives digits, item"
+           " box...), tools %s\n", belka, h->n, h->tools_off ? "off" : "on");
+}
+
+static void hud_elem(const hud_t *h, int i, unsigned el, unsigned char *cv,
+                     int cw, int ch, int x, int y)
+{
+    if (i >= h->n || !h->it[i].ok || el >= h->it[i].seq.count)
+        return;
+    ll_seq_draw_elem_anchor(&h->it[i].seq, &h->it[i].seq.els[el], cv, cw, ch,
+                            x, y, 0, NULL);
+}
+
+static void hud_draw(const hud_t *h, unsigned char *cv, int cw, int ch,
+                     int energy, int lives)
+{
+    int e = (100 - energy) / 10;
+
+    if (h->n < 2)
+        return;
+    hud_elem(h, 0, (unsigned)(e < 0 ? 0 : e > 9 ? 9 : e), cv, cw, ch,
+             h->it[0].x, h->it[0].y);
+    if (h->it[1].ok && h->it[1].seq.count >= 10) {
+        char dg[12];
+        int x = h->it[1].x;
+        snprintf(dg, sizeof dg, "%d", lives < 0 ? 0 : lives);
+        for (const char *c = dg; *c; c++) {
+            unsigned d = (unsigned)(*c - '0');
+            hud_elem(h, 1, d, cv, cw, ch, x, h->it[1].y);
+            x += (int)(short)h->it[1].seq.els[d].b15 + 2;
+        }
+    }
+    if (!h->tools_off && h->n > 4)
+        hud_elem(h, 4, 0, cv, cw, ch, h->it[4].x, h->it[4].y);
+}
+
 static void objs_draw(const lvl_obj *objs, int nobj, unsigned char *canvas,
                       int cw, int ch, int cam, int camy, const par_t *pp,
                       const ll_pcm *lay, const int *lay_tix, int nlay,
@@ -3009,6 +3140,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     play_ctx pl;
     memset(&pl, 0, sizeof pl);             /* LEO_PLAY wiring (4c below)   */
     pl.layer = par.ref;                    /* the lion lives on main_back  */
+    hud_t hud;
+    memset(&hud, 0, sizeof hud);
     scene_owner scene;                     /* scripts + placements, owned;
                                            * freed at done: (E-05)         */
     memset(&scene, 0, sizeof scene);
@@ -3063,6 +3196,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                " that install has no ANIMACJE): the object scripts of this"
                " level are unreachable (data hole)\n", level);
     des_placement(&pc, have_hd_ety ? &hd_ety : NULL, hblk2, kvs, nk);
+    hud_load(&hud, have_hd_ety ? &hd_ety : NULL, hblk2, &etapy, recs, nrec,
+             des_get(kvs, nk, "belka"));
     lvl_obj *objs = scene.objs;        /* the print/draw loops below */
     int nobj = scene.nobj;
     if (an_open) {
@@ -3549,6 +3684,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         objs_draw(objs, nobj, canvas, cw, ch, cam, camy, &par, lay, lay_tix,
                   nlay, world_h);
         play_draw(&pl, canvas, cw, ch, cam, camy);
+        if (pl.have)
+            hud_draw(&hud, canvas, cw, ch, 100, 6);
         scene_ppm(ppm, cw, ch, canvas, scenepal);
         goto done;                          /* canvas freed at done: (E-05) */
     }
@@ -3698,6 +3835,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             objs_draw(objs, nobj, canvas, cw, ch, cam, camy, &par, lay, lay_tix,
                       nlay, world_h);
             play_draw(&pl, canvas, cw, ch, cam, camy);
+            if (pl.have)
+                hud_draw(&hud, canvas, cw, ch, 100, 6);
             paint2x(canvas, lut, cw, ch);
             ll_music_pump();
             t_tick += 20000000ull;               /* FIX-07: fixed 50 Hz grid */
@@ -3730,6 +3869,7 @@ done:                                 /* single cleanup path (E-05): every
         ll_seq_free(&pl.art[k].seq);
         free(pl.art[k].blob);
     }
+    hud_free(&hud);
     ll_plt_free(&pl.plt);
     free(pl.mov);
     ll_pcx_free(&img);

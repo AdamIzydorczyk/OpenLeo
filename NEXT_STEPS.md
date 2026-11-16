@@ -2978,6 +2978,27 @@ engine-side).
     number bottom-left, item box bottom-right) and the exact camera follow
     (the video keeps the lion lower than 65% of the view).
 
+## PR-67 — the HUD strip, read from the level's BELKA file (DONE 2026-11-16)
+
+  - `belka=<name>.des` in each level's .des names a text file in the HD ETAPY
+    block (BELKA.DES; RAN.01 BELKA1.DES) that lays out the HUD in the 320x200
+    view. Grammar from all 12 shipped files: optional key=value lines
+    (tools=off, crown=on), then items, each an `x,y` line + `[N ]name.seq`
+    (the first carries N = 10). By position: energy head (ENERGIA.SEQ, ten
+    frames: front-facing roaring at full energy, turning away as it drops),
+    lives digits (CYFRYD/CYFRY_D/LITT ..., ten digit elements), the tools
+    icons (TOOLS.SEQ, 4 icons), item-count digits, the item frame (IKOKO.SEQ),
+    the crown. ZARIA.01: head (3,158), digits (40,173), box (285,165).
+  - ll_level hud_load/hud_draw: drawn in play mode over everything, from the
+    level's CD ETAPY records. Checked against the playthrough video: the head
+    at the bottom-left, the red number next to it and the item box at the
+    bottom-right land where the original has them.
+  - Placeholders (named, not invented as data): full energy (frame 0), 6
+    lives (what the video starts with - STATUS.LEO's fields are unmapped),
+    the empty item frame (no inventory yet: the video shows the TOOLS icon
+    of the held item, the cyan curved blade first), no crown. Pinned by the
+    "hud: belka.des: 5 item(s)" line of the TUNGA.11 scene leg.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
