@@ -204,6 +204,8 @@ static int cond_id(const char *tok)
         { "K_GEN1", LL_COND_K_GEN1 },
         { "K_GEN2", LL_COND_K_GEN2 },
         { "K_GEN3", LL_COND_K_GEN3 },
+        { "K_GEN4", LL_COND_K_GEN4 },
+        { "AC_TIME", LL_COND_AC_TIME },
         { "K_ANY", LL_COND_K_ANY },
         { "AC_BREAK_NEXT", LL_COND_AC_BREAK_NEXT },
     };
@@ -338,6 +340,7 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                          * matching the viewer's mov_parse. */
                         mf->ms = ms > 0 ? (unsigned)ms : 100u;
                         mf->dx = mf->dy = 0;
+                        mf->gen = 0;
                         /* A frame line may carry further fields. The one the
                          * model acts on is the authored motion of THIS frame,
                          * "N,ms, M dx,dy" (285 of 18617 shipped frame lines
@@ -378,6 +381,18 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                                         digits = 0;
                                 if (digits)        /* tail of the M pair */
                                     continue;
+                                if (strcasecmp(word, "GEN") == 0) {
+                                    /* PR-69: `GEN K_GENn` = the frame raises
+                                     * that signal when it completes */
+                                    while (*q == ' ')
+                                        q++;
+                                    if (strncasecmp(q, "K_GEN", 5) == 0 &&
+                                        q[5] >= '1' && q[5] <= '4') {
+                                        mf->gen |= 1u << (q[5] - '1');
+                                        q += 6;
+                                        continue;
+                                    }
+                                }
                                 other_directive = 1;
                             }
                             if (other_directive)

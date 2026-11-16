@@ -484,6 +484,7 @@ typedef struct {                     /* one placement of a script        */
      * file (zwierzaki .des: damage= contact damage, bounds= the patrol x
      * range, scope= detection range, energy= hit points). -1 = absent. */
     int damage, b0, b1, scope, energy;
+    unsigned gen;                    /* PR-69: pending K_GEN1..4 pulses    */
 } lvl_obj;
 
 typedef struct {                     /* one level's authored scene: the
@@ -626,6 +627,55 @@ static void obj_draw(const lvl_obj *o, unsigned char *canvas, int cw,
                             o->y - camy, mirror, NULL);
 }
 
+/* PR-69: the object scripts are state machines, not a ring of states: a
+ * state's frame list loops until one of its transitions fires. Conditions
+ * the scene model can decide: AC_BREAK_NEXT (the frame list just ended),
+ * K_GEN1..4 (a signal a frame raised with `GEN K_GENn`), K_NEVER; AC_TIME
+ * (a timed wait, `time=min,max`, unit unresolved) is APPROXIMATED as "at the
+ * end of the frame list" so a waiting state never freezes; everything else
+ * (AC_ENEMY_ATC, AC_ONAIR, K_LEW, keys ...) is false here - those need the
+ * lion/world and the unported signal bus. Same OR semantics and first-match
+ * order as the player's transitions. */
+static int obj_cond_true(const lvl_obj *o, int brk, const ll_mov_tr *tr)
+{
+    for (int i = 0; i < tr->nc; i++) {
+        int v;
+        switch (tr->c[i].cond) {
+        case LL_COND_AC_BREAK_NEXT:
+        case LL_COND_AC_TIME:   v = brk; break;
+        case LL_COND_K_GEN1:    v = (o->gen & 1u) != 0; break;
+        case LL_COND_K_GEN2:    v = (o->gen & 2u) != 0; break;
+        case LL_COND_K_GEN3:    v = (o->gen & 4u) != 0; break;
+        case LL_COND_K_GEN4:    v = (o->gen & 8u) != 0; break;
+        default:                v = 0; break;
+        }
+        if (tr->c[i].neg)
+            v = !v;
+        if (v)
+            return 1;
+    }
+    return 0;
+}
+
+static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
+{
+    const ll_mov_st *s = &mov->st[o->sti];
+
+    for (int t = 0; t < s->ntr; t++) {
+        if (!obj_cond_true(o, brk, &s->tr[t]))
+            continue;
+        if (s->tr[t].tidx < 0 || s->tr[t].tidx == o->sti)
+            continue;                         /* unresolved / keep this state */
+        o->sti = s->tr[t].tidx;
+        o->fi = 0;
+        o->x = o->bx;
+        o->y = o->by;                         /* motion deltas are per state */
+        o->gen = 0;
+        return 1;
+    }
+    return 0;
+}
+
 static void obj_advance(lvl_obj *o, unsigned dt_ms)
 {
     ll_mov_t *mov = (o->sc && o->sc->mov) ? o->sc->mov : NULL;
@@ -635,24 +685,22 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         return;
     unsigned guard = 0;
     for (;;) {
-        /* FIX-13 (X-11): corrupt .MOV with all-zero frame durations would
-         * cycle states forever; one full pass without consuming time =
-         * stop. ll_mov_parse() clamps non-positive ms to 100 (M4-C), so
-         * this is a belt-and-braces bound on the CYCLE itself (a real
-         * dt <= 200 ms consumes at most a few hundred ms-granular
-         * frames; 4096 = way beyond any legitimate pass). The E-03
-         * hardening covered frame indices; durations end here. */
+        /* FIX-13 (X-11): a corrupt .MOV with all-zero frame durations would
+         * cycle forever; one full pass without consuming time = stop
+         * (ll_mov_parse clamps non-positive ms to 100; 4096 is far beyond
+         * any legitimate pass). */
         if (++guard > 4096)
             break;
         ll_mov_st *s = &mov->st[o->sti];
-        if (s->nfr == 0 || o->fi >= s->nfr) {   /* state end -> next state   */
-            o->sti = (o->sti + 1) % mov->nst;
-            o->fi = 0;
-            o->x = o->bx;
-            o->y = o->by;                     /* motion deltas are per state */
-            s = &mov->st[o->sti];
+        if (s->nfr == 0 || o->fi >= s->nfr) {   /* end of the frame list     */
+            if (obj_transition(o, mov, 1))
+                continue;
             if (s->nfr == 0)
                 break;
+            o->fi = 0;                          /* no way out: loop the state */
+            o->x = o->bx;
+            o->y = o->by;
+            o->gen = 0;
         }
         ll_mov_fr *f = &s->fr[o->fi];
         if (o->t < f->ms)
@@ -660,7 +708,11 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         o->t -= f->ms;
         o->x += f->dx;             /* the authored "N,ms, M dx,dy" motion  */
         o->y += f->dy;             /* directive of the frame being held    */
+        o->gen |= f->gen;          /* `GEN K_GENn`: raised as the frame ends */
         o->fi++;
+        if (o->gen && obj_transition(o, mov, 0))
+            continue;
+        o->gen = 0;
     }
 }
 
@@ -1007,6 +1059,65 @@ static int seq_push_selftest(void)
     return 0;
 }
 
+/* PR-69: object scripts are state machines (hand-derived, data-free).
+ * Script text: A_RUN loops frames 1,2 (100 ms each) with A_DEAD(1)=K_GEN1;
+ * A_DEAD holds frame 3 and goes back with A_RUN(1)=AC_BREAK_NEXT.
+ *   no signal: 250 ms later the state is still A_RUN (the old ring would
+ *   have walked into A_DEAD at 200 ms);
+ *   frame 2 carrying `GEN K_GEN1`: at 200 ms A_RUN -> A_DEAD (fi 0), and
+ *   100 ms later the frame list of A_DEAD ends -> A_RUN again. */
+static int obj_state_selftest(void)
+{
+    static const char plain[] =
+        "A_RUN\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\nA_DEAD(1)=K_GEN1\n"
+        "1,100\n2,100\n\n[A_DEAD]\ncontrol=BY_TIME\n"
+        "A_RUN(1)=AC_BREAK_NEXT\n3,100\n";
+    static const char gen[] =
+        "A_RUN\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\nA_DEAD(1)=K_GEN1\n"
+        "1,100\n2,100,GEN K_GEN1\n\n[A_DEAD]\ncontrol=BY_TIME\n"
+        "A_RUN(1)=AC_BREAK_NEXT\n3,100\n";
+    int rc = 1;
+    ll_mov_t *m1 = calloc(1, sizeof *m1), *m2 = calloc(1, sizeof *m2);
+    obj_script s1, s2;
+    lvl_obj a, b;
+
+    if (!m1 || !m2)
+        goto out;
+    memset(&s1, 0, sizeof s1);
+    memset(&s2, 0, sizeof s2);
+    memset(&a, 0, sizeof a);
+    memset(&b, 0, sizeof b);
+    ll_mov_parse(plain, m1);
+    ll_mov_parse(gen, m2);
+    s1.mov = m1;
+    s2.mov = m2;
+    a.sc = &s1;
+    b.sc = &s2;
+    obj_advance(&a, 250);
+    if (a.sti != 0) {
+        fprintf(stderr, "object state selftest: FAILED plain script left A_RUN"
+                        " (state %d)\n", a.sti);
+        goto out;
+    }
+    obj_advance(&b, 200);
+    if (b.sti != 1 || b.fi != 0) {
+        fprintf(stderr, "object state selftest: FAILED K_GEN1 did not enter"
+                        " A_DEAD (state %d frame %d)\n", b.sti, b.fi);
+        goto out;
+    }
+    obj_advance(&b, 100);
+    if (b.sti != 0) {
+        fprintf(stderr, "object state selftest: FAILED AC_BREAK_NEXT did not"
+                        " return to A_RUN (state %d)\n", b.sti);
+        goto out;
+    }
+    rc = 0;
+out:
+    free(m1);
+    free(m2);
+    return rc;
+}
+
 static int obj_layer_selftest(void);
 
 /* FIX-13 (X-11) selftest, test-only entry point (ll_level.h): proves the
@@ -1158,7 +1269,7 @@ int ll_mov_selftest(void)
     /* PR-46: the element SHAPE geometry leg (no window, no game data). */
     if (seq_codec_selftest() != 0 || seq_anchor_selftest() != 0 ||
         seq_shape_selftest() != 0 || seq_push_selftest() != 0 ||
-        obj_layer_selftest() != 0) {
+        obj_layer_selftest() != 0 || obj_state_selftest() != 0) {
         free(sc.mov);
         free(m);
         return 1;
@@ -1167,7 +1278,7 @@ int ll_mov_selftest(void)
     free(sc.mov);
     free(m);
     printf("mov selftest: duration clamp + cycle guard + per-state seq= art"
-           " selection + patch codecs + anchored draw + shape geometry + push-out + object layers (ok)\n");
+           " selection + patch codecs + anchored draw + shape geometry + push-out + object layers + object state machine (ok)\n");
     return 0;
 }
 

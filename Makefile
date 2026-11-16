@@ -215,11 +215,11 @@ ifeq ($(PX_WINREF),1)
 	@rm -f /tmp/opencode/wlv_t8.ppm
 	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all SDL_VIDEODRIVER=dummy \
 	  SDL_AUDIODRIVER=dummy LEO_HD_DIR=Z:$(HD) \
-	  LEO_LEVEL_PPM=Z:/tmp/opencode/wlv_t8.ppm LEO_LEVEL_PPM_TICK=8 \
+	  LEO_LEVEL_PPM=Z:/tmp/opencode/wlv_t8.ppm LEO_LEVEL_PPM_TICK=20 \
 	  timeout 120 wine ./ll_level.exe Z:$(DATA) TUNGA.11 >/dev/null 2>&1 || true
 	@if tools/frames_differ.sh /tmp/opencode/wlv_t2.ppm /tmp/opencode/wlv_t8.ppm; \
-	then echo "win level anim: platform moves under wine (t2 != t8, ok)"; \
-	else echo "win level anim FAILED: tick2 == tick8"; exit 1; fi
+	then echo "win level anim: platform moves under wine (t2 != t20, ok)"; \
+	else echo "win level anim FAILED: tick2 == tick20"; exit 1; fi
 	@cmp /tmp/opencode/lvlv_t2.ppm /tmp/opencode/wlv_t2.ppm \
 	  && echo "win level frame == linux frame (byte-exact scene compositing)"
 	@rm -f /tmp/opencode/lvlv_cam300.ppm
@@ -429,7 +429,7 @@ verify-level: ll_level pcm_selftest
 	@timeout 30 ./ll_level --mov-selftest
 ifeq ($(PX_DATA),1)
 	@rm -f /tmp/opencode/lv_tick2.ppm /tmp/opencode/lv_tick8.ppm
-	@for T in 2 8; do env -u DISPLAY SDL_VIDEODRIVER=dummy \
+	@for T in 2 8 20; do env -u DISPLAY SDL_VIDEODRIVER=dummy \
 	  SDL_AUDIODRIVER=dummy LEO_HD_DIR=$(HD) \
 	  LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
 	  LEO_LEVEL_PPM=/tmp/opencode/lv_tick$$T.ppm LEO_LEVEL_PPM_TICK=$$T \
@@ -468,9 +468,9 @@ ifeq ($(PX_DATA),1)
 	      /tmp/opencode/lv_tick8.log \
 	  && echo "scene animation: the authored .MOV cycles advance on the fixed grid, proof bounded at 12 placements (ok)" \
 	  || { echo "scene animation grep FAILED"; cat /tmp/opencode/lv_tick8.log; exit 1; }
-	@if tools/frames_differ.sh /tmp/opencode/lv_tick2.ppm /tmp/opencode/lv_tick8.ppm; \
-	then echo "level anim: the authored scene changes on screen (tick2 != tick8, ok)"; \
-	else echo "level anim FAILED: tick2 == tick8"; exit 1; fi
+	@if tools/frames_differ.sh /tmp/opencode/lv_tick2.ppm /tmp/opencode/lv_tick20.ppm; \
+	then echo "level anim: the authored scene changes on screen (tick2 != tick20, ok)"; \
+	else echo "level anim FAILED: tick2 == tick20"; exit 1; fi
 # LEO_OBJ_ALL=1 prints EVERY placement (the default listing is bounded at 24):
 # proof that the platform script the old build knew (ED000002, 5 states) comes
 # from the level's own ani_plat data, at its authored coordinates
@@ -631,14 +631,14 @@ ifeq ($(PX_DATA),1)
 	  && echo "play solid contact: RAN.01 EDGE0046 pushes the lion back 3 px at tick 54; default run has no contacts (ok)" \
 	  || { echo "play solid contact grep FAILED"; grep ': solid ' /tmp/opencode/ly_solid.log | head -3; exit 1; }
 # PR-68: enemy stats from the placement file (damage=/bounds=/scope=/energy=):
-# ZARIA.01's first LICHA (120,650, damage 15) hurts the lion at tick 84.
+# ZARIA.01's first LICHA (120,650, damage 15) hurts the lion at tick 163.
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SOLID=1 \
 	  LEO_PLAY_SCRIPT="1:FWD" LEO_LEVEL_PPM=/tmp/opencode/ly_hit.ppm \
-	  LEO_LEVEL_PPM_TICK=100 ./ll_level $(DATA) ZARIA.01 --play --no-audio \
+	  LEO_LEVEL_PPM_TICK=170 ./ll_level $(DATA) ZARIA.01 --play --no-audio \
 	  > /tmp/opencode/ly_hit.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "play hit FAILED (rc=$$rc)"; exit 1; fi
-	@grep -q 'play tick 84: hit by LICHA/licha3.mov: damage 15 -> energy 85' \
+	@grep -q 'play tick 163: hit by LICHA/licha3.mov: damage 15 -> energy 85' \
 	    /tmp/opencode/ly_hit.log \
 	  && echo "play enemy contact: ZARIA.01's LICHA deals its authored damage=15 (energy 100 -> 85, ok)" \
 	  || { echo "play enemy contact grep FAILED"; grep 'hit by' /tmp/opencode/ly_hit.log | head -3; exit 1; }

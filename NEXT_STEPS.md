@@ -3023,6 +3023,38 @@ engine-side).
     state machines driven by signals - the unported signal bus), the lion's
     attack (damage to enemies, energy=), pickups.
 
+## PR-69 — scene objects are state machines (the first slice of the signal bus)
+          (DONE 2026-11-16)
+
+  - Survey of all 777 HD .MOV scripts: frame-line tails are 595 `GEN <sig>`
+    (K_GEN1 295, AC_PLAT_OFF 181, AC_TIME 60, K_GEN3 ~140, K_GEN4, K_GEN2,
+    AC_XCHG_LEVEL, AC_LEAVE, AC_SHOW_CROWN, AC_MSG_PUSH ...), ATC_ON/OFF,
+    WAIT, F/M/I/FC (velocity/move/impulse), lock/unlock, GOTO_REL, RDIR,
+    sound (smpauto), end_level, VOL_MUSIC. Transition conditions: AC_BREAK_NEXT
+    674 (the frame list ended), K_GEN1 231, AC_ENEMY_ATC 290, AC_TIME 179,
+    AC_ONAIR 139, K_GEN2 126, AC_DUP 76, keys (K_JUMP, K_FIRE, K_F1/F2 ...).
+  - Old behaviour: a scene object walked its states as a RING (state end ->
+    the next state in file order), which kills e.g. ZARIA's balloons after
+    one cycle (A_RUN -> A_DEAD). Now (obj_advance): a state's frame list
+    LOOPS until a transition fires; conditions decided here: AC_BREAK_NEXT,
+    K_GEN1..4 (raised by a frame's `GEN K_GENn` tail, now parsed into
+    ll_mov_fr.gen), AC_TIME (approximated as the end of the frame list: the
+    `time=min,max` unit is unresolved, a waiting state must not freeze);
+    AC_ENEMY_ATC, AC_ONAIR, K_LEW, keys etc. are false until the lion/world
+    signals exist. First-match, OR semantics, self-targets keep the state:
+    the player's rules.
+  - Effects seen: ZARIA.01's LICHA now first hurts the lion at tick 163 (was
+    84, pin moved); TUNGA.11's scene animation shows from ~tick 20 (was 8:
+    looping states hold a frame longer than the old ring) - the level-anim
+    leg compares tick 2 vs 20.
+  - Proof: hand-derived data-free obj_state_selftest (plain script stays in
+    A_RUN at 250 ms; `GEN K_GEN1` enters A_DEAD at 200 ms and AC_BREAK_NEXT
+    returns at 300 ms), mutation-checked twice (ring wrap, GEN dropped).
+  - Open: who raises K_GEN* from OUTSIDE (the balloon's A_RUN waits for a
+    K_GEN1 that the touch handler sends - the class touch methods), the AC_*
+    actions (PLAT_OFF/OUT, XCHG_LEVEL, SHOW_CROWN, MSG_PUSH, LEAVE),
+    ATC_ON/OFF and the F/I/FC velocity directives.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

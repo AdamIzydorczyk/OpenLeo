@@ -135,10 +135,12 @@ enum {
     LL_COND_NONE = 0,
     LL_COND_K_FWD, LL_COND_K_BKWD, LL_COND_K_UP, LL_COND_K_DOWN,
     LL_COND_K_GEN1, LL_COND_K_GEN2, LL_COND_K_GEN3,
-    LL_COND_K_ANY, LL_COND_AC_BREAK_NEXT, LL_COND_OTHER
+    LL_COND_K_ANY, LL_COND_AC_BREAK_NEXT,
+    LL_COND_K_GEN4, LL_COND_AC_TIME,   /* PR-69: scene objects (not the lion) */
+    LL_COND_OTHER
 };
 
-typedef struct { int frame; unsigned ms; int dx, dy; } ll_mov_fr;
+typedef struct { int frame; unsigned ms; int dx, dy; unsigned gen; } ll_mov_fr;   /* gen: bit n-1 = the frame's `GEN K_GENn` tail */
 typedef struct {
     char target[24];                        /* resolved at parse time      */
     int tidx;                               /* state index, -1 unresolved  */
