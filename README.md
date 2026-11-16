@@ -90,6 +90,9 @@ confirms, t/n/x are direct keys.
 ```
 make verify-all
 # verify       linux --ppm frame 1020 == python reference (byte-exact)
+# verify-is-synth  data-free movie codec test: a synthesised .IS checked
+#              against hand-derived values (LUT1 polarity, palette-only
+#              redraws) - cannot pass by the twins agreeing
 # verify-skip  linux ESC-skip final frame == python reference
 # verify-win   same two proofs for the .exe, run under wine
 # verify-llrs  ported/llrs.c == tools/llrs_unpack.py on all 4 containers

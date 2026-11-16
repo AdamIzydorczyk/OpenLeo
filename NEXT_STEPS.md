@@ -2667,6 +2667,46 @@ engine-side).
     "start" variant (element 1) before a level is touched, the grey element
     2, the red mouse pointer, arrow animation. Recorded for the next step.
 
+## PR-55 — movie image quality: LUT1 polarity and palette-only redraws
+          (owner report with screenshots, DONE 2026-11-16)
+
+  - Report: the intro movie looked "really bad" (owner screenshots of the
+    port vs the original: the crocodile's belly stripes were thick black
+    blocks, dark checkerboards, no eye detail) and a black screen appeared
+    at some moment. Screenshots kept outside git
+    (/tmp/opencode/golden/user_refs/movies/).
+  - Bug 1 - LUT1 colour swap (every .IS movie): the two-colour opcode
+    (FUN_0001a9fe) loads `al = TABLE[bit]`, so a SET bit selects the SECOND
+    table byte. tools/is_decode.py and ported/is_stream.c (twins, written
+    together) did `bit ? T[0] : T[1]`, swapping both colours of every
+    two-colour run: thin outlines and stripes turned into solid blocks
+    while broad fills (SOLID/RAW/LUT2/LUT4, all checked against the
+    machine code and correct) looked right. Found by decoding the exact
+    frame of the owner's screenshot (592, by pose/background match),
+    tracking the last-writing opcode per pixel, then re-reading the
+    handler's instructions. The old "verified byte-exact" claims compared
+    C with python - both wrong the same way.
+  - Bug 2 - the black screen: chunks 551.. of INTRO_P carry ONLY a palette
+    (PAL) and audio, no frame: the movie fades the title card out and a
+    jungle-temple scene IN by stepping the palette for ~28 s (t = 40..68 s,
+    brightness 1 -> 75 over 80+ chunks; a fade-out closes the movie). The
+    player presented only on frames, so the black palette stayed on screen
+    for the whole fade. It now redraws on a palette-only chunk (162 such
+    chunks in INTRO_P: presents = 1521 frames + 162 = 1683, counted).
+  - Not a bug: the first ~490 frames are the title cards (red text on black,
+    walking characters) - dark by design; 0.2-1.8 s black gaps separate the
+    cards; single black frames elsewhere are cuts (0.07 s).
+  - Tests that cannot be fooled by the twins agreeing: new data-free
+    verify-is-synth (tools/is_synth_check.py) builds a 640x4 movie and
+    checks the python decoder, the C decoder (--ppm) and the player's
+    presents (1 frame + 2 palette-only chunks = 3) against values derived
+    by hand from the machine code; mutation-tested three ways (each fix
+    reverted -> FAILED). The existing byte-exact legs (verify, verify-skip,
+    verify-win, verify-cmake) now compare the corrected decoders.
+  - Open: the live player also ignores the RPT (repeat) operand for hold
+    times (it paces by the audio clock, as documented); the vertical wipe
+    seen mid-movie was left as authored.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

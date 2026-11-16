@@ -40,6 +40,7 @@ typedef struct {
                             * (P-12: no full-frame malloc in the present path) */
     size_t       lcap;
     unsigned     presented;
+    unsigned     pal_redraws; /* palette-only chunks that redrew the screen */
     unsigned     start_frame; /* skip presenting frames below this */
     uint64_t     pause_at;    /* ns stamp when paused (0=live); works with
                                * OR without an audio device (T-07) */
@@ -533,10 +534,22 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
                                                        deadline */
         if (p.quit || p.skip)
             continue;
+        unsigned pal0 = p.is.st.palette, fr0 = p.is.st.frames;
         is_decode_chunk(&p.is, ci, on_frame, &p, NULL);
         if (p.is.st.ok) {
             fprintf(stderr, "is_player: desync at chunk %u\n", ci);
             break;
+        }
+        /* PR-55: a chunk can carry a PALETTE and no frame - the movies fade
+         * by stepping the palette chunk after chunk over a frame already in
+         * the buffer (INTRO_P: 25 such chunks, ~28 s, between the title
+         * card and the jungle; a fade-out closes the movie). Presenting
+         * only on frames left the old, black palette on screen for the
+         * whole fade: a 28 s black screen. Redraw on a palette-only chunk. */
+        if (p.is.st.palette != pal0 && p.is.st.frames == fr0 &&
+            p.is.st.frames > p.start_frame) {
+            present(&p);
+            p.pal_redraws++;
         }
         /* audio-block clock: hold this chunk for exactly its region's
          * audio; silent chunks hold repeat * 1/70 s (engine keeps the
@@ -620,7 +633,7 @@ int is_player_run(const char *path, int audio, unsigned start_frame,
             plat_sleep_until(now_ns() + 30000000ull);
         }
     }
-    printf("is_player: presented=%u decoded=%u quit=%d (%s)\n", p.presented,
+    printf("is_player: presented=%u (of which %u palette-only redraws) decoded=%u quit=%d (%s)\n", p.presented, p.pal_redraws,
            p.is.st.frames, p.quit, p.quit_reason ? p.quit_reason : "finished");
     free(p.ascratch);
     free(p.lbuf);

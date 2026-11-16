@@ -102,6 +102,12 @@ else
 	@echo "verify: SKIP (game data not staged: DATA=$(DATA); from LL.iso: bsdtar -xf LL.iso -C /tmp/opencode/iso_stage LEO)"
 endif
 
+# PR-55: data-free codec regression test - a synthesised movie checked against
+# values derived by hand from the machine code (LUT1 polarity, palette-only
+# redraws); it cannot pass by the C and python decoders agreeing on a mistake.
+verify-is-synth: ll_cutscene
+	python3 tools/is_synth_check.py ./ll_cutscene
+
 # ESC-skip UX test: auto-terminates (LEO_DUMP_SKIP sets CI mode) and the
 # final held frame must equal the python reference of the last frame.
 verify-skip: ll_cutscene py-refs
@@ -1288,7 +1294,7 @@ else
 	@echo "verify-golden: SKIP (the port pose-dump half needs game data $(DATA); without a pose dump the golden contract cannot be exercised)"
 endif
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-play verify-help verify-menu verify-sel verify-quit verify-save verify-music verify-utf8 verify-fuzz verify-platform verify-userdir verify-arch verify-golden verify-cmake
+verify-all: verify verify-is-synth verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-play verify-help verify-menu verify-sel verify-quit verify-save verify-music verify-utf8 verify-fuzz verify-platform verify-userdir verify-arch verify-golden verify-cmake
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
@@ -1301,7 +1307,7 @@ clean:
 	      mod_selftest mod_selftest.exe ll_level ll_level.exe \
 	      ll_save ll_save.exe *.o *.obj
 
-.PHONY: py-refs run win verify verify-skip verify-win verify-llrs verify-pcx \
+.PHONY: py-refs verify-is-synth run win verify verify-skip verify-win verify-llrs verify-pcx \
         verify-seq verify-pcm verify-mod verify-level verify-play verify-help verify-menu \
         verify-sel verify-quit verify-save verify-music verify-utf8 verify-fuzz \
         verify-platform verify-userdir verify-cmake verify-all level clean package package-win package-linux \

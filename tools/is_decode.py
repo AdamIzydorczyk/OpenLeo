@@ -18,7 +18,9 @@ Band opcode grammar (one opcode stream per frame, bands back-to-back):
   mode = B&0xb8:
     0x00 SOLID: +1 byte val; fill len px in each of 4 segments
     0x08 LUT1:  inline 2-byte table T; ceil(len/2) data bytes; per byte c:
-                segment i writes px = T[bit(7-i)] and T[bit(3-i)]
+                segment i writes px = T[bit(7-i)] and T[bit(3-i)] - indexed
+                BY the bit (set bit -> T[1], the second byte; PR-55: the
+                earlier twin decoders had this inverted)
                 (odd tail len: one px per segment = T[bit(7-i)])
     0x10 LUT2:  inline 4-byte table; len data bytes; per byte c:
                 seg0=T[c>>6] seg1=T[(c>>4)&3] seg2=T[(c>>2)&3] seg3=T[c&3]
@@ -130,15 +132,15 @@ class IS:
                         pos += 1
                         for i in range(4):
                             s = seg[i]
-                            fb[s] = t0 if (c >> (7 - i)) & 1 else t1
-                            fb[s + 1] = t0 if (c >> (3 - i)) & 1 else t1
+                            fb[s] = t1 if (c >> (7 - i)) & 1 else t0
+                            fb[s + 1] = t1 if (c >> (3 - i)) & 1 else t0
                             seg[i] = s + 2
                     if ln & 1:
                         c = self.d[pos]
                         pos += 1
                         for i in range(4):
                             s = seg[i]
-                            fb[s] = t0 if (c >> (7 - i)) & 1 else t1
+                            fb[s] = t1 if (c >> (7 - i)) & 1 else t0
                             seg[i] = s + 1
                     budget -= ln
                     stat['lut1'] = stat.get('lut1', 0) + 1

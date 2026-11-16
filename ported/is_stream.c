@@ -178,6 +178,11 @@ static size_t decode_frame(is_stream *s, size_t pos, size_t stop)
             case IS_OP_LUT1: {
                 if (pos + 2 > stop)
                     BOUNDS();
+                /* PR-55: the game indexes the 2-byte table BY THE BIT
+                 * (FUN_0001a9fe: al = [table + bit]), so a SET bit selects
+                 * the SECOND table byte. This port (and its python twin)
+                 * had the two swapped, which colour-swapped every two-
+                 * colour run: thin lines became thick black blocks. */
                 uint8_t t0 = d[pos], t1 = d[pos + 1];
                 pos += 2;
                 int ndata = (ln + 1) >> 1;
@@ -189,8 +194,8 @@ static size_t decode_frame(is_stream *s, size_t pos, size_t stop)
                         size_t p2 = seg[i];
                         if (p2 + 2 > fsz)
                             BOUNDS();
-                        fb[p2] = (c >> (7 - i)) & 1 ? t0 : t1;
-                        fb[p2 + 1] = (c >> (3 - i)) & 1 ? t0 : t1;
+                        fb[p2] = (c >> (7 - i)) & 1 ? t1 : t0;
+                        fb[p2 + 1] = (c >> (3 - i)) & 1 ? t1 : t0;
                         seg[i] = p2 + 2;
                     }
                 }
@@ -200,7 +205,7 @@ static size_t decode_frame(is_stream *s, size_t pos, size_t stop)
                         size_t p2 = seg[i];
                         if (p2 + 1 > fsz)
                             BOUNDS();
-                        fb[p2] = (c >> (7 - i)) & 1 ? t0 : t1;
+                        fb[p2] = (c >> (7 - i)) & 1 ? t1 : t0;
                         seg[i] = p2 + 1;
                     }
                 }
