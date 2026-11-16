@@ -153,9 +153,11 @@ its .des placement files (zwierzaki=/animacje=/ani_plat=) name, drawn
 with the .SEQ art each script state selects through its own `seq=`.
 `LEO_OBJ_ALL=1` prints EVERY placed object (the default proof listing
 is bounded: 24 placements, then the count of the rest; the same bound
-applies to the per-tick advance lines). `ll_level --mov-selftest` runs
-the hermetic .MOV duration/cycle + per-state art-selection + element
-shape-geometry checks (no data needed).
+applies to the per-tick advance lines). `LEO_LEVEL_CAMY=<px>` sets the
+initial VERTICAL camera (CI; in play mode the camera follows the lion's
+feet, Up/Down pan it in the viewer). `ll_level --mov-selftest` runs
+the hermetic .MOV duration/cycle + per-state art-selection + patch-codec
++ anchored-draw + element shape-geometry checks (no data needed).
 
 Runtime policy hooks: `LEO_FORCE_X11=1` (under a Wayland session pin the
 video backend to X11/XWayland — the pre-FIX-11 default; default now is

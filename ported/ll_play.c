@@ -305,6 +305,18 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                 } else {
                     m->drop_st++;
                 }
+            } else if (m->nst == 0) {
+                /* before the first [STATE]: the declared state list; its
+                 * first name is the starting state */
+                if (!m->first_decl[0] && line[0] != ';' && line[0] != '/' &&
+                    !strchr(line, '=')) {
+                    size_t k = 0;
+                    while (line[k] > ' ' && k < sizeof m->first_decl - 1) {
+                        m->first_decl[k] = line[k];
+                        k++;
+                    }
+                    m->first_decl[k] = '\0';
+                }
             } else if (m->nst > 0) {
                 ll_mov_st *s = &m->st[m->nst - 1];
                 int f, ms;
@@ -434,6 +446,10 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
         ll_mov_st *s = &m->st[k];
         for (int t = 0; t < s->ntr; t++)
             s->tr[t].tidx = ll_mov_find(m, s->tr[t].target);
+    }
+    if (m->first_decl[0]) {
+        int k = ll_mov_find(m, m->first_decl);
+        m->start_st = k > 0 ? k : 0;
     }
     return m->nst;
 }

@@ -581,12 +581,12 @@ static const ll_seq_elem *obj_elem(const lvl_obj *o, int *mirror)
  * skip them, and skipping must match what ll_seq_draw_elem would do: patches
  * are 80 px column strips drawn right and down from (x,y), so the real
  * extent is the element bbox (elem_size), not a guess. */
-static int obj_visible(const lvl_obj *o, int cw, int ch, int cam)
+static int obj_visible(const lvl_obj *o, int cw, int ch, int cam, int camy)
 {
     const obj_art *a = obj_art_of(o);      /* NULL: no art for this state */
     if (!a || a->eidx0 < 0)             /* < 0: shape-only, nothing to draw */
         return 0;
-    int x = o->x - cam, y = o->y;
+    int x = o->x - cam, y = o->y - camy;
     /* the drawn rectangle is the OBJECT position moved by the element's own
      * anchor and possibly mirrored (ll_seq_draw_elem_anchor): a->rx / a->ry
      * bound that over every element of the table, so the cull cannot drop
@@ -604,17 +604,17 @@ static int obj_visible(const lvl_obj *o, int cw, int ch, int cam)
  * methods, ll_seq_draw_elem_anchor). The art is the table the object's
  * CURRENT state selected (obj_art_of). */
 static void obj_draw(const lvl_obj *o, unsigned char *canvas, int cw,
-                     int ch, int cam)
+                     int ch, int cam, int camy)
 {
-    if (!obj_visible(o, cw, ch, cam))
+    if (!obj_visible(o, cw, ch, cam, camy))
         return;
     const obj_art *a = obj_art_of(o);
     int mirror;
     const ll_seq_elem *e = obj_elem(o, &mirror);
     if (!a || !e)
         return;
-    ll_seq_draw_elem_anchor(&a->seq, e, canvas, cw, ch, o->x - cam, o->y,
-                            mirror, NULL);
+    ll_seq_draw_elem_anchor(&a->seq, e, canvas, cw, ch, o->x - cam,
+                            o->y - camy, mirror, NULL);
 }
 
 static void obj_advance(lvl_obj *o, unsigned dt_ms)
@@ -960,6 +960,24 @@ int ll_mov_selftest(void)
         free(m);
         return 1;
     }
+    /* PR-51: the declared state list picks the start state (box40.mov
+     * shape: header A_RUN, A_DEAD but the [A_DEAD] block written first) */
+    ll_mov_parse("A_RUN\nA_DEAD\n\n[A_DEAD]\n0,100\n\n[A_RUN]\n1,50\n", m);
+    if (m->nst != 2 || m->start_st != 1 ||
+        strcmp(m->first_decl, "A_RUN") != 0) {
+        fprintf(stderr, "mov selftest: FAILED declared start state"
+                        " (start_st=%d decl='%s')\n", m->start_st,
+                m->first_decl);
+        free(m);
+        return 1;
+    }
+    ll_mov_parse("[A]\n0,0\n1,0\n2,-5\n[B]\n0,5\n", m);
+    if (m->start_st != 0 || m->first_decl[0]) {
+        fprintf(stderr, "mov selftest: FAILED no declaration must mean"
+                        " state 0\n");
+        free(m);
+        return 1;
+    }
     for (int k = 0; k < 3; k++)
         if (m->st[0].fr[k].ms != 100u) {
             fprintf(stderr, "mov selftest: FAILED zero/negative duration "
@@ -1034,7 +1052,7 @@ int ll_mov_selftest(void)
         free(m);
         return 1;
     }
-    if (!obj_visible(&o, 640, 400, 0)) {
+    if (!obj_visible(&o, 640, 400, 0, 0)) {
         fprintf(stderr, "mov selftest: FAILED a selected patch-art table was"
                         " not drawable\n");
         free(sc.mov);
@@ -1058,7 +1076,7 @@ int ll_mov_selftest(void)
         free(m);
         return 1;
     }
-    if (obj_visible(&o, 640, 400, 0)) {
+    if (obj_visible(&o, 640, 400, 0, 0)) {
         fprintf(stderr, "mov selftest: FAILED a shape-only art table was"
                         " drawn anyway\n");
         free(sc.mov);
@@ -1214,8 +1232,19 @@ static void play_advance(play_ctx *pl, const ll_play_keys *keys,
  * bbox origin = (-f0,-f2) relative to the feet point (ll_seq.h; verified
  * on UJ09.SEQ f0=35 f2=68, the walk cycle whose feet ARE the ground
  * line), so the draw origin is (x - cam - (short)f0, y - (short)f2). */
+/* viewer camera policy: the lion's feet sit 65% down the view */
+static int follow_camy(const play_ctx *pl, int ch, int cam_ymax)
+{
+    int y = (int)pl->p.y - (ch * 65) / 100;
+    if (y < 0)
+        y = 0;
+    if (y > cam_ymax)
+        y = cam_ymax;
+    return y;
+}
+
 static void play_draw(const play_ctx *pl, unsigned char *canvas, int cw,
-                      int ch, int cam)
+                      int ch, int cam, int camy)
 {
     if (!pl->have || pl->p.sti >= pl->mov->nst)
         return;
@@ -1229,7 +1258,7 @@ static void play_draw(const play_ctx *pl, unsigned char *canvas, int cw,
         return;
     const ll_seq_elem *e = &s->els[r.idx];
     int x = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5) - cam;
-    int y = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5);
+    int y = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5) - camy;
     ll_seq_draw_elem_anchor(s, e, canvas, cw, ch, x, y, r.mirror, NULL);
 }
 
@@ -1297,14 +1326,16 @@ static void bg_at(const ll_pcm *pcml, const ll_pcx *img, int pcm_owner,
         ll_pcm_view_at(pcml, 0, pcm_band, (unsigned)cam / 80u, scratch);
         memcpy(canvas + (size_t)(ch - (int)pcm_band) * (size_t)cw,
                scratch, (size_t)cw * pcm_band);
-    } else if (!pcm_owner && img->idx) {
-        for (int y = 0; y < ch; y++) {
-            const unsigned char *srow = img->idx + (size_t)y * img->w;
-            unsigned char *drow = canvas + (size_t)y * (size_t)cw;
-            for (int c = 0; c < cw; c++)
-                drow[c] = srow[(unsigned)((cam + c) % (int)img->w)];
-        }
     }
+    /* A .PCX backdrop is NOT scrolled (PR-51, viewer policy). The view is
+     * exactly the image size, so there is no spare width to pan over, and
+     * the old tiling repeated a non-seamless image with a hard vertical cut
+     * in the middle of the screen (KADMAR.07 at cam 1280, KARA.07). The
+     * original scrolls its backdrop by a per-plane parallax factor
+     * (FUN_00057530/57500 scale the camera by obj+0x24) that this port has
+     * not recovered; a fixed backdrop is the one seam-free choice that
+     * invents no rate - the objects and the lion scroll over it. */
+    (void)img;
 }
 /* 4b) the authored scene: the level's own placement data (PR-45) ---------
  * A level says what stands where in sub-.des files that its main .des names
@@ -1899,6 +1930,7 @@ static void des_place_file(place_ctx *pc, const char *fname,
                 if (!o)
                     goto next;
                 o->sc = sc;
+                o->sti = sc->mov ? sc->mov->start_st : 0;   /* declared start */
                 o->bx = o->x = x;      /* authored position, y down: no
                                         * invented bottom-anchor. Only the
                                         * script's own " M dx,dy" frames move
@@ -2954,6 +2986,19 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         cam = 0;
     if (cam > cam_max)
         cam = cam_max;
+    /* Vertical camera (PR-51, VIEWER POLICY - the game's own camera is not
+     * recovered): the backdrop image is exactly the view size, so it cannot
+     * scroll; objects and the lion scroll over it by camy. In play mode it
+     * follows the lion's feet (65% down the view), LEO_LEVEL_CAMY sets it
+     * for CI, Up/Down pan it in the viewer. Without this the lion spawned
+     * below the view on 7 of the 12 playable levels (feet y 320..1504 vs
+     * views 200..600 px tall) and was never on screen. */
+    int cam_ymax = world_h > ch ? world_h - ch : 0;
+    int camy = getenv("LEO_LEVEL_CAMY") ? atoi(getenv("LEO_LEVEL_CAMY")) : 0;
+    if (camy < 0)
+        camy = 0;
+    if (camy > cam_ymax)
+        camy = cam_ymax;
     int autoscroll = 0;
     if (world_w > 0)
         printf("ll_level: world %dx%d (back_rect %d,%d), view %dx%d, cam"
@@ -2978,7 +3023,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     memcpy(canvas, base, csz);
     bg_at(&pcml, &img, pcm_owner, pcm_band, cam, cw, ch, scratch, canvas);
     for (int k = 0; k < nobj; k++)
-        obj_draw(&objs[k], canvas, cw, ch, cam);
+        obj_draw(&objs[k], canvas, cw, ch, cam, camy);
 
     const char *ppm = getenv("LEO_LEVEL_PPM");   /* CI: headless dump */
     if (ppm) {
@@ -2999,6 +3044,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 for (int k = 0; k < nobj; k++)
                     obj_advance(&objs[k], 20);
             }
+            camy = follow_camy(&pl, ch, cam_ymax);
         } else {
             int shown = 0;
             for (int k = 0; k < nobj; k++) { /* advance fixed-step then redraw */
@@ -3019,8 +3065,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         memcpy(canvas, base, csz);         /* same order as the live loop */
         bg_at(&pcml, &img, pcm_owner, pcm_band, cam, cw, ch, scratch, canvas);
         for (int k = 0; k < nobj; k++)
-            obj_draw(&objs[k], canvas, cw, ch, cam);
-        play_draw(&pl, canvas, cw, ch, cam);
+            obj_draw(&objs[k], canvas, cw, ch, cam, camy);
+        play_draw(&pl, canvas, cw, ch, cam, camy);
         if (pcm_owner) {
             /* PCM canvas: CI hash of the bare window band (win_rows rows,
              * top-anchored like verify_pcm.py's `view`) must equal the
@@ -3134,9 +3180,14 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                     else
                         pl.keys.k_down = on;
                 }
-                else if (e.type == LL_EV_KEYDOWN && cam_max > 0) {
+                else if (e.type == LL_EV_KEYDOWN &&
+                         (cam_max > 0 || cam_ymax > 0)) {
                     int k = e.key;      /* ASCII verbatim or LLKEY_* */
-                    if (k == LLKEY_LEFT)
+                    if (k == LLKEY_UP)
+                        camy = camy > 20 ? camy - 20 : 0;
+                    else if (k == LLKEY_DOWN)
+                        camy = camy + 20 <= cam_ymax ? camy + 20 : cam_ymax;
+                    else if (k == LLKEY_LEFT)
                         cam = cam > 20 ? cam - 20 : 0;
                     else if (k == LLKEY_RIGHT)
                         cam = cam + 20 <= cam_max ? cam + 20 : cam_max;
@@ -3182,13 +3233,14 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                     cam = 0;
                 if (cam > cam_max)
                     cam = cam_max;
+                camy = follow_camy(&pl, ch, cam_ymax);
             }
             memcpy(canvas, base, csz);
             bg_at(&pcml, &img, pcm_owner, pcm_band, cam, cw, ch, scratch,
                   canvas);
             for (int k = 0; k < nobj; k++)
-                obj_draw(&objs[k], canvas, cw, ch, cam);
-            play_draw(&pl, canvas, cw, ch, cam);
+                obj_draw(&objs[k], canvas, cw, ch, cam, camy);
+            play_draw(&pl, canvas, cw, ch, cam, camy);
             paint(canvas, lut, cw, ch);
             ll_music_pump();
             t_tick += 20000000ull;               /* FIX-07: fixed 50 Hz grid */

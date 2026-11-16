@@ -147,6 +147,13 @@ typedef struct {
     char seqkey[16];                        /* last seq= seen (viewer uses
                                              * this, matching old mov_t)   */
     int drop_st, drop_fr, drop_tr;          /* cap overflows: reported     */
+    /* the state LIST every script declares before its first [STATE] (777 of
+     * 777 do): its first name is the state the object starts in. 68 scripts
+     * write a terminal [A_DEAD] block before the declared start (PR-51:
+     * the port used to start those in the dead state). start_st = index of
+     * that name among the blocks, 0 when absent/unmatched. */
+    char first_decl[24];
+    int start_st;
 } ll_mov_t;
 
 int ll_mov_parse(const char *text, ll_mov_t *m);   /* returns m->nst      */

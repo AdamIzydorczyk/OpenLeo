@@ -2464,6 +2464,68 @@ engine-side).
     how a state is drawn (counted under ctrl_other); the second anchor pair;
     frame 0's placeholder; objects authored at (0,0) (G-7) are drawn there.
 
+## PR-50 — PCM parallax layers: investigated, NOT resolved (G-4 of the audit,
+          2026-11-16)
+
+  - Symptom: KADMAR2 (tlo = plan_.pcm only) shows a 32-row strip of noise
+    over a never-written canvas; LONA.05's PLAN3_.PCX rows 200..600 are
+    100% key colour (0,0,255) with PLAN12.PCM reported as "0x0 rows".
+  - New facts (machine code + data, probes /tmp/opencode/vis/pcm_*.py):
+    * the layer constructor FUN_00056b20 decodes exactly `rows` (header
+      field 2) rows of `w` bytes from the RLE stream (FUN_00044b80: one call
+      = one row, `(b & 0xc0) == 0xc0` = repeat) and copies each row's first
+      80 bytes into the 80-byte gutter after it: a layer is a thin w x rows
+      BAND (RAN PLAN1 400x40, KADMAR2 1800x32 ...). The multi-MB remainder
+      of every payload (KADMAR2 2.76 MB for a 57 KB band) has no known
+      consumer in the constructor.
+    * the 40-entry offset table has exactly `rows` valid entries in every
+      payload (RAN 40, TUNGA.11 32, KADMAR2 32, LONA 31): one entry per
+      band row, but the segments between consecutive entries decode to
+      irregular lengths (17503, 30655, 9674 ... never a multiple of w or
+      80), so they are not row/strip units.
+    * the decoded band is NOT a picture under either framing (pitch w and
+      pitch w+80 both give streaky noise); byte autocorrelation finds no
+      row pitch >= 40 in 3 of 4 payloads (KADMAR2 peaks at 80 = the strip
+      width, weakly). The RLE rule and the 0xa6 start are the game's own;
+      what is unknown is how the stream's samples become pixels.
+  - Decision: no code change. A guessed layout would paint invented art
+    (the project rule). verify_pcm now covers all 23 payloads (PR-47), so a
+    future fix has the oracle. Next step for whoever resumes: decompile the
+    FUN_00057250/57460 strip manager and FUN_0001d528 copy to see what
+    consumes the table and the stream beyond the first `rows` rows.
+
+## PR-51 — viewer camera, backdrop, declared start state (G-5/G-6/G-7 of
+          the audit, DONE 2026-11-16)
+
+  - G-5 (VIEWER POLICY, not RE'd): the camera was x-only, so the lion
+    spawned below the view on 7 of 12 levels (feet y 320..1504 vs views
+    200..600 px). A vertical camera now follows the lion's feet (65% down
+    the view) in play mode and in the CI play leg; LEO_LEVEL_CAMY sets it
+    for CI, Up/Down pan it in the viewer. Verified on ZARIA.01, ENA2,
+    KADMAR.07, TUNGA.11: the lion is on screen.
+  - G-6 (VIEWER POLICY): the .PCX backdrop is now fixed instead of tiled.
+    The view equals the image size, so tiling could only repeat a
+    non-seamless image with a hard cut mid-screen (KADMAR.07 cam 1280,
+    KARA.07). The original scrolls the backdrop by a per-plane parallax
+    factor (FUN_00057530/57500 scale the camera by obj+0x24) that is not
+    recovered; a fixed backdrop invents no rate. PCM layers keep their
+    engine strip wrap.
+  - G-7 (real RE finding): every .MOV declares its state list before the
+    first [STATE] (777 of 777) and the FIRST declared name is the start
+    state. In 68 scripts the first written block is a terminal [A_DEAD]
+    (KADMAR.07's balloons, box40, camel ...), so the port started them
+    dead: bursts and blanks where intact objects belong. ll_mov_t now
+    carries first_decl/start_st; objects start there. Before/after:
+    KADMAR.07 shows balloons instead of burst sparkles; the stray
+    explosion rings in the top-left corners of RAN.01/ZARIA.01 are gone
+    (those were (0,0) pool objects drawn in their dead state). --mov-
+    selftest pins the declared start.
+  - G-8 is not a bug: LONA.05's PLAN3_.PCX is itself 2080 px wide.
+  - Left as authored: objects at (0,0) are real placements (PILARYB,
+    POCISK, TGA_OBJ, KROPLAS, DEMOTEXT ...); the 'ALPHA VERSION' label
+    (DEMOTEXT, anchor -86,-91, f4/f6 identical) is drawn at (86,91) from
+    its object position, exactly as the data says.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
