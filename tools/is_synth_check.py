@@ -56,6 +56,44 @@ def build():
 EXPECT = [[0x22, 0x11], [0x11, 0x22], [0x11, 0x22], [0x22, 0x11]]
 
 
+def modex_eob(exe):
+    """PR-56: 320x200 (Mode X) movie, 50 bands. band0 SOLID 0x11, band1 EOB
+    len 2 (skips bands 1-2), band3 SOLID 0x22, band4 EOB len 46 (to the end).
+    The machine (0x1ad43) advances the four plane cursors by len*320 on EOB,
+    so band 3 gets 0x22 and bands 1,2 stay 0; without it 0x22 lands in band 1."""
+    w, h = 320, 200
+    hdr = bytearray(0x5F)
+    struct.pack_into('<H', hdr, 0x59, w)
+    struct.pack_into('<H', hdr, 0x5B, h)
+    hdr[0x5D] = 5
+    frame = bytes([0x41, 0x40, 0x11, 0x8A, 0x41, 0x40, 0x22, 0xC8, 46])
+    mv = bytes(hdr) + chunk(pal({0x11: (10, 20, 30), 0x22: (50, 40, 30)}) + frame + b'\xB8')
+    bad = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        f = os.path.join(tmp, 'mx.IS')
+        open(f, 'wb').write(mv)
+        got = {}
+        is_decode.IS(f).decode_all({}, lambda i, fb, p_, st: got.setdefault('fb', bytes(fb)))
+        q = w * h // 4
+        want = {0: 0x11, 1: 0, 2: 0, 3: 0x22}
+        ok = all(got['fb'][i * q + b * w + x] == v
+                 for i in range(4) for b, v in want.items() for x in (0, 319))
+        print('python Mode X EOB advances cursors (ok)' if ok else 'FAIL python Mode X EOB')
+        bad += not ok
+        out = os.path.join(tmp, 'f0.ppm')
+        r = subprocess.run([exe, f, '--ppm', '0', out], capture_output=True)
+        if r.returncode or not os.path.exists(out):
+            print('FAIL C --ppm modex'); return bad + 1
+        d = open(out, 'rb').read()
+        px = d[d.index(b'255\n') + 4:]
+        col = {0x11: (40, 80, 120), 0x22: (200, 160, 120), 0: (0, 0, 0)}
+        ok = all(tuple(px[3 * (row * w + 5):3 * (row * w + 5) + 3]) == col[want[row // 4]]
+                 for row in range(16))
+        print('C Mode X EOB advances cursors (ok)' if ok else 'FAIL C Mode X EOB')
+        bad += not ok
+    return bad
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -115,6 +153,7 @@ def main():
             bad += 1
             line = [l for l in txt.split('\n') if 'is_player: presented' in l]
             print('FAIL player palette redraw: want %r got %r' % (want, line))
+    bad += modex_eob(exe)
     print('IS synth check: %s' % ('FAILED' if bad else 'all ok'))
     return 1 if bad else 0
 

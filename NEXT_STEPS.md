@@ -2707,6 +2707,21 @@ engine-side).
     times (it paces by the audio clock, as documented); the vertical wipe
     seen mid-movie was left as authored.
 
+## PR-56 — Mode X movies: EOB advances the plane cursors (DONE 2026-11-16)
+
+  - Sweep of all 15 .IS: no desync, no unknown opcodes; palette-only chunks
+    INTRO_P 162, KONIEC 20, LOGO 19; the four 640x480 movies were clean.
+  - Bug: in the 320x200 movies (ENA1/2, KADMAR1/2, KARA, KONIEC, LONA, RAN,
+    SADES, ZARIA1/2) the EOB handler (0x1ad43) adds len * band-stride
+    ([a8958] = width) to all four write cursors. The decoders only advanced
+    the band counter, so everything after a mid-frame EOB (hundreds per
+    movie: ENA2 779, KARA 648) landed len bands too high -> scattered
+    fragments. Fixed in tools/is_decode.py and ported/is_stream.c.
+  - Test: tools/is_synth_check.py gained a synthesised 320x200 movie with a
+    mid-frame EOB (hand-derived expectation); mutation-tested (C fix reverted
+    -> FAILED).
+  - Caveat: RPT operands still do not set hold times (audio-clock paced).
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

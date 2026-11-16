@@ -28,7 +28,8 @@ Band opcode grammar (one opcode stream per frame, bands back-to-back):
                 seg0=T[u>>4] seg1=T[u&15] seg2=T[v>>4] seg3=T[v&15]
     0x20 RAW:   literal 4*len bytes: len px per segment, seg0 first
     0x90 SKIP:  move write cursors +len px (budget still reduced)
-    0x88 EOB:   end band early; frame band-counter advances by len
+    0x88 EOB:   end band early; frame band-counter advances by len, and
+                (Mode X) the 4 cursors advance by len*width (PR-56)
     other:      no-op but budget still reduced
   Segment write cursors advance by len per segment for all draw ops;
   they persist across bands in Mode X (plane row advance = width) and
@@ -98,7 +99,7 @@ class IS:
         """Decode one full frame (h/4 bands) starting at stream pos.
         640 path (af71): segments re-based from band index each band
         (EOB advances band index by len).  Mode X (ae78): segment cursors
-        persist across bands; EOB does not advance them."""
+        persist across bands; EOB advances them by len*width (PR-56)."""
         w, h = self.w, self.h
         band = 0
         nbands = h // 4
@@ -192,6 +193,13 @@ class IS:
                 elif mode == EOB:
                     stat['eob'] = stat.get('eob', 0) + 1
                     eob_adv = ln
+                    if self.modex:
+                        # PR-56: the machine adds len * band-stride to all
+                        # four cursors (0x1ad43: imul edx,[a8958]; add
+                        # [a893c..a8948]); the 640 path re-bases from the
+                        # band number so only Mode X needs it explicitly
+                        for i in range(4):
+                            seg[i] += (ln or 1) * w
                     break
                 else:
                     stat['unknown'] = stat.get('unknown', 0) + 1

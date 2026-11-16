@@ -280,6 +280,21 @@ static size_t decode_frame(is_stream *s, size_t pos, size_t stop)
                 eob_adv = ln;
                 saw_eob = 1;
                 s->st.eob++;
+                /* PR-56: FUN_0001adb8/1acbb @0x1ad43: EOB sets the band
+                 * advance to len AND adds len * band-stride (a8958) to all
+                 * four write cursors. The 640 path re-bases its cursors
+                 * from the band number so it never noticed; the planar
+                 * (320x200) path keeps them across bands, and without this
+                 * everything drawn after a mid-frame skip landed len bands
+                 * too high (hundreds of EOBs per movie): scattered
+                 * fragments in ENA2, KARA, RAN, SADES, ZARIA... */
+                if (s->modex) {
+                    size_t adv = (size_t)(ln ? ln : 1) * (size_t)s->w;
+                    seg[0] += adv;
+                    seg[1] += adv;
+                    seg[2] += adv;
+                    seg[3] += adv;
+                }
                 goto band_end;
             default:
                 budget -= ln;
