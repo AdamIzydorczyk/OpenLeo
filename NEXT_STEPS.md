@@ -2839,6 +2839,31 @@ engine-side).
     KADMAR, KARA, TUNGA) needs the unresolved kind-13 message, so most of
     the platform-like behaviour is still missing.
 
+## PR-61 — objects scroll with THEIR layer; the plane gate resolved
+          (DONE 2026-11-16)
+
+  - The plane [obj+0x24] is the PARALLAX LAYER index, not a plany= slot:
+    FUN_00052d30/52dc0 hand it to FUN_00057500/57530 (the per-layer scroll of
+    PR-57) to turn the object's authored position into its screen position
+    (screen x = ox - cam*X[i]/X[R], y = oy - (cam_y*Y[i]/Y[R] + (H_i-200) -
+    (H_R-200)*Y[i]/100)). An object's layer = the ENTRY INDEX of the .des
+    list that placed it (the loader hands entry i to cell i of the key's
+    list, 0x4cdf5..0x4ceb5 / 0x4aaa0): RAN.01 zwierzaki=chmury,ptaki,none ->
+    the clouds sit on layer 0 (40%/80%), animacje=none,wulkany,dymy -> the
+    volcanoes on layer 1 (70%) and the smoke puffs on layer 2 (100%, with
+    PLAN1, the reference). Before this PR every object scrolled 1:1 with the
+    camera, which is wrong for every object off the reference layer.
+  - ll_level: lvl_obj.layer, obj_layer_cam/objs_draw (all three draw paths);
+    hand-derived data-free leg obj_layer_selftest (part of --mov-selftest).
+    Checked by eye on RAN.01: clouds drift slowly, the smoke puffs stay on
+    the foreground chimneys at cam 0 and cam 1500.
+  - Plane gate of the contact pass: obj.layer == the lion's layer (main_back)
+    unless the lion's state has CHECK_ALL_PLANE. RAN.01's EDGE0046 is on the
+    lion's layer and the lion's walk state has CHECK_ANI, so the contact stays
+    - consistent with every gate now read from the code. The pass is still
+    opt-in (LEO_PLAY_SOLID=1): it is unverified against the original, and
+    the SEMI_SOLID platforms (kind-13 message) are still missing.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

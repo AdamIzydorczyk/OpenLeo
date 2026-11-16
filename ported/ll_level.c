@@ -478,6 +478,8 @@ typedef struct {                     /* one placement of a script        */
     unsigned t;                      /* ms within current frame          */
     unsigned char src;               /* which .des key placed it: 0 zwierzaki,
                                       * 1 animacje, 2 ani_plat (PR-60)    */
+    unsigned char layer;             /* entry index inside that key's comma
+                                      * list = the tlo/parallax layer     */
 } lvl_obj;
 
 typedef struct {                     /* one level's authored scene: the
@@ -1001,6 +1003,8 @@ static int seq_push_selftest(void)
     return 0;
 }
 
+static int obj_layer_selftest(void);
+
 /* FIX-13 (X-11) selftest, test-only entry point (ll_level.h): proves the
  * two .MOV duration invariants without any window or game data:
  *   1. ll_mov_parse clamps non-positive durations (the M4-C rule,
@@ -1149,7 +1153,8 @@ int ll_mov_selftest(void)
 
     /* PR-46: the element SHAPE geometry leg (no window, no game data). */
     if (seq_codec_selftest() != 0 || seq_anchor_selftest() != 0 ||
-        seq_shape_selftest() != 0 || seq_push_selftest() != 0) {
+        seq_shape_selftest() != 0 || seq_push_selftest() != 0 ||
+        obj_layer_selftest() != 0) {
         free(sc.mov);
         free(m);
         return 1;
@@ -1158,7 +1163,7 @@ int ll_mov_selftest(void)
     free(sc.mov);
     free(m);
     printf("mov selftest: duration clamp + cycle guard + per-state seq= art"
-           " selection + patch codecs + anchored draw + shape geometry + push-out (ok)\n");
+           " selection + patch codecs + anchored draw + shape geometry + push-out + object layers (ok)\n");
     return 0;
 }
 
@@ -1210,6 +1215,7 @@ typedef struct {
     double xmin, xmax, ydead;               /* lew_rect bounds            */
     double sx, sy;                          /* pozycja spawn              */
     ll_play_keys keys;                      /* held arrows (live path)    */
+    int layer;                              /* the lion's layer = main_back */
 } play_ctx;
 
 static ll_play_keys script_keys(const char *s, int tick)
@@ -1336,6 +1342,11 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
          * another path, not ported) */
         if (o->src == 0 ? !(ls->ctrl & LL_CTRL_CHECK_ZW)
                         : o->src == 1 ? !(ls->ctrl & LL_CTRL_CHECK_ANI) : 1)
+            continue;
+        /* the plane gate (FUN_0004b500): obj.plane == mover.plane, plane =
+         * the parallax layer [+0x24] (entry index of the placing list);
+         * CHECK_ALL_PLANE lifts it */
+        if (o->layer != pl->layer && !(ls->ctrl & LL_CTRL_CHECK_ALL_PLANE))
             continue;
         if (c & LL_CTRL_SEMI_SOLID) {
             if (!semi_seen++)
@@ -1546,6 +1557,86 @@ static void layers_at(const ll_pcm *lay, const int *tix, int nlay,
     }
 }
 
+/* PR-61: an object is NOT drawn at x - cam: FUN_00052d30/52dc0 take the
+ * object's authored position in ITS layer and subtract that layer's own
+ * scroll (57500/57530, the same x_i/y_i layers_at uses): screen x =
+ * ox - cam*X[i]/X[R], screen y = oy - (cam_y*Y[i]/Y[R] + (H_i - ch) -
+ * (H_R - ch)*Y[i]/100). An object's layer [obj+0x24] is the entry index of
+ * the .des list that placed it (zwierzaki=none,wulkany.des,dymy.des -> the
+ * volcanoes sit on layer 1, with PLAN2; the clouds of RAN on layer 0). H_i is
+ * the height of that tlo layer when its art is on the CD, else the world
+ * height (offset 0). */
+static void obj_layer_cam(const lvl_obj *o, const par_t *pp, const ll_pcm *lay,
+                          const int *lay_tix, int nlay, int cam, int camy,
+                          int ch, int world_h, int *ocam, int *ocamy)
+{
+    *ocam = cam;
+    *ocamy = camy;
+    if (pp->n <= 0)
+        return;
+    int i = o->layer < pp->n ? o->layer : pp->n - 1;
+    long long xr = pp->sx[pp->ref] ? pp->sx[pp->ref] : 100;
+    long long yr = pp->sy[pp->ref] ? pp->sy[pp->ref] : 100;
+    int hi = world_h;
+    for (int k = 0; k < nlay; k++)
+        if (lay_tix[k] == i)
+            hi = (int)lay[k].h;
+    *ocam = (int)((long long)cam * pp->sx[i] / xr);
+    *ocamy = (int)((long long)camy * pp->sy[i] / yr + (hi - ch) -
+                   ((long long)world_h - ch) * pp->sy[i] / 100);
+}
+
+/* PR-61 selftest: per-layer object scroll, hand-derived from 57500/57530.
+ * speeds 40,80;70,70;100,100 (RAN.01), main_back 2, cam 1000/camy 100, view
+ * 400, world 400, layers all 400 high: x_i = 1000*X/100 = 400/700/1000;
+ * y_i = 100*Y/100 + 0 - 0 = 80/70/100. A layer 300 high shifts by H-ch =
+ * -100, and the layer-2 reference keeps cam exactly. */
+static int obj_layer_selftest(void)
+{
+    par_t pp;
+    ll_pcm lay[1];
+    int tix[1] = { 0 };
+    lvl_obj o;
+    int c, cy;
+    static const int wantx[3] = { 400, 700, 1000 };
+    static const int wanty[3] = { 80, 70, 100 };
+
+    par_parse(&pp, "40,80;70,70;100,100", "2", 3);
+    memset(lay, 0, sizeof lay);
+    memset(&o, 0, sizeof o);
+    for (int i = 0; i < 3; i++) {
+        o.layer = (unsigned char)i;
+        obj_layer_cam(&o, &pp, lay, tix, 0, 1000, 100, 400, 400, &c, &cy);
+        if (c != wantx[i] || cy != wanty[i]) {
+            fprintf(stderr, "layer selftest: FAILED layer %d: cam %d,%d (want"
+                            " %d,%d)\n", i, c, cy, wantx[i], wanty[i]);
+            return 1;
+        }
+    }
+    lay[0].h = 300;
+    o.layer = 0;
+    obj_layer_cam(&o, &pp, lay, tix, 1, 1000, 100, 400, 400, &c, &cy);
+    if (c != 400 || cy != 80 - 100) {
+        fprintf(stderr, "layer selftest: FAILED short layer: cam %d,%d (want"
+                        " 400,-20)\n", c, cy);
+        return 1;
+    }
+    return 0;
+}
+
+static void objs_draw(const lvl_obj *objs, int nobj, unsigned char *canvas,
+                      int cw, int ch, int cam, int camy, const par_t *pp,
+                      const ll_pcm *lay, const int *lay_tix, int nlay,
+                      int world_h)
+{
+    for (int k = 0; k < nobj; k++) {
+        int c, cy;
+        obj_layer_cam(&objs[k], pp, lay, lay_tix, nlay, cam, camy, ch,
+                      world_h, &c, &cy);
+        obj_draw(&objs[k], canvas, cw, ch, c, cy);
+    }
+}
+
 /* 4b) the authored scene: the level's own placement data (PR-45) ---------
  * A level says what stands where in sub-.des files that its main .des names
  * through THREE keys - measured over all 13 shipped levels. Every .des record
@@ -1647,6 +1738,7 @@ typedef struct {                    /* counted while reading, never guessed */
 
 typedef struct {                    /* the scene being built for one level */
     int cur_src;                    /* des_place_keys index being read      */
+    int cur_layer;                  /* entry index inside that key's list   */
     scene_owner *own;               /* owns the script set + placements     */
     anim_ctx ac;
     const char *level;
@@ -2141,6 +2233,7 @@ static void des_place_file(place_ctx *pc, const char *fname,
                     goto next;
                 o->sc = sc;
                 o->src = (unsigned char)pc->cur_src;
+                o->layer = (unsigned char)pc->cur_layer;
                 o->sti = sc->mov ? sc->mov->start_st : 0;   /* declared start */
                 o->bx = o->x = x;      /* authored position, y down: no
                                         * invented bottom-anchor. Only the
@@ -2188,12 +2281,14 @@ static void des_placement(place_ctx *pc, llrs *hd_ety,
         char list[512];
         snprintf(list, sizeof list, "%s", raw);
         char *save = NULL;
+        int tix = -1;
         for (char *tok = strtok_r(list, ",", &save); tok;
              tok = strtok_r(NULL, ",", &save)) {
             while (*tok == ' ')
                 tok++;
             if (!tok[0])
                 continue;
+            pc->cur_layer = ++tix;
             if (!strchr(tok, '.') && ci_eq(tok, "none")) {
                 printf("ll_level: des %s: the %s list carries the bare 'none'"
                        " keyword (the game's own 'nothing here': skipped,"
@@ -2791,6 +2886,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
      *    scripts and 277 art tables - the arrays below grow instead). */
     play_ctx pl;
     memset(&pl, 0, sizeof pl);             /* LEO_PLAY wiring (4c below)   */
+    pl.layer = par.ref;                    /* the lion lives on main_back  */
     scene_owner scene;                     /* scripts + placements, owned;
                                            * freed at done: (E-05)         */
     memset(&scene, 0, sizeof scene);
@@ -3279,8 +3375,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     memcpy(canvas, base, csz);
     layers_at(lay, lay_tix, nlay, &par, cam, camy, cw, ch, world_w,
                   world_h, canvas);
-    for (int k = 0; k < nobj; k++)
-        obj_draw(&objs[k], canvas, cw, ch, cam, camy);
+    objs_draw(objs, nobj, canvas, cw, ch, cam, camy, &par, lay, lay_tix,
+              nlay, world_h);
 
     const char *ppm = getenv("LEO_LEVEL_PPM");   /* CI: headless dump */
     if (ppm) {
@@ -3322,8 +3418,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         memcpy(canvas, base, csz);         /* same order as the live loop */
         layers_at(lay, lay_tix, nlay, &par, cam, camy, cw, ch, world_w,
                   world_h, canvas);
-        for (int k = 0; k < nobj; k++)
-            obj_draw(&objs[k], canvas, cw, ch, cam, camy);
+        objs_draw(objs, nobj, canvas, cw, ch, cam, camy, &par, lay, lay_tix,
+                  nlay, world_h);
         play_draw(&pl, canvas, cw, ch, cam, camy);
         scene_ppm(ppm, cw, ch, canvas, scenepal);
         goto done;                          /* canvas freed at done: (E-05) */
@@ -3469,8 +3565,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             memcpy(canvas, base, csz);
             layers_at(lay, lay_tix, nlay, &par, cam, camy, cw, ch, world_w,
                   world_h, canvas);
-            for (int k = 0; k < nobj; k++)
-                obj_draw(&objs[k], canvas, cw, ch, cam, camy);
+            objs_draw(objs, nobj, canvas, cw, ch, cam, camy, &par, lay, lay_tix,
+                      nlay, world_h);
             play_draw(&pl, canvas, cw, ch, cam, camy);
             paint(canvas, lut, cw, ch);
             ll_music_pump();
