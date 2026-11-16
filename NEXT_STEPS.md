@@ -1736,6 +1736,164 @@ build they compared and what "correctly" looked like (no fragments vs
 smooth motion vs A/V). Note for future: if ghost-trails ever need
 smoothing it must be an explicit non-faithful option (see above).
 
+## PR-41 (SHELVED 2026-11-16) — offline movie re-conversion (.LVM1) + opt-in de-ghost replay
+
+RESOLVED - SHELVED (owner decision, 2026-11-16): after the PR-42
+review below ("all [smoothing variants] have same artifacts" - the
+artifact lives in the 1997 source frames, not in presentation), the
+owner's final call for now was "back to the version before the LVM
+format". The product feature of this commit is REVERTED: no
+ported/lvm.c, no LEO_LVM_DIR hook, no `make movies`/`make
+verify-movies` wiring - the player is .IS-only again, exactly the
+PR-40 state. The offline scripts STAY in tools/ (mv_convert.py,
+mv_clean.py, verify_movies.py, plus the PR-42 proto_smooth.py) as
+shelved tooling, NOT wired into CI; a local movies/ .LVM set is
+gitignored scratch, regenerable with tools/mv_convert.py.
+The full record below is kept because every measurement and grammar
+finding in it stands regardless of whether the feature ever returns.
+
+
+Owner (2026-11-15, after the ZARIA1 ghost-trail diagnosis in the PR-40
+thread): "convert all movies to a less problematic format". Chosen
+option 1: PRE-CONVERTED files + offline converter + a small in-tree
+replay decoder (no ffmpeg runtime); scope: ALL 15 .IS movies. The
+cleanup is explicitly NON-faithful (deviates from the exact 1997
+picture); the default .IS path stays byte-identical, the new path is
+opt-in behind LEO_LVM_DIR.
+
+Pipeline:
+- tools/mv_convert.py - the oracle, runs in CI. Two passes over the
+  chunks mirroring the player exactly: audio_pass (ESC region grammar,
+  stereo rule = gcd of region sizes) + video_pass (the reference
+  decoder walk producing LINEAR index frames + the decode-grammar
+  st.repeat timeline). Writes .LVM1: "LVM1" | u32 w,h | u32 rate
+  =22050, u8 ch, u16 bits=16 | u64 audio_len, u32 nrec | PCM | nrec x
+  {u64 hold_ns, u8 flags(bit0=frame, bit1=pal768), [pal], [u8 codec
+  0=raw|1=RLE + frame]}. RLE is self-delimiting: ctl>0 = that many
+  literal bytes, ctl==0 = u16 len + 1 value byte; literals NEVER
+  contain 0x00 (every zero byte is stored as a run) - without that
+  escape the first ZARIA1 frame desynced the decode at o=63804.
+- tools/mv_clean.py - temporal de-ghost (design + measured thresholds
+  in its docstring). Classification: FULL >=0.30 / PART 0.005..0.30 /
+  NOISE <0.005 (kept: AUTORZY's 1-px text scroll). A maximal PART run
+  (len >=3) merges (intermediates dropped, final kept, holds stay ->
+  total duration byte-identical) only if ADDITIVE: net persistence
+  >=0.70 AND <=40% of changed px ever return to base mid-run.
+  Geometry tests were tried and RETIRED: live-action movies deliver
+  new scenes as non-geometric CONVERGING updates (KADMAR newpx decays
+  17k->8k->7k...), and the earlier monotone-sweep test was vacuous
+  (np.sort makes monotonicity trivially true). Measured separation:
+  motion runs persist 0.03-0.63 / restore 0.50-0.99; paint runs
+  persist 0.70-1.00 / restore 0.00-0.36.
+- ported/lvm.c/.h - parse-before-platform reader (any parse failure
+  prints lvm: ... and falls back to .IS) + replay loop mirroring
+  is_player's ONE clock + 150 ms lead + drift clamp + q/ESC/space +
+  2 s end hold. Hook at the top of is_player_run (lvm_candidate():
+  LEO_LVM_DIR + <basename>.LVM). Frame-less records advance the clock
+  but do not count as presented (verify contract below).
+- tools/verify_movies.py + `make verify-movies` (in verify-all).
+
+Grammar correction pinned on PRAWA (all 220 chunks carry NO ESC
+region - its audio is pure silence): st.repeat is set ONLY by the
+DECODE walk; the audio-walk model read RPT bytes the decode grammar
+consumes as frame data (reps 7/4 vs C's 0). video_pass now tracks the
+decode-grammar repeat state per chunk and both silence fills and
+silent-chunk holds use it. Proven identical to C's post-decode state
+chunk-for-chunk (PRAWA transitions c=0->2, 59->4, 79->2, 184->7,
+209->2; zero desync).
+
+CI audio contract: C's look-ahead sizes silence at QUEUE TIME, so a
+look-ahead run is NOT byte-pinnable (PRAWA: one run queued 612
+repeat-ticks, the deterministic post-chunk rule gives 605 - the
+difference is pure silence). The deterministic pin: .LVM region bytes
+== the LEO_IS_WAV dump of a LEO_IS_PERIOD_MS=1 run (legacy per-chunk
+enqueue = pure regions stream; the dump never contains alignment
+pads). Also pinned: LEO_LVM_DIR replay presents == frames -
+clean_merged + clean_merged_pal (a merged frame KEEPS its own PAL:
+the palette/fade timeline is real content and stays at its original
+time - such records ARE presents; found on INTRO_P: 3 of 52 merged
+records carry PAL, presented 1472 == 1521-52+3); a truncated .LVM
+prints the fallback line and runs .IS.
+Green locally: ZARIA1 regions 1,219,680 B byte-exact + replay
+204/243, PRAWA 0 B empty == empty + replay 142/142, fallback OK.
+
+SHIP POLICY (owner, final 2026-11-16): converter ONLY - the .LVM set
+is NOT committed. Sequence: "ship them too" -> pushed 14 plain + LFS
+for the 195 MB INTRO_P.LVM (GitHub refuses blobs >100 MB; git-lfs
+3.7.0 under ~/.local/bin, push rejected a second time for a token
+without `workflow` scope on the ci.yml tweak) -> "push only
+converter, override history to not waste space": nothing ever reached
+the remote, so the commit was simply rewritten; no GC needed.
+movies/ is gitignored LOCAL scratch: `make movies` generates it from
+$(DATA) (deterministic: byte-identical regeneration spot-proven on
+PRAWA), then LEO_LVM_DIR=movies plays it; single movies via the
+converter CLI.
+
+Batch results (final code, all 15, /tmp/opencode/lvm/clean_report.txt;
+merged counts are deterministic across runs):
+```
+AUTORZY  frames= 494 merged=   0   ENA1  merged= 103   ENA2  merged=  87
+INTRO_P  frames=1521 merged=  52   KADMAR1 merged=  94 KADMAR2 merged=  73
+KARA     frames= 820 merged= 301   KONIEC  merged= 157 LONA  merged=  26
+PRAWA    frames= 142 merged=   0   RAN     merged= 212 SADES merged= 131
+ZARIA1   frames= 243 merged=  39   ZARIA2  merged= 108
+```
+1383 merged frames total; PRAWA/LOGO/AUTORZY untouched (PRAWA has zero
+regions: pure silence; LOGO/INTRO animation runs REJECTED by the
+additive test as motion). Full replay smoke (every .LVM through the C
+reader, expectations audited independently by walking the container's
+record flags): ALL 15 MATCH -
+```
+AUTORZY 494/494  ENA1 260/260  ENA2 171/171  INTRO_P 1472/1472*
+KADMAR1 234/234  KADMAR2 296/296  KARA 519/519  KONIEC 417/417*
+LOGO 125/125     LONA 391/391    PRAWA 142/142  RAN 187/187
+SADES 343/343    ZARIA1 204/204  ZARIA2 210/210
+```
+(* = the clean_merged_pal cases above; a naive frames-minus-merged
+expectation is wrong only for these two). The record-walk of every
+container also ends exactly at EOF (RLE self-delimiting verified).
+Visual check via Gemini on matched
+timecodes (/tmp/opencode/lvm/vis): mid-run ghost smears "completely
+eliminated" (ZARIA1 bird trail, KADMAR1 double-exposure head); the
+cost is exactly the designed one - during a paint run the pre-run
+scene holds up to ~1.5 s longer (pair verdicts "cleaner" vs the
+accepted "holds the previous pose" trade-off).
+
+## PR-42 (SHELVED 2026-11-16) — playback smoothing, made to look better than the original
+
+Owner picked option 2 earlier ("make the movies look *better* than the
+original", not accept the authentic low-fps look, not just add fades).
+Prototype only - no C code landed; at review time the shipped state
+was PR-41, itself SHELVED the same day (record above). The prototype
+lives at tools/proto_smooth.py (was /tmp/opencode/smooth/proto.py).
+
+What was measured first (root-cause, QEMU ground-truth rig):
+- Pixels AND frame sequence/timing are byte-identical to the original
+  (every static QEMU screendump matched a decoded frame at diff 0.0);
+  the menu is equally soft on both paths. Our port is faithful.
+- The "ghosty/oversharpen" look is the .IS data itself: natively
+  low-framerate progressive painting (7-14 fps for ZARIA/LONA/etc,
+  190 s of black+narration before any picture in INTRO_P). The
+  original player additionally inserts its own black segment fades,
+  which our standalone player lacks - those were the only QEMU screens
+  that matched no single frame.
+
+What the prototype tested (60 fps, side-by-side CURRENT|BLEND|MOTION,
+normal + 2x slow, on ZARIA1 full + LONA motion burst):
+- BLEND: dissolve each swap across its own hold to fill 60 fps.
+- MOTION: 16x16 block motion (SAD, 4 px steps) + block translation to
+  synthesize in-between frames.
+Both are strictly inside each record's existing hold, so they never
+move the audio timeline (that was the design contract, not reached).
+
+Owner verdict after viewing: "all have same artifacts" - the artifact
+lives in the 1997 source frames, so playback-side interpolation does
+not remove it. Follow-up test confirmed the frames are keyframes, not
+baked crossfades: 0/200 consecutive triplets fit a blend-of-neighbours
+model (best alpha residual was never <25% of the direct frame diff).
+=> smoothing does not address the real artifact; SHELVED. Revisit only
+if a source-level fix (the de-ghost filter exists in tools/mv_clean.py) is found to help.
+
 ## Next — pick from the Deferred list below
 
 PR-37 leaves one named golden follow-up: recover the ORIGINAL engine

@@ -119,9 +119,18 @@ Error strings found in EXE: Watcom runtime + custom: `Blad zakresu w ...::check 
      decode, and by a Gemini vision read of the decoded frames ("a
      flying creature moves right leaving textbook delta-codec ghost
      fragments that clear later"). The original showed the same trails.
-     A port-side temporal filter could clean it but is non-faithful and
-     breaks the pinned frame contract; owner's call. Full record:
-     NEXT_STEPS.md (PR-40 thread, movie follow-up).
+     Owner chain (2026-11-15/16): first "convert all movies to a less
+     problematic format" -> landed as PR-41 (.LVM re-conversion +
+     opt-in de-ghost, all green); then a QEMU ground-truth probe
+     proved pixels AND frame sequence are byte-identical to the
+     original and the films are natively 7-14 fps progressive content;
+     then PR-42 smoothing (BLEND/MOTION to 60 fps) was prototyped -
+     owner review: "all [variants] have same artifacts" (they live in
+     the 1997 source frames). FINAL owner call 2026-11-16: "back to
+     version before LVM format" - product is .IS-only again (PR-40
+     state); converter/cleaner/prototype scripts kept in tools/ as
+     offline tooling, feature SHELVED. Full records: NEXT_STEPS.md
+     (PR-40 thread follow-up; PR-41 and PR-42 (SHELVED) sections).
    * **Audio (SOLVED 2026-11-14 — this was the "horrible logo video sound"
      bug):** the ESC region is raw **s16 little-endian at 22050 Hz**, MONO or
      STEREO per movie: every region is a whole number of DMA blocks, 1260 B

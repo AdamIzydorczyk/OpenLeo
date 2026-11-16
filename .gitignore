@@ -62,3 +62,8 @@ platform_selftest
 
 # QEMU/ALSA ground-truth captures contain ORIGINAL game audio - never commit
 build/*.raw
+
+# SHELVED PR-41 tooling: locally generated .LVM set is scratch, never
+# committed (regenerable via tools/mv_convert.py; derived bytes must not
+# enter history). Full record: NEXT_STEPS.md PR-41 (SHELVED).
+movies/
