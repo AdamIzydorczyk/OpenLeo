@@ -190,8 +190,16 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 
 ## 7. Open questions (ranked by how much they block)
 
-0. FRAME DURATION UNIT (urgent, owner-visible): animations/objects run 5-10x
-   too fast (see NEXT_STEPS PR-76). Resolve before more gameplay work.
+0. SCENE OBJECT MOTION (owner-visible, 2026-11-16): the owner reports only the
+   WORMS (LICHA) animate too fast, and that they float ~30 units above the
+   ground the lion walks on (lion feet 680 on ZARIA_A.PLT; LICHA placed at
+   y=650). licha3.mov A_RUN is `BY_X|CHECK_LN`, F=100 T=40 G=0,100, frames
+   `-n,4` (4 ms): the port animates scene objects by time only, never moves
+   them (no F/T/G physics) and never drops them onto the .PLT. Hypotheses to
+   verify, not facts: (a) BY_X states advance their frames by distance
+   travelled, not time; (b) CHECK_LN objects fall onto the ground line. The
+   lion looked fine to the owner, so ll_player's own frame advance may already
+   be right - compare ll_player_frame with obj_advance.
 1. F/FC frame directives (jump distance; also enemy/projectile motion) -
    parser evidence now narrows this: `F` and `FC` each parse an `(x,y)` pair
    into a directive record; the handler accumulates both coordinates into
