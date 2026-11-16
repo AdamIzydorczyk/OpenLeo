@@ -301,6 +301,8 @@ int ll_seq_patch_walk(const uint8_t *blob, uint32_t len,
     return walk_dc80(blob, len, cb, ctx);
 }
 
+#define SENT_7FFF  0x7fff            /* the ctor sentinel the game tests */
+
 /* --- frame-patch blitter (draw semantics: gap advance + run paints) ---- */
 
 typedef struct {
@@ -308,6 +310,9 @@ typedef struct {
     const uint8_t *map;                      /* palette-index remap, NULL = identity */
     int cw, ch, x, y;
     int codec;
+    int dir;                                 /* +1 normal, -1 mirrored (x = the
+                                              * chunk's local-0 pixel, rows
+                                              * run LEFT: FUN_0001daa4/dda8) */
 } patch_paint;
 
 static void patch_row_paint(void *vctx, int row, int gap,
@@ -316,11 +321,11 @@ static void patch_row_paint(void *vctx, int row, int gap,
     patch_paint *pp = vctx;
     if (gap < 0)
         return;                              /* empty row: nothing drawn */
-    int px = pp->x + gap, py = pp->y + row;
+    int px = pp->x + pp->dir * gap, py = pp->y + row;
     for (int i = 0; i < nops; i++) {
         const ll_seq_patch_op *o = &ops[i];
         if (o->kind == 2) {                  /* gap: advance, draw nothing */
-            px += o->cnt;
+            px += pp->dir * o->cnt;
             continue;
         }
         for (int k = 0; k < o->cnt; k++) {
@@ -329,7 +334,7 @@ static void patch_row_paint(void *vctx, int row, int gap,
                 v = pp->map[v];
             if (px >= 0 && px < pp->cw && py >= 0 && py < pp->ch)
                 pp->canvas[(size_t)py * pp->cw + px] = v;
-            px++;
+            px += pp->dir;
         }
     }
 }
@@ -353,8 +358,59 @@ int ll_seq_patch_draw_codec(const uint8_t *blob, uint32_t len, int codec,
                             uint8_t *canvas, int cw, int ch, int x, int y,
                             const uint8_t *map)
 {
-    patch_paint pp = { canvas, map, cw, ch, x, y, codec };
+    patch_paint pp = { canvas, map, cw, ch, x, y, codec, 1 };
     return ll_seq_patch_walk_codec(blob, len, codec, patch_row_paint, &pp);
+}
+
+/* ---- anchored + mirrored element draw (PR-49) --------------------------
+ * The game's element draw methods (element vtable +0x4c/+0x50: FUN_00042230,
+ * FUN_000422f2) take the object's position and subtract the element's own
+ * anchor; nothing in the actor adds it back (machine code, 2026-11-16: the
+ * 0x7fff sentinel is tested ONLY inside these four methods):
+ *   plain    f0 != 0x7fff:  origin = (x - f0, y - f2)
+ *            f0 == 0x7fff:  origin = (x, y)            (BOTH axes unshifted)
+ *   mirrored f0 != 0x7fff:  origin = (x - tw + f0, y - f2)
+ *            f0 == 0x7fff:  origin = (x - tw, y)
+ * with tw = int16(b19)*0x50 + int16(b15). Mirrored art is the plain image
+ * flipped across tw: chunk i's local pixel p lands at origin + tw-1 - (80 i
+ * + p) (FUN_000426a0's flip branch lays the chunks out right to left and
+ * the mirrored blitters FUN_0001daa4/dda8 write each row right to left). */
+void ll_seq_anchor_origin(const ll_seq_elem *e, int x, int y, int mirror,
+                          int *ox, int *oy)
+{
+    int tw = (int)(short)e->b19 * 0x50 + (int)(short)e->b15;
+    if (e->f0 == SENT_7FFF) {
+        *ox = mirror ? x - tw : x;
+        *oy = y;
+    } else if (mirror) {
+        *ox = x - tw + (int)(short)e->f0;
+        *oy = y - (int)(short)e->f2;
+    } else {
+        *ox = x - (int)(short)e->f0;
+        *oy = y - (int)(short)e->f2;
+    }
+}
+
+int ll_seq_draw_elem_anchor(const ll_seq *s, const ll_seq_elem *e,
+                            uint8_t *canvas, int cw, int ch, int x, int y,
+                            int mirror, const uint8_t *map)
+{
+    int ox, oy;
+    int tw = (int)(short)e->b19 * 0x50 + (int)(short)e->b15;
+    int codec = ll_seq_elem_codec(e);
+
+    ll_seq_anchor_origin(e, x, y, mirror, &ox, &oy);
+    for (uint32_t i = 0; i < e->arr_n; i++) {
+        const ll_seq_ent *t = &s->ents[e->arr_first + i];
+        patch_paint pp = { canvas, map, cw, ch,
+                           mirror ? ox + tw - 1 - 80 * (int)i
+                                  : ox + 80 * (int)i,
+                           oy, codec, mirror ? -1 : 1 };
+        if (ll_seq_patch_walk_codec(s->blob + t->off, t->len, codec,
+                                    patch_row_paint, &pp) < 0)
+            return -1;
+    }
+    return 0;
 }
 
 /* Elements are animation frames: entries are sprite chunks side by side,
@@ -407,7 +463,6 @@ int ll_seq_draw_elem_map(const ll_seq *s, const ll_seq_elem *e,
  * cross-check shows those lines agree too. */
 
 #define SHAPE_EMPTY 0xff             /* the game's "empty row" byte      */
-#define SENT_7FFF  0x7fff            /* the ctor sentinel the game tests */
 
 static int marg_x(const ll_seq *s, uint32_t off, int i)
 {

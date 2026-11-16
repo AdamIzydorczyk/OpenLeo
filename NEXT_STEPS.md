@@ -2410,6 +2410,60 @@ engine-side).
     so the original-capture comparison cannot corroborate this fix; the
     machine-code walk above is the evidence.
 
+## PR-49 — .MOV frame numbers are 1-based with the sign = mirror, and the
+          element anchor belongs to the draw (G-2/G-3 of the audit, DONE
+          2026-11-16)
+
+  - Bug (visible on every level): the port used a .MOV frame number as a
+    0-BASED element index, clamped out-of-range numbers to the last element,
+    never mirrored, and drew scene objects at the raw .des position with no
+    anchor. 4266 of 18432 authored frame numbers (23%) were out of range
+    under that reading; negative numbers (pervasive: -N..-1) meant nothing.
+  - RE (machine code of build/leo/leo.elf, VA = file offset + 0xf000):
+    * the game's frame-line parser FUN_00051660 (0x51692..0x516d5): n > 0
+      -> element n-1, frame+0x14 = 0; n < 0 -> element -(n+1) = |n|-1 with
+      frame+0x14 = 1 (MIRRORED); n == 0 -> element index 0 and an object
+      from FUN_00044110() (a placeholder pulled from a global resource at
+      game+0x398: NOT modeled - frame 0 draws nothing).
+    * the four element draw methods (element vtable +0x4c/+0x50/+0x54/
+      +0x58 = 0x42230/0x422f0/0x423c0/0x42480) are the ONLY code that tests
+      the 0x7fff sentinel: the anchor is subtracted INSIDE the draw, the
+      actor adds nothing back. plain: origin (x-f0, y-f2), sentinel -> (x,y);
+      mirrored: (x - tw + f0, y - f2), sentinel -> (x - tw, y). +0x54/+0x58
+      use the second anchor pair (f4,f6): unused by this port. The mirrored
+      blitters FUN_0001daa4/dda8 write each row right to left from x+w-1,
+      and FUN_000426a0's flip branch lays the chunks out right to left, so
+      the mirrored element is the plain image flipped across tw.
+    * the state parser FUN_00051910 shows what the unmodeled control= flags
+      are: SEQ_REV_X / SEQ_REV_Y (reversed sequence), CHECK_ZW / CHECK_ANI /
+      CHECK_LEW ... (still counted as ctrl_other, not acted on).
+  - Fix: ll_mov_frame_ref (ll_play.c), ll_seq_anchor_origin /
+    ll_seq_draw_elem_anchor (ll_seq.c), obj_elem/obj_draw/play_draw use
+    them; a number that names no element (0, or past the table) draws
+    NOTHING instead of the last element; the cull rectangle covers the
+    anchor and both facings (obj_art rx/ry over all elements).
+  - Independent confirmation, not the port's own output: under the game's
+    grammar ZERO frame numbers are out of range on every level (RAN.01 747
+    frames, 91 mirrored, 7 blank, 0 out of range - pinned in verify-level;
+    the old reading had 23% out of range), and the renders assemble into
+    pictures they did not before (ENA.03: the wreck now carries its mast and
+    pirate flag, seaweed appears, fish have bodies and fins; TUNGA.11: the
+    rope bridge hangs from its ropes instead of a scatter of vertical
+    lines). The three black 40x80 boxes on KADMAR.07 (SOLID box40 objects
+    drawn through the old last-element clamp) are gone.
+  - Proof: --mov-selftest anchored-draw leg (frame grammar table + a
+    synthetic element drawn plain/mirrored/sentinel-plain/sentinel-mirrored,
+    hand-derived pixels); mutation-tested four ways (mirror origin, anchor
+    y, 0-based grammar, mirror direction - all caught). The per-level report
+    prints the frame counts.
+  - Harness note: the new report line moved a stdout buffer boundary onto
+    the 'play: LEW.RAN' line, exposing a latent race (block-buffered stdout
+    vs unbuffered stderr split a line in the log); tools/ll_level.c now
+    line-buffers stdout.
+  - Open (recorded, not guessed): SEQ_REV_X/Y and FRAME_REV flags change
+    how a state is drawn (counted under ctrl_other); the second anchor pair;
+    frame 0's placeholder; objects authored at (0,0) (G-7) are drawn there.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

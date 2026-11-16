@@ -15,6 +15,12 @@
 
 int main(int argc, char **argv)
 {
+    /* PR-49: whole lines only. Redirected to a file, stdout is block
+     * buffered while stderr is not, so a stderr message could land in the
+     * MIDDLE of a stdout line and break the verify legs' greps (it did:
+     * one extra report line moved the buffer boundary onto the 'play:
+     * LEW.RAN' line). */
+    setvbuf(stdout, NULL, _IOLBF, 0);
     /* FIX-13 (X-11): .MOV robustness selftest, no data needed */
     if (argc == 2 && strcmp(argv[1], "--mov-selftest") == 0)
         return ll_mov_selftest() ? 1 : 0;

@@ -390,8 +390,8 @@ int ll_level_anims(const char *dir, const char *level)
 
 /* ---------------- .MOV object state machine -------------------------------
  * The parser and structs moved to ll_play.c (PR-43, ll_mov_*): IDENTICAL
- * frame semantics for scene objects (frame number indexes the .SEQ element
- * list directly; non-positive durations clamped to 100 ms = the M4-C rule),
+ * frame semantics for scene objects (a frame number is 1-based and its sign
+ * is the mirror flag - ll_mov_frame_ref, PR-49; non-positive durations clamped to 100 ms = the M4-C rule),
  * plus the player-facing extension documented in ll_play.h (F=/T=/G=
  * physics, TARGET(n)=COND transitions, control= flags, per-state seq=).
  * Scene objects here keep using only the frame-list semantics through
@@ -432,6 +432,9 @@ typedef struct {           /* one .SEQ art table, owned by its script    */
                                        * - invisible, and drawn as nothing
                                        * here too (RE 2026-11-16, PLAN 8h) */
     int sw, sh;                       /* sprite bbox (element chunks)    */
+    int rx, ry;                       /* worst-case draw reach around the
+                                       * object position over ALL elements
+                                       * (anchor + width, both facings)   */
     /* the table's SHAPE facts (measured from its own elements, never
      * invented): the first element that carries the per-row margin lists
      * (the game's hit/push geometry, ll_seq_shape_*). */
@@ -540,16 +543,18 @@ static const obj_art *obj_art_of(const lvl_obj *o)
     return a->found ? a : NULL;
 }
 
-/* current drawable element of an object (frame index from .MOV, clamped;
+/* current drawable element of an object (frame number from .MOV through
+ * ll_mov_frame_ref: 1-based, negative = mirrored, 0 or out of range = none;
  * the element table is the art the CURRENT state selected, PR-45) */
-static const ll_seq_elem *obj_elem(const lvl_obj *o)
+static const ll_seq_elem *obj_elem(const lvl_obj *o, int *mirror)
 {
     const obj_art *a = obj_art_of(o);
-    if (!a || a->seq.count == 0)
+    *mirror = 0;
+    if (!a || a->seq.count == 0 || a->eidx0 < 0)
         return NULL;
-    int idx = a->eidx0;                        /* signed throughout (E-03):
-                                                * corrupt .MOV frame data can
-                                                * be negative */
+    int n = a->eidx0 + 1;                      /* no script: the first
+                                                * drawable element, as its
+                                                * 1-based frame number */
     if (o->sc->mov && o->sti >= 0 && o->sti < o->sc->mov->nst) {
         const ll_mov_st *s = &o->sc->mov->st[o->sti];
         if (s->nfr > 0) {                      /* the cycle guard of
@@ -557,12 +562,18 @@ static const ll_seq_elem *obj_elem(const lvl_obj *o)
                                                 * the cursor at the end of a
                                                 * state: hold the last frame */
             int fi = o->fi < s->nfr ? o->fi : s->nfr - 1;
-            idx = s->fr[fi].frame;
+            n = s->fr[fi].frame;
         }
-        if (idx < 0 || idx >= (int)a->seq.count)
-            idx = (int)a->seq.count - 1;
     }
-    return &a->seq.els[idx];
+    /* the game's frame-line grammar (ll_mov_frame_ref): 1-based, the sign is
+     * the mirror flag, 0 has no element. A number that names an element
+     * this table does not have draws NOTHING - the old clamp to the last
+     * element invented art the data never asked for */
+    ll_frame_ref r = ll_mov_frame_ref(n);
+    if (r.blank || r.idx >= (int)a->seq.count)
+        return NULL;
+    *mirror = r.mirror;
+    return &a->seq.els[r.idx];
 }
 
 /* Is this placement worth a draw pass in the view window? With RAN.01's 827
@@ -576,26 +587,34 @@ static int obj_visible(const lvl_obj *o, int cw, int ch, int cam)
     if (!a || a->eidx0 < 0)             /* < 0: shape-only, nothing to draw */
         return 0;
     int x = o->x - cam, y = o->y;
-    if (x >= cw || y >= ch || x + a->sw < 0 || y + a->sh < 0)
+    /* the drawn rectangle is the OBJECT position moved by the element's own
+     * anchor and possibly mirrored (ll_seq_draw_elem_anchor): a->rx / a->ry
+     * bound that over every element of the table, so the cull cannot drop
+     * a frame that would have reached the view */
+    if (x - a->rx >= cw || y - a->ry >= ch || x + a->rx < 0 || y + a->ry < 0)
         return 0;
     return 1;
 }
 
-/* Draw one placement. The authored .des x,y IS the draw origin (the
- * PR-36/PR-44 scroll legs pin that: a placement's x is a world coordinate
- * compared against back_rect and seen at x - cam); the element's f0/f2
- * offsets are the MENU/player anchor convention and are NOT applied here.
- * The art is the table the object's CURRENT state selected (obj_art_of). */
+/* Draw one placement. The authored .des x,y is the OBJECT's position in
+ * world coordinates (the PR-36/PR-44 scroll legs pin that: seen at x - cam);
+ * the element subtracts its own anchor f0/f2 and a negative frame number
+ * mirrors it - the game's element draw methods do exactly that and nothing
+ * in the actor adds the anchor back (PR-49, machine code of the four draw
+ * methods, ll_seq_draw_elem_anchor). The art is the table the object's
+ * CURRENT state selected (obj_art_of). */
 static void obj_draw(const lvl_obj *o, unsigned char *canvas, int cw,
                      int ch, int cam)
 {
     if (!obj_visible(o, cw, ch, cam))
         return;
     const obj_art *a = obj_art_of(o);
-    const ll_seq_elem *e = obj_elem(o);
+    int mirror;
+    const ll_seq_elem *e = obj_elem(o, &mirror);
     if (!a || !e)
         return;
-    ll_seq_draw_elem(&a->seq, e, canvas, cw, ch, o->x - cam, o->y);
+    ll_seq_draw_elem_anchor(&a->seq, e, canvas, cw, ch, o->x - cam, o->y,
+                            mirror, NULL);
 }
 
 static void obj_advance(lvl_obj *o, unsigned dt_ms)
@@ -634,6 +653,88 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         o->y += f->dy;             /* directive of the frame being held    */
         o->fi++;
     }
+}
+
+/* PR-49: the .MOV frame-number grammar and the anchored/mirrored element
+ * draw, proven without game data. One element: shape+art (w0=9: dc80 codec,
+ * margin lists), b19=0, b15=4 (tw 4), b17=1, anchor f0=3 f2=2, a single row
+ * {gap 0, copy 1 2 3 4}. Expected (hand-derived from the game's draw
+ * methods, ll_seq.c comment):
+ *   plain    at (10,10): origin (7,8)  -> row y=8,  x=7..10  = 1 2 3 4
+ *   mirrored at (10,10): origin (9,8)  -> row y=8,  x=9..12  = 4 3 2 1
+ *   sentinel f0=0x7fff:  plain (10,10) -> row y=10, x=10..13 = 1 2 3 4
+ *                        mirrored      -> row y=10, x=6..9   = 4 3 2 1 */
+static int seq_anchor_selftest(void)
+{
+    static const unsigned char blob[] = {
+        0x01, 0x00,                                 /* count 1             */
+        0x09, 0x00, 0x00, 0x00, 0x04, 0x00, 0x01, 0x00,   /* w0 b19 b15 b17 */
+        0x03, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,   /* f0 f2 f4 f6    */
+        0x00, 0x00,                                 /* ml {0}, mr {0}      */
+        0x08, 0x00,                                 /* array 0: 8 bytes    */
+        0x86, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04, 0x80,
+    };
+    unsigned char sent[sizeof blob];
+    ll_seq sq;
+    unsigned char cv[40 * 20];
+    int mir, x, ok = 1;
+    static const struct { int n, idx, mir, blank; } refs[] = {
+        { 1, 0, 0, 0 }, { 5, 4, 0, 0 }, { -1, 0, 1, 0 }, { -7, 6, 1, 0 },
+        { 0, 0, 0, 1 },
+    };
+
+    for (unsigned i = 0; i < sizeof refs / sizeof refs[0]; i++) {
+        ll_frame_ref r = ll_mov_frame_ref(refs[i].n);
+        if (r.idx != refs[i].idx || r.mirror != refs[i].mir ||
+            r.blank != refs[i].blank) {
+            fprintf(stderr, "anchor selftest: FAILED frame number %d means"
+                            " idx %d mirror %d blank %d (want %d %d %d)\n",
+                    refs[i].n, r.idx, r.mirror, r.blank, refs[i].idx,
+                    refs[i].mir, refs[i].blank);
+            return 1;
+        }
+    }
+    memcpy(sent, blob, sizeof blob);
+    sent[10] = 0xff;                                /* f0 = 0x7fff         */
+    sent[11] = 0x7f;
+    for (int variant = 0; variant < 2 && ok; variant++) {
+        if (ll_seq_parse(variant ? sent : blob, (uint32_t)sizeof blob,
+                         &sq) != 0) {
+            fprintf(stderr, "anchor selftest: FAILED synthetic .SEQ did not"
+                            " parse\n");
+            return 1;
+        }
+        for (mir = 0; mir < 2 && ok; mir++) {
+            int row = variant ? 10 : 8;
+            int x0 = variant ? (mir ? 6 : 10) : (mir ? 9 : 7);
+            static const unsigned char fwd[4] = { 1, 2, 3, 4 };
+            memset(cv, 0, sizeof cv);
+            ll_seq_draw_elem_anchor(&sq, &sq.els[0], cv, 40, 20, 10, 10, mir,
+                                    NULL);
+            for (x = 0; x < 40; x++) {
+                int k = x - x0;
+                unsigned char want = (k >= 0 && k < 4)
+                                         ? fwd[mir ? 3 - k : k] : 0;
+                if (cv[row * 40 + x] != want) {
+                    fprintf(stderr, "anchor selftest: FAILED %s %s pixel"
+                                    " (%d,%d) = %u (want %u)\n",
+                            variant ? "sentinel" : "anchored",
+                            mir ? "mirrored" : "plain", x, row,
+                            cv[row * 40 + x], want);
+                    ok = 0;
+                    break;
+                }
+            }
+            for (x = 0; x < 40 * 20 && ok; x++)     /* nothing else drawn */
+                if (cv[x] && (x / 40 != row)) {
+                    fprintf(stderr, "anchor selftest: FAILED stray pixel"
+                                    " at row %d\n", x / 40);
+                    ok = 0;
+                }
+        }
+        ll_seq_free(&sq);
+    }
+    return ok ? 0 : 1;
 }
 
 /* PR-48: the TWO patch row codecs (ll_seq.h), proven without game data.
@@ -966,7 +1067,8 @@ int ll_mov_selftest(void)
     }
 
     /* PR-46: the element SHAPE geometry leg (no window, no game data). */
-    if (seq_codec_selftest() != 0 || seq_shape_selftest() != 0) {
+    if (seq_codec_selftest() != 0 || seq_anchor_selftest() != 0 ||
+        seq_shape_selftest() != 0) {
         free(sc.mov);
         free(m);
         return 1;
@@ -975,7 +1077,7 @@ int ll_mov_selftest(void)
     free(sc.mov);
     free(m);
     printf("mov selftest: duration clamp + cycle guard + per-state seq= art"
-           " selection + patch codecs + shape geometry (ok)\n");
+           " selection + patch codecs + anchored draw + shape geometry (ok)\n");
     return 0;
 }
 
@@ -1122,17 +1224,13 @@ static void play_draw(const play_ctx *pl, unsigned char *canvas, int cw,
                                                  : pl->mov->seqkey);
     if (!s || !s->count)
         return;
-    int fi = ll_player_frame(&pl->p);
-    if (fi < 0)
-        fi = 0;
-    if ((unsigned)fi >= s->count)
-        fi = (int)s->count - 1;             /* same clamp as obj_elem     */
-    const ll_seq_elem *e = &s->els[fi];
-    int x = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5) - cam
-            - (int)(short)e->f0;
-    int y = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5)
-            - (int)(short)e->f2;
-    ll_seq_draw_elem(s, e, canvas, cw, ch, x, y);
+    ll_frame_ref r = ll_mov_frame_ref(ll_player_frame(&pl->p));
+    if (r.blank || r.idx >= (int)s->count)   /* same rule as obj_elem     */
+        return;
+    const ll_seq_elem *e = &s->els[r.idx];
+    int x = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5) - cam;
+    int y = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5);
+    ll_seq_draw_elem_anchor(s, e, canvas, cw, ch, x, y, r.mirror, NULL);
 }
 
 /* Drop the placements that belong to the player's own art leaf: the player
@@ -1303,6 +1401,8 @@ typedef struct {                    /* counted while reading, never guessed */
     int prop, group, comment, class_hint, shortline, poly;
     int param_extra, field_space, entry_noext, longline;
     int ntrans, ctrl_other, directive, field_other, drop_st, drop_fr, drop_tr;
+    int fr_total, fr_blank, fr_mirror, fr_oob;   /* frame numbers: the game's
+                                                  * 1-based/signed grammar */
 } obj_stats;
 
 typedef struct {                    /* the scene being built for one level */
@@ -1355,6 +1455,25 @@ static void seq_geom(obj_art *a)
         }
     if (a->eidx0 >= 0)
         elem_size(&a->seq, &a->seq.els[a->eidx0], &a->sw, &a->sh);
+    a->rx = a->ry = 0;
+    for (unsigned e = 0; e < a->seq.count; e++) {
+        const ll_seq_elem *el = &a->seq.els[e];
+        if (el->arr_n == 0)
+            continue;
+        int ew, eh, ax = 0, ay = 0;
+        elem_size(&a->seq, el, &ew, &eh);
+        int tw = (int)(short)el->b19 * 0x50 + (int)(short)el->b15;
+        if (tw > ew)
+            ew = tw;
+        if (el->f0 != 0x7fff) {
+            ax = (int)(short)el->f0;
+            ay = (int)(short)el->f2;
+        }
+        if (ax < 0) ax = -ax;
+        if (ay < 0) ay = -ay;
+        if (ew + ax > a->rx) a->rx = ew + ax;
+        if (eh + ay > a->ry) a->ry = eh + ay;
+    }
 
     /* the shape side of the same table: which elements carry the per-row
      * margin lists the game's hit/push geometry reads, and the bbox it
@@ -1553,6 +1672,18 @@ static obj_script *obj_script_get(place_ctx *pc, const char *leaf,
             st->ctrl_other += s->ctrl_other;
             st->directive += s->directive;
             st->field_other += s->field_other;
+            int ai = k < LMOV_MAXST ? sc->ast[k] : -1;
+            if (ai >= 0 && ai < sc->nart && sc->art[ai].found)
+                for (int f = 0; f < s->nfr; f++) {
+                    ll_frame_ref r = ll_mov_frame_ref(s->fr[f].frame);
+                    st->fr_total++;
+                    if (r.blank)
+                        st->fr_blank++;
+                    else if (r.idx >= (int)sc->art[ai].seq.count)
+                        st->fr_oob++;
+                    else if (r.mirror)
+                        st->fr_mirror++;
+                }
         }
         st->drop_st += sc->mov->drop_st;
         st->drop_fr += sc->mov->drop_fr;
@@ -1887,6 +2018,14 @@ static void des_placement(place_ctx *pc, llrs *hd_ety,
                " only once the AC_*/K_* signal bus lands (M4-D)\n",
                st->ntrans, st->ctrl_other, st->directive, st->field_other,
                st->state_noart, st->drop_st, st->drop_fr, st->drop_tr);
+    if (st->fr_total)
+        printf("ll_level: frame numbers of the scripts that have art (the"
+               " game's grammar: 1-based, negative = drawn mirrored, 0 = no"
+               " element): %d frame(s), %d mirrored, %d blank (drawn as"
+               " nothing: the game's placeholder is not modeled), %d name an"
+               " element their art table does not have (drawn as nothing,"
+               " never clamped to another)\n",
+               st->fr_total, st->fr_mirror, st->fr_blank, st->fr_oob);
 }
 /* paint one 8bpp canvas through the palette LUT (shared present path).
  * The LUT stays the scene's own business (level PCX palettes AND the

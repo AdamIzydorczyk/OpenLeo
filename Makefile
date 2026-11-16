@@ -504,6 +504,8 @@ ifeq ($(PX_DATA),1)
 	      /tmp/opencode/lv_ran.log \
 	  && grep -q '48 carry shape geometry only - invisible solids the original' \
 	      /tmp/opencode/lv_ran.log \
+	  && grep -q '747 frame(s), 91 mirrored, 7 blank (drawn as nothing: the game.s placeholder is not modeled), 0 name an element their art table does not have' \
+	      /tmp/opencode/lv_ran.log \
 	  && grep -q 'its seq= names EDGE0000.SEQ: the record is there, and element 0 of it carries the SHAPE margins only, no patch art: shape frame tw 28, 19 rows, bbox 1 0 28 20' \
 	      /tmp/opencode/lv_ran.log \
 	  && grep -q '\.\.\. 803 more placement(s) of those scripts' \

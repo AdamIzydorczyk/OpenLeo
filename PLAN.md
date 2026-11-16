@@ -1460,6 +1460,11 @@ scan; probes /tmp/opencode/pr45_census.py, pr45_join.py, pr45_forms.py):
   identities and the two output pointers are unresolved through unmapped
   vtable slots (0x530d1/0x53184 call through +0x48/+0x50); a shipped
   value would be a guess, per the ll_seq.h "NOT MODELED" note (M4-C).
+- .MOV frame lines (PR-49, FUN_00051660): the number is 1-BASED, negative =
+  MIRRORED (|n|-1), 0 = no element; the element's anchor (f0,f2; 0x7fff =
+  none) is subtracted by the element's own draw method, plain origin
+  (x-f0, y-f2), mirrored (x-tw+f0, y-f2). Out-of-range under this grammar:
+  0 on every level (23% under the old 0-based reading). See NEXT_STEPS.
 - Per-state art selection is pinned in --mov-selftest: a state gets
   exactly the table its own seq= names; a state that names none, a name
   that is not on these containers, and a shape-only (no-patch) table all

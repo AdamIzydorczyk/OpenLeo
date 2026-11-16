@@ -71,7 +71,8 @@ int  ll_plt_first_below(const ll_plt *o, int x, int from_y, ll_xy *hit);
 
 /* ------------------------------------------------- .MOV state machine ---
  * EXTENDED version of the viewer's mov_t (ll_level.c PR-38): same frame
- * semantics (frame number indexes the .SEQ element list directly,
+ * semantics (a frame number is 1-based, its sign the mirror flag, see
+ * ll_mov_frame_ref below;
  * non-positive ms clamped to 100 - the M4-C rule), plus the physics /
  * transition grammar above. Caps are sized from the shipped data, not
  * guessed (measured over all 777 .MOV, PLAN 8g): 40 states in one file,
@@ -199,9 +200,21 @@ int  ll_player_step(ll_player *p, const ll_plt *ground,
                     const ll_play_keys *keys, double xmin, double xmax,
                     unsigned dt_ms);
 
-/* Current .SEQ element index for drawing (frame number, unclamped -
- * caller clamps against its .SEQ, same convention as obj_elem). */
+/* Current .MOV frame NUMBER of the player (raw, as authored - NOT an element
+ * index: feed it through ll_mov_frame_ref). */
 int ll_player_frame(const ll_player *p);
+
+/* What a .MOV frame number means (PR-49; the game's own frame-line parser,
+ * FUN_00051660, machine code 0x51692..0x516d5): 1-based, the sign is the
+ * mirror flag. n > 0: element n-1; n < 0: element -n-1 drawn MIRRORED
+ * (frame record +0x14 = 1); n == 0: no element index - the game pulls a
+ * placeholder from a global resource (FUN_00044110), which this port does
+ * not model, so it draws nothing (blank = 1). Before PR-49 the number was
+ * used as a 0-based index and out-of-range numbers were clamped to the last
+ * element - 4266 of 18432 authored frame numbers are out of range under
+ * that reading, 0 are (but the real blanks) under the game's. */
+typedef struct { int idx; int mirror; int blank; } ll_frame_ref;
+ll_frame_ref ll_mov_frame_ref(int n);
 
 /* Data-free selftest for CI (ll_level --play-selftest): synthetic .plt +
  * a mini .MOV using the REAL walk constants (F=400, T=90, G=200): walks,

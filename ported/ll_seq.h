@@ -130,6 +130,16 @@ int ll_seq_patch_walk(const uint8_t *blob, uint32_t len,
                       ll_seq_patch_row_cb cb, void *ctx);
 int ll_seq_patch_draw(const uint8_t *blob, uint32_t len, uint8_t *canvas,
                       int cw, int ch, int x, int y);
+/* PR-49: the game's own placement convention (see ll_seq.c): the position
+ * is the OBJECT's, the element's anchor f0/f2 is subtracted (0x7fff = none),
+ * mirror != 0 draws the image flipped across its width tw. ll_seq_draw_elem
+ * below stays the raw "origin = (x,y)" draw (menu/help callers compute their
+ * own position). */
+void ll_seq_anchor_origin(const ll_seq_elem *e, int x, int y, int mirror,
+                          int *ox, int *oy);
+int ll_seq_draw_elem_anchor(const ll_seq *s, const ll_seq_elem *e,
+                            uint8_t *canvas, int cw, int ch, int x, int y,
+                            int mirror, const uint8_t *map);
 int ll_seq_draw_elem(const ll_seq *s, const ll_seq_elem *e,
                      uint8_t *canvas, int cw, int ch, int x, int y);
 

@@ -640,6 +640,19 @@ int ll_player_frame(const ll_player *p)
     return s->fr[p->fi].frame;
 }
 
+ll_frame_ref ll_mov_frame_ref(int n)
+{
+    ll_frame_ref r = { 0, 0, 0 };
+    if (n > 0)
+        r.idx = n - 1;
+    else if (n < 0) {
+        r.idx = -n - 1;
+        r.mirror = 1;
+    } else
+        r.blank = 1;
+    return r;
+}
+
 /* ---------------------------------------------------------- selftest --- */
 
 /* Mini .MOV with the REAL RAN.01 walk constants (values copied from
