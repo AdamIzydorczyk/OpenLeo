@@ -24,7 +24,8 @@ through stream vtable slot +0x1c = read(dest, count-BYTES)):
                         m = int16(b19); for i in 0..m (m>=0):
                         u16 L; L bytes
 
-All 49 extracted .SEQ payloads are consumed EXACTLY by this grammar
+Every container .SEQ payload (1656 across ANIMACJE/ETAPY/LEVELDES, one
+known-bad original-data defect excepted) is consumed EXACTLY by this grammar
 (consumed == file size, zero leftover). ported/ll_seq.c is the C port;
 make verify-seq proves C == this reference on every container payload.
 Object fields obj+0x0c..0x12/0x14 are DERIVED by the game (FUN_000420b0

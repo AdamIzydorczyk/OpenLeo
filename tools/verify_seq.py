@@ -111,13 +111,15 @@ def main():
 
     tmp = "/tmp/opencode/seqver"
     os.makedirs(tmp, exist_ok=True)
-    cases = []            # (label, raw_path, grammar_text, patch_text)
+    cases = []            # (label, raw_path, grammar_text, patch_text, shape_text)
     fails = 0
     nbad = 0
     for cont in ("ANIMACJE", "ETAPY", "LEVELDES"):
         p = os.path.join(data, cont)
         if not os.path.exists(p):
-            continue
+            # PR-47: partial staging must FAIL, not shrink the corpus
+            print(f"MISSING-CONTAINER {cont}: {p}")
+            return 1
         blob = open(p, "rb").read()
         for slot, nm, off, size in records_of(p):
             label = f"{cont}/{slot}/{nm}"

@@ -24,8 +24,10 @@ def pcm_payloads(etapy_path):
         blk = key.split(b'\0')[0]
         if rid != 2 or not blk:
             continue
-        cnt, = struct.unpack_from('<I', d, off)
-        for t in range(cnt):
+        # sparse-table rule of ported/llrs.c: the header counts USED
+        # records, the slot table continues past it with id==0 holes
+        # (PR-36); scan every slot the block's size holds
+        for t in range((size - 4) // 26):
             k2, r2, o2, s2 = SLOT.unpack_from(d, off + 4 + 26 * t)
             nm = k2.split(b'\0')[0]
             if r2 == 1 and nm.upper().endswith(b'.PCM'):
@@ -110,7 +112,7 @@ def main():
                       % (name, ref[0], ref[4]))
     print('PCM check: %d/%d payloads byte-exact (C == python)'
           % (total - bad, total))
-    return 1 if bad or total < 4 else 0
+    return 1 if bad or total < 23 else 0   # 23 = every PCM payload (PR-47: sparse scan)
 
 
 if __name__ == '__main__':

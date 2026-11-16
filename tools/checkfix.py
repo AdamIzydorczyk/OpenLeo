@@ -4,8 +4,8 @@ usage: checkfix.py LEO.EXE 0x5bb20-0x5bb26 ...
 Covers single records, source lists, AND chain walks (chain members are the
 dwords DOS4GW patches at load -> any patch window touching them is DEAD).
 """
-import sys, struct
-sys.path.insert(0, '/home/aizy/Projects/LL_RECOMPILE/tools')
+import os, sys, struct
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import le_dump
 
 def main():

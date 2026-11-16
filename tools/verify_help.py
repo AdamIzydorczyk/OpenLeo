@@ -9,10 +9,11 @@ background plus exactly one POMOC page sprite:
 
 argv: help.ppm bare.ppm ETAPY-container level-block-key page-seq x0 x1 y0 y1
 """
+import os
 import struct
 import sys
 
-sys.path.insert(0, 'tools')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from seq_parse import seq_parse
 from seq_render import sprite
 
@@ -37,8 +38,9 @@ def find_payload(container, block_key, rec_name):
         if key.split(b'\0')[0].upper() != block_key.encode().upper() \
                 or rid != 2:
             continue
-        cnt, = struct.unpack_from('<I', d, offk)
-        for t in range(cnt):
+        # sparse table (PR-36): scan every slot the block holds, not
+        # just the `used` count the header carries
+        for t in range((sizek - 4) // 26):
             k2, r2, o2, s2 = SLOT.unpack_from(d, offk + 4 + 26 * t)
             if r2 == 1 and k2.split(b'\0')[0].upper() \
                     == rec_name.encode().upper():

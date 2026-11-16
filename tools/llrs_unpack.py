@@ -64,7 +64,10 @@ class Container:
             if eid == 0 or sz == 0:
                 continue  # free/padding slot
             nm = name.partition(b'\x00')[0]
-            if not all(32 <= c < 127 for c in nm):
+            # same key rule as ported/llrs.c key_printable (PR-47): a
+            # non-empty printable run, everything after it NUL padding
+            if not nm or not all(32 <= c < 127 for c in nm) \
+                    or any(name[len(nm):]):
                 continue
             if off < self.data_start or off + sz > size:
                 continue

@@ -2325,6 +2325,54 @@ engine-side).
      named SKIPs (the runner stages no game data) - exactly as the
      fixture-free contract requires. CLOSED.
 
+## PR-47 — verification harness: the suite now fails when it should
+          (from VERIFICATION_2026-11-16.md, DONE 2026-11-16)
+
+  - Why: the fresh-clone audit found legs that passed with nothing
+    checked. All fixed here, none of them touched the port itself.
+  - verify-cmake: the data branch reused /tmp/opencode/cmbuild, so any
+    other checkout failed ("source does not match cache"); both
+    branches now wipe cmbuild/cmwin first.
+  - verify-llrs / verify-win llrs leg: a missing container made both
+    sides print nothing and `diff` called that exact. llrs_selftest now
+    exits 1 on an unopenable container, the python side's status is
+    checked, an empty listing is refused and the compare is a cmp of
+    captured files. (Reproduced with /nonexistent before the fix.)
+  - "frames differ = animation works" legs (menu/level/win/play): `cmp
+    -s` treats a missing frame as "differs". New tools/frames_differ.sh
+    (both exist, non-empty, differ) replaces all 6 uses and every
+    producing command is preceded by an rm of its own frame, so a stale
+    PPM can no longer satisfy a leg.
+  - python reference frames: verify-skip/verify-win trusted
+    py_last/f01520.ppm, which no target created (a clean machine
+    skipped verify-win with the data present). New `py-refs` target
+    regenerates c_py/f01020 + py_last/f01520 and is a prerequisite of
+    verify, verify-skip, verify-win, verify-golden, verify-cmake;
+    PX_WINREF now only needs the data.
+  - verify_pcm.py / verify_help.py scanned `range(cnt)` of nested index
+    tables (the PR-36 sparse-table bug): 4 of 23 PCM payloads were
+    compared. Both scan every slot the block holds; the PCM pin is now
+    23/23 (C == python on all 23, incl. RAN.01/PLAN2.PCM and the
+    MASKA* layers that verify-level renders).
+  - verify-arch also catches `<SDL.h>` / quoted SDL includes and pins
+    that ll_view.h / ll_audio.h (which pull SDL in) are included only by
+    the backend; negative-tested with a temporary offender.
+  - tools: llrs_unpack.py key validity aligned with ported/llrs.c
+    (non-empty printable run, rest NUL); verify_seq.py fails on a
+    missing container instead of shrinking the corpus; checkfix.py and
+    verify_help.py no longer hard-code paths; the ~20 Makefile legs that
+    hard-coded /tmp/opencode/hd_files now use $(HD); `clean` removes
+    seq_shapedump*; stale "172/49 payloads" comments corrected.
+  - Still open (recorded, not fixed here): ll_mod.c has no independent
+    python mixer oracle (verify-mod compares linux with wine, i.e. the
+    same C twice); most python oracles are written from the same
+    reading as the C. PR-48 closes the inner-gap blind spot of the SEQ
+    patch oracle.
+  - Verification: make -k of py-refs verify verify-skip verify-win
+    verify-llrs verify-pcx verify-seq verify-pcm verify-help
+    verify-menu verify-level verify-play verify-arch verify-cmake on the
+    fixtures EXIT=0.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
@@ -2382,7 +2430,7 @@ exactly where the remaining gaps are:
   same pattern for their own keys.
 None of this is blocked on data - 12 of 13 levels already run their
 complete own player sets (see PLAN 8g). Small latent cleanup noticed on
-the way: tools/verify_help.py and tools/verify_pcm.py still scan
+the way: tools/verify_help.py and tools/verify_pcm.py (FIXED in PR-47) scanned
 nested index tables only `count` slots (the PR-36 sparse-table bug,
 same shape as the extract_record.py fix in this PR); their pins are
 dense on today's fixtures so they pass - fix them before using those

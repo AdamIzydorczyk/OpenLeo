@@ -8,11 +8,11 @@
 #include <stdio.h>
 #include <string.h>
 
-static void dump(llrs *c, const char *path)
+static int dump(llrs *c, const char *path)
 {
     if (llrs_open(c, path)) {
         fprintf(stderr, "llrs_open failed: %s\n", path);
-        return;
+        return 1;   /* PR-47: a missing container must FAIL the diff leg */
     }
     for (unsigned k = 0; k < c->cap; k++) {
         const llrs_slot *s = &c->slots[k];
@@ -21,6 +21,7 @@ static void dump(llrs *c, const char *path)
         printf("%8d  id=%u  off=0x%x  size=0x%x  %s\n", k, s->id, s->off,
                s->size, s->name);
     }
+    return 0;
 }
 
 static void dump_block(llrs *c, const char *path, const char *slotname)
@@ -71,7 +72,8 @@ int main(int argc, char **argv)
     }
     for (int i = 1; i < argc; i++) {
         llrs c;
-        dump(&c, argv[i]);
+        if (dump(&c, argv[i]))
+            return 1;
         llrs_close(&c);
     }
     return 0;
