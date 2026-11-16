@@ -3055,6 +3055,34 @@ engine-side).
     actions (PLAT_OFF/OUT, XCHG_LEVEL, SHOW_CROWN, MSG_PUSH, LEAVE),
     ATC_ON/OFF and the F/I/FC velocity directives.
 
+## PR-70 — the balloon pickup, and how an EXTERNAL signal reaches an object (opt-in)
+          (DONE 2026-11-16)
+
+  - Factory 0x4df10: the first field of a placement line is a CLASS name;
+    BAL builds the object with vtable 0xa17dc. Its touch method FUN_0003d370
+    (slot +0x78): when the mover is Lew (slot +0x3c) and the balloon is in
+    its first state ([+0x5c] == 1), the point (balloon.x + 10, balloon.y +
+    10) is tested against Lew's bounding rect (slot +0x4c, inclusive); a hit
+    sends Lew the kind-9 message {0, 9, balloon, 0}.
+  - Lew's message dispatcher (0x50d60, jump table 0x50d20 for kinds 9..21):
+    kind 9 (0x50df4) = if energy < 100: set a bit (byte 6 bit 6 = bit 54) in
+    the SENDER's signal bitset ([obj+0x60]; this is how an outside event
+    becomes the balloon's K_GEN1) and energy += 0x20 (32), clamped to 100;
+    at full energy the message is ignored and the balloon stays. Kind 10
+    sets [+0x14/+0x18], kind 11 -> slot 0xd8, kind 15 -> slot 0xfc, kind 21
+    sets [+0x116] (the same flag the death code uses).
+  - Ported in the opt-in contact pass (LEO_PLAY_SOLID=1): balloon_hit rect
+    test (hand-derived data-free selftest: corners inclusive, one pixel off
+    misses), energy +32, K_GEN1 raised and the transition evaluated at once
+    (A_RUN -> A_DEAD, the pop). Gated on the placement's leaf "BAL", its
+    start state, and the lion's layer. The ZARIA.01 balloons sit at
+    (78,460) and above - not reachable by the scripted ground walk, so the
+    effect chain is covered by the read code + the rect selftest, not by a
+    run pin.
+  - Open: the signal-bit numbering ([obj+0x60] bit n <-> K_GENn/AC_*: bit 54
+    is assumed K_GEN1), the other pickups (GRABOBJ 0x3db90 handler, KORONA,
+    SURPRISE), score/points, the pop sound.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

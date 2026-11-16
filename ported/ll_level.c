@@ -1066,6 +1066,8 @@ static int seq_push_selftest(void)
  *   have walked into A_DEAD at 200 ms);
  *   frame 2 carrying `GEN K_GEN1`: at 200 ms A_RUN -> A_DEAD (fi 0), and
  *   100 ms later the frame list of A_DEAD ends -> A_RUN again. */
+static int balloon_hit(int bx, int by, int rx, int ry, int rw, int rh);
+
 static int obj_state_selftest(void)
 {
     static const char plain[] =
@@ -1109,6 +1111,14 @@ static int obj_state_selftest(void)
     if (b.sti != 0) {
         fprintf(stderr, "object state selftest: FAILED AC_BREAK_NEXT did not"
                         " return to A_RUN (state %d)\n", b.sti);
+        goto out;
+    }
+    /* balloon_hit: rect 100,50 20x30; the point is (x+10, y+10), inclusive */
+    if (!balloon_hit(90, 40, 100, 50, 20, 30) ||     /* corner 100,50      */
+        !balloon_hit(110, 70, 100, 50, 20, 30) ||    /* far corner 120,80  */
+        balloon_hit(89, 40, 100, 50, 20, 30) ||      /* 99: left of it     */
+        balloon_hit(90, 71, 100, 50, 20, 30)) {      /* 81: below it       */
+        fprintf(stderr, "object state selftest: FAILED balloon rect\n");
         goto out;
     }
     rc = 0;
@@ -1409,6 +1419,21 @@ static const ll_seq_elem *obj_shape_elem(const lvl_obj *o, int *mirror,
     return &a->seq.els[r.idx];
 }
 
+/* PR-70: the balloon pickup (class BAL, touch method FUN_0003d370): when
+ * the mover is Lew and the balloon is in its first state, the point
+ * (balloon.x + 10, balloon.y + 10) is tested against Lew's bounding rect
+ * (inclusive on all four sides: jl/jg at 0x3d3d7..0x3d3e9); a hit sends Lew
+ * the kind-9 message (FUN_00050df4): energy < 100 -> +32 (clamped to 100)
+ * and a signal bit is set on the balloon (its K_GEN1 transition: A_RUN ->
+ * A_DEAD, the pop). At full energy the message is ignored - the balloon
+ * stays. */
+static int balloon_hit(int bx, int by, int rx, int ry, int rw, int rh)
+{
+    int px = bx + 10, py = by + 10;
+
+    return px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
+}
+
 /* PR-59: FUN_00053ae0 - what a solid object does to the lion. The lion is
  * B (pushed); an object is A when its CURRENT state carries SOLID (flag word
  * 0x400) and the lion's state is not ANTI_SOLID (0x10000). The push is
@@ -1447,6 +1472,32 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
     if (lr.blank || lr.idx >= (int)lseq->count)
         return;
     const ll_seq_elem *le = &lseq->els[lr.idx];
+    {   /* balloons: not solids, their own touch method */
+        int bx0, by0, bw0, bh0;
+        int lx0 = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5);
+        int ly0 = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5);
+
+        ll_seq_shape_bbox(lseq, le, &bx0, &by0, &bw0, &bh0);
+        for (int k = 0; k < nobj; k++) {
+            lvl_obj *o = (lvl_obj *)&objs[k];
+            if (!o->sc || !ci_eq(o->sc->leaf, "BAL") || !o->sc->mov ||
+                o->sti != o->sc->mov->start_st || o->layer != pl->layer)
+                continue;
+            if (!balloon_hit(o->x, o->y, lx0 + bx0, ly0 + by0, bw0, bh0))
+                continue;
+            if (pl->energy >= 100)
+                continue;                       /* the message is ignored */
+            pl->energy += 32;
+            if (pl->energy > 100)
+                pl->energy = 100;
+            o->gen |= 1u;                       /* K_GEN1: the pop        */
+            (void)obj_transition(o, o->sc->mov, 0);
+            o->gen = 0;
+            if (verbose)
+                printf("ll_level: play tick %d: balloon at %d,%d picked:"
+                       " energy %d\n", tick, o->x, o->y, pl->energy);
+        }
+    }
     for (int k = 0; k < nobj; k++) {
         const lvl_obj *o = &objs[k];
         if (!o->sc || !o->sc->mov || o->sti < 0 || o->sti >= o->sc->mov->nst)
