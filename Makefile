@@ -630,6 +630,18 @@ ifeq ($(PX_DATA),1)
 	  && ! grep -q ': solid ' /tmp/opencode/ly_walk.log \
 	  && echo "play solid contact: RAN.01 EDGE0046 pushes the lion back 3 px at tick 54; default run has no contacts (ok)" \
 	  || { echo "play solid contact grep FAILED"; grep ': solid ' /tmp/opencode/ly_solid.log | head -3; exit 1; }
+# PR-68: enemy stats from the placement file (damage=/bounds=/scope=/energy=):
+# ZARIA.01's first LICHA (120,650, damage 15) hurts the lion at tick 84.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SOLID=1 \
+	  LEO_PLAY_SCRIPT="1:FWD" LEO_LEVEL_PPM=/tmp/opencode/ly_hit.ppm \
+	  LEO_LEVEL_PPM_TICK=100 ./ll_level $(DATA) ZARIA.01 --play --no-audio \
+	  > /tmp/opencode/ly_hit.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play hit FAILED (rc=$$rc)"; exit 1; fi
+	@grep -q 'play tick 84: hit by LICHA/licha3.mov: damage 15 -> energy 85' \
+	    /tmp/opencode/ly_hit.log \
+	  && echo "play enemy contact: ZARIA.01's LICHA deals its authored damage=15 (energy 100 -> 85, ok)" \
+	  || { echo "play enemy contact grep FAILED"; grep 'hit by' /tmp/opencode/ly_hit.log | head -3; exit 1; }
 # render leg: SAME tick count, the only difference is the held key -
 # the frame delta is the lion walking (and the NONE run stays at spawn)
 	@rm -f /tmp/opencode/ly_p40_NONE.ppm /tmp/opencode/ly_p40_FWD.ppm

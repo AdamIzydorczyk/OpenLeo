@@ -480,6 +480,10 @@ typedef struct {                     /* one placement of a script        */
                                       * 1 animacje, 2 ani_plat (PR-60)    */
     unsigned char layer;             /* entry index inside that key's comma
                                       * list = the tlo/parallax layer     */
+    /* PR-68: the key=value lines that follow an entry in the placement
+     * file (zwierzaki .des: damage= contact damage, bounds= the patrol x
+     * range, scope= detection range, energy= hit points). -1 = absent. */
+    int damage, b0, b1, scope, energy;
 } lvl_obj;
 
 typedef struct {                     /* one level's authored scene: the
@@ -1216,6 +1220,7 @@ typedef struct {
     double sx, sy;                          /* pozycja spawn              */
     ll_play_keys keys;                      /* held arrows (live path)    */
     int layer;                              /* the lion's layer = main_back */
+    int energy, lives, lock;                /* PR-68: 100 / 6 / hurt-lock ticks */
 } play_ctx;
 
 static ll_play_keys script_keys(const char *s, int tick)
@@ -1316,6 +1321,8 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
         on = e && *e && *e != '0';
     }
     pl->p.support = 0;
+    if (pl->lock > 0)
+        pl->lock--;
     if (!on || !pl->have || pl->p.sti >= pl->mov->nst)
         return;
     const ll_mov_st *ls = &pl->mov->st[pl->p.sti];
@@ -1386,6 +1393,17 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                 pl->p.gen[LL_COND_K_GEN2 - LL_COND_K_GEN1] = 1;
             }
         }
+        if (o->damage > 0 && pl->lock == 0) {
+            /* FUN_00050ed0 / 00054550: a touched enemy hits with ITS OWN
+             * damage (the .des `damage=` of the placement); the lion's hurt
+             * lock is 30 ticks (0x50304: [+0x102] = 0x1e) */
+            pl->energy -= o->damage;
+            pl->lock = 30;
+            if (verbose)
+                printf("ll_level: play tick %d: hit by %s/%s: damage %d ->"
+                       " energy %d\n", tick, o->sc->leaf, o->sc->movname,
+                       o->damage, pl->energy);
+        }
         if (verbose)
             printf("ll_level: play tick %d: solid %s/%s %s at %d,%d push"
                    " %d,%d (ret %d) lion %d,%d\n", tick, o->sc->leaf,
@@ -1406,6 +1424,14 @@ static void play_advance(play_ctx *pl, const ll_play_keys *keys,
     int ev = ll_player_step(&pl->p, &pl->plt, keys, pl->xmin, pl->xmax,
                             dt_ms);
     play_collide(pl, objs, nobj, verbose, tick);
+    if (pl->energy <= 0) {                  /* 0x50400: lives--, energy 100 */
+        pl->lives--;
+        pl->energy = 100;
+        pl->lock = 0;
+        printf("ll_level: play: energy gone -> respawn, %d live(s) left\n",
+               pl->lives);
+        play_spawn(pl);
+    }
     int xi = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5);
     int yi = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5);
     if (ev & LL_PLAY_EV_STATE)
@@ -2257,6 +2283,7 @@ static lvl_obj *obj_slot(place_ctx *pc)
     }
     lvl_obj *o = &own->objs[own->nobj++];
     memset(o, 0, sizeof *o);
+    o->damage = o->b0 = o->b1 = o->scope = o->energy = -1;
     return o;
 }
 
@@ -2324,6 +2351,8 @@ static void des_place_file(place_ctx *pc, const char *fname,
     obj_stats *st = &pc->st;
     const char *p = txt, *end = txt + len;
     int declared = -1, entries = 0;
+    int last_obj = -1;                  /* the placed object the following
+                                         * key=value lines belong to */
     while (p < end) {
         const char *eol = p;
         while (eol < end && *eol != '\n' && *eol != '\r')
@@ -2359,8 +2388,22 @@ static void des_place_file(place_ctx *pc, const char *fname,
             declared = atoi(line);      /* header count: kept for the report,
                                          * never used to stop reading */
         else if (commas < 4) {                  /* no entry shape at all */
-            if (strchr(line, '='))
+            if (strchr(line, '=')) {
                 st->prop++;                     /* damage= / energy= / ... */
+                if (last_obj >= 0 && last_obj < pc->own->nobj) {
+                    lvl_obj *lo = &pc->own->objs[last_obj];
+                    int v0, v1;
+                    if (sscanf(line, " damage = %d", &v0) == 1)
+                        lo->damage = v0;
+                    else if (sscanf(line, " bounds = %d , %d", &v0, &v1) == 2) {
+                        lo->b0 = v0;
+                        lo->b1 = v1;
+                    } else if (sscanf(line, " scope = %d", &v0) == 1)
+                        lo->scope = v0;
+                    else if (sscanf(line, " energy = %d", &v0) == 1)
+                        lo->energy = v0;
+                }
+            }
             else if (strchr(line, ';'))
                 st->poly++;                     /* polyline data (ground) */
             else
@@ -2368,6 +2411,7 @@ static void des_place_file(place_ctx *pc, const char *fname,
         } else {
             char leaf[16], cls[24], mov[24];
             int x = 0, y = 0;
+            last_obj = -1;
             const char *eos = line + ll;
             const char *c1 = place_field(line, eos, leaf, sizeof leaf);
             const char *c2 = c1 ? place_field(c1, eos, cls, sizeof cls) : NULL;
@@ -2446,6 +2490,7 @@ static void des_place_file(place_ctx *pc, const char *fname,
                                         * script's own " M dx,dy" frames move
                                         * it (285 of them game-wide). */
                 o->by = o->y = y;
+                last_obj = pc->own->nobj - 1;
                 st->placed++;
             }
         }
@@ -3140,6 +3185,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     play_ctx pl;
     memset(&pl, 0, sizeof pl);             /* LEO_PLAY wiring (4c below)   */
     pl.layer = par.ref;                    /* the lion lives on main_back  */
+    pl.energy = 100;                       /* 0x503ac: energy 100 at (re)start */
+    pl.lives = 6;                          /* the playthrough video's start    */
     hud_t hud;
     memset(&hud, 0, sizeof hud);
     scene_owner scene;                     /* scripts + placements, owned;
@@ -3685,7 +3732,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                   nlay, world_h);
         play_draw(&pl, canvas, cw, ch, cam, camy);
         if (pl.have)
-            hud_draw(&hud, canvas, cw, ch, 100, 6);
+            hud_draw(&hud, canvas, cw, ch, pl.energy, pl.lives);
         scene_ppm(ppm, cw, ch, canvas, scenepal);
         goto done;                          /* canvas freed at done: (E-05) */
     }
@@ -3836,7 +3883,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                       nlay, world_h);
             play_draw(&pl, canvas, cw, ch, cam, camy);
             if (pl.have)
-                hud_draw(&hud, canvas, cw, ch, 100, 6);
+                hud_draw(&hud, canvas, cw, ch, pl.energy, pl.lives);
             paint2x(canvas, lut, cw, ch);
             ll_music_pump();
             t_tick += 20000000ull;               /* FIX-07: fixed 50 Hz grid */

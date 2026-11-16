@@ -2999,6 +2999,30 @@ engine-side).
     of the held item, the cyan curved blade first), no crown. Pinned by the
     "hud: belka.des: 5 item(s)" line of the TUNGA.11 scene leg.
 
+## PR-68 — enemy stats are in the placement files; contact damage (opt-in) (DONE 2026-11-16)
+
+  - The key=value lines under an entry of the zwierzaki .des files were
+    only counted (st->prop); they ARE the enemy definitions: `damage=`
+    (contact damage), `bounds=x0,x1` (patrol range), `scope=` (detection
+    range), `energy=` (hit points; some carry two values). Examples
+    (ZARIA.01): RYBA damage 20, LICHA 15/15/10 with energy 20, PAJAK 10 /
+    energy 50, SEP 10 / 40, NOSOROG 10 / 60 (scope 40,150), SEP2 10 / 80.
+    lvl_obj now keeps damage/b0/b1/scope/energy (-1 = authored nowhere).
+  - The class touch handler (FUN_0003d990 and its siblings, slot +0x78)
+    runs the push-out and then calls the mover's hit method with the
+    ENEMY's own damage field ([+0xb1] <- damage=); DANGER objects use the
+    level's danger_power (unauthored, see PR-63).
+  - ll_level (opt-in LEO_PLAY_SOLID=1): a contact that pushes the lion hurts
+    him by the object's damage= (energy -= damage, hurt lock 30 ticks =
+    0x50304's constant); energy <= 0 -> lives-- and respawn at the spawn;
+    the HUD head/digits follow (energy frame (100-e)/10). Assumptions named:
+    the lock is counted in 20 ms ticks, the lion's hurt state and knockback
+    are not played, enemies do not patrol (bounds=) or detect (scope=).
+    Pinned: ZARIA.01 tick 84, LICHA damage 15 -> energy 85.
+  - Next: patrol/detect from bounds=/scope= (the enemy scripts are .MOV
+    state machines driven by signals - the unported signal bus), the lion's
+    attack (damage to enemies, energy=), pickups.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
