@@ -18,11 +18,12 @@
  *                some levels; object X,Y join needs SETUP's mov->ED key
  *                mapping, still open (PLAN.md). Until then sprites anchor by
  *                their element header (x=|f0|, tall sprites bottom-aligned).
- * PCM payloads are parallax IMAGE layers (one continuous byte-RLE plane,
- * FUN_00056b20) - NOT audio; the old "u8 audio" interpretation was wrong.
- * They join the scene as the tlo= background stack: when a level has no
- * .PCX among its tlo= layers (RAN.01: plan1.pcm only on this CD), the
- * 400x200 rest view (ll_pcm_view) becomes the scene canvas.
+ * PCM payloads are TRANSPARENT overlay image layers (PR-53: column strips
+ * of compiled-sprite tiles, ll_pcm.h) - NOT audio, and NOT the byte-RLE plane
+ * earlier PRs decoded. They join the scene as the tlo= background stack: the
+ * first .PCX is the backdrop, every .PCM is painted over it in tlo order;
+ * a level without a backdrop .PCX (KADMAR2) shows them over an empty canvas
+ * with the block's BACK.PCX palette.
  *   player     = with LEO_PLAY (M4-B, PR-43) the scene additionally runs
  *                the real lion: `lew=` leaf .SEQ art + that leaf's HD
  *                .MOV (physics/transitions), ground from `platformy=`
@@ -1306,37 +1307,37 @@ static void scene_ppm(const char *path, int w, int h, const unsigned char *idx,
     printf("LEO_LEVEL_PPM wrote %s\n", path);
 }
 
-/* Rebuild the background window for camera column `cam`:
- *  - PCM layer owner: engine strip wrap - screen strip k shows plane
- *    strip (cam/80 + k) mod strips (ll_pcm_view_at, FUN_00056c72); only
- *    the pcm_band ground rows change (upper rows are a documented CD art
- *    hole).  The FUN_00057460 per-strip parallax shear is not modelled.
- *  - .PCX background owner: window columns [cam, cam+cw) mod img.w.
- *    The tiling wrap is SYNTHESISED: the plan-layer .PCX blitter was not
- *    recovered (plan3.pcx carriers are partial on this CD); the mod keeps
- *    the scene seamless vs an edge smear.
- * cam == 0 is the rest view already present in canvas (no-op). */
-static void bg_at(const ll_pcm *pcml, const ll_pcx *img, int pcm_owner,
-                  unsigned pcm_band, int cam, int cw, int ch,
-                  unsigned char *scratch, unsigned char *canvas)
+/* PCM overlay layers (PR-53). tlo= names the background stack back to
+ * front: the first .PCX is the backdrop, every .PCM is a TRANSPARENT overlay
+ * painted over it in tlo order (ll_pcm.h). Where a layer is as wide/tall as
+ * the world (KADMAR2 2560x1800, LONA.05 2480x600, TUNGA.11 2560x600 - the
+ * back_rect itself) it scrolls 1:1 with the camera; a smaller layer scrolls
+ * proportionally so that its far edge meets the world's far edge (VIEWER
+ * RULE: the engine's per-layer parallax factors, FUN_00057460, are not
+ * recovered; strips wrap modulo the layer width as in the engine), and a
+ * layer shorter than the view sits on the bottom edge (the engine
+ * offsets layers by (height - 200)). The .PCX backdrop itself does not
+ * scroll (PR-51). */
+#define MAX_PCM_LAYERS 8
+
+static void layers_at(const ll_pcm *lay, int nlay, int cam, int camy, int cw,
+                      int ch, int world_w, int world_h, unsigned char *canvas)
 {
-    if (!cam)
-        return;
-    if (pcm_owner && scratch) {
-        ll_pcm_view_at(pcml, 0, pcm_band, (unsigned)cam / 80u, scratch);
-        memcpy(canvas + (size_t)(ch - (int)pcm_band) * (size_t)cw,
-               scratch, (size_t)cw * pcm_band);
+    for (int k = 0; k < nlay; k++) {
+        const ll_pcm *L = &lay[k];
+        long long sx = cam, sy = camy;
+        int dy = 0;
+        if (world_w > cw && (int)L->w > cw && (int)L->w < world_w)
+            sx = (long long)cam * ((int)L->w - cw) / (world_w - cw);
+        if ((int)L->h < ch) {
+            dy = ch - (int)L->h;
+            sy = 0;
+        } else if (world_h > ch && (int)L->h < world_h)
+            sy = (long long)camy * ((int)L->h - ch) / (world_h - ch);
+        ll_pcm_blit(L, canvas, cw, ch, (int)sx, (int)sy, 0, dy);
     }
-    /* A .PCX backdrop is NOT scrolled (PR-51, viewer policy). The view is
-     * exactly the image size, so there is no spare width to pan over, and
-     * the old tiling repeated a non-seamless image with a hard vertical cut
-     * in the middle of the screen (KADMAR.07 at cam 1280, KARA.07). The
-     * original scrolls its backdrop by a per-plane parallax factor
-     * (FUN_00057530/57500 scale the camera by obj+0x24) that this port has
-     * not recovered; a fixed backdrop is the one seam-free choice that
-     * invents no rate - the objects and the lion scroll over it. */
-    (void)img;
 }
+
 /* 4b) the authored scene: the level's own placement data (PR-45) ---------
  * A level says what stands where in sub-.des files that its main .des names
  * through THREE keys - measured over all 13 shipped levels. Every .des record
@@ -2408,7 +2409,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
      * plan2.pcm are absent, plan1.pcm is present -> PCM canvas).
      * Fallback: any .PCX in the block (KADMAR2's M15.PCX intro art). */
     char bgname[32] = "";
-    char pcm_t[16] = "";            /* tlo stem of the canvas PCM layer */
+    int pcm_rec[MAX_PCM_LAYERS];    /* present tlo .PCM records, tlo order */
+    int npcm_rec = 0;
     const llrs_slot *bg = NULL;
     int bgpref = -1;                /* block index of first present tlo layer */
     {
@@ -2432,14 +2434,21 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                         bgpref = (int)k;
                     if (!bg && ci_eq(dot, ".PCX"))
                         bg = &recs[k];
-                    if (ci_eq(dot, ".PCM") && !pcm_t[0])
-                        snprintf(pcm_t, sizeof pcm_t, "%s", stem);
+                    if (ci_eq(dot, ".PCM") && npcm_rec < MAX_PCM_LAYERS) {
+                        int dup = 0;
+                        for (int q = 0; q < npcm_rec; q++)
+                            dup |= pcm_rec[q] == (int)k;
+                        if (!dup)
+                            pcm_rec[npcm_rec++] = (int)k;
+                    }
                     break;
                 }
             }
         }
     }
-    if (!bg)
+    if (!bg && npcm_rec == 0)   /* PR-53: only when no PCM layer can be the
+                                 * scene (KADMAR2's M15.PCX was a stand-in
+                                 * for the layer that could not be shown) */
         for (unsigned k = 0; k < nrec; k++) {
             const char *dot = strrchr(recs[k].name, '.');
             if (recs[k].id == 1 && dot && ci_eq(dot, ".PCX")) {
@@ -2447,8 +2456,6 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 break;
             }
         }
-    if (bg && (bgpref < 0 || ci_eq(bg->name, recs[bgpref].name)))
-        pcm_t[0] = '\0';            /* a tlo .PCX owns the canvas */
     if (bg)
         snprintf(bgname, sizeof bgname, "%s", bg->name);
 
@@ -2463,80 +2470,79 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             free(raw);
         }
     }
-    /* tlo= names the whole background layer stack (.pcx + .pcm).  PCM
-     * layers are decoded for display; when the block carries no tlo .PCX
-     * (RAN.01 on this CD: plan1.pcm only) the first tlo= .PCM becomes the
-     * scene canvas - the 400-px blit window of FUN_00056c72 at rest.
-     * PCM payloads are NOT audio (parallax image planes, see ll_pcm.h). */
-    ll_pcm pcml;
-    memset(&pcml, 0, sizeof pcml);
-    int have_pcm = 0;
-    for (unsigned k = 0; k < nrec; k++) {
-        const char *dot = strrchr(recs[k].name, '.');
-        if (recs[k].id != 1 || !dot || !ci_eq(dot, ".PCM"))
-            continue;
-        int want = 0;
-        if (!have_pcm && pcm_t[0]) {
-            char stem[16];
-            stem_of(recs[k].name, stem, sizeof stem);
-            if (ci_eq(stem, pcm_t))
-                want = 1;
-        }
+    /* tlo= names the whole background stack back to front (.pcx + .pcm).
+     * The .PCX is the backdrop; every present .PCM is a TRANSPARENT overlay
+     * decoded here and painted over it each frame (layers_at, ll_pcm.h). */
+    ll_pcm lay[MAX_PCM_LAYERS];
+    int nlay = 0;
+    memset(lay, 0, sizeof lay);
+    for (int q = 0; q < npcm_rec; q++) {
+        const llrs_slot *rs = &recs[pcm_rec[q]];
         unsigned char *raw = NULL;
+        if (llrs_read(&etapy, rs, &raw) < 0)
+            continue;
         ll_pcm p2;
-        memset(&p2, 0, sizeof p2);
-        int rc2 = -1;
-        if (llrs_read(&etapy, &recs[k], &raw) >= 0) {
-            rc2 = ll_pcm_decode(raw, (size_t)recs[k].size, &p2);
-            if (rc2 == 0) {
-                if (want) {
-                    pcml = p2;
-                    have_pcm = 1;
-                    snprintf(bgname, sizeof bgname, "%s", recs[k].name);
-                } else
-                    ll_pcm_release(&p2);
-                printf("ll_level: PCM %s: parallax layer %ux%u rows"
-                       " (window %u rows, stride %u)%s\n", recs[k].name,
-                       p2.w, p2.rows, p2.win_rows, p2.stride,
-                       want ? " -> scene canvas" : "");
-            } else
-                printf("ll_level: PCM %s: decode failed rc=%d size=%d\n",
-                       recs[k].name, rc2, recs[k].size);
-            free(raw);
+        int rc2 = ll_pcm_decode(raw, (size_t)rs->size, &p2);
+        free(raw);
+        if (rc2 != 0) {
+            printf("ll_level: PCM %s: decode failed (malformed layer, size"
+                   " %d) - not drawn\n", rs->name, rs->size);
+            continue;
         }
+        size_t painted = 0;
+        for (size_t i = 0; i < (size_t)p2.w * p2.h; i++)
+            painted += p2.op[i];
+        printf("ll_level: PCM %s: transparent overlay layer %u px x %u rows"
+               " (%u strips of 80, tiles of %u), %.1f%% painted, fnv=%016llx"
+               " -> layer %d over %s\n", rs->name, p2.w, p2.h, p2.nstrips,
+               p2.tile, 100.0 * (double)painted / ((double)p2.w * p2.h),
+               (unsigned long long)ll_pcm_fnv(&p2), nlay + 1,
+               bg ? bg->name : "an empty backdrop");
+        lay[nlay++] = p2;
     }
 
     int cw = (int)img.w, ch = (int)img.h;
-    int pcm_owner = have_pcm && (!bg || bgpref < 0
-                                 || !ci_eq(bg->name, recs[bgpref].name));
     unsigned char *view = NULL;
-    unsigned pcm_band = 0;
-    if (pcm_owner) {
-        /* The engine can only show its current load window: the ctor
-         * allocates and decodes exactly win_rows rows (hdr u16@2), and
-         * blitter FUN_00056c72 clamps blit height to that window.  Deeper
-         * plane rows belong to further scroll stages streamed in later.
-         * At rest the window is the ground band (plan1 = nearest layer)
-         * at the bottom of the 400x200 screen; above it stays black
-         * because this CD lacks plan3.pcx/plan2.pcm (documented hole). */
-        cw = 400;
-        ch = 200;
-        pcm_band = pcml.win_rows ? pcml.win_rows : 200;
-        if (pcm_band > pcml.rows)
-            pcm_band = (unsigned)pcml.rows;
-        if (pcm_band > 200)
-            pcm_band = 200;
+    unsigned char scenepal[768];
+    memset(scenepal, 0, sizeof scenepal);
+    if (img.idx) {
+        memcpy(scenepal, img.pal, 768);
+    } else if (nlay > 0) {
+        /* PCM-only level (no backdrop PCX in the tlo stack, KADMAR2): the
+         * window is a viewer choice (the engine blits 400x200 at a time),
+         * the palette is the block's BACK.PCX - it equals the backdrop
+         * palette on 8 of the 11 levels that have both, and it is the one
+         * that makes KADMAR2's layer natural masonry instead of noise. */
+        cw = world_w > 0 && world_w < 640 ? world_w : 640;
+        ch = world_h > 0 && world_h < 400 ? world_h : 400;
         view = calloc((size_t)cw, (size_t)ch);
-        if (view)
-            ll_pcm_view(&pcml, 0, pcm_band,
-                        view + (size_t)(ch - pcm_band) * (size_t)cw);
+        int gray = 1;
+        for (unsigned k = 0; k < nrec && gray; k++)
+            if (recs[k].id == 1 && ci_eq(recs[k].name, "BACK.PCX")) {
+                unsigned char *rawb = NULL;
+                ll_pcx bk;
+                memset(&bk, 0, sizeof bk);
+                if (llrs_read(&etapy, &recs[k], &rawb) >= 0) {
+                    if (ll_pcx_decode(rawb, (size_t)recs[k].size, &bk) == 0) {
+                        memcpy(scenepal, bk.pal, 768);
+                        gray = 0;
+                    }
+                    ll_pcx_free(&bk);
+                    free(rawb);
+                }
+            }
+        if (gray)
+            for (int i = 0; i < 256; i++)    /* documented fallback: gray */
+                scenepal[3 * i] = scenepal[3 * i + 1] =
+                    scenepal[3 * i + 2] = (unsigned char)i;
+        snprintf(bgname, sizeof bgname, "%s", recs[pcm_rec[0]].name);
     }
     if (!img.idx && !view) {
         printf("ll_level: no background PCX for '%s' "
                "(wiring wants '%s' - missing from these containers)\n",
                level, des_get(kvs, nk, "tlo"));
-        free(view);
-        ll_pcm_release(&pcml);
+        for (int q = 0; q < nlay; q++)
+            ll_pcm_release(&lay[q]);
         llrs_block_free(recs);
         free(txt);
         llrs_close(&leveldes);
@@ -3007,7 +3013,6 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     else
         printf("ll_level: no back_rect (data hole): static one-screen view"
                " %dx%d\n", cw, ch);
-    unsigned char *scratch = NULL;   /* PCM scroll band scratch (below) */
 
     /* 5) composite canvas + present loop.  bg source: PCX plane, or the
      * PCM 400x200 rest view when the level is PCM-driven. */
@@ -3018,10 +3023,9 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                                  * else allocated (done: below) */
         goto done;
     }
-    scratch = malloc((size_t)cw * (pcm_band ? pcm_band : 200));
-    const unsigned char *base = pcm_owner ? view : img.idx;
+    const unsigned char *base = img.idx ? img.idx : view;
     memcpy(canvas, base, csz);
-    bg_at(&pcml, &img, pcm_owner, pcm_band, cam, cw, ch, scratch, canvas);
+    layers_at(lay, nlay, cam, camy, cw, ch, world_w, world_h, canvas);
     for (int k = 0; k < nobj; k++)
         obj_draw(&objs[k], canvas, cw, ch, cam, camy);
 
@@ -3063,33 +3067,11 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                        " advanced\n", ticks, nobj - shown);
         }
         memcpy(canvas, base, csz);         /* same order as the live loop */
-        bg_at(&pcml, &img, pcm_owner, pcm_band, cam, cw, ch, scratch, canvas);
+        layers_at(lay, nlay, cam, camy, cw, ch, world_w, world_h, canvas);
         for (int k = 0; k < nobj; k++)
             obj_draw(&objs[k], canvas, cw, ch, cam, camy);
         play_draw(&pl, canvas, cw, ch, cam, camy);
-        if (pcm_owner) {
-            /* PCM canvas: CI hash of the bare window band (win_rows rows,
-             * top-anchored like verify_pcm.py's `view`) must equal the
-             * ll_pcm oracle hash (level-integration check) */
-            uint64_t hv = 0xCBF29CE484222325ull;
-            const unsigned char *band =
-                view + (size_t)(ch - pcm_band) * (size_t)cw;
-            for (size_t i = 0; i < (size_t)cw * pcm_band; i++) {
-                hv ^= band[i];
-                hv *= 0x100000001B3ull;
-            }
-            printf("ll_level: PCM view %s %dx%u fnv=%016llx\n", bgname,
-                   cw, pcm_band, (unsigned long long)hv);
-            unsigned char ppal[768];
-            if (img.idx)
-                memcpy(ppal, img.pal, 768);   /* level block's PCX palette */
-            else
-                for (int i = 0; i < 256; i++) /* documented fallback: gray */
-                    ppal[3 * i] = ppal[3 * i + 1] = ppal[3 * i + 2] =
-                        (unsigned char)i;
-            scene_ppm(ppm, cw, ch, canvas, ppal);
-        } else
-            scene_ppm(ppm, cw, ch, canvas, img.pal);
+        scene_ppm(ppm, cw, ch, canvas, scenepal);
         goto done;                          /* canvas freed at done: (E-05) */
     }
 
@@ -3104,14 +3086,9 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         plat_raise(); /* FIX-02: now a documented no-op (window raised
                        * once at creation); call kept for API parity */
         uint32_t lut[256];
-        if (!pcm_owner || img.idx)
-            for (int i = 0; i < 256; i++)
-                lut[i] = 0xFF000000u | ((uint32_t)img.pal[3 * i] << 16) |
-                         ((uint32_t)img.pal[3 * i + 1] << 8) | img.pal[3 * i + 2];
-        else
-            for (int i = 0; i < 256; i++)   /* no palette donor in the block:
-                                             * grayscale (documented hole) */
-                lut[i] = 0xFF000000u | 0x010101u * (uint32_t)i;
+        for (int i = 0; i < 256; i++)
+            lut[i] = 0xFF000000u | ((uint32_t)scenepal[3 * i] << 16) |
+                     ((uint32_t)scenepal[3 * i + 1] << 8) | scenepal[3 * i + 2];
 
         /* 5b) help overlay first, like the original POMOC flow: the HD
          *     level block's POMOC1.MNU names page art (.SEQ) that ships in
@@ -3236,8 +3213,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 camy = follow_camy(&pl, ch, cam_ymax);
             }
             memcpy(canvas, base, csz);
-            bg_at(&pcml, &img, pcm_owner, pcm_band, cam, cw, ch, scratch,
-                  canvas);
+            layers_at(lay, nlay, cam, camy, cw, ch, world_w, world_h, canvas);
             for (int k = 0; k < nobj; k++)
                 obj_draw(&objs[k], canvas, cw, ch, cam, camy);
             play_draw(&pl, canvas, cw, ch, cam, camy);
@@ -3277,8 +3253,8 @@ done:                                 /* single cleanup path (E-05): every
     free(pl.mov);
     ll_pcx_free(&img);
     free(view);
-    free(scratch);
-    ll_pcm_release(&pcml);
+    for (int q = 0; q < nlay; q++)
+        ll_pcm_release(&lay[q]);
     llrs_block_free(recs);
     free(txt);
     if (have_hd_ety)

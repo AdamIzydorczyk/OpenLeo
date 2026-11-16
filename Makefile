@@ -142,7 +142,7 @@ ifeq ($(PX_WINREF),1)
 	  --patch "wine ./seq_patchdump.exe" --shape "wine ./seq_shapedump.exe"
 	@python3 tools/verify_pcm.py $(DATA) "wine ./pcm_selftest.exe" \
 	  Z:/tmp/opencode/pcm_verify.tmp \
-	  | tr -d '\r' | tail -1 | grep -q '23/23 payloads byte-exact' \
+	  | tr -d '\r' | tail -1 | grep -q '23/23 layers byte-exact' \
 	  && echo "win PCM: C == python (exact)"
 	@for F in ANIMACJE ETAPY SOUND LEVELDES; do \
 	  env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all \
@@ -237,7 +237,17 @@ ifeq ($(PX_WINREF),1)
 	  LEO_LEVEL_PPM_TICK=2 timeout 120 wine ./ll_level.exe Z:$(DATA) RAN.01 \
 	  >/dev/null 2>&1 || true
 	@cmp /tmp/opencode/ran_lv.ppm /tmp/opencode/ran_wv.ppm \
-	  && echo "win PCM level canvas == linux (byte-exact parallax view)"
+	  && echo "win PCM level canvas == linux (RAN.01: byte-exact overlay composite)"
+	@rm -f /tmp/opencode/k2_lv.ppm /tmp/opencode/k2_wv.ppm
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy LEO_HD_DIR=$(HD) \
+	  LEO_LEVEL_CAM=900 LEO_LEVEL_CAMY=700 LEO_LEVEL_PPM=/tmp/opencode/k2_lv.ppm \
+	  LEO_LEVEL_PPM_TICK=2 timeout 60 ./ll_level $(DATA) KADMAR2 >/dev/null 2>&1 || true
+	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all SDL_VIDEODRIVER=dummy \
+	  SDL_AUDIODRIVER=dummy LEO_HD_DIR=Z:$(HD) LEO_LEVEL_CAM=900 LEO_LEVEL_CAMY=700 \
+	  LEO_LEVEL_PPM=Z:/tmp/opencode/k2_wv.ppm LEO_LEVEL_PPM_TICK=2 \
+	  timeout 120 wine ./ll_level.exe Z:$(DATA) KADMAR2 >/dev/null 2>&1 || true
+	@cmp /tmp/opencode/k2_lv.ppm /tmp/opencode/k2_wv.ppm \
+	  && echo "win PCM level canvas == linux (KADMAR2: the PCM-only scene, byte-exact)"
 	@if [ -f $(HD)/STATUS.LEO ]; then \
 	  ./ll_save status $(HD)/STATUS.LEO --roundtrip /tmp/opencode/st_l.bin \
 	    >/dev/null 2>&1 || true; \
@@ -265,7 +275,7 @@ ll_level.exe: tools/ll_level.c ported/ll_level.c ported/ll_play.c ported/llrs.c 
 	    ported/platform_common.c ported/ll_audio.c $(XLIBS)
 
 # ported/ll_pcm.c byte-for-byte agreement with tools/verify_pcm.py on every
-# PCM parallax layer payload in ETAPY (byte-RLE plane, stride = w+80).
+# PCM layer payload in ETAPY (transparent tile-opcode layers, ll_pcm.h).
 verify-pcm: pcm_selftest
 ifeq ($(PX_DATA),1)
 	python3 tools/verify_pcm.py $(DATA) ./pcm_selftest
@@ -510,8 +520,38 @@ ifeq ($(PX_DATA),1)
 	      /tmp/opencode/lv_ran.log \
 	  && grep -q '\.\.\. 803 more placement(s) of those scripts' \
 	      /tmp/opencode/lv_ran.log \
-	  && echo "RAN.01 canvas: full tlo stack -> REAL bg PLAN3.PCX 960x400 + the 827 objects the level places, art forms distinguished honestly (PCM layer row-windows (0x0 rows) stay an open question: verify-pcm owns the decoder oracle)" \
+	  && grep -q 'PCM PLAN2.PCM: transparent overlay layer 1280 px x 400 rows (16 strips of 80, tiles of 16), 45.9% painted.*-> layer 1 over PLAN3.PCX' \
+	      /tmp/opencode/lv_ran.log \
+	  && grep -q 'PCM PLAN1.PCM: transparent overlay layer 3200 px x 400 rows (40 strips of 80, tiles of 16), 22.5% painted.*-> layer 2 over PLAN3.PCX' \
+	      /tmp/opencode/lv_ran.log \
+	  && echo "RAN.01 canvas: full tlo stack -> REAL bg PLAN3.PCX 960x400 + the PCM overlays PLAN2/PLAN1 in tlo order + the 827 objects the level places, art forms distinguished honestly" \
 	  || { echo "RAN.01 canvas check FAILED"; cat /tmp/opencode/lv_ran.log; exit 1; }
+# PR-53: the PCM-only level (KADMAR2: no backdrop PCX in its tlo) and the
+# level whose backdrop has a flat key-colour hole (LONA.05). The layer hash
+# the level prints must equal the python oracle's for the same record - the
+# level integration is checked against the independent decoder, not itself.
+	@rm -f /tmp/opencode/lv_k2a.ppm /tmp/opencode/lv_k2b.ppm
+	@for C in a:0:0 b:900:700; do N=$${C%%:*}; R=$${C#*:}; X=$${R%%:*}; Y=$${R#*:}; \
+	  env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	    LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=1 LEO_LEVEL_CAM=$$X LEO_LEVEL_CAMY=$$Y \
+	    LEO_LEVEL_PPM=/tmp/opencode/lv_k2$$N.ppm LEO_LEVEL_PPM_TICK=3 \
+	    ./ll_level $(DATA) KADMAR2 > /tmp/opencode/lv_k2$$N.log 2>&1 \
+	  || { echo "KADMAR2 leg FAILED"; cat /tmp/opencode/lv_k2$$N.log; exit 1; }; done
+	@python3 tools/verify_pcm.py $(DATA) ./pcm_selftest > /tmp/opencode/pcm_oracle.txt
+	@F=$$(grep -o 'fnv=[0-9a-f]*' /tmp/opencode/lv_k2a.log | head -1); \
+	  grep -q 'PCM PLAN_.PCM: transparent overlay layer 2560 px x 1800 rows (32 strips of 80, tiles of 16), 100.0% painted.*over an empty backdrop' /tmp/opencode/lv_k2a.log \
+	  && grep -q 'show KADMAR2: bg PLAN_.PCM 640x400' /tmp/opencode/lv_k2a.log \
+	  && grep -q "KADMAR2/PLAN_.PCM: 2560x1800, 32 strips.* $$F" /tmp/opencode/pcm_oracle.txt \
+	  && tools/frames_differ.sh /tmp/opencode/lv_k2a.ppm /tmp/opencode/lv_k2b.ppm \
+	  && echo "KADMAR2 (PCM-only): the 2560x1800 layer is the scene, its hash == the python oracle's, and it scrolls with the camera (ok)" \
+	  || { echo "KADMAR2 PCM leg FAILED"; cat /tmp/opencode/lv_k2a.log; exit 1; }
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy LEO_HD_DIR=$(HD) \
+	  LEO_HELP_SECS=0 LEO_LEVEL_SECS=1 ./ll_level $(DATA) LONA.05 > /tmp/opencode/lv_lona.log 2>&1; \
+	  F=$$(grep -o 'fnv=[0-9a-f]*' /tmp/opencode/lv_lona.log | head -1); \
+	  grep -q 'PCM PLAN12.PCM: transparent overlay layer 2480 px x 600 rows (31 strips of 80, tiles of 16), 79.3% painted.*-> layer 1 over PLAN3_.PCX' /tmp/opencode/lv_lona.log \
+	  && grep -q "LONA.05/PLAN12.PCM: 2480x600, 31 strips.* $$F" /tmp/opencode/pcm_oracle.txt \
+	  && echo "LONA.05: PLAN12.PCM overlays the key-colour hole of PLAN3_.PCX, hash == the python oracle's (ok)" \
+	  || { echo "LONA.05 PCM leg FAILED"; cat /tmp/opencode/lv_lona.log; exit 1; }
 else
 	@echo "verify-level: SKIP (needs $(DATA)/ETAPY/12; see the restaging recipe in NEXT_STEPS.md"
 endif

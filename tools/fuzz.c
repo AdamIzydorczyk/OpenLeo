@@ -267,11 +267,16 @@ static int run_pcm(const unsigned char *b, size_t len)
     ll_pcm p;
     if (ll_pcm_decode(b, len, &p) != 0)
         return 0;
-    unsigned char dst[400 * 4];
-    ll_pcm_view(&p, 0, 4, dst);          /* rows past the end read as 0 */
+    unsigned char dst[64 * 8];
+    memset(dst, 0, sizeof dst);
+    ll_pcm_blit(&p, dst, 64, 8, -5, -2, 3, 1);   /* wrap + clip paths */
+    ll_pcm_blit(&p, dst, 64, 8, (int)p.w - 7, (int)p.h - 3, 0, 0);
+    (void)ll_pcm_fnv(&p);
     ll_pcm_release(&p);
     return 1;
 }
+
+static int run_kind(int kind, unsigned char *buf, size_t len);
 
 static int run_mod(const unsigned char *b, size_t len)
 {
@@ -284,6 +289,18 @@ static int run_mod(const unsigned char *b, size_t len)
     free(pcm);
     ll_mod_close(&m);
     return n > 0;
+}
+
+static int run_kind(int kind, unsigned char *buf, size_t len)
+{
+    switch (kind) {
+    case T_LLRS: return run_llrs(buf, len);
+    case T_IS:   return run_is(buf, len);
+    case T_PCX:  return run_pcx(buf, len);
+    case T_SEQ:  return run_seq(buf, (uint32_t)len);
+    case T_PCM:  return run_pcm(buf, len);
+    default:     return run_mod(buf, len);
+    }
 }
 
 int main(int argc, char **argv)
@@ -307,6 +324,20 @@ int main(int argc, char **argv)
     printf("fuzz: seed=%s corpus=%d blobs iters=%ld\n", argv[2], ncorpus,
            iters);
 
+    /* PR-53: every corpus blob runs once UNMUTATED first. The decoders are
+     * strict (a flipped byte in a multi-megabyte PCM layer breaks a row), so
+     * a short random run can reject every mutant of a kind; the "corpus
+     * NEVER parsed" guard below must test the corpus, not the dice. */
+    for (int ci = 0; ci < ncorpus; ci++) {
+        blob_t *c = &corpus[ci];
+        unsigned char *buf = (unsigned char *)malloc(c->len + 64);
+        memcpy(buf, c->b, c->len);
+        int ok = run_kind(c->kind, buf, c->len);
+        free(buf);
+        iters_by_kind[c->kind]++;
+        (ok ? accepted : rejected)[c->kind]++;
+    }
+
     for (long it = 0; it < iters; it++) {
         /* pick a blob at random; its kind defines the target */
         int ci = (int)rndn((size_t)ncorpus);
@@ -323,15 +354,7 @@ int main(int argc, char **argv)
             default: len = rndn(len); break;      /* truncate */
             }
         }
-        int ok;
-        switch (c->kind) {
-        case T_LLRS: ok = run_llrs(buf, len); break;
-        case T_IS:   ok = run_is(buf, len);   break;
-        case T_PCX:  ok = run_pcx(buf, len);  break;
-        case T_SEQ:  ok = run_seq(buf, (uint32_t)len); break;
-        case T_PCM:  ok = run_pcm(buf, len);  break;
-        default:     ok = run_mod(buf, len);  break;
-        }
+        int ok = run_kind(c->kind, buf, len);
         free(buf);
         iters_by_kind[c->kind]++;
         (ok ? accepted : rejected)[c->kind]++;

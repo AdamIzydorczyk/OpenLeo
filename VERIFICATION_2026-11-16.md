@@ -82,7 +82,7 @@ bubble burst rising steadily from its vent; `vis/anchor_demo.png`); without
 them that motion is lost. The direct caller of `0x422f0` for scene objects is
 vtable-reached and not yet located — that is the one missing proof.
 
-### G-4 [VERIFIED, high] PCM layers blank two levels
+### G-4 [VERIFIED, high] PCM layers blank two levels - RESOLVED in PR-53 (wrong layer class had been read; see NEXT_STEPS)
 - **KADMAR2** (PCM-only `tlo = plan_.pcm`): the 400x200 view shows a 32-row
   strip of noise and 168 never-written (white) rows on every camera position
   (`vis/sheet_b.png`, top row). The layer decodes as "1800x1485 rows (window 32
@@ -206,3 +206,6 @@ NEXT_STEPS/ll_level.c.
 4. **G-4** PCM layer row-window RE (blanks KADMAR2, LONA.05).
 5. **G-5/G-6** vertical camera + bg scroll rate (RE of the camera).
 6. Docs pass (section 4).
+
+## Addendum (after PR-47..PR-53)
+All items of section 2 are resolved or recorded as viewer policy; G-4 turned out to be the biggest win: the PCM layers are transparent tile-opcode overlays (23/23 layers decoded, every row 20 dwords, every tile contiguous) and every level now shows its real scenery. Still open: the engine's per-layer parallax factors, the control= flags, and an independent MOD mixer oracle.

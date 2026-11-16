@@ -2469,7 +2469,8 @@ engine-side).
     frame 0's placeholder; objects authored at (0,0) (G-7) are drawn there.
 
 ## PR-50 — PCM parallax layers: investigated, NOT resolved (G-4 of the audit,
-          2026-11-16)
+          2026-11-16) [RESOLVED in PR-53 below - the 'no layout gives a picture'
+          conclusion came from reading the WRONG layer class]
 
   - Symptom: KADMAR2 (tlo = plan_.pcm only) shows a 32-row strip of noise
     over a never-written canvas; LONA.05's PLAN3_.PCX rows 200..600 are
@@ -2571,6 +2572,57 @@ engine-side).
     pair f4/f6 (identical to f0/f2 on the data), SEQ_REV_X/Y and the other
     unmodeled control= flags, frame 0's placeholder, the real camera and
     backdrop parallax (PR-51 viewer policies), a mixer oracle.
+
+## PR-53 — the PCM layer format, decoded: transparent tile-opcode overlays
+          (G-4 of the audit, DONE 2026-11-16)
+
+  - What was wrong: every earlier PCM reading (PR-20s through PR-52) decoded
+    the stream as byte-RLE pixels and got noise, because the loader they
+    read, FUN_00056b20, is the PCX layer class. The PCM class is the other
+    one the strip manager FUN_00057250 can create (vtable 0xa277c): loader
+    FUN_00056d40, blitter FUN_00056ef0, tile interpreter FUN_0001d58c.
+  - Found by (a) reading FUN_00044ad0 (a PCX-header parser: the class I had
+    mistaken), (b) the two vtables of the strip manager, (c) the machine
+    code of FUN_00056d40: header u16 H, u16 N strips, u16 T tile rows (the
+    old reading had H and N swapped), N x u32 strip offsets, per strip
+    (ceil(H/T)-1) x u32 tile offsets, then the raw data; (d) the 14
+    handlers of FUN_0001d58c: a per-dword opcode stream with masks, skips,
+    raw runs and 2-pixel fills, an opcode >= 0x11 ending the row.
+  - Proof without ground truth: on all 23 shipped layers every row covers
+    exactly 20 dwords and every tile ends exactly where the next one
+    starts (1.2 M rows). Layer sizes equal the levels' own worlds (KADMAR2
+    2560x1800 = its back_rect, LONA.05 2480x600, TUNGA.11 2560x600).
+    The pictures are recognisable: KADMAR2 a pyramid interior with a
+    pharaoh and hieroglyph blocks, LONA.05 ice mountains with igloos.
+  - Port: ported/ll_pcm.{h,c} rewritten (ll_pcm_decode with a transparency
+    mask, ll_pcm_blit with horizontal wrap, ll_pcm_fnv; memory-safe on any
+    input: fuzzed under ASan); ll_level composites every present tlo .PCM
+    over the .PCX backdrop in tlo order (layers_at), a PCM-only level
+    (KADMAR2) uses a 640x400 window and the block's BACK.PCX palette, and
+    the any-.PCX fallback now applies only without PCM. Scroll mapping is a
+    viewer rule where a layer is smaller than the world (the engine's
+    per-layer factors, FUN_00057460, are not recovered): 1:1 when equal.
+  - Oracle: tools/verify_pcm.py rewritten from the machine code (not from
+    ll_pcm.c) - 23/23 layers C == python on geometry, painted count and
+    hash, plus the two intrinsic assertions; mutation-checked (one opcode
+    mapping broken -> 22/23 mismatch). verify-level pins the RAN.01
+    overlays, KADMAR2 and LONA.05 and cross-checks each level's printed
+    layer hash against the python oracle; verify-win compares the KADMAR2
+    frame linux == wine byte for byte.
+  - fuzz.c: runs every corpus blob unmutated first (the strict decoder
+    rejects almost every mutant of a multi-MB layer, tripping the "corpus
+    NEVER parsed" guard on a short run).
+  - Before/after (all 13 levels, vis/all13.png): backdrops that were flat
+    colour or a noise strip now carry their scenery - RAN.01 spires and
+    coral over PLAN3, ENA.03 foreground seaweed and wreck, ENA2/TUNGA.11/
+    TUNGA2.12/KADMAR.07/KARA.07/ZARIA vegetation and architecture, LONA.05
+    and KADMAR2 complete.
+  - Retracted claims: PLAN 8c "PCM DECODE + DISPLAY SOLVED 2026-11-14",
+    "RAN.01: plan3.pcx/plan2.pcm are CD holes", the win_rows window model,
+    ll_pcm_view/ll_pcm_view_at (removed).
+  - Still open: the engine's per-layer parallax factors (FUN_00057460 +
+    the tables at layer+0x20/+0x24), PCM-only window size (640x400 is a
+    viewer choice), the second layer class's blitter modes.
 
 ## Next — pick from the Deferred list below
 

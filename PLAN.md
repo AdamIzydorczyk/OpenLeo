@@ -647,9 +647,9 @@ project-owned):
   verify-seq, incl. wine).
 - Still open for gameplay: .mnu menu scripts (absent from CD containers -
   SETUP-install output after all, see 8c), .plt/.pal/.blk/.suf (present in
-  the HD install tree, see 8c; not on the CD), PCM = parallax IMAGE layer
-  (the old "22050 u8 audio" guess was WRONG - removed; geometry decode
-  pending, see 8c). .SEQ grammar AND leaf-block sprite recon are DONE;
+  the HD install tree, see 8c; not on the CD), PCM = transparent overlay
+  image layer (the old "22050 u8 audio" guess was WRONG; the 2026-11-14
+  decode was wrong too - correct format in 8c, PR-53). .SEQ grammar AND leaf-block sprite recon are DONE;
   ll_seq playback is now wired into the title menu (see 8b); next step
   is .SEQ playback in the level-intro renderer.
 
@@ -952,51 +952,47 @@ state-names-list; blank line; then [STATE] blocks:
 MOVEPLAT ED000002: A_IDLE/A_MOVE_DN/A_STOP/A_MOVE_UP/A_DEAD, 6x "M 0,2"
 down + 6x "M 0,-2" up = the bobbing platform, net zero per cycle.
 
-**PCM is a parallax image layer, NOT audio** (old ll_level audio path
-removed). DECODE + DISPLAY SOLVED 2026-11-14 (src/ll_pcm.c +
-tools/verify_pcm.py, `make verify-pcm`, wine-parity in verify-win): hdr
-u16 w, u16 win_rows, u16 16, zeros; 40 x u32 table at 0x06 = absolute
-payload offsets, each a valid mid-stream RLE resync point, monotonic until
-padding restarts - NOT row-aligned, never seeked by the row loop, role
-unresolved (the earlier "7 x 24-entry tables" claim was bogus:
-0x06 + 40*4 = 0xa6 = data start); from 0xa6 ONE continuous byte-RLE stream
-(same codec as .SEQ: byte >= 0xC0 -> repeat next byte C&0x3F times, else
-literal) decodes to EOF exactly (tiny tail = partial final row); plane =
-row-major stride w+80 (ctor FUN_00056b20 allocates win_rows*(w+0x50); the
-80-px row tail is the parallax gutter, FUN_00057460 shifts each 80-px
-strip by (strip_x-200)*shift/100 about the window centre). Display model
-(blitter FUN_00056c72 + copy FUN_0001d528): one blit paints a 400-px
-window = 5 screen strips of 80 px; screen strip k shows plane strip
-(scroll+k) mod (w/80) - identity at rest - height clamped to <=200 rows;
-`ll_pcm_view()` renders that 400-px rest view. The blitter recomputes the
-pitch as (w/80)*80+80 which only agrees with the ctor pitch for
-w-multiples of 80 (RAN 400 yes; TUNGA 600/ZARIA 700 = engine quirk; we
-frame at the ctor pitch). Layers: RAN 400x1494, ZARIA.01 700x1491,
-ZARIA.02 700x1714, TUNGA 600x2896. The w/80 idiv-0 SIGFPE at level start
-= a MISSING PCM payload -> strips 0 (stock LEO_OUT.LOG), not a decode bug.
-Visual reality (checked with the free remote VL model opencode/nemotron-
-3.5-super-vl-free - no local GPU needed, works via subagent read tool):
-the RAN win_rows band with the PIORUN3.PCX palette reads as a plausible
-muddy ground strip (6/10), but deeper plane rows at any start offset
-(0..0x500 swept) or pitch hypothesis decode to banded noise for BOTH
-RAN and TUNGA - the window itself is honest data, but a row-interleave
-inside the RLE stream likely remains unresolved (open question, not
-blocking: the engine only shows the window at rest).
+**PCM is a TRANSPARENT OVERLAY IMAGE LAYER, NOT audio** (old ll_level audio
+path removed). DECODED CORRECTLY 2026-11-16 (PR-53: ported/ll_pcm.c +
+tools/verify_pcm.py). RETRACTION: the 2026-11-14 text that stood here
+("one continuous byte-RLE stream from 0xa6, plane stride w+80, noise at
+depth, row interleave unresolved") described the WRONG class - it read the
+PCX layer ctor FUN_00056b20 as the PCM loader. The PCM class is the other
+layer class (vtable 0xa277c, ctor/loader FUN_00056d40, blitter FUN_00056ef0
++ the tile interpreter FUN_0001d58c); its facts, read from the machine
+code:
+  hdr    u16 H (rows), u16 N (80-px strips), u16 T (tile rows, 16)
+  tables N x u32 strip base offsets, then per strip (ceil(H/T)-1) x u32
+         tile offsets (tile 0 is implicitly 0) - all RAW, no RLE anywhere
+  data   the rest of the file; tile g of strip s = T rows of a compiled-
+         sprite opcode stream at data[strip[s] + tiles[s][g]]
+  opcode one 4-pixel dword per op (masks 1..e write 1-3 pixels, 0 skips
+         dwords, f copies raw dwords, 10 fills a 2-pixel pattern, >= 0x11 =
+         op-0x11 then end of row); unwritten pixels are TRANSPARENT; a row
+         covers exactly 20 dwords. Full table in ll_pcm.h.
+Proof that needs no ground truth: on all 23 shipped layers every one of the
+~1.2 M rows covers exactly 20 dwords and every tile ends exactly where the
+next starts (verify_pcm.py asserts both). Layer sizes equal the levels'
+own world: KADMAR2 2560x1800 = its back_rect, LONA.05 2480x600, TUNGA.11
+2560x600; RAN.01 PLAN1 3200x400 / PLAN2 1280x400 (smaller than the 28800
+world: parallax). The game composites layers over the .PCX backdrop in tlo
+order, strips wrapping modulo N horizontally and positioned vertically by
+(H-200) offsets (FUN_00057460 scales by per-layer factors - NOT recovered;
+ll_level's mapping is a viewer rule). The block's BACK.PCX palette is the
+level palette for a PCM-only level (it equals the backdrop palette on 8 of
+the 11 levels that have both).
 
 **src/ll_level.c is now a scene composer**: main .DES resolved by exact ->
 <name>.DES -> <stem>.DES -> dir= scan of every LEVELDES .DES payload
 (TUNGA.11 is carried by TUNGA1.DES); bg = the tlo= LAYER STACK
-(`tlo=plan3.pcx,plan2.pcm,plan1.pcm` - whole stack, top layer first): the
-first listed layer present in the ETAPY block owns the canvas; a .PCM
-there renders its engine rest window (exactly `win_rows` rows - ctor
-allocates win_rows*(w+80) and blitter FUN_00056c72 clamps blit height to
-that window; deeper plane rows stream in only while scrolling, the
-40-entry u32 table holds mid-stream resync offsets for that - as the
-ground band at the canvas bottom, palette from the level block's own
-.PCX donor (RAN.01: PIORUN3.PCX; grayscale documented fallback), a .PCX
-composites normally; fallback any .PCX in the block.
-RAN.01 on this CD resolves to PLAN1.PCM (plan3.pcx/plan2.pcm are CD holes)
-- demo NEW GAME now shows the real first level RAN.01 on the PCM canvas.
+(`tlo=plan3.pcx,plan2.pcm,plan1.pcm` - the whole stack back to front): the
+first .PCX is the backdrop, every present .PCM is a transparent overlay
+painted over it in tlo order (PR-53; the PR-36..PR-52 "first layer owns the
+canvas, window of win_rows rows" model and its CD-hole claim for RAN.01
+are retracted - plan2.pcm and plan1.pcm are both present). A level with no
+backdrop .PCX (KADMAR2) shows its layer over an empty canvas with the
+block's BACK.PCX palette; the any-.PCX fallback applies only without PCM.
+RAN.01 now renders PLAN3.PCX + PLAN2.PCM + PLAN1.PCM.
 objects = ANIMACJE/<level>/<LEAF> .SEQ sprites (ll_seq blitter)
 with the HD .MOV driving frame+delta motion (LEO_HD_DIR=<dir with
 ANIMACJE/ETAPY>); one script per leaf (prefers the .SEQ the .MOV seq= names,
