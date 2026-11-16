@@ -99,12 +99,18 @@ int main(int argc, char **argv)
     ll_event mo = { LL_EV_MOTION, 0, 260, 31, 0 };
     ll_event qt = { LL_EV_QUIT, 0, -1, -1, 0 };
     ll_event rp = { LL_EV_KEYDOWN, ' ', -1, -1, 1 };  /* FIX-03: held SPACE */
+    /* PR-83 (user-reported: "the controls keep pressing themselves in a
+     * loop"): the SDL backend translated KEYDOWN but never SDL_KEYUP, so
+     * through the real backend every key stuck down forever. The contract
+     * is that a KEYUP rides through the engine queue untouched. */
+    ll_event ku = { LL_EV_KEYUP, LLKEY_RETURN, -1, -1, 0 };
     plat_dummy_inject(&kd);
     plat_dummy_inject(&bt);
     plat_dummy_inject(&mo);
     plat_dummy_inject(&qt);
     plat_dummy_inject(&rp);
-    ll_event g1, g2, g3, g4, g5;
+    plat_dummy_inject(&ku);
+    ll_event g1, g2, g3, g4, g5, g6;
     check("poll delivers injected events in order (incl. mouse coords)",
           plat_poll(&g1) == 1 && g1.type == LL_EV_KEYDOWN &&
           g1.key == LLKEY_RETURN &&
@@ -116,6 +122,9 @@ int main(int argc, char **argv)
     check("KEYDOWN auto-repeat flag passes through untouched (FIX-03)",
           plat_poll(&g5) == 1 && g5.type == LL_EV_KEYDOWN &&
           g5.key == ' ' && g5.repeat == 1);
+    check("KEYUP passes through with its key (PR-83: releases are real)",
+          plat_poll(&g6) == 1 && g6.type == LL_EV_KEYUP &&
+          g6.key == LLKEY_RETURN);
     check("queue drains -> poll returns 0", plat_poll(&e) == 0);
     check("dequeued QUIT latches a sticky quit request (FIX-01)",
           plat_quit_requested() == 1);

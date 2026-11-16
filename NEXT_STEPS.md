@@ -3578,6 +3578,76 @@ engine-side).
     leg). verify-all EXIT=0, make/make win warning-free, both new
     legs green in-suite.
 
+## PR-83 — the two --play bug reports: spawn state + sticky keys (DONE 2026-11-16)
+
+Owner tested the HD build (ZARIA.01 --play) and reported (1) the lion
+"spawns too low, crouched" and (2) input "sticks - he keeps pressing
+in a loop continuously". Both root-caused, both fixed, both pinned.
+
+- (2) ROOT CAUSE (backend, not gameplay): no backend ever translated
+  SDL_KEYUP - platform_sdl.c mapped KEYDOWN/MOTION/BUTTON/QUIT but not
+  releases; LL_EV_KEYUP existed in the contract, never produced. Every
+  held key was forever-down: A_TURN self-transitions, endless walking.
+  WHY CI MISSED IT: every scripted leg drives ll_play_keys directly,
+  bypassing platform_poll. FIX: translate SDL_KEYUP -> LL_EV_KEYUP;
+  extend the injector hook with LEO_TEST_KEY_UP_AFTER_MS=M (pushes the
+  matching SDL_KEYUP M ms after the first poll; README documents it).
+  Pinned: platform_selftest KEYUP pass-through + a NEW verify-play leg
+  on RAN.01 through the REAL live loop (no LEO_LEVEL_PPM - the grid
+  path bypasses platform_poll, that is the whole point): synthetic
+  right-key down at 50 ms, up at 1300 ms, pins `A_STAY -> A_WALK_FWD`
+  AND `A_WALK_FWD -> A_STAY` and counts exactly one WALK_FWD entry.
+- (1) ROOT CAUSE (not geometry): spawn POS matches the game exactly
+  (pozycja 50,640 -> feet 50,680 on both model and original); the CROUCH
+  was the spawn STATE: block index 0 of ZARIA's LEW.MOV is A_JUMP_DOWN
+  (crouch art). New rule in ll_player_start: prefer A_STAY where it
+  exists, else the .MOV's DECLARED first name (ll_mov_parse.start_st -
+  the header list, which block order can disagree with), else 0.
+  EVIDENCE: all 13 player .MOV declare their level's start pose first
+  (ENA A_SWIM - the lion spawns SWIMMING there; KADMAR2 A_MASZERUJ;
+  JUNCTION A_IDLE; SADES A_STAND; ZARIA/TUNGA A_WALK). TUNGA.11's old
+  A_GIVE_EGG-at-spawn pin was a block-0 artifact: A_GIVE_EGG is reached
+  only via A_DRAP's K_FIRE,K_F6 line = an action state. RAN keeps
+  A_STAY (its declared first, A_FLY_PTAKI1, is a glider) - the
+  forced-standing-vs-declared question stays OPEN (HANDOFF 7.8).
+- Player AC_TIME mechanism (needed for the idle half of the loop): the
+  REAL source is frame tails `GEN AC_TIME` ("10,6,GEN AC_TIME" - 11
+  such rows in ZARIA's A_WALK), raised as the frame completes, same
+  rule as objects' o->gen |= f->gen. PR-83 first modeled the state
+  time= timer as ms and the list wrap as an arm - BOTH WRONG on real
+  bytes (time= as ms pulled ENA.03 out of A_SWIM at tick 2; wrap-arming
+  has no data). time= stays parsed-and-counted, unit OPEN (32,64/90,120
+  read as ranges); GEN K_GEN1..3 now reach the player bus the same way
+  (fixture asserts the chain). Earlier "frame 2nd field = movement
+  units for BY_X" also formally RETRACTED (always ms) - HANDOFF 7.0.
+- BY_X key-gate: tv=+/-T only while the matching key is held OR
+  p->auto_walk (auto_walk = entered/kept through a transition WITHOUT a
+  K_FWD/K_BKWD condition - preserves the K_GEN1 cutscene walkers).
+  ZARIA's A_WALK is the combined idle+walk (no !K_FWD exit exists):
+  stopping = key-gate + the authored F=100 brake, then ITS OWN GEN
+  AC_TIME drops to the A_DRAP hub - observed exactly on video-shaped
+  data. apply_impulse: only iy<0 lifts (ZARIA A_TURN's I 100,0 is a
+  horizontal push; forcing airborne re-created the flicker-loop).
+- Pins MOVED (all justified at their Makefile comments): PR-68 LICH
+  contact 199 -> 181 (walking starts at tick 1 in the correct spawn
+  state; walk meets the authored x=120 at exactly T=20 px/s; pin
+  history 163 -> 138 -> 199 -> 181); TUNGA.11 tick-30 A_GIVE_EGG ->
+  A_WALK walking pos 60. NEW legs: ZARIA.01 zero-input (spawn A_WALK
+  standing, GEN AC_TIME -> A_DRAP, x NEVER creeps - the earlier
+  "mystery creep" was just the leg default "1:FWD"), and ZARIA.01
+  press/release/BKWD (walks 39 px to tick 100, release -> A_DRAP,
+  BKWD -> A_TURN ONCE, count==1, stays held). --play-selftest gained
+  two data-free fixtures: ZARIA-shaped start/key-gate/impulse/wrap
+  guards, and the GEN K_GEN1 -> auto-walker chain with time= inert.
+  Also NEW selftest gotcha learned: LEO_PLAY_SCRIPT entries are
+  SPACE-separated ("1:FWD 100:NONE"), semicolons silently match
+  nothing, and the fixed grid advances ONLY to LEO_LEVEL_PPM_TICK -
+  later transitions must be proven by the transition log lines.
+- Mutation lessons: a fixture that reuses real transition ORDER caught
+  the walkdir-mirrored impulse (selftest FAILED line: vx -23 vs +23);
+  the PK fixture's first thresholds were wrong model math (F=100 =
+  2 u/s per 20 ms tick) - pins state the arithmetic, not vibes.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

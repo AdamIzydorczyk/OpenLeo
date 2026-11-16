@@ -192,11 +192,14 @@ int plat_poll(ll_event *ev)
      * case-insensitively, 'q' for the FIX-01/C3 q-quits-the-app leg),
      * or the names "esc" / "space" / "left" / "right" / "up" / "down"
      * (the arrows: PR-43's live-play leg needs a HELD-key arrow, which
-     * the .des-driven LEO_PLAY_SCRIPT path does not exercise). */
+     * the .des-driven LEO_PLAY_SCRIPT path does not exercise).
+     * LEO_TEST_KEY_UP_AFTER_MS=M (PR-83) additionally pushes the
+     * matching SDL_KEYUP for the same key M ms after the first poll -
+     * the held-then-released path a real hand produces. */
     {
         static uint64_t t_first;
-        static uint64_t nms;
-        static int fired = 0, armed = -1;
+        static uint64_t nms, kup_ms;
+        static int fired = 0, kup_fired = 0, armed = -1;
         static SDL_Keycode tkey;
         if (armed < 0) {
             const char *qam = getenv("LEO_QUIT_AFTER_MS");
@@ -204,7 +207,9 @@ int plat_poll(ll_event *ev)
             armed = nms > 0;
             const char *kam = getenv("LEO_TEST_KEY_AFTER_MS");
             const char *knm = getenv("LEO_TEST_KEY");
+            const char *kum = getenv("LEO_TEST_KEY_UP_AFTER_MS");
             uint64_t kn = kam ? (uint64_t)atof(kam) : 0;
+            kup_ms = kum ? (uint64_t)atof(kum) : 0;
             if (kn > 0 && knm && knm[0]) {
                 if (!strcmp(knm, "esc"))
                     tkey = SDLK_ESCAPE;
@@ -245,6 +250,16 @@ int plat_poll(ll_event *ev)
                 SDL_PushEvent(&x);
                 fired = 1;
             }
+            if (tkey && kup_ms && !kup_fired &&
+                (uint64_t)SDL_GetTicks() >= t_first + kup_ms) {
+                SDL_Event x;
+                SDL_memset(&x, 0, sizeof x);
+                x.type = SDL_KEYUP;
+                x.key.keysym.sym = tkey;
+                x.key.repeat = 0;
+                SDL_PushEvent(&x);
+                kup_fired = 1;
+            }
         }
     }
     if (v.qh == v.qt) {
@@ -275,6 +290,18 @@ int plat_poll(ll_event *ev)
                 o.repeat = e.key.repeat != 0;   /* FIX-03 (X-04): the
                      * OS auto-repeat flag rides along; consumers decide
                      * per key (toggle/confirm keys act first-press only) */
+            } else if (e.type == SDL_KEYUP) {
+                /* PR-83 (user-reported): the KEYUP half of the pair was
+                 * never translated - LL_EV_KEYUP existed in the contract
+                 * but no backend ever emitted it, so a held-key consumer
+                 * (the play-mode arrows) latched ON forever: one press
+                 * kept "pressing in a loop". Same map_key filter as the
+                 * KEYDOWN path: an unmapped key releases nothing it never
+                 * pressed. */
+                o.key = map_key(e.key.keysym.sym);
+                if (!o.key)
+                    continue;
+                o.type = LL_EV_KEYUP;
             } else if (e.type == SDL_MOUSEBUTTONDOWN
                        && e.button.button == SDL_BUTTON_LEFT) {
                 o.type = LL_EV_BUTTON_DOWN;

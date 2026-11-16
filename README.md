@@ -171,7 +171,11 @@ N ms after the first poll — pushed through SDL's queue, so it travels the
 full map_key/repeat-filter path; the other half of verify-quit proves q
 quits the app (FIX-01/C3)). `LEO_TEST_KEY` also accepts the names
 `esc`/`space` and, since PR-43, the arrows `left`/`right`/`up`/`down`
-(the verify-play live leg needs a real arrow press).
+(the verify-play live leg needs a real arrow press). Since PR-83 the
+pair may carry `LEO_TEST_KEY_UP_AFTER_MS=M`: the matching SDL_KEYUP is
+pushed M ms after the first poll too — without a KEYUP translation no
+backend ever reported a release, so every key stuck down forever (the
+verify-play key-release leg proves the walk stops on release).
 
 Playable-level hooks (M4-B, PR-43, used by verify-play): `LEO_PLAY=1`
 (the `--play` flag sets it) upgrades a level preview to the real

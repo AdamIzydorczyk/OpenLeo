@@ -142,7 +142,10 @@ enum {
 };
 
 typedef struct { int frame; unsigned ms; int dx, dy; unsigned gen;
-                 int has_i, ix, iy; } ll_mov_fr;   /* has_i: `I ix,iy` impulse tail */   /* gen: bit n-1 = the frame's `GEN K_GENn` tail */
+                 int has_i, ix, iy; } ll_mov_fr;   /* has_i: `I ix,iy` impulse tail */   /* gen: bit n-1 = the frame's `GEN K_GENn` tail;
+                 bit 4 = the frame's `GEN AC_TIME` tail (PR-83: the real
+                 AC_TIME source, measured in ZARIA's player .MOV) */
+#define LMOV_GEN_AC_TIME (1u << 4)
 typedef struct {
     char target[24];                        /* resolved at parse time      */
     int tidx;                               /* state index, -1 unresolved  */
@@ -153,6 +156,11 @@ typedef struct {
     char name[24];
     char seqkey[16];                        /* per-state seq= art select   */
     int fx, fy, tx, ty, gx, gy;             /* F= T= G= (px/s^2, px/s)    */
+    int time_ms;                            /* time=<ms?>: parsed and
+                                             * counted but NOT acted on -
+                                             * unit undetermined (ranges
+                                             * like 32,64 / 90,120; see
+                                             * ll_player_step's note)     */
     unsigned ctrl;
     ll_mov_tr tr[LMOV_MAXTR]; int ntr;
     ll_mov_fr fr[LMOV_MAXFR]; int nfr;
@@ -219,6 +227,17 @@ typedef struct {
                                  * triggers, set by gameplay logic)       */
     int broke;                  /* AC_BREAK_NEXT pending (frame list just
                                  * completed)                             */
+    int ac_time;                /* PR-83: AC_TIME pending - raised by a
+                                 * frame's `GEN AC_TIME` tail (measured:
+                                 * ZARIA's player .MOV names it on 11
+                                 * frame lines); consumed by transitions
+                                 * next tick. The state time= timer is
+                                 * NOT a source yet: unit undetermined.  */
+    int auto_walk;              /* PR-83: the current state was entered
+                                 * WITHOUT a K_FWD/K_BKWD condition, so its
+                                 * BY_X target velocity is not key-gated
+                                 * (cutscene walkers: RAN A_GO_TO_BALON_*
+                                 * walks on K_GEN1 with no key held)     */
     double air_from;            /* feet y when ground was lost            */
     int jumping;                /* PR-74: an impulse put the lion in the air */
     int support;                /* a solid object holds the feet up (set by
@@ -233,7 +252,9 @@ enum {                                              /* ll_player_step ev */
 
 /* Start (or respawn): feet at (x, y); caller resolves the initial
  * ground (ll_plt_first_below) and passes grounded accordingly. Initial
- * state: A_STAY when the .MOV defines it, else state 0. */
+ * state: A_STAY when the .MOV defines it (pinned standing spawn), else
+ * the .MOV's declared first state (PR-83: the declared list, not the
+ * block order, names the starting state - ZARIA.01), else state 0. */
 void ll_player_start(ll_player *p, const ll_mov_t *mov, double x, double y,
                      int grounded);
 

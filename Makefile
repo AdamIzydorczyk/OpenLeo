@@ -633,20 +633,24 @@ ifeq ($(PX_DATA),1)
 	  && echo "play solid contact: RAN.01 EDGE0046 pushes the lion back 3 px at tick 54; default run has no contacts (ok)" \
 	  || { echo "play solid contact grep FAILED"; grep ': solid ' /tmp/opencode/ly_solid.log | head -3; exit 1; }
 # PR-68: enemy stats from the placement file (damage=/bounds=/scope=/energy=):
-# ZARIA.01's first LICHA (120,650, damage 15) hurts the lion at tick 199.
+# ZARIA.01's first LICHA (120,650, damage 15) hurts the lion at tick 181.
 # (Pinned history: 163 while the worms floated 30 units up -> 138 after the
 # PR-78 CHECK_LN settle -> 199 with PR-79 walking: the worm patrols its
 # bounds=100,180 range at the model speed (|F|/4 = 25 px/s) instead of
-# sitting at x=120. The tick itself is a model pin, not a video number.)
+# sitting at x=120 -> 181 with PR-83: the lion now spawns in the .MOV's
+# declared A_WALK state instead of block index 0 (A_JUMP_DOWN), so holding
+# FWD walks from tick 1 instead of after a spawn-state chain; the walk
+# lands at the authored x=120 at exactly T=20 px/s. The tick itself is a
+# model pin, not a video number.)
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SOLID=1 \
 	  LEO_PLAY_SCRIPT="1:FWD" LEO_LEVEL_PPM=/tmp/opencode/ly_hit.ppm \
 	  LEO_LEVEL_PPM_TICK=200 ./ll_level $(DATA) ZARIA.01 --play --no-audio \
 	  > /tmp/opencode/ly_hit.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "play hit FAILED (rc=$$rc)"; exit 1; fi
-	@grep -q 'play tick 199: hit by LICHA/licha3.mov: damage 15 -> energy 85' \
+	@grep -q 'play tick 181: hit by LICHA/licha3.mov: damage 15 -> energy 85' \
 	    /tmp/opencode/ly_hit.log \
-	  && echo "play enemy contact: ZARIA.01's LICHA deals its authored damage=15 (energy 100 -> 85 at tick 199, inside the walking model, ok)" \
+	  && echo "play enemy contact: ZARIA.01's LICHA deals its authored damage=15 (energy 100 -> 85 at tick 181, inside the walking model, ok)" \
 	  || { echo "play enemy contact grep FAILED"; grep 'hit by' /tmp/opencode/ly_hit.log | head -3; exit 1; }
 # render leg: SAME tick count, the only difference is the held key -
 # the frame delta is the lion walking (and the NONE run stays at spawn)
@@ -718,6 +722,69 @@ ifeq ($(PX_DATA),1)
 	  && grep -q 'play: A_STAY -> A_WALK_FWD' /tmp/opencode/ly_live.log \
 	  && echo "play live input: a real KEYDOWN through platform_poll walks the lion (held-key + fixed substeps + camera follow, ok)" \
 	  || { echo "play live-input grep FAILED"; cat /tmp/opencode/ly_live.log; exit 1; }
+# PR-83 (two bug reports from the user's HD build): (1) the lion must not
+# spawn in a CROUCH: the spawn state is the .MOV's declared start (ZARIA
+# and TUNGA declare A_WALK, ENA declares A_SWIM), never block index 0 -
+# on ZARIA block 0 is A_JUMP_DOWN, the crouch (the reported "too low" was
+# art, not geometry: spawn pos matches the game exactly). (2) Input must
+# be edge-honest: FWD walks, RELEASE stops (A_WALK's !K_FWD -> A_DRAP +
+# the BY_X brake F=100), and BKWD plays A_TURN ONCE: while a key is held
+# its self-transition keeps the state, so A_TURN never loops to A_DRAP.
+# Zero input here means LEO_PLAY_SCRIPT="1:NONE" - the leg default of
+# "1:FWD" would be a held key.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  LEO_PLAY_SCRIPT="1:NONE" LEO_LEVEL_PPM=/tmp/opencode/ly_zidle.ppm \
+	  LEO_LEVEL_PPM_TICK=100 \
+	  ./ll_level $(DATA) ZARIA.01 --play --no-audio \
+	  > /tmp/opencode/ly_zidle.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play ZARIA start/idle FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_zidle.log; exit 1; fi
+	@grep -q 'play tick 1: state A_WALK seq walk frame 1 pos 50,680 grounded 1' \
+	      /tmp/opencode/ly_zidle.log \
+	  && grep -q 'play: A_WALK -> A_DRAP' /tmp/opencode/ly_zidle.log \
+	  && grep -q 'play tick 100: state A_DRAP seq idle frame 1 pos 50,680' \
+	      /tmp/opencode/ly_zidle.log \
+	  && echo "play start state: ZARIA.01 spawns STANDING in the declared A_WALK, the frame GEN AC_TIME chain drops him to the A_DRAP idle, and zero input never creeps (ok)" \
+	  || { echo "play ZARIA start/idle grep FAILED"; cat /tmp/opencode/ly_zidle.log; \
+	    exit 1; }
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  LEO_PLAY_SCRIPT="1:FWD 100:NONE 130:BKWD" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_zkeys.ppm \
+	  LEO_LEVEL_PPM_TICK=135 \
+	  ./ll_level $(DATA) ZARIA.01 --play --no-audio \
+	  > /tmp/opencode/ly_zkeys.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play ZARIA press/release FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_zkeys.log; exit 1; fi
+	@grep -q 'play: A_WALK -> A_DRAP' /tmp/opencode/ly_zkeys.log \
+	  && grep -q 'play: A_DRAP -> A_TURN' /tmp/opencode/ly_zkeys.log \
+	  && test "$$(grep -c '> A_TURN' /tmp/opencode/ly_zkeys.log)" -eq 1 \
+	  && grep -q 'play tick 135: state A_TURN seq turn frame -5 pos 9[0-9],680 grounded 1' \
+	      /tmp/opencode/ly_zkeys.log \
+	  && echo "play input edges: FWD walks ~39 px by tick 100 (T=20 px/s), releasing brakes him into the A_DRAP idle, BKWD at 130 plays A_TURN once and STAYS held (no crouch-loop while held) (ok)" \
+	  || { echo "play ZARIA press/release grep FAILED"; cat /tmp/opencode/ly_zkeys.log; \
+	    exit 1; }
+# PR-83: the KEYUP half of the input contract. No backend ever translated
+# SDL_KEYUP, so through the REAL backend every key stuck down forever: the
+# reported "controls press themselves in a loop". The live loop (NO
+# LEO_LEVEL_PPM: the fixed-grid legs bypass platform_poll, which is why
+# this bug was invisible to them) drives one key through the SDL event
+# queue - LEO_TEST_KEY at 50 ms, LEO_TEST_KEY_UP_AFTER_MS release at
+# 1300 ms - and pins BOTH edges: A_STAY -> A_WALK_FWD on press,
+# A_WALK_FWD -> A_STAY on release.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2.2 \
+	  LEO_TEST_KEY=right LEO_TEST_KEY_AFTER_MS=50 LEO_TEST_KEY_UP_AFTER_MS=1300 \
+	  timeout 10 ./ll_level $(DATA) RAN.01 --play --no-audio \
+	  > /tmp/opencode/ly_keyup.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play key release FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_keyup.log; exit 1; fi
+	@grep -q 'play: A_STAY -> A_WALK_FWD' /tmp/opencode/ly_keyup.log \
+	  && grep -q 'play: A_WALK_FWD -> A_STAY' /tmp/opencode/ly_keyup.log \
+	  && test "$$(grep -c '> A_WALK_FWD' /tmp/opencode/ly_keyup.log)" -eq 1 \
+	  && echo "play key release: a real SDL_KEYUP stops the walk (A_WALK_FWD -> A_STAY through !K_FWD) - the reported sticky-input loop is gone (ok)" \
+	  || { echo "play key release grep FAILED"; cat /tmp/opencode/ly_keyup.log; exit 1; }
 # the SAME runtime on the other level blocks that carry complete player
 # sets (inventory measured 2026-11-16 over the full CD + HD-install
 # trees: 12 of 13 run their own LEW.* art + .MOV + their own ground;
@@ -808,9 +875,13 @@ ifeq ($(PX_DATA),1)
 	  || { echo "play authored-empty ground grep FAILED"; cat /tmp/opencode/ly_noground.log; \
 	    exit 1; }
 # per-level data: TUNGA.11 has its OWN complete player set (LEW.TUN art,
-# 36-state LEW.MOV opening with the scripted A_GIVE_EGG egg intro,
-# TUNGA.PLT 7 lines, lew_rect -100..1570) - the runtime is generic,
-# the level data drives everything.
+# 36-state LEW.MOV, TUNGA.PLT 7 lines, lew_rect -100..1570) - the runtime
+# is generic, the level data drives everything.
+# PR-83 re-pinned the spawn half: the lion starts in the .MOV's DECLARED
+# first state (A_WALK here, A_SWIM on ENA.03) - the egg intro is NOT a
+# spawn state: [A_DRAP] reaches A_GIVE_EGG only via K_FIRE,K_F6, and the
+# block-0 start that showed it at spawn was a model artifact (the 0021
+# art is still loaded, by the egg's own placement).
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
 	  LEO_PLAY_SCRIPT="1:FWD" LEO_LEVEL_PPM=/tmp/opencode/ly_tun.ppm \
@@ -823,9 +894,9 @@ ifeq ($(PX_DATA),1)
 	  && grep -q 'play: TUNGA.PLT: 7 polyline' /tmp/opencode/ly_tun.log \
 	  && grep -q 'spawn feet (50,402) grounded=1 bounds -100..1570' \
 	      /tmp/opencode/ly_tun.log \
-	  && grep -q 'play tick 30: state A_GIVE_EGG seq 0021' \
+	  && grep -q 'play tick 30: state A_WALK seq 0003 frame 2 pos 60,402' \
 	      /tmp/opencode/ly_tun.log \
-	  && echo "play per-level: TUNGA.11 LEW.TUN set runs its scripted intro on its own .plt/bounds (no level special-casing in code)" \
+	  && echo "play per-level: TUNGA.11 LEW.TUN set spawns in its declared A_WALK and walks its own .plt/bounds on FWD (no level special-casing in code)" \
 	  || { echo "play TUNGA.11 grep FAILED"; cat /tmp/opencode/ly_tun.log; exit 1; }
 else
 	@echo "verify-play: SKIP data legs (needs $(DATA) + LEO_HD_DIR fixtures; see NEXT_STEPS.md)"

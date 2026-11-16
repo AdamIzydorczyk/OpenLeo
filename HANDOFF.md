@@ -200,8 +200,12 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
     DATA-INTERNAL (no video): the frame list's 2nd field is MOVEMENT
     UNITS per animation frame for BY_X states and ms elsewhere - the
     same LICHA3 .MOV authors 4 in its BY_X A_RUN list and 400/200 in
-    its BY_TIME states. Model: speed = |F|/4 game px/s, frame advance
-    on units, bounds= patrol flip, no time consumed while walking;
+    its BY_TIME states. (RETRACTED by PR-83: the 2nd field is ms in
+    BOTH engines - the player scripts prove it, e.g. ZARIA A_WALK rows
+    "10,6" while T=20 px/s does the moving; the 4-vs-400 observation
+    stays as data, not as a motion unit.) Model: speed = |F|/4 game
+    px/s, frames advance on ms, bounds= patrol
+    flip, no time consumed while walking;
     BY_X with F=0 falls back to time-driven frames without moving
     (labelled estimate). CORROBORATED on video: the ZARIA.01 worm's
     walk bursts average ~20-30 px/s with F=100 -> 25 px/s expected,
@@ -280,6 +284,37 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 6. The camera's catch-up rate and dead zone (measure with a clean clip).
 7. Vertical `y` camera of the PCX backdrop uses the engine formula now; confirm
    against a capture of a tall level (SADES shaft).
+8. PLAYER MODEL details PR-83 implemented but did NOT settle (all flagged
+   in code; the two user-reported bugs themselves are fixed and pinned):
+   - `time=<n[,m]>` state field: sits next to AC_TIME transitions, values
+     read like ranges (32,64 / 90,120 / 220 / 350). Acting on it as ms was
+     WRONG (it pulled ENA.03's lion out of A_SWIM two ticks after spawn),
+     so it stays parsed-and-counted only. The only proven AC_TIME source
+     is the frame `GEN AC_TIME` tail (ZARIA's A_WALK names it on 11 frame
+     rows). Settling RE: a state with time= and no GEN frames whose exit
+     is visible on video - ZARIA A_DRAP time=350 -> A_TO_BOR -> A_BORRING
+     is exactly that test.
+   - Spawn state rule shipped is "A_STAY where present, else the .MOV's
+     declared first name, else block 0". Every one of the 13 player .MOV
+     declares its level's start pose FIRST (ENA A_SWIM, KADMAR2
+     A_MASZERUJ, JUNCTION A_IDLE, SADES A_STAND, ZARIA/TUNGA A_WALK;
+     TUNGA's old A_GIVE_EGG-at-spawn pin was a block-0 artifact -
+     A_GIVE_EGG is a K_FIRE,K_F6 action state), but RAN declares
+     A_FLY_PTAKI1 (a glider) first while its pinned spawn stands in
+     A_STAY. Does the original force standing, or start at the declared
+     name? Settling test: a RAN.01 level-start capture.
+   - K_FWD/K_BKWD: literal left/right (tested everywhere) or
+     facing-relative? Unproven either way. Settling: lion facing left
+     while the RIGHT key is pressed, on video.
+   - `I ix,iy` impulses multiply by walkdir (A_TURN entered via BKWD
+     slides left; probe and the verify leg agree with that). Nothing in
+     the original directly confirms the mirroring.
+   - F=0 states FREEZE momentum (dv clamps to 0): no coast, no decay.
+     Whether the original coasts at F=0 is open.
+   - K_FIRE (and the K_F1..K_F10 keys): fight/give states are gated by
+     them in every player .MOV, but ll_play_keys/LEO_PLAY_SCRIPT carry no
+     fire key yet - parsed, counted, unreachable. Port the key before
+     modeling those states.
 
 ## 8. Plan: tasks, in order. One task = one or a few PRs.
 

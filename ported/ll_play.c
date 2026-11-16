@@ -398,13 +398,22 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                                 }
                                 if (strcasecmp(word, "GEN") == 0) {
                                     /* PR-69: `GEN K_GENn` = the frame raises
-                                     * that signal when it completes */
+                                     * that signal when it completes.
+                                     * PR-83: `GEN AC_TIME` is the same
+                                     * mechanism for AC_TIME (the real
+                                     * ZARIA A_WALK idle chain: 11 such
+                                     * lines across that script) */
                                     while (*q == ' ')
                                         q++;
                                     if (strncasecmp(q, "K_GEN", 5) == 0 &&
                                         q[5] >= '1' && q[5] <= '4') {
                                         mf->gen |= 1u << (q[5] - '1');
                                         q += 6;
+                                        continue;
+                                    }
+                                    if (strncasecmp(q, "AC_TIME", 7) == 0) {
+                                        mf->gen |= LMOV_GEN_AC_TIME;
+                                        q += 7;
                                         continue;
                                     }
                                 }
@@ -464,10 +473,24 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                     } else {
                         m->drop_tr++;
                     }
+                } else if (strncmp(line, "time=", 5) == 0) {
+                    /* PR-83: `time=<n>` (or an `n,m` range: seen as 32,64
+                     * / 90,120 / 220 / 350) sits next to several AC_TIME
+                     * transitions, but its UNIT is undetermined and acting
+                     * on it changed real behavior wrongly (as ms: ENA.03's
+                     * A_SWIM left state 2 ticks after spawn). So it is
+                     * parsed for the record only, and stays counted: the
+                     * player's proven AC_TIME source is the frame's
+                     * `GEN AC_TIME` tail. OPEN QUESTION (recorded). */
+                    int t1 = 0, t2 = 0;
+                    parse_pair(line + 5, &t1, &t2);
+                    if (t1 > 0)
+                        s->time_ms = t1;
+                    s->field_other++;
                 } else if (line[0] != ';' && strchr(line, '=')) {
                     /* state payload fields the model does not act on yet:
-                     * sample= (487, sound ids), time= (210), time_scale=
-                     * (115). Counted, never dropped in silence (PLAN 8g). */
+                     * sample= (487, sound ids), time_scale= (115).
+                     * Counted, never dropped in silence (PLAN 8g). */
                     s->field_other++;
                 }
                 /* the bare state names before the first '[' stay ignored,
@@ -503,8 +526,23 @@ void ll_player_start(ll_player *p, const ll_mov_t *mov, double x, double y,
     p->grounded = grounded;
     p->walkdir = 1;
     p->face = 1;
+    /* PR-83 (user-reported, ZARIA.01 started crouched in state index 0):
+     * the .MOV grammar's declared state list is authoritative for the
+     * starting state - its first name (ll_mov_parse's start_st; measured
+     * 2026-11-16 over all 13 player scripts: ZARIA.01 block index 0 is
+     * A_JUMP_DOWN but its declared first name is A_WALK, ZARIA.02's is
+     * A_SCIAG vs A_WALK, KARA's A_WSP_LIN vs A_WALK). A_STAY still wins
+     * where it exists (RAN.01's pinned standing spawn), because that
+     * script's declared first name (A_FLY_PTAKI1, a glider state) is not
+     * a standing state; whether the original forces standing or starts at
+     * the declared name is OPEN (recorded in HANDOFF). */
     int stay = ll_mov_find(mov, "A_STAY");
-    p->sti = stay >= 0 ? stay : 0;
+    if (stay >= 0)
+        p->sti = stay;
+    else if (mov->start_st > 0 && mov->start_st < mov->nst)
+        p->sti = mov->start_st;
+    else
+        p->sti = 0;
 }
 
 static int cond_true(const ll_player *p, const ll_play_keys *k,
@@ -524,6 +562,8 @@ static int cond_true(const ll_player *p, const ll_play_keys *k,
         case LL_COND_K_ANY:  v = any;       break;
         case LL_COND_K_JUMP: v = k->k_jump; break;
         case LL_COND_AC_BREAK_NEXT: v = p->broke; break;
+        case LL_COND_AC_TIME: v = p->ac_time; break;  /* PR-83: player-side
+             * arm = the frame list wrapped (ZARIA A_WALK->A_DRAP idle chain) */
         default:             v = 0;         break;   /* OTHER: not simulated */
         }
         if (tr->c[i].neg)
@@ -548,8 +588,16 @@ static void apply_impulse(ll_player *p, const ll_mov_st *st, int fi)
                LL_PLAY_JUMP_G);
     p->vx = (double)st->fr[fi].ix / LL_PLAY_JUMP_DIV * (p->walkdir ? p->walkdir : 1);
     p->vy = (double)st->fr[fi].iy / LL_PLAY_JUMP_DIV;
-    p->grounded = 0;
-    p->jumping = 1;
+    /* PR-83: only an UPWARD (iy<0) impulse lifts the lion. ZARIA's
+     * A_TURN frame 0 is `I 100,0` - a purely horizontal push (the turn's
+     * little slide). Lifting for it put the lion into the landing pass,
+     * whose jump-end cancel (the WAIT AC_DUP model) then killed the turn
+     * state in one tick - A_TURN/A_DRAP flickered forever while BKWD was
+     * held. Horizontal impulses keep the feet down. */
+    if (st->fr[fi].iy < 0) {
+        p->grounded = 0;
+        p->jumping = 1;
+    }
 }
 
 int ll_player_step(ll_player *p, const ll_plt *ground,
@@ -567,14 +615,25 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
     for (int t = 0; t < st->ntr; t++) {
         if (!cond_true(p, keys, &st->tr[t]))
             continue;
+        int has_dir = 0;
         for (int i = 0; i < st->tr[t].nc; i++) {
             if (st->tr[t].c[i].neg)
                 continue;
-            if (st->tr[t].c[i].cond == LL_COND_K_FWD)
+            if (st->tr[t].c[i].cond == LL_COND_K_FWD) {
                 p->walkdir = 1;
-            else if (st->tr[t].c[i].cond == LL_COND_K_BKWD)
+                has_dir = 1;
+            } else if (st->tr[t].c[i].cond == LL_COND_K_BKWD) {
                 p->walkdir = -1;
+                has_dir = 1;
+            }
         }
+        /* PR-83: a BY_X state whose CURRENT state was reached (or kept)
+         * through a direction condition walks on the direction key (below);
+         * one reached through anything else (K_GENn/AC_*: the cutscene
+         * walkers) walks on its own. Re-evaluated every tick a transition
+         * matches, self-targets included - the self-target line of a held
+         * walk state ("A_WALK(x)=K_FWD") re-arms the key-gated mode. */
+        p->auto_walk = !has_dir;
         /* A transition that targets the state it is written in is REAL
          * data (KADMAR2's marching state: "A_MASZERUJ(x)=K_FWD") and
          * means KEEP this state: re-entering it would restart the frame
@@ -609,12 +668,23 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
     for (int i = 0; i < 3; i++)                        /* one-tick pulses */
         p->gen[i] = 0;
     p->broke = 0;
+    p->ac_time = 0;
 
     /* 2) horizontal physics from the real F=/T= numbers: approach the
      * state's target velocity (BY_X states walk at +/-T; everything else
      * brakes toward 0 at its own F - A_STAY F=600 stops hard, matching
-     * the real data) */
-    double tv = (st->ctrl & LL_CTRL_BY_X)
+     * the real data).
+     * PR-83 (user-reported: ZARIA kept walking forever after one press):
+     * a key-driven BY_X state - one entered/kept through K_FWD or
+     * K_BKWD - only has its target velocity while the matching key is
+     * actually held. ZARIA's A_WALK is the game's combined idle+walk
+     * state (it has NO !K_FWD exit anywhere; its F=100,0 is the authored
+     * brake-to-standstill); RAN never reaches this gate at key release
+     * because its !K_FWD transition to A_STAY wins the same tick.
+     * auto_walk states (K_GEN1 cutscene walkers: GO_TO_BALON_*, EXIT,
+     * CHANGE_LEVEL) keep walking with no key held. */
+    int key_walk = p->walkdir > 0 ? keys->k_fwd : keys->k_bkwd;
+    double tv = (st->ctrl & LL_CTRL_BY_X) && (key_walk || p->auto_walk)
                     ? p->walkdir * (double)(st->tx > 0 ? st->tx : 0)
                     : 0.0;
     double acc = (st->fx >= 0 ? (double)st->fx : -(double)st->fx) * dt;
@@ -714,7 +784,16 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
 
     /* 7) frame advance on the same ms clock (identical semantics to
      * obj_advance: wrap at the end, apply M dx,dy deltas; AC_BREAK_NEXT
-     * is armed by a wrap and consumed by transitions next tick) */
+     * is armed by a wrap and consumed by transitions next tick.
+     * PR-83: `GEN` tails raise their signal as the frame completes
+     * (same rule the object engine follows, ll_level.c obj_advance) -
+     * that is the player's AC_TIME mechanism. The state time= timer is
+     * NOT acted on: its unit is undetermined (pairs like 32,64 / 90,120
+     * read as ranges; acting on it as ms pulled ENA.03's lion out of
+     * A_SWIM two ticks after spawn), so it stays counted as a field
+     * until RE pins it down. (An earlier model choice - arming AC_TIME
+     * at the list WRAP - was wrong for the player: the real scripts
+     * name their own source.) */
     if (st->nfr > 0) {
         p->ft += dt_ms;
         unsigned guard = 0;
@@ -722,6 +801,12 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
             p->ft -= st->fr[p->fi].ms;
             p->x += st->fr[p->fi].dx;
             p->y += st->fr[p->fi].dy;
+            unsigned gf = st->fr[p->fi].gen;
+            if (gf & LMOV_GEN_AC_TIME)
+                p->ac_time = 1;
+            for (int gi = 0; gi < 3; gi++)   /* K_GEN4 has no player field */
+                if (gf & (1u << gi))
+                    p->gen[gi] = 1;
             if (p->fi + 1 >= st->nfr) {
                 p->fi = 0;
                 p->broke = 1;
@@ -1039,11 +1124,160 @@ int ll_play_selftest(void)
         ll_plt_free(&gp);
         free(gm);
     }
+    {   /* PR-83 (the two user reports, data-free regression on the shapes
+         * measured from ZARIA LEW.ZAR): the declared list - not block
+         * order - names the spawn state; A_WALK is the combined
+         * idle+walk (NO !K_FWD exit anywhere: stopping comes from the
+         * key-gated target velocity + the authored F brake, and the walk
+         * state's own GEN AC_TIME tail is what drops to the idle hub);
+         * BKWD plays A_TURN once and it STAYS while the key is held;
+         * and the frame `I 100,0` horizontal impulse (A_TURN frame 0)
+         * never lifts the feet. Also guards: `time=` is parsed but NOT
+         * acted on, and the frame-list wrap does not arm AC_TIME. */
+        static const char ZM[] =
+            "A_WALK\nA_DRAP\nA_TURN\nA_JUMP_DOWN\n\n"
+            "[A_JUMP_DOWN]\ncontrol=BY_TIME\nF=0,0\nG=0,0\nseq=a\n1,100\n\n"
+            "[A_WALK]\ncontrol=BY_X|CH_DIR\nF=100,0\nT=20,5\nG=0,0\n"
+            "A_TURN(1)=K_BKWD\nA_WALK(x)=K_FWD\nA_DRAP(1)=AC_TIME\n"
+            "seq=a\n1,50\n2,50,GEN AC_TIME\n\n"
+            "[A_DRAP]\ncontrol=BY_TIME\nF=100,0\nG=0,0\n"
+            "A_TURN(1)=K_BKWD\nA_WALK(1)=K_FWD\nseq=a\n1,100\n\n"
+            "[A_TURN]\ncontrol=BY_TIME\nF=100,0\nG=0,0\n"
+            "A_WALK(1)=AC_TIME\nseq=a\n1,50,I 100,0\n2,100\n";
+        static const char ZP[] = "1\n1 0,100;2000,100;\n";
+        ll_mov_t *zm = calloc(1, sizeof *zm);
+        ll_plt zp;
+        ll_player s;
+        ll_play_keys sk = { 0, 0, 0, 0, 0 };
+
+        CHECK(zm && ll_plt_parse(ZP, &zp) == 0);
+        CHECK(ll_mov_parse(ZM, zm) == 4);
+        /* the header names A_WALK first but its .MOV block is SECOND here
+         * (A_JUMP_DOWN block leads, exactly like ZARIA's file): start_st
+         * follows the declaration, and there is no A_STAY to prefer. */
+        CHECK(zm->start_st == 1 && ll_mov_find(zm, "A_JUMP_DOWN") == 0);
+        ll_player_start(&s, zm, 500, 100, 1);
+        CHECK(s.sti == 1 && strcmp(zm->st[1].name, "A_WALK") == 0);
+        /* zero input: the A_WALK frames' GEN AC_TIME tail (never the
+         * frame-list wrap, never a timer) drops to the idle hub after a
+         * few frames - and the lion never drifts on the way. */
+        double zx = s.x;
+        int idle_at = 0;
+        for (int t = 1; t <= 12 && !idle_at; t++) {
+            ll_player_step(&s, &zp, &sk, 0, 2000, 20);
+            if (s.sti == 2)
+                idle_at = t;
+        }
+        CHECK(idle_at >= 4 && idle_at <= 10);          /* frame cycle is 100ms */
+        CHECK(s.x == zx);                              /* zero input never creeps */
+        for (int t = 0; t < 5; t++)
+            ll_player_step(&s, &zp, &sk, 0, 2000, 20);
+        CHECK(s.x == zx);
+        /* press FWD: A_DRAP -> A_WALK, walking up to the authored T=20 */
+        sk.k_fwd = 1;
+        ll_player_step(&s, &zp, &sk, 0, 2000, 20);
+        CHECK(s.sti == 1);
+        zx = s.x;
+        for (int t = 0; t < 25; t++) {
+            ll_player_step(&s, &zp, &sk, 0, 2000, 20);
+            CHECK(s.vx <= 20.000001);
+        }
+        CHECK(s.x > zx + 5);
+        /* RELEASE (this is where the SDL KEYUP fix enters the picture -
+         * a stuck key would keep walking forever): NO !K_FWD exit exists,
+         * so the walk state stays - the key-gated target velocity plus
+         * F=100 brake him to a standstill within a few px, then the next
+         * AC_TIME pulse moves to the idle. */
+        double xr = s.x;
+        int rel_idle = 0;
+        sk.k_fwd = 0;
+        for (int t = 1; t <= 30 && !rel_idle; t++) {
+            ll_player_step(&s, &zp, &sk, 0, 2000, 20);
+            if (s.sti == 2)
+                rel_idle = t;
+        }
+        CHECK(rel_idle >= 1 && rel_idle <= 8);
+        /* the exact key-gated model: velocity has been braking at
+         * F=100 (2 u/s per 20 ms tick) since the release; a non-gated
+         * BY_X state would still sit at the T=20 target here */
+        CHECK(s.vx <= 20.0 - 2.0 * rel_idle + 1e-9);
+        for (int t = 0; t < 10; t++)
+            ll_player_step(&s, &zp, &sk, 0, 2000, 20);
+        CHECK(s.sti == 2 && s.vx == 0);
+        CHECK(s.x - xr < 8.0);                         /* braked, not coasted */
+        double xs = s.x;
+        for (int t = 0; t < 5; t++)
+            ll_player_step(&s, &zp, &sk, 0, 2000, 20);
+        CHECK(s.x == xs);
+        /* BKWD: one A_TURN, then STAY. Its frame list WRAPS twice in
+         * 30 ticks and its AC_TIME exit never arms: wrap != AC_TIME
+         * (the removed model choice; the time= guard is the PK fixture
+         * below). The frame-0 impulse I 100,0 pushes
+         * him RIGHT and keeps the feet down (iy==0 lifts nothing - a
+         * forced airborne state made A_TURN/A_DRAP flicker while BKWD
+         * was held, the exact reported loop). */
+        sk.k_bkwd = 1;
+        ll_player_step(&s, &zp, &sk, 0, 2000, 20);
+        CHECK(s.sti == 3);
+        CHECK(s.grounded && !s.jumping && s.y == 100); /* horizontal impulse */
+        /* the impulse IS applied (I/4 = 25 u/s), mirrored by walkdir as
+         * everywhere in this model: entered through K_BKWD, A_TURN slides
+         * LEFT; F=100 brakes one tick of it in the same step */
+        CHECK(s.vx <= -20.0);
+        for (int t = 0; t < 30; t++)
+            ll_player_step(&s, &zp, &sk, 0, 2000, 20);
+        CHECK(s.sti == 3 && s.grounded);               /* no re-entry flicker */
+        ll_plt_free(&zp);
+        free(zm);
+    }
+    {   /* PR-83: a frame's `GEN K_GEN1` tail reaches the player's signal
+         * bus exactly like the landing pulse does - AND the state it
+         * names becomes an AUTO WALKER: entered with no direction
+         * condition, its BY_X target velocity applies with no key held
+         * (the cutscene walkers: RAN's A_GO_TO_BALON_*, A_EXIT). The
+         * state also carries time=50 with an AC_TIME exit: it must NOT
+         * act (unit undetermined; acting on it pulled ENA.03's lion out
+         * of A_SWIM two ticks after spawn). */
+        static const char PK[] =
+            "A_RUN\nA_PULL\n\n[A_RUN]\ncontrol=BY_TIME\nF=0,0\nG=0,0\n"
+            "A_PULL(1)=K_GEN1\nseq=a\n1,50,GEN K_GEN1\n2,50\n\n"
+            "[A_PULL]\ncontrol=BY_X\nF=100,0\nT=30,30\nG=0,0\n"
+            "time=50\nA_RUN(1)=AC_TIME\nseq=a\n1,100\n";
+        static const char PP[] = "1\n1 0,100;2000,100;\n";
+        ll_mov_t *pm = calloc(1, sizeof *pm);
+        ll_plt pp;
+        ll_player q;
+        ll_play_keys qk = { 0, 0, 0, 0, 0 };
+
+        CHECK(pm && ll_plt_parse(PP, &pp) == 0);
+        CHECK(ll_mov_parse(PK, pm) == 2);
+        CHECK(pm->st[1].time_ms == 50);                /* parsed, counted  */
+        ll_player_start(&q, pm, 500, 100, 1);
+        int pull_at = 0;
+        for (int t = 1; t <= 8 && !pull_at; t++) {
+            ll_player_step(&q, &pp, &qk, 0, 2000, 20);
+            if (q.sti == 1)
+                pull_at = t;
+        }
+        CHECK(pull_at >= 3 && pull_at <= 5);           /* frame 1 ends at 50 ms */
+        CHECK(q.auto_walk && !q.gen[0]);               /* pulse consumed   */
+        double qx = q.x;
+        for (int t = 0; t < 40; t++) {
+            ll_player_step(&q, &pp, &qk, 0, 2000, 20);
+            CHECK(q.vx <= 30.000001);
+        }
+        CHECK(q.x > qx + 15 && q.sti == 1);           /* walks keylessly,
+                                                        * AC_TIME exit stayed dark */
+        ll_plt_free(&pp);
+        free(pm);
+    }
     if (!rc)
         printf("play selftest: .plt physics (+ the '!' separator variant,"
                " + an authored-empty '0' ground is data not an error),"
                " extended .MOV transitions walk/turn/stop, self-transition"
                " keeps its state (frames keep running), edge fall, K_GEN2"
-               " landing pulse (ok)\n");
+               " landing pulse, PR-83: declared-name spawn, key-gated walk"
+               " stops on release, GEN frame pulses, wrap/time= arm nothing,"
+               " horizontal impulse keeps the feet down, auto-walk stays (ok)\n");
     return rc;
 }
