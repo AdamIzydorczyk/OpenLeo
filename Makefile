@@ -989,6 +989,7 @@ else
 endif
 
 verify-mod: mod_selftest mod_selftest.exe
+	@./mod_selftest --synth
 ifeq ($(PX_DATA),1)
 	@python3 tools/verify_mod_parse.py $(DATA)/SOUND ./mod_selftest
 	@for M in TUNGA RAN ENA2; do \

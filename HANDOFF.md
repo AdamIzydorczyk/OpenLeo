@@ -93,7 +93,8 @@ Headless run of a level (CI style; frames are dumped as PPM at the logical
       ./ll_level $DATA ZARIA.01 --play --no-audio
 
 `ll_level DATA LEVEL` takes DATA as argv[1] and the HD install via
-`LEO_HD_DIR`; set `LEO_HELP_SECS=0` for headless runs. Live viewer: arrows walk,
+`LEO_HD_DIR`; set `LEO_HELP_SECS=0` for headless runs. A live run closes itself after 5 s unless
+`-t 0` is given. Live viewer: arrows walk,
 Space jumps, Up/Down/Left/Right also pan in preview mode.
 
 Pitfalls seen:
@@ -189,9 +190,20 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 
 ## 7. Open questions (ranked by how much they block)
 
-1. F/FC frame directives (jump distance; also enemy/projectile motion) - what
-   do `F x,y` and `FC x,y` do? Statistics: FC values 20..120 (100: 17, 90: 14),
-   F values e.g. `F -300,0,GEN K_GEN3` (enemies), `F 0,350`, `F 1200,-300`.
+0. FRAME DURATION UNIT (urgent, owner-visible): animations/objects run 5-10x
+   too fast (see NEXT_STEPS PR-76). Resolve before more gameplay work.
+1. F/FC frame directives (jump distance; also enemy/projectile motion) -
+   parser evidence now narrows this: `F` and `FC` each parse an `(x,y)` pair
+   into a directive record; the handler accumulates both coordinates into
+   two caller-provided integers when its selector matches. Keep frame-tail
+   `F x,y` distinct from the state header `F=x,y`: the latter is parsed into
+   a physics-state vector beside `T=` and `G=`. The engine packs those three
+   state vectors into a callback context and has a separate output pair for
+   frame directives; how that output pair changes world motion remains
+   unresolved. Do not port a velocity or impulse interpretation yet. Evidence
+   and addresses are in the PR-76 investigation entry in NEXT_STEPS.md. Data
+   statistics: FC values 20..120 (100: 17, 90: 14), F values e.g.
+   `F -300,0,GEN K_GEN3` (enemies), `F 0,350`, `F 1200,-300`.
 2. The signal-bit table: which bit of the object's set at +0x60 is K_GEN1..4
    and each `AC_*` (bit 54 was assumed K_GEN1). Read it from the condition
    parser like the flag table was (strings near 0x92180, parser near 0x51b30).
@@ -210,11 +222,10 @@ Each task: goal / where / how / done when. Do not start a task whose "how"
 needs a number you cannot source - do the RE step first.
 
 **T1. Close the jump (open question 1).**
-Goal: running jumps cross the first chasm of ZARIA.01. How: (a) read how
-`ll_player_step`-equivalent code consumes `F`/`FC` - find the `.MOV` frame-tail
-parser in the exe (search the strings "FC", "GOTOREL", "ATC_ON" near 0x92xxx and
-the code that references them; same technique as the flag table), (b) parse the
-directives into `ll_mov_fr`, (c) apply, (d) check against the video: ep.1
+Goal: running jumps cross the first chasm of ZARIA.01. How: (a) finish tracing
+how the engine consumes the `F`/`FC` accumulators (parser and accumulation are
+documented; interpretation still open), (b) parse the directives into
+`ll_mov_fr`, (c) apply only the RE-confirmed effect, (d) check against the video: ep.1
 ~316-317 s and ep.2 ~465 s contain running jumps; ZARIA_A.PLT gives the gap
 widths (`ll_plt` polylines). Done when: a hand-derived data-free test pins the
 horizontal range for one state, and a video measurement agrees within ~15%.

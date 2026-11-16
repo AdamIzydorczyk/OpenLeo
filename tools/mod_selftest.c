@@ -13,8 +13,49 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* PR-76: data-free timing pin. An all-empty 4-channel MOD (speed 6, tempo
+ * 125) must advance exactly 50 ticks per second: hand-derived, 44100 frames
+ * = 50 ticks = 8 rows + 2 ticks. (The 16.16 tick length used to overflow
+ * 32 bits: 357.7 frames/tick, music 2.47x too fast, while every fixture
+ * pinned the wrong render.) Tempo 250 must give exactly twice that. */
+static int synth_timing(void)
+{
+    static unsigned char img[1084 + 1024];
+    memset(img, 0, sizeof img);
+    memcpy(img + 1080, "M.K.", 4);
+    img[950] = 1;                          /* song length 1, order 0 = pat 0 */
+    ll_mod m;
+    char err[128] = "";
+    if (ll_mod_open(&m, img, sizeof img, err, sizeof err) != 0) {
+        printf("synth: parse failed: %s\n", err);
+        return 1;
+    }
+    static int16_t buf[2 * 44100];
+    int bad = 0;
+    for (int t = 0; t < 2; t++) {
+        ll_mod_state st;
+        ll_mod_start(&st, &m);
+        if (t)
+            st.tempo = 250;
+        ll_mod_mix(&st, buf, 22050);       /* half a second */
+        unsigned ticks = st.row * st.speed + st.tick;   /* ticks completed-ish */
+        unsigned want = t ? 50 : 25;       /* 125: 25 in 0.5 s; 250: 50 */
+        if (ticks != want && ticks != want + 1) {
+            printf("synth: tempo %d: %u ticks in 0.5 s, want %u\n",
+                   t ? 250 : 125, ticks, want);
+            bad = 1;
+        }
+    }
+    ll_mod_close(&m);
+    if (!bad)
+        printf("synth timing ok (50 ticks/s at tempo 125, 100 at 250)\n");
+    return bad;
+}
+
 int main(int argc, char **argv)
 {
+    if (argc == 2 && strcmp(argv[1], "--synth") == 0)
+        return synth_timing();
     if (argc < 2) {
         fprintf(stderr, "usage: %s FILE.MOD [MS] [OUT.WAV]\n", argv[0]);
         return 2;

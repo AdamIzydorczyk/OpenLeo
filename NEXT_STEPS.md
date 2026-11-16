@@ -3233,6 +3233,63 @@ engine-side).
   - Open from the F/FC investigation (not ported): `F x,y` and `FC x,y` frame
     tails stay unparsed; the usage statistics are in HANDOFF section 7.
 
+## PR-76 — music played 2.47x too fast: 32-bit overflow in the MOD tick length (DONE 2026-11-16)
+
+  - Found by the owner listening to a live run ("music too fast"). The tick
+    length `((uint32_t)110250u << 16) / tempo` overflows 32 bits
+    (110250 * 65536 = 7.2e9): at tempo 125 it gave 357.7 frames per tick
+    instead of 882, i.e. every song ran 2.47x fast. The comment above it
+    even claimed "125 -> 882". The old render hashes agreed between linux and
+    wine because both ran the same wrong code - the same lesson as PR-55.
+  - Fix: 64-bit intermediate. Proof: `mod_selftest --synth` (data-free, wired
+    into verify-mod): an empty 4-channel MOD must complete 25 ticks in 0.5 s
+    at tempo 125 and 50 at tempo 250; hand-derived, mutation-checked (old
+    code gives 62 / 124 ticks).
+  - Still open from the same report: animations and objects look 5-10x too
+    fast. The port's clock is correct (wall 5.22 s for a 5 s run on the
+    owner's PipeWire device), so the suspect is the frame duration unit:
+    LEW walk frames are authored `6` ms x 12 frames and played as 6 ms. Needs
+    the real unit from the machine code (the `time_scale=` state field and the
+    frame-time consumer) or a DOSBox timing of a walk cycle.
+
+## PR-77 investigation — F/FC directive parser and accumulator (IN PROGRESS 2026-11-16; no gameplay change)
+
+  - Executable evidence (`build/leo/leo.elf`, VA = file offset + 0xf000):
+    strings `F`=0x9196f and `FC`=0x91974; their parser branches are in
+    0x468dc..0x46a14. Both create a 17-byte directive record and parse an
+    integer pair with the format at 0x91968 (`%i,%i`). The record's handler
+    vtable is 0xa1090; its slot +0x10 is FUN_00045d50.
+  - FUN_00045d50 (0x45d50): if the record's selector byte equals the caller's
+    mode byte, add record x/y (offsets +8/+0xc) to two caller-provided integer
+    accumulators. FUN_00045900 (0x45900) zeros both accumulators before
+    dispatching the handler. This establishes additive vector accumulation,
+    NOT yet what the vectors mean physically.
+  - Parser selector values from the immediate writes: `F`=0, `FC`=1, `I`=2,
+    `IC`=3. The `F` and `FC` labels therefore identify separate selector
+    streams even though they share the same pair parser and accumulation
+    method. Do not treat `FC` as a typo for `F`.
+  - Distinguish state-header `F=x,y` from frame-tail `F x,y`. The header
+    parser at 0x52590 matches `F` at 0x92281 and writes the pair to state
+    offsets +0x50/+0x54; `T=` at 0x9228a writes +0x58/+0x5c; `G=` at 0x92293
+    writes +0x48/+0x4c. FUN_00052680 copies these as three pairs into callback
+    context offsets 0, 8 and 0x10, with the frame-handler output pair separate.
+    This identifies the state fields, but still does not identify the units or
+    how the output is integrated into world position/velocity.
+  - FUN_00052680's code at 0x526ec..0x52700 passes modes/pointers into that
+    handler system: the initial call uses mode 0 and output locations at the
+    caller context +0x18/+0x1c; conditional calls later use modes 3 and 2.
+    These mode values and fields are not yet tied to world position/velocity.
+  - More dataflow from FUN_00052680 (0x52680): before invoking the frame
+    callbacks, it copies three stored pairs from the motion object offsets
+    (+0x50,+0x54), (+0x58,+0x5c), (+0x48,+0x4c) into context offsets
+    (0,+4), (8,+0xc), (0x10,+0x14); callback outputs use another pair at
+    (+0x18,+0x1c). FUN_000524a0 initializes all six stored values to zero and
+    FUN_00052500 copies them. This establishes four vector-pair slots in the
+    callback context, but not their physical units or which pair drives x/y.
+  - Next: trace the movement-state vtable/caller around 0x52680 and the
+    consumer of those context fields. Only then implement F/FC. No code change
+    has been made; T1 remains in progress and jump units remain estimates.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

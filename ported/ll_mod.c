@@ -481,7 +481,7 @@ void ll_mod_mix(ll_mod_state *st, int16_t *dst, size_t frames)
          * tempo like 140 (787.5 frames) stays exact instead of drifting.
          * (The former tempo*44100/6250 was only right at 125.) */
         uint32_t tempo = st->tempo < 32 ? 32 : st->tempo;
-        uint32_t tick_fp = ((uint32_t)110250u << 16) / tempo;
+        uint32_t tick_fp = (uint32_t)(((uint64_t)110250u << 16) / tempo);
         if (st->subtick == 0 || st->subtick >= tick_fp) {
             if (st->subtick >= tick_fp)
                 st->subtick -= tick_fp;   /* fractional carry-over (M-01) */
