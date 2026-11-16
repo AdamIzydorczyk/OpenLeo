@@ -22,12 +22,13 @@ PYREF    ?= tools/is_decode.py
 
 SRC      := ported/main.c ported/is_stream.c ported/platform_sdl/is_player.c \
             ported/platform_sdl.c ported/platform_common.c \
-            ported/llrs.c ported/ll_pcx.c ported/ll_menu.c ported/ll_level.c ported/ll_seq.c \
+            ported/llrs.c ported/ll_pcx.c ported/ll_menu.c ported/ll_level.c ported/ll_play.c \
+            ported/ll_seq.c \
             ported/ll_pcm.c ported/ll_mod.c ported/ll_save.c ported/fs_ci.c ported/ll_view.c \
             ported/ll_audio.c ported/ll_paths.c
 HDRS     := ported/ll_config.h ported/is_stream.h ported/platform_sdl/is_player.h \
             ported/platform.h \
-            ported/llrs.h ported/ll_pcx.h ported/ll_menu.h ported/ll_level.h ported/ll_seq.h \
+            ported/llrs.h ported/ll_pcx.h ported/ll_menu.h ported/ll_level.h ported/ll_play.h ported/ll_seq.h \
             ported/ll_pcm.h ported/ll_mod.h ported/ll_save.h ported/fs_ci.h ported/ll_view.h \
             ported/ll_audio.h ported/ll_paths.h
 
@@ -233,13 +234,13 @@ else
 	@echo "verify-win: SKIP (needs $(DATA) + python-oracle frames from 'make verify' + py_last frames; see the restaging recipe in NEXT_STEPS.md"
 endif
 
-ll_level.exe: tools/ll_level.c ported/ll_level.c ported/llrs.c ported/ll_pcx.c \
+ll_level.exe: tools/ll_level.c ported/ll_level.c ported/ll_play.c ported/llrs.c ported/ll_pcx.c \
             ported/ll_pcm.c ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c \
             ported/ll_view.c ported/platform_sdl.c ported/platform_common.c \
             ported/ll_audio.c \
             ported/ll_seq.h ported/ll_pcm.h ported/ll_mod.h ported/ll_config.h ported/fs_ci.h ported/ll_view.h ported/ll_audio.h ported/platform.h
 	$(XC) $(XCFLAGS) $(XLD) -o $@ tools/ll_level.c ported/ll_level.c \
-	    ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c ported/ll_seq.c ported/ll_mod.c \
+	    ported/ll_play.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c ported/ll_seq.c ported/ll_mod.c \
 	    ported/fs_ci.c ported/ll_view.c ported/platform_sdl.c \
 	    ported/platform_common.c ported/ll_audio.c $(XLIBS)
 
@@ -285,12 +286,12 @@ pcm_selftest.exe: tools/pcm_selftest.c ported/ll_pcm.c ported/ll_pcm.h
 # ll_level: level-scene viewer - prints a level's .DES wiring, composites
 # its tlo= PCX background + ANIMACJE leaf .SEQ object sprites driven by the
 # HD-install .MOV state machines (LEO_HD_DIR=<dir with ANIMACJE/ETAPY>).
-ll_level: tools/ll_level.c ported/ll_level.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c \
+ll_level: tools/ll_level.c ported/ll_level.c ported/ll_play.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c \
         ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c ported/ll_view.c ported/ll_audio.c \
         ported/platform_sdl.c ported/platform_common.c \
         ported/ll_seq.h ported/ll_pcm.h ported/ll_mod.h ported/ll_config.h ported/fs_ci.h ported/ll_view.h ported/ll_audio.h ported/platform.h
 	$(CC) -O2 -std=gnu11 -Wall -Wextra -Iported $(CFLAGS) -o $@ \
-	    tools/ll_level.c ported/ll_level.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c \
+	    tools/ll_level.c ported/ll_level.c ported/ll_play.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c \
 	    ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c ported/ll_view.c ported/ll_audio.c \
 	    ported/platform_sdl.c ported/platform_common.c $(LIBS)
 
@@ -419,6 +420,99 @@ ifeq ($(PX_DATA),1)
 	  || { echo "RAN.01 canvas check FAILED"; cat /tmp/opencode/lv_ran.log; exit 1; }
 else
 	@echo "verify-level: SKIP (needs $(DATA)/ETAPY/12; see the restaging recipe in NEXT_STEPS.md"
+endif
+
+# Playable level prototype (M4-B, PR-43): .plt ground parser, extended
+# .MOV grammar (F=/T=/G= physics, TARGET(p)=COND transitions) and the
+# player runtime. The selftest is hermetic (synthetic .plt + real walk
+# CONSTANTS), so it runs in EVERY configuration; the scripted demo legs
+# run on the real RAN.01 / TUNGA.11 player data (LEW.* leaves).
+verify-play: ll_level
+# data-free leg: parser + physics + transition selftest (always runs)
+	@timeout 30 ./ll_level --play-selftest
+ifeq ($(PX_DATA),1)
+# scripted demo on REAL player data: walk right (FWD), reverse (BKWD),
+# stop (NONE) - RAN.01 LEW.RAN art (8 .SEQ incl. UJ09 walk cycle),
+# LEW.MOV (30 states), RAN.PLT (153 ground lines), pozycja snap,
+# lew_rect bounds.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  LEO_PLAY_SCRIPT="1:FWD 200:BKWD 260:NONE" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_walk.ppm LEO_LEVEL_PPM_TICK=300 \
+	  ./ll_level $(DATA) RAN.01 --play --no-audio \
+	  > /tmp/opencode/ly_walk.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play RAN.01 FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_walk.log; exit 1; fi
+	@grep -q 'play: art LEW.RAN/UJ09.SEQ: 12 element' /tmp/opencode/ly_walk.log \
+	  && grep -q 'play: LEW.MOV: 30 state' /tmp/opencode/ly_walk.log \
+	  && grep -q 'play: RAN.PLT: 153 polyline' /tmp/opencode/ly_walk.log \
+	  && grep -q 'spawn feet (40,298) grounded=1 bounds 0..28800' \
+	      /tmp/opencode/ly_walk.log \
+	  && echo "play wiring: lew= leaf art + LEW.MOV + platformy=.PLT + pozycja snap + lew_rect bounds (ok - the RAN.01 player data is COMPLETE; the PR-42 'ZARIA.02 substitution' note was a probe-truncation artifact)" \
+	  || { echo "play wiring grep FAILED"; cat /tmp/opencode/ly_walk.log; exit 1; }
+	@grep -q 'play: A_STAY -> A_WALK_FWD' /tmp/opencode/ly_walk.log \
+	  && grep -q 'play: A_WALK_FWD -> A_WALK_BKWD' /tmp/opencode/ly_walk.log \
+	  && grep -q 'play: A_WALK_BKWD -> A_STAY' /tmp/opencode/ly_walk.log \
+	  && grep -q 'play tick 10: state A_WALK_FWD seq uj09.*grounded 1' \
+	      /tmp/opencode/ly_walk.log \
+	  && echo "play state machine: real LEW.MOV K_FWD/K_BKWD/!K_FWD transitions walking the .plt (ok)" \
+	  || { echo "play state machine grep FAILED"; cat /tmp/opencode/ly_walk.log; exit 1; }
+# same demo taken further: walking BACK off the shelf edge drops the lion
+# into the authored .plt gap (a real one - RAN.PLT has no floor there);
+# falling below lew_rect y=400 respawns at the snapped pozycja. Physics
+# stays data-driven: the fall is the documented LL_PLAY_GRAVITY case.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  LEO_PLAY_SCRIPT="1:FWD 200:BKWD 260:NONE" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_fall.ppm LEO_LEVEL_PPM_TICK=320 \
+	  ./ll_level $(DATA) RAN.01 --play --no-audio \
+	  > /tmp/opencode/ly_fall.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play RAN.01 fall FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_fall.log; exit 1; fi
+	@grep -q 'below lew_rect at (314,[0-9]*) -> respawn' /tmp/opencode/ly_fall.log \
+	  && grep -q 'play tick 305: state A_STAY seq uj09 frame 1 pos 40,298 grounded 1' \
+	      /tmp/opencode/ly_fall.log \
+	  && echo "play world bounds: .plt gap fall -> lew_rect death -> pozycja respawn (ok)" \
+	  || { echo "play fall/respawn grep FAILED"; cat /tmp/opencode/ly_fall.log; exit 1; }
+# render leg: SAME tick count, the only difference is the held key -
+# the frame delta is the lion walking (and the NONE run stays at spawn)
+	@for S in NONE FWD; do env -u DISPLAY SDL_VIDEODRIVER=dummy \
+	  SDL_AUDIODRIVER=dummy LEO_HD_DIR=/tmp/opencode/hd_files \
+	  LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SCRIPT="1:$$S" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_p40_$$S.ppm LEO_LEVEL_PPM_TICK=40 \
+	  ./ll_level $(DATA) RAN.01 --play --no-audio \
+	  > /tmp/opencode/ly_p40_$$S.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play render $$S FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_p40_$$S.log; exit 1; fi; done
+	@grep -q 'play tick 40: state A_STAY seq uj09 frame 1 pos 40,298' \
+	    /tmp/opencode/ly_p40_NONE.log \
+	  && grep -q 'play tick 40: state A_WALK_FWD seq uj09' \
+	    /tmp/opencode/ly_p40_FWD.log \
+	  && ! cmp -s /tmp/opencode/ly_p40_NONE.ppm /tmp/opencode/ly_p40_FWD.ppm \
+	  && echo "play render: lion drawn at the .SEQ anchor (-f0,-f2) walks on screen (NONE stays, FWD moves, ok)" \
+	  || { echo "play render check FAILED"; cat /tmp/opencode/ly_p40_NONE.log /tmp/opencode/ly_p40_FWD.log; exit 1; }
+# per-level data: TUNGA.11 has its OWN complete player set (LEW.TUN art,
+# 36-state LEW.MOV opening with the scripted A_GIVE_EGG egg intro,
+# TUNGA.PLT 7 lines, lew_rect -100..1570) - the runtime is generic,
+# the level data drives everything.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=/tmp/opencode/hd_files LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  LEO_PLAY_SCRIPT="1:FWD" LEO_LEVEL_PPM=/tmp/opencode/ly_tun.ppm \
+	  LEO_LEVEL_PPM_TICK=30 \
+	  ./ll_level $(DATA) TUNGA.11 --play --no-audio \
+	  > /tmp/opencode/ly_tun.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play TUNGA.11 FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_tun.log; exit 1; fi
+	@grep -q 'play: art LEW.TUN/0021.SEQ: 10 element' /tmp/opencode/ly_tun.log \
+	  && grep -q 'play: TUNGA.PLT: 7 polyline' /tmp/opencode/ly_tun.log \
+	  && grep -q 'spawn feet (50,402) grounded=1 bounds -100..1570' \
+	      /tmp/opencode/ly_tun.log \
+	  && grep -q 'play tick 30: state A_GIVE_EGG seq 0021' \
+	      /tmp/opencode/ly_tun.log \
+	  && echo "play per-level: TUNGA.11 LEW.TUN set runs its scripted intro on its own .plt/bounds (no level special-casing in code)" \
+	  || { echo "play TUNGA.11 grep FAILED"; cat /tmp/opencode/ly_tun.log; exit 1; }
+else
+	@echo "verify-play: SKIP data legs (needs $(DATA) + LEO_HD_DIR fixtures; see NEXT_STEPS.md)"
 endif
 
 # Level help overlay (POMOC flow): HD .MNU page list + CD ETAPY .SEQ page
@@ -944,7 +1038,7 @@ else
 	@echo "verify-golden: SKIP (the port pose-dump half needs game data $(DATA); without a pose dump the golden contract cannot be exercised)"
 endif
 
-verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-help verify-menu verify-sel verify-quit verify-save verify-music verify-utf8 verify-fuzz verify-platform verify-userdir verify-arch verify-golden verify-cmake
+verify-all: verify verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-play verify-help verify-menu verify-sel verify-quit verify-save verify-music verify-utf8 verify-fuzz verify-platform verify-userdir verify-arch verify-golden verify-cmake
 	@echo "ALL TESTS PASSED (linux + windows + llrs)"
 
 clean:
@@ -958,7 +1052,7 @@ clean:
 	      ll_save ll_save.exe *.o *.obj
 
 .PHONY: run win verify verify-skip verify-win verify-llrs verify-pcx \
-        verify-seq verify-pcm verify-mod verify-level verify-help verify-menu \
+        verify-seq verify-pcm verify-mod verify-level verify-play verify-help verify-menu \
         verify-sel verify-quit verify-save verify-music verify-utf8 verify-fuzz \
         verify-platform verify-userdir verify-cmake verify-all level clean package package-win package-linux \
         verify-golden verify-arch golden_rig golden_rig_cd golden_rig_ddir

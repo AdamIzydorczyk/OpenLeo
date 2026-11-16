@@ -21,9 +21,15 @@ def main():
         name, rid, off, size = SLOT.unpack_from(d, 0x14 + 26 * k)
         if rid != 2 or name.split(b'\0')[0].upper() != blkub:
             continue
-        cnt, = struct.unpack_from('<I', d, off)
-        for t in range(cnt):
-            k2, r2, o2, s2 = SLOT.unpack_from(d, off + 4 + 26 * t)
+        # PR-36 lesson (see ported/llrs.c llrs_block): the u32 header "count"
+        # is the number of USED records, not the table size - valid records
+        # sit at higher slot indices of the sparse free-table. Scan every
+        # whole slot the payload holds.
+        for t in range((size - 4) // 26):
+            try:
+                k2, r2, o2, s2 = SLOT.unpack_from(d, off + 4 + 26 * t)
+            except struct.error:
+                break
             nm = k2.split(b'\0')[0]
             if r2 == 1 and nm.upper().startswith(keyub):
                 open(out, 'wb').write(d[o2:o2 + s2])

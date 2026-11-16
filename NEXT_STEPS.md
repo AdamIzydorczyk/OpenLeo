@@ -1895,7 +1895,84 @@ model (best alpha residual was never <25% of the direct frame diff).
 => smoothing does not address the real artifact; SHELVED. Revisit only
 if a source-level fix (the de-ghost filter exists in tools/mv_clean.py) is found to help.
 
+## PR-43 — playable level prototype M4-B: ll_play + real LEW.MOV physics (DONE 2026-11-16)
+
+`ll_level <DATA> RAN.01 --play` runs the LION on the level's own data
+(walk FWD/BKWD, edge fall, landing, world-bottom respawn). New SDL-free
+module ported/ll_play.c/.h: .plt ground parser (ll_plt_*), the EXTENDED
+.MOV parser (ll_mov_t = viewer mov_t + F=/T=/G= per-state physics +
+TARGET(p)=COND transitions + control= flags + per-state seq= art, see
+PLAN 8g for the grammar), and the player runtime (ll_player_step on a
+fixed 20 ms grid; physics constants come FROM the data: walk F=400
+T=90, STAY brake F=600). ll_level.c keeps a single .MOV parser (its
+mov_t moved to ll_play.c; scene objects switched to heap ll_mov_t -
+24 x ~100 KB embedded would blow the stack), loads the player wiring
+from the .des (lew= leaf art + .MOV, platformy= .PLT, pozycja= spawn
+snapped down onto the ground, lew_rect= bounds + death) and draws the
+lion LAST at the .SEQ anchor (-f0,-f2) - anchor semantics confirmed
+from UJ09.SEQ f0=35/f2=68 (feet at the ground line). Live window path:
+held arrows (LL_EV_KEYDOWN/KEYUP) drive the lion, camera follows.
+
+Correction of a PR-42 era 'data hole' (important): the plan to borrow
+ZARIA.02 lion art for the playable prototype was WRONG - my ad-hoc
+inventory probes re-introduced the PR-36 sparse-table bug (scanning
+only `count` index slots), so LEW.RAN looked empty. With the correct
+scan (port/llrs.c llrs_block already right; tools/extract_record.py
+now FIXED the same way) BOTH test levels carry complete player data:
+RAN.01 (LEW.RAN: 8 .SEQ incl. UJ09 walk cycle; LEW.MOV 30 states;
+RAN.PLT 153 ground lines) and TUNGA.11 (LEW.TUN art; own 36-state
+LEW.MOV that OPENS with the scripted A_GIVE_EGG egg intro - the
+runtime plays it untouched; TUNGA.PLT; lew_rect -100..1570). No
+substitution, no level special-casing.
+
+Documented simplifications (first honest ones, see PLAN 8g): one
+project constant LL_PLAY_GRAVITY=200 px/s^2 (same magnitude as the
+real A_START_LAD1 G=0,200) only when a CHECK_LN state loses its
+ground with no authored fall route - RAN.01's authored fall chain
+(A_START_LAD1 -> K_GEN2 -> A_LADOW) is an 18.4 s scripted waterfall,
+not a curb step; landing still fires the K_GEN2 pulse so those states
+route authentically. Ground following = +-16 px snap window
+(LL_PLAY_STEP) - RAN.PLT's 20 px same-height gaps are walked, deep
+falls fall. `speed=` keys ignored (the .MOV T= caps are the authored
+speeds). No jump/crouch yet; K_UP/K_DOWN reach the transition layer
+but no states consume them in v1.
+
+Two fixes surfaced by the PR's own checks (both small, both pinned by
+the ASan run now part of the recipe below): `--play` uses
+`SDL_setenv` (the first `make win` run of this PR failed - mingw has
+no `setenv`; tools/ll_level.c already links SDL) and a PRE-EXISTING
+memory leak in the .des placement path (ll_level.c `des_place_lines`:
+the "no drawable element" branch freed the blob but not the parsed
+`els` table the main object loop frees) - ASan+LSan+UBSan are now
+clean (rc=0, zero errors) for the preview AND the play path on RAN.01.
+
+Usage: `ll_level --play-selftest` (hermetic, always runs), `--play`
+or LEO_PLAY=1 on any level; headless CI driving: LEO_PLAY_SCRIPT=
+"<tick>:<FWD|BKWD|UP|DOWN|NONE>" entries held until the next entry,
+LEO_LEVEL_PPM(_TICK) dumps deterministic frames on the fixed grid.
+CI: new verify-play in verify-all (selftest leg in EVERY config;
+data legs = RAN.01 scripted walk/reverse/stop + the same demo run
+further pinning the .plt-gap fall -> lew_rect death -> pozycja respawn
++ PPM differential NONE-vs-FWD + TUNGA.11 per-level proof);
+fixture-free config prints its SKIP. verify-level pins unchanged (preview path untouched, and the
+new claim step is LEO_PLAY-gated; LEW leaves never appear in the
+scene lists on these two levels anyway - the 24-slot cap cuts them).
+
 ## Next — pick from the Deferred list below
+
+PR-43 (M4-B playable prototype) opens the M4-C line when gameplay is
+wanted next: jump/crouch states from LEW.MOV (A_UP_*/A_DOWN_* exist
+with K_UP/K_DOWN wiring already in the transition layer), hand/foot
+interactions (K_GEN1 hand points: A_MA_KORONE crown climb etc.), the
+A_LADOW scripted-landing chain as a real landing route, and objects
+that react to the player (move platforms via their .MOV + player
+riding). None is blocked on data - RAN.01/TUNGA.11 carry complete
+player sets (see PLAN 8g). Small latent cleanup noticed on the way:
+tools/verify_help.py and tools/verify_pcm.py still scan nested index
+tables only `count` slots (the PR-36 sparse-table bug, same shape as
+the extract_record.py fix in this PR); their pins are dense on today's
+fixtures so they pass - fix them before using those probes on other
+levels.
 
 PR-37 leaves one named golden follow-up: recover the ORIGINAL engine
 text FONT (the cursive used for corner words AND chapter titles).

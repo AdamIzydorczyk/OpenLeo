@@ -50,6 +50,10 @@ logs a `main: ANSI code page …` warning in that case).
                                            # level intro (NEW GAME = RAN.01)
 ./ll_cutscene A.IS --then B.IS --menu /path/to/LEO   # manual scene chain
 ./ll_level /path/to/LEO RAN.01             # level wiring (.DES) + intro art
+./ll_level /path/to/LEO RAN.01 --play      # PLAYABLE level (M4-B): the lion walks
+                                           # on the real .plt ground with the real
+                                           # LEW.MOV physics (arrows; LEO_PLAY_SCRIPT
+                                           # drives it headless, see verify-play)
 ```
 
 CLI contract (FIX-13): `--help`/`-h` prints usage (exit 0), `--version`
@@ -88,6 +92,8 @@ make verify-all
 # verify-pcm   ported/ll_pcm.c == tools/verify_pcm.py on every PCM parallax layer
 # verify-mod   MOD music renderer: deterministic render linux == wine
 # verify-level level scene: .DES wiring + .SEQ/.MOV anims + scroll camera
+# verify-play  playable prototype (M4-B): real LEW.MOV physics + .plt ground
+#              (hermetic selftest always; data legs on RAN.01/TUNGA.11)
 # verify-help  help overlay: POMOC pages == python oracle
 # verify-menu  hooked demo chain: cutscene -> skip -> menu -> restart dialog
 #              + bright-green answer selection (tools/verify_green.py oracle)

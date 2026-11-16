@@ -1,8 +1,12 @@
 /* ll_level.c - command-line front-end for ported/ll_level.c (shared viewer).
- * usage: ll_level DATA_DIR LEVEL [-t SECONDS] [--no-audio]
+ * usage: ll_level DATA_DIR LEVEL [-t SECONDS] [--no-audio] [--play]
  *   e.g. ll_level /tmp/opencode/iso_stage/LEO RAN.01
+ *   --play upgrades the preview to the playable level prototype (M4-B:
+ *   real LEW.MOV physics, .plt ground, arrow-key control; headless CI
+ *   driving via LEO_PLAY_SCRIPT + LEO_LEVEL_PPM - see ported/ll_play.h).
  */
 #include "ll_level.h"
+#include "ll_play.h"
 
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -14,10 +18,13 @@ int main(int argc, char **argv)
     /* FIX-13 (X-11): .MOV robustness selftest, no data needed */
     if (argc == 2 && strcmp(argv[1], "--mov-selftest") == 0)
         return ll_mov_selftest() ? 1 : 0;
+    /* PR-43 (M4-B): .plt/.MOV-extension/player-sim selftest, hermetic */
+    if (argc == 2 && strcmp(argv[1], "--play-selftest") == 0)
+        return ll_play_selftest() ? 1 : 0;
     if (argc < 3) {
         fprintf(stderr,
                 "usage: %s DATA_DIR LEVEL [-t SECONDS] [--no-audio] "
-                "[--list] [--mov-selftest]\n",
+                "[--list] [--mov-selftest] [--play-selftest] [--play]\n",
                 argv[0]);
         return 2;
     }
@@ -32,6 +39,9 @@ int main(int argc, char **argv)
             audio = 0;
         else if (strcmp(argv[i], "--list") == 0)
             list_only = 1;
+        else if (strcmp(argv[i], "--play") == 0)
+            SDL_setenv("LEO_PLAY", "1", 1);   /* SDL_setenv: portable,
+                                                 * mingw has no setenv */
     }
     if (list_only) /* headless: wiring + animation inventory, no SDL */
         return ll_level_anims(dir, level) ? 1 : 0;

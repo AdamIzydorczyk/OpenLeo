@@ -1,9 +1,13 @@
-/* ll_level.h - level intro/preview viewer (M3): resolves the plain-text
- * .DES wiring for a level, then shows the PCX art and plays the PCM
- * parallax track stored in the level's ETAPY block. Used by the ll_level
- * tool and by the demo flow (level start preview). All window/input/
- * clock/audio/thread needs go through the platform interface
- * (platform.h); the backend owns the session lifecycle.
+/* ll_level.h - level intro/preview viewer (M3) + playable level prototype
+ * (M4-B, PR-43). Resolves the plain-text .DES wiring for a level, then
+ * shows the PCX art and plays the PCM parallax track stored in the
+ * level's ETAPY block; with LEO_PLAY (ll_level tool: --play) the scene
+ * additionally runs the real player - LEW.MOV physics on the .plt
+ * ground from the level's own data (see ported/ll_play.h for the wiring
+ * and the documented simplifications). Used by the ll_level tool and by
+ * the demo flow (level start preview). All window/input/clock/audio/
+ * thread needs go through the platform interface (platform.h); the
+ * backend owns the session lifecycle.
  */
 #ifndef LL_LEVEL_H
 #define LL_LEVEL_H

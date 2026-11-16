@@ -1192,5 +1192,80 @@ Closes the M5 "saves" box (load + byte-compatible rewrite + field
 decode); remaining save tasks are semantics-only: paired QEMU capture
 for the A/B byte map, then real save-at-exit wiring in ll_level.
 
+## 8g. Playable level prototype - M4-B (delivered 2026-11-16, PR-43)
+
+The level viewer became playable: `ll_level <DATA> RAN.01 --play` (or
+LEO_PLAY=1) runs the LION with the level's own data - no invented
+gameplay constants beyond one documented fallback (below). Code split:
+SDL-free `ported/ll_play.c/.h` owns the .plt ground parser, the
+EXTENDED .MOV parser (ll_mov_t = viewer mov_t + physics/transitions)
+and the player physics; `ll_level.c` owns loading (containers) and
+drawing (.SEQ anchor), which keeps every leg testable.
+
+Data facts pinned 2026-11-16 (full CD + HD tree, sparse-correct scan):
+- the RAN.01/TUNGA.11 PLAYER data is COMPLETE on our media - RAN.01's
+  CD ANIMACJE carries the LEW.RAN leaf (8 .SEQ: UJ09 = 12-element walk
+  cycle, UJ11 = A_LADOW 46 elements...), HD ANIMACJE RAN.01/LEW.RAN
+  carries LEW.MOV (8666 B, 30 states) + LEWRAN.DES, HD ETAPY RAN.01
+  carries RAN.PLT (4935 B, 153 ground lines). The PR-42 note about
+  "borrowing ZARIA.02 lion art" was a PROBE BUG: ad-hoc python probes
+  scanned nested index tables only `count` slots while llrs free-tables
+  are SPARSE (PR-36 rule: scan (size-4)/26). tools/extract_record.py
+  fixed the same way llrs_block() was (PR-36); the substitution is
+  moot - both levels run 100% real data (TUNGA.11: LEW.TUN leaf, own
+  36-state LEW.MOV opening with the scripted A_GIVE_EGG egg intro,
+  TUNGA.PLT 7 lines).
+- .plt grammar (plain text): line 1 = polyline count; then
+  "<segments> x,y;x,y;..." world coords, y DOWN, feet ride the top of
+  the lines. The leading count counts SEGMENTS not points - the parser
+  scans every pair and ignores it.
+- .MOV EXTENDED grammar (superset of 8c's viewer subset): per state
+  `control=BY_TIME|BY_X|CHECK_LN|CH_DIR|CHECK_ALL[_PLANE]|FRAME_REV`
+  flag lists, `F=ax,ay` accel px/s^2, `T=x,y` speed cap px/s (scalar
+  form exists too: "G=400"), `G=gx,gy` gravity px/s^2 (grounded states
+  G=0 + CHECK_LN), `seq=<stem>` PER-STATE art (one leaf's .SEQ set is
+  shared by all states), transitions `TARGET[(prio)]=COND[|COND...]`
+  with CONDS K_FWD/K_BKWD/K_UP/K_DOWN/K_GEN1..3/K_ANY/AC_BREAK_NEXT,
+  `!` negates, OR semantics, first match wins. Real values: walk
+  F=400 T=90, A_STAY brake F=600, fall state A_START_LAD1 G=0,200 and
+  its landing route A_LADOW(1)=K_GEN2.
+- player wiring per level (.des, zero level special-casing): `lew=`
+  token 2 names the art leaf (ANIMACJE) + token 3 the .MOV,
+  `platformy=` the .PLT (HD ETAPY), `pozycja=` spawn feet (snapped
+  DOWN onto the first surface: RAN.01 40,200 -> shelf 0..135@298),
+  `lew_rect=` bounds feet x and defines world-bottom death -> respawn.
+  `speed=` is ignored: the real .MOV T= caps are the authored speeds
+  (RAN.01 speed=40,80;... contradicts - .MOV T=90 wins in practice).
+- .SEQ draw anchor CONFIRMED from data (UJ09 f0=0x23/f2=0x45): f0,f2
+  is the anchor offset INSIDE the sprite (feet at bottom), so the draw
+  origin = (feet.x - cam - (short)f0, feet.y - (short)f2) - same
+  (-f0,-f2) convention ll_menu.c uses; the viewer's anchor_of() stays
+  for objects only.
+
+Documented simplifications (first, honest ones):
+- LL_PLAY_GRAVITY = 200 px/s^2 applies ONLY to a CHECK_LN state that
+  loses its ground with no authored fall route (RAN.01's authored fall
+  chain A_START_LAD1 -> A_LADOW is an 18.4 s scripted waterfall, not a
+  curb step; landing still fires the one-tick K_GEN2 pulse, which
+  routes those states authentically). Same magnitude as the real
+  A_START_LAD1 G=.
+- ground following is line-continuation with a +-16 px snap window
+  (LL_PLAY_STEP, both directions) - a 20 px gap at the same height
+  (RAN.PLT 302->323) is walked; deeper falls fall. v1 controls: walk
+  fwd/bkwd, fall, land, world-bottom respawn; no jump/crouch yet.
+
+CI (verify-play, part of verify-all): hermetic `ll_level
+--play-selftest` always runs (synthetic .plt + real walk constants);
+PX_DATA legs run the scripted LEO_PLAY_SCRIPT demo on REAL data and
+pin: LEW.RAN/LEW.MOV/RAN.PLT load lines, spawn snap (40,298),
+lew_rect bounds, the A_STAY->A_WALK_FWD->A_WALK_BKWD->A_STAY
+transition chain, the gap fall -> lew_rect death -> pozycja respawn
+(the .plt gap near x=314 is real authored geometry), and a render
+differential (same tick count, script NONE vs FWD -> lion pixels move,
+NONE frame stays at spawn), plus TUNGA.11 proving zero level
+special-casing. The live window path
+tracks held arrows (platform KEYDOWN/KEYUP), steps physics on the same
+fixed 20 ms grid and follows the player with the camera.
+
 ## 9. Legal/ethical
 Abandonware; user owns the copy. RE for personal rebuild/interoperability. Don't redistribute original binaries/assets; data files stay user-supplied.

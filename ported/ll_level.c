@@ -23,11 +23,18 @@
  * They join the scene as the tlo= background stack: when a level has no
  * .PCX among its tlo= layers (RAN.01: plan1.pcm only on this CD), the
  * 400x200 rest view (ll_pcm_view) becomes the scene canvas.
+ *   player     = with LEO_PLAY (M4-B, PR-43) the scene additionally runs
+ *                the real lion: `lew=` leaf .SEQ art + that leaf's HD
+ *                .MOV (physics/transitions), ground from `platformy=`
+ *                .PLT, spawn `pozycja=`, bounds `lew_rect=`. Parsing and
+ *                physics live in ll_play.c; this file only loads the
+ *                data and draws the lion at the .SEQ anchor (-f0,-f2).
  */
 #include "ll_level.h"
 #include "fs_ci.h"
 #include "ll_pcx.h"
 #include "ll_pcm.h"
+#include "ll_play.h"
 #include "ll_seq.h"
 #include "llrs.h"
 #include "ll_mod.h"
@@ -379,88 +386,22 @@ int ll_level_anims(const char *dir, const char *level)
     return 0;
 }
 
-/* ---------------- .MOV object state machine (HD-install payload) ---------
- * Plain text (verified 2026-11-14 on HD ANIMACJE ED000002.MOV):
- *   STATE1 \n STATE2 ... \n \n [STATE] \n control=BY_TIME \n
- *   NEXT(n)=ACTION \n seq=ed000002 \n <frame>,<ms>[, M dx,dy]* \n ...
- * Each frame line = show <frame> of seq=<key> for <ms>, then move M dx,dy.
- * ------------------------------------------------------------------------*/
-#define MOV_MAXST 16
-#define MOV_MAXFR 64
-
-typedef struct { int frame; unsigned ms; int dx, dy; } mov_fr;
-typedef struct { char name[24]; mov_fr fr[MOV_MAXFR]; int nfr; } mov_st;
-typedef struct {
-    mov_st st[MOV_MAXST];
-    int nst;
-    char seqkey[16];
-} mov_t;
-
-static int mov_parse(const char *txt, mov_t *m)
-{
-    memset(m, 0, sizeof *m);
-    const char *p = txt;
-    while (*p) {
-        const char *eol = p;
-        while (*eol && *eol != '\n' && *eol != '\r')
-            eol++;
-        size_t len = (size_t)(eol - p);
-        char line[128];
-        if (len && len < sizeof line) {
-            memcpy(line, p, len);
-            line[len] = '\0';
-            if (line[0] == '[') {                /* [STATE] opens a block */
-                if (m->nst < MOV_MAXST) {
-                    mov_st *s = &m->st[m->nst++];
-                    const char *gt = strchr(line, ']');
-                    size_t nl = gt ? (size_t)(gt - line - 1) : 0;
-                    if (nl >= sizeof s->name)
-                        nl = sizeof s->name - 1;
-                    memcpy(s->name, line + 1, nl);
-                    s->name[nl] = '\0';
-                }
-            } else if (m->nst > 0 && strchr(line, '=')) {
-                if (strncmp(line, "seq=", 4) == 0) {
-                    const char *v = line + 4;
-                    while (*v == ' ')
-                        v++;
-                    size_t k = 0;
-                    while (v[k] && k + 1 < sizeof m->seqkey) {
-                        m->seqkey[k] = (char)v[k];
-                        k++;
-                    }
-                    m->seqkey[k] = '\0';
-                }
-                /* control=/transitions: states cycle in declaration order
-                 * for the viewer, exact ACTION routing is gameplay work */
-            } else if (m->nst > 0) {
-                mov_st *s = &m->st[m->nst - 1];
-                int f, ms;
-                if (sscanf(line, "%d,%d", &f, &ms) == 2 &&
-                    s->nfr < MOV_MAXFR) {
-                    mov_fr *mf = &s->fr[s->nfr++];
-                    mf->frame = f;
-                    mf->ms = ms > 0 ? (unsigned)ms : 100u;
-                    mf->dx = mf->dy = 0;
-                    const char *mvt = strstr(line, "M ");
-                    if (mvt)
-                        sscanf(mvt, "M %d,%d", &mf->dx, &mf->dy);
-                }
-            }
-        }
-        p = eol;
-        while (*p == '\n' || *p == '\r')
-            p++;
-    }
-    return m->nst;
-}
+/* ---------------- .MOV object state machine -------------------------------
+ * The parser and structs moved to ll_play.c (PR-43, ll_mov_*): IDENTICAL
+ * frame semantics for scene objects (frame number indexes the .SEQ element
+ * list directly; non-positive durations clamped to 100 ms = the M4-C rule),
+ * plus the player-facing extension documented in ll_play.h (F=/T=/G=
+ * physics, TARGET(n)=COND transitions, control= flags, per-state seq=).
+ * Scene objects here keep using only the frame-list semantics through
+ * obj_advance/obj_elem below. */
 
 /* ---------------- scene objects ---------------------------------------- */
 
 typedef struct {
     unsigned char *blob;      /* .SEQ payload (owned)                       */
     ll_seq seq;
-    mov_t mov;                /* nst==0: cycle elements at 100 ms           */
+    ll_mov_t *mov;              /* heap, PR-43; NULL = no script: cycle
+                                 * elements at 100 ms                       */
     unsigned char *movtxt;    /* owned, or NULL                             */
     int eidx0;                /* first element with patch data              */
     int sw, sh;               /* sprite bbox size (from element chunks)     */
@@ -518,7 +459,7 @@ static void anchor_of(const ll_seq_elem *e, int sh, int ch, int *ax, int *ay)
 static void obj_advance(lvl_obj *o, unsigned dt_ms)
 {
     o->t += dt_ms;
-    if (!o->mov.nst) {                        /* no script: cycle elements */
+    if (!o->mov || !o->mov->nst) {              /* no script: cycle elements */
         int n = (int)o->seq.count;
         if (n <= 0)
             return;
@@ -532,23 +473,24 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
     for (;;) {
         /* FIX-13 (X-11): corrupt .MOV with all-zero frame durations would
          * cycle states forever; one full pass without consuming time =
-         * stop. mov_parse() clamps ms to >=100 today (M4-C), so this is
-         * a belt-and-braces bound on the CYCLE itself (nst*MOV_MAXFR
-         * maxes at 1024 iterations per pass; 4096 = four passes). The
-         * E-03 hardening covered frame indices; durations end here. */
+         * stop. ll_mov_parse() clamps non-positive ms to 100 (M4-C), so
+         * this is a belt-and-braces bound on the CYCLE itself (a real
+         * dt <= 200 ms consumes at most a few hundred ms-granular
+         * frames; 4096 = way beyond any legitimate pass). The E-03
+         * hardening covered frame indices; durations end here. */
         if (++guard > 4096)
             break;
-        mov_st *s = &o->mov.st[o->sti];
-        if (s->nfr == 0 || o->fi >= s->nfr) { /* state end -> next state    */
-            o->sti = (o->sti + 1) % o->mov.nst;
+        ll_mov_st *s = &o->mov->st[o->sti];
+        if (s->nfr == 0 || o->fi >= s->nfr) {   /* state end -> next state   */
+            o->sti = (o->sti + 1) % o->mov->nst;
             o->fi = 0;
             o->x = o->bx;
             o->y = o->by;                     /* motion deltas are per state */
-            s = &o->mov.st[o->sti];
+            s = &o->mov->st[o->sti];
             if (s->nfr == 0)
                 break;
         }
-        mov_fr *f = &s->fr[o->fi];
+        ll_mov_fr *f = &s->fr[o->fi];
         if (o->t < f->ms)
             break;
         o->t -= f->ms;
@@ -560,30 +502,38 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
 
 /* FIX-13 (X-11) selftest, test-only entry point (ll_level.h): proves the
  * two .MOV duration invariants without any window or game data:
- *   1. mov_parse clamps non-positive durations (the M4-C rule, pinned);
+ *   1. ll_mov_parse clamps non-positive durations (the M4-C rule,
+ *      pinned);
  *   2. obj_advance terminates on an all-zero-ms cycle (the guard). The
  *      proof is that this RETURNS - the CI legs run it under a timeout,
  *      so a regression HANGS (caught) instead of passing silently. */
 int ll_mov_selftest(void)
 {
-    mov_t m;
-    mov_parse("[A]\n0,0\n1,0\n2,-5\n[B]\n0,5\n", &m);
-    if (m.nst != 2 || m.st[0].nfr != 3 || m.st[1].nfr != 1) {
+    ll_mov_t *m = calloc(1, sizeof *m);
+    if (!m) {
+        fprintf(stderr, "mov selftest: FAILED out of memory\n");
+        return 1;
+    }
+    ll_mov_parse("[A]\n0,0\n1,0\n2,-5\n[B]\n0,5\n", m);
+    if (m->nst != 2 || m->st[0].nfr != 3 || m->st[1].nfr != 1) {
         fprintf(stderr, "mov selftest: FAILED parse shape "
                         "(nst=%d nfr=%d/%d)\n",
-                m.nst, m.st[0].nfr, m.st[1].nfr);
+                m->nst, m->st[0].nfr, m->st[1].nfr);
+        free(m);
         return 1;
     }
     for (int k = 0; k < 3; k++)
-        if (m.st[0].fr[k].ms != 100u) {
+        if (m->st[0].fr[k].ms != 100u) {
             fprintf(stderr, "mov selftest: FAILED zero/negative duration "
                             "not clamped (frame %d ms=%u)\n",
-                    k, m.st[0].fr[k].ms);
+                    k, m->st[0].fr[k].ms);
+            free(m);
             return 1;
         }
-    if (m.st[1].fr[0].ms != 5u) {
+    if (m->st[1].fr[0].ms != 5u) {
         fprintf(stderr, "mov selftest: FAILED positive duration changed "
-                        "(ms=%u)\n", m.st[1].fr[0].ms);
+                        "(ms=%u)\n", m->st[1].fr[0].ms);
+        free(m);
         return 1;
     }
     /* The corrupt shape X-11 describes, BUILT DIRECTLY to bypass the
@@ -591,16 +541,26 @@ int ll_mov_selftest(void)
      * hang the scene loop either): */
     lvl_obj o;
     memset(&o, 0, sizeof o);
-    o.mov.nst = 1;
-    o.mov.st[0].nfr = MOV_MAXFR;
-    for (int k = 0; k < MOV_MAXFR; k++)
-        o.mov.st[0].fr[k].ms = 0;
+    o.mov = calloc(1, sizeof *o.mov);
+    if (!o.mov) {
+        fprintf(stderr, "mov selftest: FAILED out of memory\n");
+        free(m);
+        return 1;
+    }
+    o.mov->nst = 1;
+    o.mov->st[0].nfr = LMOV_MAXFR;
+    for (int k = 0; k < LMOV_MAXFR; k++)
+        o.mov->st[0].fr[k].ms = 0;
     obj_advance(&o, 60000u);       /* without the guard: spins forever */
     if (o.sti != 0) {              /* single state: must not wander     */
         fprintf(stderr, "mov selftest: FAILED guard left state %d\n",
                 o.sti);
+        free(o.mov);
+        free(m);
         return 1;
     }
+    free(o.mov);
+    free(m);
     printf("mov selftest: duration clamp + cycle guard terminate (ok)\n");
     return 0;
 }
@@ -613,8 +573,8 @@ static const ll_seq_elem *obj_elem(const lvl_obj *o)
     int idx = o->eidx0;                        /* signed throughout (E-03):
                                                 * corrupt .MOV frame data can
                                                 * be negative */
-    if (o->mov.nst) {
-        idx = o->mov.st[o->sti].fr[o->fi].frame;
+    if (o->mov && o->mov->nst) {
+        idx = o->mov->st[o->sti].fr[o->fi].frame;
         if (idx < 0 || idx >= (int)o->seq.count)
             idx = (int)o->seq.count - 1;
     } else if (o->fi >= 0) {
@@ -637,6 +597,165 @@ static const llrs_slot *rec_find(const llrs_slot *recs, unsigned n,
             return &recs[k];
     }
     return NULL;
+}
+
+/* ---------------- playable-level runtime (M4-B, PR-43) -------------------
+ * LEO_PLAY wires the real player: art = every .SEQ in the ANIMACJE leaf
+ * named by the .des `lew=<class>,<art leaf>,<mov>,<player des>` token 2,
+ * script = the HD leaf's <stem>.MOV (ll_play.c), ground = the HD ETAPY
+ * block's <stem>.PLT named by `platformy=`, spawn = `pozycja=`, bounds
+ * (and the fall-out-of-world respawn) = `lew_rect=`. The simulation and
+ * the .MOV physics live in ll_play.c; this file only loads the data and
+ * draws. If any piece is missing the level stays a preview and the gap
+ * is logged (data-hole), never guessed.
+ * The CI drives the same runtime headless through LEO_PLAY_SCRIPT
+ * ("<tick>:<FWD|BKWD|UP|DOWN|NONE>" entries, whitespace separated; the
+ * last entry at or before the current tick is held until the next one),
+ * on the fixed 20 ms grid of the LEO_LEVEL_PPM leg - deterministic. */
+typedef struct {
+    int have;                               /* fully wired = play mode on */
+    ll_plt plt;
+    ll_mov_t *mov;                          /* heap: ~160 KB              */
+    ll_player p;
+    struct {
+        char stem[16];
+        unsigned char *blob;
+        ll_seq seq;
+    } art[32];
+    int nart;
+    char leaf[24];                          /* art leaf being claimed     */
+    double xmin, xmax, ydead;               /* lew_rect bounds            */
+    double sx, sy;                          /* pozycja spawn              */
+    ll_play_keys keys;                      /* held arrows (live path)    */
+} play_ctx;
+
+static ll_play_keys script_keys(const char *s, int tick)
+{
+    ll_play_keys k = { 0, 0, 0, 0 };
+    if (!s)
+        return k;
+    int best = -1;
+    const char *p = s;
+    while (*p) {
+        char *end = NULL;
+        long t = strtol(p, &end, 10);
+        if (end == p || *end != ':') {
+            p++;
+            continue;
+        }
+        const char *v = end + 1;
+        char tok[12];
+        size_t n = 0;
+        while (v[n] && v[n] != ' ' && v[n] != '\t' && n + 1 < sizeof tok) {
+            tok[n] = v[n];
+            n++;
+        }
+        tok[n] = '\0';
+        if (n && (int)t <= tick && (int)t > best) {
+            best = (int)t;
+            k.k_fwd  = strcasecmp(tok, "FWD")  == 0;
+            k.k_bkwd = strcasecmp(tok, "BKWD") == 0;
+            k.k_up   = strcasecmp(tok, "UP")   == 0;
+            k.k_down = strcasecmp(tok, "DOWN") == 0;
+        }
+        p = v + n;
+    }
+    return k;
+}
+
+/* feet at the spawn point, snapped down onto the first .plt surface */
+static void play_spawn(play_ctx *pl)
+{
+    ll_xy hit;
+    int g = ll_plt_first_below(&pl->plt, (int)pl->sx, (int)pl->sy, &hit);
+    ll_player_start(&pl->p, pl->mov, pl->sx, g ? (double)hit.y : pl->sy, g);
+}
+
+static const ll_seq *play_art(const play_ctx *pl, const char *stem)
+{
+    if (!stem || !stem[0])
+        return NULL;
+    for (int k = 0; k < pl->nart; k++)
+        if (ci_eq(pl->art[k].stem, stem))
+            return &pl->art[k].seq;
+    return NULL;
+}
+
+/* one fixed step + the shared logging (transition lines always; per-tick
+ * lines only on the headless CI grid where they are grep-pinned) */
+static void play_advance(play_ctx *pl, const ll_play_keys *keys,
+                         unsigned dt_ms, int verbose, int tick)
+{
+    int was = pl->p.sti;
+    int ev = ll_player_step(&pl->p, &pl->plt, keys, pl->xmin, pl->xmax,
+                            dt_ms);
+    int xi = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5);
+    int yi = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5);
+    if (ev & LL_PLAY_EV_STATE)
+        printf("ll_level: play: %s -> %s\n", pl->mov->st[was].name,
+               pl->mov->st[pl->p.sti].name);
+    if (pl->p.y > pl->ydead) {              /* fell out of the authored   */
+        printf("ll_level: play: below lew_rect at (%d,%d) -> respawn\n",   /* world */
+               xi, yi);
+        play_spawn(pl);
+        xi = (int)pl->sx;
+        yi = (int)pl->p.y;
+    }
+    if (verbose)
+        printf("ll_level: play tick %d: state %s seq %s frame %d pos %d,%d"
+               " grounded %d\n", tick, pl->mov->st[pl->p.sti].name,
+               pl->mov->st[pl->p.sti].seqkey, ll_player_frame(&pl->p),
+               xi, yi, pl->p.grounded);
+}
+
+/* the lion LAST, over bg + scene objects: the .SEQ anchor convention is
+ * bbox origin = (-f0,-f2) relative to the feet point (ll_seq.h; verified
+ * on UJ09.SEQ f0=35 f2=68, the walk cycle whose feet ARE the ground
+ * line), so the draw origin is (x - cam - (short)f0, y - (short)f2). */
+static void play_draw(const play_ctx *pl, unsigned char *canvas, int cw,
+                      int ch, int cam)
+{
+    if (!pl->have || pl->p.sti >= pl->mov->nst)
+        return;
+    const ll_mov_st *st = &pl->mov->st[pl->p.sti];
+    const ll_seq *s = play_art(pl, st->seqkey[0] ? st->seqkey
+                                                 : pl->mov->seqkey);
+    if (!s || !s->count)
+        return;
+    int fi = ll_player_frame(&pl->p);
+    if (fi < 0)
+        fi = 0;
+    if ((unsigned)fi >= s->count)
+        fi = (int)s->count - 1;             /* same clamp as obj_elem     */
+    const ll_seq_elem *e = &s->els[fi];
+    int x = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5) - cam
+            - (int)(short)e->f0;
+    int y = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5)
+            - (int)(short)e->f2;
+    ll_seq_draw_elem(s, e, canvas, cw, ch, x, y);
+}
+
+/* remove the scene objects that carry the player's own art leaf: the
+ * player draws them from here on (one lion, driven by LEW.MOV) */
+static void play_claim_leaf(lvl_obj *objs, int *nobj, const play_ctx *pl)
+{
+    int w = 0;
+    for (int k = 0; k < *nobj; k++) {
+        if (ci_eq(objs[k].leaf, pl->leaf)) {
+            ll_seq_free(&objs[k].seq);
+            free(objs[k].mov);
+            free(objs[k].movtxt);
+            free(objs[k].blob);
+            continue;
+        }
+        if (w != k)
+            objs[w] = objs[k];
+        w++;
+    }
+    if (w < *nobj)
+        printf("ll_level: play: claimed leaf %s (%d scene object(s) now"
+               " player-driven)\n", pl->leaf, *nobj - w);
+    *nobj = w;
 }
 
 /* PPM dump of the composited scene (CI hook, LEO_LEVEL_PPM; the parent
@@ -787,6 +906,11 @@ static void des_place_lines(llrs *an, const llrs_slot *arecs, unsigned narec,
                                     break;
                                 }
                             if (first < 0) {
+                                /* no drawable element: release the parse
+                                 * too (the main object loop does this;
+                                 * this copy leaked the els table - found
+                                 * by an ASan run in PR-43) */
+                                ll_seq_free(&o->seq);
                                 free(o->blob);
                                 o->blob = NULL;
                             } else {
@@ -816,9 +940,14 @@ static void des_place_lines(llrs *an, const llrs_slot *arecs, unsigned narec,
                                             rec_find(mr, nmr, stem, ".MOV");
                                         if (mv &&
                                             llrs_read(hd_an, mv,
-                                                      &o->movtxt) > 0)
-                                            mov_parse((char *)o->movtxt,
-                                                      &o->mov);
+                                                      &o->movtxt) > 0) {
+                                            o->mov = calloc(1,
+                                                            sizeof *o->mov);
+                                            if (o->mov)
+                                                ll_mov_parse(
+                                                    (char *)o->movtxt,
+                                                    o->mov);
+                                        }
                                         llrs_block_free(mr);
                                     }
                                 }
@@ -1393,6 +1522,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
      *    state machines (LEO_HD_DIR); missing HD is fine (static sprites).*/
     lvl_obj objs[24];
     int nobj = 0;
+    play_ctx pl;
+    memset(&pl, 0, sizeof pl);             /* LEO_PLAY wiring (4c below)   */
     llrs an;
     memset(objs, 0, sizeof objs);
     snprintf(p, sizeof p, "%s/ANIMACJE", dir);
@@ -1494,8 +1625,12 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                                 const llrs_slot *mv = rec_find(mrecs, nmrec,
                                                                stem, ".MOV");
                                 if (mv &&
-                                    llrs_read(&hd_an, mv, &o->movtxt) > 0)
-                                    mov_parse((char *)o->movtxt, &o->mov);
+                                    llrs_read(&hd_an, mv, &o->movtxt) > 0) {
+                                    o->mov = calloc(1, sizeof *o->mov);
+                                    if (o->mov)
+                                        ll_mov_parse((char *)o->movtxt,
+                                                     o->mov);
+                                }
                                 llrs_block_free(mrecs);
                             }
                         }
@@ -1519,7 +1654,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         for (int m = a; m < b; m++) {
             char stem[16];
             stem_of(objs[m].key, stem, sizeof stem);
-            if (objs[m].mov.nst && ci_eq(stem, objs[m].mov.seqkey)) {
+            if (objs[m].mov && objs[m].mov->nst &&
+                ci_eq(stem, objs[m].mov->seqkey)) {
                 keep = m;
                 break;
             }
@@ -1531,6 +1667,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         }
         for (int m = a + 1; m < b; m++) {
             ll_seq_free(&objs[m].seq);
+            free(objs[m].mov);
             free(objs[m].movtxt);
             free(objs[m].blob);
         }
@@ -1557,12 +1694,259 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         llrs_close(&hd_an);
     /* hd_ety stays open: the help overlay (5b) reads the same HD block */
 
+    /* 4c) playable level prototype (M4-B, PR-43): LEO_PLAY upgrades the
+     * preview into the real controllable lion - art from the `lew=` leaf's
+     * .SEQ scripts, motion from that leaf's HD .MOV (F=/T=/G= physics,
+     * K_* transitions), ground from the `platformy=` .PLT, spawn from
+     * `pozycja=`, bounds from `lew_rect=` (all of it RAN.01/TUNGA.11
+     * data; simulation in ll_play.c). A missing piece is a data hole:
+     * logged, and the level stays a preview. */
+    if (getenv("LEO_PLAY")) {
+        char ap[4096];
+        char leafname[24] = "", movstem[16] = "";
+        const char *lew = des_get(kvs, nk, "lew");
+        if (lew[0]) {
+            /* lew=<class>,<art leaf>,<mov>,<player des> (RAN.01:
+             * "TLewRan,Lew.ran,lew.mov,lewran.des") */
+            char tw[32] = "";
+            const char *c1 = strchr(lew, ',');
+            const char *c2 = c1 ? strchr(c1 + 1, ',') : NULL;
+            if (c1) {
+                size_t n = c2 ? (size_t)(c2 - c1 - 1) : strlen(c1 + 1);
+                if (n >= sizeof tw)
+                    n = sizeof tw - 1;
+                memcpy(tw, c1 + 1, n);
+                tw[n] = '\0';
+                stem_of(tw, leafname, sizeof leafname);
+                const char *dot = strrchr(tw, '.');
+                if (dot && dot[1])
+                    snprintf(leafname + strlen(leafname),
+                             sizeof leafname - strlen(leafname), ".%s",
+                             dot + 1);
+            }
+            if (c2) {
+                const char *c3 = strchr(c2 + 1, ',');
+                char mt[32];
+                size_t n = c3 ? (size_t)(c3 - c2 - 1) : strlen(c2 + 1);
+                if (n >= sizeof mt)
+                    n = sizeof mt - 1;
+                memcpy(mt, c2 + 1, n);
+                mt[n] = '\0';
+                stem_of(mt, movstem, sizeof movstem);
+            }
+        }
+        if (!movstem[0])
+            stem_of(leafname[0] ? leafname : "LEW", movstem,
+                    sizeof movstem);
+
+        /* CD: every .SEQ of the player art leaf (all states share the
+         * leaf; each per-state seq= names one of them) */
+        snprintf(ap, sizeof ap, "%s/ANIMACJE", dir);
+        llrs can;
+        memset(&can, 0, sizeof can);
+        if (llrs_open(&can, ap) == 0) {
+            const llrs_slot *cb = find_or_stem(&can, level);
+            llrs_slot *crecs = NULL;
+            unsigned ncrec = 0;
+            if (cb && llrs_block(&can, cb, &crecs, &ncrec) == 0) {
+                const llrs_slot *lf = NULL;
+                for (unsigned k = 0; k < ncrec; k++)
+                    if (crecs[k].id == 2 && crecs[k].name[0] &&
+                        leafname[0] && ci_eq(crecs[k].name, leafname)) {
+                        lf = &crecs[k];
+                        break;
+                    }
+                if (!lf)
+                    for (unsigned k = 0; k < ncrec; k++) {
+                        char st[16];
+                        if (crecs[k].id != 2 || !crecs[k].name[0])
+                            continue;
+                        stem_of(crecs[k].name, st, sizeof st);
+                        if (strncasecmp(st, "LEW", 3) == 0) {
+                            lf = &crecs[k];
+                            printf("ll_level: play: no leaf '%s' in %s:"
+                                   " using '%s' (data-hole note)\n",
+                                   leafname, level, crecs[k].name);
+                            break;
+                        }
+                    }
+                if (lf) {
+                    snprintf(pl.leaf, sizeof pl.leaf, "%s", lf->name);
+                    llrs_slot *lrec = NULL;
+                    unsigned nlrec = 0;
+                    if (llrs_block(&can, lf, &lrec, &nlrec) == 0) {
+                        for (unsigned j = 0; j < nlrec && pl.nart < 32;
+                             j++) {
+                            const char *dot = strrchr(lrec[j].name, '.');
+                            if (lrec[j].id != 1 || !lrec[j].name[0] ||
+                                !dot || !ci_eq(dot, ".SEQ"))
+                                continue;
+                            int ai = pl.nart;
+                            if (llrs_read(&can, &lrec[j],
+                                          &pl.art[ai].blob) < 0 ||
+                                ll_seq_parse(pl.art[ai].blob,
+                                             (uint32_t)lrec[j].size,
+                                             &pl.art[ai].seq) != 0) {
+                                free(pl.art[ai].blob);
+                                pl.art[ai].blob = NULL;
+                                continue;
+                            }
+                            stem_of(lrec[j].name, pl.art[ai].stem,
+                                    sizeof pl.art[ai].stem);
+                            printf("ll_level: play: art %s/%s: %u"
+                                   " element(s)\n", lf->name,
+                                   lrec[j].name,
+                                   (unsigned)pl.art[ai].seq.count);
+                            pl.nart++;
+                        }
+                        llrs_block_free(lrec);
+                    }
+                }
+            }
+            llrs_block_free(crecs);
+            llrs_close(&can);
+        }
+
+        /* HD: the player .MOV (same leaf name inside HD ANIMACJE) */
+        if (hd && *hd) {
+            llrs han;
+            memset(&han, 0, sizeof han);
+            snprintf(ap, sizeof ap, "%s/ANIMACJE", hd);
+            if (llrs_open(&han, ap) == 0) {
+                const llrs_slot *hb = find_or_stem(&han, level);
+                llrs_slot *hrecs2 = NULL;
+                unsigned nhrec2 = 0;
+                if (hb && llrs_block(&han, hb, &hrecs2, &nhrec2) == 0) {
+                    const llrs_slot *hl = NULL;
+                    for (unsigned k = 0; k < nhrec2; k++)
+                        if (hrecs2[k].id == 2 && hrecs2[k].name[0] &&
+                            pl.leaf[0] &&
+                            ci_eq(hrecs2[k].name, pl.leaf))
+                            hl = &hrecs2[k];
+                    if (hl) {
+                        llrs_slot *mrecs = NULL;
+                        unsigned nmrec = 0;
+                        if (llrs_block(&han, hl, &mrecs, &nmrec) == 0) {
+                            const llrs_slot *mv = rec_find(mrecs, nmrec,
+                                                           movstem,
+                                                           ".MOV");
+                            unsigned char *mtxt = NULL;
+                            if (mv && llrs_read(&han, mv, &mtxt) > 0) {
+                                pl.mov = calloc(1, sizeof *pl.mov);
+                                if (!pl.mov ||
+                                    ll_mov_parse((char *)mtxt,
+                                                 pl.mov) <= 0) {
+                                    free(pl.mov);
+                                    pl.mov = NULL;
+                                } else
+                                    printf("ll_level: play: %s: %d"
+                                           " state(s), fallback art"
+                                           " '%s'\n", mv->name,
+                                           pl.mov->nst, pl.mov->seqkey);
+                            }
+                            free(mtxt);
+                            llrs_block_free(mrecs);
+                        }
+                    }
+                }
+                llrs_block_free(hrecs2);
+                llrs_close(&han);
+            }
+        }
+
+        /* HD ETAPY: the ground polylines named by platformy= */
+        const char *pltspec = des_get(kvs, nk, "platformy");
+        char pltstem[16];
+        stem_of(pltspec, pltstem, sizeof pltstem);
+        if (have_hd_ety && hblk2) {
+            llrs_slot *erecs = NULL;
+            unsigned nerec = 0;
+            if (llrs_block(&hd_ety, hblk2, &erecs, &nerec) == 0) {
+                const llrs_slot *pr = pltstem[0]
+                                          ? rec_find(erecs, nerec, pltstem,
+                                                     ".PLT")
+                                          : NULL;
+                if (!pr)
+                    for (unsigned k = 0; k < nerec; k++) {
+                        const char *dot = strrchr(erecs[k].name, '.');
+                        if (erecs[k].id == 1 && erecs[k].name[0] && dot &&
+                            ci_eq(dot, ".PLT")) {
+                            pr = &erecs[k];
+                            printf("ll_level: play: no '%s.PLT' in %s:"
+                                   " using '%s' (data-hole note)\n",
+                                   pltstem, level, pr->name);
+                            break;
+                        }
+                    }
+                if (pr) {
+                    unsigned char *ptxt = NULL;
+                    if (llrs_read(&hd_ety, pr, &ptxt) > 0 &&
+                        ll_plt_parse((char *)ptxt, &pl.plt) == 0)
+                        printf("ll_level: play: %s: %d polyline(s)\n",
+                               pr->name, pl.plt.n);
+                    free(ptxt);
+                }
+            }
+            llrs_block_free(erecs);
+        }
+
+        /* spawn: pozycja=x,y feet, snapped down onto the first surface */
+        const char *pos = des_get(kvs, nk, "pozycja");
+        int px = 0, py = 0;
+        if (pos && sscanf(pos, "%d,%d", &px, &py) == 2) {
+            pl.sx = px;
+            pl.sy = py;
+        } else {
+            printf("ll_level: play: no pozycja= in %s: spawning at world"
+                   " left edge\n", level);
+            pl.sx = 40;
+            pl.sy = 0;
+        }
+
+        /* bounds: lew_rect=x0,y0;x1,y1 (feet clamp + world-bottom death);
+         * fall back to back_rect, else no clamp */
+        const char *lr = des_get(kvs, nk, "lew_rect");
+        int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+        if (lr && sscanf(lr, "%d,%d;%d,%d", &x0, &y0, &x1, &y1) == 4 &&
+            x1 > x0) {
+            pl.xmin = x0;
+            pl.xmax = x1;
+            pl.ydead = y1;
+        } else if (world_w > 0) {
+            printf("ll_level: play: no lew_rect= in %s: using back_rect"
+                   " bounds\n", level);
+            pl.xmin = world_x0;
+            pl.xmax = world_x0 + world_w;
+            pl.ydead = world_h > 0 ? world_h : 1e30;
+        } else {
+            pl.xmin = -1e30;
+            pl.xmax = 1e30;
+            pl.ydead = 1e30;
+        }
+
+        if (pl.mov && pl.mov->nst > 0 && pl.nart > 0 && pl.plt.n > 0) {
+            pl.have = 1;
+            play_spawn(&pl);
+            printf("ll_level: play: %s %d state(s) on %d polyline(s):"
+                   " spawn feet (%d,%d) grounded=%d bounds %d..%d"                   /* lew_rect */
+                   " death below %d\n", pl.leaf, pl.mov->nst, pl.plt.n,
+                   (int)pl.p.x, (int)pl.p.y, pl.p.grounded,
+                   (int)pl.xmin, (int)pl.xmax, (int)pl.ydead);
+            play_claim_leaf(objs, &nobj, &pl);
+        } else {
+            printf("ll_level: play: level %s lacks %s: staying preview\n",
+                   level,
+                   !pl.mov ? "player .MOV"
+                           : pl.nart ? "ground .PLT" : "player .SEQ art");
+        }
+    }
+
     printf("ll_level: show %s: bg %s %dx%d, %d animated object(s)\n", level,
            bgname, cw, ch, nobj);
     for (int k = 0; k < nobj; k++)
         printf("ll_level: obj %s/%s: %dx%d at (%d,%d)%s\n", objs[k].leaf,
                objs[k].key, objs[k].sw, objs[k].sh, objs[k].x, objs[k].y,
-               objs[k].mov.nst ? " [mov]" : "");
+               objs[k].mov && objs[k].mov->nst ? " [mov]" : "");
     if (getenv("LEO_LEVEL_NO_OBJ")) {
         /* CI-only hook (PR-36): paint the bare background (no .des object
          * compositing, logs/animation state above stay as-is). Needed by
@@ -1621,11 +2005,27 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         int ticks = getenv("LEO_LEVEL_PPM_TICK")
                         ? atoi(getenv("LEO_LEVEL_PPM_TICK"))
                         : 0;
-        for (int k = 0; k < nobj; k++) {   /* advance fixed-step then redraw */
-            for (int m = 0; m < ticks; m++)
-                obj_advance(&objs[k], 40);
-            printf("ll_level: tick %d: %s state %d at (%d,%d)\n", ticks,
-                   objs[k].key, objs[k].sti, objs[k].x, objs[k].y);
+        if (pl.have) {
+            /* play leg (PR-43): fixed 20 ms grid, LEO_PLAY_SCRIPT keys
+             * (default "1:FWD": walk-right demo); camera stays 0 so the
+             * frames are byte-deterministic for the PPM comparison legs.
+             * Scene objects advance on the same grid. */
+            const char *scr = getenv("LEO_PLAY_SCRIPT");
+            if (!scr)
+                scr = "1:FWD";
+            for (int tk = 1; tk <= ticks; tk++) {
+                ll_play_keys keys = script_keys(scr, tk);
+                play_advance(&pl, &keys, 20, 1, tk);
+                for (int k = 0; k < nobj; k++)
+                    obj_advance(&objs[k], 20);
+            }
+        } else {
+            for (int k = 0; k < nobj; k++) { /* advance fixed-step then redraw */
+                for (int m = 0; m < ticks; m++)
+                    obj_advance(&objs[k], 40);
+                printf("ll_level: tick %d: %s state %d at (%d,%d)\n", ticks,
+                       objs[k].key, objs[k].sti, objs[k].x, objs[k].y);
+            }
         }
         memcpy(canvas, base, csz);         /* same order as the live loop */
         bg_at(&pcml, &img, pcm_owner, pcm_band, cam, cw, ch, scratch, canvas);
@@ -1635,6 +2035,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 ll_seq_draw_elem(&objs[k].seq, e, canvas, cw, ch,
                                  objs[k].x - cam, objs[k].y);
         }
+        play_draw(&pl, canvas, cw, ch, cam);
         if (pcm_owner) {
             /* PCM canvas: CI hash of the bare window band (win_rows rows,
              * top-anchored like verify_pcm.py's `view`) must equal the
@@ -1730,6 +2131,24 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                      (e.key == LLKEY_ESC || e.key == 'q')))
                     /* FIX-03 (X-04): exit keys act on first press */
                     esc = 1;
+                else if (pl.have &&
+                         (e.type == LL_EV_KEYDOWN ||
+                          e.type == LL_EV_KEYUP) &&
+                         (e.key == LLKEY_LEFT || e.key == LLKEY_RIGHT ||
+                          e.key == LLKEY_UP   || e.key == LLKEY_DOWN)) {
+                    /* M4-B: in play mode the arrows drive the LION
+                     * (held-key tracking, KEYUP releases); the camera
+                     * follows the player instead (below the loop). */
+                    int on = e.type == LL_EV_KEYDOWN;
+                    if (e.key == LLKEY_LEFT)
+                        pl.keys.k_bkwd = on;
+                    else if (e.key == LLKEY_RIGHT)
+                        pl.keys.k_fwd = on;
+                    else if (e.key == LLKEY_UP)
+                        pl.keys.k_up = on;
+                    else
+                        pl.keys.k_down = on;
+                }
                 else if (e.type == LL_EV_KEYDOWN && cam_max > 0) {
                     int k = e.key;      /* ASCII verbatim or LLKEY_* */
                     if (k == LLKEY_LEFT)
@@ -1765,6 +2184,20 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             }
             for (int k = 0; k < nobj; k++)
                 obj_advance(&objs[k], dt);
+            if (pl.have) {
+                unsigned used = 0;
+                while (used < dt) {          /* same fixed 20 ms grid the
+                                                CI legs run on */
+                    unsigned st2 = dt - used > 20u ? 20u : dt - used;
+                    play_advance(&pl, &pl.keys, st2, 0, 0);
+                    used += st2;
+                }
+                cam = (int)pl.p.x - cw / 2;  /* camera follows the lion */
+                if (cam < 0)
+                    cam = 0;
+                if (cam > cam_max)
+                    cam = cam_max;
+            }
             memcpy(canvas, base, csz);
             bg_at(&pcml, &img, pcm_owner, pcm_band, cam, cw, ch, scratch,
                   canvas);
@@ -1774,6 +2207,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                     ll_seq_draw_elem(&objs[k].seq, el, canvas, cw, ch,
                                      objs[k].x - cam, objs[k].y);
             }
+            play_draw(&pl, canvas, cw, ch, cam);
             paint(canvas, lut, cw, ch);
             ll_music_pump();
             t_tick += 20000000ull;               /* FIX-07: fixed 50 Hz grid */
@@ -1797,9 +2231,16 @@ done:                                 /* single cleanup path (E-05): every
     free(canvas);
     for (int k = 0; k < nobj; k++) {
         ll_seq_free(&objs[k].seq);
+        free(objs[k].mov);
         free(objs[k].movtxt);
         free(objs[k].blob);
     }
+    for (int k = 0; k < pl.nart; k++) {
+        ll_seq_free(&pl.art[k].seq);
+        free(pl.art[k].blob);
+    }
+    ll_plt_free(&pl.plt);
+    free(pl.mov);
     ll_pcx_free(&img);
     free(view);
     free(scratch);
