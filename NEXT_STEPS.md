@@ -2864,6 +2864,25 @@ engine-side).
     opt-in (LEO_PLAY_SOLID=1): it is unverified against the original, and
     the SEMI_SOLID platforms (kind-13 message) are still missing.
 
+## PR-62 — SEMI_SOLID: what the kind-13 message is (DONE 2026-11-16)
+
+  - Message nodes are {next, kind, a, b}. The common slot +0x10 handler is
+    FUN_00054560: kind 2 sets the mover's velocity (+0xc2, +0xc6) = (a, b),
+    kind 13 ADDS (a, b) to it, kind 8 zeroes it, kind 3/4 set flag bits,
+    kind 6 sets the push vector (+0x6d, +0x71); everything else goes to
+    FUN_00053770 (kind 1 among them). The velocity is integrated at
+    0x5427c as dt * v / 100 per axis with friction (+0x6d etc.), so the unit
+    scale is not pinned.
+  - So SEMI_SOLID (FUN_00053ae0 0x53b47..0x53ba9) = a soft contact: only the
+    horizontal penetration r matters; |r| > 5 moves the mover by r/5
+    (kind 1) and a velocity impulse of 30*clamp(r, -4, 4) is added (kind
+    13). ZARIA.01's SEMI objects are the LICHA creatures: touching one
+    pushes the lion away (LICHA/licha3.mov at 120,650: the lion is pushed
+    10..18 px per contact at ret 50..90).
+  - Ported: the kind-1 part only (play_collide); the velocity impulse is
+    announced and counted, not applied (its unit scale is unresolved). The
+    pass is still opt-in (LEO_PLAY_SOLID=1).
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

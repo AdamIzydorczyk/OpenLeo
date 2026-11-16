@@ -1298,8 +1298,8 @@ static const ll_seq_elem *obj_shape_elem(const lvl_obj *o, int *mirror,
  * 0x400) and the lion's state is not ANTI_SOLID (0x10000). The push is
  * ll_seq_shape_push; SOLID alone displaces B by the penetration r
  * horizontally (message {1, r, 0}, 0x53c4d), SOLID2 by the full vector
- * (dx, dy) (0x53c0e). SEMI_SOLID (platforms/slopes: kind-1 r/5 plus an
- * unresolved kind-13 message, 0x53b47..0x53ba9) is NOT modeled - counted.
+ * (dx, dy) (0x53c0e). SEMI_SOLID: kind-1 r/5 applied, the kind-13 velocity
+ * impulse counted (below).
  * A push UP (dy < 0) is standing on the object: grounded, support set.
  * OFF unless LEO_PLAY_SOLID=1: WHICH pairs the game tests (the per-class
  * collision loops behind FUN_00053c90 and the CHECK_LEW/CHECK_ALL gating)
@@ -1308,7 +1308,6 @@ static const ll_seq_elem *obj_shape_elem(const lvl_obj *o, int *mirror,
 static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                          int verbose, int tick)
 {
-    static int semi_seen;
 
     static int on = -1;
 
@@ -1348,12 +1347,6 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
          * CHECK_ALL_PLANE lifts it */
         if (o->layer != pl->layer && !(ls->ctrl & LL_CTRL_CHECK_ALL_PLANE))
             continue;
-        if (c & LL_CTRL_SEMI_SOLID) {
-            if (!semi_seen++)
-                printf("ll_level: play: SEMI_SOLID contact model not ported"
-                       " (kind-13 message unresolved): ignored\n");
-            continue;
-        }
         int om;
         const ll_seq *oseq = NULL;
         const ll_seq_elem *oe = obj_shape_elem(o, &om, &oseq);
@@ -1368,9 +1361,24 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
             continue;
         int dx = (c & LL_CTRL_SOLID2) ? d1 : r;
         int dy = (c & LL_CTRL_SOLID2) ? d2 : 0;
+        if (c & LL_CTRL_SEMI_SOLID) {
+            /* 0x53b47..0x53ba9: SEMI_SOLID answers with the horizontal
+             * penetration r only: |r| > 5 moves B by r/5 (kind 1), and a
+             * kind-13 message adds 30*clamp(r, -4..4) to B's velocity x
+             * (FUN_00054560: [+0xc2] += a). The velocity's unit scale is
+             * not pinned (integrated at 0x5427c as dt*v/100), so only the
+             * position part is applied and the impulse is counted. */
+            static int imp;
+            dx = (r > 5 || r < -5) ? r / 5 : 0;
+            dy = 0;
+            if (!imp++)
+                printf("ll_level: play: SEMI_SOLID velocity impulse"
+                       " (kind 13) counted, not applied (unit scale"
+                       " unresolved)\n");
+        }
         pl->p.x += dx;
         pl->p.y += dy;
-        if (dy < 0) {
+        if (dy < 0 && !(c & LL_CTRL_SEMI_SOLID)) {
             pl->p.support = 1;
             pl->p.vy = 0;
             if (!pl->p.grounded) {
@@ -1381,7 +1389,8 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
         if (verbose)
             printf("ll_level: play tick %d: solid %s/%s %s at %d,%d push"
                    " %d,%d (ret %d) lion %d,%d\n", tick, o->sc->leaf,
-                   o->sc->movname, (c & LL_CTRL_SOLID2) ? "SOLID2" : "SOLID",
+                   o->sc->movname, (c & LL_CTRL_SOLID2) ? "SOLID2"
+                   : (c & LL_CTRL_SEMI_SOLID) ? "SEMI" : "SOLID",
                    o->x, o->y, dx, dy, r, lx, ly);
         lx = (int)pl->p.x;            /* later objects see the moved lion */
     }
