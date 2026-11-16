@@ -102,7 +102,15 @@ enum {
     LL_CTRL_CHECK_ALL_PLANE = 0x20u,
     LL_CTRL_FRAME_REV       = 0x40u,
     LL_CTRL_BY_Y            = 0x80u,
-    LL_CTRL_SOLID           = 0x100u
+    LL_CTRL_SOLID           = 0x100u,
+    /* PR-59: the game's own flag word (token parser 0x51b30..0x51dc3, flag
+     * word at +0x12 of the state): SOLID = 0x400, SOLID2 = 0x20400,
+     * SEMI_SOLID = 0x40400 (both include SOLID's bit), ANTI_SOLID = 0x10000,
+     * ANTI_POCISK = 0x80000. FUN_00053ae0 tests exactly these. */
+    LL_CTRL_SOLID2          = 0x200u,       /* also sets LL_CTRL_SOLID    */
+    LL_CTRL_SEMI_SOLID      = 0x400u,       /* also sets LL_CTRL_SOLID    */
+    LL_CTRL_ANTI_SOLID      = 0x800u,
+    LL_CTRL_ANTI_POCISK     = 0x1000u
 };
 #define LL_CTRL_NAMES \
     X(BY_TIME) X(BY_X) X(BY_Y) X(BY_TY) X(CHECK_LN) X(CHECK_LEW) \
@@ -187,6 +195,8 @@ typedef struct {
     int broke;                  /* AC_BREAK_NEXT pending (frame list just
                                  * completed)                             */
     double air_from;            /* feet y when ground was lost            */
+    int support;                /* a solid object holds the feet up (set by
+                                 * the collision pass, PR-59)              */
 } ll_player;
 
 enum {                                              /* ll_player_step ev */

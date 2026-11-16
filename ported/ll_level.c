@@ -1262,14 +1262,122 @@ static const ll_seq *play_art(const play_ctx *pl, const char *stem)
     return NULL;
 }
 
+/* PR-59: the element an object's CURRENT frame shows, shape-only tables
+ * included (obj_elem returns NULL for those because it gates on drawable
+ * art; the collision test does not need art). */
+static const ll_seq_elem *obj_shape_elem(const lvl_obj *o, int *mirror,
+                                         const ll_seq **seq)
+{
+    const obj_art *a = obj_art_of(o);
+    *mirror = 0;
+    if (!a || a->seq.count == 0 || !o->sc->mov || o->sti < 0 ||
+        o->sti >= o->sc->mov->nst)
+        return NULL;
+    const ll_mov_st *s = &o->sc->mov->st[o->sti];
+    if (s->nfr <= 0)
+        return NULL;
+    int fi = o->fi < s->nfr ? o->fi : s->nfr - 1;
+    ll_frame_ref r = ll_mov_frame_ref(s->fr[fi].frame);
+    if (r.blank || r.idx >= (int)a->seq.count)
+        return NULL;
+    *mirror = r.mirror;
+    *seq = &a->seq;
+    return &a->seq.els[r.idx];
+}
+
+/* PR-59: FUN_00053ae0 - what a solid object does to the lion. The lion is
+ * B (pushed); an object is A when its CURRENT state carries SOLID (flag word
+ * 0x400) and the lion's state is not ANTI_SOLID (0x10000). The push is
+ * ll_seq_shape_push; SOLID alone displaces B by the penetration r
+ * horizontally (message {1, r, 0}, 0x53c4d), SOLID2 by the full vector
+ * (dx, dy) (0x53c0e). SEMI_SOLID (platforms/slopes: kind-1 r/5 plus an
+ * unresolved kind-13 message, 0x53b47..0x53ba9) is NOT modeled - counted.
+ * A push UP (dy < 0) is standing on the object: grounded, support set.
+ * OFF unless LEO_PLAY_SOLID=1: WHICH pairs the game tests (the per-class
+ * collision loops behind FUN_00053c90 and the CHECK_LEW/CHECK_ALL gating)
+ * is not resolved yet, and with it on RAN.01's invisible EDGE0046 stops the
+ * lion at x~135 - unverified against the original, so not the default. */
+static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
+                         int verbose, int tick)
+{
+    static int semi_seen;
+
+    static int on = -1;
+
+    if (on < 0) {
+        const char *e = getenv("LEO_PLAY_SOLID");
+        on = e && *e && *e != '0';
+    }
+    pl->p.support = 0;
+    if (!on || !pl->have || pl->p.sti >= pl->mov->nst)
+        return;
+    const ll_mov_st *ls = &pl->mov->st[pl->p.sti];
+    if (ls->ctrl & LL_CTRL_ANTI_SOLID)
+        return;
+    const ll_seq *lseq = play_art(pl, ls->seqkey[0] ? ls->seqkey
+                                                    : pl->mov->seqkey);
+    if (!lseq || !lseq->count)
+        return;
+    ll_frame_ref lr = ll_mov_frame_ref(ll_player_frame(&pl->p));
+    if (lr.blank || lr.idx >= (int)lseq->count)
+        return;
+    const ll_seq_elem *le = &lseq->els[lr.idx];
+    for (int k = 0; k < nobj; k++) {
+        const lvl_obj *o = &objs[k];
+        if (!o->sc || !o->sc->mov || o->sti < 0 || o->sti >= o->sc->mov->nst)
+            continue;
+        unsigned c = o->sc->mov->st[o->sti].ctrl;
+        if (!(c & LL_CTRL_SOLID))
+            continue;
+        if (c & LL_CTRL_SEMI_SOLID) {
+            if (!semi_seen++)
+                printf("ll_level: play: SEMI_SOLID contact model not ported"
+                       " (kind-13 message unresolved): ignored\n");
+            continue;
+        }
+        int om;
+        const ll_seq *oseq = NULL;
+        const ll_seq_elem *oe = obj_shape_elem(o, &om, &oseq);
+        if (!oe)
+            continue;
+        int lx = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5);
+        int ly = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5);
+        int d1, d2, r;
+        r = ll_seq_shape_push(oseq, oe, o->x, o->y, om ? -1 : 1,
+                              le, lx, ly, lr.mirror ? -1 : 1, &d1, &d2);
+        if (d1 == 0 && d2 == 0)
+            continue;
+        int dx = (c & LL_CTRL_SOLID2) ? d1 : r;
+        int dy = (c & LL_CTRL_SOLID2) ? d2 : 0;
+        pl->p.x += dx;
+        pl->p.y += dy;
+        if (dy < 0) {
+            pl->p.support = 1;
+            pl->p.vy = 0;
+            if (!pl->p.grounded) {
+                pl->p.grounded = 1;
+                pl->p.gen[LL_COND_K_GEN2 - LL_COND_K_GEN1] = 1;
+            }
+        }
+        if (verbose)
+            printf("ll_level: play tick %d: solid %s/%s %s at %d,%d push"
+                   " %d,%d (ret %d) lion %d,%d\n", tick, o->sc->leaf,
+                   o->sc->movname, (c & LL_CTRL_SOLID2) ? "SOLID2" : "SOLID",
+                   o->x, o->y, dx, dy, r, lx, ly);
+        lx = (int)pl->p.x;            /* later objects see the moved lion */
+    }
+}
+
 /* one fixed step + the shared logging (transition lines always; per-tick
  * lines only on the headless CI grid where they are grep-pinned) */
 static void play_advance(play_ctx *pl, const ll_play_keys *keys,
-                         unsigned dt_ms, int verbose, int tick)
+                         unsigned dt_ms, int verbose, int tick,
+                         const lvl_obj *objs, int nobj)
 {
     int was = pl->p.sti;
     int ev = ll_player_step(&pl->p, &pl->plt, keys, pl->xmin, pl->xmax,
                             dt_ms);
+    play_collide(pl, objs, nobj, verbose, tick);
     int xi = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5);
     int yi = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5);
     if (ev & LL_PLAY_EV_STATE)
@@ -3152,7 +3260,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 scr = "1:FWD";
             for (int tk = 1; tk <= ticks; tk++) {
                 ll_play_keys keys = script_keys(scr, tk);
-                play_advance(&pl, &keys, 20, 1, tk);
+                play_advance(&pl, &keys, 20, 1, tk, objs, nobj);
                 for (int k = 0; k < nobj; k++)
                     obj_advance(&objs[k], 20);
             }
@@ -3311,7 +3419,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 while (used < dt) {          /* same fixed 20 ms grid the
                                                 CI legs run on */
                     unsigned st2 = dt - used > 20u ? 20u : dt - used;
-                    play_advance(&pl, &pl.keys, st2, 0, 0);
+                    play_advance(&pl, &pl.keys, st2, 0, 0, objs, nobj);
                     used += st2;
                 }
                 cam = (int)pl.p.x - cw / 2;  /* camera follows the lion */

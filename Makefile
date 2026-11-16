@@ -614,6 +614,21 @@ ifeq ($(PX_DATA),1)
 	      /tmp/opencode/ly_fall.log \
 	  && echo "play world bounds: .plt gap fall -> lew_rect death -> pozycja respawn (ok)" \
 	  || { echo "play fall/respawn grep FAILED"; cat /tmp/opencode/ly_fall.log; exit 1; }
+# PR-59: experimental solid contact (LEO_PLAY_SOLID=1): the lion walking right
+# on RAN.01 touches the invisible EDGE0046 solid at tick 54; the contact line
+# (object, position, push, penetration) comes from ll_seq_shape_push on the
+# real shapes. Default runs (above) are unaffected: no contact lines.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SOLID=1 \
+	  LEO_PLAY_SCRIPT="1:FWD" LEO_LEVEL_PPM=/tmp/opencode/ly_solid.ppm \
+	  LEO_LEVEL_PPM_TICK=70 ./ll_level $(DATA) RAN.01 --play --no-audio \
+	  > /tmp/opencode/ly_solid.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play solid FAILED (rc=$$rc)"; exit 1; fi
+	@grep -q 'play tick 54: solid ANIBACK/edge0046.mov SOLID at 144,233 push -3,0 (ret -3) lion 128,298' \
+	    /tmp/opencode/ly_solid.log \
+	  && ! grep -q ': solid ' /tmp/opencode/ly_walk.log \
+	  && echo "play solid contact: RAN.01 EDGE0046 pushes the lion back 3 px at tick 54; default run has no contacts (ok)" \
+	  || { echo "play solid contact grep FAILED"; grep ': solid ' /tmp/opencode/ly_solid.log | head -3; exit 1; }
 # render leg: SAME tick count, the only difference is the held key -
 # the frame delta is the lion walking (and the NONE run stays at spawn)
 	@rm -f /tmp/opencode/ly_p40_NONE.ppm /tmp/opencode/ly_p40_FWD.ppm

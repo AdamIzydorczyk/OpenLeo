@@ -2764,6 +2764,33 @@ engine-side).
     objects collide with which (the 13 control= flags: SOLID, SOLID2,
     SEMI_SOLID, ANTI_SOLID ...), then gravity/ground for the lion.
 
+## PR-59 — solid contact: the game's flag word and FUN_00053ae0 (EXPERIMENTAL)
+          (DONE 2026-11-16)
+
+  - control= flag bits read from the token parser (0x51b30..0x51dc3, flag
+    word at state+0x12): SOLID 0x400, SOLID2 0x20400, SEMI_SOLID 0x40400,
+    ANTI_SOLID 0x10000, ANTI_POCISK 0x80000, DANGER 0x2000, CHECK_LEW 0x200,
+    CHECK_LN 0x100, CHECK_ALL 0x1c0, CHECK_BASE_LN 0x4000, CH_DIR 0x800,
+    INV_V 0x1000, CHECK_ALL_PLANE 0x8000. ll_play now models SOLID, SOLID2,
+    SEMI_SOLID, ANTI_SOLID, ANTI_POCISK (they leave ctrl_other).
+  - FUN_00053ae0 (A = the solid, B = what is pushed; the response goes to
+    B's message slot +0x10 as {kind 1, a, b}): A needs SOLID, B must not be
+    ANTI_SOLID; SEMI_SOLID takes a separate path (kind-1 r/5 plus a kind-13
+    message, unresolved); SOLID2 sends the full (dx, dy); plain SOLID sends
+    (r, 0) only. FUN_00052b10 = enqueue a deferred message node.
+  - ll_level play mode gets play_collide (LEO_PLAY_SOLID=1, OFF by default):
+    solid objects of the scene push the lion; a push up is standing
+    (ll_player.support keeps CHECK_LN from dropping the lion). Measured on
+    RAN.01: the invisible EDGE0046 solid stops the walk at x~135 (tick 54
+    push -3,0). SEMI_SOLID contacts are ignored and announced once.
+  - WHY OFF: which object pairs the game tests is not resolved - the per-
+    class collision loops behind FUN_00053c90 (callers 0x2c941, 0x2f8d1,
+    0x2f9f1, 0x38246) and the CHECK_LEW/CHECK_ALL gating decide it. With it
+    on, RAN.01's verify-play fall pin (walk to x=314 and fall) changes.
+  - Pinned by the new verify-play leg (contact line, default run clean).
+  - Next: read the 4 callers (who collides with whom), the kind-13 message,
+    then switch the pass on by default and fix the pins.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

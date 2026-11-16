@@ -225,6 +225,10 @@ static void ctrl_flag(const char *tok, unsigned *f, int *other)
         { "CHECK_ALL", LL_CTRL_CHECK_ALL },
         { "FRAME_REV", LL_CTRL_FRAME_REV },
         { "SOLID", LL_CTRL_SOLID },
+        { "SOLID2", LL_CTRL_SOLID | LL_CTRL_SOLID2 },
+        { "SEMI_SOLID", LL_CTRL_SOLID | LL_CTRL_SEMI_SOLID },
+        { "ANTI_SOLID", LL_CTRL_ANTI_SOLID },
+        { "ANTI_POCISK", LL_CTRL_ANTI_POCISK },
     };
     for (unsigned k = 0; k < sizeof tbl / sizeof tbl[0]; k++)
         if (strcasecmp(tbl[k].n, tok) == 0) {
@@ -232,7 +236,7 @@ static void ctrl_flag(const char *tok, unsigned *f, int *other)
             return;
         }
     /* Named in the ll_play.h vocabulary but without a bit (CHECK_LEW,
-     * DANGER, SOLID2, ANTI_POCISK, ...), or a name we have never seen:
+     * DANGER, ...), or a name we have never seen:
      * counted so a missing behaviour is a known gap, never a silent one. */
     if (other)
         (*other)++;
@@ -585,6 +589,8 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
             if (ll_plt_surface_at(ground, xi, yi, LL_PLAY_STEP, &hit)) {
                 p->y = (double)hit.y;                    /* slope following */
                 p->vy = 0;
+            } else if (p->support) {
+                p->vy = 0;                    /* standing on a solid object */
             } else {
                 p->grounded = 0;
                 p->air_from = p->y;
