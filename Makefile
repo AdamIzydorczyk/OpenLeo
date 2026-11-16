@@ -497,7 +497,7 @@ ifeq ($(PX_DATA),1)
 	    /tmp/opencode/lv_cam300.log \
 	  && grep -q 'tick 8: ANIBACK/strum2.mov' /tmp/opencode/lv_cam300.log \
 	  && tools/frames_differ.sh /tmp/opencode/lv_tick8.ppm /tmp/opencode/lv_cam300.ppm \
-	  && echo "scroll camera: back_rect world, world-X strum2 placement, fixed backdrop, objects scroll over it (ok)" \
+	  && echo "scroll camera: back_rect world, world-X strum2 placement, backdrop and objects scroll over it (ok)" \
 	  || { echo "scroll camera check FAILED"; cat /tmp/opencode/lv_cam300.log; exit 1; }
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \

@@ -2911,6 +2911,24 @@ engine-side).
     (5c320) or a default set by a path not yet found; the invulnerability
     constants (75 ticks, hurt lock 30).
 
+## PR-64 — the .PCX backdrop scrolls (DONE 2026-11-16)
+
+  - PR-51 had fixed the backdrop only because the engine's per-layer factor
+    was unknown; PR-57 recovered it (speed= / main_back=, FUN_00057500).
+    The backdrop is the first tlo layer, so x = cam * X[i] / X[R], wrapping
+    modulo the image width like the PCM strips (RAN.01: 40% of a 28800 px
+    world - a 960 px image necessarily wraps, so the engine tiles it too;
+    the hard cut seen on KADMAR.07/KARA.07 is then authored). ll_level
+    paint_base does it in all three frame paths; PCM-only levels are
+    untouched.
+  - NOT applied: the vertical factor. The engine's view is 200 rows (0xc8
+    in 57460) while this viewer shows the image's full height, so the
+    offset would only open blank rows; the backdrop keeps its y.
+  - Proof: backdrop shift hand-derived in the data-free layer selftest
+    (cw 10, speeds 50/100, cam 14 -> shift 7; PCM-only = no shift);
+    RAN.01 checked by eye at cam 0 and 3000 (mountains shift 240 px, no
+    seam). README/Makefile wording updated.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

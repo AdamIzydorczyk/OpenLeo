@@ -1595,6 +1595,10 @@ static void obj_layer_cam(const lvl_obj *o, const par_t *pp, const ll_pcm *lay,
                    ((long long)world_h - ch) * pp->sy[i] / 100);
 }
 
+static void paint_base(unsigned char *canvas, const unsigned char *base,
+                       int cw, int ch, int scrolls, const par_t *pp,
+                       int bg_tix, int cam);
+
 /* PR-61 selftest: per-layer object scroll, hand-derived from 57500/57530.
  * speeds 40,80;70,70;100,100 (RAN.01), main_back 2, cam 1000/camy 100, view
  * 400, world 400, layers all 400 high: x_i = 1000*X/100 = 400/700/1000;
@@ -1630,7 +1634,59 @@ static int obj_layer_selftest(void)
                         " 400,-20)\n", c, cy);
         return 1;
     }
+    {   /* the backdrop: cw 10, speeds 50,50;100,100 ref 1, cam 14 -> shift 7 */
+        unsigned char base[20], out[20];
+        par_t p2;
+
+        par_parse(&p2, "50,50;100,100", "1", 2);
+        for (int i = 0; i < 20; i++)
+            base[i] = (unsigned char)i;
+        paint_base(out, base, 10, 2, 1, &p2, 0, 14);
+        for (int y = 0; y < 2; y++)
+            for (int x = 0; x < 10; x++)
+                if (out[y * 10 + x] != y * 10 + (x + 7) % 10) {
+                    fprintf(stderr, "layer selftest: FAILED backdrop shift at"
+                                    " %d,%d: %d\n", x, y, out[y * 10 + x]);
+                    return 1;
+                }
+        paint_base(out, base, 10, 2, 0, &p2, 0, 14);   /* PCM-only: no shift */
+        if (memcmp(out, base, sizeof base) != 0) {
+            fprintf(stderr, "layer selftest: FAILED unscrolled base\n");
+            return 1;
+        }
+    }
     return 0;
+}
+
+/* PR-64: the .PCX backdrop is the first tlo layer and scrolls like every
+ * other: x = cam * X[i] / X[R] (FUN_00057500), wrapping modulo the image
+ * width as the engine's strips do (RAN.01: 40% of a 28800 px world). Its
+ * vertical parallax is NOT applied: the engine's view is 200 rows
+ * (0xc8 in 57460) while this viewer shows the whole image height, so a
+ * vertical offset would only open blank rows at the bottom. */
+static void paint_base(unsigned char *canvas, const unsigned char *base,
+                       int cw, int ch, int scrolls, const par_t *pp,
+                       int bg_tix, int cam)
+{
+    long long sx = 0;
+
+    if (scrolls && pp->n > 0 && bg_tix < pp->n) {
+        long long xr = pp->sx[pp->ref] ? pp->sx[pp->ref] : 100;
+        sx = (long long)cam * pp->sx[bg_tix] / xr;
+        sx %= cw;
+        if (sx < 0)
+            sx += cw;
+    }
+    if (sx == 0) {
+        memcpy(canvas, base, (size_t)cw * (size_t)ch);
+        return;
+    }
+    for (int y = 0; y < ch; y++) {
+        const unsigned char *r = base + (size_t)y * (size_t)cw;
+        unsigned char *d = canvas + (size_t)y * (size_t)cw;
+        memcpy(d, r + sx, (size_t)(cw - sx));
+        memcpy(d + (cw - sx), r, (size_t)sx);
+    }
 }
 
 static void objs_draw(const lvl_obj *objs, int nobj, unsigned char *canvas,
@@ -2730,6 +2786,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     int npcm_rec = 0;
     const llrs_slot *bg = NULL;
     int bgpref = -1;                /* block index of first present tlo layer */
+    int bg_tix = 0;                 /* tlo index of the backdrop .PCX         */
     {
         char tlo[512];
         snprintf(tlo, sizeof tlo, "%s", des_get(kvs, nk, "tlo"));
@@ -2750,8 +2807,10 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 if (recs[k].id == 1 && ci_eq(st2, stem)) {
                     if (bgpref < 0)
                         bgpref = (int)k;
-                    if (!bg && ci_eq(dot, ".PCX"))
+                    if (!bg && ci_eq(dot, ".PCX")) {
                         bg = &recs[k];
+                        bg_tix = tix;
+                    }
                     if (ci_eq(dot, ".PCM") && npcm_rec < MAX_PCM_LAYERS) {
                         int dup = 0;
                         for (int q = 0; q < npcm_rec; q++)
@@ -3385,7 +3444,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         goto done;
     }
     const unsigned char *base = img.idx ? img.idx : view;
-    memcpy(canvas, base, csz);
+    paint_base(canvas, base, cw, ch, img.idx != NULL, &par, bg_tix, cam);
     layers_at(lay, lay_tix, nlay, &par, cam, camy, cw, ch, world_w,
                   world_h, canvas);
     objs_draw(objs, nobj, canvas, cw, ch, cam, camy, &par, lay, lay_tix,
@@ -3428,7 +3487,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 printf("ll_level: tick %d: %d more placement(s)"
                        " advanced\n", ticks, nobj - shown);
         }
-        memcpy(canvas, base, csz);         /* same order as the live loop */
+        paint_base(canvas, base, cw, ch, img.idx != NULL, &par, bg_tix,
+                   cam);               /* same order as the live loop */
         layers_at(lay, lay_tix, nlay, &par, cam, camy, cw, ch, world_w,
                   world_h, canvas);
         objs_draw(objs, nobj, canvas, cw, ch, cam, camy, &par, lay, lay_tix,
@@ -3575,7 +3635,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                     cam = cam_max;
                 camy = follow_camy(&pl, ch, cam_ymax);
             }
-            memcpy(canvas, base, csz);
+            paint_base(canvas, base, cw, ch, img.idx != NULL, &par, bg_tix,
+                       cam);
             layers_at(lay, lay_tix, nlay, &par, cam, camy, cw, ch, world_w,
                   world_h, canvas);
             objs_draw(objs, nobj, canvas, cw, ch, cam, camy, &par, lay, lay_tix,
