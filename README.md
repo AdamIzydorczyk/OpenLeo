@@ -173,7 +173,8 @@ with the .SEQ art each script state selects through its own `seq=`.
 is bounded: 24 placements, then the count of the rest; the same bound
 applies to the per-tick advance lines). `LEO_LEVEL_CAMY=<px>` sets the
 initial VERTICAL camera (CI; in play mode the camera follows the lion's
-feet, Up/Down pan it in the viewer). `LEO_PLAY_SOLID=0|1` (play mode) forces the object-contact pass off/on:
+feet, Up/Down pan it in the viewer). In play mode Space jumps (viewer key; `LEO_PLAY_SCRIPT` token `JUMP`/`FWDJUMP`); the jump
+impulse units are estimates (see NEXT_STEPS PR-74). `LEO_PLAY_SOLID=0|1` (play mode) forces the object-contact pass off/on:
 solid objects push the lion (ll_seq_shape_push, the game's FUN_00053ae0),
 enemies hurt him by their authored damage= (HUD energy/lives follow) and
 balloons heal him. Default: ON for every level except RAN.01 (the

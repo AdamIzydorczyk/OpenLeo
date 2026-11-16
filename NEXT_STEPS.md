@@ -3184,6 +3184,33 @@ engine-side).
     tracks the lion's y quickly (PR-73 correction stays 65%-follow). No clean
     jump height could be read from it.
 
+## PR-74 — the lion can jump (ESTIMATED units) (DONE 2026-11-16)
+
+  - Parsed: a frame tail `I ix,iy` (impulse) into ll_mov_fr; the K_JUMP
+    condition; ll_play_keys.k_jump (Space in the viewer, `JUMP`/`FWDJUMP` in
+    LEO_PLAY_SCRIPT).
+  - Model: entering a frame with an impulse sets vx = ix/4 * facing and vy =
+    iy/4 (world units/s), leaves the ground and falls at 1650 u/s^2 until the
+    .plt (or a solid) catches him; landing needs vy >= 0 (before this the
+    landing search re-grounded him on the first tick of a jump); a landing
+    ends the jump state and goes to the idle state (A_STAY, else A_DRAP) -
+    the authored `WAIT AC_DUP` hold is not decoded (DUP is unidentified; the
+    jump frame list is ~2 s long against a 0.36 s flight). A bug found by
+    the selftest: the frame advance of the same tick used the OLD state after
+    the landing switch and threw the lion a second time.
+  - Numbers: ZARIA I's A_JUMP_S (`I 120,-1200`) gives v0 -300 u/s, apex 24.3
+    units, 17-18 ticks (0.36 s) in the air - the vine jump measured on video
+    (PR-73: ~21 units, 0.35 s). The units (/4 and g = G.y*30) come from ONE
+    measured jump; the first jump of a run prints a log line saying so.
+  - Not right yet (named): the running jump is far too short (+5 units in
+    the air): the state's T=20 caps vx and the mid-state `F x,y` / `FC x,y`
+    directives that probably change the acceleration/limit are not parsed;
+    airborne conditions (AC_ONAIR/AC_DUP/AC_DRECT) stay false; the other
+    moves (attack, K_FIRE/K_F1.., K_ALT, ladders) are not ported.
+  - Proof: data-free selftest in ll_play (hand-derived Euler numbers: apex
+    24.3, 16-20 airborne ticks, return to the idle state), mutation-checked
+    (impulse divisor 2 fails it). ZARIA.01 run: the jump arc matches.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

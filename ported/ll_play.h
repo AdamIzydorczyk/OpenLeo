@@ -137,10 +137,12 @@ enum {
     LL_COND_K_GEN1, LL_COND_K_GEN2, LL_COND_K_GEN3,
     LL_COND_K_ANY, LL_COND_AC_BREAK_NEXT,
     LL_COND_K_GEN4, LL_COND_AC_TIME,   /* PR-69: scene objects (not the lion) */
+    LL_COND_K_JUMP,                    /* PR-74: the jump key               */
     LL_COND_OTHER
 };
 
-typedef struct { int frame; unsigned ms; int dx, dy; unsigned gen; } ll_mov_fr;   /* gen: bit n-1 = the frame's `GEN K_GENn` tail */
+typedef struct { int frame; unsigned ms; int dx, dy; unsigned gen;
+                 int has_i, ix, iy; } ll_mov_fr;   /* has_i: `I ix,iy` impulse tail */   /* gen: bit n-1 = the frame's `GEN K_GENn` tail */
 typedef struct {
     char target[24];                        /* resolved at parse time      */
     int tidx;                               /* state index, -1 unresolved  */
@@ -180,11 +182,18 @@ int ll_mov_find(const ll_mov_t *m, const char *name); /* state idx or -1  */
 /* ------------------------------------------------------- player sim ---- */
 /* Held-key view of the input (platform.h translates the arrows; the CI
  * drives the same struct from LEO_PLAY_SCRIPT). */
-typedef struct { int k_fwd, k_bkwd, k_up, k_down; } ll_play_keys;
+typedef struct { int k_fwd, k_bkwd, k_up, k_down, k_jump; } ll_play_keys;
 
 /* Project constant, see header note; used only when airborne with a
  * CHECK_LN state that carries no authored fall route. */
 #define LL_PLAY_GRAVITY 200.0
+/* PR-74 ESTIMATES (one measured jump, NEXT_STEPS PR-73/74): a frame's `I x,y`
+ * impulse is divided by LL_PLAY_JUMP_DIV to get world units/s, and a lion in
+ * the air after an impulse falls at LL_PLAY_JUMP_G units/s^2 (the state's
+ * G.y=55 x 30). Both reproduce the vine jump measured on video (apex ~21 u,
+ * v0 ~262 u/s, g ~1640) within 5%, from a single jump. */
+#define LL_PLAY_JUMP_DIV 4
+#define LL_PLAY_JUMP_G 1650.0
 /* Vertical snap tolerance while walking, BOTH directions (slope
  * following; the real .plt slopes need far less, this bounds curbs and
  * short same-height line gaps - RAN.PLT's 302->323 shelf step is 1 px
@@ -205,6 +214,7 @@ typedef struct {
     int broke;                  /* AC_BREAK_NEXT pending (frame list just
                                  * completed)                             */
     double air_from;            /* feet y when ground was lost            */
+    int jumping;                /* PR-74: an impulse put the lion in the air */
     int support;                /* a solid object holds the feet up (set by
                                  * the collision pass, PR-59)              */
 } ll_player;

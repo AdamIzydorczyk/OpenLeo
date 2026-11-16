@@ -1348,7 +1348,7 @@ typedef struct {
 
 static ll_play_keys script_keys(const char *s, int tick)
 {
-    ll_play_keys k = { 0, 0, 0, 0 };
+    ll_play_keys k = { 0, 0, 0, 0, 0 };
     if (!s)
         return k;
     int best = -1;
@@ -1374,6 +1374,10 @@ static ll_play_keys script_keys(const char *s, int tick)
             k.k_bkwd = strcasecmp(tok, "BKWD") == 0;
             k.k_up   = strcasecmp(tok, "UP")   == 0;
             k.k_down = strcasecmp(tok, "DOWN") == 0;
+            k.k_jump = strcasecmp(tok, "JUMP") == 0 ||
+                       strcasecmp(tok, "FWDJUMP") == 0;
+            if (strcasecmp(tok, "FWDJUMP") == 0)
+                k.k_fwd = 1;
         }
         p = v + n;
     }
@@ -4003,7 +4007,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                          (e.type == LL_EV_KEYDOWN ||
                           e.type == LL_EV_KEYUP) &&
                          (e.key == LLKEY_LEFT || e.key == LLKEY_RIGHT ||
-                          e.key == LLKEY_UP   || e.key == LLKEY_DOWN)) {
+                          e.key == LLKEY_UP   || e.key == LLKEY_DOWN ||
+                          e.key == ' ')) {
                     /* M4-B: in play mode the arrows drive the LION
                      * (held-key tracking, KEYUP releases); the camera
                      * follows the player instead (below the loop). */
@@ -4014,6 +4019,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                         pl.keys.k_fwd = on;
                     else if (e.key == LLKEY_UP)
                         pl.keys.k_up = on;
+                    else if (e.key == ' ')            /* viewer choice: Space */
+                        pl.keys.k_jump = on;
                     else
                         pl.keys.k_down = on;
                 }

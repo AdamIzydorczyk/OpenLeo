@@ -205,6 +205,7 @@ static int cond_id(const char *tok)
         { "K_GEN2", LL_COND_K_GEN2 },
         { "K_GEN3", LL_COND_K_GEN3 },
         { "K_GEN4", LL_COND_K_GEN4 },
+        { "K_JUMP", LL_COND_K_JUMP },
         { "AC_TIME", LL_COND_AC_TIME },
         { "K_ANY", LL_COND_K_ANY },
         { "AC_BREAK_NEXT", LL_COND_AC_BREAK_NEXT },
@@ -341,6 +342,7 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                         mf->ms = ms > 0 ? (unsigned)ms : 100u;
                         mf->dx = mf->dy = 0;
                         mf->gen = 0;
+                        mf->has_i = 0;
                         /* A frame line may carry further fields. The one the
                          * model acts on is the authored motion of THIS frame,
                          * "N,ms, M dx,dy" (285 of 18617 shipped frame lines
@@ -381,6 +383,19 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                                         digits = 0;
                                 if (digits)        /* tail of the M pair */
                                     continue;
+                                if (wn == 1 && (word[0] == 'I' || word[0] == 'i')) {
+                                    int ix, iy;
+                                    while (*q == ' ')
+                                        q++;
+                                    if (sscanf(q, "%d,%d", &ix, &iy) == 2) {
+                                        mf->has_i = 1;
+                                        mf->ix = ix;
+                                        mf->iy = iy;
+                                        while (*q && *q != ' ' && *q != ',')
+                                            q++;       /* tail of the I pair */
+                                        continue;
+                                    }
+                                }
                                 if (strcasecmp(word, "GEN") == 0) {
                                     /* PR-69: `GEN K_GENn` = the frame raises
                                      * that signal when it completes */
@@ -506,6 +521,7 @@ static int cond_true(const ll_player *p, const ll_play_keys *k,
         case LL_COND_K_GEN2: v = p->gen[1]; break;
         case LL_COND_K_GEN3: v = p->gen[2]; break;
         case LL_COND_K_ANY:  v = any;       break;
+        case LL_COND_K_JUMP: v = k->k_jump; break;
         case LL_COND_AC_BREAK_NEXT: v = p->broke; break;
         default:             v = 0;         break;   /* OTHER: not simulated */
         }
@@ -515,6 +531,24 @@ static int cond_true(const ll_player *p, const ll_play_keys *k,
             return 1;                                    /* OR semantics */
     }
     return 0;
+}
+
+/* PR-74: entering a frame that carries `I ix,iy` throws the lion: the
+ * horizontal part follows his facing, the vertical part is up (negative). */
+static void apply_impulse(ll_player *p, const ll_mov_st *st, int fi)
+{
+    if (fi < 0 || fi >= st->nfr || !st->fr[fi].has_i)
+        return;
+    static int told;
+
+    if (!told++)
+        printf("ll_play: jump impulse units are ESTIMATED (I/%d u/s, g %.0f u/s^2;"
+               " one measured jump, see NEXT_STEPS PR-74)\n", LL_PLAY_JUMP_DIV,
+               LL_PLAY_JUMP_G);
+    p->vx = (double)st->fr[fi].ix / LL_PLAY_JUMP_DIV * (p->walkdir ? p->walkdir : 1);
+    p->vy = (double)st->fr[fi].iy / LL_PLAY_JUMP_DIV;
+    p->grounded = 0;
+    p->jumping = 1;
 }
 
 int ll_player_step(ll_player *p, const ll_plt *ground,
@@ -553,6 +587,7 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
             p->fi = 0;
             p->ft = 0;
             ev |= LL_PLAY_EV_STATE;
+            apply_impulse(p, &p->mov->st[p->sti], 0);
         }
         break;
     }
@@ -588,7 +623,9 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
      * that has no authored fall route (stepped off a .plt edge). */
     if (!p->grounded) {
         double g = (double)st->gy;
-        if (g == 0.0 && (st->ctrl & LL_CTRL_CHECK_LN))
+        if (p->jumping)
+            g = LL_PLAY_JUMP_G;
+        else if (g == 0.0 && (st->ctrl & LL_CTRL_CHECK_LN))
             g = LL_PLAY_GRAVITY;
         p->vy += g * dt;
     }
@@ -625,13 +662,29 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
              * is below the feet either way. */
             ll_xy hit;
             int yi = (int)(p->y >= 0 ? p->y : p->y - 1) - LL_PLAY_STEP;
-            if (ll_plt_first_below(ground, xi, yi, &hit) &&
+            if (p->vy >= 0 && ll_plt_first_below(ground, xi, yi, &hit) &&
                 p->y >= (double)hit.y - 1.0) {
                 p->y = (double)hit.y;
                 p->vy = 0;
                 p->grounded = 1;
                 p->gen[LL_COND_K_GEN2 - LL_COND_K_GEN1] = 1; /* landing   */
                 ev |= LL_PLAY_EV_GROUND;
+                if (p->jumping) {      /* viewer rule: a landing ends the jump
+                                        * state (the authored `WAIT AC_DUP`
+                                        * hold is not decoded) */
+                    p->jumping = 0;
+                    int idle = ll_mov_find(p->mov, "A_STAY");
+                    if (idle < 0)
+                        idle = ll_mov_find(p->mov, "A_DRAP");
+                    if (idle >= 0 && idle != p->sti) {
+                        p->sti = idle;
+                        p->fi = 0;
+                        p->ft = 0;
+                        p->vx = 0;
+                        ev |= LL_PLAY_EV_STATE;
+                        st = &p->mov->st[p->sti];   /* step 7 uses the NEW state */
+                    }
+                }
             }
         }
     }
@@ -660,6 +713,7 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
                 p->broke = 1;
             } else {
                 p->fi++;
+                apply_impulse(p, st, p->fi);
             }
         }
         if (p->ft >= st->fr[p->fi].ms)                /* guard hit (data */
@@ -790,7 +844,7 @@ int ll_play_selftest(void)
     ll_player_start(&p, &m, 500, 100, 1);
     CHECK(p.grounded && strcmp(m.st[p.sti].name, "A_STAY") == 0);
 
-    ll_play_keys k = { 0, 0, 0, 0 };
+    ll_play_keys k = { 0, 0, 0, 0, 0 };
     k.k_fwd = 1;
     int ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);
     CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 1);
@@ -849,6 +903,49 @@ int ll_play_selftest(void)
         ll_player_step(&p, &pl, &k, 0, 2000, 20);
     }
     ll_plt_free(&pl);
+    {   /* PR-74: the jump impulse (hand-derived, ESTIMATED units): `I 120,-1200`
+         * -> vy = -300 u/s, vx = +30 u/s; g = 1650, 20 ms ticks, gravity
+         * applied before integration: after k ticks vy = -300 + 33k, rise =
+         * 0.02 * sum(-300 + 33j, j=1..9) = -24.3 at k = 9 (vy = -3), then it
+         * falls back to the ground at y = 100 (about 18 ticks in the air) and
+         * the viewer rule returns to the idle state. */
+        static const char JM[] =
+            "A_STAY\nA_JUMP\n\n[A_STAY]\ncontrol=BY_TIME|CHECK_LN\n"
+            "F=600,0\nT=90,90\nG=0,0\nA_JUMP(1)=K_JUMP\nseq=a\n1,100\n\n"
+            "[A_JUMP]\ncontrol=BY_TIME\nF=180,0\nT=20,1\nG=0,55\nseq=a\n"
+            "1,20\n2,20,I 120,-1200\n3,2000\n";
+        static const char JP[] = "1\n1 0,100;2000,100;\n";
+        ll_mov_t *jm = calloc(1, sizeof *jm);
+        ll_plt jp;
+        ll_player q;
+        ll_play_keys jk = { 0, 0, 0, 0, 0 };
+        double top = 100;
+        int air = 0, back = 0;
+
+        CHECK(jm && ll_plt_parse(JP, &jp) == 0);
+        ll_mov_parse(JM, jm);
+        CHECK(jm->st[1].fr[1].has_i && jm->st[1].fr[1].ix == 120 &&
+              jm->st[1].fr[1].iy == -1200);
+        ll_player_start(&q, jm, 500, 100, 1);
+        jk.k_jump = 1;
+        ll_player_step(&q, &jp, &jk, 0, 2000, 20);       /* STAY -> JUMP */
+        jk.k_jump = 0;
+        CHECK(q.sti == 1);
+        for (int t = 0; t < 80; t++) {
+            ll_player_step(&q, &jp, &jk, 0, 2000, 20);
+            if (!q.grounded)
+                air++;
+            if (q.y < top)
+                top = q.y;
+            if (q.grounded && air > 3 && !back)
+                back = t;
+        }
+        CHECK(top > 100 - 26.5 && top < 100 - 22.5);     /* apex ~24.3 */
+        CHECK(air >= 16 && air <= 20);
+        CHECK(back > 0 && q.sti == 0 && q.y == 100 && q.vx == 0);
+        ll_plt_free(&jp);
+        free(jm);
+    }
     if (!rc)
         printf("play selftest: .plt physics (+ the '!' separator variant,"
                " + an authored-empty '0' ground is data not an error),"
