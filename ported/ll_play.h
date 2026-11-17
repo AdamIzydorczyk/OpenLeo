@@ -297,7 +297,15 @@ typedef struct {
                                              * whose path through 0x54250 is
                                              * unverified (NEXT_STEPS PR-99).
                                              * The mode dispatch PR-99 did read
-                                             * - 0x543a1, jump table 0x54380 -
+                                             * is 0x543a0 - PR-100 corrects
+                                             * that record's 0x543a1; jump
+                                             * table 0x54380 - and PR-100
+                                             * found its caller: the state
+                                             * record's own step at 0x521f0,
+                                             * which compares the current
+                                             * row's authored threshold with
+                                             * [obj+0xa1] and takes at most
+                                             * one row per step. It
                                              * shows a BY_X walk DOES go
                                              * through that loop: mode 0 is
                                              * BY_X, and it feeds the row

@@ -986,7 +986,23 @@ static void obj_arm_atak(lvl_obj *o, int lx, int ly, int verbose, int tick)
  * walk bursts: state-gating (A_ATAK/DANGER vs A_RUN), not modelled.
  * With F=0 nothing accumulates, so the state keeps the old time-driven
  * frame advance without moving: kept as the safe reading (a frozen list
- * could deadlock; no shipped game shows a stationary BY_X walk). */
+ * could deadlock; no shipped game shows a stationary BY_X walk).
+ * PR-100 read the engine's own gate for this and it is the SAME shape
+ * as below: the state record's step (0x521f0) calls the mode
+ * dispatcher (0x543a0, slot +0xa0 of the owner object's method table),
+ * whose BY_X branch adds the truncated |v_x|/100 to [obj+0xa1] once per
+ * record step, and the step then compares that accumulator against the
+ * current row's authored threshold field, admits at most one row per
+ * step, and hands the remainder to the row handler - slot +0x18 of a
+ * second method table inside the record object ([rec+0x44], 0x520c0),
+ * which writes that remainder straight back into [obj+0xa1] at 0x52118:
+ * the carry is kept in the object, exactly as `facc` is here. So the
+ * pair obj_walk's `facc` + obj_advance's `facc < f->ms` gate is
+ * structurally what the engine does; what differs is the per-step feed
+ * (the engine truncates to whole px - NEXT_STEPS PR-99 item 9 - while
+ * the port carries a fraction) and the unit of the comparison value,
+ * which in the engine is that feed's unit: counted px for BY_X/BY_Y,
+ * not ms. */
 static void obj_walk(lvl_obj *o, const ll_mov_st *s, unsigned dt_ms)
 {
     double dist = (double)(s->fx >= 0 ? s->fx : -s->fx) * dt_ms / 4000.0;

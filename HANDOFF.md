@@ -658,8 +658,10 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      cluster at x 75..115 on ZARIA.01), so they are regression tripwires, not
      measurements of the lion. Fix: window the sprite from its own bbox.
 
-13. PR-98/PR-99 OPEN ITEMS (the F=/FC=/I/IC motion model; each flagged
-    in code too, full lists in the PR-98 and PR-99 NEXT_STEPS records):
+13. PR-98/PR-99/PR-100 OPEN ITEMS (the F=/FC=/I/IC motion model; each
+    flagged in code too, full lists in the PR-98, PR-99 and PR-100
+    NEXT_STEPS records - PR-100 closes PR-98's item 6 and half of
+    PR-99's item 11):
    - NOT "REFUTED" - PR-99 CORRECTS PR-98 HERE. The engine loop's
      steady state is v_eq = 5*F_eff*s/T, speed proportional to F/T.
      PR-98 recorded that as dead on PR-79's measurements; the samples
@@ -685,7 +687,9 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      feeds ONLY the increment channel, 0x54170's target comes from the row
      `F`/`I` nodes alone. PR-99 has meanwhile read the `control=`
      dispatch that PR-98 left as its open item 2, and it goes the
-     other way: the dispatcher is 0x543a1, its BY_X branch feeds the
+     other way: the dispatcher is 0x543a0 (PR-99 printed 0x543a1; PR-100
+     corrects that from the aligned prologue and 155 method-table
+     entries at slot +0xa0), its BY_X branch feeds the
      row distance accumulator [obj+0xa1] from `[obj+0xca]`, which only
      0x54250 writes (`v_x/100` at 0x54365) - so a BY_X walk DOES run
      through that velocity loop, and "a position mechanism with no
@@ -694,8 +698,29 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      0..2 = BY_X 0 / BY_Y 1 / BY_TIME 2 / BY_TX 3 / BY_TY 4, and
      91% of the shipped states (2121 of 2318) are BY_TIME, which
      advances that accumulator by the global `ds:0xcef40 -> +0x388`
-     instead of by velocity - what that field is, is the new open
-     item 11.
+     instead of by velocity. PR-100 closes half of what that field is:
+     it has exactly one write in the image, `mov [eax+0x388],0x64` at
+     0x4c8b7 - a constant 100 - and the same global is the level's own
+     record object (its +0x3a0 array is what the state parser indexes).
+     PR-100 also found the dispatcher's CALLER: the state record's step
+     at 0x521f0 calls it as slot +0xa0 of the owner object's method
+     table, then compares the current row's threshold field against
+     [obj+0xa1] and admits at most one row per step, handing the
+     remainder to the row handler; that also closes PR-98's item 6
+     ([obj+0x95] = "the row advanced on this record step"). What stays
+     open is the RATE of that step: PR-100 found the caller - `[rec+0x44]`
+     is a second method table inside the record object (16 copies, same
+     layout, installed by the constructors, e.g. `mov [eax+0x44],0x97c9c`
+     at 0x1e119), the step is its slot +0xc, and `call [[rec+0x44]+0xc]`
+     exists exactly once, at 0x5240c inside 0x523f0, a key builder whose
+     only direct caller is 0x5371c. Same record found the row handler
+     (slot +0x18, 0x520c0, no direct caller anywhere) writing the leftover
+     back into [obj+0xa1] at 0x52118, which is why a row advance does not
+     clear the accumulator; and it found the record row-set method
+     0x52360, which reverses the row order from movrec bits 0x10/0x20 -
+     the same two bits 0x520c0 tests, the strongest lead yet that
+     SEQ_REV_X / SEQ_REV_Y are row-order flags and not motion at all.
+     What 100 units of stays open too.
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
      files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's
@@ -753,18 +778,53 @@ narrow and explicit: the engine's law and the port's law differ only in
 the T dependence, and only a BY_X object at T other than 40 can say
 which one is right. Next steps, in order: (1) that video test, which
 the authored data supplies in quantity (F=100 against 11 different T
-pairs) but which needs footage of a level other than ZARIA; (2) what
-paces 0x54250 and what `ds:0xcef40 -> +0x388` is (the cadence, and the
-increment BY_TIME adds - PR-99 open items 4 and 11); (3) what writes
+pairs) but which needs footage of a level other than ZARIA; (2) the
+RATE of the state-record step at 0x521f0 - PR-100 found the caller
+(`call [[rec+0x44]+0xc]` at 0x5240c inside the key builder 0x523f0,
+whose only direct caller is 0x5371c, inside 0x536f0, a key compositor
+with one direct call at 0x550b4 and 31 table slots at an unknown slot),
+so the question is now what invokes 0x536f0; and what "100 units" of the
+level global's +0x388 feed means (PR-99 item 11, half-closed by
+PR-100: the single writer is `mov [eax+0x388],0x64` at 0x4c8b7);
+(3) what writes
 [obj+0xba]/[obj+0xbe] (0x54a00..0x54ab0) and where the full-precision
 velocity moves the coordinates (PR-99 item 10; only `v/100` is stored);
 (4) the other video tests PR-98 lists (the jump's x track against the
 port's one-shot `ix/4`; an `FC` window in A_FIGHT), then a PR that puts
 both sides on one measured law with every play pin re-pinned from it.
-DONE since PR-98: PR-99 read the `control=` dispatch (0x543a1, jump
-table 0x54380) and the BY_* mode enum, closed PR-98's item 2, and
-showed the BY_X branch feeding the row distance accumulator from
-0x54250's own `v/100`.
+DONE since PR-98: PR-99 read the `control=` dispatch and the BY_* mode
+enum (its entry address: that record printed 0x543a1, and PR-100
+corrects it to 0x543a0 from the aligned prologue and 155 method-table
+entries at slot +0xa0; the jump table at 0x54380 stands), closed
+PR-98's item 2, and showed the BY_X branch feeding the row distance
+accumulator from 0x54250's own `v/100`. PR-100 then found that
+dispatcher's caller - the state record's step at 0x521f0, reached as
+slot +0xa0 of the owner object's method table - and with it the whole
+gate: the current row's threshold field is compared against [obj+0xa1]
+once per record step, at most one row is admitted per step, and the
+remainder is handed to the row handler at `[[rec+0x44]+0x18]`. PR-100
+then went one level deeper: `[rec+0x44]` is a SECOND method table
+inside the record object itself (96-byte records, installed by the
+constructors, 16 copies with one shared slot map), the row handler is
+its slot +0x18 = 0x520c0 which writes the leftover straight back into
+[obj+0xa1] at 0x52118, the step is slot +0xc and is called from exactly
+one place, 0x5240c inside the key builder 0x523f0 (a 13-byte key made
+from the record class, the owner and the frame array), and slot +0x1c
+is a row-set method, 0x52360 in four classes, which reverses the row
+order from movrec control bits 0x10/0x20 - the same two bits 0x520c0
+tests, and the strongest lead yet that SEQ_REV_X / SEQ_REV_Y are
+row-order flags rather than motion. Following that chain one step
+further, PR-100 also settled the object side of the same struct:
+[obj+0x50]/[obj+0x5c] is the object's RECORD ARRAY plus a current
+index - PR-77's "frame array" - so each frame carries its own motion
+record, and the method that switches it (0x535a0, the third
+[obj+0x95] setter) calls the old record's +0x20 with the object's key,
+sets [obj+0x95], runs the 0x239c0 hook, calls the new record's +0x1c
+row-set method and writes the new index. PR-98's item 6 is closed too
+([obj+0x95] means "the row advanced on this record step"), and the row
+thresholds are now censused per mode by `tools/re/mov_channels.py`: 94%
+of the BY_TIME values are exact multiples of that 100 feed, the BY_X
+values are small counts of px.
 
 **T2. The lion's attack and enemy energy.**
 Goal: kill the first LICHA. Where: `LEW.MOV` states `A_FIGHT*`, `A_FG_PACKA*`

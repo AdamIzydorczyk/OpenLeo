@@ -32,6 +32,13 @@ any force that appears with two different durations, which is the one
 observable that would separate "the force sets the speed" from "the
 force and the duration together do" (NEXT_STEPS PR-99).
 
+PR-100 adds the last census: the second field of every row - the value
+the engine compares against the row accumulator [obj+0xa1] (0x52320) -
+grouped by movement mode. That is where the "a row threshold is in the
+mode's own feed unit" reading comes from: 94% of the BY_TIME thresholds
+are exact multiples of the 100 that 0x543a0's branches add per step,
+while the BY_X ones are small counts of px.
+
 Row syntax is `<frame>,<threshold>,<directives>` (`9,300,FC 100,0`); a
 leading `;` comments a row out and is skipped, and directive tokens are
 case-insensitive in the data (`F`, `f`). Nothing is written; output only.
@@ -72,8 +79,9 @@ def scan(path):
     """Yield (state_name, data) for one .MOV.
 
     data["hdr"] maps F/T/G -> the header pair; data["rows"] maps
-    F/FC/I/IC -> (sum_x, sum_y) over that state's rows, plus "_n" (rows)
-    and "<kind>_n" (how many pairs of that kind the rows carry).
+    F/FC/I/IC -> (sum_x, sum_y) over that state's rows, plus "_n" (rows),
+    "<kind>_n" (how many pairs of that kind the rows carry) and "_thr"
+    (every row's threshold field, which main() censuses per mode).
     """
     st = None
     with open(path, "r", encoding="latin-1") as f:
@@ -104,6 +112,7 @@ def scan(path):
                 continue
             sums = st[1].setdefault("rows", {})
             sums["_n"] = sums.get("_n", 0) + 1
+            sums.setdefault("_thr", []).append(int(m.group(2)))
             if not m.group(3):
                 continue
             for d in DIR.finditer(m.group(3)):
@@ -127,6 +136,7 @@ def main(argv):
     no_ctrl = [0, 0]        # states without a control= line, all states
     pair_ct = {}            # (mode, F pair, T pair) -> states
     byx_f = {}              # BY_X states: F pair -> the T pairs used with it
+    thr_ct = {}             # mode -> {row threshold value: rows}, PR-100
     for root in dirs:
         if os.path.isfile(root):
             files = [root]
@@ -163,6 +173,9 @@ def main(argv):
                     word |= ENGINE_NAMES.get(t, 0)
                 mode = MODES.get(word & 7, "?%d" % (word & 7))
                 mode_ct[mode] = mode_ct.get(mode, 0) + 1
+                tc = thr_ct.setdefault(mode, {})
+                for t in rows.get("_thr", ()):
+                    tc[t] = tc.get(t, 0) + 1
                 if f != (0, 0) or tv != (0, 0):
                     key = (mode, f, tv)
                     pair_ct[key] = pair_ct.get(key, 0) + 1
@@ -212,6 +225,28 @@ def main(argv):
               " with exactly one T" % len(byx_f))
     for f, ts in sorted(multi.items()):
         print("   F=%s -> T=%s" % (f, sorted(ts)))
+    print("-- row field 2 (`threshold`) per mode. The engine compares exactly"
+          " this\n   value against the row accumulator [obj+0xa1]"
+          " (0x52320-0x5232b), and 0x543a0's\n   branches feed that"
+          " accumulator the truncated `|v|/100` for BY_X/BY_Y\n"
+          "   and the level global's +0x388 = 100 for BY_TIME/BY_TX/BY_TY"
+          " (PR-100).\n   So the units below are that feed's units: counted"
+          " px for the first pair,\n   feed-steps for the rest (a median of"
+          " 300 against a 100 feed = 3 steps).")
+    for m in sorted(thr_ct, key=lambda k: -sum(thr_ct[k].values())):
+        tc = thr_ct[m]
+        vals = sorted(v for v, c in tc.items() for _ in range(c))
+        n = len(vals)
+        if not n:
+            continue
+        p100 = sum(c for v, c in tc.items() if v and not v % 100)
+        pxs = sum(c for v, c in tc.items() if 0 < v <= 20)
+        print("   %-8s rows=%-5d min=%-5d median=%-5d max=%-6d "
+              "x100=%-5d le20=%-5d"
+              % (m, n, vals[0], vals[n // 2], vals[-1], p100, pxs))
+        top = sorted(tc.items(), key=lambda kv: (-kv[1], kv[0]))[:8]
+        print("            top: %s"
+              % ", ".join("%d x%d" % (v, c) for v, c in top))
     return 0
 
 

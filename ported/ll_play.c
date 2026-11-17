@@ -934,10 +934,18 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
      * sample is the lion, whose path through 0x54250 is unverified.
      * Worked the other way (s=10, 20 ticks/s) the same algebra lands on
      * both object samples AND their per-row distances. PR-99 also read
-     * the `control=` dispatch, PR-98's open item 2: it is 0x543a1 with
+     * the `control=` dispatch, PR-98's open item 2: it is 0x543a0 (the
+     * address PR-99 printed as 0x543a1; PR-100 corrects it from the
+     * aligned prologue and the method-table entries at slot +0xa0) with
      * the jump table at 0x54380, mode 0 is BY_X and its branch feeds
      * the row distance accumulator [obj+0xa1] with [obj+0xca], i.e.
-     * |v_x|/100 from the loop above. There is no separate position
+     * |v_x|/100 from the loop above. PR-100 has that feed's owner: the
+     * state record's step at 0x521f0 calls this dispatcher as slot
+     * +0xa0 of its owner object's method table, then compares the
+     * current row's authored threshold with [obj+0xa1], admits at most
+     * one row per step and hands the remainder to the row handler -
+     * the same shape obj_walk/obj_advance have, with a different
+     * per-tick feed. There is no separate position
      * mechanism, and PR-98's other escape (re-reading the header `F=`
      * as 0x54170's velocity target) stays closed: that target is built
      * only from the row-node sums. So this model stays as it is: the
