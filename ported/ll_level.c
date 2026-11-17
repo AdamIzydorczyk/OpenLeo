@@ -777,19 +777,35 @@ static int obj_cond_true(const lvl_obj *o, int brk, const ll_mov_tr *tr)
  * record parse method 0x51910 matches `" ( %[^) ] %*[)] = "` at
  * 0x9225c - the same function that parses `control=`; the derived
  * record class's parser 0x52590 handles `F=`/`T=`/`G=` and delegates
- * everything else to it), N is stored at entry+0x11 MINUS ONE (-1 when
- * the `( N )` part is absent - PR-103 read the subtract at 0x51e3b),
- * is applied as the new row, and the shipped data asks for non-zero N
- * thousands of times
- * (37 states are entered at several different rows; the numbers reach
- * 97, the documented maximum frames in one state). This port parses
- * that number into ll_mov_tr.entry (PR-86) and then ignores it:
- * obj_transition sets o->fi = 0. So the difference is one unused
- * field, not a missing feature. Nothing is pinned from that: it is an
- * observation of the code and the data, and what it changes on screen
- * is unmeasured (NEXT_STEPS PR-102, open item 4). PR-105 adds the
- * shape around it: the whole sequence - compose the key, step the
- * rows, look up this table, apply the match - is ONE virtual method,
+ * everything else to it), N is stored at entry+0x11 MINUS ONE: the token
+ * is tried against `"%ld"` (0x57db0) and read with strtol then `dec`
+ * (0x57fd0, 0x51e3b), while an absent or non-numeric token stores -1
+ * (0x51e3e). That value really is a row: the transition apply step
+ * 0x535a2 (what PR-101 called "the switch") writes the int it was handed
+ * into the state record's live row counter at rec+0x4 on its same-index
+ * path (0x53616), and rec+0x4 IS that counter - the
+ * row stepper 0x520c0 advances it (0x521d7) and wraps it at the last row
+ * (0x521c5). Its cross-state path reaches the same field through the
+ * state record's own method table: every record stores the fixed table
+ * 0xa25d4 at rec+0x44 (its constructors, 0x524cf and 0x52508) and that
+ * path calls slot +0x1c of it on the NEW record (0x535e7-0x535ea) - and
+ * +0x1c is the row-set method 0x52360. It refuses a negative value
+ * (`test edx,edx` + `jl`, 0x52381) and otherwise writes it there raw,
+ * mirrored to `[rec+0x36] - n - 1` when the SEQ_REV reversal of PR-95
+ * says so (0x523bc-0x523c5) - with NO upper bound. PR-107 applies the
+ * row here, through ll_mov_row_start, the rule the lion's side has used
+ * since PR-86. The shipped scope, measured through the port's own parser
+ * over the 777 .MOV: of 2572 numeric transition lines only 273 ask for a
+ * row other than 0 (2299 say `(1)`, which is row 0); 172 of the 273
+ * cross a state boundary, 101 are self-targets, and 25 of the 172 are in
+ * a SCENE-object script - KADMAR.07 22, KADMAR2 1, ENA2 1, SADES.06 1.
+ * 14 lines ask for a row past their target's list and the port clamps
+ * them to the top (the PR-86 rule; the engine does not bound the value);
+ * 12 of those 14 are self-targets. The port also has one frame counter
+ * per object, where the engine keeps one per state record at rec+0x4, and
+ * it does not model the mirror (NEXT_STEPS PR-107, open items). PR-105
+ * adds the shape around it: the whole sequence - compose the key, step
+ * the rows, look up this table, apply the match - is ONE virtual method,
  * the object's slot +0x14 (0x536f0), called once per step from the
  * level's message pump. */
 static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
@@ -804,7 +820,10 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
         int byx = (s->ctrl & LL_CTRL_BY_X) ||
                   (mov->st[s->tr[t].tidx].ctrl & LL_CTRL_BY_X);
         o->sti = s->tr[t].tidx;
-        o->fi = 0;
+        o->fi = ll_mov_row_start(&mov->st[o->sti], s->tr[t].entry);
+                                              /* PR-107: the authored start */
+                                              /* row of `( N ) `, the same   */
+                                              /* rule the lion's side uses  */
         if (!byx) {
             o->x = o->bx;
             o->y = o->by;       /* motion deltas are per state; a BY_X
@@ -1826,6 +1845,83 @@ static int obj_state_selftest(void)
         if (ok)
             goto out;
     }
+    /* PR-107: the `( N ) ` START ROW of a transition, on a scene object
+     * (the lion's side has honoured it since PR-86; the object side
+     * parsed it and threw it away). Hand-derived, no game data. A_RUN has
+     * two 100 ms rows and its second raises K_GEN1, so at 200 ms the line
+     * `A_DEAD(3)=K_GEN1` matches and must enter A_DEAD at its THIRD row -
+     * N is 1-based, so index 2, the last row of the three - and not at the
+     * top: fi 2 is what no earlier version of this code could produce.
+     * The rows that are left after the start - (3 - start) x 100 ms, a
+     * per-case number below - then end that row list, the wrap publishes
+     * AC_BREAK_NEXT (PR-101's key bit 2) and `A_RUN(1)=AC_BREAK_NEXT`
+     * goes back to A_RUN at row 1 = index 0: the wrap is reached from a
+     * mid-list start and from the top alike. The three boundary cases
+     * are the same script with a different token: `(9)` is past A_DEAD's
+     * 3 rows and the port clamps it to the top (the engine bounds
+     * nothing at 0x523cb); the non-numeric `(x)` also starts at the top,
+     * and that token form is real - 44 of the 777 .MOV files author it,
+     * KADMAR2's own lion script among them (`A_MASZERUJ(x)=K_FWD`); and
+     * `(1)` - the form of 2299 of the 2572 shipped numeric lines, the
+     * engine's row 0 - must not move at all, which is what catches an
+     * off-by-one the other way. */
+    {
+        static const char row_tmpl[] =
+            "A_RUN\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\nA_DEAD(%s)=K_GEN1\n"
+            "1,100\n2,100,GEN K_GEN1\n\n[A_DEAD]\ncontrol=BY_TIME\n"
+            "A_RUN(1)=AC_BREAK_NEXT\n5,100\n6,100\n7,100\n";
+        static const struct { const char *tok; int fi; int adv;
+                             const char *what; } cases[] = {
+            { "3", 2, 100, "the third row of a 3-row target" },
+            { "1", 0, 300, "row 1 = the top, the shipped common case" },
+            { "9", 0, 300, "a row past the target's list clamps to the top" },
+            { "x", 0, 300, "a non-numeric token starts from the top" },
+        };
+        int bad = 0;
+
+        for (size_t q = 0; q < sizeof cases / sizeof cases[0]; q++) {
+            char txt[512];
+            snprintf(txt, sizeof txt, row_tmpl, cases[q].tok);
+            ll_mov_t *mr = calloc(1, sizeof *mr);
+            obj_script sr;
+            lvl_obj r;
+
+            if (!mr) {
+                bad = 1;
+                break;
+            }
+            memset(&sr, 0, sizeof sr);
+            memset(&r, 0, sizeof r);
+            ll_mov_parse(txt, mr);
+            sr.mov = mr;
+            r.sc = &sr;
+            obj_advance(&r, 200);
+            if (r.sti != 1 || r.fi != cases[q].fi) {
+                fprintf(stderr, "object state selftest: FAILED A_DEAD(%s)"
+                                " entered at state %d frame %d, expected"
+                                " state 1 frame %d (%s)\n", cases[q].tok,
+                        r.sti, r.fi, cases[q].fi, cases[q].what);
+                bad = 1;
+            } else {
+                /* the rows that are left (3 - start) x 100 ms: the list
+                 * must end and the AC_BREAK_NEXT line must publish it */
+                obj_advance(&r, (unsigned)cases[q].adv);
+                if (r.sti != 0 || r.fi != 0) {
+                    fprintf(stderr, "object state selftest: FAILED the"
+                                    " AC_BREAK_NEXT wrap from a start at"
+                                    " row %s did not return to A_RUN row 1"
+                                    " (state %d frame %d)\n", cases[q].tok,
+                            r.sti, r.fi);
+                    bad = 1;
+                }
+            }
+            free(mr);
+            if (bad)
+                break;
+        }
+        if (bad)
+            goto out;
+    }
     {   /* PR-90: the DANGER + class MAIN box arming stand-in. A
          * DANGER-flagged state arms the script's OWN A_ATAK by name when
          * the lion enters the pinned LICHA MAIN box (|dx| < 40,
@@ -2427,7 +2523,10 @@ int ll_mov_selftest(void)
            " 3-comma lines stay unplaced) + PR-95 attached static image"
            " (a .SEQ line inside a bounded actor's property block is drawn"
            " at parent + offset, not the world corner; one after a"
-           " non-bounded entry keeps its absolute x,y) (ok)\n");
+           " non-bounded entry keeps its absolute x,y) + PR-107 authored"
+           " start row ((3) enters a 3-row state at its THIRD row, (1),"
+           " (9) and (x) at the top, and that row list's wrap still"
+           " returns through A_RUN(1)=AC_BREAK_NEXT) (ok)\n");
     return 0;
 }
 

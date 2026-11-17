@@ -194,6 +194,50 @@ int ll_mov_find(const ll_mov_t *m, const char *name)
     return -1;
 }
 
+/* PR-107: the row a transition's `( N ) ` starts the TARGET state at, as
+ * a 0-based index into its frame list. One rule for both sides that read
+ * it - the lion (ll_player_step) and the scene objects (obj_transition) -
+ * so they cannot drift apart again. The engine's own, verbatim: the
+ * transition line parse matches `" ( %[^) ] %*[)] = "` (the format at
+ * 0x9225c, called from 0x51e12), tries `"%ld"` on that token (0x57db0,
+ * which calls the scanner at 0x74cc8 with the format at 0x92310) and on
+ * a number stores `strtol` MINUS ONE (0x57fd0 + `dec eax` at 0x51e3b);
+ * an absent or non-numeric token stores -1 (0x51e3e). That value is the
+ * transition entry's row field at +0x11, and it reaches the live row
+ * counter of the TARGET state record by both of the engine's paths. The
+ * walk 0x52000 hands it out (0x52046-0x5204d) to the transition apply
+ * step 0x535a2, which takes the target state index in edx and the start
+ * row in ebx: a same-index line writes the row into the current record
+ * straight out (0x53616, and only if it differs - 0x53612 skips the
+ * write otherwise); a cross-state line reaches the same field through
+ * the state record's method table, because every record stores the fixed
+ * table 0xa25d4 at rec+0x44 (its constructors, 0x524cf and 0x52508) and
+ * that step calls slot +0x1c of it on the NEW record (0x535e7-0x535ea),
+ * and +0x1c IS the row-set method 0x52360: it writes rec+0x4 raw
+ * (0x523cb) after refusing a negative value (`test edx,edx` + `jl`,
+ * 0x52381). The value stays live in edx through the methods in between
+ * - they save and restore it themselves (`push edx` 0x52660 /
+ * `pop edx` 0x5267a, and 0x52072 / 0x520b4), the way this binary
+ * carries its second register argument.
+ * rec+0x4 IS the row index: the row-advance method 0x520c0 steps it
+ * (`[rec+0x4] = ecx+1`, 0x521d7) and wraps it at the last row
+ * (`[rec+0x4] = 0`, 0x521c5). The engine has NO upper test on
+ * the value, and mirrors it (`[rec+0x36] - n - 1`, 0x523bc-0x523c5) when
+ * the SEQ_REV reversal of PR-95 applies - neither of which the port
+ * models: an over-long row is clamped to the top here (the rule the
+ * player side shipped in PR-86, and what keeps a state with a short
+ * frame list from being skipped whole), and -1 (the port's entry 0:
+ * absent or `"(x)"`) starts from the top instead of leaving the row
+ * where it was. Both are MODEL CHOICES, recorded in NEXT_STEPS PR-107. */
+int ll_mov_row_start(const ll_mov_st *s, int entry)
+{
+    int i = entry > 0 ? entry - 1 : 0;      /* the authored N is 1-based */
+
+    if (i >= s->nfr)
+        return 0;                           /* over-long row: from the top */
+    return i;
+}
+
 /* PR-88: name -> LL_SIG_* index. The table is the engine's own (name
  * block 0x919ec, bit constants from the comparison chain at 0x48000 -
  * see the ll_play.h enum comment). K_ANY / K_NEVER and their AC_ aliases
@@ -864,9 +908,9 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
         if (st->tr[t].tidx >= 0 && st->tr[t].tidx != p->sti) {
             p->sti = st->tr[t].tidx;
             const ll_mov_st *nt = &p->mov->st[p->sti];
-            p->fi = st->tr[t].entry > 0 ? st->tr[t].entry - 1 : 0;
-            if (p->fi >= nt->nfr)                  /* overlong row: top   */
-                p->fi = 0;
+            p->fi = ll_mov_row_start(nt, st->tr[t].entry);
+                                     /* PR-107: the shared rule, now the same
+                                      * one the scene objects use */
             p->ft = 0;
             p->atc = 0;                /* PR-89: an attack window belongs *
                                         * to the state that opened it.    */

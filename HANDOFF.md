@@ -244,7 +244,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | jump impulse unit | ll_play.h `LL_PLAY_JUMP_DIV` | `I`/4 u/s | ONE measured jump (vine, ep.1 318.6 s); PR-86 re-confirmed on ZARIA live: A_JUMP `I 150,-1200` -> apex ~24 u / 0.36 s, matching the video's jump population (gp.mp4 feet-track scan: clean candidates 23-30 u over 8-13 frames) |
 | jump gravity | `LL_PLAY_JUMP_G` | 1650 u/s^2 (= G.y 55 x 30) | same jump |
 | jump-state ending | ll_play.c | a state that DECLARES an AC_BREAK_NEXT exit ends at its frame-list WRAP (the landing no longer cuts it); forced ->A_STAY/A_DRAP kept ONLY as fallback for states with no such line | PR-86: real A_JUMP/A_JUMP_S declare A_WALK(7)/A_DRAP(1)=AC_BREAK_NEXT; ZARIA.01 leg pins it |
-| `TARGET(N)=COND` entry | ll_play.c/ll_play.h `ll_mov_tr.entry` | numeric (N) = start ROW (1-based) in the target's frame list; non-numeric = top | PR-86 evidence chain in the struct comment (PRE_JUMP skips A_JUMP's impulse row; A_WALK(7) mid-cycle re-join pinned on real data) |
+| `TARGET(N)=COND` entry | ll_play.c `ll_mov_row_start` (used by BOTH the player path and ll_level.c `obj_transition`) | numeric (N) = start ROW (1-based) in the target's frame list; non-numeric = top; an N past the end clamps to the top | PR-86 evidence chain in the struct comment (PRE_JUMP skips A_JUMP's impulse row; A_WALK(7) mid-cycle re-join pinned on real data); PR-107 read the store (`entry-1` at 0x51e3b..0x51e49) and the use: the state record's live row field `rec+0x4`, written raw at 0x523cb by the row-setter, which is the record's own vtable slot +0x1c in the table every record stores at rec+0x44 (0xa25d4, from its constructors 0x524cf/0x52508), and which the transition step 0x535a2 calls on the new state (0x535ea). Two MODEL CHOICES, recorded in the helper's comment: the engine writes the value RAW there, so clamping an over-long row is ours; and "absent / non-numeric" is -1 = "leave the row alone" (0x51e3e, 0x52381), which only COINCIDES with the top because a row list wraps. One row counter per object (`o->fi`) vs the engine's one per state record is also ours |
 | jump key | ll_level.c | Space | viewer choice |
 | fire keys | ll_level.c `play loop` + platform_sdl `map_key` | Ctrl=K_FIRE, F1..F4=K_F1..4 (weapon selectors), Alt=K_ALT; script tokens FIRE/F1..F4/ALT comma-combinable | PR-87; names from the walkthrough, the .MOV conditions are the contract |
 | `,` in transition COND = AND | ll_play.c `parse_cond`/`cond_true` (groups) | `|` ORs groups, `,` ANDs tokens within one; OTHER poisons only its group | PR-87 MODEL CHOICE (evidence in ll_play.h: AC_ONAIR/AC_DRECT pairs, every K_FIRE,K_Fn attack line); A_FIGHT entry pinned real |
@@ -960,6 +960,46 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      0x4a170), lives=9 is set on the single-level path (0x5eae0 ->
      0x5d170), and the sound init reprograms PIT counter 0 to 70.0
      Hz (0x18870).
+   - PR-107 APPLIES THE AUTHORED START ROW ON BOTH SIDES (behaviour
+     change, selftest leg added; the RE facts are in the NEXT_STEPS
+     PR-107 record). The row field of a transition entry is N-1 and is -1
+     for an absent/non-numeric token (0x57db0 `"%ld"` at 0x92310,
+     0x57fd0 + `dec` at 0x51e3b, `mov eax,-1` at 0x51e3e); the lookup
+     hands it out separately from the state index (0x52000 at
+     0x52044-0x5204d) and the row-write target is the record's live row
+     counter at **rec+0x4** - proven from the row stepper 0x520c0, which
+     reads it (0x520d2), steps it (0x521d7), wraps it at the last row and
+     raises key bit 2 there (0x521c1-0x521c5), and mirrors it with bit 3
+     at row 0 (0x5219a-0x521a9); the row-set method 0x52360 refuses a
+     negative value (0x52381) and otherwise writes it raw with NO upper
+     bound (0x523cb). That setter IS the state record's own vtable slot
+     +0x1c: every state record stores the fixed table 0xa25d4 at
+     **rec+0x44** (its two constructors, 0x524cf and 0x52508), and that
+     table's +0x00 is the state-record parser 0x52590, +0x0c the step
+     PR-105 found one call site for (0x5240c = `call [esi+0xc]`,
+     `esi=[rec+0x44]`), +0x18 the row stepper, +0x1c this row-setter,
+     +0x20 a leave-state method that clears bit 0x20 of [obj+0xb6]; the
+     transition step calls +0x20 on the OLD record (0x535bf) and +0x1c on
+     the NEW one (0x535e7-0x535ea), and those methods keep edx for their
+     caller (`push edx` 0x52660 / `pop edx` 0x5267a), which is how the
+     row argument survives them. The same-index path needs no setter: it
+     writes `mov [eax+0x4],edx` itself (0x53616). CORRECTS PR-101: only
+     the same-index path of the switch 0x535a2 reaches 0x53626 - the
+     different-index path returns at 0x53601 after zeroing [obj+0x9d]
+     (0x535c2), and [obj+0x9d] is NOT
+     the row counter. And PR-102's "the engine applies it thousands of
+     times" needs its scope: of the 2572 numeric lines **2299 are `(1)` =
+     row 0**; 273 ask for another row, 101 of those are self-targets, so
+     172 are cross-state, and only **25** are in a scene-object script
+     (KADMAR.07 22, KADMAR2 1, ENA2 1, SADES.06 1) - the rest are the
+     lion's own scripts, honoured since PR-86. Port side: one helper
+     `ll_mov_row_start` for both sides, and three model choices (clamp an
+     over-long row to the top where the engine bounds nothing; treat "no
+     number" as the top where the engine leaves rec+0x4 alone - it
+     coincides only because a finished list wraps to 0 at 0x521c5; no
+     SEQ_REV mirror); the port has ONE frame counter per object where the
+     engine keeps one per state record, which is the open item this change
+     exposes.
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
      files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's
@@ -1018,13 +1058,14 @@ the T dependence, and only a BY_X object at T other than 40 can say
 which one is right. Next steps, in order: (1) that video test, which
 the authored data supplies in quantity (F=100 against 11 different T
 pairs) but which needs footage of a level other than ZARIA; (2) the
-two cheap tests PR-102 points at, both data-supplied and neither done:
-an entry with a large row number (the authored data asks to START a
-state at a row - `A_DEAD(97)=...`, `A_JUMP(14)=...`, 37 states are
-entered at several different rows) against the port, which always
-starts at row 0, and a lion climb state (the 7 BY_TY states) against
-the port, which would test both the vertical-feed reading of mode 4
-and its `[obj+0xbe]` guard. The table itself is now read end to end:
+two cheap tests PR-102 points at: the first is DONE (PR-107 applies the
+authored start row on both sides; measured through the port's own parser,
+of 2572 numeric transition lines 2299 ask for row 0 and 273 do not, 172
+of them cross-state and only 25 in a scene-object script), and what the
+data still owes is FOOTAGE of one of those 25 to say whether the port's
+row is the engine's. The other test is not done: a lion climb state (the
+7 BY_TY states) against the port, which would test both the vertical-feed
+reading of mode 4 and its `[obj+0xbe]` guard. The table itself is now read end to end:
 PR-102 found its writer (the base record parse method 0x51910 ->
 0x51e07, entries of {key, target state index, start row} pushed into
 the vector at `[rec+0x1a]`, and the derived record parser 0x52590 that
@@ -1054,7 +1095,14 @@ the pacing chain end to end: the step 0x521f0 has ONE call site
 site (0x5371c, inside 0x536f0, class slot +0x14), the feed
 dispatcher 0x543a0 has one call site inside 0x521f0 itself, so ONE
 +0x14 CALL = one key composition + one feed update + at most one
-row, and no other scheduler exists;
+row, and no other scheduler exists; PR-107 read what that one row
+advance touches: the live row counter is the state record's own
+`rec+0x4` (0x520c0 reads, wraps and mirrors it; the row-setter 0x52360
+is the state record's vtable slot +0x1c in the table every record stores
+at rec+0x44 - 0xa25d4, written by its constructors 0x524cf/0x52508 - and
+the transition step calls it on the NEW record at 0x535ea), so the
+engine keeps one row counter per state record while the port has one
+`o->fi` per object shared by all its states;
 "100 units" of the level global's +0x388 feed is half-closed
 (PR-100: the single writer is `mov [eax+0x388],0x64` at 0x4c8b7) and
 PR-102 added its gate: that feed only runs when `[obj+0xba]` (modes

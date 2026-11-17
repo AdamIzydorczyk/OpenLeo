@@ -262,7 +262,13 @@ typedef struct {
                               * 7 (mid-phase, seamless landing); A_KILOF's
                               * `A_JUMP(9)` re-joins the jump mid-air. The
                               * token can be non-numeric (KADMAR2 "(x)"):
-                              * then it starts from the top. */
+                              * then it starts from the top. PR-107 read
+                              * the engine's own handling of this token -
+                              * `%ld` then `dec` (0x57fd0/0x51e3b), -1 when
+                              * the token is absent or not a number
+                              * (0x51e3e) - and made the scene objects
+                              * honour it as well as the lion: both sides
+                              * now map it through ll_mov_row_start. */
     struct { int cond; int neg; int grp; short sig; } c[LMOV_MAXCON];
     /* PR-87: tokens sharing a grp number are ANDed; the line is true
      * when ANY group is fully true ('|' starts a new group, ',' splits
@@ -367,6 +373,10 @@ typedef struct {
 
 int ll_mov_parse(const char *text, ll_mov_t *m);   /* returns m->nst      */
 int ll_mov_find(const ll_mov_t *m, const char *name); /* state idx or -1  */
+/* PR-107: the row of ll_mov_tr.entry as a 0-based index into s's frame
+ * list: entry-1, and 0 for an absent/non-numeric token or an over-long
+ * row. The engine evidence and both model choices are in the definition. */
+int ll_mov_row_start(const ll_mov_st *s, int entry);
 
 /* ------------------------------------------------------- player sim ---- */
 /* Held-key view of the input (platform.h translates the arrows; the CI

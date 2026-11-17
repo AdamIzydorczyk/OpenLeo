@@ -7387,6 +7387,263 @@ against build/leo/leo.img (edf19a129e85efb8...).
   method note 1 gets the indexed step. No ported/ file, no pin, no
   behaviour change; the generated .sqlite is not in git.
 
+## PR-107 — the authored start row applied on the object side too: the
+row-set method read verbatim, rec+0x4 shown to be the live row counter,
+the correction of PR-101's end of the switch, and the shipped scope of a
+start row (behaviour change, one new selftest leg)
+
+Closes the half of PR-102/PR-103 that the port never used: `ll_mov_parse`
+has read the `( N )` of a transition line since PR-86 and `obj_transition`
+threw it away. Every address below was read with `python3 dat.py <VA>
+<len>` (exact bytes, `--adjust-vma`), not from the linear-sweep listing;
+the image is 32-bit i386, so the register width of that listing was the
+first thing to check and it is `eax/edx/ebx`, not the 64-bit form.
+
+- THE ROW NUMBER IS BUILT AT PARSE TIME, VERBATIM. 0x51e07 is the
+  transition-line tail of the record parser: 0x51e0b calls 0x53440 (the
+  case-insensitive state-name walk of PR-102/PR-103) and keeps the index
+  at `[ebp-0xc]` (0x51e1c); 0x51e12 loads the format at 0x9225c =
+  `" ( %[^) ] %*[)] = "` and 0x51e22 matches it (0x57d30) into a local
+  buffer; 0x51e2a calls 0x57db0, which is a scan of that token with the
+  format at 0x92310 = `"%ld"` through the scanner at 0x74cc8 and answers
+  the CONVERSION COUNT, 0 when the token is not a number; on 0 the code
+  jumps at 0x51e31 to 0x51e3e, `mov eax,0xffffffff`; on success 0x51e36
+  calls 0x57fd0 (`strtol`, the call at 0x76fa3) and 0x51e3b is `dec eax`.
+  So the row field is N-1 for a numeric token and -1 for an absent or
+  non-numeric one - PR-103's reading, confirmed at the byte level. 0x51e4d
+  then builds the entry (0x49610) from (state index, row value, condition)
+  and 0x51e8f pushes it with `rep movsd` of 5 dwords plus one `movsb` =
+  21 bytes, which is PR-102's stride `add ebx,0x15` exactly.
+- THE LOOKUP HANDS THE ROW OUT SEPARATELY, VERBATIM. 0x52000 walks that
+  vector (0x52011 `lea esi,[eax+0x1a]`, 0x52020 `add ebx,0x15`, count at
+  `[esi+8]`), calls 0x47e40 per entry (0x52033) and on the FIRST match
+  writes `*out0 = [entry+0xd]` at 0x5203c-0x52042 and `*out1 =
+  [entry+0x11]` at 0x52044-0x5204d: the target state index and the row,
+  as two values. 0x535a2 receives them (0x535a4-0x535a8: `mov ecx,eax;
+  mov esi,edx; mov edx,ebx`) and on its same-index path writes the row
+  into the record's field at rec+0x4 unless it already holds it
+  (0x5360f-0x53616).
+- rec+0x4 IS THE LIVE ROW COUNTER - PROOF FROM THE ROW STEPPER (new, and
+  the fact this whole change rests on). 0x520c0 takes the row structure as
+  `[[rec+0x2e] + [rec+0x4]*4]` (0x520cf-0x520d7). Forward: if
+  `[rec+0x4] != count-1` it adds one (0x521d4-0x521d7); AT the last row it
+  ORs key bit 2 into the caller's key byte (`or byte [ebp+0],4`, 0x521c1)
+  and sets `[rec+0x4] = 0` (0x521c5). Reversed: it subtracts one
+  (0x521ae-0x521b1) and at row 0 ORs bit 3 (0x521a1) and sets
+  `[rec+0x4] = count-1` (0x521a5-0x521a9). The count is
+  `[[rec+0x2e]+8]` = `[rec+0x36]` - the expression the port's own
+  obj_advance comment already quotes, now seen from the other side. The
+  direction test at 0x5214b-0x52193 is PR-95's: record bits 0x10/0x20 at
+  `[rec+0x12]`, XOR-ed against the owner-side guards and against
+  `[owner+0x99] == -1`.
+- THE ROW-SET METHOD 0x52360, VERBATIM. Prologue calls 0x52070 first
+  (0x52077 zeroes `[owner+0x9d]`, then interpolates between the record's
+  `[+0x8]`/`[+0xa]` words), then `[owner+0xa1] = 0` (0x5236b) and
+  `[owner+0x99] = 1` (0x52377) - the second is the field the stepper
+  compares against -1 at 0x52184, so a row write also flips the direction
+  term; meaning unread. Then `test edx,edx` + `jl 0x523ce` (0x52381): a
+  NEGATIVE row changes nothing. Otherwise the SEQ_REV test (0x52385
+  `[rec+0x12] & 0x10` against the owner's `+0x70` slot, 0x523a0 `& 0x20`
+  against `[owner+0x71]`, XOR-ed at 0x523b8) picks between the mirror
+  `[rec+0x4] = [rec+0x36] - n - 1` (0x523bc-0x523c5) and the raw
+  `[rec+0x4] = n` (0x523cb). There is NO upper bound anywhere in it, and
+  the value is stored as the parser left it - N-1.
+  THE SLOT IS RESOLVED, AND IT IS THE STATE RECORD'S OWN METHOD TABLE
+  (this is what turns "the effect is proven either way" into the engine's
+  actual call graph). Four tables point at 0x52360 (0xa25f0, 0xa2628,
+  0xa2eb8, 0xa2ef0) and in each it sits four bytes after 0x520c0, the
+  same adjacency as the .MOV state-record family (0x52590 at 0x97c9c with
+  0x520c0 at 0x97cb4; 0x9a85c with 0x9a874; the same pairs at
+  0x98e7c/0x98e94, 0x99338/0x99350, 0x9b5f4/0x9b60c, 0x9cedc/0x9cef4,
+  0x9d53c/0x9d554, 0x9e254/0x9e26c, 0x9f460/0x9f478). Which one a
+  record holds is answered by what writes `rec+0x44` at all: the record
+  constructors 0x524cf and 0x52508 both do `mov [eax+0x44],0xa25d4`, so
+  every state record of this class uses the table at 0xa25d4. Its slots,
+  read out of it: +0x00 = 0x52590, the state-record
+  parser of PR-102, which is what makes it the record's own vtable and
+  not a per-class view; +0x0c = 0x521f0, the step PR-105 traced to one
+  call site (0x5240c), now visible as `mov esi,[ebx+0x44]` +
+  `call [esi+0xc]` - the record driver reaching this table's slot +0x0c;
+  +0x18 = 0x520c0, the row stepper; +0x1c = 0x52360, the row-setter;
+  +0x20 = 0x52660, which clears bit 0x20 of `[owner+0xb6]` (the PR-98
+  drag-floor byte). Of the two constructors, 0x524cf's first zeroes
+  `[eax+0x48]..[eax+0x5c]` (PR-98's `F=`/`T=`/`G=` pair) while
+  0x52508's copies them from the record being cloned (0x5250f-0x52530),
+  and 0x52503 calls the base constructor 0x517e0 where 0x524a0 calls
+  0x51700. The three sibling tables of the family carry the same pair:
+  0xa260c (+0x00 = 0x51910, the BASE record parser of PR-102) has
+  0x520c0 at +0x18 and 0x52360 at +0x1c, and so do 0xa2e9c and 0xa2ed4
+  - those slots are the record family's shape, not one variant's. So the
+  transition step's two calls are those slots: the old record's +0x20
+  (0x535bc-0x535bf) and the new record's +0x1c (0x535e7-0x535ea) - the
+  cross-state path does go through 0x52360. Both methods take the record
+  in eax (`mov edx,eax` at 0x52661, `mov ebx,eax` at 0x52362) and leave
+  the object in ecx, exactly as the call sites do, and the row argument
+  survives the calls in between because those methods carry edx for their
+  caller: 0x52660 opens with `push edx` (0x52660) and returns through
+  `pop edx` (0x5267a), and 0x52070 does the same (0x52072, 0x520b4) -
+  the way this binary keeps its second register argument. Reading the two
+  paths apart also settles what a -1 means on each: the same-index path
+  does NOT call the setter, it writes `mov [eax+0x4],edx` itself (0x53616)
+  with no sign test, so a -1 is really stored and the stepper's wrap
+  (0x521c5) puts it on row 0 at the next tick - the same visible result
+  as the setter refusing it. That is the support for the port's model
+  choice (2): "no number" starts at the top on both of the engine's
+  paths, by different routes.
+- CORRECTION TO PR-101 (quote: "Both paths end at 0x53626: `[obj+0x9d] +=
+  1`, and if the WORD at `[rec+0xc]` is non-zero and `<= [obj+0x9d]`, set
+  bit 0x2 of the byte at [obj+0x61] ..."). Only the SAME-INDEX path
+  reaches 0x53626. The different-index path returns at 0x53601 - and it
+  zeroes `[obj+0x9d]` on the way (0x535c2). So that per-record counter
+  limit publishes the key bit for same-state switches only, and
+  `[obj+0x9d]` is not the row counter: the row counter is rec+0x4 (the
+  stepper above reads and writes only that).
+- CORRECTION TO PR-102'S CENSUS FRAME (quotes: "`A_WAIT(1)=AC_BREAK_NEXT`
+  2572 such lines in 777 .MOV files", "37 target states are entered at
+  several different rows ... the port parses the start row and throws it
+  away; the engine applies it thousands of times"). The 2572 count is
+  right; the scope is not what that sentence implies. Re-measured THROUGH
+  THE PORT'S OWN PARSER (new scratch census `/tmp/opencode/movrows.c`,
+  links ported/ll_play.c so the row counts are what ll_mov_parse sees -
+  the python mirror `/tmp/opencode/rowstart_census.py` had counted only
+  rows whose frame number is non-negative and so got 17 out-of-range cases
+  where there are 14, and its row counts for states authored with
+  negative frame numbers were wrong): of the 2572 numeric lines **2299 are
+  `(1)`**, which IS the engine's row 0, so they cannot change anything;
+  195 carry an absent or non-numeric token (the census does not split the
+  two). A blind grep is not the same count and is worth having on record:
+  `grep -roE '\([a-zA-Z][^)]{0,12}\)='` over those 777 files finds 208
+  `(x)` and 3 `(X)` lines in 44 files, so more transition-shaped lines
+  exist than the parser records as entries - the census number is the one
+  that describes what ll_mov_parse actually stores. Only **273** ask for a
+  row other than 0, **101** of those are self-targets, so **172** shipped
+  lines are
+  cross-state start rows. And "37 states" counts state NAMES; as
+  (file, target-state) pairs it is 51.
+- THE SCOPE THAT CAN ACTUALLY MOVE ON SCREEN. Of those 172, the ones in a
+  SCENE-object script (a .MOV whose class is not the lion's `LEW`/`LEW2`)
+  are **25**: KADMAR.07 22, KADMAR2 1, ENA2 1, SADES.06 1 (the other 147
+  are in the lion's own scripts, which the port has honoured since PR-86).
+  1 of the 25 targets a state whose block carries a `SEQ_REV` name, 7 of
+  the 25 target a state that declares an `AC_BREAK_NEXT` exit - the wrap
+  of PR-101 is what publishes those transitions, so a start row shortens
+  such a state. 14 shipped lines in the whole data set ask for a row at or
+  past their target's row count (12 of them self-targets); the two
+  cross-state ones are `A_WALK -> T_TELEPORT1 (39)` and `A_BORRING ->
+  T_TELEPORT1 (39)` in LONA.05's lion script, where T_TELEPORT1 has 31
+  rows - both are already clamped by the lion's side.
+- WHAT THE PORT NOW DOES. `obj_transition` sets the target's start row
+  instead of 0, and both sides call one helper, `ll_mov_row_start`
+  (ported/ll_play.c), so the lion's rule and the object's cannot drift:
+  `entry > 0` -> index `entry - 1`; `entry == 0` (the port's form of the
+  engine's -1: absent or non-numeric) -> the top; an index at or past the
+  target's row count -> the top. Three MODEL CHOICES, stated: (1) the
+  clamp is the port's, the engine writes the value raw (0x523cb) and its
+  consumer then takes the end-of-list branch; the lion's side has clamped
+  since PR-86 and this keeps the two sides identical, and it is what the
+  new selftest pins for `(9)`. (2) "leave the row where it was" is what
+  the engine does for -1 (0x52381), and it is NOT what the port does: the
+  port starts at the top. That is the common case by accident - a row list
+  that ran to its end leaves rec+0x4 = 0 (0x521c5) - but the engine's
+  per-record counter also survives a state change MID-list, and the port
+  has one counter per object, not one per state record. Open item. (3) the
+  mirror of 0x523bc-0x523c5 is not modelled at all, as before (PR-95 item
+  1); the census says 1 of the 25 would touch it.
+- TEST (data-free, in `obj_state_selftest`, run by `./ll_level
+  --mov-selftest`): one synthetic script, four cases generated from it by
+  substituting the token. A_RUN is two 100 ms rows and its second raises
+  K_GEN1, so `A_DEAD(T)=K_GEN1` fires at 200 ms; A_DEAD is three 100 ms
+  rows. Hand-derived: `(3)` must enter at frame index 2 (N is 1-based) -
+  the value the old code could not produce - `(1)` must enter at 0, `(9)`
+  clamps to 0, `(x)` enters at 0; then each case advances by
+  (3 - start) x 100 ms and must reach the end of A_DEAD's list, take the
+  wrap's key bit and return through `A_RUN(1)=AC_BREAK_NEXT` to A_RUN row
+  0. Mutation checks, all three seen to fail: reverting obj_transition to
+  `o->fi = 0` fails the `(3)` case; deleting the clamp makes `(9)` land in
+  A_RUN instead of A_DEAD; reading N as 0-based fails the `(1)`/`(3)`
+  cases. Restored, `--mov-selftest` and `--play-selftest` are green, and
+  the selftest's own summary line now names this leg the way it names the
+  PR-92/PR-93/PR-95 ones.
+- READING NOTES (the method cost of this PR, worth keeping). The
+  linear-sweep listing in /tmp/opencode/vis/text.asm (a) misses entry
+  points mid-instruction - 0x52360, 0x520c0 and 0x4ff40 have no row at
+  their own address - and (b) any reasoning over it must be in 32-bit
+  registers: the ELF is `ELF 32-bit LSB executable, Intel i386, no section
+  headers`, VA = file offset + 0xf000. `tools/re/leodb.py` answered the
+  pointer questions this PR needs in one call each: `refs 0x52360` (the
+  four table slots), `refs 0x520c0` (the same tables + the .MOV state
+  record family, which is what proved the adjacency), `slots +0x1c` (the
+  negative result, which is the wrong question: that census only walks the
+  tables object constructors store at `[obj+0x8]`, and the answer is about
+  the table a RECORD stores - it came from asking what writes `rec+0x44`
+  instead, which is one grep in the disassembly and two `dat.py` reads).
+- PINS: none moved, and why, because it says what the suite can and
+  cannot see. `make -k verify-all DATA=/tmp/opencode/iso_stage/LEO
+  HD=/tmp/opencode/hd_files` is EXIT=0 on this tree with the same outputs
+  as HEAD, and the fixture-free run is EXIT=0 too. No pin moved because
+  nothing in the suite pins an object's row index over time: the level
+  legs pin scene TEXT (`show KADMAR2: bg PLAN_.PCM ...`, the
+  `authored scene TUNGA.11: ...` greps, `play tick 30: state A_...`) and
+  compare composites C-against-C (linux vs wine), never against a stored
+  frame; the lion's own start rows, which the play legs do exercise
+  (KADMAR.07, ENA2, LONA.05, ZARIA.01/02, KARA.07, ENA.03), go through
+  the same helper but with the rule the port has had since PR-86, so
+  their state text is unchanged. Consequence, stated as an open item:
+  the 25 cross-state object start rows this change makes live are visible
+  to no data leg today - KADMAR.07's 22 are in a level the suite only
+  runs as a lion - so the new selftest is the only coverage, which is why
+  it is four cases plus the wrap rather than one.
+- Docs touched: this record; HANDOFF.md §7 item 13 (the row-start
+  findings and the three model choices) and §8's class-map/pacing
+  paragraph (the "the port parses it and ignores it" sentence is now
+  closed, and the rec+0x4 fact is added); the code comments in
+  ported/ll_play.c (ll_mov_row_start, the evidence above),
+  ported/ll_play.h (ll_mov_tr.entry and the new prototype) and
+  ported/ll_level.c (the obj_transition header). No file under
+  .github/workflows, nothing copyrighted staged.
+- OPEN ITEMS: (1) The row counter's OWNER. rec+0x4 belongs to a state
+  record, and the transition step reaches those records through the
+  object's array at `[obj+0x50]` indexed by state index (0x535b6 and
+  0x535e1) - so the engine keeps one counter per (object, state), where
+  the port has one `o->fi` per object. Whether those records are built per
+  instance or shared, and who writes `[obj+0x50]`, is PR-103's open item
+  2, still open. What follows from it is measurable: an entry with no
+  number leaves the engine's row where it was (0x52381), so that path
+  RESUMES a state's row list mid-way, and only the ran-to-the-end case
+  coincides with 0. 195 shipped lines carry an absent or non-numeric
+  token; how many of those are object cross-state lines was not measured
+  (the same scratch census answers it). (2) The 101 shipped self-target
+  lines with a row: the engine's same-index path DOES write them (0x53616);
+  the port's object path skips self-target lines entirely and its player
+  path deliberately keeps the state running (PR-86). Neither side applies
+  those rows today. (3) The owner side of the row-set method. `[rec+0]` is
+  the owner: 0x52369 and 0x52663 both read it and 0x5266c then clears bit
+  0x20 of `[owner+0xb6]`, the byte PR-98 read the drag floor in - so
+  leaving a state clears that bit, and what that costs is unread. The pair
+  `[owner+0xa1] = 0` / `[owner+0x99] = 1` (0x5236b/0x52377), the second
+  feeding the direction test at 0x52184, and the `[obj+0x9d]` zeroing at
+  0x535c2 and the record getter's own `[owner+0x9d] = 0` (0x52077), are
+  still unmapped. (4) The sibling record vtables: 0xa260c is the BASE
+  record class's (+0x00 = the base record parser 0x51910), 0xa2e9c and
+  0xa2ed4 are two more derived ones, and the methods only they carry
+  (0x559c0, 0x518f0, 0x55970, 0x55820 at 0xa260c+0x08/+0x14/+0x24/
+  +0x2c) are unread; 0x51700, which the record constructor 0x524a0 calls,
+  is the base class's constructor. Which .MOV state class uses which of
+  the four is open. (5) The
+  death-theme hook of PR-104/PR-105 reads the current state's row index
+  == 0; a non-zero authored start row would suppress that theme, which is
+  unmeasured and is the one visible consequence of this change that the
+  video could decide. (6) Whether a row write also resets the row
+  accumulator (the method zeroes `[owner+0xa1]` before storing) - the port
+  carries its row timer across a state change (`o->t` is not reset by
+  obj_transition, and the lion's side resets `p->ft`); unchanged here, and
+  the difference is measurable on the lion's side whenever a transition
+  fires mid-row. (7) No data leg can see a start row at all today (see
+  the PINS note): the 25 shipped object rows live in KADMAR.07, KADMAR2,
+  ENA2 and SADES.06 and the suite runs those blocks as a lion scene or a
+  PCM scene only. A leg that follows one of KADMAR.07's objects, pinned
+  against the video of that scene, is what would close it.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
