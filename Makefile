@@ -664,7 +664,9 @@ ifeq ($(PX_DATA),1)
 	  if [ $$rc -ne 0 ]; then echo "play hit FAILED (rc=$$rc)"; exit 1; fi
 	@grep -q 'play tick 175: hit by LICHA/licha3.mov: damage 15 -> energy 85' \
 	    /tmp/opencode/ly_hit.log \
-	  && echo "play enemy contact: ZARIA.01's LICHA deals its authored damage=15 (energy 100 -> 85 at tick 175, inside the walking model, ok)" \
+	  && grep -q 'play tick 175: first touch raises AC_ENEMY on LICHA/licha3.mov' \
+	    /tmp/opencode/ly_hit.log \
+	  && echo "play enemy contact: ZARIA.01's LICHA deals its authored damage=15 (energy 100 -> 85 at tick 175, inside the walking model, ok); the same touch raises AC_ENEMY on it (PR-92: the object's own A_* lines decide the reaction - this script has none, so it stays)" \
 	  || { echo "play enemy contact grep FAILED"; grep 'hit by' /tmp/opencode/ly_hit.log | head -3; exit 1; }
 # PR-89: the lion's own attack. K_FIRE,K_F1 (PR-87) enters A_FIGHT; the
 # .MOV's ATC_ON/ATC_OFF frame flags open and CLOSE the attack window; the
@@ -721,6 +723,13 @@ ifeq ($(PX_DATA),1)
 # impulse) fires on the very next tick (266) and ends at its own frame-
 # list wrap through A_DRAP(1)=AC_BREAK_NEXT (356, seq=idle entry row 1) -
 # all pure authored data, so this leg now runs to PPM tick 380 to see it.
+# PR-92 adds the object-side touch raise: the first contact (195 here, 175
+# in the contact leg above) also raises AC_ENEMY (bit 7) on the WORM -
+# the engine packet bit (0x51050 `or dh,0x80`). licha3.mov carries no
+# AC_ENEMY line, so no state here can change and every PR-90/91 pin stays
+# byte-identical; the raise IS pinned as a log line, and the consumption
+# (touched objects' own A_ATAK/A_DEAD lines) is pinned data-faithfully in
+# the --mov-selftest fixture with the shipped RBLOK/GPTAK chains.
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SOLID=1 \
 	  LEO_PLAY_DANGER=1 LEO_PLAY_SCRIPT="1:FWD" \
@@ -740,13 +749,17 @@ ifeq ($(PX_DATA),1)
 	  && grep -q 'A_DOSTAL -> A_DRAP' /tmp/opencode/ly_dgr.log \
 	  && grep -q 'play tick 356: state A_DRAP seq idle frame 1' \
 	    /tmp/opencode/ly_dgr.log \
+	  && grep -q 'play tick 195: first touch raises AC_ENEMY on LICHA/licha3.mov' \
+	    /tmp/opencode/ly_dgr.log \
 	  && ! grep -q 'DANGER: lion' /tmp/opencode/ly_hit.log \
 	  && echo "play enemy attack: the DANGER/MAIN-box stand-in arms A_ATAK" \
 	       "at the pinned LICHA 40x50 gate, the worm stands there and lands" \
 	       "exactly one hit through its OWN ATC_ON window; the hit raises" \
 	       "AC_ENEMY_ATC and the lion's OWN authored A_DOSTAL (hit art +" \
 	       "pullback) reacts on the next tick and recovers through A_DRAP" \
-	       "at its wrap; the default runs are unaffected (ok)" \
+	       "at its wrap; the same contact raises AC_ENEMY on the worm" \
+	       "(PR-92, the engine packet's or-dh-0x80 bit; this script" \
+	       " consumes nothing so it stays); the default runs are unaffected (ok)" \
 	  || { echo "play enemy attack grep FAILED"; \
 	       grep -E 'DANGER:|ATTACKS|hit by|A_DOSTAL|A_DRAP' /tmp/opencode/ly_dgr.log \
 	       | head -8; exit 1; }

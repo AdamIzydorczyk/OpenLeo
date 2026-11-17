@@ -223,6 +223,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | lion attack damage / object hit rule | ll_level.c `LL_LION_HIT_DAMAGE` 30, `obj_hit`, `LL_OBJ_HIT_CD` 14, `ll_play.h` `atc`/`atc_hit` | damage 30 = the 0x34103 dispatcher default; hp<0 forces A_DEAD by name; energy -1 never hit-able; countdown 14 (0x27264); window open from `ATC_ON` until `ATC_OFF`, one hit per window, cleared on state change for the 18 blocks that never close it | addresses verified; the 30 stays until the 45%-of-energy+10 template (0xcecfc) identity decodes; the window-clear rule and the corpse-deal-contact rule are model choices (PR-89) |
 | enemy attack (T3 st. 1) | ll_level.c `obj_arm_atak`, `play_collide` window block; `ll_play.h` `LL_CTRL_DANGER` | a current state carrying the authored DANGER flag arms the script's OWN A_ATAK by name when the lion is inside abs(dx) < 40 AND abs(dy) < 50 (strict); the enemy lands ONE hit through its own ATC window (authored damage=, 30-tick lion lock) before/instead of the contact block; OFF unless LEO_PLAY_DANGER=1 | the box numbers are RE-pinned FOR THE CLASS "LICHA" (class chosen from the .des token at 0x616d0; box at 0x61b6e) - the flag-as-precondition, A_ATAK-by-name entry and window-hit mirror are the port's stand-in (engine driver open, §7 item 10) (PR-90) |
 | AC_ENEMY_ATC raiser | ll_level.c `obj_hit`, `play_collide` window block | the hit raises it on the HIT object's own set (PR-88 mechanism) so its `A_DOSTAL(1)=AC_ENEMY_ATC` line fires; PR-91 mirrors the raise onto the LION for the enemy's WINDOW hit (never contact) - his authored A_DOSTAL chain then runs itself | INFERENCE (0 of 279 shipped GEN lines raise it; the combat code must be the raiser); contact NOT raising it is now SUPPORTED by pinned code: the engine's contact tail raises AC_ENEMY (bit 7) into the answer packet (`or dh,0x80`, 0x51050), never bit 16 (post-PR-91 RE addendum); the bit-16 raiser itself stays unpinned (PR-89/91) |
+| AC_ENEMY raiser (PR-92) | ll_level.c `obj_touch_enemy`, called from `play_collide` (solid loop + post-loop non-solid pass) | the lion's touch raises bit 7 on the TACHED object's own set and its OWN table reacts (raise-consume like the balloon path); gated by `hit_cd` (the [obj+0x102] countdown), default-on like contact | PINNED raise site (0x51050 `or dh,0x80` in the 0x50ed0 tail, packet to [obj+0x0..0xb]); feeding the object's own set instead of the unmodelled mailbox head is MODEL, the second non-solid pass is data-forced (no consumer state carries SOLID); a pure touch NOT setting hit_cd=14 is an open item (item 10) |
 | shape payloads for lion-vs-object tests | ll_seq.c `ll_seq_shape_push2`, ll_level.c `play_collide` | each element's margin lists read from its OWN .SEQ payload (paired form) | model choice: how the original resolved two elements into its single-payload routine is unpinned; same-payload pairings stay byte-identical (selftest-pinned, PR-89) |
 
 ## 7. Open questions (ranked by how much they block)
@@ -494,6 +495,25 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      still walk it (unpinned). The lion-side raise landed with PR-91
      (the authored A_DOSTAL reaction: hit art, `I -320,-250`
      pullback, recovery through A_DRAP at the wrap).
+   - PR-92 SHIPPED the object-side half: a touch raises AC_ENEMY (bit
+     7) on the touched object (0x51050) and its own A_ATAK(1)/
+     A_DEAD(1)=AC_ENEMY lines react (selftest with the shipped
+     RBLOK/GPTAK chain texts; the two contact legs pin the raise
+     log). Two model choices stay open: (a) the engine writes the
+     set as a MAILBOX at [obj+0x0..0xb] (0x51074) - the port feeds
+     the object's own sig set instead, since no [obj+0x0] field is
+     modelled and only its own table can read the bit; (b) the
+     [obj+0x102] countdown GATES the raise via hit_cd but a pure
+     touch does not SET 14 (the engine's handler does - shipping
+     that would re-pin the PR-89 kill fixtures: a touched object
+     would reject the lion's next hit for 14 ticks).
+   - Live object-side CONSUMPTION is pinned offline only: the shipped
+     bit-7 consumers sit where no play leg reaches (ENA.03 RBLOK x3
+     at (1600..1640,562) - the level spawns A_SWIM and the port has
+     no swimming locomotion; RAN.01 GPTAK at (200,200) with dy 98 >
+     the 40x50 box, BY_TIME; LONA.05 FOKA at (893,480), level never
+     played). The next live proof wants swimming/flight motion work,
+     not more signal plumbing.
 
 ## 8. Plan: tasks, in order. One task = one or a few PRs.
 
@@ -564,10 +584,19 @@ A_DOSTAL reaction runs with zero new mechanism (entry row 1 at tick
 266, seq=hit art, the `I -320,-250` pullback impulse, wrap exit
 A_DRAP(1)=AC_BREAK_NEXT at tick 356; selftest + play legs pin the
 whole chain; contact hits deliberately do NOT raise it - open question
-10). What remains for T3: the engine's own driver and ATACK-side test
-(open question 10), the other classes' gates, and `scope=`'s real
-consumer (measurably NOT the attack box); the attack itself has NO
-authored motion - the worm stands and swings, matching the frames.)
+10). PR-92 lands the OBJECT-SIDE half of the contact protocol: the
+touch raises AC_ENEMY (bit 7) on the touched object - the engine
+packet bit (0x51050 `or dh,0x80`) - and the object's OWN A_ATAK(1)/
+A_DEAD(1)=AC_ENEMY lines react (obj_touch_enemy; a second non-solid
+shape pass outside the SOLID loop, because no consumer state carries
+SOLID; the selftest pins the shipped RBLOK/GPTAK chains, the two
+contact legs pin the raise at 175/195 with every older pin
+byte-identical). What remains for T3: the engine's own driver and ATACK-side test
+(open question 10), the other classes' gates, live object-side
+consumption (swimming/flight locomotion - see open question 10), and
+`scope=`'s real consumer (measurably NOT the attack box); the attack
+itself has NO authored motion - the worm stands and swings, matching
+the frames.)
 
 **T4. Signal bus, pickups, inventory.**
 Resolve open question 2 (RESOLVED in PR-88: the full name->bit table decoded

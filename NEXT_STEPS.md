@@ -4305,6 +4305,60 @@ the CONTACT path really raises (RE after PR-91; answers half of the
     touched objects (and the AC_TIME lead above) is the data-faithful
     next step, not inventing a new token.
 
+## PR-92 - the lion's touch raises AC_ENEMY (bit 7) on touched objects
+(raises + consumes; the object's OWN lines then decide the reaction)
+
+- Engine pin (all of it): the tail of the generic touch handler (0x50ed0,
+  0x50fd4..0x51083) builds the 12-byte answer packet and sets BIT 7 into
+  it at 0x51050 (`or dh,0x80`), merges 0x55130's set through the OR
+  (0x49580) and writes the packet into the touched object's head
+  ([obj+0x0..0xb], `rep movsd` 0x51074..0x51081). The handler is gated
+  by the invulnerability countdown [obj+0x102] (0x502f0; setter default
+  14, 0x27264). The port: obj_touch_enemy (ll_level.c, after
+  balloon_hit) raises bit 7 on the touched object's OWN sig set and runs
+  obj_transition immediately - the balloon precedent (raise, transition,
+  leave the bus empty; one-beat pulses per PR-88). No new flag: the
+  raise is default-on exactly like contact damage.
+- Why the object's OWN set (MODEL, flagged in code): the packet is a
+  mailbox at the object's head; [obj+0x0..0xb] is not modelled and
+  nothing else could read the bit. The data reads the same way: all 14
+  active AC_ENEMY consumers are object-side lines (census in the
+  addendum), so the object's own transition table decides the reaction.
+- Why a SECOND pass outside the SOLID loop (data-forced): NONE of the
+  14 consumer states carries SOLID (GPTAK BY_TIME|FRAME_REV|CHECK_LEW|
+  CH_DIR|DANGER, FOKA BY_TIME|CHECK_LEW|CHECK_LN, RBLOK BY_TIME|FRAME_
+  REV|CHECK_LN|CHECK_LEW|CHECK_ANI|CH_DIR|DANGER) - a raise inside the
+  existing solid loop alone would be data-dead. The post-loop pass uses
+  the same paired-shape test (ll_seq_shape_push2, meet = d1||d2) at the
+  lion's POST-push position (the engine answers after the push-out,
+  0x552e0 -> 0x55230), same src/plane gates, skips BAL (own touch
+  method) and objects whose CURRENT state is solid (raised in-loop
+  already), and moves nobody.
+- hit_cd gates the raise (mirror of the [obj+0x102] gate; PR-89's
+  countdown already runs on the fixed step) but a pure touch does NOT
+  SET hit_cd=14 (OPEN: the engine's handler does set 14 there; shipping
+  that would make a touched object reject the lion's next hit for 14
+  ticks and would re-pin the PR-89 kill fixtures - left as-is).
+- Proof shipped: the --mov-selftest fixture carries the TWO CHAIN TEXTS
+  VERBATIM (RBLOK: A_RUN carries A_ATAK(1)=AC_ENEMY, a touch ARMS the
+  attack; GPTAK: A_ATAK carries A_DEAD(1)=AC_ENEMY) plus negatives -
+  hit_cd gate, dead gate, a script without any AC_ENEMY line stays put
+  (bit 7 is not K_GEN1), the bus is empty after every call. Live: the
+  DANGER leg pins 'play tick 195: first touch raises AC_ENEMY on
+  LICHA/licha3.mov' and the contact leg pins the same at 175 - both
+  contact answers raise it; licha3.mov consumes nothing, so every
+  PR-89/90/91 pin (171/175/231/265/266/356) stayed byte-identical.
+- NOT live, future candidate: the only reachable bit-7 consumer chain on
+  shipped data is ENA.03's RBLOK x3 (authored (1600..1640,562),
+  A_ATAK(1)=AC_ENEMY) - but ENA.03 spawns the lion in A_SWIM (LEW.ENA
+  23 states, spawn feet (100,560) grounded=1) and the port has no
+  swimming locomotion: a 120 s FWD script never reaches x=1600
+  (measured, pr92_ena_play.log: A_SWIM <-> A_SWIM_WB forever). RAN.01's
+  GPTAK vultures all sit at (200,200) above ground y=298 (dy 98 > the
+  40x50 box; BY_TIME, the port never moves them); LONA.05's FOKA sits
+  at (893,480) in a level no play leg runs. Live consumption waits for
+  swimming/flight locomotion work, not for more signal plumbing.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

@@ -1477,6 +1477,7 @@ static int seq_push_selftest(void)
  *   frame 2 carrying `GEN K_GEN1`: at 200 ms A_RUN -> A_DEAD (fi 0), and
  *   100 ms later the frame list of A_DEAD ends -> A_RUN again. */
 static int balloon_hit(int bx, int by, int rx, int ry, int rw, int rh);
+static void obj_touch_enemy(lvl_obj *o, int verbose, int tick);
 
 /* PR-78: a placement whose START state has CHECK_LN is a ground-bound actor
  * (the lion's own spawn works the same way: authored pozycja 50,640 falls to
@@ -1772,6 +1773,90 @@ static int obj_state_selftest(void)
         if (!ok) {
             fprintf(stderr, "object state selftest: FAILED DANGER/MAIN-box"
                             " arming leg\n");
+            goto out;
+        }
+    }
+    {   /* PR-92: the touch raise AC_ENEMY, consumed by the object's OWN
+         * lines. The raiser is the shipped obj_touch_enemy (raise bit 7,
+         * run the transition table, leave the bus empty); the chains are
+         * the two shipped .MOV texts verbatim: RBLOK (ENA.03) carries
+         * A_ATAK(1)=AC_ENEMY in A_RUN (a touch ARMS the attack), GPTAK
+         * (RAN.01) carries A_DEAD(1)=AC_ENEMY in A_ATAK. Negatives: the
+         * [obj+0x102] countdown gate (hit_cd) and death block the raise,
+         * a script without any AC_ENEMY line (LICHA) stays put, and the
+         * signal bus is empty after every call (one-beat pulse). */
+        static const char tch[] =
+            "A_RUN\nA_ATAK\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\n"
+            "A_ATAK(1)=AC_ENEMY\n1,100\n\n[A_ATAK]\ncontrol=BY_TIME\n"
+            "A_DEAD(1)=AC_ENEMY\n2,100\n\n[A_DEAD]\ncontrol=BY_TIME\n"
+            "3,100\n";
+        static const char tno[] =
+            "A_RUN\nA_ATAK\n\n[A_RUN]\ncontrol=BY_TIME\n"
+            "A_ATAK(1)=K_GEN1\n1,100\n\n[A_ATAK]\ncontrol=BY_TIME\n"
+            "2,100\n";
+        ll_mov_t *mt = calloc(1, sizeof *mt), *mo = calloc(1, sizeof *mo);
+        obj_script st, so;
+        lvl_obj t, u;
+        int ok = mt && mo;
+
+        if (ok) {
+            ll_mov_parse(tch, mt);
+            ll_mov_parse(tno, mo);
+            if (mt->nst < 3 || mo->nst < 2)
+                ok = 0;                           /* parse guard          */
+            memset(&st, 0, sizeof st);
+            memset(&so, 0, sizeof so);
+            st.mov = mt;
+            so.mov = mo;
+            memset(&t, 0, sizeof t);
+            t.sc = &st; t.x = t.bx = 300; t.y = t.by = 100; t.hp = 20;
+            memset(&u, 0, sizeof u);
+            u.sc = &so; u.x = u.bx = 120; u.y = u.by = 50; u.hp = 20;
+            u.hit_cd = LL_OBJ_HIT_CD;              /* countdown gate     */
+            obj_touch_enemy(&u, 0, 0);
+            if (u.sti != 0 || u.sig) {
+                fprintf(stderr, "object state selftest: FAILED a raised"
+                                " AC_ENEMY passed the hit_cd gate\n");
+                ok = 0;
+            }
+            u.hit_cd = 0;
+            u.dead = 1;                           /* dead: never answers */
+            obj_touch_enemy(&u, 0, 0);
+            u.dead = 0;
+            if (u.sti != 0 || u.sig) {
+                fprintf(stderr, "object state selftest: FAILED a dead"
+                                " object answered the touch\n");
+                ok = 0;
+            }
+            obj_touch_enemy(&u, 0, 0);            /* no AC_ENEMY line:   */
+            if (u.sti != 0 || u.sig) {            /* bit 7 is not K_GEN1 */
+                fprintf(stderr, "object state selftest: FAILED a script"
+                                " without an AC_ENEMY line answered"
+                                " (%d)\n", u.sti);
+                ok = 0;
+            } else {
+                obj_touch_enemy(&t, 0, 0);        /* RBLOK: the touch    */
+                if (t.sti != 1 || t.fi != 0 || t.sig) {   /* arms A_ATAK */
+                    fprintf(stderr, "object state selftest: FAILED the"
+                                    " touch did not arm A_ATAK (%d)\n",
+                            t.sti);
+                    ok = 0;
+                } else {
+                    obj_touch_enemy(&t, 0, 0);    /* GPTAK: A_ATAK meets */
+                    if (t.sti != 2 || t.fi != 0 || t.sig) { /* A_DEAD    */
+                        fprintf(stderr, "object state selftest: FAILED"
+                                        " AC_ENEMY in A_ATAK did not go"
+                                        " to A_DEAD (%d)\n", t.sti);
+                        ok = 0;
+                    }
+                }
+            }
+        }
+        free(mt);
+        free(mo);
+        if (!ok) {
+            fprintf(stderr, "object state selftest: FAILED AC_ENEMY touch"
+                            " leg\n");
             goto out;
         }
     }
@@ -2189,7 +2274,9 @@ int ll_mov_selftest(void)
     free(sc.mov);
     free(m);
     printf("mov selftest: duration clamp + cycle guard + per-state seq= art"
-           " selection + patch codecs + anchored draw + shape geometry + push-out + object layers + object state machine + object walking motion (ok)\n");
+           " selection + patch codecs + anchored draw + shape geometry + push-out + object layers + object state machine + object walking motion"
+           " + PR-92 AC_ENEMY touch raise (touch arms A_ATAK, A_ATAK meets"
+           " A_DEAD, hit_cd/dead gate it, bus empty) (ok)\n");
     return 0;
 }
 
@@ -2364,6 +2451,55 @@ static int balloon_hit(int bx, int by, int rx, int ry, int rw, int rh)
     int px = bx + 10, py = by + 10;
 
     return px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
+}
+
+/* PR-92: the lion's touch raises AC_ENEMY (bit 7 of the PR-88 table) on
+ * the touched object. The engine site is the tail of the generic touch
+ * handler (0x50ed0, 0x50fd4..0x51083): it builds a 12-byte named-set
+ * answer packet, sets BIT 7 into it at 0x51050 (`or dh,0x80` = bit 7 of
+ * byte 0), merges it through the TEventSet OR (0x49580) together with
+ * whatever 0x55130 returned, and writes the packet into the head of the
+ * OTHER object it touched ([obj+0x0..0xb], `rep movsd` 0x51074..0x51081).
+ * The whole handler is gated by the invulnerability countdown [obj+0x102]
+ * (0x502f0; setter default 14, 0x27264) - the port mirrors that gate
+ * through o->hit_cd, which PR-89 already runs on the same fixed step.
+ * The bit means "an enemy touched me" exactly as the data reads: all 14
+ * active AC_ENEMY consumers in the shipped .MOV texts are object-side
+ * lines - "A_DEAD(1)=AC_ENEMY" x6 (the vultures of RAN.01, the barrels
+ * of KADMAR.07), "A_AWAY(1)=AC_ENEMY" x4, "A_SHOW(1)=AC_ENEMY" x2 (the
+ * seal of LONA.05), "A_ATAK(1)=AC_ENEMY" x1 (the RBLOK of ENA.03) - so
+ * the port raises it on the touched object's OWN set (the PR-88
+ * mechanism, exactly what PR-89/91 shipped) and the object's own
+ * transition table decides the reaction: only the raise is new.
+ * MODEL CHOICES (recorded NEXT_STEPS PR-92 + HANDOFF item 10): the
+ * packet is a mailbox at the object's HEAD, the port feeds the object's
+ * own set - nothing else could read the bit (0x51062 wrote [obj+0x0]
+ * fields no shipped model consumes); and the countdown gates but a pure
+ * touch does not SET it - the engine's handler does set 14 there, and
+ * shipping that would re-pin the PR-89 kill fixtures (an object touched
+ * would reject the lion's next hit for 14 ticks); open question.
+ * Balloons are excluded: they have their own touch method (the block
+ * above). Raise and consume happen at once, exactly like the balloon
+ * path: the object's table reacts on this beat or the bus goes empty
+ * again (one-beat pulses are the PR-88 bus semantics). */
+static void obj_touch_enemy(lvl_obj *o, int verbose, int tick)
+{
+    if (!o->sc || !o->sc->mov || o->dead || o->hit_cd > 0 || o->sti < 0 ||
+        o->sti >= o->sc->mov->nst)
+        return;
+    o->sig |= 1ull << LL_SIG_AC_ENEMY;
+    static int told;
+    if (verbose && !told++)
+        printf("ll_level: play tick %d: first touch raises AC_ENEMY on"
+               " %s/%s: the object's own A_* lines decide the reaction"
+               " (PR-92)\n", tick, o->sc->leaf, o->sc->movname);
+    if (obj_transition(o, o->sc->mov, 0)) {
+        if (verbose)
+            printf("ll_level: play tick %d: %s/%s ANSWERS the touch:"
+                   " AC_ENEMY -> state %s\n", tick, o->sc->leaf,
+                   o->sc->movname, o->sc->mov->st[o->sti].name);
+    }
+    o->sig = 0;
 }
 
 /* PR-59: FUN_00053ae0 - what a solid object does to the lion. The lion is
@@ -2554,6 +2690,10 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                        " energy %d\n", tick, o->sc->leaf, o->sc->movname,
                        o->damage, pl->energy);
         }
+        /* PR-92: the same touch answers with the AC_ENEMY raise too (the
+         * engine's 0x50ed0 tail builds its packet after the damage and
+         * DANGER branches, and this loop's shapes have just met). */
+        obj_touch_enemy(o, verbose, tick);
         if (verbose)
             printf("ll_level: play tick %d: solid %s/%s %s at %d,%d push"
                    " %d,%d (ret %d) lion %d,%d\n", tick, o->sc->leaf,
@@ -2561,6 +2701,49 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                    : (c & LL_CTRL_SEMI_SOLID) ? "SEMI" : "SOLID",
                    o->x, o->y, dx, dy, r, lx, ly);
         lx = (int)pl->p.x;            /* later objects see the moved lion */
+    }
+    /* PR-92 (2/2): the touch raise for objects that are NOT solids. The
+     * engine's touch handler is not the solid-push pipeline - 0x50ed0
+     * runs for any pair that meets (the push-out above is only its
+     * FUN_00053ae0 part) - and EVERY shipped AC_ENEMY consumer lives in
+     * a state without a SOLID flag (GPTAK: BY_TIME|FRAME_REV|CHECK_LEW|
+     * CH_DIR|DANGER, FOKA: BY_TIME|CHECK_LEW|CHECK_LN, RBLOK: BY_TIME|
+     * FRAME_REV|CHECK_LN|CHECK_LEW|CHECK_ANI|CH_DIR|DANGER): a raise
+     * only inside the solid loop would be data-dead. Same paired-shape
+     * test as the loop, evaluated at the lion's POST-push position (the
+     * engine answers after the push-out: 0x552e0 -> 0x55230), same
+     * list/plane gates, but nobody is moved by it. Objects whose CURRENT
+     * state IS solid were already raised inside the loop. */
+    {
+        int lx2 = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5);
+        int ly2 = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5);
+        for (int k = 0; k < nobj; k++) {
+            lvl_obj *o = (lvl_obj *)&objs[k];
+            if (!o->sc || !o->sc->mov || o->sti < 0 ||
+                o->sti >= o->sc->mov->nst)
+                continue;
+            if (ci_eq(o->sc->leaf, "BAL"))      /* their own touch method */
+                continue;
+            unsigned c = o->sc->mov->st[o->sti].ctrl;
+            if (c & LL_CTRL_SOLID)              /* raised inside the loop  */
+                continue;
+            if (o->src == 0 ? !(ls->ctrl & LL_CTRL_CHECK_ZW)
+                            : o->src == 1 ? !(ls->ctrl & LL_CTRL_CHECK_ANI) : 1)
+                continue;
+            if (o->layer != pl->layer && !(ls->ctrl & LL_CTRL_CHECK_ALL_PLANE))
+                continue;
+            int om;
+            const ll_seq *oseq = NULL;
+            const ll_seq_elem *oe = obj_shape_elem(o, &om, &oseq);
+            if (!oe)
+                continue;
+            int d1, d2;
+            ll_seq_shape_push2(oseq, oe, o->x, o->y, om ? -1 : 1,
+                               lseq, le, lx2, ly2, lm ? -1 : 1, &d1, &d2);
+            if (d1 == 0 && d2 == 0)
+                continue;                       /* no shape meet: no touch  */
+            obj_touch_enemy(o, verbose, tick);
+        }
     }
 }
 
