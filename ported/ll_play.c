@@ -2461,6 +2461,126 @@ int ll_play_selftest(void)
         free(tsm);
         free(ts0);
     }
+    {   /* PR-114: the `fx != 0` half of the BY_X gate - the half no
+         * leg was ever in. Section 4's feed and section 7's `walk`
+         * flag both read `(st->ctrl & LL_CTRL_BY_X) && st->fx != 0`;
+         * the second term is the port's own addition, since 0x543a0
+         * keys mode 0 on the MODE alone (PR-100's owner reading). The
+         * corpus count is now a tool output, not a claim:
+         * tools/re/mov_byx_gate.py over the 777 .MOV measures 105
+         * BY_X state blocks in 69 files, and 30 of them (290 rows,
+         * 21 files) say F=0,0 - 29 of those 30 declare no motion
+         * source of their own, so for them this is the whole law.
+         * Three fixture states in this repo are BY_X with fx == 0
+         * (here: GL's A_GO_TO_BALON_L; in ll_level.c: obj_motion's
+         * `halt`, and a CHECK_LN ground probe with no F= line), but
+         * none of them says anything about the row clock: A_GO_TO_
+         * BALON_L's rows are 1 unit and its CHECKs read the drawn
+         * frame; `halt`'s leg only checks that the object does not
+         * move, and its comment marks the frame list "falls back to
+         * time - estimate". So the choice was unpinned, not absent.
+         * This leg pins it and changes nothing: what the engine does
+         * with these 30 states is the open question, recorded as
+         * NEXT_STEPS PR-114.
+         * Hand-derived, no game data, every step at dt = LL_ITER_MS,
+         * which is the grid where one step is exactly one feed.
+         * A_PUSH is the control half: BY_X, F=1000,0, T=40,0, so
+         * acc = |F| * dt = 28 per step and the T= cap is 40: vx =
+         * 28.0 after one held step, 40.0 after the second, and the
+         * distance (28*0.028 + 40*0.028 = 1.904) feeds `facc` ONLY:
+         * one row of 1000 units stays unclosed and row_t/row_rem
+         * stay exactly 0 - the mode-0 branch replaces the wall clock.
+         * The K_GEN1 pulse then moves him into A_COAST: BY_X with
+         * F=0,0 and NO T= at all, the shape of 29 of the 30. Both
+         * terms of the gate are now false, and two things follow:
+         * - the velocity is FROZEN at the entry value. Section 2's
+         *   accel is |F| * dt = 0, so dv is clamped to 0 whichever
+         *   way the target points - and the two readings disagree
+         *   here on purpose: the state's own target is 0 (no T=,
+         *   tx = 0) while auto_walk is 1 from the K_GEN1 match.
+         *   40.0 survives both, and it does not brake on release
+         *   either: the brake law is the same |F| * dt.
+         * - the rows run on the ITERATION clock instead: section 7
+         *   feeds 100 per step, so six rows of 100 close in six
+         *   steps, one per step, the sixth closing index 5 of 5 and
+         *   wrapping (fi back to 0, `broke` armed by the wrap alone,
+         *   ll_play.c:1309). `facc` stays exactly 0.0 the whole way.
+         * MUT-1 (delete `st->fx != 0`, i.e. key the feed on the mode
+         * as the dispatcher does): A_COAST becomes a walking state,
+         * its wall clock never runs and 6 steps travel 6.72 against a
+         * 100-unit row, so the leg fails at its first step - and no
+         * other leg changes, which IS the coverage claim. MUT-2
+         * (delete the MODE half instead): this leg stands, PR-110's
+         * BY_TIME legs fail. The mode half was covered; the fx half
+         * was not. */
+        static const char BX[] =
+            "A_PUSH\nA_COAST\n\n[A_PUSH]\ncontrol=BY_X|CH_DIR\n"
+            "F=1000,0\nT=40,0\nG=0,0\nA_COAST(1)=K_GEN1\nseq=a\n"
+            "1,1000\n\n[A_COAST]\ncontrol=BY_X\nF=0,0\nT=0,0\nG=0,0\n"
+            "seq=a\n-1,100\n-2,100\n-3,100\n-4,100\n-5,100\n-6,100\n";
+        ll_mov_t *bxm = calloc(1, sizeof *bxm);
+        ll_player bx;
+        ll_play_keys bk = { 0 };
+        int bad = 0;
+
+        CHECK(bxm && ll_mov_parse(BX, bxm) == 2);
+        CHECK((bxm->st[1].ctrl & LL_CTRL_BY_X) && bxm->st[1].fx == 0 &&
+              bxm->st[1].tx == 0 && bxm->st[1].nfr == 6 &&
+              bxm->st[1].fr[0].thresh == 100u);
+        ll_player_start(&bx, bxm, 500, 100, 1);
+        CHECK(bx.sti == 0 && bx.walkdir == 1 && bx.vx == 0.0);
+        bk.k_fwd = 1;
+        for (int t = 1; t <= 2; t++) {          /* the distance-fed half */
+            double want = t == 1 ? 28.0 : 40.0; /* acc, then the T= cap  */
+            ll_player_step(&bx, NULL, &bk, 0, 2000, LL_ITER_MS);
+            if (bx.sti != 0 || bx.fi != 0 ||
+                bx.vx < want - 1e-9 || bx.vx > want + 1e-9 ||
+                bx.row_t != 0u || bx.row_rem != 0u)
+                bad = 1;
+        }
+        CHECK(!bad);
+        CHECK(bx.facc > 1.903 && bx.facc < 1.905);   /* fed, never enough  */
+        CHECK(bx.x > 500 + 1.903 && bx.x < 500 + 1.905);  /* 28+.028+40*.028 */
+        double bxc = bx.x;                           /* where the walk got  */
+        bx.sig |= 1ull << LL_SIG_K_GEN1;         /* the shipped exit shape:
+                                                  * a pulse, not a key */
+        bad = 0;
+        for (int s = 1; s <= 6; s++) {
+            ll_player_step(&bx, NULL, &bk, 0, 2000, LL_ITER_MS);
+            if (bx.sti != 1)
+                bad = 1;                            /* the pulse fired once */
+            if (bx.fi != (s == 6 ? 0 : s))
+                bad = 1;                            /* one row per step, and
+                                                     * the 6th wraps it */
+            if (bx.row_t != 0u || bx.row_rem != 0u)
+                bad = 1;                            /* 100 in, 100 spent */
+            if (bx.facc != 0.0)
+                bad = 1;                            /* section 4's feed does
+                                                     * not run at all here */
+            if (bx.vx != 40.0)
+                bad = 1;                            /* frozen: acc = 0, and
+                                                     * no T= to aim at */
+            if (bx.broke != (s == 6))
+                bad = 1;                           /* the wrap armed it */
+            double want_x = bxc + s * 1.12;         /* 40 px/s * 0.028 s */
+            if (bx.x < want_x - 1e-9 || bx.x > want_x + 1e-9)
+                bad = 1;
+        }
+        CHECK(!bad);
+        CHECK(bx.broke == 1);                      /* the wrap armed it */
+        CHECK(bx.y == 100 && bx.vy == 0.0);        /* G=0,0: no fall of its
+                                                    * own either */
+        bad = 0;
+        bk.k_fwd = 0;
+        for (int s = 1; s <= 3; s++) {              /* and the same law is
+                                                     * why it never brakes */
+            ll_player_step(&bx, NULL, &bk, 0, 2000, LL_ITER_MS);
+            if (bx.vx != 40.0 || bx.fi != s || bx.facc != 0.0)
+                bad = 1;
+        }
+        CHECK(!bad);
+        free(bxm);
+    }
     if (!rc)
         printf("play selftest: .plt physics (+ the '!' separator variant,"
                " + an authored-empty '0' ground is data not an error),"
@@ -2487,6 +2607,14 @@ int ll_play_selftest(void)
                " the 28 ms AND the 20 ms grid, with the exact carry"
                " arithmetic checked), a mode-0 state's rows are fed by"
                " its distance only, and time_scale= pre-scales the rows"
-               " of its block (ok)\n");
+               " of its block, PR-114: a BY_X state whose F= is 0,0 is"
+               " NOT a walking one either - its velocity is frozen at the"
+               " entry value (acc = |F| * dt = 0, and the two targets, 0"
+               " with no T= and +40 through auto_walk, both fail to move"
+               " it; the same law is why it never brakes on key"
+               " release), its rows run on the ITERATION clock (one"
+               " 100-unit row per feed, the sixth wraps the list and only"
+               " that wrap arms BREAK_NEXT), and the distance"
+               " accumulator stays exactly 0 (ok)\n");
     return rc;
 }

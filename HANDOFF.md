@@ -496,6 +496,28 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | static image draw + order (PR-93) | ll_level.c `obj_static_get`, `objs_draw` (two-pass) | frame-one draw: first patch-art element of the named .SEQ at the authored x,y through the element's anchor; statics compose BEFORE animated objects | the join and positions are RE (census in the code comment); frame-one (no motion data exists) and the behind-actors order (matches the ZARIA footage) are model choices; whether the original animated any static is open (item 11) |
 | shape payloads for lion-vs-object tests | ll_seq.c `ll_seq_shape_push2`, ll_level.c `play_collide` | each element's margin lists read from its OWN .SEQ payload (paired form) | model choice: how the original resolved two elements into its single-payload routine is unpinned; same-payload pairings stay byte-identical (selftest-pinned, PR-89) |
 
+CORRECTION TO THE ROW-ABOVE CLAIM, added 2026-11-17 by PR-114 and
+quoted here rather than edited in the table (the row still says "the
+`fx != 0` half of the walk gate (30 shipped BY_X blocks with `F=0,0`,
+no leg covers one)"): there is now a test in front of that half in both
+engines, and the count is a tool output - `tools/re/mov_byx_gate.py`
+reads rows the way `ll_mov_parse` does and measures 105 blocks naming
+`BY_X` in 69 files, 30 of them `F=0,0` (290 rows, 21 files), 29 of
+those 30 with no motion source of their own, and 97 states / 357 rows /
+80 files where the engine's mode bit and the port's gate disagree
+(62 of them by getting mode 0 by default, with no `control=` line in
+the text at all). What the legs pin is the port's model, not the
+engine's: `A_PUSH`/`A_COAST` in `ll_play_selftest` (velocity frozen at
+the entry value, rows on the iteration clock, one 100-unit row per
+feed, the sixth wrapping the list, `facc` exactly 0.0) and `glide`/
+`snaps` in `obj_motion_selftest` (one row per call, `facc`/`xa`
+zeroed, no anchor snap at the wrap because 1212 tests the mode bit -
+the BY_TIME control does snap). Five mutations caught; the recorded
+survivor is that `obj_motion`'s leg-3 "F=0 does not move" check still
+passes when the object gate's `fx` term is deleted, which is the gap
+PR-114's leg 6 closes. Which half the engine keys on stays OPEN.
+NEXT_STEPS.md, PR-114 record.
+
 ## 7. Open questions (ranked by how much they block)
 
 0. SCENE OBJECT MOTION (SOLVED in PR-79, 2026-11-16; basis re-checked
@@ -1330,6 +1352,27 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      mode-0 feed vs the port's `|vx| * dt`, and the 30 shipped BY_X
      blocks with `F=0,0` that the `fx != 0` half of the gate covers and
      no test does.
+   - THAT LAST PHRASE IS NOW SUPERSEDED, the question is not (added by
+     PR-114, quoting the sentence above instead of editing it). The
+     count is a tool output now: `python3 tools/re/mov_byx_gate.py`
+     (it reads rows the way `ll_mov_parse` does; `mov_channels.py`'s
+     row regex misses 2621 of the 18617 row lines) measures 105 blocks
+     naming `BY_X` in 69 files, 30 of them `F=0,0` with 290 rows in 21
+     files, 29 of those declaring no motion source of their own, 5 of
+     those 29 having no exit except a wrap-armed one, and 97 states /
+     357 rows / 80 files where the engine's mode bit and the port's
+     gate disagree. And "no test does" was too strong: three fixtures
+     ARE `BY_X` with `fx == 0` (ll_play.c:1798's RAN `A_GO_TO_BALON_L`
+     copy, ll_level.c:2196's `gnd`, ll_level.c:2248's `halt`), but
+     none of them checks the row clock - leg 3's own comment
+     (ll_level.c:2364) writes the fallback as an estimate: "the frame
+     list falls back to time - estimate". PR-114's two legs turn that
+     estimate into a pinned model choice without changing behaviour;
+     which half of the gate the engine keys on is still open, and the
+     mode-only reading now has a concrete counter-example in the corpus
+     (those 5 no-exit states would neither advance a row nor leave the
+     state under it). Counts, arithmetic and the five mutations:
+     NEXT_STEPS.md, PR-114 record.
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
      files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's

@@ -2481,6 +2481,99 @@ static int obj_motion_selftest(void)
                         " CH_DIR walker must draw the other polarity\n");
         goto out;
     }
+    /* 6. PR-114: an F=0,0 BY_X block - the shape of 30 of the 105
+     * shipped BY_X state blocks. The count is a tool output now:
+     * tools/re/mov_byx_gate.py over the 777-file corpus measures 105
+     * BY_X blocks in 69 files, 30 of them F=0,0 (290 rows, 21 files),
+     * and 29 of those 30 name no motion source of their own, so for
+     * them the gate below is the whole law. Leg 3 above enters such a
+     * state but only asks that the object not move, and its own
+     * comment marks the rest as an estimate - "the frame list falls
+     * back to time - estimate". This leg turns that estimate into a
+     * pin, on the exact grid, and pairs it with the control that
+     * shows WHICH half of the gate decides the state loop's anchor
+     * snap. Hand-derived, no game data.
+     * obj_advance's walk0 (line 1169) reads `(ctrl & BY_X) && fx != 0`
+     * - the second term is the port's own, 0x543a0 keys mode 0 on the
+     * MODE alone (PR-100's owner reading). With fx == 0 the state is
+     * NOT a walking state, so obj_row_tick feeds 100 units per
+     * iteration and the row gate compares row_t (line 1230): rows of
+     * 100 units close exactly one per call at dt = LL_ITER_MS - fi 1,
+     * 2, then the third call closes index 2 of 3, the loop reaches
+     * the end of the list, finds no transition and wraps to 0. The
+     * walk branch is never reached, so x/y are untouched and facc/xa
+     * stay exactly 0.0 (lines 1179-1181 zero them for a non-walking
+     * state; obj_walk would add 0 with fx == 0 anyway).
+     * And the anchor is NOT re-occupied at the wrap: line 1212 asks
+     * for the MODE BIT, not for a non-zero F=, so an F=0 walker keeps
+     * the position it was entered at (x 40, y 30, anchor 5/9). The
+     * BY_TIME control after it shows that branch really does snap, so
+     * the difference is the mode bit and nothing else.
+     * MUT-1 (delete `start->fx != 0` from walk0, i.e. the mode-only
+     * reading): this state becomes a walking one - no wall clock,
+     * obj_walk adds 0, the rows never advance, so fi stays 0 at the
+     * first call. Leg 3's "F=0 does not move" check still passes:
+     * that is the gap. MUT-2 (make line 1212's snap also require
+     * fx != 0): the F=0 walker snaps to 5/9, caught here, and leg 1's
+     * walker-keeps-position check is unaffected. */
+    static const char glide[] =
+        "A_RUN\n\n[A_RUN]\ncontrol=BY_X\nF=0,0\nT=40,0\n"
+        "1,100\n2,100\n3,100\n";
+    static const char snaps[] =
+        "A_RUN\n\n[A_RUN]\ncontrol=BY_TIME\nF=0,0\n1,100\n";
+    ll_mov_parse(glide, m2);
+    if (!(m2->nst == 1 && (m2->st[0].ctrl & LL_CTRL_BY_X) &&
+          m2->st[0].fx == 0 && m2->st[0].nfr == 3 &&
+          m2->st[0].fr[0].thresh == 100u)) {
+        fprintf(stderr, "motion selftest: FAILED the BY_X F=0,0 fixture did"
+                        " not parse as authored (nst %d ctrl 0x%x fx %d"
+                        " nfr %d t0 %u)\n", m2->nst, m2->st[0].ctrl,
+                m2->st[0].fx, m2->st[0].nfr, m2->st[0].fr[0].thresh);
+        goto out;
+    }
+    memset(&b, 0, sizeof b);
+    b.sc = &s2;
+    b.bx = 5;                            /* anchor deliberately far from */
+    b.by = 9;                            /* the entry position: a snap   */
+    b.x = 40;                            /* would be impossible to miss  */
+    b.y = 30;
+    b.b0 = b.b1 = -1;
+    for (int i = 1; i <= 3; i++) {
+        obj_advance(&b, LL_ITER_MS);
+        if (b.fi != i % 3 || b.sti != 0 || b.row_t != 0 || b.row_rem != 0 ||
+            b.facc != 0.0 || b.xa != 0.0 || b.x != 40 || b.y != 30) {
+            fprintf(stderr, "motion selftest: FAILED F=0,0 BY_X rows: call"
+                            " %d fi %d row_t %u facc %g xa %g at (%d,%d)"
+                            " (want one 100-unit row per iteration, no"
+                            " distance feed at all, and no anchor snap for"
+                            " an F=0 walker)\n", i, b.fi, b.row_t, b.facc,
+                    b.xa, b.x, b.y);
+            goto out;
+        }
+    }
+    ll_mov_parse(snaps, m1);                       /* the BY_TIME control  */
+    if (!(m1->nst == 1 && !(m1->st[0].ctrl & LL_CTRL_BY_X))) {
+        fprintf(stderr, "motion selftest: FAILED the BY_TIME snap control"
+                        " did not parse (nst %d ctrl 0x%x)\n", m1->nst,
+                m1->st[0].ctrl);
+        goto out;
+    }
+    memset(&a, 0, sizeof a);
+    a.sc = &s1;
+    a.bx = 5;
+    a.by = 9;
+    a.x = 40;
+    a.y = 30;
+    a.b0 = a.b1 = -1;
+    obj_advance(&a, LL_ITER_MS);
+    if (a.fi != 0 || a.x != 5 || a.y != 9) {
+        fprintf(stderr, "motion selftest: FAILED BY_TIME wrap snap: fi %d at"
+                        " (%d,%d) (want the one-row list wrapped and the"
+                        " object back on its 5,9 anchor: line 1212 keys on"
+                        " the mode bit, which is why the F=0 walker above is"
+                        " NOT snapped)\n", a.fi, a.x, a.y);
+        goto out;
+    }
     rc = 0;
 out:
     free(m1);
@@ -2670,7 +2763,12 @@ int ll_mov_selftest(void)
            " row clock is the ITERATION clock (a 100-unit row is one feed"
            " of LL_ITER_MS, A_ATAK's 200-unit rows two each, and a"
            " walking state's rows are fed by its distance only, never by"
-           " wall time) (ok)\n");
+           " wall time) + PR-114 a BY_X state whose F= is 0,0 is NOT a"
+           " walking one (its rows still close one per iteration, the"
+           " distance feed does not run at all so facc/xa stay 0 and the"
+           " object does not move, and its state-loop wrap does NOT snap"
+           " the anchor - line 1212 asks for the mode bit, not for a"
+           " non-zero F=; the BY_TIME control does snap) (ok)\n");
     return 0;
 }
 

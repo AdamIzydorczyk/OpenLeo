@@ -22,7 +22,30 @@ for another machine. No game data and no video frames live in git.
 
 | file | what it does |
 | --- | --- |
-| `mov_channels.py` | `mov_channels [DIR]` - per state, the header `F=`/`T=`/`G=` pairs plus the sums of the row-level `F`/`FC`/`I`/`IC` pairs, i.e. the two motion channels the engine merges (NEXT_STEPS PR-98); decodes every state's `control=` word into the engine's own mode+flag bits and counts the modes and tokens (NEXT_STEPS PR-99); counts the `T=` values over the 130 cap the engine's parser applies; lists every force the BY_X states pair with more than one duration, which is the fixture that would separate an F law from an F/T one; and (NEXT_STEPS PR-100) censuses the second field of every row - the threshold the engine at 0x52320 compares against the row accumulator `[obj+0xa1]` - grouped by movement mode, which is where the "a row threshold is in its own mode's feed unit" reading comes from (94% of the BY_TIME values are exact multiples of the 100 the engine adds per step, the BY_X values are small counts of px). Reads `/tmp/opencode/mov` by default. |
+| `mov_channels.py` | `mov_channels [DIR]` - per state, the header `F=`/`T=`/`G=` pairs plus the sums of the row-level `F`/`FC`/`I`/`IC` pairs, i.e. the two motion channels the engine merges (NEXT_STEPS PR-98); decodes every state's `control=` word into the engine's own mode+flag bits and counts the modes and tokens (NEXT_STEPS PR-99); counts the `T=` values over the 130 cap the engine's parser applies; lists every force the BY_X states pair with more than one duration, which is the fixture that would separate an F law from an F/T one; and (NEXT_STEPS PR-100) censuses the second field of every row - the threshold the engine at 0x52320 compares against the row accumulator `[obj+0xa1]` - grouped by movement mode, which is where the "a row threshold is in its own mode's feed unit" reading comes from (94% of the BY_TIME values are exact multiples of the 100 the engine adds per step, the BY_X values are small counts of px). Reads `/tmp/opencode/mov` by default. Its row pattern needs a
+two-digit frame number, so it sees 15996 of the 18617 row lines that
+`ll_mov_parse` would read (`mov_byx_gate.py` prints both numbers and
+attributes the whole 2621-row gap to rows with a one-digit or negative
+frame field). |
+| `mov_byx_gate.py` | `mov_byx_gate [DIR]` - the census for the walk gate
+that `ll_player_step` sections 4/7 and `obj_row_tick` share: the engine's
+dispatcher 0x543a0 keys the row accumulator's feed on the control word's
+mode bits 0..2 alone, while the port also requires a non-zero state `F=`
+(`(ctrl & BY_X) && fx != 0`). Prints, as measured counts: rows read the
+way the parser reads them (`sscanf("%d,%d")`) alongside this repo's
+narrower row regex; how many states name each mode in `control=` versus
+get mode 0 by default (no `control=` line at all, or a list with no mode
+token); the port's split on the same states and the number where the two
+readings disagree; every state block that names `BY_X` and writes
+`F=0,0`, with its rows, `T=`/`G=` values, whether the block declares a
+motion source of its own, and its exits; the states for which that gate
+is the whole law (no motion source and no exit except a wrap-armed one);
+and the threshold table for PR-110 items 1, 2 and 8 under four readings
+- as written, as `ll_mov_parse` stores it (a non-positive row value
+becomes 100, so a stored threshold of 0 does not exist), with the block's
+`time_scale=` applied, and as PR-110 counted. Also counts active and
+commented `time_scale=` lines. Stdlib only, inventories only, no game
+data in git. NEXT_STEPS.md PR-114. |
 
 ## Disassembly
 

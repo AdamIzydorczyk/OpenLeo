@@ -8958,6 +8958,173 @@ asserted 20 times at zero tolerance instead of once
   Windows-only, sub-millisecond - is now supported twice, and the
   diagnostic keeps collecting it for free.
 
+## PR-114 — the `fx != 0` half of the walk gate: the count becomes a tool
+output, the coverage claim gets corrected, and two legs pin the port's
+current choice without changing it
+
+- WHY. PR-110's open item 4 is the only item in the queue whose shipped
+  behaviour rests on a term the engine never wrote. Its wording, quoted
+  from that record (NEXT_STEPS.md:8454-8459): "the `fx != 0` half of
+  the gate has shipped data behind it and no test in front of it: 105
+  state blocks in 69 files are BY_X, and 30 of them (290 rows, 21 files
+  \- ZARIA's own [A_ZABLOK] among them) declare `F=0,0`, which the port
+  then treats as time-fed. No leg in the suite enters such a state, so
+  which half of that gate the engine really keys on is untested." Both
+  engines of this repo use that gate: `ll_player_step` sections 4 and 7
+  (`ll_play.c:1118`, `:1276`) and `obj_advance` / `obj_row_tick`
+  (`ll_level.c:1169`, `:1219`) all read `(ctrl & LL_CTRL_BY_X) && fx !=
+  0`. PR-99's disassembly of the dispatcher 0x543a0 keys the feed on the
+  mode bits 0..2 ALONE, so the second term is the port's own addition
+  (PR-100's owner reading, unchanged here). Item 4 also asked for the
+  count to stop being a hand claim; it hadn't, and the tool that
+  shipped the neighbouring counts (`tools/re/mov_channels.py`) cannot
+  reproduce it, because its row regex needs a two-digit frame field.
+- WHAT SHIPPED: `tools/re/mov_byx_gate.py` (stdlib only, inventories,
+  no game data in git) plus two data-free selftest legs. No behaviour
+  changed: both engines keep requiring `fx != 0`. The legs PIN the
+  consequences of that choice, so the next PR that changes the gate is
+  a visible decision instead of a silent one. The tool is the census
+  item 4 asked for; its 102-line output is the evidence this record
+  cites (`/tmp/opencode/pr114_census.txt`).
+- WHAT THE TOOL MEASURES, and item 4's numbers reproduced. Over the
+  777-file .MOV corpus: 18617 row lines read the way `ll_mov_parse`
+  reads them (`sscanf("%d,%d")`, a negative frame number counts);
+  `mov_channels.py`'s regex sees 15996, and the whole 2621-row gap is
+  rows with a one-digit or negative frame field, in 78 files. State
+  blocks that NAME `BY_X`: 105 in 69 files. Of those, 75 carry a
+  non-zero `F=` (both readings feed them the same way) and 30 carry
+  `F=0,0` - 290 rows in 21 files, ZARIA's `[A_ZABLOK]` among them
+  (5 files write it). Blocks naming `BY_X` with `F=0,<non-zero>`: 0,
+  so the gate's `fx == 0` test and the data's `F=0,0` test are the
+  same set here, exactly as item 4 said. Beyond item 4, the tool also
+  prints what the disagreement costs: the engine's mode table is 172
+  BY_X states / 1349 rows / 128 files, but 62 of those states name no
+  `control=` line at all and 5 name a list with no mode token, so they
+  get mode 0 by default; the port's gate splits the same states 75
+  distance-fed / 2243 time-fed, and the two readings disagree on 97
+  states / 357 rows / 80 files. For 29 of the 30 `F=0,0` blocks the
+  gate is the whole law, because they declare no motion source of their
+  own (no header `F=`, no row `F`/`FC`/`IC` pair) - a mode-only feed
+  would add the truncated `|v_x|/100` = 0 forever. Five of those 29
+  also have no exit except one a row-list wrap arms, or none at all:
+  ENA.03's `A_CHANGE_LEVEL` (9 rows), KADMAR.07 CIUCHCIA's `A_STAND`
+  (20), and ZARIA.01 KAMIEN1/2/3's `A_STAND` (8 each). Under the
+  literal mode-only reading those five never advance a row and never
+  leave the state - which is an argument for the port's gate, not
+  against it, and is recorded as evidence, not as a decision. The
+  threshold table PR-110 items 1, 2 and 8 need is printed four ways:
+  "as written" gives 170 rows at threshold 0 and 1715 rows in 1..99 in
+  111 files (the two counts that record quotes), while "as
+  `ll_mov_parse` stores" gives threshold 0: 0 rows, because M4-C turns
+  a non-positive row value into 100 - so PR-115 must read those 170 as
+  authored values, not as stored ones. Also counted: 116 active
+  `time_scale=` lines in 38 files (values 60..4000) plus 4 commented
+  with the game's own `;` in 2 files.
+- CORRECTION TO ITEM 4 (quoted, not edited in place). "No leg in the
+  suite enters such a state" is too strong - three fixture states in
+  this repo ARE BY_X with `fx == 0`, and none of them says anything
+  about which clock feeds its rows. `ll_play.c:1798`'s PR-82 fixture is
+  the real RAN LEW `A_GO_TO_BALON_L` (`control=BY_X`, no `F=`, negative
+  authored frames); its CHECKs read the drawn frame and facing, not the
+  row clock. `ll_level.c:2196`'s PR-78 `gnd` fixture is
+  `control=BY_X|CHECK_LN` with one 100-unit row and no `F=` line at
+  all; its CHECK only asks that the object drops onto the 180 line.
+  `ll_level.c:2248`'s `halt` (`control=BY_X`, `F=0,0`) is leg 3 of
+  `obj_motion_selftest`, whose own comment at `ll_level.c:2364` writes
+  the open part as an estimate: "F=0: no movement at all (the walk
+  model has nothing to accumulate; the frame list falls back to time -
+  estimate)". The claim that survives is the narrower one: nothing in
+  the suite PINS that fallback, and which half of the gate the engine
+  keys on is still untested. That is what the legs below do.
+- THE PLAYER LEG (`ll_play_selftest`, fixture `A_PUSH` -> `A_COAST`).
+  Hand-derived, no game data, every step at `dt = LL_ITER_MS`, the grid
+  where one step is exactly one feed. `A_PUSH` is the control half:
+  `control=BY_X|CH_DIR`, `F=1000,0`, `T=40,0`, one 1000-unit row, so
+  section 2's accel is `|F| * dt` = 28 per step against a `T=` cap of
+  40: `vx` is 28.0 after one held step and 40.0 after the second, the
+  travelled distance (28 x 0.028 + 40 x 0.028 = 1.904) lands in `facc`
+  only, and `row_t` / `row_rem` stay exactly 0 with the row unclosed -
+  the mode-0 branch replaces the wall clock, PR-110's law, re-pinned
+  here as the control. The `K_GEN1` pulse (a signal, not a key) moves
+  him into `A_COAST`: `control=BY_X`, `F=0,0`, no `T=`, `G=0,0`, six
+  100-unit rows - the shape of 29 of the 30 shipped blocks. Pinned: the
+  velocity is FROZEN at the entry value, 40.0, because the accel law is
+  `|F| * dt` = 0 and both target readings (the state's own 0 with no
+  `T=`, and +40 through `auto_walk` from the pulse) clamp to a zero
+  step; it does not brake on key release either, for the same law
+  (three more steps with `k_fwd` up still read 40.0). The rows run on
+  the ITERATION clock: exactly one 100-unit row closes per step, the
+  sixth closes index 5 of 5 and wraps (`fi` back to 0, `broke` armed by
+  the wrap alone, `ll_play.c:1309`), `row_t` / `row_rem` read 0 at
+  every step, and `facc` stays exactly 0.0 - section 4's feed does not
+  run at all. x advances 1.12 per step (40 px/s x 0.028 s) and y/vy
+  never move (`G=0,0`). One parser/model detail the leg also pins: the
+  state-change reset (`ll_play.c:957-962`) zeroes `row_t` and `facc`
+  and NOT `row_rem`, so a wall-clock carry would cross the pulse; here
+  A_PUSH is a mode-0 state, its accumulator was fed by distance only,
+  so `row_rem` is legitimately 0 on entry to `A_COAST` and the
+  one-row-per-step identity holds from the first step after the pulse.
+- THE OBJECT LEG (`obj_motion_selftest` leg 6, fixture `glide`, with a
+  BY_TIME `snaps` control). `control=BY_X`, `F=0,0`, three 100-unit
+  rows, entered at (40,30) with its anchor at (5,9) deliberately far
+  away. `walk0` (`ll_level.c:1169`) is false, so lines 1179-1181 zero
+  `facc`/`xa` every call and `obj_walk` never runs: one row closes per
+  `obj_advance(…, LL_ITER_MS)` call (fi 1, 2, then the third closes
+  index 2 of 3, finds no transition and wraps to 0), `row_t`/`row_rem`
+  read 0, `facc`/`xa` stay exactly 0.0, and x/y stay (40,30). The wrap
+  does NOT snap the anchor, because the test at `ll_level.c:1212` is
+  `if (!(s->ctrl & LL_CTRL_BY_X))`: a mode-bit test,
+  not an `F=`-non-zero test. The BY_TIME one-row fixture right after it
+  does snap back to (5,9), so the difference between the two is the
+  mode bit and nothing else.
+- MUTATIONS (`/tmp/opencode/mut/run.sh`, logs in that directory, tree
+  restored and re-verified with `git status`). M1, both `fx != 0` terms
+  dropped from the player (the literal mode-only reading of 0x543a0):
+  3 failures, all three inside the new leg (`ll_play.c:2569`, `:2570`,
+  `:2581`), and no other leg changes - which IS the coverage claim.
+  M2, both terms dropped from the object: 1 failure, the new leg's call
+  1 (`fi 0` instead of 1); leg 3's "F=0 does not move" check still
+  passes, and that gap is exactly what item 4 was about. M3 (control):
+  drop the MODE half in the player instead - 10 failures, every one of
+  them pre-existing (first at `ll_play.c:1646-1648`, then `:1744`), and
+  the new leg is unaffected, so the mode half was already covered and
+  the `fx` half was not. M4: delete the time-fed fallback
+  (`if (!walk)` -> `if (0)`) - 59 failures including the new leg, so
+  the leg also depends on the fallback being there. M5: make the
+  `ll_level.c:1212` wrap snap require `fx != 0` too - 1 failure, the
+  new leg at call 3, `at (5,9)`.
+- WHAT THIS DOES NOT DECIDE. (1) Which half the engine keys on: the
+  legs pin the port's current choice, they do not measure the engine,
+  and the mode-only reading stays open - the five no-exit `F=0,0`
+  states above are the strongest counter-example to it that the corpus
+  gives, not a proof. (2) Whether a control word absent from the .MOV
+  text really means engine mode 0: that is the 62-state / 5-file half of
+  the 97-state disagreement, and this tool counts the absence, it does
+  not read the parsed .MOV binary where the control word actually
+  lives. (3) The `T=` cap: the port still does not apply the engine's
+  130 clamp (0x52590), and `A_COAST` here has no `T=` at all, so this
+  leg neither uses nor tests the cap. (4) The vertical-distance law
+  (T5), one-row-per-step (`0x5232b`) and the `acc == thresh` boundary
+  are untouched - PR-115 and PR-116, measured with the corrected
+  threshold table above.
+- DOCS: `tools/re/README.md` gains the tool's entry and a correction of
+  `mov_channels.py`'s row count ("it sees 15996 of the 18617 row lines
+  that `ll_mov_parse` would read", the 2621-row gap named); HANDOFF.md
+  §2's row-clock table row and §7 item 13 both get a new bullet quoting
+  their own wording rather than being edited, since both still say "no
+  leg covers one" / "no test does".
+- TESTS AND GATES: `make`, `make win`, `make ll_level` with 0 warnings;
+  `./ll_level --play-selftest` and `./ll_level --mov-selftest` pass
+  with the new legs and their summary strings now name PR-114;
+  `make -k verify-all DATA=/tmp/opencode/iso_stage/LEO
+  HD=/tmp/opencode/hd_files` and the fixture-free
+  `DATA=/tmp/opencode/nope HD=/tmp/opencode/nope` both EXIT=0, the
+  fixture-free run printing the same 23 named SKIPs as the PR-110 /
+  PR-111 / PR-112 baseline. The five mutations above are the evidence
+  the legs are load-bearing; the tree was restored from
+  `/tmp/opencode/mut/{ll_play,ll_level}.orig` after each and the diff
+  was checked to contain no deletions.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
