@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>              /* PR-112 diagnostic: the raw CRT call */
 
 static unsigned presented_cb_count;
 
@@ -61,6 +62,66 @@ int main(int argc, char **argv)
     uint64_t t2 = plat_now_ns();
     check("sleep_until honors the deadline (>=20ms)",
           t2 >= t0 + 20ull * 1000 * 1000);
+    /* PR-112. The check above is ONE sample, and it is exactly the leg
+     * that has failed 2 of the 125 `ci` runs this workflow has ever had
+     * (run 101 / 44043011593 and run 124 / 44176302862, both native
+     * msys2 MINGW64; rerunning 124's failed job passed on attempt 2, and
+     * both failing trees had byte-identical leg code). The old backend
+     * trusted the CRT's absolute-deadline sleep instead of re-checking
+     * our own clock, so a single early wake was enough to fail a run.
+     * Asserted here the way a contract should be asserted: repeatedly,
+     * zero tolerance. Data-free and hand-derived: platform.h says
+     * plat_sleep_until "returns no earlier than the given timestamp", so
+     * the expected count of early returns is 0 on every platform - no
+     * constant to calibrate, no game data, no video. The 200 ms ceiling
+     * is likewise hand-derived, not measured: ~10x the 20 ms deadline,
+     * i.e. "the sleep happened", with no claim about OS wake latency. */
+    int early = 0, late = 0;
+    for (int i = 0; i < 20; i++) {
+        uint64_t a = plat_now_ns();
+        uint64_t deadline = a + 20ull * 1000 * 1000;
+        plat_sleep_until(deadline);
+        uint64_t b = plat_now_ns();
+        if (b < deadline) {
+            early++;
+        } else if (b - deadline > 200ull * 1000 * 1000) {
+            late++;                      /* >200 ms late: not a contract */
+        }
+    }
+    check("sleep_until never returns before its deadline, 20x", early == 0);
+    check("sleep_until stays within 200ms of its deadline, 20x", late == 0);
+    /* DIAGNOSTIC, no assertion (PR-112): what the raw CRT call the old
+     * code trusted actually does on the machine running this. Printed,
+     * never pinned, because OS wake latency is not part of any contract.
+     * On glibc the answer is expected to be "exact" (the mutation M1,
+     * the old form, passes here); if a Windows run prints a non-zero
+     * undershoot, the wrapper-early-wake explanation is confirmed, and
+     * if it prints zero while the old form still failed there, it was
+     * the clock stepping back instead. */
+    {
+        int unsup = 0, early_raw = 0;
+        uint64_t worst_us = 0;           /* worst undershoot, microseconds */
+        for (int i = 0; i < 20; i++) {
+            uint64_t a = plat_now_ns();
+            uint64_t deadline = a + 20ull * 1000 * 1000;
+            struct timespec req;
+            req.tv_sec  = (time_t)(deadline / 1000000000ull);
+            req.tv_nsec = (long)(deadline % 1000000000ull);
+            if (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &req, NULL)) {
+                unsup++;                 /* ENOSYS/EINVAL: nothing to learn */
+                break;
+            }
+            uint64_t b = plat_now_ns();
+            if (b < deadline) {
+                early_raw++;
+                if (deadline - b > worst_us)
+                    worst_us = (deadline - b) / 1000ull;
+            }
+        }
+        printf("platform_selftest: diag raw-CRT clock_nanosleep 20ms x20: "
+               "early=%d unsupported=%d worst_undershoot_us=%llu\n",
+               early_raw, unsup, (unsigned long long)worst_us);
+    }
 
     /* ---- audio device contract (T-09 pump + the player's model) ---- */
     static uint8_t s16[4410 * 2 * 2];         /* 200 ms of s16 stereo */

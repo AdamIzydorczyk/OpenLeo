@@ -306,6 +306,24 @@ Pitfalls seen:
   PR-75; if a header edit "has no effect", `touch` a `.c` file.
 - `verify-win` has one flaky Wine leg (`win restart-confirm`); rerun before
   suspecting your change.
+- A SECOND flaky leg, now counted: CI's `windows-smoke` job, step "Run them
+  (committed fixtures only; no game-data staging)", check `sleep_until
+  honors the deadline (>=20ms)`. Out of all 125 `ci` runs the workflow has
+  ever had, exactly 2 failed on that one check: run 101 / 44043011593 at
+  07:59 UTC and run 124 / 44176302862 at 21:06 UTC, both on
+  `windows-latest` msys2 MINGW64 (the three other failures in the history
+  - runs 1, 2, 8 - are real setup breakage: SDL2 headers absent, the
+  data-backed fixtures absent, a link error). Rerunning the failed job of
+  run 124 passed on attempt 2. Both failing trees had byte-identical leg
+  code (`git diff f1afa64..HEAD --stat -- ported/ tools/ Makefile
+  cmake/` empty for 124), so it is a timing assertion, not a regression.
+  Fixed in PR-112: the headless backend trusted the CRT's
+  absolute-deadline sleep instead of re-checking its own clock (the SDL
+  backend has always re-checked); the selftest now samples the contract
+  20x at zero tolerance and prints the raw CRT call's undershoot as a
+  diagnostic. On this Linux box that diagnostic reads
+  `early=0 worst_undershoot_us=0` - glibc keeps the deadline, which is
+  why the defect was Windows-only.
 - peak `ll_level` RSS is ~1.1 GB (RAN.01); run one level at a time.
 
 ## 4. Architecture map

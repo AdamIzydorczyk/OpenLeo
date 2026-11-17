@@ -80,11 +80,27 @@ uint64_t plat_now_ns(void)
 
 void plat_sleep_until(uint64_t ns)
 {
+    /* PR-112: re-check OUR OWN clock, like the SDL backend does
+     * (platform_sdl.c: "never returns before the deadline"). The old form
+     * trusted clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME) to honour
+     * the absolute deadline. On glibc it does; on the Windows CRT this
+     * backend is built against in CI's windows-smoke leg (msys2
+     * MINGW64), that call is a wrapper, and the measured fact is that
+     * platform_selftest's `sleep_until honors the deadline (>=20ms)`
+     * check failed there twice in 125 runs and never here (HANDOFF
+     * section 3, pitfalls) - whether the wrapper woke early or the clock
+     * stepped back is not pinned, and the diagnostic in that selftest
+     * exists to find out. Re-reading our own clock is the only way this
+     * contract holds either way. Cost: one clock_gettime per wake, not
+     * one per iteration while asleep. */
     struct timespec req;
     req.tv_sec  = (time_t)(ns / 1000000000ull);
     req.tv_nsec = (long)(ns % 1000000000ull);
-    while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &req, NULL) != 0)
-        ;                        /* EINTR: just retry, absolute deadline */
+    while (plat_now_ns() < ns) {
+        int e = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &req, NULL);
+        if (e != 0 && e != EINTR)
+            break;               /* unsupported/invalid: do not spin here */
+    }
 }
 
 /* Audio: a byte-FIFO model of the SDL backend's contract - open/close

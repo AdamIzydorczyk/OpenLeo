@@ -8728,6 +8728,139 @@ are not used here (docs + .gitignore only, no code or Makefile change)
   of the rerun, and whether it needs a code change (a tolerance, or
   `plat_sleep_until` undershooting on Windows), goes in the PR-112 record.
 
+## PR-112 — the headless backend re-checks its OWN clock: the suite's
+only timing-sensitive assertion, `sleep_until honors the deadline`, has
+failed 2 of the 125 CI runs this workflow has ever had, and it is
+asserted 20 times at zero tolerance instead of once
+
+- WHY. CI's `windows-smoke` job failed on the PR-111 follow-up push
+  (run 124 / 44176302862) in the step "Run them (committed fixtures
+  only; no game-data staging)", on ONE of the 35 checks that
+  `platform_selftest` runs there (job log `/tmp/opencode/ws_fail.log`:
+  34 lines "(ok)" plus this one FAILED, then "1 check(s) FAILED"):
+  `platform_selftest: sleep_until honors the deadline (>=20ms) FAILED`.
+  Pulling the whole workflow history (125 `ci` runs, `gh api
+  actions/runs?per_page=100&page=1..2`) it is a pattern, not a one-off:
+  only 4 runs ever failed, and 2 of those 4 are this exact check - run
+  101 / 44043011593 at 07:59 UTC on `c3e0547` and run 124 at 21:06 UTC
+  on `29da788`. The other three failures (runs 1, 2, 8) are real setup
+  breakage: `SDL2/SDL.h: No such file or directory`, `llrs_open failed:
+  .../ANIMACJE`, and a link error. Rerunning run 124's failed job passed
+  on attempt 2 (`linux`, `asan`, `windows-smoke` all success). Run 101
+  was never rerun, its `attempt` is 1 and its conclusion is still
+  failure. Neither failing tree was a regression: `git diff
+  f1afa64..HEAD --stat -- ported/ tools/ Makefile cmake/` is empty for
+  124, i.e. the leg's code was byte-identical to the CI-green PR-110/
+  PR-111 trees. What is special about this check is that it is the ONLY
+  wall-clock assertion in the suite (`grep -rn 'sleep_until honors'` ->
+  one hit, `tools/platform_selftest.c:62`); every other check compares
+  hashes, counts or structures and cannot drift.
+- WHAT THE CODE DID, AND WHAT IT DOES NOW. `platform.h:137-140` states
+  the contract: "plat_sleep_until returns no earlier than the given
+  timestamp". The SDL backend has always enforced that by its own loop
+  (`platform_sdl.c:434-444`: re-read `plat_now_ns()`, OS-sleep until
+  0.3 ms before the deadline, then yield-spin). The DUMMY backend - the
+  one CI's windows-smoke and asan legs build, and the one
+  `platform_selftest` links - did not: it called
+  `clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, ...)` in a loop that
+  only retried on a NON-zero return, so whatever that call returns early
+  is taken at face value and never re-checked against our own clock. It
+  now reads the clock like the SDL backend does (`while (plat_now_ns() <
+  ns)`), keeps the EINTR retry, and breaks instead of spinning if the
+  call is unsupported or its arguments rejected. That also makes the
+  contract survive a backward step of the system clock, which trusting
+  one CRT call could not.
+- SCOPE, MEASURED. Only one target builds this backend: `grep -n
+  PLAT_BACKEND_DUMMY Makefile` has exactly one hit, line 1675, the
+  `platform_selftest` rule. No game or engine binary (`ll_level`,
+  `ll_cutscene`, `ll_cutscene.exe`) contains this code, so no pin, pose,
+  frame or log line in any verify-* leg can move - this is a
+  self-test-tool change and nothing else. The behaviour that DOES change
+  is inside `platform_selftest` itself (its sleeps can now only be later,
+  never earlier), which is what the new checks below guard.
+- TESTS (data-free, hand-derived, as ground rule 3 requires). The single
+  sample is kept and two checks are added: 20 deadlines of 20 ms with
+  ZERO tolerance for an early return, and a 200 ms ceiling. Both
+  expectations are read off the contract, not measured: "returns no
+  earlier than the given timestamp" means the expected count of early
+  returns is 0 on every platform - no constant to calibrate, no game
+  data, no video. The 200 ms ceiling is hand-derived the same way (~10x
+  the deadline): it asserts "a sleep happened" and deliberately claims
+  nothing about OS wake latency, so it cannot drift with runner load the
+  way a tight upper bound would.
+- MUTATION CHECKS (script `/tmp/opencode/pr112_mut.sh`; mutants are
+  whole-function swaps of the dummy `plat_sleep_until`, logs in
+  `/tmp/opencode/pr112_mut/`). BASELINE: 3 clean runs, 0 warnings, 0
+  failed checks. M1 = the OLD shipped form restored: passes on this box,
+  which is the honest and important result - glibc keeps the absolute
+  deadline, so this defect is structurally invisible on Linux and can
+  only be seen on the Windows legs. M2 = a backend that returns up to
+  5 ms EARLY: the new check fails ("sleep_until never returns before its
+  deadline, 20x FAILED", exit 1), so it does catch that class. M3 = a
+  backend that returns 250 ms LATE: the ceiling check fails, exit 1.
+  M4 = M2 with the two new assertions deleted: exit 1 still, because the
+  original single-sample check also catches a 5 ms early return. That is
+  recorded rather than hidden: the new checks do NOT claim sensitivity to
+  a bigger defect than the old one - their value is that they do not
+  depend on one sample happening to land early, which is precisely how
+  the 2 CI failures behaved (a rare event: 2 of 125 runs). M4's build
+  also prints 2 `-Wunused-but-set-variable` warnings, which is the
+  compiler confirming those counters exist only for the assertions.
+- THE DIAGNOSTIC, because the mechanism is NOT pinned. What is measured
+  is the fact (2 failures, native msys2 MINGW64 only, one specific
+  check, pass on rerun). Two candidate mechanisms remain open: the CRT's
+  `clock_nanosleep` wrapper waking early for a sub-millisecond
+  remainder, or a rare backward step of the clock source. To settle it,
+  the selftest now PRINTS (never asserts) what the raw CRT call would
+  have done on the machine running it: 20 more deadlines, reporting
+  `diag raw-CRT clock_nanosleep 20ms x20: early=.. unsupported=..
+  worst_undershoot_us=..`. On this Linux box all three baseline runs read
+  `early=0 unsupported=0 worst_undershoot_us=0`, i.e. glibc is exact -
+  consistent with M1 passing here. The next `windows-smoke` run will
+  print the same line on the runner that failed, and that number is the
+  answer. It is a print, not a check, because wake latency is not part
+  of any contract; the Makefile's `verify-platform` greps for "(ok)" and
+  the "NO SDL display/audio" line only, so a diag line changes nothing.
+  A local Windows probe was tried and did NOT work, also recorded:
+  building the same 20-sample probe with the vendored llvm-mingw
+  (`vendor/llvm-mingw/bin/x86_64-w64-mingw32-clang`, clang 23.1.5)
+  fails at `ld.lld: error: undefined symbol: clock_nanosleep64` (and
+  `clock_gettime64`) - that CRT import library has no such symbol, and
+  `grep -rn clock_nanosleep vendor/llvm-mingw/include/` finds nothing,
+  so this toolchain cannot even express the call msys2's mingw-w64 gcc
+  compiles. A real-Windows measurement therefore needs either the
+  handheld (ADAM-HANDHELD, asleep when probed: `win` reports "does not
+  answer on TCP within 2s", WOL does not work there) or the CI leg.
+- TESTS AND GATES on the exact tree this commit ships (`/tmp/opencode/
+  gates_pr112.sh`, logs `/tmp/opencode/g4_*.log`, one verify run at a
+  time): `make`, `make win`, `make ll_level` EXIT=0 with 0 warning lines;
+  `./ll_level --play-selftest` and `--mov-selftest` EXIT=0;
+  `./platform_selftest` EXIT=0 printing 37 "(ok)" lines on three
+  consecutive runs (the pre-PR binary prints 35 "(ok)" lines + 1 final
+  line without the suffix, and has 34 `check()` calls vs 36 now - the +2
+  are the new checks);
+  `make verify-platform DATA=/tmp/opencode/iso_stage/LEO` EXIT=0 and
+  green; `make -k verify-all DATA=/tmp/opencode/iso_stage/LEO
+  HD=/tmp/opencode/hd_files` EXIT=0; the same with
+  `DATA=/tmp/opencode/nope HD=/tmp/opencode/nope` EXIT=0 with its 23
+  named SKIPs - identical to the PR-110/PR-111 baseline, i.e. nothing
+  moved. The added 40 sleep cycles cost real wall clock, measured both
+  ways: three timed runs of the pre-PR binary (old backend + old
+  selftest, rebuilt from `HEAD`) are 0.03/0.05/0.05 s and print 35
+  "(ok)" lines, three runs of the new one 0.89/0.85/0.84 s and print 37
+  - so ~0.8 s added, which is the 40 x 20 ms of sleeps themselves. That
+  is noise against the suite and the price of not depending on one
+  sample. The diagnostic printed here:
+  `early=0 unsupported=0 worst_undershoot_us=0`.
+- OPEN ITEMS. (1) The mechanism is unresolved until the new diagnostic
+  prints on a Windows run (or the handheld wakes and runs
+  `/tmp/opencode/cnsl.c`). (2) Run 101 (`44043011593`) is still red in
+  the history - it was never rerun; nothing was done to it, and its tree
+  predates PR-110/111. (3) The suite still has exactly one
+  wall-clock-dependent assertion; if it ever needs a second, it should
+  be written with the same zero-tolerance-on-the-lower-bound + loose
+  upper-bound shape, or the flake rate comes back.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
