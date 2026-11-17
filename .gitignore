@@ -69,3 +69,10 @@ build/*.raw
 # committed (regenerable via tools/mv_convert.py; derived bytes must not
 # enter history). Full record: NEXT_STEPS.md PR-41 (SHELVED).
 movies/
+
+# Reference gameplay captures (YouTube, PR-111): the videos, their
+# .info.json and their .description are copyrighted - never in git.
+# The ids, URLs and the re-download commands live in HANDOFF.md
+# section 3 ("Reference captures"); .mp4 frames cut from them stay in
+# /tmp/opencode/ as always.
+reference/video/

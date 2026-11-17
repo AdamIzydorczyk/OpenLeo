@@ -8489,6 +8489,184 @@ the old number multiplied by a ratio.
   for this PR, and section 8's T5 status). Nothing under
   .github/workflows, nothing copyrighted staged.
 
+## PR-111 — the reference captures move onto disk and into the docs:
+`reference/video/` (gitignored) holds ep.1, the ladder clip and a full
+5 h 39 m playthrough; their geometry is re-measured rather than assumed;
+the owner's level-by-level map of the playthrough is recorded; and a new
+ground rule says this tree is local - the `lin`/`wrt` remote-host skills
+are not used here (docs + .gitignore only, no code or Makefile change)
+
+- WHY. The owner supplied two gameplay videos and asked for them to be
+  kept and annotated as verification reference, plus the clip PR-109's
+  conclusion rests on, and separately asked that the docs say the
+  remote-host skills are not to be used in this project. Until now the
+  captures lived only under the tmpfs `/tmp/opencode/yt/`, so a reboot
+  has been losing them, and the only long-form capture of the game was
+  not in the project at all.
+- WHAT IS STORED WHERE. `reference/video/` in the working tree:
+  `xPiXBmPEdXg.mkv` (playlist ep.1), `ladder-DomCTOtx2rg.webm` (the
+  rung-ladder clip of PR-109), `OvbbJTmp79I.mkv` (the playthrough),
+  each with the `.info.json` and `.description` yt-dlp wrote beside it.
+  `.gitignore` gained a block excluding `reference/video/` (the videos
+  and their metadata files are all copyrighted); checked with
+  `git check-ignore -v`, which reports `.gitignore:78:reference/video/`
+  for `reference/video/OvbbJTmp79I.info.json`. Frames, crops and
+  scripts cut from them stay under `/tmp/opencode/` as before, so rule 2
+  of HANDOFF section 2 keeps its meaning; only the location of the
+  videos themselves changed. Nothing copyrighted is staged: the diff is
+  `.gitignore`, `HANDOFF.md` and this file.
+- MEASURED, NOT ASSUMED (ffprobe on the files, plus frame probes in
+  `/tmp/opencode/refcap/`). ep.1: h264 640x480 at 25 fps + opus,
+  414.821 s, 41 034 044 bytes. A 6 s window at t=314-320 gives a
+  per-row motion profile that is flat at rows 0..37 and 442..479 and
+  steps up at rows 40-41 and down at 439-440, with motion across all
+  640 columns - so a GAMEPLAY view is the full width at rows 40..439,
+  exactly 2x, and the recipe `crop=640:400:0:40` that section 9 and
+  PR-108 quoted is confirmed exact for gameplay. It is NOT the right box
+  for the rest of the file: over the window t=118-124 the black bands
+  reach to column 36 and row 65, and the frame there is one of the
+  game's own animated cutscenes (the `.IS` movies), whose picture is
+  pillar- and letterboxed inside the frame - at t=120 a rounded
+  cave-interior image with a dog, the lion and a spotted big cat around
+  a table, on black. Measured at 4:3 within the game-view band only;
+  what its box is in an actual 320x200 Mode X frame is open. The level
+  title cards are black-on-black text and sit elsewhere again. A caveat
+  no earlier record had. Ladder clip: vp9 576x360 at 30 fps + opus,
+  481.633 s, 26 902 029 bytes; the whole frame is the game view at
+  exactly 1.8x, no bars, no overlay. Playthrough: h264 1280x720 at
+  60 fps + opus, 20389.021 s, 4 774 166 785 bytes; the game view is
+  x 0..1151, y 0..719 - exactly 3.6x, no letterbox - and the right
+  128 px is the uploader's static cartoon column, measured as a fall in
+  per-column temporal std from 19-21 to 2.3-2.8 at x=1152, at t=120,
+  3600, 7200, 14400 and 20040 alike. 60 fps (16.7 ms) is finer than
+  the 28-33 ms iteration of PR-109/110, which is what the 720p60
+  download is for; 1 video px = 0.28 game px, so it is a good clock and
+  a poor ruler.
+- WHAT THE OLD RECORDS SAID, AND WHAT CHANGES. PR-108's record at
+  :7879-7882 said "The reference videos are ep.1 xPiXBmPEdXg and ep.2
+  ti6IYfhh1bI, playlist PL6B7604DEF5B643F9, and the crop that has
+  worked for measurement is `crop=640:400:0:40`." That stays true and
+  is now extended: the playthrough is a fourth, much longer reference,
+  and that crop is verified exact for gameplay but wrong for the game's
+  own title cards. PR-109's record at :7959-7960 said "Nothing
+  copyrighted is staged in the repo; everything measured here stays
+  under /tmp/opencode/yt." That is superseded in one part and kept in
+  another: still nothing copyrighted is staged, but the captures
+  themselves are now in the repo tree (gitignored) instead of the
+  tmpfs; what stays under `/tmp/opencode/` is what is cut from them.
+  HANDOFF section 3's old row "reference video |
+  `/tmp/opencode/yt/gp.mp4` (episode 1), `ep2.mp4` (episode 2); the
+  playlist is below" is replaced by a "reference captures" row plus the
+  R1/R2/R3 block that documents each file, its yt-dlp line and its
+  measured geometry.
+- OLD COPIES vs NEW, MEASURED. The ladder file is NOT byte-identical to
+  `/tmp/opencode/yt/ladder.webm` (same total size, different sha256),
+  but it is the same encode of the same video: the extracted video
+  streams are both 17 868 921 bytes with identical codec parameters,
+  and 90 consecutive frames decoded from the two files at t=46-49 - the
+  climb itself - are md5-identical with mean absolute difference 0.0
+  (the audio streams differ). So PR-109's timing numbers transfer to
+  this copy unchanged. The same test on ep.1: 75 consecutive frames
+  decoded at t=300-303 from `xPiXBmPEdXg.mkv` and from `gp.mp4` are
+  md5-identical (mean abs difference 0.0), both 640x480 at 25 fps, so
+  every measurement ever made on gp.mp4 is a measurement on R1. The
+  containers differ: gp.mp4 reports 414.680 s, the new one 414.821 s,
+  the extra ~0.14 s being the audio stream's length in matroska -
+  timestamps must come from frame counts, not from the container
+  duration. The old `/tmp/opencode/yt/ep2.mp4` was not compared.
+- THE OWNER'S MAP OF THE PLAYTHROUGH. YouTube has no chapters and no
+  subtitles for it (`chapters` is null in its `.info.json`), so until
+  now it could only be scanned. The owner supplied a level-by-level
+  time map, recorded verbatim in HANDOFF section 3 (zaria 1 at 0:00,
+  zaria 2 at 7:77, ENA 1 at 13:17, ... TUNGA 2 at 4:42:29, MENU at
+  5:37:54). Its labels are the game's own words: the 13 `ETAPY` blocks
+  listed by the PR-46 game-wide measurement (NEXT_STEPS.md:2024-2029,
+  and the "all 13 .des" count at :2016) are ZARIA.01, ZARIA.02, ENA.03,
+  ENA2, LONA.05, SADES.06, KADMAR.07, KADMAR2, RAN.01, KARA.07,
+  TUNGA.11, TUNGA2.12, JUNCTION, and LEVELDES records are named after
+  the chapter (ZARIA1.DES, ENA1.DES, KADMAR1.DES), which is why
+  "KADMAR 1" and "TUNGA 2" are names from the data and not a viewer's
+  guess. Only JUNCTION has no entry. The map is approximate and has
+  defects that are recorded rather than fixed silently: `7:77` is not a
+  valid mm:ss, and `43:59 ENA 2` precedes `45:10 ENA 1`. Both frames
+  were read: at 45:13 the game shows its own "ENA I / underwater
+  journey" card, so `45:10` is right to the second, while the frame at
+  43:59 is jungle with the lion and the same HUD art as at 0:00 - the
+  43:59 entry does not mark an ENA boundary. JUNCTION's place in the
+  route and the 43:59 entry are both left open for the owner. Three of
+  the map's marks were checked against the file directly by reading the
+  card at each one, and all three agree within about a second; a fourth
+  (13:17) is a detector hit whose frame was not read (see the
+  title-card bullet below). That is why the map is treated as usable
+  with its defects noted.
+- THE GAME'S OWN TITLE CARDS ARE A MEASURABLE MARKER. Reading the
+  sampled frames showed that level starts carry a full-screen card, and
+  three of them were read frame by frame: 2353 s "ZARIA II" (the map's
+  39:13), 2713 s "ENA I / underwater journey" (45:10), 7233 s "KADMAR I
+  / ancient mysteries" (2:00:33). Three for three, within about a
+  second; the detector below also flags a card-shaped frame at 790 s
+  (13:10) against the map's 13:17, but that frame was not read.
+  The other marks were then probed by reading the brightest frame within
+  +-25 s of each: none of those twelve landed on a card, but their
+  neighbourhoods agree with the map everywhere except `43:59 ENA 2` - at
+  43:59 the lion is in jungle with the same HUD art as at 0:00, while
+  ENA I really begins at 45:13 with its own card and a swimming bird in
+  place of the lion. Frames: `/tmp/opencode/refcap/sheet_marks.png`,
+  `m_2639_big.png`.
+  A whole-file detector for the cards - one 320x200 grayscale frame per
+  10 s of the 1152 px game column (2039 frames,
+  `/tmp/opencode/refcap/cards.sh` and `cards.py` for the per-frame
+  black/bright statistics) - flags 104 card-shaped frames in 68 windows,
+  many of them plain fade-to-black, and it MISSED the cards at most of
+  the marks above. It is a candidate finder, not a verdict: the
+  10-second-accurate version of the owner's map still needs a detector
+  that keys on the card's colour and persistence, or a human reading.
+- GROUND RULE ADDED. HANDOFF section 2 gains rule 7: "This working tree
+  is local. Every build, test and measurement of this project runs on
+  the machine that holds this repo ... Do NOT use the remote-host
+  skills here - `debian-server` (the `lin` wrapper) and
+  `openwrt-router` (the `wrt` wrapper): those hosts hold neither this
+  repo nor the game data, so a command run there checks nothing about
+  the port." The `windows-handheld` (`win`) skill is explicitly kept,
+  because the WASAPI device measurement of PR-34/35 was taken on
+  ADAM-HANDHELD - the rule excludes hosts that hold no evidence, not
+  remote measurement as such. Rule 2 was rewritten in the same spirit:
+  the reference captures live in `reference/video/` (gitignored), and
+  everything cut from them stays under `/tmp/opencode/`.
+- TESTS AND GATES. No code, no Makefile and no test changed, so there
+  is no new behaviour to pin and no mutation check applies; the
+  self-tests are not the evidence for anything here. The standing gates
+  were still run on this exact tree (`/tmp/opencode/gates_pr111.sh`,
+  logs `/tmp/opencode/g3_*.log`, one verify run at a time): `make`,
+  `make win`, `make ll_level` all EXIT=0 with 0 warning lines;
+  `./ll_level --play-selftest` and `--mov-selftest` EXIT=0;
+  `make -k verify-all DATA=/tmp/opencode/iso_stage/LEO
+  HD=/tmp/opencode/hd_files` EXIT=0; the same with
+  `DATA=/tmp/opencode/nope HD=/tmp/opencode/nope` EXIT=0 with its 23
+  named SKIPs - identical to the PR-110 baseline, which is the point of
+  running it for a docs change: a `.gitignore` pattern that hid a
+  fixture the suite needs would move that count. I also checked the
+  other half of the possible interaction directly: no leg in the
+  Makefile and no tool under `tools/` mentions `reference/video`.
+- OPEN ITEMS. (1) The playthrough's level boundaries are dated by the
+  owner's map to minute accuracy, and by my own reading to three exact
+  cards (39:13, 45:13, 2:00:33). A complete card
+  list needs a better detector than the one built here - the grayscale
+  black/bright test flags 68 windows and misses real cards, so the next
+  attempt should key on the card's green text on black and on the
+  several seconds a card stays up. (2) JUNCTION is unmapped - it is the
+  only one of the 13 blocks with no entry in the owner's map, and the
+  map's four `MENU` entries are not identified with it or with each
+  other. (3) The `43:59 ENA 2` entry is unexplained: the frame there is
+  jungle with the lion, and ENA I starts 74 s later. (4) ep.2 and the
+  other nine playlist episodes are still only on YouTube - only ep.1,
+  the ladder clip and the playthrough are kept on disk. (5) The framing
+  of the game's own `.IS` cutscenes in the video (ep.1 t=118-124: black
+  bands reaching to column 36 and row 65) is not understood: whether
+  that rounded picture IS the whole Mode X frame the movie decoder
+  produces or a letterboxed copy of it is exactly what PR-55/56's movie
+  work could answer, and no record settles it yet.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

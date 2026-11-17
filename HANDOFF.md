@@ -46,8 +46,10 @@ Section 8 lists them as tasks.
    that prints a log line and is listed in NEXT_STEPS. If you cannot decide a
    number, write down what is missing and stop.
 2. **No game data and no game frames in git.** Not the CD files, not
-   screenshots, not video frames, not the reference video. Reference material
-   lives in `/tmp/opencode/...` (section 3). Pins in tests are hashes/strings.
+   screenshots, not video frames, not the reference video. The reference
+   captures themselves live in `reference/video/` (gitignored, section 3)
+   so they survive a reboot; everything cut from them - frames, crops,
+   scripts - stays under `/tmp/opencode/...`. Pins in tests are hashes/strings.
 3. **Every behaviour change ships with a test** that cannot pass by the C and
    python twins agreeing on the same mistake: hand-derived expected values in
    a data-free self-test, and a mutation check (break the code, see it fail).
@@ -62,6 +64,15 @@ Section 8 lists them as tasks.
    cannot be pushed.
 6. The owner supplies reference material (screenshots, video timestamps).
    Ask for a specific clip rather than inferring.
+7. **This working tree is local.** Every build, test and measurement of
+   this project runs on the machine that holds this repo (`make`,
+   `make win`, `ll_level`, the python readers, `gh`). Do NOT use the
+   remote-host skills here - `debian-server` (the `lin` wrapper) and
+   `openwrt-router` (the `wrt` wrapper): those hosts hold neither this
+   repo nor the game data, so a command run there checks nothing about
+   the port. (`windows-handheld` / `win` is different and stays in use:
+   ADAM-HANDHELD is where the WASAPI audio measurement of PR-34/35 was
+   taken.)
 
 ## 3. Machine layout and commands
 
@@ -73,12 +84,167 @@ Paths on the development machine (edit for another one; tools hard-code them):
 | CD data (`DATA`) | `/tmp/opencode/iso_stage/LEO` (ANIMACJE, ETAPY, SOUND, LEVELDES, the `.IS` movies) |
 | HD install (`HD`, scripts/placement text) | `/tmp/opencode/hd_files` (ANIMACJE, ETAPY, LEO.EXE, STATUS.LEO ...) |
 | golden captures / owner screenshots | `/tmp/opencode/golden/` (`user_refs/` = the owner's screenshots; never in git) |
-| reference video | `/tmp/opencode/yt/gp.mp4` (episode 1), `ep2.mp4` (episode 2); the playlist is below |
+| reference captures | `reference/video/` (in the repo tree but **gitignored**, PR-111): the full playthrough `OvbbJTmp79I`, playlist ep.1 `xPiXBmPEdXg`, and the ladder clip `ladder-DomCTOtx2rg` - ids, URLs, formats and what each is good for are under "Reference captures" below |
+| scratch cut from them | `/tmp/opencode/yt/` (frames, crops, measurement scripts; older `-f 135` copies of ep.1/ep.2 live there too) |
 | disassembly | `/tmp/opencode/vis/text.asm` (make it with `tools/re/make_text_asm.sh`) |
 
+### Reference captures (never in git, but kept on disk)
+
+The three captures the port's footage-based claims rest on are stored in
+`reference/video/` in the working tree, so they survive a reboot. Nothing
+there is ever staged: `.gitignore` excludes the whole directory (the
+videos, their `.info.json` and their `.description` are all copyrighted).
+Fill any of them in again with the exact `yt-dlp` line under its entry.
+
+**R1. `reference/video/xPiXBmPEdXg.mkv` - playlist ep.1, the standing
+reference (it used to be `/tmp/opencode/yt/gp.mp4`).**
+`https://www.youtube.com/watch?v=xPiXBmPEdXg` - "Let's play with Zax37: Lew
+Leon (Leo the Lion) PL - Pierwsze Kroki", uploader Zax37, uploaded 2010-12-21.
+414.82 s, h264 640x480 at 25 fps + opus, 41 034 044 bytes, matroska. It is
+episode 1 of `PL6B7604DEF5B643F9` (ep.2 is `ti6IYfhh1bI`; the other ids and
+the measurement method are in section 9).
+
+    ~/.local/bin/yt-dlp --no-playlist --write-info-json --write-description \
+      -f "bv*[height<=480]+ba/b[height<=480]" -o "xPiXBmPEdXg.%(ext)s" \
+      "https://www.youtube.com/watch?v=xPiXBmPEdXg"
+
+GEOMETRY, re-measured on this file (a 6 s window, t=314-320, per-row
+motion profile): motion spans the full frame width - columns 0..639, no
+pillarbox - and rows 40..439 (the profile is flat at rows 0..37 and
+442..479, steps up at 40-41 and down at 439-440). So a GAMEPLAY view is
+the whole width at rows 40..439, exactly 2x, no overlay: the old recipe
+`crop=640:400:0:40` is exactly right, and section 9's method needs no
+change for gameplay. One caveat found while measuring: that box is NOT
+right for the other kinds of segment in the same file. In the window
+t=118-124 the black bands reach to column 36 and row 65, and the frame
+there is one of the game's own animated cutscenes (the `.IS` movies) - a
+rounded cave-interior picture with the lion, a dog and a spotted big cat
+around a table, on black; it measures 4:3 inside the game-view band and
+whether that rounded picture is the movie decoder's whole frame or a
+letterboxed copy of it is NOT pinned, and would be worth checking
+against PR-55/56's movie decoder. The level title cards ("ZARIA II",
+"ENA I / underwater journey") are black-background text, and their band
+is not pinned either. So: measure the band per segment, never carry one
+crop across kinds.
+PICTURE IDENTITY with the old `/tmp/opencode/yt/gp.mp4`: 75 consecutive
+frames decoded at t=300-303 from both files are md5-identical (mean abs
+difference 0.0), both are h264 640x480 at 25 fps, so every measurement
+ever made on gp.mp4 is a measurement on this file. The containers differ:
+gp.mp4 reports 414.680 s, this one 414.821 s, the extra ~0.14 s is the
+audio stream's length in matroska. Take timestamps from frame counts, not
+from the container duration.
+
+**R2. `reference/video/ladder-DomCTOtx2rg.webm` - the rung-ladder clip PR-109
+decided the row unit from.** `https://www.youtube.com/watch?v=DomCTOtx2rg`,
+481.633 s, vp9 576x360 at 30 fps + opus, 26 902 029 bytes. NOT the same
+bytes as PR-109's `/tmp/opencode/yt/ladder.webm` (same total size,
+different sha256), but the SAME encode of the same video: the extracted
+video streams are both 17 868 921 bytes with identical codec parameters,
+and 90 consecutive frames decoded at t=46-49 - the climb - from the two
+files are md5-identical, mean absolute difference 0.0. The audio streams
+differ. So PR-109's numbers (climb from about 46.6 s, off the top at
+about 48.3 s, pose changes every 2-4 video frames) apply here unchanged.
+
+    ~/.local/bin/yt-dlp --no-playlist --write-info-json --write-description \
+      -f "bv*[height<=480]+ba/b" -o "ladder-DomCTOtx2rg.%(ext)s" \
+      "https://www.youtube.com/watch?v=DomCTOtx2rg"
+
+GEOMETRY: the whole 576x360 frame is the game view, at exactly 1.8x, with no
+bars and no overlay (`crop` is a no-op; `scale=320:200` puts it back at game
+resolution). 1.8x is not an integer, and 30 fps is the coarsest sampling of
+the three - use it for period/sequence claims, not for positions.
+
+**R3. `reference/video/OvbbJTmp79I.mkv` - the whole game, uncut (new in
+PR-111).** `https://www.youtube.com/watch?v=OvbbJTmp79I` - "Lew Leon ( Leo
+the Lion ) - DOS (Playthrough)", uploader NontimetisStreams, uploaded
+2025-03-05, described as "Streamed 26.1.2024". 20389.02 s = 5 h 39 m 49 s,
+h264 1280x720 at 60 fps + opus, 4 774 166 785 bytes, matroska. 95 views on
+YouTube; it is the only long-form capture of the game the project has.
+
+    ~/.local/bin/yt-dlp --no-playlist --write-info-json --write-description \
+      -f "bv*[height<=720]+ba/b[height<=720]" -o "OvbbJTmp79I.%(ext)s" \
+      "https://www.youtube.com/watch?v=OvbbJTmp79I"
+
+GEOMETRY, measured (not taken from the uploader): the game's 320x200 view is
+x 0..1151, y 0..719 - exactly 3.6x, no letterbox - so
+`crop=1152:720:0:0,scale=320:200` puts it back at game resolution. The right
+128 px (x 1152..1279) is the uploader's static cartoon column, NOT game art:
+per-column temporal std over 2 s bursts falls from 19-21 to 2.3-2.8 at
+x=1152, and that boundary is the same at t=120, 3600, 7200, 14400 and 20040.
+3.6 is not an integer: 1 video px = 0.28 game px of position. 60 fps is the
+finest sampling the project has - 16.7 ms, finer than the 28-33 ms frame-loop
+iteration of PR-109, which is what makes this file worth having.
+
+WHAT IT SHOWS. The owner supplied a level-by-level time map for this
+video (2026-11-17), transcribed exactly as given, one entry per line:
+
+    0:00 zaria 1     7:77 zaria 2     13:17 ENA 1     26:27 ENA 2
+    31:43 MENU      32:11 ZARIA 1     39:13 ZARIA 2   45:10 ENA 1
+    43:59 ENA 2     1:14:32 LONA      1:22:28 SADES   1:23:36 MENU
+    1:24:24 LONA    1:36:47 SADES     2:00:33 KADMAR 1
+    2:23:42 KADMAR 2                  4:16:20 RAN
+    4:23:31 KARA    4:31:36 TUNGA 1   4:42:29 TUNGA 2 5:37:54 MENU
+
+Read it as approximate minute marks, not frames. Two entries need care:
+`7:77` is not a valid mm:ss; and `43:59 ENA 2` sits BEFORE `45:10 ENA 1`.
+That second one was read frame by frame: at 43:59 the lion stands on a
+tree stump in jungle, with the same HUD art as at 0:00 and 43:30; 74 s
+later, at 45:13, the game shows its own "ENA I / underwater journey"
+card, and that level has a swimming bird where the lion was. So the ENA
+I boundary is 45:13 (matching the map's `45:10`) and `43:59` is not an
+ENA boundary as written. Check a boundary against a title card before
+pinning anything to it.
+
+WHY THE LABELS ARE CREDIBLE: the names are the game's own. The 13 level
+blocks in `ETAPY` (census in the PR-46 game-wide measurement,
+NEXT_STEPS.md:2016 and :2024-2029) are ZARIA.01, ZARIA.02, ENA.03, ENA2,
+KADMAR.07, KADMAR2, KARA.07, LONA.05, RAN.01, SADES.06, TUNGA.11,
+TUNGA2.12 and JUNCTION, and `LEVELDES` records are named after the
+CHAPTER (`ZARIA1.DES`, `ENA1.DES`, `KADMAR1.DES` ...) while `ETAPY`
+blocks are named after the stage - so "zaria 1", "ENA 2", "KADMAR 1" are
+the engine's words, not a viewer's guess. Only `JUNCTION` has no entry in
+the map.
+
+WHAT WAS CHECKED AGAINST THE FILE: three boundaries were read directly
+off the capture, and all three agree with the owner's marks to about a
+second - frame 2353 (39:13) shows the card "ZARIA II", frame 2713
+(45:13) shows "ENA I / underwater journey" against the map's 45:10,
+frame 7233 (2:00:33) shows "KADMAR I / ancient mysteries" against
+2:00:33. The detector below also flags a card-shaped frame at 790 s
+(13:10), against the map's `13:17 ENA 1` - a statistical hit, its frame
+not read. Twelve more marks were probed by reading the
+brightest frame within +-25 s of each one (`/tmp/opencode/refcap/
+sheet_marks.png`); none of those twelve happened to land on a card, but
+their neighbourhoods agree with the map everywhere except one entry -
+see the `43:59` note above. The rest of my independent evidence is a
+sampling of one frame every 5 minutes (68 frames,
+`/tmp/opencode/refcap/tiles/`, contact sheets `sheet_0.png` ..
+`sheet_3.png`), which does not contradict the map either: penguins and
+snow from about 75:30 (inside `LONA`), the KADMAR I card at 120:30, a
+green rope-ladder level from about 280:00 to past 335:00 (inside
+`TUNGA 2`).
+Level starts carry the game's own full-screen title card, which is the
+cleanest level-start marker the project has. There is a first-pass
+detector for them (`/tmp/opencode/refcap/cards.sh` + `cards.py`: one
+320x200 grayscale frame per 10 s of the 1 152 px game column - 2039
+frames - then per-frame black/bright fractions), but it is a candidate
+finder, not a verdict: it flagged 104 card-shaped frames in 68 windows
+across the whole file, many of them plain fade-to-black, and it MISSED
+the cards at most of the marks above. A card still has to be read frame
+by frame.
+
+WHAT IT DOES NOT GIVE YOU: YouTube itself carries no chapters and no
+subtitles for it (`chapters` is null in the `.info.json`) - the map above
+is the owner's, supplied out of band; it is one player's route at one
+difficulty, not a set of deliberate measurements; the stream's own overlay
+covers part of the frame (above); and it was captured through an
+emulator, so anything about real hardware timing (the PIT, the display
+rate) is out of scope, as it was for the other two.
+
 `/tmp` is a tmpfs: after a reboot restage the data (recipe in NEXT_STEPS.md,
-"restaging") and redownload the video with
-`~/.local/bin/yt-dlp --no-playlist -f 135 -o gp.mp4 URL` (pip install yt-dlp).
+"restaging"). The reference captures are NOT in /tmp any more - they live
+in `reference/video/` on disk; if they are ever lost, the `yt-dlp` lines
+under "Reference captures" rebuild them (pip install yt-dlp).
 
 Build and test:
 
@@ -1120,6 +1286,17 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
    - `ds:0xcef40 -> +0x388` is added into the frame-advance distance
      accumulator when the terrain scalar is non-zero (0x543f2..0x5443d): a
      global time/tick scalar, meaning unread.
+14. THE `.IS` CUTSCENES' FRAMING IN THE VIDEO, not pinned by any record
+    (found while measuring for PR-111). In ep.1 (`R1` in section 3) the
+    gameplay picture is the full 640 px width at rows 40..439, exactly
+    2x, but in the window t=118-124 s, which shows one of the game's own
+    animated cutscenes, the black bands reach to column 36 and row 65
+    and the picture inside is a rounded cave interior (the lion, a dog
+    and a spotted big cat at a table). Whether that rounded picture IS
+    the whole frame the movie decoder writes in Mode X or a letterboxed
+    copy of it decides what "the same picture" means for every movie
+    comparison, and PR-55/56's decoder plus PR-19/21's capture rig could
+    answer it. Frame: `/tmp/opencode/refcap/ep1_120.png` (never in git).
 
 ## 8. Plan: tasks, in order. One task = one or a few PRs.
 
@@ -1544,6 +1721,19 @@ Measuring on the reference video (episodes 1-11 of the playlist
 4 HJLaOqiLeys, 5 fxJrvBwtL-g, 6 v2LElzvk_pQ, 7 v-cJ0HcyHfg, 8 af0puAqzcMA,
 9 HGmAqEa5FpQ, 10 O6-GbC1ZVmk, 11 p8TWx_PXanM):
 - crop the game picture `crop=640:400:0:40`; it is the 320x200 view at 2x.
+  Measured again in PR-111 (HANDOFF section 3, R1): for GAMEPLAY that is
+  exact - rows 40..439 of a 640x480 frame at 2x, full width (motion
+  profile over a 6 s window at t=314-320). It is NOT the right box for
+  the rest of the file: in the window t=118-124, which shows one of the
+  game's own `.IS` cutscenes (an animated cave interior with the lion, a
+  dog and a spotted big cat at a table), the black bands reach to column
+  36 and row 65; the level title cards are black-background text and
+  their band is not pinned. Never reuse one crop across segment kinds -
+  measure the band per segment (section 3).
+- The full playthrough (section 3, R3) carries the game's own title cards,
+  "ENA I / underwater journey", "KADMAR I / ancient mysteries" and the
+  rest, and the owner has since supplied its level-by-level timestamps:
+  those cards are the cleanest level-start markers the project has.
 - 480p compression and a scrolling camera limit precision; prefer segments the
   owner points out ("jump in place", camera not scrolling). Scripts: tools/re.
 - The owner's timestamps so far: ep.1 5:16-5:19 (vine jump, used), ep.2
