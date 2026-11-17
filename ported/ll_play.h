@@ -104,11 +104,15 @@ int  ll_plt_first_below(const ll_plt *o, int x, int from_y, ll_xy *hit);
  * (0x54380) gives mode 1 its own feed of |v_y| (0x543dc: `mov
  * eax,[obj+0xce]` -> abs -> `add [obj+0xa1],eax`), while mode 4 is a
  * separate body (0x5441b) guarded by `[obj+0xbe] != 0` that feeds the
- * same level constant 100 as modes 2/3, which are guarded by
- * `[obj+0xba] != 0`. BY_TX appears in 0 shipped files and every BY_TY
- * state is a climb/hang state of the lion, which fits the vertical
- * reading; neither is modelled here (no LL_CTRL bit acts on either) and
- * nothing is pinned from this. Names without a
+ * same level constant 100 as mode 3 (0x543f2, guarded by `[obj+0xba] !=
+ * 0`). Mode 2, BY_TIME, is 0x543fb and carries NO guard at all: PR-102
+ * wrote that modes 2/3 are both gated by `[obj+0xba]`, and PR-108
+ * corrects that here and in HANDOFF 7.13 / 8. BY_TX appears in 0 shipped
+ * files; BY_TY is 12 blocks in 7 files and only three state names -
+ * A_WSP, A_WSP_LIN, A_DRAB - every one of them the lion hanging on a
+ * vine or rope, which fits the vertical reading; neither mode is
+ * modelled here (no LL_CTRL bit acts on either), and PR-108's play
+ * selftest leg pins the ungated model the port runs today. Names without a
  * bit below are parsed, named here for the record, and counted in
  * ctrl_other - never silently dropped, never invented into a behaviour. */
 enum {

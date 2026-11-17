@@ -1886,6 +1886,104 @@ int ll_play_selftest(void)
         ll_plt_free(&hp);
         free(hm);
     }
+    {   /* PR-108: the BY_TY climb, pinned under the CURRENT model.
+         * A census of the shipped files (tools note in NEXT_STEPS PR-108,
+         * script kept out of git at /tmp/opencode/pr108_census.py) finds
+         * BY_TY in 12 state blocks in 7 .MOV files and three state names
+         * only: A_WSP (seq climb / climb_r), A_WSP_LIN and TUNGA2's
+         * A_DRAB - every one of them the lion hanging on a vine or rope.
+         * They all read `F=0,100 T=160,50` (A_DRAB `T=1000,50`), all
+         * `G=0,0`, all `control=BY_TY|CHECK_ALL|SEQ_REV_Y` (KARA's adds
+         * ANTI_SOLID|FRAME_REV), they are entered by
+         * AC_DRAB/AC_DRAB_CATCH/AC_LINA(+AC_ONAIR) and left by
+         * `!AC_DRAB`/`!AC_LINA`. What the engine does with the mode is
+         * NOT what this port does: its feed dispatcher (0x543a0, jump
+         * table 0x54380) sends mode 4 to 0x5441b, which adds the level
+         * constant 100 to the frame-advance accumulator [obj+0xa1] only
+         * while [obj+0xbe] is non-zero - the vertical force register the
+         * input-apply method 0x549f0 writes - and the same register
+         * drives v_y in the velocity loop (0x542cd, /20). The port has
+         * no such gate and no such feed: BY_TY is an unknown control
+         * name there, counted in ctrl_other exactly like SEQ_REV_Y, and
+         * the frame list runs on the plain ms accumulator. THAT is what
+         * this leg pins, so a later move toward the engine's reading has
+         * to be a deliberate one with a test that says so. None of it
+         * is reachable from shipped data in the player sim - no port
+         * code raises AC_DRAB/AC_DRAB_CATCH/AC_ONAIR/AC_LINA/AC_EDGE
+         * (PR-50 showed those are engine-raised) - so the signals are
+         * raised directly, the way PR-91's leg does.
+         * Arithmetic, dt = 20 ms, the authored frame list 300,200x8,300:
+         * `A_WSP(3)=` enters at list index 2 (drawn frame 3), so the
+         * cycle from there is 7*200 + 300 = 1700 ms = 85 ticks: index 3
+         * at tick 10, one row every 10 ticks after that, index 9 (frame
+         * 10) at tick 70, and the wrap to index 0 at tick 85 - which
+         * arms AC_BREAK_NEXT. x, y, v_x and v_y never move: F= gives no
+         * acceleration and no vertical feed is modelled, while the
+         * engine's mode 4 would be pulling him up at about 1 px per
+         * tick. With AC_DRAB held the state's other three exits stay
+         * dark; the tick it is not held, `A_FALL_DOWN(1)=!AC_DRAB`
+         * wins and the fall starts at the top of its own list. */
+        static const char CE[] =
+            "A_JUMP\nA_WSP\nA_FALL_DOWN\nA_PRE_JUMP\nA_TURN_BACK\n"
+            "A_PODCIAG\n\n[A_JUMP]\ncontrol=BY_TIME|CHECK_ALL\nF=0,100\n"
+            "T=160,50\nG=0,0\nA_WSP(3)=AC_DRAB_CATCH,AC_ONAIR\nseq=climb\n"
+            "1,900\n2,900\n\n[A_WSP]\ncontrol=BY_TY|CHECK_ALL|SEQ_REV_Y\n"
+            "F=0,100\nT=160,50\nG=0,0\nA_PODCIAG(1)=AC_EDGE,K_UP\n"
+            "A_TURN_BACK(1)=AC_DUP,K_DOWN\nA_FALL_DOWN(1)=!AC_DRAB\n"
+            "A_PRE_JUMP(1)=K_JUMP\nseq=climb\n1,300\n2,200\n3,200\n4,200\n"
+            "5,200\n6,200\n7,200\n8,200\n9,200\n10,300\n\n[A_FALL_DOWN]\n"
+            "control=BY_TIME|CHECK_ALL\nF=0,100\nT=160,50\nG=0,0\n"
+            "seq=spad\n1,400\n2,400\n\n[A_PRE_JUMP]\ncontrol=BY_TIME\n"
+            "F=0,100\nT=160,50\nG=0,0\nseq=uj30\n1,200\n\n[A_TURN_BACK]\n"
+            "control=BY_TIME\nF=0,100\nT=160,50\nG=0,0\nseq=turn_bk\n"
+            "1,300\n\n[A_PODCIAG]\ncontrol=BY_TIME\nF=0,100\nT=160,50\n"
+            "G=0,0\nseq=podciag\n1,400\n";
+        ll_mov_t *cm = calloc(1, sizeof *cm);
+        ll_player r;
+        ll_play_keys rk = { 0 };
+        static const int at[] = { 1, 10, 20, 30, 40, 50, 60, 70, 84, 85 };
+        static const int want[] = { 2, 3, 4, 5, 6, 7, 8, 9, 9, 0 };
+        int nx = 0;
+        int bad = 0;
+
+        CHECK(cm && ll_mov_parse(CE, cm) == 6);
+        CHECK(cm->st[1].nfr == 10 && cm->st[1].fr[2].ms == 200 &&
+              cm->st[1].fr[9].ms == 300);
+        /* BY_TY and SEQ_REV_Y have no bit: both are counted, never
+         * dropped in silence, and the one flag the model does know
+         * (CHECK_ALL) still reaches ctrl. */
+        CHECK(cm->st[1].ctrl_other == 2 &&
+              (cm->st[1].ctrl & LL_CTRL_CHECK_ALL) != 0 &&
+              (cm->st[1].ctrl & (LL_CTRL_BY_X | LL_CTRL_BY_TIME)) == 0);
+        /* the authored exit list, in order, with the negated signal */
+        CHECK(cm->st[1].tr[2].entry == 1 && cm->st[1].tr[2].nc == 1 &&
+              cm->st[1].tr[2].c[0].cond == LL_COND_OTHER &&
+              cm->st[1].tr[2].c[0].sig == LL_SIG_AC_DRAB &&
+              cm->st[1].tr[2].c[0].neg == 1);
+        CHECK(cm->st[0].tr[0].entry == 3 &&
+              cm->st[0].tr[0].c[0].sig == LL_SIG_AC_DRAB_CATCH);
+        ll_player_start(&r, cm, 500, 500, 1);
+        CHECK(r.sti == 0);                            /* the declared name  */
+        for (int t = 1; t <= 85; t++) {
+            r.sig |= 1ull << LL_SIG_AC_DRAB;   /* the vine stays held     */
+            if (t == 1)
+                r.sig |= (1ull << LL_SIG_AC_DRAB_CATCH) |
+                         (1ull << LL_SIG_AC_ONAIR);
+            ll_player_step(&r, NULL, &rk, 0, 2000, 20);
+            if (nx < (int)(sizeof at / sizeof at[0]) && t == at[nx]) {
+                if (r.sti != 1 || r.fi != want[nx] ||
+                    ll_player_frame(&r) != want[nx] + 1)
+                    bad = 1;
+                nx++;
+            }
+        }
+        CHECK(!bad && nx == (int)(sizeof at / sizeof at[0]));
+        CHECK(r.broke == 1);                     /* the wrap arms BREAK_NEXT */
+        CHECK(r.x == 500 && r.y == 500 && r.vx == 0 && r.vy == 0);
+        ll_player_step(&r, NULL, &rk, 0, 2000, 20);    /* the vine let go  */
+        CHECK(r.sti == 2 && r.fi == 0);        /* A_FALL_DOWN(1): its top */
+        free(cm);
+    }
     if (!rc)
         printf("play selftest: .plt physics (+ the '!' separator variant,"
                " + an authored-empty '0' ground is data not an error),"
@@ -1901,6 +1999,11 @@ int ll_play_selftest(void)
                " such a line), PR-87: comma groups AND (K_FIRE,K_F1"
                " attack entry - FIRE alone never fires it), PR-91: a raised"
                " AC_ENEMY_ATC drives the authored hit reaction (entry row,"
-               " pullback impulse, its OWN AC_BREAK_NEXT wrap ends it) (ok)\n");
+               " pullback impulse, its OWN AC_BREAK_NEXT wrap ends it),"
+               " PR-108: a BY_TY climb's list runs on the plain ms clock"
+               " with no key and no vertical feed (mid-list entry row 3,"
+               " 1700 ms cycle, wrap arms AC_BREAK_NEXT, position never"
+               " moves, !AC_DRAB drops him into A_FALL_DOWN) - the CURRENT"
+               " model, not the engine's gated mode-4 feed (ok)\n");
     return rc;
 }

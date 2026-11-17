@@ -7655,6 +7655,290 @@ first thing to check and it is `eax/edx/ebx`, not the 64-bit form.
   PCM scene only. A leg that follows one of KADMAR.07's objects, pinned
   against the video of that scene, is what would close it.
 
+## PR-108 — the BY_TY vertical feed and its `[obj+0xbe]` guard: the
+input-apply method and the contact record that write them, the corrected
+PR-102 gate, a census of the twelve authored climb states, and a
+regression leg for the model the port runs today (RE + test, no
+behaviour change)
+
+PR-106's T1 item (3) - "the `[obj+0xba]`/`[obj+0xbe]` gate of the time
+feed, meaning unread" - and HANDOFF T5 (ladders, vines, climbing) are the
+same open end, and PR-107's pacing paragraph says the test that would
+close it is footage of a BY_TY climb. This PR does the RE, the shipped
+census and the test that makes the CURRENT model non-vacuous; it does not
+choose between the two readings, because the readings cannot be told
+apart from the data on hand. Per the standing rule about not guessing, it
+stops there and names the exact clip that would decide it (below). The
+one line of the port that is corrected is a comment, not a behaviour:
+the ll_play.h vocabulary note repeated PR-102's wrong description of the
+feed's guards.
+
+- CORRECTION TO PR-102, QUOTED FROM THE PR-102 RECORD: "mode 2 ->
+  0x543f2 is guarded by `cmp [obj+0xba],0; je out` and then `add
+  [obj+0xa1], [[0xcef40]+0x388]` (PR-100's 100); mode 3 -> 0x543fb is
+  the SAME body reached after passing that guard". The first half of that
+  has the two addresses swapped, and the consequence is the interesting
+  part: **BY_TIME, the mode in 91% of the shipped states (2121 of 2318,
+  PR-99), has NO guard at all.** The dispatcher 0x543a0 reads the mode
+  with `mov eax,[eax+0x12]; and eax,7; cmp eax,4; ja 0x5443f`
+  (0x543af..0x543b8) and jumps through `jmp DWORD PTR
+  cs:[eax*4+0x54380]`; the raw little-endian dwords at 0x54380 of
+  build/leo/leo.elf are, in mode order 0..4, 0x543c6, 0x543dc, 0x543fb,
+  0x543f2, 0x5441b. Entry 4 is the fifth entry of a five-case table,
+  which confirms PR-102's five-value mode enum. Mode 2 enters the feed
+  body at its first instruction, `mov eax,ds:0xcef40` (0x543fb); mode
+  3's entry 0x543f2 is `cmp DWORD PTR [ebx+0xba],0x0; je 0x5443f`
+  (0x543f2-0x543f9) and its fall-through IS that same body; mode 4
+  (0x5441b) is a separate body with the `[obj+0xbe]` guard, adding the
+  same `[[0xcef40]+0x388]`. So the correct sentence is: the guarded
+  bodies are 0x543f2 (mode 3 only) and 0x5441b (mode 4), and mode 2 is
+  unguarded. Corrected in ported/ll_play.h's vocabulary comment, in
+  HANDOFF 7 item 13 and in HANDOFF 8's T1 paragraph. BY_TX is still 0
+  occurrences in the shipped .MOV texts.
+
+- THE GUARD'S PRODUCER, AT LAST: THE INPUT-APPLY METHOD 0x549f0. It is
+  the frame-loop slot +0xcc: `leodb.py slots +0xcc` reports it as the
+  target in 102 of the 158 detected class tables (e.g. 0x96874, 0x96fd8,
+  0x970bc), and it is what the level frame loop calls for the lion every
+  iteration - PR-106's frame loop 0x4abd0: 0x4ae92/0x4ae99 are the two
+  stack buffers, 0x4ab50 the 12-byte copy, 0x4aeca
+  `call DWORD PTR [ebx+0xcc]` with `ebx = [[ecx+0x394]+0x8]` (the LION)
+  and edx = the block, which comes from `mov eax,0xcf400; call 0x58690`
+  (PR-106 open item 1, still unread). That census also found a second
+  target in 14 tables: 0x50340, e.g. 0x96960 (TLewZaria, PR-104),
+  0x97970, 0x97a98 - the lion-family class tables. 0x50340 is a derived
+  override and its only call of 0x549f0 is at 0x50369; before it, it
+  zeroes all three block dwords when `[obj+0x106] == 0`
+  (0x50345-0x50354) and negates dword[0] when `[obj+0x11a] == 5`
+  (0x50357-0x50365). So an object that the drawing pass has not switched
+  on (PR-106's slot +0x60 flag) and a lion-family object with that field
+  at zero both get a zeroed block - and a zeroed block means no row feed
+  and no force, because the block IS the force pair.
+- WHAT 0x549f0 WRITES, VERBATIM: `[obj+0xba] = [edx]` (0x549f9),
+  `[obj+0xbe] = [edx+4]` (0x54a08), and at its tail `[obj+0xa5] =
+  [[edx]+8]`, a copy of the block's own class table (0x54be6-0x54be9,
+  ecx still holds edx from 0x549f5). If `[obj+0xd2]` is zero it jumps
+  straight to that tail (0x54a0e-0x54a10); otherwise `[obj+0xd2]` is the
+  first record of a typed list and the method dispatches on the record's
+  kind at `[rec+4]` (0x54a16-0x54a1b):
+  - THE LIST ITSELF: those records are exactly what heads `[obj+0xd2]`.
+    Two constructors - 0x53f00, called with `lea edx,[obj+0xd2]` pushed
+    (e.g. 0x3d60a-0x3d618), and 0x53eb0, called as `add ecx,0xd2; call
+    0x53eb0` (0x24672-0x24678) - write `[rec]=0, [rec+4]=1, [rec+8]=edx,
+    [rec+0xc]=ebx` and then link the node at `[rec+0x10]`; the link
+    writes the head (0x53f48 `mov [ecx],esi`, esi = `rec+0x10` minus the
+    node offset) and the unlink at 0x551f4-0x551fc moves the head to the
+    node's `next`. The head is also zeroed at 0x5415b and 0x54e88. That
+    closes the shape half of PR-102's "what is `[obj+0xd2]`".
+  - kind 1 (0x54a1b): writes `[obj+0xba]` only. It reads a facing at
+    `[rec+0xc]`, compares it with `[obj+0x6d]` (0x54a24-0x54a2a),
+    scales that difference by 15 (`shl 4` minus 1, 0x54a34-0x54a37) and
+    compares `[rec+8]` plus that bias against the object's x with a
+    5-unit dead band, writing **+10** (0x54a57), **-10** (0x54a82) or
+    **0** (0x54a93). This is PR-102's reading, unchanged.
+  - kind 4 (0x54aa2): writes BOTH. x from the position getter
+    `[[obj+8]+0x68]` (PR-102's) against `[rec+8]` with an 8-unit dead
+    band -> `[obj+0xba]` = +10 / -10 / 0 (0x54aab-0x54af3); y from that
+    getter's second dword against `[rec+0x1d]` -> `[obj+0xbe]` = +10 /
+    -10 / 0 (0x54afd-0x54b4e). If either is non-zero it goes to the
+    tail; when BOTH are zero it calls 0x551f0 (0x54b51-0x54b8b), which
+    unlinks that record from `[obj+0xd2]` and, when the list has gone
+    empty, calls `[[obj+8]+0x3c]` and sets `[obj+0x106] = 1` on a
+    non-zero answer (0x55207-0x55223). So a contact record is dropped
+    when the object stops moving relative to it, and `[obj+0x106]` is
+    set when no contact is left - which is precisely the field 0x50340
+    tests before zeroing the block. INFERENCE, flagged: the flag reads
+    "no contact, no push", not a proven meaning.
+  - kind 2 (0x54b65): `[rec+8]` must be 0 or equal to `[obj+0x5c]`, the
+    current STATE index - the same field 0x543a6 indexes the state array
+    with (PR-102); then a 12-byte set at `[rec+0x10]` is copied into
+    `[obj+0x60]` through 0x49580 and 0x551f0 runs. Purpose unread.
+  - WHERE THE AUTHORED VALUES COME FROM in the kind-4 case. This is what
+    was missing from PR-98's "written +-10/0 ... NOT .MOV-authored":
+    0x245b0 (a method of one class table, 0x9897c) iterates an array of
+    12-byte records at `[obj+0x136]` with a count at +0x13e
+    (0x24612-0x2465f) and for each entry creates a contact on the
+    LION's list - `mov eax,[ds:0xcef40+0x394]` (the lion, 0x24623-
+    0x2462e), `add ecx,0xd2; call 0x53eb0` (0x24672-0x24678, which
+    writes kind 1) - then patches it: `[rec+4] = 4` (0x24681) and
+    `[rec+0x1d] = that entry's third dword` (0x24688), which is the y
+    the kind-4 handler compares against; the constructor already put the
+    entry's first field in `[rec+8]`. Same shape at 0x3d5a0-0x3d618: it
+    sets `[lion+0x106] = sign(lion.x - ([obj+0xf2] + offset))`
+    (0x3d5d8-0x3d5f6) and then builds a kind-1 contact on `[lion+0xd2]`
+    with that x offset (0x3d601-0x3d618). Whether that `[obj+0x136]`
+    array is the authored attach/child data this port joins but never
+    instantiates (PR-93's 0,0 entries) is OPEN.
+- THE TAIL OF THE SAME METHOD, 0x54b90-0x54be1, settles something
+PR-101/PR-107 left open: **the owner-side guard of SEQ_REV_Y is written
+by the vertical half of the input-apply.** `if ([obj+0xbe] > 0)
+[obj+0x71] = -1; else if ([obj+0xbe] < 0) [obj+0x71] = +1`
+(0x54b90-0x54ba5) - and `[obj+0x71] == -1` is the test PR-101 showed
+enabling the SEQ_REV_Y row mirror. Then bit 0x10 of `[obj+0xb6]` is set
+or cleared EVERY frame by `([obj+0xba] * [obj+0x6d]) < 0`
+(0x54bac-0x54bd4) - "the horizontal terrain force points against my
+facing" - and while that bit is set the method calls 0x53670
+(0x54bd6-0x54be1), which negates `[obj+0x6d]` (flips facing) when the
+current state's byte at +0x15 has bit 0x8, and then calls
+`[[obj+8]+0x54]`, the same invalidation the SEQ_REV paths use (PR-105).
+So the engine can turn the lion around every frame while it walks into a
+slope, with the STATE deciding whether that is allowed. Whether
+`[obj+0xb6]` & 0x10 is what the climbs' `AC_DUP` tests is NOT
+established; it is the strongest candidate found and it goes on the open
+list.
+- THE CONSUMERS, re-read so this claim is exact: 0x54250's velocity step
+(PR-98's) adds `([blk+0] * [obj+0xba])/20 + [obj+0x6d] * [blk+0x10]` to
+`v_x` (0x542a9-0x542c7) and `([blk+4] * [obj+0xbe])/20` to `v_y`
+(0x542cd-0x542e3), so those two gate registers are ALSO the force pair,
+and a signed +-10 times a block dword divided by 20 is a full force, not
+a hint. PR-98 recorded them as terrain scalars "written +-10/0 ..., NOT
+.MOV-authored"; this record names the writer and the authoring layer
+above it. The row-feed bodies only test them for zero, which is why a
+BY_TY state advances at the authored row rate while a vertical force is
+active and stops dead when it is not.
+- CENSUS OF THE SHIPPED BY_TY STATES (script kept out of git at
+/tmp/opencode/pr108_census.py, run 2026-11-17): **12 state blocks in 7
+files, three state names only** - A_WSP, A_WSP_LIN and TUNGA2's A_DRAB.
+KARA.07 LEW.KAR (1, A_WSP_LIN, `seq=0024`), TUNGA.11 LEW.TUN (A_WSP
+`seq=climb`, A_WSP_LIN `seq=0007`), TUNGA2.12 LEW.TUN (A_DRAB
+`seq=uj31`), and ZARIA.01/ZARIA.02 in BOTH their script variants
+LEW.ZAR/LEW2.ZAR and LEW.ZARPL/LEW2.ZARPL (4 each: A_WSP `seq=climb`,
+A_WSP_LIN `seq=climb_r`). All of them are the lion on a vine or a rope.
+The eleven non-A_DRAB blocks: `control=BY_TY|CHECK_ALL|SEQ_REV_Y` (KARA
+adds ANTI_SOLID|FRAME_REV), `F=0,100 T=160,50 G=0,0`, rows `1,300` then
+`2,200 ... 9,200 10,300`, or 8 rows at the same ms. A_DRAB:
+`BY_TY|FRAME_REV|CHECK_ALL|SEQ_REV_Y`, `F=0,100 T=1000,50 G=0,0`, ten
+rows of `*,500`. Entered from A_JUMP / A_JUMP_S / A_FALL_DOWN by
+`A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR` and from A_TURN_BACK / A_SCIAG by
+`A_WSP(1)=AC_BREAK_NEXT,AC_DRAB`; left by `!AC_DRAB` / `!AC_LINA`, by
+`A_TURN_BACK(1)=AC_DUP,K_DOWN`, by `A_PRE_JUMP(1)=K_JUMP`; A_DRAB also
+carries the self-line `A_DRAB(x)=AC_DRAB,AC_ONAIR`. **None of the 12
+declares `time_scale=`, so every row threshold is the authored ms number
+itself** (PR-104's `[node+0x10] = T * time_scale / 1000`, default 1000).
+That is exactly why this cannot be resolved from data: the engine's
+thresholds (300 for row 1, 200 for the rest) and this port's per-row ms
+(300, then 200) are the SAME numbers in different units - the engine's
+need PR-106's real step cadence, the port's takes them as milliseconds -
+so both models fit the authored file and only footage can say which one
+the lion's animation follows. BY_TX: 0 occurrences, re-measured. The
+`(x)` row tokens in those scripts are the author shorthand PR-107 handles
+(entry 0), not a separate form.
+- WHAT THE PORT DOES TODAY, AND WHAT IS NOW PINNED. BY_TY and SEQ_REV_Y
+have no LL_CTRL bit, so both land in `st->ctrl_other` and nothing acts on
+either; the player's row clock is the subtractive ms accumulator
+(ll_play.c ~1179) with no gate and no vertical feed; neither the SEQ_REV
+mirror nor the engine's threshold comparison is modelled. No behaviour is
+changed here: the suite cannot separate the two readings (no port code
+raises AC_DRAB/AC_DRAB_CATCH/AC_LINA/AC_EDGE, so no BY_TY state is
+reachable from `--play` at all - which is why the new leg raises its
+signals directly, PR-91's way), and the ground rule is that a behaviour
+change needs a test that says why. One more difference recorded and NOT
+touched: the port advances a row when `p->ft >= ms` on a timer it zeroes,
+while the engine compares the POST-ADD accumulator with `jae` and hands
+the remainder back (PR-100's 0x52317-0x52338) - so any comparison of row
+timings carries a one-step offset.
+- TEST (data-free, `ll_play_selftest()`, the always-run `--play-selftest`
+leg of verify-play): one synthetic script copied from ZARIA.01's real
+A_JUMP -> A_WSP -> A_FALL_DOWN/A_PRE_JUMP/A_TURN_BACK/A_PODCIAG set, with
+the authored control words, `F=`/`T=`/`G=` and A_WSP's ten rows verbatim.
+Hand-derived expectations, dt = 20 ms: `A_WSP(3)=` enters at list index 2
+(drawn frame 3); the cycle from there is 7*200 + 300 = 1700 ms = 85
+ticks, so index 3 at tick 10, one row every 10 ticks after that, index 9
+(frame 10) at ticks 70 and 84, and the wrap to index 0 at tick 85, which
+arms `broke` - the authored AC_BREAK_NEXT arm. x, y, v_x, v_y never move
+(500, 500, 0, 0): the port has no vertical feed and `F=0,100`
+accelerates nothing. With AC_DRAB held the state's other three exits
+stay dark, and on the tick it is not held `A_FALL_DOWN(1)=!AC_DRAB` wins
+and the fall starts at the top of its own list. Parse facts are pinned
+too: `ctrl_other == 2` (BY_TY and SEQ_REV_Y, both counted, neither
+invented), CHECK_ALL present and no BY_X/BY_TIME bit,
+`tr[2].c[0].sig == LL_SIG_AC_DRAB` with `neg == 1`, and A_JUMP's entry
+row 3 with its AC_DRAB_CATCH condition. Mutation checks, all four seen to
+fail the leg: (MUT-A) gating the port's row loop on `p->vy != 0.0` - the
+engine's shape transplanted into the port - breaks the schedule and the
+`broke` check; (MUT-B) `p->y -= 1.0` per tick - a vertical feed - fails
+only the position check; (MUT-C) making `ll_mov_row_start` ignore the
+`(N)` token breaks the schedule and `broke`; (MUT-D) giving `!AC_DRAB` a
+second term that never fires fails the release-step check and the parse
+check. The selftest summary line names the leg, as it names the
+PR-83/PR-91 ones.
+- CI: not run at the time this record was written; the result for this
+commit is reported in the commit message (the workflow is read with
+`gh run list --workflow=ci.yml --limit 3 --json
+status,conclusion,headSha,displayTitle`, never `-r`).
+Local gates on this exact tree:
+`make`, `make win` and `ll_level` are warning-free, and `make -k
+verify-all DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files`
+is EXIT=0 ("ALL TESTS PASSED"), as is the fixture-free
+`DATA=/tmp/opencode/nope HD=/tmp/opencode/nope` run, with no "fail" line
+in either log. No pin moved and none could: this PR changes no
+behaviour, and the new leg is the only BY_TY coverage the suite has.
+- THE CLIP THAT WOULD DECIDE IT (asking the owner, because the data
+cannot): a vine or rope climb - A_WSP on `climb`/`climb_r` art - as
+clearly as the footage has it: ZARIA.01 or TUNGA.11, one clip from the
+grab to the top or the drop; picture only is enough. The reference
+videos are ep.1 xPiXBmPEdXg and ep.2 ti6IYfhh1bI, playlist
+PL6B7604DEF5B643F9, and the crop that has worked for measurement is
+`crop=640:400:0:40`. TWO questions, easiest first: (1) **Does the
+hang/climb animation freeze while the lion hangs without vertical
+travel?** The engine's mode-4 guard says yes - no vertical contact
+force, so no row feed and no vertical velocity; the port says no, it
+runs the authored ms rate continuously. That one observation decides
+whether the port needs the gate at all, and it needs no frame-accurate
+clock. (2) If it does not freeze, **does a row last the authored ms (the
+port) or 2 feed steps at the engine's step period** - PR-106's ~28.6 ms
+per frame-loop iteration would make a 200-unit row ~57 ms, about 3.5x
+faster than the port's 200 ms. A third check needs no clip: if a steady
+climb measures near 10 px per object step (ESTIMATE: 0x54250's
+`([blk+4] * [obj+0xbe])/20` with block dword[1] = 10 against a
+`T=160`-percent-per-step drag settles at 10 units - PR-98's law), that
+is the engine's force model and it fixes the climb speed too.
+- OPEN ITEMS (PR-108 1-10): (1) which class defines the authored array at
+`[obj+0x136]` (count at +0x13e; 0x2e6a0-0x2e6bd sets a count of 1 and a
+value at `[obj+0x13a]`), and whether that is PR-93's attached-child
+data. (2) The meaning of `[obj+0x106]` - 1 from 0x551f0 when the contact
+list empties, a side-of-object sign from 0x3d5f6, plain 0/1 writes at
+0x2700e/0x28991/0x3346f/0x361fe - and what `[obj+0x11a] == 5` is (the
+lion-family negation at 0x50357). (3) PR-106 item 1 unchanged: can a
+live player's block dword[1] ever be non-zero? 0x58690 (the reader of
+the 0xcf400 singleton) and the input-record format are unread, so the
+port cannot yet say whether the vertical half of that block is reachable
+at all. (4) Who consumes `[obj+0xa5]`, the block's class table. (5) The
+`[[obj+8]+0x68]` position getter and the `+0x54` invalidation, per class
+- both were assumed here, not read. (6) The default value of
+`[obj+0xba]`/`[obj+0xbe]`: no constructor writes them; only 0x549f0 and
+the frame loop's zeroing do. (7) Whether `[obj+0xb6]` & 0x10 is the
+`AC_DUP` the climbs test, and what the state byte +0x15's 0x8 bit
+authorises (the facing flip at 0x53670). (8) ZAR vs ZARPL: two script
+variants per ZARIA lion with identical BY_TY blocks - which one the
+level loads and why a `.ZARPL` variant exists is unexplored. (9) the
+one-step row-threshold offset noted above. (10) A lead, not a finding:
+0x3d440 is a method of the lion-family class tables (pointers at
+0x96b00 and 0x99edc, in sub-tables reached from 0x1fb1c/0x205b4 =
+TLewZaria+0x128) and its one direct call at 0x28682 passes a freshly
+zeroed 12-byte block in edx - the same shape as 0x50340's argument - so
+it may be the other half of how the lion's block is filled.
+- READING NOTES (the method cost): `leodb.py grep` takes its pattern as
+the LAST argument, so passing `--limit 40` made it search for the literal
+text "0x106] --limit 40" and report nothing - which briefly looked like
+an absence of writers. `leodb.py sql "select ... where ops like
+'%0x106]%'"` is the reliable form for field-writer searches. A jump table
+has to be read as RAW dwords (a `struct.unpack_from` over
+build/leo/leo.elf at VA - 0xf000), because disassembling a table's
+address range prints instructions, not entries - which is how PR-102 got
+the two entry addresses swapped. `python3 dat.py <VA> <len>` stayed the
+only authority for code, and every address here came from it or from
+that raw read.
+- Docs touched: this record; ported/ll_play.c (the new selftest leg and
+its summary line); ported/ll_play.h (the vocabulary comment corrected:
+five modes, BY_TIME unguarded, BY_TX 0 files, BY_TY 12 blocks in 3 state
+names, plus a pointer to this PR's leg); HANDOFF.md (a new item-13
+bullet for PR-108, the same wording fix in item 13's PR-102 paragraph and
+in 8's "DONE since PR-98" paragraph, the T1 item-(2) paragraph rewritten
+to the clip request, a STATUS line under T5, and a 6-table row recording
+that the mode-4 feed and its guard are not modelled). Nothing under
+.github/workflows, nothing copyrighted staged.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

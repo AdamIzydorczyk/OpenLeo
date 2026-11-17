@@ -245,6 +245,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | jump gravity | `LL_PLAY_JUMP_G` | 1650 u/s^2 (= G.y 55 x 30) | same jump |
 | jump-state ending | ll_play.c | a state that DECLARES an AC_BREAK_NEXT exit ends at its frame-list WRAP (the landing no longer cuts it); forced ->A_STAY/A_DRAP kept ONLY as fallback for states with no such line | PR-86: real A_JUMP/A_JUMP_S declare A_WALK(7)/A_DRAP(1)=AC_BREAK_NEXT; ZARIA.01 leg pins it |
 | `TARGET(N)=COND` entry | ll_play.c `ll_mov_row_start` (used by BOTH the player path and ll_level.c `obj_transition`) | numeric (N) = start ROW (1-based) in the target's frame list; non-numeric = top; an N past the end clamps to the top | PR-86 evidence chain in the struct comment (PRE_JUMP skips A_JUMP's impulse row; A_WALK(7) mid-cycle re-join pinned on real data); PR-107 read the store (`entry-1` at 0x51e3b..0x51e49) and the use: the state record's live row field `rec+0x4`, written raw at 0x523cb by the row-setter, which is the record's own vtable slot +0x1c in the table every record stores at rec+0x44 (0xa25d4, from its constructors 0x524cf/0x52508), and which the transition step 0x535a2 calls on the new state (0x535ea). Two MODEL CHOICES, recorded in the helper's comment: the engine writes the value RAW there, so clamping an over-long row is ours; and "absent / non-numeric" is -1 = "leave the row alone" (0x51e3e, 0x52381), which only COINCIDES with the top because a row list wraps. One row counter per object (`o->fi`) vs the engine's one per state record is also ours |
+| BY_TY (mode 4) vertical feed | ll_play.c `ll_player_step` (row clock), ll_play.h vocabulary note | NOT MODELLED: the frame list runs on the authored per-row ms with no gate and no vertical force; BY_TY/SEQ_REV_Y are counted in `ctrl_other` | PR-108: the engine instead feeds rows at 100/step ONLY while `[obj+0xbe] != 0` (0x5441b, 0x543fb for mode 2 = no gate) and the same register is v_y's force (0x542cd); the authored rows are the thresholds themselves (no `time_scale=`), so both models fit the data and only footage decides - clip requested under T5. The port's model is pinned by a `--play-selftest` leg (non-vacuous by four mutations) |
 | jump key | ll_level.c | Space | viewer choice |
 | fire keys | ll_level.c `play loop` + platform_sdl `map_key` | Ctrl=K_FIRE, F1..F4=K_F1..4 (weapon selectors), Alt=K_ALT; script tokens FIRE/F1..F4/ALT comma-combinable | PR-87; names from the walkthrough, the .MOV conditions are the contract |
 | `,` in transition COND = AND | ll_play.c `parse_cond`/`cond_true` (groups) | `|` ORs groups, `,` ANDs tokens within one; OTHER poisons only its group | PR-87 MODEL CHOICE (evidence in ll_play.h: AC_ONAIR/AC_DRECT pairs, every K_FIRE,K_Fn attack line); A_FIGHT entry pinned real |
@@ -798,9 +799,13 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      (BY_X 0, BY_Y 1, BY_TIME 2, BY_TX 3, BY_TY 4) and the
      dispatcher's jump table (0x54380) feeds mode 1 from `|v_y|` at
      [obj+0xce] and mode 4 from the level constant behind a
-     `[obj+0xbe] != 0` guard, while modes 2/3 sit behind
-     `[obj+0xba] != 0` - so BY_TY is not a typo alias of BY_TIME
-     (BY_TX: 0 files; BY_TY: 7 files, all lion climb/hang states). And
+     `[obj+0xbe] != 0` guard (0x5441b), while mode 3 (0x543f2) sits
+     behind `[obj+0xba] != 0` and mode 2, BY_TIME, is 0x543fb with NO
+     guard at all - PR-108 corrects the "modes 2/3 behind that gate"
+     wording of this paragraph, which had the two entry addresses
+     swapped - so BY_TY is not a typo alias of BY_TIME
+     (BY_TX: 0 files; BY_TY: 12 state blocks in 7 files, three state
+     names, all lion climb/hang states). And
      those two gates are assigned, not derived: 0x549f9/0x54a08 copy
      them from a caller-supplied 2-dword structure, after which the
      same method rewrites `[obj+0xba]` to +10/-10/0 from a distance
@@ -1000,6 +1005,28 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      SEQ_REV mirror); the port has ONE frame counter per object where the
      engine keeps one per state record, which is the open item this change
      exposes.
+   - PR-108 READS THE BY_TY VERTICAL FEED AND ITS GUARD, AND PINS THE
+     PORT'S CURRENT CLIMB MODEL (RE + regression leg, no behaviour
+     change; the facts are in the NEXT_STEPS PR-108 record). The frame
+     loop's slot +0xcc IS 0x549f0 in 102 of 158 class tables, and 14
+     (the lion family) use the derived override 0x50340, which zeroes the
+     whole 12-byte input block when `[obj+0x106] == 0`. That method
+     writes `[obj+0xba]`/`[obj+0xbe]` from the block and then from a
+     contact record at `[obj+0xd2]` (kinds 1/2/4 at 0x54a1b/0x54b65/
+     0x54aa2; the authored contact array at `[obj+0x136]` is what builds
+     the kind-4 one, 0x24681/0x24688), and the same pair is the vertical
+     force in 0x54250 (0x542cd). So the engine ties the climb animation
+     to vertical contact force: its mode-4 feed (0x5441b) adds the level
+     constant only while `[obj+0xbe] != 0`. Same tail writes
+     SEQ_REV_Y's `[obj+0x71]` guard and the per-frame `[obj+0xb6]` bit
+     0x10 that drives the facing flip 0x53670. The census: BY_TY is 12
+     state blocks in 7 files and three state names, all vine/rope hangs,
+     and **none declares `time_scale=`, so the engine's row thresholds ARE
+     the authored ms numbers** - the same figures this port consumes as
+     ms, which is why data cannot separate the two models. Port side
+     unchanged (plain ms clock, no vertical feed) and now pinned by a
+     `--play-selftest` leg shown non-vacuous by four mutations. The one
+     thing left is footage: see the clip request under T5.
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
      files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's
@@ -1063,9 +1090,15 @@ authored start row on both sides; measured through the port's own parser,
 of 2572 numeric transition lines 2299 ask for row 0 and 273 do not, 172
 of them cross-state and only 25 in a scene-object script), and what the
 data still owes is FOOTAGE of one of those 25 to say whether the port's
-row is the engine's. The other test is not done: a lion climb state (the
-7 BY_TY states) against the port, which would test both the vertical-feed
-reading of mode 4 and its `[obj+0xbe]` guard. The table itself is now read end to end:
+row is the engine's. The other test was run in part by PR-108 and is NOT
+settled: the lion climb states (BY_TY: 12 blocks in 7 files, 3 state
+names) are now read end to end - the mode-4 feed, its `[obj+0xbe]`
+guard, the contact record that writes that register and the fact that no
+BY_TY state declares `time_scale=`, so the engine's row thresholds are
+the authored ms numbers - but that is exactly what makes the authored
+data unable to choose between the two models; the request to the owner is
+under T5's STATUS line and in the PR-108 record. The table itself is now
+read end to end:
 PR-102 found its writer (the base record parse method 0x51910 ->
 0x51e07, entries of {key, target state index, start row} pushed into
 the vector at `[rec+0x1a]`, and the derived record parser 0x52590 that
@@ -1105,8 +1138,12 @@ engine keeps one row counter per state record while the port has one
 `o->fi` per object shared by all its states;
 "100 units" of the level global's +0x388 feed is half-closed
 (PR-100: the single writer is `mov [eax+0x388],0x64` at 0x4c8b7) and
-PR-102 added its gate: that feed only runs when `[obj+0xba]` (modes
-2/3) or `[obj+0xbe]` (mode 4) is non-zero; and PR-102 found the
+PR-102 found the gate; PR-108 corrects its wording and reads its
+producer: that feed runs unguarded for mode 2/BY_TIME (0x543fb), only
+mode 3 is behind `[obj+0xba] != 0` (0x543f2) and mode 4 is a separate
+body behind `[obj+0xbe] != 0` (0x5441b), and both registers are written
+by the input-apply method 0x549f0 - the frame loop's slot +0xcc - from
+the input block and the contact record at `[obj+0xd2]`. And PR-102 found the
 concrete mechanism the pacing tension was missing - the row's threshold
 is stored pre-scaled at parse time, `[node+0x10] = T * time_scale /
 1000` (0x51660), and 0x52320 compares that against the accumulator, so
@@ -1220,7 +1257,12 @@ not a typo alias of BY_TIME, and those two gates
 0x549f9/0x54a08 copy them from a caller-supplied 2-dword structure and
 the same method then rewrites `[obj+0xba]` to +10/-10/0 from a
 distance comparison with +/-5 margins - the best lead yet on the
-fields PR-99 left unread.
+fields PR-99 left unread. PR-108 then closed that lead's remaining half:
+the method IS the frame loop's slot +0xcc (0x549f0, 102 of 158 class
+tables; the lion family overrides it at 0x50340), `[obj+0xbe]` is the
+contact record's vertical force (kind 4 at 0x54aa2, built from the
+authored array at `[obj+0x136]`, 0x24681-0x24688), and BY_TIME is NOT
+gated at all - 0x543fb is entered straight from the jump table.
 
 **T2. The lion's attack and enemy energy.**
 Goal: kill the first LICHA. Where: `LEW.MOV` states `A_FIGHT*`, `A_FG_PACKA*`
@@ -1334,6 +1376,22 @@ walkthrough page) and each step has a log pin.
 **T5. Ladders, vines, climbing.** States `A_WSP`, `A_WSP_LIN`, `A_PODCIAG`,
 `A_SCIAG`, objects `DRABINKA`, `LINA`; conditions `AC_DRAB_CATCH`,
 `AC_LINA_CATCH`, `AC_EDGE`. Depends on T4's conditions.
+STATUS after PR-108: the engine's side is read - all 12 authored BY_TY
+states (A_WSP `climb`/`climb_r`, A_WSP_LIN, TUNGA2's A_DRAB, in
+ZARIA.01/ZARIA.02 LEW.ZAR + LEW.ZARPL + LEW2.ZAR + LEW2.ZARPL, KARA.07,
+TUNGA.11, TUNGA2.12), the mode-4 feed
+0x5441b with its `[obj+0xbe]` guard, the input-apply 0x549f0 that writes
+that register from a contact record, and the fact that the entry/exit
+conditions are AC_DRAB/AC_DRAB_CATCH/AC_LINA/AC_EDGE, which no port code
+raises. The port's model (plain ms clock, no vertical feed) is now pinned
+by a `--play-selftest` leg. **ASK THE OWNER, because the data cannot
+decide:** a clip of one vine/rope climb - ZARIA.01 or TUNGA.11, from the
+grab to the top or the drop, picture only (`crop=640:400:0:40`; ep.1
+xPiXBmPEdXg / ep.2 ti6IYfhh1bI). Question 1: does the climb/hang
+animation FREEZE while the lion hangs without vertical travel (the
+engine's gate) or keep running at the authored ms rate (the port)?
+Question 2: if it runs, is one row the authored 200 ms, or ~57 ms (2
+feed steps at PR-106's ~28.6 ms)? Full wording in the PR-108 record.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
