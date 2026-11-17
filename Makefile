@@ -716,10 +716,15 @@ ifeq ($(PX_DATA),1)
 # 30-tick hurt lock of the 231 contact expires - while a window is open
 # the touch answers as the attack, not as an extra contact hit. The
 # default legs (above) are unchanged: with the flag off no arming runs.
+# PR-91 adds the reaction: the window hit raises AC_ENEMY_ATC on the LION,
+# the lion's authored A_DOSTAL (seq=hit, entry row 1, frame-1 pullback
+# impulse) fires on the very next tick (266) and ends at its own frame-
+# list wrap through A_DRAP(1)=AC_BREAK_NEXT (356, seq=idle entry row 1) -
+# all pure authored data, so this leg now runs to PPM tick 380 to see it.
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SOLID=1 \
 	  LEO_PLAY_DANGER=1 LEO_PLAY_SCRIPT="1:FWD" \
-	  LEO_LEVEL_PPM=/tmp/opencode/ly_dgr.ppm LEO_LEVEL_PPM_TICK=300 \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_dgr.ppm LEO_LEVEL_PPM_TICK=380 \
 	  ./ll_level $(DATA) ZARIA.01 --play --no-audio \
 	  > /tmp/opencode/ly_dgr.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "play enemy attack FAILED (rc=$$rc)"; \
@@ -730,14 +735,21 @@ ifeq ($(PX_DATA),1)
 	    /tmp/opencode/ly_dgr.log \
 	  && grep -q 'window: damage 15 -> lion energy 55' \
 	    /tmp/opencode/ly_dgr.log \
+	  && grep -q 'play tick 266: state A_DOSTAL seq hit frame 1' \
+	    /tmp/opencode/ly_dgr.log \
+	  && grep -q 'A_DOSTAL -> A_DRAP' /tmp/opencode/ly_dgr.log \
+	  && grep -q 'play tick 356: state A_DRAP seq idle frame 1' \
+	    /tmp/opencode/ly_dgr.log \
 	  && ! grep -q 'DANGER: lion' /tmp/opencode/ly_hit.log \
 	  && echo "play enemy attack: the DANGER/MAIN-box stand-in arms A_ATAK" \
 	       "at the pinned LICHA 40x50 gate, the worm stands there and lands" \
-	       "exactly one hit through its OWN ATC_ON window, and the default" \
-	       "runs are unaffected (ok)" \
+	       "exactly one hit through its OWN ATC_ON window; the hit raises" \
+	       "AC_ENEMY_ATC and the lion's OWN authored A_DOSTAL (hit art +" \
+	       "pullback) reacts on the next tick and recovers through A_DRAP" \
+	       "at its wrap; the default runs are unaffected (ok)" \
 	  || { echo "play enemy attack grep FAILED"; \
-	       grep -E 'DANGER:|ATTACKS|hit by' /tmp/opencode/ly_dgr.log \
-	       | head -6; exit 1; }
+	       grep -E 'DANGER:|ATTACKS|hit by|A_DOSTAL|A_DRAP' /tmp/opencode/ly_dgr.log \
+	       | head -8; exit 1; }
 # render leg: SAME tick count, the only difference is the held key -
 # the frame delta is the lion walking (and the NONE run stays at spawn)
 	@rm -f /tmp/opencode/ly_p40_NONE.ppm /tmp/opencode/ly_p40_FWD.ppm

@@ -800,9 +800,16 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
  * of 279 uses) - the combat code must be its raiser, and the object that
  * was hit is the one that knows. So the hit raises the bit ON THE HIT
  * OBJECT's own set and lets its own transition table pick A_DOSTAL: no
- * new mechanism, exactly the PR-88 one. (Raising it on the LION when the
- * lion takes contact damage is deliberately NOT done here - it would
- * re-pin the walking fixtures; it needs its own step.)
+ * new mechanism, exactly the PR-88 one. PR-91 mirrors the raise onto the
+ * LION for the enemy's ACTIVE attack (the ATC-window hit): every shipped
+ * lion .MOV authors the same lines - measured on ZARIA.01 LEW.ZAR/LEWPL,
+ * A_WALK/A_DRAP/A_FIGHT... carry "A_DOSTAL(1)=AC_ENEMY_ATC", and ZARIA's
+ * lion A_DOSTAL is a full authored reaction (BY_TIME 9x200 ms, seq=hit,
+ * frame 1 `I -320,-250` pullback, exit A_DRAP(1)=AC_BREAK_NEXT at the
+ * list end). Contact hits do NOT raise it (model choice + open question:
+ * the token names the enemy's ATtack, and a passive touch has no window;
+ * raising on every touch would make every bump a reaction - the engine's
+ * raiser is still unpinned, so the narrower reading stays).
  *
  * Death enters the script's own state BY NAME because the engine forces
  * it: 340 of the 413 scripts that have an A_DEAD state have NO
@@ -2523,6 +2530,13 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
             pl->energy -= o->damage;
             pl->lock = 30;
             o->atc_hit = 1;
+            /* PR-91: and the hit raises AC_ENEMY_ATC on the LION's own
+             * set (the mirror of what the lion's attack does to the
+             * object). The reaction is then pure authored data: the
+             * .MOV's "A_DOSTAL(1)=AC_ENEMY_ATC" lines, the seq=hit art
+             * and the frame-1 pullback impulse all landed with PR-74/
+             * PR-86/PR-88; nothing here is new mechanism. */
+            pl->p.sig |= 1ull << LL_SIG_AC_ENEMY_ATC;
             if (verbose)
                 printf("ll_level: play tick %d: %s/%s ATTACKS through"
                        " its window: damage %d -> lion energy %d\n",

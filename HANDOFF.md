@@ -222,7 +222,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | K_FWD/K_BKWD key model | ll_play.c `cond_true` (MODEL CHOICE note) | facing-relative: K_FWD = arrow along current face; walkdir = the literal arrow; a left-facing turn settles via the state pair or A_TURN+AC_BREAK | PR-85; forced by data (one A_WALK, no BKWD-walk state); NOT yet confirmed on video |
 | lion attack damage / object hit rule | ll_level.c `LL_LION_HIT_DAMAGE` 30, `obj_hit`, `LL_OBJ_HIT_CD` 14, `ll_play.h` `atc`/`atc_hit` | damage 30 = the 0x34103 dispatcher default; hp<0 forces A_DEAD by name; energy -1 never hit-able; countdown 14 (0x27264); window open from `ATC_ON` until `ATC_OFF`, one hit per window, cleared on state change for the 18 blocks that never close it | addresses verified; the 30 stays until the 45%-of-energy+10 template (0xcecfc) identity decodes; the window-clear rule and the corpse-deal-contact rule are model choices (PR-89) |
 | enemy attack (T3 st. 1) | ll_level.c `obj_arm_atak`, `play_collide` window block; `ll_play.h` `LL_CTRL_DANGER` | a current state carrying the authored DANGER flag arms the script's OWN A_ATAK by name when the lion is inside abs(dx) < 40 AND abs(dy) < 50 (strict); the enemy lands ONE hit through its own ATC window (authored damage=, 30-tick lion lock) before/instead of the contact block; OFF unless LEO_PLAY_DANGER=1 | the box numbers are RE-pinned FOR THE CLASS "LICHA" (class chosen from the .des token at 0x616d0; box at 0x61b6e) - the flag-as-precondition, A_ATAK-by-name entry and window-hit mirror are the port's stand-in (engine driver open, §7 item 10) (PR-90) |
-| AC_ENEMY_ATC raiser | ll_level.c `obj_hit` | the hit raises it on the HIT object's own set (PR-88 mechanism) so its `A_DOSTAL(1)=AC_ENEMY_ATC` line fires | INFERENCE (0 of 279 shipped GEN lines raise it; the combat code must be the raiser); the lion-side raise deliberately NOT shipped (would re-pin walking fixtures) |
+| AC_ENEMY_ATC raiser | ll_level.c `obj_hit`, `play_collide` window block | the hit raises it on the HIT object's own set (PR-88 mechanism) so its `A_DOSTAL(1)=AC_ENEMY_ATC` line fires; PR-91 mirrors the raise onto the LION for the enemy's WINDOW hit (never contact) - his authored A_DOSTAL chain then runs itself | INFERENCE (0 of 279 shipped GEN lines raise it; the combat code must be the raiser); contact NOT raising it is a model choice (token = the enemy's ATtack); still open whether the engine also raises on a plain touch (PR-89/91) |
 | shape payloads for lion-vs-object tests | ll_seq.c `ll_seq_shape_push2`, ll_level.c `play_collide` | each element's margin lists read from its OWN .SEQ payload (paired form) | model choice: how the original resolved two elements into its single-payload routine is unpinned; same-payload pairings stay byte-identical (selftest-pinned, PR-89) |
 
 ## 7. Open questions (ranked by how much they block)
@@ -445,9 +445,11 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
    - Does the engine's corpse (A_DEAD state) still deal contact damage?
      The port says no (model choice).
    - Raising AC_ENEMY_ATC on the LION when he takes contact damage
-     (his many `A_DOSTAL(1)=AC_ENEMY_ATC` lines) - deliberately not
-     shipped with PR-89, needs its own step + re-pins.
-10. ENEMY ATTACK AI, PR-90 OPEN ITEMS (each flagged in code too):
+     (his many `A_DOSTAL(1)=AC_ENEMY_ATC` lines) - the WINDOW hit
+     raises it (PR-91 shipped the whole authored reaction); a plain
+     touch still does not (model choice: the token names the enemy's
+     ATtack). Whether the engine raises on every bump stays open.
+10. ENEMY ATTACK AI, PR-90/91 OPEN ITEMS (each flagged in code too):
    - The engine's per-class AI DRIVER: how the behavior records
      (MAIN/WALK/ATACK/TURN at [x+0x106], method tables 0xa30a8/
      0xa308c/0xa3070/0xa3054) are evaluated each tick and how a
@@ -477,10 +479,13 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      precondition or only a contact-hazard marker? The port uses it
      as the arming precondition because every shipped enemy walk
      state carries it; MODEL.
-   - The attack's MOTION: what the armed A_ATAK drives in the
-     engine (charge? T=/F= only?), and whether the lion-side raise
-     of AC_ENEMY_ATC when hit belongs here (item 9's open lead).
-     T3 stage 2.
+   - The attack's MOTION: what the armed A_ATAK drives in the engine
+     (charge? T=/F= only?). Measured on data: ZARIA LICHA3's A_ATAK
+     frames carry NO motion directives - the worm STANDS and swings
+     (the port plays it identically); the engine's compiled AI may
+     still walk it (unpinned). The lion-side raise landed with PR-91
+     (the authored A_DOSTAL reaction: hit art, `I -320,-250`
+     pullback, recovery through A_DRAP at the wrap).
 
 ## 8. Plan: tasks, in order. One task = one or a few PRs.
 
@@ -515,9 +520,10 @@ and dead objects stop hurting the lion - ZARIA.01's first LICHA dies at
 tick 184 in a pinned scripted run. PR-89 also root-caused the
 lion-vs-object shape reads (each element's margin lists come from its
 OWN .SEQ payload - the old single-payload read used wrong bytes, so the
-PR-59/PR-68 contact pins were re-pinned). Still open for T2/T3: the
-enemies' OWN attacks through their ATC windows (their A_ATAK ATC_ON
-frames vs the lion), the lion-side AC_ENEMY_ATC raise, the 45%-template
+PR-59/PR-68 contact pins were re-pinned). MET IN PR-90/91 (T3 st. 1/2):
+the enemies' OWN attacks through their ATC windows (their A_ATAK ATC_ON
+frames vs the lion) and the lion-side AC_ENEMY_ATC raise with his
+authored A_DOSTAL reaction. Still open for T2: the 45%-template
 identity - see open question 9.)
 
 **T3. Enemy behaviour.**
@@ -544,10 +550,16 @@ LEO_PLAY_DANGER=1) arms the script's OWN A_ATAK by name from a
 DANGER-flagged state when the lion enters the pinned LICHA MAIN box
 (abs(dx) < 40 && abs(dy) < 50, 0x61b6e), and the enemy lands one hit
 through its OWN ATC window (verify-play pins: arm 171, window hit 265,
-energy 55). What remains for T3: the attack's MOTION / the DANGER
-charge (needs T1's `F`/`I` semantics), the engine's own driver and
-ATACK-side test (open question 10), and `scope=`'s real consumer
-(measurably NOT the attack box).)
+energy 55). PR-91 lands T3 STAGE 2 - the lion ANSWERS: the window hit
+raises AC_ENEMY_ATC on the lion's own set, and ZARIA's authored
+A_DOSTAL reaction runs with zero new mechanism (entry row 1 at tick
+266, seq=hit art, the `I -320,-250` pullback impulse, wrap exit
+A_DRAP(1)=AC_BREAK_NEXT at tick 356; selftest + play legs pin the
+whole chain; contact hits deliberately do NOT raise it - open question
+10). What remains for T3: the engine's own driver and ATACK-side test
+(open question 10), the other classes' gates, and `scope=`'s real
+consumer (measurably NOT the attack box); the attack itself has NO
+authored motion - the worm stands and swings, matching the frames.)
 
 **T4. Signal bus, pickups, inventory.**
 Resolve open question 2 (RESOLVED in PR-88: the full name->bit table decoded

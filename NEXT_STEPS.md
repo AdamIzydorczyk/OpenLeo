@@ -4199,6 +4199,59 @@ for the class LICHA):
     NOT build ll_level - run `make ll_level` explicitly (verify-play
     depends on it, but ad-hoc probes silently used a stale binary).
 
+## PR-91 — the LION answers an enemy attack with its OWN authored hit
+reaction (T3 stage 2): the raise only; everything else was already landed.
+
+  - The reaction is authored, complete data (measured over the extracted
+    .MOV texts): ZARIA.01's lion LEW.ZAR (and LEWPL, 16 lines) carries
+    "A_DOSTAL(1)=AC_ENEMY_ATC" from A_WALK/A_DRAP/A_FIGHT/A_LOOKUP...
+    and a full [A_DOSTAL] block: BY_TIME, 9 frames x 200 ms, seq=hit,
+    sample=12, frame 1 `I -320,-250` (a pullback: the horizontal part
+    follows facing, -250 lifts the feet), frame 5 `WAIT !AC_ENEMY_ATC`
+    (WAIT stays counted/unmodelled), and its ONE exit is
+    A_DRAP(1)=AC_BREAK_NEXT - the frame-list wrap ends it.
+  - Every mechanism that reaction needs already shipped: the player IS
+    its parsed .MOV (state indexes + transition targets, PR-84/86), the
+    named-signal condition tests the lion's own sig set (PR-88), seq=
+    picks the state's art (PLAN 8g, live report: "0 state(s) name no
+    seq= art" - the lion's hit group resolves in the real install), the
+    frame `I` impulse is applied on transition entry (PR-74) and an
+    authored AC_BREAK_NEXT exit is armed by the wrap (PR-83/86). The
+    ONLY missing piece was the raise itself.
+  - Implementation (one line + docs): the PR-90 window-hit block now
+    raises AC_ENEMY_ATC on pl->p.sig (mirror of PR-89 raising it on
+    the hit object). play order: ll_player_step then play_collide, so
+    the CURRENT state's authored line fires on the NEXT tick - the
+    one-tick pulse matches the bus semantics; no new flag needed: the
+    raise sits inside the window block, which only exists when an
+    attack was armed (LEO_PLAY_DANGER), so every default run stays.
+  - MODEL CHOICE (flagged in the code, open question): contact hits do
+    NOT raise it. The token names the enemy's ATtack and a passive
+    touch has no window; raising on every touch would make every bump
+    a reaction. The engine's own raiser is still unpinned (bit 16 =
+    AC_ENEMY_ATC has no immediate-OR site in the text disasm).
+  - Proof (offline): ll_play_selftest gained the authored chain -
+    raised bit -> A_DOSTAL entry at ROW 1, vy<0 + grounded=0 (the -250
+    lift), vx<0 (the -320 pullback), x actually decreased, recovery at
+    the wrap via AC_BREAK_NEXT into A_DRAP at ENTRY ROW 2 (proves the
+    (N) token on a signal-driven transition too), and the line stays
+    dark when nobody raises the bit.
+  - Proof (live): the PR-90 leg now runs to PPM tick 380 and pins the
+    chain on real data: hit at 265 -> play tick 266 "state A_DOSTAL
+    seq hit frame 1" (the (1) entry row; the -250 impulse hops the
+    lion off the ground for two ticks, grounded again at 268, the
+    pullback slides ~45 u left), frames advance at the authored
+    200 ms (frame 9 by 345), wrap -> "A_DOSTAL -> A_DRAP" and
+    "play tick 356: state A_DRAP seq idle frame 1". Contact hits keep
+    their lock rhythm through it (331/362). All earlier pins unchanged.
+  - Still open: does the engine ALSO raise on a plain touch (then a
+    bump would recoil the lion - the A_WALK line reads that way); the
+    A_ATAK state has NO exit except being hit itself (AC_ENEMY_ATC on
+    the object), so a worm that is never interrupted loops its attack
+    forever - matches "A_ATAK has one exit: A_DOSTAL(1)" in data, but
+    whether the engine re-arms/aborts the state from its compiled AI is
+    unpinned; the WAIT directive; sample=12/20 sounds (T5).
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

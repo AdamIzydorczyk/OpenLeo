@@ -1674,6 +1674,52 @@ int ll_play_selftest(void)
         ll_plt_free(&pp);
         free(pm);
     }
+    {   /* PR-91 (T3 stage 2): an enemy attack raises AC_ENEMY_ATC on
+         * the LION's own set; everything after that is authored data.
+         * Exact mirror of ZARIA LEW.ZAR's A_WALK -> A_DOSTAL (frame 1
+         * `I -320,-250` pullback, exit A_DRAP(1)=AC_BREAK_NEXT at the
+         * list end): the CURRENT state's line drives the reaction, the
+         * (N) token picks the target's entry row, and the reaction ends
+         * at its OWN wrap - no new mechanism anywhere (the raise itself
+         * is play_collide's, covered by the Makefile play legs). */
+        static const char HR[] =
+            "A_WALK\nA_DOSTAL\nA_DRAP\n\n"
+            "[A_WALK]\ncontrol=BY_X\nF=0,0\nT=10,0\nG=0,0\n"
+            "A_DOSTAL(1)=AC_ENEMY_ATC\nseq=a\n1,50\n\n"
+            "[A_DOSTAL]\ncontrol=BY_TIME\nF=0,0\nG=0,0\n"
+            "A_DRAP(2)=AC_BREAK_NEXT\nseq=a\n1,100,I -320,-250\n2,100\n\n"
+            "[A_DRAP]\ncontrol=BY_TIME\nF=0,0\nG=0,0\nseq=a\n1,100\n2,100\n";
+        static const char HP[] = "1\n1 0,100;2000,100;\n";
+        ll_mov_t *hm = calloc(1, sizeof *hm);
+        ll_plt hp;
+        ll_player u;
+        ll_play_keys uk = { 0 };
+
+        CHECK(hm && ll_plt_parse(HP, &hp) == 0);
+        CHECK(ll_mov_parse(HR, hm) == 3);
+        ll_player_start(&u, hm, 500, 100, 1);
+        CHECK(u.sti == 0);
+        for (int t = 1; t <= 4; t++)                  /* nobody attacked:  */
+            ll_player_step(&u, &hp, &uk, 0, 2000, 20); /* the line stays dark */
+        CHECK(u.sti == 0);
+        u.sig |= 1ull << LL_SIG_AC_ENEMY_ATC;         /* the hit raises it */
+        ll_player_step(&u, &hp, &uk, 0, 2000, 20);
+        CHECK(u.sti == 1 && u.fi == 0);               /* A_DOSTAL, row 1   */
+        CHECK(u.vy < 0.0 && !u.grounded);             /* -250 lifts (up)   */
+        CHECK(u.vx < 0.0);                            /* -320 pulls back   */
+        double ux0 = u.x;
+        int rec_at = 0;
+        for (int t = 1; t <= 24 && !rec_at; t++) {    /* 2x100 ms + wrap   */
+            ll_player_step(&u, &hp, &uk, 0, 2000, 20);
+            if (u.sti == 2)
+                rec_at = t;
+        }
+        CHECK(rec_at >= 5 && rec_at <= 20);           /* AC_BREAK_NEXT at the wrap */
+        CHECK(u.fi == 1);                             /* A_DRAP(2): entry row 2  */
+        CHECK(u.x < ux0);                             /* the pullback moved him  */
+        ll_plt_free(&hp);
+        free(hm);
+    }
     if (!rc)
         printf("play selftest: .plt physics (+ the '!' separator variant,"
                " + an authored-empty '0' ground is data not an error),"
@@ -1687,6 +1733,8 @@ int ll_play_selftest(void)
                " row, authored AC_BREAK_NEXT ends a jump at its list wrap"
                " (landing no longer cuts it; fallback kept only without"
                " such a line), PR-87: comma groups AND (K_FIRE,K_F1"
-               " attack entry - FIRE alone never fires it) (ok)\n");
+               " attack entry - FIRE alone never fires it), PR-91: a raised"
+               " AC_ENEMY_ATC drives the authored hit reaction (entry row,"
+               " pullback impulse, its OWN AC_BREAK_NEXT wrap ends it) (ok)\n");
     return rc;
 }
