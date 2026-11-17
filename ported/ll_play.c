@@ -1166,6 +1166,16 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
     /* 7) frame advance on the same ms clock (identical semantics to
      * obj_advance: wrap at the end, apply M dx,dy deltas; AC_BREAK_NEXT
      * is armed by a wrap and consumed by transitions next tick.
+     * PR-109 MEASURED THE UNIT, AND THIS CLOCK IS THE WRONG ONE: the
+     * engine feeds the row accumulator 100 per FRAME-LOOP ITERATION (the
+     * level constant written at 0x4c8b7) and its pacer (0x4b0e0 ->
+     * 0x4a120 -> 0x1dba0) holds one iteration to two display frames, so
+     * the authored row numbers are thresholds in 1/100-iteration units:
+     * a row of 200 stays on screen 66-100 ms, as measured frame by frame
+     * on the owner's ladder clip, not the 200 ms this clock gives. The
+     * ms feed is kept until PR-110 replaces it with an iteration clock;
+     * until then every leg that quotes a row duration is quoting this
+     * model, and must be re-derived by hand if that changes.
      * PR-83: `GEN` tails raise their signal as the frame completes
      * (same rule the object engine follows, ll_level.c obj_advance) -
      * that is the player's AC_TIME mechanism. The state time= timer is

@@ -109,12 +109,22 @@ int  ll_plt_first_below(const ll_plt *o, int x, int from_y, ll_xy *hit);
  * wrote that modes 2/3 are both gated by `[obj+0xba]`, and PR-108
  * corrects that here and in HANDOFF 7.13 / 8. BY_TX appears in 0 shipped
  * files; BY_TY is 12 blocks in 7 files and only three state names -
- * A_WSP, A_WSP_LIN, A_DRAB - every one of them the lion hanging on a
- * vine or rope, which fits the vertical reading; neither mode is
- * modelled here (no LL_CTRL bit acts on either), and PR-108's play
- * selftest leg pins the ungated model the port runs today. Names without a
- * bit below are parsed, named here for the record, and counted in
- * ctrl_other - never silently dropped, never invented into a behaviour. */
+ * A_WSP, A_WSP_LIN, A_DRAB - all of them the lion on a RUNG LADDER (the
+ * DRABINKA object, `seq=climb`/`climb_r`), which fits the vertical
+ * reading. ENA2's rope state A_CLIMB is mode 1 instead: a |v_y| feed
+ * with thresholds of 4, i.e. velocity-coupled animation, a different
+ * mechanism (PR-109). WHAT THE 100 IS PER IS NOW MEASURED, not
+ * guessed: one frame-loop iteration, whose period the pacer (0x4b0e0 ->
+ * 0x4a120 -> 0x1dba0) holds to TWO display frames - so an authored row
+ * threshold of 200 is two iterations, measured 66-100 ms of screen time
+ * on the owner's ladder clip, NOT 200 ms. That makes the `.ms` field of
+ * ll_mov_fr a misnomer (renamed only with PR-110, the change) and the
+ * row clocks of ll_play.c/ll_level.c 3.0-3.5x too slow in wall time.
+ * Neither mode is modelled here (no LL_CTRL bit acts on either), and
+ * PR-108's play selftest leg pins the ungated ms model this port runs
+ * today. Names without a bit below are parsed, named here for the
+ * record, and counted in ctrl_other - never silently dropped, never
+ * invented into a behaviour. */
 enum {
     LL_CTRL_BY_TIME         = 1u,
     LL_CTRL_BY_X            = 2u,           /* walk states: move at speed  */
@@ -248,7 +258,19 @@ typedef struct { int frame; unsigned ms; int dx, dy;
                  bit 1 = the frame CLOSES it. The window decides when the
                  state's shape can land a hit (ZARIA's A_FIGHT opens it
                  at frame 8, right before its `FC 100,0`; the LICHA's
-                 A_ATAK opens at -4 and closes at -8). */
+                 A_ATAK opens at -4 and closes at -8).
+                 ms: the row's threshold. The name is a MISNOMER and is
+                 kept only until PR-110 (PR-109 settled the unit): the
+                 engine compares this value with an accumulator fed 100
+                 per FRAME-LOOP ITERATION (the level constant of 0x4c8b7,
+                 read at 0x543f2/0x54406/0x5442f), and its pacer
+                 (0x4b0e0 -> 0x4a120 -> 0x1dba0) holds one iteration to
+                 two display frames - so a row of 200 is TWO ITERATIONS,
+                 measured 66-100 ms of screen time on the owner's ladder
+                 clip, not 200 ms. `time_scale` is already folded in at
+                 parse time (PR-104). This port's wall-clock ms feed is
+                 3.0-3.5x too slow in wall time; PR-110 changes what the
+                 field means and renames it. */
 #define LMOV_ATC_ON  1u
 #define LMOV_ATC_OFF 2u
 typedef struct {

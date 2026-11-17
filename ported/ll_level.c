@@ -1088,8 +1088,12 @@ static void obj_arm_atak(lvl_obj *o, int lx, int ly, int verbose, int tick)
  * steps on-screen objects once per frame and freezes off-screen ones
  * completely; the loop's own period is a retrace sync (0x4b0e0 ->
  * 0x4a120, 0x1dba0) against a startup-measured two-frame setpoint
- * (0x4a190). The 20 ms tick below is a modelling choice, not a
- * measurement (NEXT_STEPS PR-106). */
+ * (0x4a190). PR-109 measured that setpoint on the owner's footage: two
+ * display frames, 28-33 ms per iteration, and the row thresholds are
+ * counted in those iterations (see obj_advance). The 20 ms tick below is
+ * a modelling choice, not a measurement (NEXT_STEPS PR-106, PR-109);
+ * whether to reproduce the engine's iteration period is PR-110's
+ * decision, not this function's. */
 static void obj_walk(lvl_obj *o, const ll_mov_st *s, unsigned dt_ms)
 {
     double dist = (double)(s->fx >= 0 ? s->fx : -s->fx) * dt_ms / 4000.0;
@@ -1184,6 +1188,16 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         }
         ll_mov_fr *f = &s->fr[o->fi];
         int walk = (s->ctrl & LL_CTRL_BY_X) && s->fx != 0;
+        /* PR-109 read the unit of f->ms, and it is NOT milliseconds: the
+         * engine feeds its row accumulator 100 per FRAME-LOOP ITERATION
+         * (0x4c8b7's constant) and its pacer (0x4b0e0 -> 0x4a120 ->
+         * 0x1dba0) holds one iteration to two display frames, so an
+         * authored threshold of 200 is two iterations - 66-100 ms on
+         * screen, measured frame by frame on the owner's ladder clip.
+         * `o->t` below counts wall ms, so this clock runs 3.0-3.5x too
+         * slowly until PR-110 makes it an iteration clock. The BY_X walk
+         * side (`facc`, PR-98's distance law) is a different quantity
+         * and is not affected by that change. */
         if (walk ? o->facc < (double)f->ms      /* units, not ms: the same    */
                  : o->t < f->ms)                /* slot read both ways        */
             break;

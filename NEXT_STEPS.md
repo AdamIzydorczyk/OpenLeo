@@ -7939,6 +7939,313 @@ to the clip request, a STATUS line under T5, and a 6-table row recording
 that the mode-4 feed and its guard are not modelled). Nothing under
 .github/workflows, nothing copyrighted staged.
 
+## PR-109 — the row clock's unit, decided by footage: authored row
+thresholds count FRAME-LOOP ITERATIONS (100 per iteration, one
+iteration = two display frames = 28-33 ms), not milliseconds; the pacer
+and the PIT clock read end to end, and two sentences of PR-106's clock
+paragraph are wrong (RE + one measurement on the owner's clip: no
+behaviour change, no pin moved)
+
+Closes the question PR-108 opened ("only footage decides") and the "what
+are 100 units of?" question carried since PR-100, and PR-106's open
+item about the clock's rate. No port behaviour changes in this PR: the
+row clock still runs on `p->ft += dt_ms`. The behaviour change is
+PR-110, named at the end of this record.
+
+- WHAT THE OWNER SUPPLIED, AND WHAT IT IS NOT. `yt-dlp -f
+  "bv*[height<=480]+ba/b" -o "ladder.%(ext)s"
+  "https://www.youtube.com/watch?v=DomCTOtx2rg"` ->
+  /tmp/opencode/yt/ladder.webm; ffprobe: vp9, 576x360, 30 fps, 481.63
+  s. Nothing copyrighted is staged in the repo; everything measured here
+  stays under /tmp/opencode/yt. In it the lion hangs from a rung ladder
+  (rope strops, wooden rungs) from about 46.6 s, climbs steadily, and
+  steps off onto a ledge at about 48.3 s. THE LEVEL IS NOT IDENTIFIED
+  and I could not identify it from the picture; that does not weaken the
+  timing conclusion, because the ladder-grab state block `[A_WSP]`
+  (seq=climb) is BYTE-IDENTICAL in ZARIA.01, ZARIA.02 and TUNGA.11, so
+  every candidate supplies the same row table. What the picture does
+  establish is the object type: a rung ladder, i.e. the DRABINKA family
+  (`AC_DRAB`/`AC_DRAB_CATCH`), whose states are BY_TY (mode 4). It is
+  NOT ENA2's rope-handover state `[A_CLIMB]`, which is BY_Y (mode 1)
+  with rows `1,4 ... 10,4` - a threshold of 4 against a feed of |v_y|
+  per step is a velocity-coupled animation, a different mechanism, and
+  not what was filmed.
+- HOW IT WAS MEASURED (the scripts stay under /tmp/opencode/yt/lad:
+  period.py, pose.py, idseq.py, track.py, cam.py, rung.py). Frames at
+  the container's own 30 fps (`-ss 43.5 -t 5`, f_0001 = 43.500 s). In
+  each frame the lion is masked by colour (r>165, 60<g<185, b<95,
+  r-b>110), x is cropped to the ladder column (100..280 of 576) to drop
+  the background, and the largest 8-connected component (>=150 px) is
+  kept; its pixel count `n` is a sprite fingerprint, because the video
+  is a scaled copy of a 320x200 framebuffer, so the same sprite reads
+  the same `n` frame after frame (identical sprites agreed within ~3
+  px; runs were merged at a tolerance of max(25, 1.5%) to survive the
+  lossy codec). A run of k video frames is one animation step displayed
+  for k x 33.3 ms. Two independent pose counters were also run: a
+  strict IoU change test (pose.py, 0.99) and greedy pose clustering
+  (idseq.py).
+- THE MEASUREMENT, AND THE 3x. In the continuous climb (46.633-47.900 s)
+  the run lengths are 4,2,4,3,2,2,2,3,2,3,2,4,2,2,2: 15 changes in 39
+  frames, mean 2.6 frames = 87 ms, MAXIMUM 4 frames = 133 ms. For the
+  authored `[A_WSP]` table (`1,300`, eight rows of `200`, `10,300`) the
+  two models predict, in video frames at 30 fps:
+    - the port's ms model (threshold = ms): 9,6,6,...,6 - a MINIMUM run
+      of 6, and a 2200 ms cycle = 66 frames;
+    - the iteration model (threshold/100 iterations, one iteration = two
+      display frames, so a row of 200 is 2 iterations and one of 300 is
+      3): 1.7-2 and 2.6-3 frames depending on the retrace rate (see the
+      pacer bullet), and a 22-iteration cycle = 630-730 ms.
+  NOT ONE run of 5 or more frames appears anywhere in the 5 s window,
+  while the observed runs are 2, 3 and 4. Run-merging cannot rescue the
+  ms model: it would need every 6-frame run to be seen as 2. The change
+  COUNT taken from the same run data points the same way, though less
+  strongly: 15 pose changes in 1.27 s, where the ms model allows at most
+  5.8 row advances and the iteration model 17-20 - above the ms ceiling,
+  below the iteration one, which is the shape a detector that misses some
+  changes produces (it only sees a change when the silhouette changes). A
+  third method, the strict-IoU one, over a wider window that also
+  contains the grab and the step-off (46.2-48.5 s) reports 8 changes in
+  66 frames; it under-counts too much to discriminate and is recorded
+  only for completeness. The window before the grab (43.50-44.40 s,
+  static camera) gives runs of 3-4 frames for a state whose authored rows
+  I did not identify; it is used here ONLY as a control that the method
+  can measure 3-4 frame runs at all.
+  DECIDED: an authored row threshold T is displayed for T/100 frame-loop
+  iterations, NOT for T milliseconds. Measured row durations are
+  66-100 ms for T = 200-300, i.e. 0.33-0.50 ms per threshold unit
+  against the port's 1.0 ms per unit: THE PORT'S ROW CLOCK RUNS
+  3.0x-3.5x TOO SLOW, which is PR-108's own estimate ("about 3.5x
+  faster than the port's 200 ms") confirmed.
+- STILL OPEN AND NOT CLOSED HERE: the vertical DISTANCE law. Measuring
+  his feet against the rungs (rung pitch 12 crop px = 18 source px at
+  the 0.667 crop scale) gives about 100 source px/s, ESTIMATE +-20, and
+  nothing in the repo turns `F=0,100 T=160,50` into 100 px/s: the port
+  has no reading of either number for this state and the row glyph lines
+  carry no dy. The timing law is settled, the motion law is not, and no
+  future PR may quote the 100 px/s as if it followed from the timing
+  law.
+- THE PACER, VERBATIM (bytes re-read through leodb `dis` at their own
+  VA). The frame loop's tail is 0x4aee0: `call 0x563d0`, `mov eax,ecx;
+  call 0x4af10`, `mov eax,ecx; call 0x4b0e0`, `inc ds:0xcef3c` (a frame
+  counter), `jmp 0x4ac3b` (the loop head). 0x4b0e0 is six bytes: `mov
+  eax,0xcef30; call 0x4a120; call 0x1cfe5; ret`. The only callers of
+  0x4b0e0 are 0x4aef5 (that tail) and 0x609e5 (unread, open item 6).
+  0x4a120 is the wait method: while `ds:0xcf1b2 - [p+4] < [p+8]` spin
+  re-reading both, then ONE `call 0x1dba0`, then restamp `[p+4] =
+  ds:0xcf1b2`. 0x1dba0 is exactly `mov dx,0x3da` and two polling loops
+  on `in al,dx; and al,8` (first waiting for bit 3 clear, then for it
+  set) - the standard VGA 3DA status read, so it ends aligned to the
+  start of a vertical retrace: a display-frame boundary really is the
+  unit. 0x4a160 is the reset (`mov DWORD [eax+4],0; ret`), called on
+  the loop's EXIT path at 0x4ae67 next to `call 0x1dba0`; that exit path
+  also re-arms the level when `ds:0xa94f0` (lives) is non-zero (0x4ae82)
+  - and the retrace wait at 0x4ae58 belongs to that exit path, not to
+  each iteration. THE SETPOINT, confirming PR-106's reading and adding
+  the arithmetic: 0x4a190 starts the clock (`mov eax,0xcf1a8; call
+  0x5b8f0`, then `call 0x5b860`), takes a factor from the caller (its
+  prologue is `mov ebp,eax; mov [esp],edx`), samples FIVE retrace-to-
+  retrace intervals, keeps the minimum in ecx and the maximum in esi,
+  and writes `[p+8] = min*factor - 1`, or the constant 0x1b = 27 when
+  the samples spread by more than 2. The factor is 2 at both call sites:
+  0x5e49c-0x5e4b0 and 0x5eae0-0x5eafd each do `mov eax,0xcef30; mov
+  edx,2; call <video-mode setter>; call 0x4a190`, and 0x4a230 preserves
+  edx across its body (push/pop) even though it uses `mov edx,0x13` for
+  its `INT 10h, AX=0x13` mode-13h call; 0x4a270 is the matching
+  mode-0 setter. The second calibration site, 0x5eae0, then writes
+  `ds:0xa94f0 = 9` (lives) and `call 0x5d170`: the calibration runs
+  immediately before the level runs. So ONE FRAME-LOOP ITERATION PER TWO
+  DISPLAY FRAMES, by construction, and the 27 fallback is exactly
+  2*14-1: the author's assumed 14 ms retrace.
+- THE ITERATION PERIOD, AS INFERENCE AND NOT RE. Two display frames per
+  iteration means the loop rate is half the retrace rate: 35/s at mode
+  13h's 70.08 Hz (PR-106's figure, 28.6 ms), 30/s at a 60 Hz retrace
+  (33 ms). The clip brackets it: rows of 200/300 show plateaus of 2-4
+  video frames at 30 fps, i.e. 1.7-3 iterations' worth of display, which
+  fits 28-33 ms per iteration and excludes both a much faster loop (a
+  100/s loop would change the pose every video frame) and the ms model.
+  The absolute value cannot be pinned from a 30 fps copy of a 50/60/70 Hz
+  original, so it stays ESTIMATE 28-33 ms. Note the consequence, which
+  the port has to face: the setpoint is measured at runtime, so the
+  game's animation speed is display-rate dependent.
+- THE CLOCK, END TO END, AND THE TWO SENTENCES OF PR-106 THAT ARE
+  WRONG. The counter ds:0xcf1b2 is advanced at exactly one place, 0x1c65d
+  `add DWORD ds:0xcf1b2, ds:0xcf1b6`, in the tail of the timer
+  dispatcher 0x1c5b0. Its caller chain is the installed INT 8 handler:
+  0x1c6d0 is `pusha; push ds/es/fs/gs; call 0x74fb8` (a DS fixup,
+  `data16 mov ds, cs:[...]`), `mov al,0x20; out 0x20` (EOI), then a
+  re-entrancy flag at ds:0xcea94 guards one `call 0x1c680`; 0x1c680
+  saves ss:esp, switches to the alternate ISR stack at
+  ds:0xcf450/0xcf454, `call 0x1c5b0`, and restores - it does NOT chain
+  to the interrupted BIOS handler. 0x1c5b0 first walks the registered
+  handler list at ds:0xcf1bc - per handler skip if `[h+8] >= now`, skip
+  if `[h+0x10] & 1`, fire if `[h+8] + [h+0xc] >= now`, then `call
+  [[h+0x14]+0]` - and only then adds the step ds:0xcf1b6. The clock is
+  the static struct at 0xcf1a8: +0x00/+0x04 the saved INT 8 vector,
+  +0x06 the saved handler pointer, +0x0a the counter (ds:0xcf1b2), +0x0e
+  the step per tick. 0x5b860 starts it: bails if already started
+  (0x5b840), saves the INT 8 vector through 0x75c5a, installs 0x1c6d0
+  through 0x75c8c, programs channel 0 through 0x5b820 (`mov al,0x36; out
+  0x43`, then lo/hi `out 0x40`), zeroes `[c+0x0a]` and writes
+  `[c+0x0e] = 0x37 = 55`; that 55 is the BIOS tick's 54.93 ms rounded
+  up, so the default configuration is also a millisecond clock, one that
+  counts BIOS ticks and stamps each as 55 ms. 0x5b8f0 stops it (restore
+  the vector, clear it, `call 0x5b820` with edx = 0). CORRECTION 1,
+  quoted: "the clock only moves in 55-unit steps" and "the game's 'ms'
+  clock = one BIOS timer tick stamped as 55 ms" - true only of a started
+  but never-reprogrammed clock, and the level-run path always
+  reprograms it. 0x5b9e0 is a SET-PERIOD method in milliseconds, not a
+  "N ticks" setter: clamp edx to >=1, `imul edx,edx,0x1d216` (119318)
+  and `idiv 100` -> the PIT divisor for a period of edx ms; a divisor of
+  0xffff is replaced by 0 (a period request beyond ~549 ms falls back to
+  the default rate); then it re-stamps
+  the rate the hardware will actually deliver, `[c+0x0e] = (divisor*100
+  + 99) / 119318` (1 for any divisor below 1193.18); `cli`, store,
+  `call 0x5b820`, `sti`. 0x5b820 has exactly three call sites, all
+  inside those three methods (0x5b8c7, 0x5b920, 0x5ba32). It writes
+  `al=0x36` (channel 0, latch lo/hi, square-wave mode), so edx = 0 means
+  a count of 65536 = the BIOS 18.2 Hz rate - which is what the stop
+  method restores and what the 0xffff clamp lands on, and the step it
+  computes there, (0xffff*100+99)/119318 = 54, makes that rate a
+  millisecond clock too (54 per 18.2 Hz tick = 983/s). The design is
+  self-consistent: whatever the tick rate, the counter is milliseconds,
+  and set-period only chooses the granularity. THE ORDERING
+  THAT SETTLES THE PLAYED RATE: the level-run wrapper 0x5d170 opens with
+  `mov eax,0xcf1a8; xor edx,edx; call 0x5b860` (0x5d18b) and `mov
+  edx,1; mov eax,0xcf1a8; call 0x5b9e0` (0x5d190-0x5d19a), and 0x5dec0
+  is the same start-then-set-1ms pair as a helper, called at 0x5e4b7
+  right after the pacer calibration. Every path into 0x4abd0's frame
+  loop goes through 0x5d170, so during play channel 0 runs at divisor
+  1193 = 1.0006 ms with a step of 1: the played clock is a
+  millisecond clock with millisecond resolution, and the pacer's
+  `[p+8]` is a count of milliseconds (about 27-33 for two display
+  frames). The other channel-0 writer is a BIOS-tick path: 0x18870 saves
+  INT 1Ch into ds:0xc4030/0xc4034, installs 0x18730 there, stores 1 at
+  ds:0xc3fe4, and writes `al=0x36`, lo `0x95`, hi `0x42` = divisor
+  17045 = 7.00 Hz; it is reached from 0x18c40@0x18cb9 <-
+  0x1a450@0x1a462 <- 0x1b800@0x1bb90 (conditional on `[ebp+0x9c] == 0`)
+  <- 0x5cfc0@0x5d022, and 0x5cfc0 is called by the level setup 0x5d050
+  at 0x5d0de/0x5d12e. On the retry path the per-level wrapper 0x5d3a0
+  calls 0x5d170 FIRST (0x5d3b0) and reaches the setup 0x5d050 only for
+  result code 3 (0x5d3c6-0x5d3d7, via 0x5da60), so the 1 ms write is
+  again the last one before the next frame loop. CORRECTION 2, quoted:
+  PR-106's "the sound driver's 70.0 Hz PIT" - that PIT write is
+  divisor 0x4295 = 17045, i.e. 7.00 Hz, a factor of ten off; and
+  because the level-run path reprograms channel 0 to 1193 afterwards,
+  that 7 Hz rate is not the played rate. Independently, the clip
+  supports the fast clock directly: at a 7 Hz tick the calibration would
+  measure 0 between retraces, `[p+8]` would be -1, the spin would never
+  wait and the loop would run unthrottled, which the footage is not.
+  The 0xcf1bc handler list is a separate mechanism and not part of the
+  state machine: it has exactly ONE add site (0x562a1 -> 0x5ba40) and
+  its four remove sites (0x55dd0, 0x5631c, 0x56922, 0x56aba) lie inside
+  the same 0x55d70-0x56c60 range that owns the per-frame input block -
+  an inference from address ranges, not a read of the handler body.
+- THE ONE-LINE ANSWER TO PR-100'S QUESTION 11, quoted to be corrected:
+  "the field is a level-level global with exactly one write in the whole
+  image, `mov [eax+0x388],0x64` at 0x4c8b7 - a constant 100 - and ...
+  the question narrows to 'what are 100 units of?'". They are per-
+  frame-loop-iteration increments of the object's row accumulator at
+  `[obj+0xa1]`: the mode-3 and mode-4 bodies (0x543f2, 0x5441b) add the
+  constant once per iteration behind their gates and the stored row
+  thresholds are compared against that accumulator, so an authored `200`
+  is two iterations and `300` is three. The constant and the readers of
+  the global (0x239de, 0x54406, 0x5442f; 0x543fb is the ungated mode-2
+  entry) are PR-108's RE facts; the unit is now measured.
+- WHY THE CLIP'S EXISTENCE WAS ALREADY EVIDENCE, spelled out because it
+  is the shortest argument here and the long ones only corroborate it:
+  `[A_WSP]` has `control=BY_TY`, whose feed is that constant 100 once
+  per iteration behind `[obj+0xbe] != 0`, and the clip is a climb
+  animation that visibly advances. Under the port's model the row clock
+  has no gate at all, so the climb animation advances with or without
+  vertical force; under the engine's, if `[obj+0xbe]` were 0 during a
+  climb the animation would freeze. A climb was filmed advancing, so the
+  guarded feed is what runs - and its durations, divided by 100, are
+  what the video shows.
+- CORRECTIONS TO PR-108, quoted (its record stands untouched). PR-108:
+  "the authored rows ARE the engine's thresholds (the model difference
+  survives). So the choice is a physics/animation question that only
+  FOOTAGE can answer, and this PR asks for it" - answered: the footage
+  decides the clock, and it decides the ITERATION model. Its T5
+  question 2 predicted "~57 ms (2 feed steps at PR-106's ~28.6 ms)" for
+  a 200-unit row: CONFIRMED within the noise (measured 66-100 ms for
+  T = 200-300, i.e. 57-100 ms for those two rows at 28-33 ms per
+  iteration) - although the 28.6 ms it leaned on came from a clock
+  paragraph that is wrong in its wording (above) and right in its
+  arithmetic. Question 1 ("does the animation freeze while the lion
+  hangs without vertical travel") is NOT answered by this clip: the
+  window contains no hang without travel, he climbs continuously from
+  the grab to the step-off.
+- WHAT THIS DOES NOT CHANGE. `time_scale` stays a parse-time scale on
+  the stored threshold (PR-104: 0x51850 -> node+0x10 = value *
+  time_scale/1000), so an authored 200 with `time_scale=2000` stores 400
+  and is 4 iterations - KADMAR.07's balloon rows are 4 and 6
+  iterations, not 2000 ms apart. The port's `ll_mov_fr.ms` field is now
+  a MISNOMER (a threshold in 1/100-iteration units); it is
+  deliberately NOT renamed here, because the rename belongs with the
+  code that changes what it means. Nothing here touches BY_X (mode 0) or
+  BY_Y (mode 1) thresholds, keyed on dx and |v_y| and carrying no
+  timing claim at all.
+- PR-110, THE BEHAVIOUR CHANGE, NAMED SO IT CAN BE REVIEWED AS A
+  CHANGE: make the row clock an iteration clock. (1) Law: a row is
+  current for `authored * time_scale / 100000` iterations; the engine
+  feeds exactly 100 per iteration, and the comparison stays AFTER the
+  add with the threshold subtracted on a hit, so the remainder carries.
+  (2) The port has no iteration concept except its play tick, and the
+  engine's iteration is two display frames. So PR-110 must decide, and
+  say so: either declare one play tick to be one iteration (feed 100 per
+  tick; on the port's fixed 20 ms grid a row of 200 would then last
+  200 ms, still 2-3x slower than the footage), or name an
+  `LL_ITER_MS` constant and feed `100 * dt_ms / LL_ITER_MS` per tick,
+  which reproduces the measured wall durations. The value has a source
+  in the image itself - the engine's own fallback setpoint is 27, which
+  at the played 1 ms clock is 27 ms per iteration - and the clip's
+  bracket is 28-33 ms, so 28 is the honest choice; the choice and its
+  derivation belong in that PR, not here. (3) The test must be
+  data-free: hand-derived from the authored A_WSP table that rows 1-10
+  span 3,2,2,2,2,2,2,2,2,3 iterations and that the 10-row cycle closes
+  after exactly 22 steps and never 23. (4) Mutations, in PR-108's
+  style: MUT-A a fixed 2 iterations per row (breaks the 300 rows),
+  MUT-B ignore `time_scale` (breaks the KADMAR.07 4x case), MUT-C keep
+  the ms feed (breaks the 22-step cycle). (5) Re-derive by hand, do not
+  scale, every leg that quotes a row duration: ll_play.c ~1540 and
+  ~1571, ll_level.c:1136, and the BY_X walk feed in obj_walk, whose
+  `facc` model is a different law again (PR-98's). (6) The climb's
+  vertical distance law stays open: PR-110 must not invent 100 px/s.
+- OPEN ITEMS (PR-109 1-6). (1) The vertical distance law of a BY_TY
+  climb (measured ~100 source px/s; no repo reading explains it). (2)
+  T5's question 2 (does the climb animation freeze with no vertical
+  force?) is still unanswered - this clip has no hang-without-travel;
+  what is needed is footage that includes one, or the hold at the top
+  rung before the step-off. (3) The real display rate, hence the real
+  iteration rate: the setpoint is measured at runtime, so a 50 Hz or
+  70 Hz display changes the animation speed by +-40%, and the port must
+  state which it reproduces. (4) Whether anything reprograms PIT
+  channel 0 DURING play: 0x18870 installs the INT 1Ch handler 0x18730
+  and writes divisor 17045 = 7.00 Hz, and 0x188c0 branches on
+  ds:0xc3fe4; if that runs mid-level the clock's rate changes under the
+  pacer. (5) The `[obj+0xa1]` accumulator's width, saturation and other
+  readers. (6) The second caller of the pacer, 0x609e5, and the loop
+  behind it.
+- TESTS AND GATES: no behaviour change, so no new pin. Every gate was
+  run on the committed tree exactly: `make`, `make win`, `make ll_level`
+  warning-free; `make -k verify-all DATA=/tmp/opencode/iso_stage/LEO
+  HD=/tmp/opencode/hd_files`, and the data-free pair with DATA/HD
+  pointed at an empty directory - both EXIT=0.
+- DOCS: this record in NEXT_STEPS.md; HANDOFF.md (the 6-table BY_TY row
+  rewritten to the decided clock, a new item-13 bullet for this PR, the
+  T1 item-(2) paragraph changed from "the request to the owner" to the
+  answer, and the T5 STATUS rewritten to what the clip settled and what
+  it still owes). Three code comments that asserted the ms row model are
+  corrected in place: ll_play.h's control-word vocabulary note -
+  including the wording "the lion hanging on a vine or rope", which is
+  wrong: A_WSP/A_WSP_LIN/A_DRAB are the rung-ladder family with
+  seq=climb/climb_r, and ENA2's rope state is A_CLIMB, mode 1 - and the
+  row-clock comments in ll_play.c section 7 and ll_level.c's obj_advance,
+  each now stating that the engine counts iterations (100 per
+  iteration, one iteration = two display frames) and that this port
+  still counts ms until PR-110. Nothing under .github/workflows,
+  nothing copyrighted staged.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
