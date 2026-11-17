@@ -4787,6 +4787,27 @@ change, no pins; the PR-89/92/94 shipped model stands)
   OPEN half of question 9 is which 0x44350 call index yields which .des TYPE,
   and what the 0xcecfc-reading consumer does - both need 0x44350 and the 0x35e00
   region traced, deliberately not done here.
+- ADDENDUM (same session, closes the 0xcecfc thread the old note left open):
+  the 0x35e00 region is NOT a second contact handler. Those are per-class VTABLE
+  +0xc type-getter thunks, one per class, laid out back to back in the 0x35d50..
+  0x35eb5 range: each is `mov eax, <X>; ret` where X is either the literal 1
+  (the ordinary classes - e.g. 0x35d50, 0x35df0, 0x35e10, 0x35e40, 0x35e90,
+  0x35eb0) or one specific factory-instance global (0x35e00->0xced04, 0x35e20->
+  0xced00, 0x35e30->0xcecfc, 0x35e50->0xcecf8, 0x35e60->0xcecf4, 0x35e70->
+  0xcecf0, 0x35e80->0xcecec, 0x35ea0->0xcece8). So [obj.vt+0xc] (the getter
+  0x34020 and the touch method call) returns the object's class type-id: 1 for
+  normal classes, a global for the "special" ones. That is the whole mechanism -
+  CONFIRMED. And 0xcecfc is now shown to have NO comparator anywhere in text.asm
+  (it is only constructed at 0x33c25 and returned by 0x35e30; the 0x358bf
+  "add BYTE PTR [ecx+0xcecfc]" hit is a mis-aligned data read, not code). So the
+  old HANDOFF attribution of the "energy*45/100+10 / never-dies" behaviour to
+  0xcecfc was unfounded twice over: the coefficient is 30 not 45 (above), AND the
+  proportional/never-dies special cases in 0x34020 are keyed ONLY on 0xced00/
+  0xcecf0/0xcecf8/0xced04 - 0xcecfc/0xcecf4/0xcecec/0xcece8 classes fall through
+  to the default-30 path. Which class is which id (and why 8 classes get a
+  global while the rest return 1) still needs the data-segment vtables to map the
+  getter address to a constructor, so it stays OPEN - but it is no longer needed
+  to explain the hit: 0x34020 fully explains the lion/object hit on its own.
 - 0x3db90 = the GRABOBJ handler (slot +0x78 per the PR-94 vtable survey; the
   SLOT is not re-verified here - vtables are in the data segment, outside this
   dump). Clean function 0x3db90..0x3dca1 (ret at 0x3dca1, padding to the next

@@ -503,8 +503,13 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      these notes said - the 0x34037 `lea edx,[eax+eax*1]` is x2; verified
      byte-exact, full trace in the PR-96 record), 0xcecf8 -> sets the
      receiver's [obj+0xad]=-1, 0xced04 -> the PR-89 lion stomp; 0x340b5 is
-     0x34020's fall-through second half, not a separate method. Still OPEN:
-     which 0x44350 call index is which .des TYPE, and the 0xcecfc consumer.
+     0x34020's fall-through second half, not a separate method. The class id
+     comes from a per-class vtable +0xc getter (thunks at 0x35d50..0x35eb5:
+     return literal 1 for ordinary classes, or one specific global for the
+     "special" ones). 0xcecfc has NO comparator anywhere - the old
+     "0xcecfc = 45%/never-dies" attribution was unfounded; 0x34020 alone
+     explains the lion/object hit. Still OPEN: which 0x44350 call index / which
+     class vtable is which .des TYPE (needs the data-segment vtables).
      The port ships the 0x34103 dispatcher default 30 until that decodes.
    - Does the engine's corpse (A_DEAD state) still deal contact damage?
      The port says no (model choice).
