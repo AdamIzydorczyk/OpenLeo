@@ -4726,6 +4726,118 @@ corner (fixes the user's ZARIA.01 "something stands on nothing")
   in this run passed windows-smoke, so that run was a shared-runner timing flake
   (the selftest itself is worth a later non-wall-clock rework - low priority).
 
+## PR-96 — the contact-receiver and pickup helpers (RE only: no behaviour
+change, no pins; the PR-89/92/94 shipped model stands)
+
+- Source: /tmp/opencode/vis/text.bin disassembled to text.asm
+  (tools/re/make_text_asm.sh). The dump is a flat binary at VA 0x10000 = file
+  offset 0, so a labelled address in text.asm == its byte offset + 0x10000.
+  vtables and data-segment globals (ds:0xce..., ds:0xcf...) live OUTSIDE this
+  range and are not in the dump - they are named here, never read. Machine-code
+  fact unless marked OPEN. This folds the PR-95 bonus findings into the record.
+- 0x34020 is ONE function (the +0xd0 contact-receiver): prologue at 0x34020
+  (push esi,edi,ebp; edi=this/receiver, esi=the argument object); it RETURNS at
+  0x34096, 0x340b4, 0x34102 and 0x34114, and 0x340b5 is reached ONLY by the
+  `jne 0x340b5` at 0x340a5 - so the code PR-89 ported (0x340b5..0x34114, the
+  lion stomp) is this function's SECOND HALF reached by fall-through, not a
+  separate method. PR-94 said 0x340b5 is "the second half of 0x34020"; that is
+  now confirmed verbatim, with the exact fall-through edge and the function end
+  (the ret at 0x34114, padding to 0x3411d).
+- 0x34020 dispatches on the ARGUMENT's class id: it calls [arg.vt+0xc] four
+  times (0x3402c / 0x34060 / 0x3409c / 0x340c5) and compares the result against
+  four data-segment globals in ds:
+    * == 0xced00 (0x3402f): damage ebx = (this.hp*30)/100 + 10, read from
+      [this+0xad] (0x34037..0x34056: edx=[edi+0xad]; edx*0x15*2 = *30; idiv
+      100; +0xa), then jmp 0x34108 -> 0x50ed0(this, arg, damage).
+    * == 0xcecf0 (0x34063): the same (hp*30/100+10) at 0x3406b..0x34087, then
+      0x50ed0(this, arg, damage) at 0x3408e.
+    * == 0xcecf8 (0x3409f): [this+0xad] = -1 (the RECEIVER dies outright), ret.
+    * == 0xced04 (0x340c8) = the player lion (PR-94; identity still OPEN): the
+      PR-89 stomp - if [this via +0x6c getter] lands within the lion's
+      top..top+0x14 (0x340d5..0x340eb) and [arg+0x5c]!=2, [this+0xad]=-1, else
+      fall to 0x34103 damage 0x1e=30 -> 0x50ed0(this, arg, 30).
+    * any other id: falls through 0x340a5->0x340b5->0x34103 -> 0x50ed0(this,
+      arg, 30) with the default 30 (the receiver takes 30, exactly PR-89/94).
+  The receiver is ALWAYS eax=this=edi in the 0x50ed0 call (eax=receiver), so the
+  object being contacted is the one that takes the damage - consistent with the
+  PR-94 "the OBJECT is the receiver" reading.
+  OPEN: what 0xced00 / 0xcecf0 / 0xcecf8 identify (other lion variants? a
+  class that damages proportionally to its own hp?), and why three of the four
+  ids use a PROPORTIONAL hit (hp*30%+10) while the lion/else paths use the
+  fixed 30. This is the strongest lead on open question 9 (the "45%-template"
+  identity) - a per-class hit that scales with the receiver's own hp.
+- CORRECTION (machine-verified, this session): the proportional hit at 0x34037
+  (and its duplicate at 0x3406b) is energy*30/100 + 10, NOT energy*45/100+10 as
+  HANDOFF §5/§7 (the "lion attack damage" ledger row and open question 9) have
+  said. Byte-exact: `shl eax,4` (energy*16), `sub eax,edx` (energy*15),
+  `lea edx,[eax+eax*1]` (energy*30), `idiv 0x64` (/100), `lea ebx,[eax+0xa]`
+  (+10). The earlier "45%" is a scale misread of that lea (`[eax+eax*1]`=x2 vs
+  `[eax+eax*2]`=x3; x3 of x15 would give 45, but the byte is x2). Hand-checked:
+  energy=100 -> 40. This changes no shipped behaviour (the port ships the fixed
+  30 dispatcher default either way) but the coefficient in the docs was wrong.
+- open question 9 STRUCTURE, now RE-confirmed (what the 0xcecf0..0xced04 globals
+  ARE): a startup routine at ~0x33bc..0x33c4a+ calls a FACTORY, 0x44350, over
+  and over and stores each returned type-id into a STRIDE-4 ARRAY of globals:
+  ds:0xcecdc, 0xcece0, 0xcece4, 0xcece8, 0xcecec, 0xcecf0, 0xcecf4, 0xcecf8,
+  0xcecfc, 0xced00, 0xced04, 0xced08, ... (the writes at 0x33bd5..0x33c43). So
+  the "factory template instances" are consecutive entries of one built-at-load
+  array, not hand-coded ids - and 0x34020 compares only a subset of them
+  (0xced00, 0xcecf0, 0xcecf8, 0xced04); 0xcecf4 and 0xcecfc are NOT touched by
+  0x34020 (0xcecfc is read elsewhere, e.g. into eax at 0x35e30). The remaining
+  OPEN half of question 9 is which 0x44350 call index yields which .des TYPE,
+  and what the 0xcecfc-reading consumer does - both need 0x44350 and the 0x35e00
+  region traced, deliberately not done here.
+- 0x3db90 = the GRABOBJ handler (slot +0x78 per the PR-94 vtable survey; the
+  SLOT is not re-verified here - vtables are in the data segment, outside this
+  dump). Clean function 0x3db90..0x3dca1 (ret at 0x3dca1, padding to the next
+  function at 0x3dcb0). Calling convention (verified): eax=ecx=the pickup
+  descriptor, ebx=esi=the receiving actor, the edx argument is saved at
+  [esp+0xc]. Shape:
+    1. gate: call [actor.vt+0x3c] (0x3dba4); if 0, jump to the exit at 0x3dc80.
+    2. resolve the item by name: call 0x229c0 at 0x3dbcc with the descriptor's
+       name pair ([ecx+0x0], [ecx+0x4]), a data-segment format string 0x98278,
+       and ecx=[ecx+0x3c]+8. From the returned item record read WORD [res+0x17]
+       (>>1) -> edi = an item/icon index (0x3dbd3..0x3dbe0), and WORD [res+0x19]
+       *5<<4 + [res+0x15] (>>1) = a position term added to the descriptor's x,y
+       (0x3dbe5..0x3dc1f).
+    3. test the point against the actor's bounds: call [actor.vt+0x4c] (a rect:
+       [edx]=x0,[edx+8]=x1,[edx+4]=y0,[edx+0xc]=y1) and compare (0x3dc2c..
+       0x3dc4f); if outside, exit.
+    4. on inside: if [ecx+0x44] != -1 call 0x52cc0(actor, edi) (0x3dc5f); call
+       [ecx.vt+0x84] (0x3dc69); set edx=0xf and call 0x52b10(actor, ebx=[ecx+0x30],
+       0xf) (0x3dc7b) - raises signal 15 on the descriptor's owner set.
+    5. exit 0x3dc80: clear the descriptor (the saved [esp+0xc] arg ->
+       [arg+0xc]=0 at 0x3dc8d) then call 0x749a0 (0x3dc91) and ret.
+  OPEN: the item record's fields (+0x15/+0x17/+0x19), the 0x98278 format
+  string's content, and what signal 0xf drives. (All data-segment, outside the
+  dump.)
+- The 0x52cc0 / 0x56600 pair (the deferred helper the user named):
+    * 0x52cc0..0x52cf9 - clean function (eax=this, edx=arg): call
+      [this.vt+0x30] (0x52ccb), [this.vt+0x24](0) (0x52cd5), [this.vt+0x28](0x80)
+      (0x52ce2), then 0x56600(this, arg) (0x52ce9), then [this+0x20]=1 (0x52cee).
+      Its near-TWIN, the function ending at 0x52cb4, runs the same
+      [vt+0x24]/[vt+0x28]/0x56600 sequence and then writes [obj+0x20]=0 (0x52caa)
+      - so the pair is a 0/1 switch on [obj+0x20] (a hold/release or disable/
+      enable on the object).
+    * 0x56600..0x5661d (eax=this, edx=index): push ebx,ecx; if index >=
+      [ds:0xcf0b4] skip (0x56602..0x5660a); load the table base [ds:0xcf0ac];
+      edx = [table + index*4]; call [this.vt+0x18](edx) (0x56618); pop, ret. A
+      bounded index -> pointer-table -> method dispatch.
+  OPEN: what [obj+0x20] gates, the meaning of the [vt+0x28] argument 0x80, and
+  what the 0xcf0ac/0xcf0b4 table and signal 0xf do (all data-segment addresses).
+- The factory <-> class-token table (the 0x90f3d / "LICHA"@0x9321c / 0x616d0
+  note carried from PR-90) is NOT re-derivable from this repo's artifacts: those
+  are addresses in the ORIGINAL Leo.exe image. build/leo/leo.img:0x90f3d holds a
+  pointer table, not the class strings (checked: raw bytes there are dwords, and
+  0x9321c / 0x616d0 in leo.img are code/pointers, not the ASCII tokens PR-90
+  quoted). PR-90's conclusion STANDS and is unchanged: the engine's enemy AI is
+  compiled per class and the class is the PLACEMENT token (the .des field-1
+  token), not the field that looks like a class. Verifying the factory table
+  itself needs a capture of the original executable - recorded as a deferred
+  step under open question 9 / T4, deliberately NOT done here (no guessing).
+- No code, no pins: RE-only. make/make win untouched; full verify-all re-run
+  before commit as always (docs-only tree, expected green).
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

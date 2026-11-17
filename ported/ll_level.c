@@ -788,14 +788,19 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
  * decremented by FUN_00054550 `sub [eax+0xad], ebx`, the deliverer's
  * damage is its own [obj+0xb1] (the placement `damage=`, already parsed),
  * and the death gate is `energy < 0` (0x544a5 `cmp [eax+0xad],0; jge`).
- * The ATTACK dispatcher (0x34020) answers on the target's .des template
- * TYPE: one template (factory instance 0xcecfc, identity not decoded)
- * takes `energy*45/100+10` damage (0x34037), one gets an `energy = -1`
- * "never dies" marker (0x3409f/0x340f5), and the fall-through default is
- * 30 - `mov ebx,0x1e` at 0x34103, `call 0x50ed0` at 0x34108. No shipped
- * .des authors any lion damage number, so 30 is the only value the
- * shipped data points to; the 45%-type stays unreachable here (which
- * template instance means which .des TYPE is an open question).
+ * The ATTACK dispatcher (0x34020) answers on the ARGUMENT object's .des
+ * template TYPE (it compares [arg.vt+0xc], the class id, against the
+ * factory-instance id array ds:0xcecf0..0xced04 - one startup routine calls a
+ * factory, 0x44350, and stores each returned id there; the id->TYPE map is
+ * still an open question). Two entries (0xced00, 0xcecf0) make the receiver
+ * take `energy*30/100+10` damage (0x34037/0x3406b: shl 4, sub, `lea [eax+
+ * eax*1]` = *30, idiv 100, +10 - NOT *45; the earlier *45 note was a lea
+ * scale misread, see PR-96), one (0xcecf8) sets the receiver's `[obj+0xad] =
+ * -1`, and 0xced04 is the lion-stomp path PR-89 ported (0x340b5 is 0x34020's
+ * fall-through second half, NOT a separate method). The fall-through default
+ * is 30 - `mov ebx,0x1e` at 0x34103, `call 0x50ed0` at 0x34108. No shipped
+ * .des authors any lion damage number, so 30 is the only value the shipped
+ * data points to; the proportional types stay unreachable here.
  *
  * Rejection: FUN_00050ed0 is gated by FUN_000502f0 "invulnerable?", which
  * tests the countdown at [obj+0x102]; 0x27264 is the generic setter with
