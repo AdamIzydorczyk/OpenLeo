@@ -206,6 +206,12 @@ static int cond_id(const char *tok)
         { "K_GEN3", LL_COND_K_GEN3 },
         { "K_GEN4", LL_COND_K_GEN4 },
         { "K_JUMP", LL_COND_K_JUMP },
+        { "K_FIRE", LL_COND_K_FIRE },
+        { "K_F1", LL_COND_K_F1 },
+        { "K_F2", LL_COND_K_F2 },
+        { "K_F3", LL_COND_K_F3 },
+        { "K_F4", LL_COND_K_F4 },
+        { "K_ALT", LL_COND_K_ALT },
         { "AC_TIME", LL_COND_AC_TIME },
         { "K_ANY", LL_COND_K_ANY },
         { "AC_BREAK_NEXT", LL_COND_AC_BREAK_NEXT },
@@ -264,29 +270,42 @@ static void parse_pair(const char *v, int *a, int *b)
 static void parse_cond(ll_mov_tr *tr, const char *expr)
 {
     const char *q = expr;
+    int grp = 0;
     while (*q && tr->nc < LMOV_MAXCON) {
         const char *bar = strchr(q, '|');
-        const char *end = bar ? bar : q + strlen(q);
-        while (q < end && *q == ' ')
-            q++;
-        int neg = 0;
-        if (q < end && *q == '!') {
-            neg = 1;
-            q++;
+        const char *bend = bar ? bar : q + strlen(q);
+        /* PR-87: a bar segment is one AND-group; ',' splits its tokens
+         * (see the ll_mov_tr.c comment). ';' inside stays inside one
+         * token -> OTHER (counted, never true). */
+        for (;;) {
+            const char *comma = strchr(q, ',');
+            const char *end = (comma && comma < bend) ? comma : bend;
+            while (q < end && *q == ' ')
+                q++;
+            int neg = 0;
+            if (q < end && *q == '!') {
+                neg = 1;
+                q++;
+            }
+            size_t n = 0;
+            char tok[24];
+            while (q + n < end && n + 1 < sizeof tok) {
+                tok[n] = q[n];
+                n++;
+            }
+            tok[n] = '\0';
+            if (n) {
+                tr->c[tr->nc].cond = cond_id(tok);
+                tr->c[tr->nc].neg = neg;
+                tr->c[tr->nc].grp = grp;
+                tr->nc++;
+            }
+            if (end == bend)
+                break;
+            q = end + 1;
         }
-        size_t n = 0;
-        char tok[24];
-        while (q + n < end && n + 1 < sizeof tok) {
-            tok[n] = q[n];
-            n++;
-        }
-        tok[n] = '\0';
-        if (n) {
-            tr->c[tr->nc].cond = cond_id(tok);
-            tr->c[tr->nc].neg = neg;
-            tr->nc++;
-        }
-        q = bar ? bar + 1 : end;
+        grp++;
+        q = bar ? bar + 1 : bend;
     }
 }
 
@@ -558,7 +577,9 @@ void ll_player_start(ll_player *p, const ll_mov_t *mov, double x, double y,
 static int cond_true(const ll_player *p, const ll_play_keys *k,
                      const ll_mov_tr *tr)
 {
-    int any = k->k_fwd || k->k_bkwd || k->k_up || k->k_down;
+    int any = k->k_fwd || k->k_bkwd || k->k_up || k->k_down ||
+              k->k_jump || k->k_fire || k->k_f1 || k->k_f2 ||
+              k->k_f3 || k->k_f4 || k->k_alt;
     /* PR-85 MODEL CHOICE (recorded, evidence-based): K_FWD/K_BKWD are
      * FACING-RELATIVE - K_FWD = the arrow in the direction the lion
      * faces, K_BKWD = the opposite arrow. DATA PROOF: ZARIA's LEW.ZAR
@@ -575,27 +596,38 @@ static int cond_true(const ll_player *p, const ll_play_keys *k,
     int face = p->face >= 0 ? 1 : -1;
     int fwd_rel  = face  > 0 ? k->k_fwd : k->k_bkwd;
     int bkwd_rel = face  > 0 ? k->k_bkwd : k->k_fwd;
-    for (int i = 0; i < tr->nc; i++) {
-        int v;
-        switch (tr->c[i].cond) {
-        case LL_COND_K_FWD:  v = fwd_rel;  break;
-        case LL_COND_K_BKWD: v = bkwd_rel; break;
-        case LL_COND_K_UP:   v = k->k_up;   break;
-        case LL_COND_K_DOWN: v = k->k_down; break;
-        case LL_COND_K_GEN1: v = p->gen[0]; break;
-        case LL_COND_K_GEN2: v = p->gen[1]; break;
-        case LL_COND_K_GEN3: v = p->gen[2]; break;
-        case LL_COND_K_ANY:  v = any;       break;
-        case LL_COND_K_JUMP: v = k->k_jump; break;
-        case LL_COND_AC_BREAK_NEXT: v = p->broke; break;
-        case LL_COND_AC_TIME: v = p->ac_time; break;  /* PR-83: player-side
-             * arm = the frame list wrapped (ZARIA A_WALK->A_DRAP idle chain) */
-        default:             v = 0;         break;   /* OTHER: not simulated */
+    for (int i = 0; i < tr->nc; ) {                 /* PR-87: OR of AND- */
+        int g = tr->c[i].grp, all = 1;              /* groups ('|' then  */
+        for (; i < tr->nc && tr->c[i].grp == g; i++) { /* ',')           */
+            int v;
+            switch (tr->c[i].cond) {
+            case LL_COND_K_FWD:  v = fwd_rel;  break;
+            case LL_COND_K_BKWD: v = bkwd_rel; break;
+            case LL_COND_K_UP:   v = k->k_up;   break;
+            case LL_COND_K_DOWN: v = k->k_down; break;
+            case LL_COND_K_GEN1: v = p->gen[0]; break;
+            case LL_COND_K_GEN2: v = p->gen[1]; break;
+            case LL_COND_K_GEN3: v = p->gen[2]; break;
+            case LL_COND_K_ANY:  v = any;       break;
+            case LL_COND_K_JUMP: v = k->k_jump; break;
+            case LL_COND_K_FIRE: v = k->k_fire; break;   /* PR-87 */
+            case LL_COND_K_F1:   v = k->k_f1;   break;
+            case LL_COND_K_F2:   v = k->k_f2;   break;
+            case LL_COND_K_F3:   v = k->k_f3;   break;
+            case LL_COND_K_F4:   v = k->k_f4;   break;
+            case LL_COND_K_ALT:  v = k->k_alt;  break;
+            case LL_COND_AC_BREAK_NEXT: v = p->broke; break;
+            case LL_COND_AC_TIME: v = p->ac_time; break;  /* PR-83: player-side
+                 * arm = the frame list wrapped (ZARIA A_WALK->A_DRAP idle chain) */
+            default:             v = 0;         break;   /* OTHER: not simulated */
+            }
+            if (tr->c[i].neg)
+                v = !v;
+            if (!v)
+                all = 0;
         }
-        if (tr->c[i].neg)
-            v = !v;
-        if (v)
-            return 1;                                    /* OR semantics */
+        if (all)
+            return 1;
     }
     return 0;
 }
@@ -1013,6 +1045,27 @@ int ll_play_selftest(void)
           m.st[1].tr[1].c[0].cond == LL_COND_K_FWD &&
           m.st[1].tr[1].c[0].neg == 0);
     CHECK(m.st[1].fr[0].ms == 6);                    /* author values kept */
+
+    /* PR-87: ',' groups are AND ('|' alternatives stay as before): the
+     * unmodeled token poisons only its own group; a leading '|' is an
+     * empty group (no-op). The reading of ',' is argued in ll_play.h. */
+    ll_mov_t mfg;
+    ll_mov_parse("A_STAY\nA_FIGHT\n[A_STAY]\r\n"
+                 "A_FIGHT(1)=K_FIRE,K_F1\r\n"
+                 "A_FIGHT(2)=K_F2|K_FIRE,K_ZOO\r\n"
+                 "A_FIGHT(3)=|K_ALT\r\n", &mfg);
+    CHECK(mfg.st[0].ntr == 3);
+    CHECK(mfg.st[0].tr[0].nc == 2 &&
+          mfg.st[0].tr[0].c[0].cond == LL_COND_K_FIRE &&
+          mfg.st[0].tr[0].c[1].cond == LL_COND_K_F1 &&
+          mfg.st[0].tr[0].c[0].grp == mfg.st[0].tr[0].c[1].grp);
+    CHECK(mfg.st[0].tr[1].nc == 3 &&
+          mfg.st[0].tr[1].c[0].grp != mfg.st[0].tr[1].c[1].grp &&
+          mfg.st[0].tr[1].c[1].cond == LL_COND_K_FIRE &&
+          mfg.st[0].tr[1].c[2].cond == LL_COND_OTHER);
+    CHECK(mfg.st[0].tr[2].nc == 1 &&
+          mfg.st[0].tr[2].c[0].cond == LL_COND_K_ALT);
+
     ll_mov_t m2;
     ll_mov_parse("X\n[A]\n0,0\n1,-5\n", &m2);
     CHECK(m2.nst == 1 && m2.st[0].fr[0].ms == 100 &&
@@ -1027,7 +1080,7 @@ int ll_play_selftest(void)
     ll_player_start(&p, &m, 500, 100, 1);
     CHECK(p.grounded && strcmp(m.st[p.sti].name, "A_STAY") == 0);
 
-    ll_play_keys k = { 0, 0, 0, 0, 0 };
+    ll_play_keys k = { 0 };
     k.k_fwd = 1;
     int ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);
     CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 1);
@@ -1166,7 +1219,7 @@ int ll_play_selftest(void)
         ll_mov_t *jm = calloc(1, sizeof *jm);
         ll_plt jp;
         ll_player q;
-        ll_play_keys jk = { 0, 0, 0, 0, 0 };
+        ll_play_keys jk = { 0 };
         double top = 100;
         int air = 0, back = 0;
 
@@ -1219,7 +1272,7 @@ int ll_play_selftest(void)
         static const char JP2[] = "1\n1 0,100;2000,100;\n";
         ll_plt jp2;
         ll_player q;
-        ll_play_keys jk = { 0, 0, 0, 0, 0 };
+        ll_play_keys jk = { 0 };
         double top2 = 100;
         int air2 = 0, land = 0, held = 1, exit_t = 0, exit_fi = -1;
 
@@ -1259,6 +1312,34 @@ int ll_play_selftest(void)
         ll_plt_free(&jp2);
         free(je);
     }
+    {   /* PR-87: the ',' AND really ANDs. A_FIGHT(1)=K_FIRE,K_F1 is
+         * ZARIA's exact attack-entry line: FIRE alone never matches;
+         * plus F1 it does. (The same AND-gate on REAL ZARIA.01 data
+         * - FIRE alone / F1 alone stay idle, FIRE,F1 fights - is
+         * pinned by the verify-play zfight leg.) K_Fn and K_ALT are now
+         * simulated keys, so the old "whole comma line is one OTHER,
+         * never true" is gone for these tokens. */
+        static const char FK[] =
+            "A_STAY\nA_FIGHT\n\n[A_STAY]\ncontrol=BY_TIME|CHECK_LN\n"
+            "F=600,0\nT=90,90\nG=0,0\nA_FIGHT(1)=K_FIRE,K_F1\nseq=a\n"
+            "1,100\n\n[A_FIGHT]\ncontrol=BY_TIME\nF=0,0\nT=0,0\nG=0,0\n"
+            "seq=a\n1,300\n2,300\n";
+        ll_mov_t *fk = calloc(1, sizeof *fk);
+        ll_player q;
+        ll_play_keys kk = { 0 };
+        CHECK(fk);
+        ll_mov_parse(FK, fk);
+        CHECK(fk->st[0].tr[0].nc == 2 &&
+              fk->st[0].tr[0].c[1].cond == LL_COND_K_F1);
+        ll_player_start(&q, fk, 500, 100, 1);
+        kk.k_fire = 1;
+        ll_player_step(&q, NULL, &kk, 0, 2000, 20);
+        CHECK(q.sti == 0);                  /* FIRE alone: no   */
+        kk.k_f1 = 1;
+        ll_player_step(&q, NULL, &kk, 0, 2000, 20);
+        CHECK(q.sti == 1);                  /* AND holds: fight */
+        free(fk);
+    }
     {   /* PR-82: states whose DIRECTION IS AUTHORED stay out of facing.
          * The real shape is RAN LEW's A_GO_TO_BALON_L: control=BY_X with
          * NO CH_DIR and frames authored NEGATIVE (-1..-12), while the
@@ -1286,7 +1367,7 @@ int ll_play_selftest(void)
         ll_mov_t *gm = calloc(1, sizeof *gm);
         ll_plt gp;
         ll_player q;
-        ll_play_keys gk = { 0, 0, 0, 0, 0 };
+        ll_play_keys gk = { 0 };
 
         CHECK(gm && ll_plt_parse(GP, &gp) == 0);
         CHECK(ll_mov_parse(GL, gm) == 3);
@@ -1337,7 +1418,7 @@ int ll_play_selftest(void)
         ll_mov_t *zm = calloc(1, sizeof *zm);
         ll_plt zp;
         ll_player s;
-        ll_play_keys sk = { 0, 0, 0, 0, 0 };
+        ll_play_keys sk = { 0 };
 
         CHECK(zm && ll_plt_parse(ZP, &zp) == 0);
         CHECK(ll_mov_parse(ZM, zm) == 4);
@@ -1454,7 +1535,7 @@ int ll_play_selftest(void)
         ll_mov_t *pm = calloc(1, sizeof *pm);
         ll_plt pp;
         ll_player q;
-        ll_play_keys qk = { 0, 0, 0, 0, 0 };
+        ll_play_keys qk = { 0 };
 
         CHECK(pm && ll_plt_parse(PP, &pp) == 0);
         CHECK(ll_mov_parse(PK, pm) == 2);
@@ -1490,6 +1571,7 @@ int ll_play_selftest(void)
                " state pair / A_TURN+AC_BREAK, PR-86: (N) = target start"
                " row, authored AC_BREAK_NEXT ends a jump at its list wrap"
                " (landing no longer cuts it; fallback kept only without"
-               " such a line) (ok)\n");
+               " such a line), PR-87: comma groups AND (K_FIRE,K_F1"
+               " attack entry - FIRE alone never fires it) (ok)\n");
     return rc;
 }

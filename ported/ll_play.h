@@ -135,9 +135,15 @@ enum {
 
 /* transition condition ids (K_ANY = any held key; OTHER = recognized
  * token we do not simulate - never true, logged once by the caller).
- * The authored expressions also use ',' groups (466 of 2911), a leading
- * '|' (49) and ';' inside a group (3); those parse as one OTHER token
- * and are counted, not guessed into AND or OR. */
+ * The authored expressions separate ALTERNATIVES with '|' (49 lines
+ * start with one) and CONJUNCTIONS with ',' (466 of 2911 lines carry
+ * comma groups); a ';' inside a group (3 lines) stays one OTHER token.
+ * PR-87 MODEL CHOICE, data-motivated: ',' = AND. Proof it cannot be a
+ * no-op or OR: `A_WPAD(1)=AC_ONAIR,AC_DRECT` and `A_WSP(3)=
+ * AC_DRAB_CATCH,AC_ONAIR` pair a catch trigger with the state of being
+ * airborne (an OR there makes the pair meaningless), and every player
+ * attack line is `K_FIRE,K_Fn` - fire WHILE weapon n is selected (the
+ * game's F1..F4 weapon keys + Ctrl attack, per the walkthrough). */
 enum {
     LL_COND_NONE = 0,
     LL_COND_K_FWD, LL_COND_K_BKWD, LL_COND_K_UP, LL_COND_K_DOWN,
@@ -145,6 +151,14 @@ enum {
     LL_COND_K_ANY, LL_COND_AC_BREAK_NEXT,
     LL_COND_K_GEN4, LL_COND_AC_TIME,   /* PR-69: scene objects (not the lion) */
     LL_COND_K_JUMP,                    /* PR-74: the jump key               */
+    /* PR-87: the fire family. K_FIRE = the attack button (the walkthrough
+     * names Ctrl); K_F1..K_F4 are the WEAPON SELECTOR keys the comma
+     * groups gate attacks with (K_F1 81, K_F2 38, K_F3 11, K_F4 6 uses
+     * in the player .MOV files; K_F6..F12 also exist, stay OTHER);
+     * K_ALT = the alternate-modifier condition (28 uses: A_FIGHT_END /
+     * throw routes). */
+    LL_COND_K_FIRE, LL_COND_K_F1, LL_COND_K_F2, LL_COND_K_F3,
+    LL_COND_K_F4, LL_COND_K_ALT,
     LL_COND_OTHER
 };
 
@@ -169,7 +183,11 @@ typedef struct {
                               * `A_JUMP(9)` re-joins the jump mid-air. The
                               * token can be non-numeric (KADMAR2 "(x)"):
                               * then it starts from the top. */
-    struct { int cond; int neg; } c[LMOV_MAXCON];
+    struct { int cond; int neg; int grp; } c[LMOV_MAXCON];
+    /* PR-87: tokens sharing a grp number are ANDed; the line is true
+     * when ANY group is fully true ('|' starts a new group, ',' splits
+     * one; see the enum comment). A single-token line is one group -
+     * identical behavior to the old OR-everything model. */
     int nc;
 } ll_mov_tr;
 typedef struct {
@@ -210,7 +228,12 @@ int ll_mov_find(const ll_mov_t *m, const char *name); /* state idx or -1  */
 /* ------------------------------------------------------- player sim ---- */
 /* Held-key view of the input (platform.h translates the arrows; the CI
  * drives the same struct from LEO_PLAY_SCRIPT). */
-typedef struct { int k_fwd, k_bkwd, k_up, k_down, k_jump; } ll_play_keys;
+/* PR-87: the fire family. k_fire = the attack key (viewer mapping:
+ * Ctrl, per the walkthrough); k_f1..k_f4 = the weapon-selector keys the
+ * data's comma groups gate with (viewer mapping: F1..F4 held); k_alt =
+ * the ALT modifier condition (throw/secondary routes). */
+typedef struct { int k_fwd, k_bkwd, k_up, k_down, k_jump,
+                 k_fire, k_f1, k_f2, k_f3, k_f4, k_alt; } ll_play_keys;
 
 /* Project constant, see header note; used only when airborne with a
  * CHECK_LN state that carries no authored fall route. */

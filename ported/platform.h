@@ -77,7 +77,11 @@ enum {
     LLKEY_ESC = 1,
     LLKEY_UP, LLKEY_DOWN, LLKEY_LEFT, LLKEY_RIGHT,
     LLKEY_RETURN,          /* Return AND keypad Enter */
-    LLKEY_HOME, LLKEY_END, LLKEY_PGUP, LLKEY_PGDN
+    LLKEY_HOME, LLKEY_END, LLKEY_PGUP, LLKEY_PGDN,
+    /* PR-87 (play-mode fire family; engine-defined like all of these).
+     * CTRL covers LCTRL+RCTRL, ALT covers LALT+RALT; F1..F4 stay
+     * contiguous (a range check in ll_level's play loop). */
+    LLKEY_LCTRL, LLKEY_LALT, LLKEY_F1, LLKEY_F2, LLKEY_F3, LLKEY_F4
 };
 
 /* Bring the platform up for content of this title/size. 0 = ok, -1 =

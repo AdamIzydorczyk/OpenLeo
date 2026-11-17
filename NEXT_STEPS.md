@@ -3825,6 +3825,51 @@ in a loop continuously". Both root-caused, both fixed, both pinned.
     (its I values are -960 variants) - not separately legged.
     verify-play 13/13 (new zjump leg).
 
+## PR-87 — fire-family keys (K_FIRE/K_F1..K_F4/K_ALT) + comma groups
+          decoded as AND: A_FIGHT is reachable (DONE 2026-11-17)
+
+  - What the data asked for: EVERY player .MOV gates its attack states
+    with comma groups (`A_FIGHT(1)=K_FIRE,K_F1`, `A_FG_PACKA(1)=
+    K_FIRE,K_F2`; census: K_FIRE 196, K_F1 81, K_F2 38, K_F3 11,
+    K_F4 6, K_ALT 28 uses) - but ll_play_keys carried only the
+    arrows+jump, so those lines could never fire (HANDOFF 7.8 item).
+  - GRAMMAR DECODED: ',' inside a transition COND is AND, '|' stays
+    OR: conditions parse into groups (ll_mov_tr.c gained grp ids;
+    parse_cond splits bar segments at commas). MODEL CHOICE argued
+    from data (ll_play.h): `A_WPAD(1)=AC_ONAIR,AC_DRECT` /
+    `A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR` pair a catch with being
+    airborne (OR would be meaningless), and `K_FIRE,K_Fn` is "fire
+    WHILE weapon n selected" (the game has Ctrl-attack + F1..F4
+    weapon keys per the walkthrough). A ';' inside a group (3 lines)
+    stays one OTHER token and poisons only ITS group. Old comma lines
+    were one never-true OTHER token; nothing that matched before
+    changes behavior (no existing leg presses fire keys).
+  - Keys ported through ALL THREE input surfaces: ll_play_keys
+    (k_fire, k_f1..k_f4, k_alt), script_keys tokens FIRE/F1..F4/ALT
+    comma-combinable ("100:FIRE,F1" - the AND-group mirror), live
+    keyboard Ctrl/F1..F4/Left-Alt (viewer mapping from the
+    walkthrough; platform.h gained LLKEY_LCTRL/LALT/F1..F4, map_key
+    maps both ctrls/both alts), LEO_TEST_KEY names ctrl/alt/f1..f4.
+    K_ANY now includes the fire family.
+  - Real-data proof (new zfight pair of legs): `50:FIRE,F1` on
+    ZARIA.01 -> A_WALK -> A_DRAP (idle hub) -> A_FIGHT at 50, the
+    punch frame rows play (300 ms rows: frame 5 by tick 100), drawn
+    punch at the PR-84 anchor (measured top=128 bottom=199; the x
+    spread wider right = the FC= rows aim the punch, FC accumulators
+    themselves stay T1); NEGATIVE leg: `50:FIRE` alone -> A_FIGHT
+    appears ZERO times (AND gate; impossible to pin under either old
+    reading). selftest: parse pins (group ids, OTHER poisoning one
+    group, leading-'|' empty group) + FK runtime fixture (FIRE alone
+    stays idle, +F1 enters the fight).
+  - Kept open (recorded HANDOFF 7.8): A_FIGHT's own ending mechanics
+    (its wrap AC_BREAK_NEXT -> A_FIGHT_END works now; AC_ENEMY_ATC
+    and the ATC_ON/ATC_OFF "attack connect" flags = T2 Lion-vs-LICHA
+    work), K_F6..F12 stay OTHER (7 uses), F-keys modeled as HELD (a
+    TOGGLED weapon-state reading behaves the same for the gates -
+    unproven which the original does).
+  - verify-play 15 lines (13 + zfight + fire-alone negative);
+    selftest prints updated.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

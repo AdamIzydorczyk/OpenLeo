@@ -162,6 +162,13 @@ static int map_key(SDL_Keycode k)
     case SDLK_END:                        return LLKEY_END;
     case SDLK_PAGEUP:                     return LLKEY_PGUP;
     case SDLK_PAGEDOWN:                   return LLKEY_PGDN;
+    /* PR-87 (play-mode fire family). Both Ctrls, both Alts. */
+    case SDLK_LCTRL: case SDLK_RCTRL:     return LLKEY_LCTRL;
+    case SDLK_LALT:  case SDLK_RALT:      return LLKEY_LALT;
+    case SDLK_F1:                         return LLKEY_F1;
+    case SDLK_F2:                         return LLKEY_F2;
+    case SDLK_F3:                         return LLKEY_F3;
+    case SDLK_F4:                         return LLKEY_F4;
     default:                              return 0;
     }
 }
@@ -192,7 +199,8 @@ int plat_poll(ll_event *ev)
      * case-insensitively, 'q' for the FIX-01/C3 q-quits-the-app leg),
      * or the names "esc" / "space" / "left" / "right" / "up" / "down"
      * (the arrows: PR-43's live-play leg needs a HELD-key arrow, which
-     * the .des-driven LEO_PLAY_SCRIPT path does not exercise).
+     * the .des-driven LEO_PLAY_SCRIPT path does not exercise), or
+     * "ctrl" / "alt" / "f1".."f4" (PR-87's fire-family keys).
      * LEO_TEST_KEY_UP_AFTER_MS=M (PR-83) additionally pushes the
      * matching SDL_KEYUP for the same key M ms after the first poll -
      * the held-then-released path a real hand produces. */
@@ -223,6 +231,18 @@ int plat_poll(ll_event *ev)
                     tkey = SDLK_UP;
                 else if (!strcmp(knm, "down"))
                     tkey = SDLK_DOWN;
+                else if (!strcmp(knm, "ctrl"))       /* PR-87: the fire */
+                    tkey = SDLK_LCTRL;                /* key leg         */
+                else if (!strcmp(knm, "alt"))
+                    tkey = SDLK_LALT;
+                else if (!strcmp(knm, "f1"))
+                    tkey = SDLK_F1;
+                else if (!strcmp(knm, "f2"))
+                    tkey = SDLK_F2;
+                else if (!strcmp(knm, "f3"))
+                    tkey = SDLK_F3;
+                else if (!strcmp(knm, "f4"))
+                    tkey = SDLK_F4;
                 else {
                     int c = (unsigned char)knm[0];
                     if (c >= 'A' && c <= 'Z')

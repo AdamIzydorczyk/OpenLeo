@@ -878,6 +878,42 @@ ifeq ($(PX_DATA),1)
 	      $$((X-20)) $$((X+28)) 100 200 orange top=128+-6 bottom=199+-6 \
 	  && echo "play jump (PR-86): apex ~24u on the measured model, landing INSIDE the authored jump state (no forced idle), wrap exits via its OWN A_WALK(7)=AC_BREAK_NEXT re-joining the walk cycle at row 7, art on the cam anchor (ok)" \
 	  || { echo "play ZARIA jump cam-y grep FAILED"; grep 'tick 21[02]' /tmp/opencode/ly_zjump.log; exit 1; }
+# PR-87: the fire-family keys + comma-group AND semantics on REAL data.
+# ZARIA's attack entry is literally `A_FIGHT(1)=K_FIRE,K_F1` ("fire
+# WHILE weapon 1 is selected" - the AND reading is argued in
+# ll_play.h). Pins: FIRE,F1 (script comma token, mirroring the .MOV
+# group) enters A_FIGHT from the idle hub and the punch frames play
+# (300 ms rows: frame 5 by tick 100); the drawn punch sits on the
+# PR-84 anchor (measured top=128 bottom=199, x range wider - the FC
+# rows aim the punch right, the FC accumulator itself stays T1); and
+# FIRE alone does NOT fight (negative leg - under the old
+# OR/never-true readings this pair of pins was impossible).
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=3 \
+	  LEO_PLAY_SCRIPT="50:FIRE,F1" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_zfight.ppm LEO_LEVEL_PPM_TICK=100 \
+	  ./ll_level $(DATA) ZARIA.01 --play --no-audio \
+	  > /tmp/opencode/ly_zfight.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play ZARIA fight FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_zfight.log; exit 1; fi
+	@grep -q 'play: A_WALK -> A_DRAP' /tmp/opencode/ly_zfight.log \
+	  && grep -q 'play: A_DRAP -> A_FIGHT' /tmp/opencode/ly_zfight.log \
+	  && grep -q 'play tick 100: state A_FIGHT seq fight frame 5 pos 5[0-3],680 grounded 1' \
+	      /tmp/opencode/ly_zfight.log \
+	  && python3 tools/ppm_lion_measure.py /tmp/opencode/ly_zfight.ppm \
+	      30 90 100 200 orange top=128+-6 bottom=199+-6 \
+	  || { echo "play ZARIA fight grep FAILED"; grep 'tick 100' /tmp/opencode/ly_zfight.log; exit 1; }
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=1 \
+	  LEO_PLAY_SCRIPT="50:FIRE 60:NONE" \
+	  ./ll_level $(DATA) ZARIA.01 --play --no-audio \
+	  > /tmp/opencode/ly_zfire.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play ZARIA fire-alone FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_zfire.log; exit 1; fi
+	@test "$$(grep -c 'A_FIGHT' /tmp/opencode/ly_zfire.log)" -eq 0 \
+	  && echo "play fight (PR-87): K_FIRE,K_F1 comma group ANDs - FIRE,F1 enters the authored A_FIGHT with its punch frames on the cam anchor, FIRE alone never fights (ok)" \
+	  || { echo "play ZARIA fire-alone negative leg FAILED (A_FIGHT appeared)"; \
+	    grep A_FIGHT /tmp/opencode/ly_zfire.log; exit 1; }
 # PR-83: the KEYUP half of the input contract. No backend ever translated
 # SDL_KEYUP, so through the REAL backend every key stuck down forever: the
 # reported "controls press themselves in a loop". The live loop (NO

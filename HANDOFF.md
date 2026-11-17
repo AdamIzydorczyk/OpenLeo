@@ -182,6 +182,8 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | jump-state ending | ll_play.c | a state that DECLARES an AC_BREAK_NEXT exit ends at its frame-list WRAP (the landing no longer cuts it); forced ->A_STAY/A_DRAP kept ONLY as fallback for states with no such line | PR-86: real A_JUMP/A_JUMP_S declare A_WALK(7)/A_DRAP(1)=AC_BREAK_NEXT; ZARIA.01 leg pins it |
 | `TARGET(N)=COND` entry | ll_play.c/ll_play.h `ll_mov_tr.entry` | numeric (N) = start ROW (1-based) in the target's frame list; non-numeric = top | PR-86 evidence chain in the struct comment (PRE_JUMP skips A_JUMP's impulse row; A_WALK(7) mid-cycle re-join pinned on real data) |
 | jump key | ll_level.c | Space | viewer choice |
+| fire keys | ll_level.c `play loop` + platform_sdl `map_key` | Ctrl=K_FIRE, F1..F4=K_F1..4 (weapon selectors), Alt=K_ALT; script tokens FIRE/F1..F4/ALT comma-combinable | PR-87; names from the walkthrough, the .MOV conditions are the contract |
+| `,` in transition COND = AND | ll_play.c `parse_cond`/`cond_true` (groups) | `|` ORs groups, `,` ANDs tokens within one; OTHER poisons only its group | PR-87 MODEL CHOICE (evidence in ll_play.h: AC_ONAIR/AC_DRECT pairs, every K_FIRE,K_Fn attack line); A_FIGHT entry pinned real |
 | hurt lock | ll_level.c `play_collide` | 30 ticks of 20 ms | 0x50304 constant, unit assumed |
 | `AC_TIME` | ll_level.c `obj_cond_true` | = end of frame list | `time=min,max` unit unknown |
 | lives / energy HUD | ll_level.c | 6 lives, energy frames (100-e)/10 | video start shows 6 |
@@ -328,10 +330,20 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      the original directly confirms the mirroring.
    - F=0 states FREEZE momentum (dv clamps to 0): no coast, no decay.
      Whether the original coasts at F=0 is open.
-   - K_FIRE (and the K_F1..K_F10 keys): fight/give states are gated by
-     them in every player .MOV, but ll_play_keys/LEO_PLAY_SCRIPT carry no
-     fire key yet - parsed, counted, unreachable. Port the key before
-     modeling those states.
+   - K_FIRE / K_F1..K_F4 / K_ALT: PORTED IN PR-87 (ll_play_keys fields;
+     live keys Ctrl / F1..F4 / Alt - viewer names from the walkthrough;
+     script tokens FIRE/F1..F4/ALT, comma-combinable "FIRE,F1";
+     LEO_TEST_KEY names ctrl/alt/f1..f4). The comma GROUPS they appear
+     in are now AND (MODEL CHOICE, argued in ll_play.h: `AC_ONAIR,
+     AC_DRECT`-style pairs and every `K_FIRE,K_Fn` attack line are
+     meaningless as OR/no-op) - A_FIGHT is entered+played on real
+     ZARIA data (zfight leg + negative FIRE-alone leg). Still open
+     there: A_FIGHT's ending (its own AC_BREAK_NEXT wrap works; what
+     AC_ENEMY_ATC/ATC_ON "attack hit" mechanics do = T2), K_F6..F12
+     stay OTHER (7 uses total), and whether the original treats F-keys
+     as HOLDED (our model) or TOGGLED weapon state (unproven; the
+     comma-gate behavior is identical for held-vs-selected as long as
+     one weapon is always current).
    - "Jumps are very low" (owner report, same session as the position
      one): NOT reproduced on the current binary. Measured honestly: our
      A_JUMP/A_JUMP_S apex ~24 u, air 0.36 s (live probes ZARIA.01) vs

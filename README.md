@@ -41,7 +41,10 @@ machines, the HUD from `BELKA`, and a lion that walks on the level's ground,
 jumps (units estimated), collides with solids/enemies (their authored damage)
 and picks balloons. Still missing for a playable game: the lion's attack and
 other moves, enemy behaviour, pickups/inventory/signals, ladders/vines, level
-flow, RAN's balloon mode, sound effects. Play mode keys: arrows, Space = jump.
+flow, RAN's balloon mode, sound effects. Play mode keys: arrows, Space = jump,
+Ctrl = attack, F1..F4 = weapon select, Alt = throw/secondary (viewer
+mappings from the walkthrough; the .MOV data calls them K_JUMP/K_FIRE/
+K_F1..K_F4/K_ALT - see NEXT_STEPS PR-87).
 The arrow walk model is facing-relative (MODEL CHOICE, PR-85: K_FWD = the
 arrow along the lion's current facing); ZARIA-style data with a single walk
 state only reads as left-walking under that model — see NEXT_STEPS PR-85.
@@ -182,8 +185,10 @@ verify-play key-release leg proves the walk stops on release).
 
 Playable-level hooks (M4-B, PR-43, used by verify-play): `LEO_PLAY=1`
 (the `--play` flag sets it) upgrades a level preview to the real
-controllable lion, `LEO_PLAY_SCRIPT="<tick>:<FWD|BKWD|UP|DOWN|NONE> ..."`
-holds each entry until the next one on the fixed 20 ms grid (the same
+controllable lion, `LEO_PLAY_SCRIPT="<tick>:<FWD|BKWD|UP|DOWN|JUMP|FIRE|F1..F4|ALT|NONE> ..."`
+(comma-combinable per entry, e.g. `100:FIRE,F1` - the AND-groups of the
+real .MOV conditions, PR-87) holds each entry until the next one on the
+fixed 20 ms grid (the same
 grid `LEO_LEVEL_PPM`/`LEO_LEVEL_PPM_TICK` dump frames on, so CI frames
 are deterministic); in a live window the arrows drive the lion directly.
 `ll_level --play-selftest` runs the hermetic .plt/.MOV/player checks

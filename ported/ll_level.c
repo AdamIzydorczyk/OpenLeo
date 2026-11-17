@@ -1708,7 +1708,9 @@ static const llrs_slot *rec_find(const llrs_slot *recs, unsigned n,
  * draws. If any piece is missing the level stays a preview and the gap
  * is logged (data-hole), never guessed.
  * The CI drives the same runtime headless through LEO_PLAY_SCRIPT
- * ("<tick>:<FWD|BKWD|UP|DOWN|NONE>" entries, whitespace separated; the
+ * ("<tick>:<FWD|BKWD|UP|DOWN|JUMP|FIRE|F1..F4|ALT|NONE> entries, comma-
+ * combinable per entry e.g. "100:FIRE,F1" (PR-87, mirrors the .MOV's
+ * AND-groups); whitespace separated; the
  * last entry at or before the current tick is held until the next one),
  * on the fixed 20 ms grid of the LEO_LEVEL_PPM leg - deterministic. */
 typedef struct {
@@ -1734,7 +1736,7 @@ typedef struct {
 
 static ll_play_keys script_keys(const char *s, int tick)
 {
-    ll_play_keys k = { 0, 0, 0, 0, 0 };
+    ll_play_keys k = { 0 };
     if (!s)
         return k;
     int best = -1;
@@ -1756,14 +1758,30 @@ static ll_play_keys script_keys(const char *s, int tick)
         tok[n] = '\0';
         if (n && (int)t <= tick && (int)t > best) {
             best = (int)t;
-            k.k_fwd  = strcasecmp(tok, "FWD")  == 0;
-            k.k_bkwd = strcasecmp(tok, "BKWD") == 0;
-            k.k_up   = strcasecmp(tok, "UP")   == 0;
-            k.k_down = strcasecmp(tok, "DOWN") == 0;
-            k.k_jump = strcasecmp(tok, "JUMP") == 0 ||
-                       strcasecmp(tok, "FWDJUMP") == 0;
-            if (strcasecmp(tok, "FWDJUMP") == 0)
-                k.k_fwd = 1;
+            /* PR-87: comma-combinable parts, mirroring the .MOV's own
+             * AND-groups: "100:FIRE,F1" = fire while weapon 1 selected
+             * (the attack entry). Legacy combined token kept. */
+            memset(&k, 0, sizeof k);
+            for (char *sub = tok; sub && *sub; ) {
+                char *cm = strchr(sub, ',');
+                if (cm)
+                    *cm++ = '\0';
+                k.k_fwd  |= strcasecmp(sub, "FWD")  == 0;
+                k.k_bkwd |= strcasecmp(sub, "BKWD") == 0;
+                k.k_up   |= strcasecmp(sub, "UP")   == 0;
+                k.k_down |= strcasecmp(sub, "DOWN") == 0;
+                k.k_jump |= strcasecmp(sub, "JUMP") == 0 ||
+                            strcasecmp(sub, "FWDJUMP") == 0;
+                k.k_fire |= strcasecmp(sub, "FIRE") == 0;
+                k.k_f1   |= strcasecmp(sub, "F1")   == 0;
+                k.k_f2   |= strcasecmp(sub, "F2")   == 0;
+                k.k_f3   |= strcasecmp(sub, "F3")   == 0;
+                k.k_f4   |= strcasecmp(sub, "F4")   == 0;
+                k.k_alt  |= strcasecmp(sub, "ALT")  == 0;
+                if (strcasecmp(sub, "FWDJUMP") == 0)
+                    k.k_fwd = 1;
+                sub = cm;
+            }
         }
         p = v + n;
     }
@@ -4451,10 +4469,15 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                           e.type == LL_EV_KEYUP) &&
                          (e.key == LLKEY_LEFT || e.key == LLKEY_RIGHT ||
                           e.key == LLKEY_UP   || e.key == LLKEY_DOWN ||
-                          e.key == ' ')) {
+                          e.key == ' '        || e.key == LLKEY_LCTRL ||
+                          e.key == LLKEY_LALT ||
+                          (e.key >= LLKEY_F1 && e.key <= LLKEY_F4))) {
                     /* M4-B: in play mode the arrows drive the LION
                      * (held-key tracking, KEYUP releases); the camera
-                     * follows the player instead (below the loop). */
+                     * follows the player instead (below the loop).
+                     * PR-87 (viewer choice, names from the walkthrough):
+                     * Ctrl = fire (attack), F1..F4 = the weapon-selector
+                     * keys the comma groups gate with, Alt = K_ALT. */
                     int on = e.type == LL_EV_KEYDOWN;
                     if (e.key == LLKEY_LEFT)
                         pl.keys.k_bkwd = on;
@@ -4464,6 +4487,17 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                         pl.keys.k_up = on;
                     else if (e.key == ' ')            /* viewer choice: Space */
                         pl.keys.k_jump = on;
+                    else if (e.key == LLKEY_LCTRL)    /* PR-87: attack */
+                        pl.keys.k_fire = on;
+                    else if (e.key == LLKEY_LALT)
+                        pl.keys.k_alt = on;
+                    else if (e.key >= LLKEY_F1 && e.key <= LLKEY_F4) {
+                        int *kf = e.key == LLKEY_F1 ? &pl.keys.k_f1 :
+                                  e.key == LLKEY_F2 ? &pl.keys.k_f2 :
+                                  e.key == LLKEY_F3 ? &pl.keys.k_f3 :
+                                                      &pl.keys.k_f4;
+                        *kf = on;
+                    }
                     else
                         pl.keys.k_down = on;
                 }
