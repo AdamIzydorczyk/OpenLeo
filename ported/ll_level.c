@@ -485,7 +485,9 @@ typedef struct {                     /* one placement of a script        */
     int bx, by;                      /* authored anchor                  */
     int x, y;                        /* current (anchor + authored M)    */
     int sti, fi;                     /* state / frame cursor             */
-    unsigned t;                      /* ms within current frame          */
+    unsigned row_t, row_rem;     /* PR-110: the row clock, 1/100-iteration
+                                  * units + the iteration carry (mirrors
+                                  * [obj+0xa1] and ll_player.row_t) */
     unsigned char src;               /* which .des key placed it: 0 zwierzaki,
                                       * 1 animacje, 2 ani_plat (PR-60)    */
     unsigned char layer;             /* entry index inside that key's comma
@@ -1067,7 +1069,7 @@ static void obj_arm_atak(lvl_obj *o, int lx, int ly, int verbose, int tick)
  * no threshold. The port has no per-row key, so every row here is the
  * engine's un-keyed kind; that is the assumption to revisit if a
  * per-row condition is ever parsed. So the
- * pair obj_walk's `facc` + obj_advance's `facc < f->ms` gate is
+ * pair obj_walk's `facc` + obj_advance's `facc < f->thresh` gate is
  * structurally what the engine does; what differs is the per-step feed
  * (the engine truncates to whole px - NEXT_STEPS PR-99 item 9 - while
  * the port carries a fraction) and the unit of the comparison value,
@@ -1128,13 +1130,34 @@ static void obj_walk(lvl_obj *o, const ll_mov_st *s, unsigned dt_ms)
                                                * the movement direction */
 }
 
+/* PR-110: the object's row clock, the same iteration law as
+ * ll_player_step's section 7 (the engine feeds ONE accumulator per
+ * object, [obj+0xa1], once per frame-loop iteration - the constant
+ * 100 of 0x4c8b7, read by the time-mode branches 0x543f2/0x54406/
+ * 0x5442f of the dispatcher 0x543a0). The tick below turns the play
+ * grid into iterations of LL_ITER_MS. obj_advance calls it ONLY for a
+ * state whose mode is a time mode: the dispatcher's mode-0 (BY_X)
+ * branch adds the travelled distance to that same accumulator instead,
+ * and there obj_walk's `facc` is the port's copy of it (PR-98's
+ * distance law). The scriptless-container branch below keeps ticking
+ * it: those objects have no walk feed at all, and the engine's
+ * accumulator runs for them too. */
+static void obj_row_tick(lvl_obj *o, unsigned dt_ms)
+{
+    o->row_rem += dt_ms;
+    while (o->row_rem >= LL_ITER_MS) {
+        o->row_rem -= LL_ITER_MS;
+        o->row_t += 100;
+    }
+}
+
 static void obj_advance(lvl_obj *o, unsigned dt_ms)
 {
     ll_mov_t *mov = (o->sc && o->sc->mov) ? o->sc->mov : NULL;
 
     if (!mov || !mov->nst)          /* no script on these containers: stop */
     {
-        o->t += dt_ms;
+        obj_row_tick(o, dt_ms);
         return;
     }
     if (o->hit_cd > 0)              /* PR-89: the [obj+0x102] countdown runs
@@ -1143,10 +1166,16 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
                                      * per play tick) */
         o->hit_cd--;
     ll_mov_st *start = &mov->st[o->sti];
-    if ((start->ctrl & LL_CTRL_BY_X) && start->fx != 0)
+    int walk0 = (start->ctrl & LL_CTRL_BY_X) && start->fx != 0;
+    if (!walk0)                 /* PR-110: one accumulator, fed BY MODE
+                                 * (0x543a0): the time modes add 100 per
+                                 * iteration, a walking state's rows are
+                                 * fed by obj_walk's distance below and
+                                 * its wall clock never runs */
+        obj_row_tick(o, dt_ms);
+    if (walk0)
         obj_walk(o, start, dt_ms);
     else {
-        o->t += dt_ms;
         o->facc = 0.0;
         o->xa = 0.0;
     }
@@ -1188,23 +1217,23 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         }
         ll_mov_fr *f = &s->fr[o->fi];
         int walk = (s->ctrl & LL_CTRL_BY_X) && s->fx != 0;
-        /* PR-109 read the unit of f->ms, and it is NOT milliseconds: the
-         * engine feeds its row accumulator 100 per FRAME-LOOP ITERATION
-         * (0x4c8b7's constant) and its pacer (0x4b0e0 -> 0x4a120 ->
-         * 0x1dba0) holds one iteration to two display frames, so an
-         * authored threshold of 200 is two iterations - 66-100 ms on
-         * screen, measured frame by frame on the owner's ladder clip.
-         * `o->t` below counts wall ms, so this clock runs 3.0-3.5x too
-         * slowly until PR-110 makes it an iteration clock. The BY_X walk
-         * side (`facc`, PR-98's distance law) is a different quantity
-         * and is not affected by that change. */
-        if (walk ? o->facc < (double)f->ms      /* units, not ms: the same    */
-                 : o->t < f->ms)                /* slot read both ways        */
+        /* PR-110: the row gate. f->thresh is a threshold in 1/100-
+         * iteration units (PR-109 measured the unit on the owner's
+         * ladder clip: the authored 200/300 of [A_WSP] are on screen
+         * 66-100 ms, two and three iterations, not 200/300 ms), and
+         * o->row_t is fed exactly 100 per iteration of LL_ITER_MS -
+         * the engine's accumulator rule, remainder carried by the
+         * subtract below. A walking state instead compares against
+         * `facc`, the distance its own walk fed this step (PR-98's
+         * distance law, 0x543a0 mode 0), and the branch above fed it
+         * no wall clock at all: one accumulator, one source. */
+        if (walk ? o->facc < (double)f->thresh   /* units, not ms: the same  */
+                 : o->row_t < f->thresh)        /* one clock, two feeds  */
             break;
         if (walk)
-            o->facc -= (double)f->ms;
+            o->facc -= (double)f->thresh;
         else
-            o->t -= f->ms;
+            o->row_t -= f->thresh;
         o->x += f->dx;             /* the authored "N,ms, M dx,dy" motion  */
         o->y += f->dy;             /* directive of the frame being held    */
         o->sig |= f->gsig;          /* `GEN <signal>`: raised as the frame ends */
@@ -1678,12 +1707,21 @@ static int obj_settle(lvl_obj *o, const ll_plt *plt)
 }
 
 /* PR-69: object scripts are state machines (hand-derived, data-free).
- * Script text: A_RUN loops frames 1,2 (100 ms each) with A_DEAD(1)=K_GEN1;
- * A_DEAD holds frame 3 and goes back with A_RUN(1)=AC_BREAK_NEXT.
+ * Script text: A_RUN loops frames 1,2 (100 units each) with
+ * A_DEAD(1)=K_GEN1; A_DEAD holds frame 3 and goes back with
+ * A_RUN(1)=AC_BREAK_NEXT.
  *   no signal: 250 ms later the state is still A_RUN (the old ring would
  *   have walked into A_DEAD at 200 ms);
- *   frame 2 carrying `GEN K_GEN1`: at 200 ms A_RUN -> A_DEAD (fi 0), and
- *   100 ms later the frame list of A_DEAD ends -> A_RUN again. */
+ *   frame 2 carrying `GEN K_GEN1`: the state change is the frame's OWN
+ *   signal, so the count is in ITERATIONS, not ms (PR-110): a row of 100
+ *   is one iteration, and at the port's LL_ITER_MS = 28 ms step one call
+ *   feeds exactly 100. So the 2nd call (56 ms) closes the K_GEN1 frame
+ *   and enters A_DEAD at its row 1, and ONE more call (28 ms) closes
+ *   A_DEAD's single row, ends its list and comes back to A_RUN. The old
+ *   numbers were 200 ms and 300 ms; on the ms clock a 200 ms call now
+ *   feeds 700 units and runs three and a half cycles in one go, which is
+ *   why this leg drives the exact grid (the 20 ms-grid effect of the same
+ *   law is the play-side PR-108/PR-91 legs). */
 static int obj_state_selftest(void)
 {
     static const char plain[] =
@@ -1717,13 +1755,20 @@ static int obj_state_selftest(void)
                         " (state %d)\n", a.sti);
         goto out;
     }
-    obj_advance(&b, 200);
+    obj_advance(&b, LL_ITER_MS);          /* iteration 1: row 1 of 100 ends */
+    if (b.sti != 0 || b.fi != 1 || b.row_t != 0u) {
+        fprintf(stderr, "object state selftest: FAILED the first iteration"
+                        " did not close exactly one row (state %d frame %d"
+                        " t %u)\n", b.sti, b.fi, b.row_t);
+        goto out;
+    }
+    obj_advance(&b, LL_ITER_MS);          /* iteration 2: the GEN K_GEN1 row */
     if (b.sti != 1 || b.fi != 0) {
         fprintf(stderr, "object state selftest: FAILED K_GEN1 did not enter"
                         " A_DEAD (state %d frame %d)\n", b.sti, b.fi);
         goto out;
     }
-    obj_advance(&b, 100);
+    obj_advance(&b, LL_ITER_MS);          /* iteration 3: A_DEAD's list ends */
     if (b.sti != 0) {
         fprintf(stderr, "object state selftest: FAILED AC_BREAK_NEXT did not"
                         " return to A_RUN (state %d)\n", b.sti);
@@ -1862,23 +1907,28 @@ static int obj_state_selftest(void)
     /* PR-107: the `( N ) ` START ROW of a transition, on a scene object
      * (the lion's side has honoured it since PR-86; the object side
      * parsed it and threw it away). Hand-derived, no game data. A_RUN has
-     * two 100 ms rows and its second raises K_GEN1, so at 200 ms the line
-     * `A_DEAD(3)=K_GEN1` matches and must enter A_DEAD at its THIRD row -
-     * N is 1-based, so index 2, the last row of the three - and not at the
-     * top: fi 2 is what no earlier version of this code could produce.
-     * The rows that are left after the start - (3 - start) x 100 ms, a
-     * per-case number below - then end that row list, the wrap publishes
+     * two 100-unit rows and its second raises K_GEN1; PR-110's clock makes
+     * each of them exactly ONE iteration (100 units fed per LL_ITER_MS),
+     * so this leg drives the exact 28 ms grid: after 2 calls (56 ms) the
+     * K_GEN1 row has ended and `A_DEAD(3)=K_GEN1` must have entered
+     * A_DEAD at its THIRD row - N is 1-based, so index 2, the last row of
+     * the three - and not at the top: fi 2 is what no earlier version of
+     * this code could produce. The rows that are left after the start -
+     * (3 - start) iterations - then end that row list, the wrap publishes
      * AC_BREAK_NEXT (PR-101's key bit 2) and `A_RUN(1)=AC_BREAK_NEXT`
      * goes back to A_RUN at row 1 = index 0: the wrap is reached from a
-     * mid-list start and from the top alike. The three boundary cases
-     * are the same script with a different token: `(9)` is past A_DEAD's
-     * 3 rows and the port clamps it to the top (the engine bounds
-     * nothing at 0x523cb); the non-numeric `(x)` also starts at the top,
-     * and that token form is real - 44 of the 777 .MOV files author it,
-     * KADMAR2's own lion script among them (`A_MASZERUJ(x)=K_FWD`); and
-     * `(1)` - the form of 2299 of the 2572 shipped numeric lines, the
-     * engine's row 0 - must not move at all, which is what catches an
-     * off-by-one the other way. */
+     * mid-list start and from the top alike. On the old ms clock those
+     * same claims needed 200 ms and 100/300 ms; the same 100-unit rows
+     * now run 3.6x faster, which is exactly the behaviour change PR-110
+     * is for. The three boundary cases are the same script with a
+     * different token: `(9)` is past A_DEAD's 3 rows and the port clamps
+     * it to the top (the engine bounds nothing at 0x523cb); the
+     * non-numeric `(x)` also starts at the top, and that token form is
+     * real - 44 of the 777 .MOV files author it, KADMAR2's own lion
+     * script among them (`A_MASZERUJ(x)=K_FWD`); and `(1)` - the form of
+     * 2299 of the 2572 shipped numeric lines, the engine's row 0 - must
+     * not move at all, which is what catches an off-by-one the other
+     * way. */
     {
         static const char row_tmpl[] =
             "A_RUN\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\nA_DEAD(%s)=K_GEN1\n"
@@ -1886,10 +1936,10 @@ static int obj_state_selftest(void)
             "A_RUN(1)=AC_BREAK_NEXT\n5,100\n6,100\n7,100\n";
         static const struct { const char *tok; int fi; int adv;
                              const char *what; } cases[] = {
-            { "3", 2, 100, "the third row of a 3-row target" },
-            { "1", 0, 300, "row 1 = the top, the shipped common case" },
-            { "9", 0, 300, "a row past the target's list clamps to the top" },
-            { "x", 0, 300, "a non-numeric token starts from the top" },
+            { "3", 2, 1, "the third row of a 3-row target" },
+            { "1", 0, 3, "row 1 = the top, the shipped common case" },
+            { "9", 0, 3, "a row past the target's list clamps to the top" },
+            { "x", 0, 3, "a non-numeric token starts from the top" },
         };
         int bad = 0;
 
@@ -1909,7 +1959,8 @@ static int obj_state_selftest(void)
             ll_mov_parse(txt, mr);
             sr.mov = mr;
             r.sc = &sr;
-            obj_advance(&r, 200);
+            obj_advance(&r, LL_ITER_MS);        /* row 1 of A_RUN ends     */
+            obj_advance(&r, LL_ITER_MS);        /* the K_GEN1 row ends     */
             if (r.sti != 1 || r.fi != cases[q].fi) {
                 fprintf(stderr, "object state selftest: FAILED A_DEAD(%s)"
                                 " entered at state %d frame %d, expected"
@@ -1917,9 +1968,9 @@ static int obj_state_selftest(void)
                         r.sti, r.fi, cases[q].fi, cases[q].what);
                 bad = 1;
             } else {
-                /* the rows that are left (3 - start) x 100 ms: the list
+                /* the rows that are left (3 - start) iterations: the list
                  * must end and the AC_BREAK_NEXT line must publish it */
-                obj_advance(&r, (unsigned)cases[q].adv);
+                obj_advance(&r, (unsigned)cases[q].adv * LL_ITER_MS);
                 if (r.sti != 0 || r.fi != 0) {
                     fprintf(stderr, "object state selftest: FAILED the"
                                     " AC_BREAK_NEXT wrap from a start at"
@@ -2002,20 +2053,37 @@ static int obj_state_selftest(void)
                             d.sti, d.fi, d.x);
                     ok = 0;
                 } else {
-                    obj_advance(&d, 400);         /* its own frames open */
-                    if (!d.atc) {                 /* the attack window    */
+                    /* PR-110: A_ATAK's rows are 200 units = TWO
+                     * iterations each, so the exact grid gives the whole
+                     * window timeline hand-derived: 2 calls open it
+                     * (ATC_ON is on the row that ENDS), 2 more hold it
+                     * (the plain middle row), 2 more close it
+                     * (ATC_OFF). On the old ms clock those were 400 and
+                     * 200 ms. */
+                    obj_advance(&d, 2 * LL_ITER_MS);  /* ATC_ON row ends   */
+                    if (!d.atc || d.fi != 1) {    /* attack window open */
                         fprintf(stderr, "object state selftest: FAILED"
                                         " A_ATAK did not open the attack"
                                         " window (state %d frame %d)\n",
                                 d.sti, d.fi);
                         ok = 0;
                     } else {
-                        obj_advance(&d, 200);     /* its ATC_OFF closes  */
-                        if (d.atc) {
+                        obj_advance(&d, 2 * LL_ITER_MS);  /* the middle row */
+                        if (!d.atc || d.fi != 2) {
                             fprintf(stderr, "object state selftest: FAILED"
-                                            " A_ATAK did not close the"
-                                            " window\n");
+                                            " A_ATAK's middle row closed"
+                                            " the window (frame %d)\n",
+                                    d.fi);
                             ok = 0;
+                        } else {
+                            obj_advance(&d, 2 * LL_ITER_MS); /* ATC_OFF */
+                            if (d.atc || d.fi != 0) {
+                                fprintf(stderr, "object state selftest:"
+                                                " FAILED A_ATAK did not"
+                                                " close the window"
+                                                " (frame %d)\n", d.fi);
+                                ok = 0;
+                            }
                         }
                     }
                 }
@@ -2164,12 +2232,15 @@ out:
     return rc;
 }
 
-/* PR-79 selftest, data-free: BY_X states walk at F/4 px/s, advance their
- * frames by MOVEMENT UNITS (the frame list's second field, not ms), keep
- * their position across state-list loops, and flip at the bounds= patrol
- * range. A time-driven or wrong-scale mutation fails here: time-driven
- * never moves x and raises t; F px/s moves 4x too far; a position reset
- * at the state loop lands on the anchor. */
+/* PR-79 selftest, data-free: BY_X states walk at the port's object
+ * scale F/4 px/s toward their T target, advance their frames by
+ * MOVEMENT UNITS (the frame list's second field, not ms - PR-110 made
+ * that feed real, see the x/row split below), keep their position
+ * across state-list loops, and flip at the bounds= patrol range. A
+ * time-driven or wrong-scale mutation fails here: time-driven never
+ * moves x and feeds the row clock LL_ITER_MS at a time instead; F px/s
+ * would move 4x too far; a position reset at the state loop lands on
+ * the anchor. */
 static int obj_motion_selftest(void)
 {
     static const char run[] =
@@ -2199,30 +2270,53 @@ static int obj_motion_selftest(void)
     s2.mov = m2;
     a.sc = &s1;
     b.sc = &s2;
-    if (m1->nst != 1 || m1->st[0].fx != 100 || m1->st[0].fr[0].ms != 4) {
+    if (m1->nst != 1 || m1->st[0].fx != 100 || m1->st[0].fr[0].thresh != 4) {
         fprintf(stderr, "motion selftest: FAILED F=/units did not parse "
-                        "(nst %d fx %d ms %u)\n", m1->nst, m1->st[0].fx,
-                        m1->st[0].fr[0].ms);
+                        "(nst %d fx %d thresh %u)\n", m1->nst, m1->st[0].fx,
+                        m1->st[0].fr[0].thresh);
         goto out;
     }
     /* 1. speed: 4 ticks x 100 ms at F=100 = 25 px/s = exactly 10 px
-     * (an F-as-px/s mutation moves 40; a time-driven model moves 0 and
-     * raises t); time is never consumed by walking states */
+     * (an F-as-px/s mutation moves 40). PR-110 pinned the SECOND HALF
+     * of this expectation down rather than changing it: the old model
+     * left the time accumulator untouched for walking states ("time is
+     * never consumed"), and PR-100's reading of the engine's dispatcher
+     * 0x543a0 says why - the BY_X branch feeds that one accumulator
+     * with the travelled distance INSTEAD of the 100-per-iteration
+     * feed. obj_row_tick is therefore called only for time modes, and
+     * through these 400 ms of walking row_t and row_rem stay exactly
+     * 0 (a port that fed both clocks would read 1400 here, 14
+     * iterations). What the BY_X law really claims
+     * - and what stays pinned here - is that the ROWS advance on
+     * distance only: 10.0 px of distance completes both
+     * 4-unit rows with 2.0 carried: x 10, back at index 0. A gate that
+     * read the clock instead of the distance would be somewhere else
+     * entirely. */
     a.bx = a.x = 0;
     a.b0 = a.b1 = -1;
     for (int i = 0; i < 4; i++)
         obj_advance(&a, 100);
-    if (a.x != 10 || a.t != 0) {
-        fprintf(stderr, "motion selftest: FAILED BY_X walk: x %d t %u"
-                        " (want 10 px at F/4 px/s, time untouched)\n",
-                a.x, a.t);
+    if (a.x != 10 || a.fi != 0 || a.row_t != 0 || a.row_rem != 0) {
+        fprintf(stderr, "motion selftest: FAILED BY_X walk: x %d fi %d"
+                        " row_t %u (want 10 px at F/4 px/s, back to"
+                        " index 0 after the 4-unit pair, and no wall"
+                        " clock at all in a mode-0 state)\n",
+                a.x, a.fi, a.row_t);
         goto out;
     }
     /* 4 ticks x 50 ms = 5 px at 25 px/s (an F-as-px/s mutation moves
-     * 20). Frames advance on UNITS: the 4-unit frame completes once
-     * (fi=1) at 5 px. Then 4 more ticks: the second frame completes at
-     * 8 px, the state list ends and loops - a state loop that snapped to
-     * the anchor lands back on 100 instead of 110 */
+     * 20). Frames advance on UNITS: hand-derived, the fixture's rows
+     * are `1,4` and `2,4` - four 50 ms steps accumulate exactly 5.0
+     * distance units, so the FIRST row (4 units) completes at 5 px and
+     * the row gate then holds the second row at facc 1.0 < 4: x 105,
+     * fi 1. (Under the old model this pin read fi=1 for a different
+     * reason - the time accumulator was frozen at 0 and an early break
+     * skipped the walk gate; PR-110's re-derivation says the same
+     * numbers come from the distance law alone, which is the claim
+     * this leg was always meant to test.) Then 4 more ticks: the
+     * second frame completes at 8 px, the state list ends and loops -
+     * a state loop that snapped to the anchor lands back on 100
+     * instead of 110 */
     memset(&a, 0, sizeof a);
     a.sc = &s1;
     a.bx = 100;
@@ -2230,10 +2324,12 @@ static int obj_motion_selftest(void)
     a.b0 = a.b1 = -1;
     for (int i = 0; i < 4; i++)
         obj_advance(&a, 50);
-    if (a.x != 105 || a.fi != 1 || a.t != 0) {
+    if (a.x != 105 || a.fi != 1) {
         fprintf(stderr, "motion selftest: FAILED unit-driven frames: x %d"
-                        " fi %d t %u (want 105 px, frame index 1, no"
-                        " time consumed)\n", a.x, a.fi, a.t);
+                        " fi %d (want 105 px and frame index 1: one 4-"
+                        "unit row completed, the next waits at facc 1;"
+                        " a walking state's rows are fed by distance"
+                        " only)\n", a.x, a.fi);
         goto out;
     }
     for (int i = 0; i < 4; i++)
@@ -2276,22 +2372,52 @@ static int obj_motion_selftest(void)
         goto out;
     }
     /* 4. a walker keeps its position ACROSS states: it GENs into a
-     * BY_TIME state and AC_BREAK_NEXTs back. Walking 5 px at tick 4
-     * enters A_HIT at x=105 (no snap to the 100 anchor), the hit frame
-     * ends at tick 6 back in A_RUN at x=105, and ticks 7-8 walk on:
-     * x=107. An always-snap mutation lands at 102 */
+     * BY_TIME state and AC_BREAK_NEXTs back. PR-110 makes the timing
+     * of that round trip exactly derivable, so this leg now pins the
+     * whole trace. Walking 5 px (four 50 ms steps at 1.25 units each)
+     * closes A_RUN's 4-unit first row at tick 4; its `GEN K_GEN1`
+     * matches the transition in the SAME step, so A_HIT is entered at
+     * x=105 - no snap to the 100 anchor - holding its row 1. A_HIT is a
+     * time mode and the walk state fed its accumulator nothing, so its
+     * row of 100 units = one iteration starts from 0 and lands in
+     * tick 5 (50 ms carries one feed of 28 with 22 over), which ends
+     * A_HIT's one-row list, the wrap arms AC_BREAK_NEXT and
+     * `A_RUN(1)=AC_BREAK_NEXT` returns to A_RUN at x=105. Ticks 6-8
+     * walk on at 1 px per tick: x=108, frame index 0 again (facc was
+     * reset by the transition and 3.75 units is below 4). An
+     * always-snap mutation lands at 103, and a wall-clock-fed walk
+     * would have come back in tick 4 itself. */
     ll_mov_parse(hit, m2);
     memset(&b, 0, sizeof b);
     b.sc = &s2;
     b.bx = 100;
     b.x = 100;
     b.b0 = b.b1 = -1;
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 4; i++)
         obj_advance(&b, 50);
-    if (b.x != 107 || b.sti != 0) {
+    if (b.x != 105 || b.sti != 1 || b.fi != 0) {
+        fprintf(stderr, "motion selftest: FAILED cross-state entry: x %d"
+                        " state %d frame %d (want 105 in A_HIT row 1: the"
+                        " GEN frame's own transition, no position snap)\n",
+                b.x, b.sti, b.fi);
+        goto out;
+    }
+    obj_advance(&b, 50);                  /* one iteration = 100 units */
+    if (b.x != 105 || b.sti != 0 || b.fi != 0) {
+        fprintf(stderr, "motion selftest: FAILED cross-state return: x %d"
+                        " state %d frame %d (want 105 back in A_RUN row 1:"
+                        " A_HIT's 100-unit row is exactly one iteration)\n",
+                b.x, b.sti, b.fi);
+        goto out;
+    }
+    for (int i = 0; i < 3; i++)
+        obj_advance(&b, 50);
+    if (b.x != 108 || b.sti != 0 || b.fi != 0) {
         fprintf(stderr, "motion selftest: FAILED cross-state carry: x %d"
-                        " sti %d (want 107 back in A_RUN: transitions keep"
-                        " a walker's position)\n", b.x, b.sti);
+                        " state %d frame %d (want 108 back in A_RUN: a"
+                        " transition keeps a walker's position and resets"
+                        " its frame accumulator)\n",
+                b.x, b.sti, b.fi);
         goto out;
     }
     /* 5. PR-81 facing: the frame-number sign is the authored BASE facing
@@ -2410,16 +2536,16 @@ int ll_mov_selftest(void)
         return 1;
     }
     for (int k = 0; k < 3; k++)
-        if (m->st[0].fr[k].ms != 100u) {
+        if (m->st[0].fr[k].thresh != 100u) {
             fprintf(stderr, "mov selftest: FAILED zero/negative duration "
-                            "not clamped (frame %d ms=%u)\n",
-                    k, m->st[0].fr[k].ms);
+                            "not clamped (frame %d thresh=%u)\n",
+                    k, m->st[0].fr[k].thresh);
             free(m);
             return 1;
         }
-    if (m->st[1].fr[0].ms != 5u) {
+    if (m->st[1].fr[0].thresh != 5u) {
         fprintf(stderr, "mov selftest: FAILED positive duration changed "
-                        "(ms=%u)\n", m->st[1].fr[0].ms);
+                        "(thresh=%u)\n", m->st[1].fr[0].thresh);
         free(m);
         return 1;
     }
@@ -2439,7 +2565,7 @@ int ll_mov_selftest(void)
     sc.mov->nst = 1;
     sc.mov->st[0].nfr = LMOV_MAXFR;
     for (int k = 0; k < LMOV_MAXFR; k++)
-        sc.mov->st[0].fr[k].ms = 0;
+        sc.mov->st[0].fr[k].thresh = 0;
     lvl_obj o;
     memset(&o, 0, sizeof o);
     o.sc = &sc;
@@ -2540,7 +2666,11 @@ int ll_mov_selftest(void)
            " non-bounded entry keeps its absolute x,y) + PR-107 authored"
            " start row ((3) enters a 3-row state at its THIRD row, (1),"
            " (9) and (x) at the top, and that row list's wrap still"
-           " returns through A_RUN(1)=AC_BREAK_NEXT) (ok)\n");
+           " returns through A_RUN(1)=AC_BREAK_NEXT) + PR-110 the object's"
+           " row clock is the ITERATION clock (a 100-unit row is one feed"
+           " of LL_ITER_MS, A_ATAK's 200-unit rows two each, and a"
+           " walking state's rows are fed by its distance only, never by"
+           " wall time) (ok)\n");
     return 0;
 }
 

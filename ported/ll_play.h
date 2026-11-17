@@ -241,7 +241,7 @@ enum {
  * names and for the non-bit specials K_ANY / K_NEVER (+ AC_ aliases). */
 int ll_sig_id(const char *name);
 
-typedef struct { int frame; unsigned ms; int dx, dy;
+typedef struct { int frame; unsigned thresh; int dx, dy;
                  unsigned long long gsig; unsigned char atc;
                  int has_i, ix, iy; } ll_mov_fr;   /* has_i: `I ix,iy` impulse tail */   /* gsig: the frame's `GEN <signal>` tail(s), one bit per name
                  at its LL_SIG_* index (PR-88: any table name, not just
@@ -259,18 +259,22 @@ typedef struct { int frame; unsigned ms; int dx, dy;
                  state's shape can land a hit (ZARIA's A_FIGHT opens it
                  at frame 8, right before its `FC 100,0`; the LICHA's
                  A_ATAK opens at -4 and closes at -8).
-                 ms: the row's threshold. The name is a MISNOMER and is
-                 kept only until PR-110 (PR-109 settled the unit): the
-                 engine compares this value with an accumulator fed 100
-                 per FRAME-LOOP ITERATION (the level constant of 0x4c8b7,
-                 read at 0x543f2/0x54406/0x5442f), and its pacer
-                 (0x4b0e0 -> 0x4a120 -> 0x1dba0) holds one iteration to
-                 two display frames - so a row of 200 is TWO ITERATIONS,
-                 measured 66-100 ms of screen time on the owner's ladder
-                 clip, not 200 ms. `time_scale` is already folded in at
-                 parse time (PR-104). This port's wall-clock ms feed is
-                 3.0-3.5x too slow in wall time; PR-110 changes what the
-                 field means and renames it. */
+                 thresh: the row's THRESHOLD, in 1/100 units of the
+                 engine's row accumulator [obj+0xa1], which is fed
+                 exactly 100 per FRAME-LOOP ITERATION (the level
+                 constant of 0x4c8b7, read at 0x543f2/0x54406/0x5442f).
+                 The unit was settled by PR-109's measurement of the
+                 owner's ladder clip (the authored 200/300 of [A_WSP]
+                 are on screen 66-100 ms, i.e. 2-3 iterations); before
+                 PR-110 this field was called `ms` and the row clock ran
+                 on wall milliseconds, 3.0-3.5x too slowly. The engine
+                 pre-scales every row value by the block's `time_scale`
+                 at parse time (`value * time_scale / 1000`,
+                 0x51679-0x5168f); ll_mov_parse applies that scale the
+                 same way (PR-110), so this field holds the SCALED
+                 threshold. A row of 200 is therefore current for
+                 exactly 2 iterations; the port's iteration period
+                 LL_ITER_MS decides the wall time. */
 #define LMOV_ATC_ON  1u
 #define LMOV_ATC_OFF 2u
 typedef struct {
@@ -374,13 +378,38 @@ typedef struct {
                                              * unit undetermined (ranges
                                              * like 32,64 / 90,120; see
                                              * ll_player_step's note)     */
+    int time_scale;                         /* PR-110: the block's
+                                             * `time_scale=`, stored as
+                                             * read; 1000 = the engine's
+                                             * no-op default. Applied to
+                                             * every row threshold of
+                                             * this block at parse time
+                                             * exactly where the engine
+                                             * applies it - at row-node
+                                             * construction, 0x51679
+                                             * `imul` / 0x5168d `idiv
+                                             * 0x3e8`, i.e. only rows
+                                             * that FOLLOW the line in
+                                             * the block (PR-104 read
+                                             * the ctor order; in the
+                                             * shipped scripts it is
+                                             * always ahead of them and
+                                             * none of the 777 writes
+                                             * rows first - verified,
+                                             * not assumed). */
+    int scale_at;                           /* index of the first row the
+                                             * scale applies to: nfr at the
+                                             * moment the line was read
+                                             * (0 when the line precedes
+                                             * every row) */
     unsigned ctrl;
     ll_mov_tr tr[LMOV_MAXTR]; int ntr;
     ll_mov_fr fr[LMOV_MAXFR]; int nfr;
     /* authored content the model reads but does not act on (reported): */
     int ctrl_other;                         /* control= names without a bit */
     int directive;                          /* frame-line GEN/ATC/WAIT/...  */
-    int field_other;                        /* sample= time= time_scale=    */
+    int field_other;                        /* sample= time= (time_scale=
+                                             * is modelled since PR-110)   */
 } ll_mov_st;
 typedef struct {
     ll_mov_st st[LMOV_MAXST];
@@ -414,6 +443,28 @@ int ll_mov_row_start(const ll_mov_st *s, int entry);
 typedef struct { int k_fwd, k_bkwd, k_up, k_down, k_jump,
                  k_fire, k_f1, k_f2, k_f3, k_f4, k_alt; } ll_play_keys;
 
+/* PR-110: the port's model of ONE FRAME-LOOP ITERATION, in ms. The
+ * engine advances its row accumulator by exactly 100 once per iteration
+ * of the level frame loop (0x4c8b7's constant, read at 0x543f2/
+ * 0x54406/0x5442f), and its pacer holds one iteration to TWO DISPLAY
+ * FRAMES: the wait 0x4a120 spins until the clock has advanced by the
+ * setpoint, and 0x4a190 measured that setpoint at startup as 2 retrace
+ * intervals - 1 (the 27 fallback = 2*14-1, the author's assumed 14 ms
+ * retrace), against a clock that runs at a 1 ms step during play
+ * (0x5d195 calls the set-period method 0x5b9e0 with edx=1). So one
+ * iteration is two retraces, and 27 ms is the value the author's own
+ * fallback encoded. PR-109 measured the authored rows of [A_WSP] on the
+ * owner's footage: 66-100 ms of screen time for thresholds of 200/300,
+ * i.e. an iteration period of 28-33 ms (a 60 Hz display; 28.6 ms at
+ * mode 13h's 70.08 Hz). 28 is the smallest value consistent with BOTH:
+ * it is just inside the measured bracket and within 1 ms of the
+ * engine's own fallback, so it is the honest choice; anything smaller
+ * contradicts the footage, anything larger contradicts no data but is
+ * unmeasured. The real value on a given machine is display-rate
+ * dependent (the setpoint is measured at runtime) - that is open item
+ * PR-109.3; this constant says which rate the port reproduces. */
+#define LL_ITER_MS 28u
+
 /* Project constant, see header note; used only when airborne with a
  * CHECK_LN state that carries no authored fall route. */
 #define LL_PLAY_GRAVITY 200.0
@@ -445,7 +496,37 @@ typedef struct {
     double x, y;
     double vx, vy;              /* px/s                                   */
     int sti;                    /* current state in mov                   */
-    int fi; unsigned ft;        /* frame cursor within the state          */
+    int fi; unsigned row_t, row_rem;
+                                /* PR-110: the row clock. row_t counts
+                                 * 1/100 units of the engine's row
+                                 * accumulator (fed 100 per iteration,
+                                 * ll_mov_fr.thresh is compared against
+                                 * it); row_rem carries the ms that did
+                                 * not complete an iteration between
+                                 * steps (Bresenham, ll_player_step
+                                 * section 7). Replaces the old `ft`
+                                 * wall-ms clock, PR-108's leg pinned
+                                 * that one. Only the TIME modes feed
+                                 * it: the dispatcher 0x543a0's mode-0
+                                 * (BY_X) branch feeds the same engine
+                                 * accumulator from the distance
+                                 * travelled, which is `facc` below. */
+    double facc;                /* PR-110: the OTHER feed of the same
+                                 * accumulator. The engine's dispatcher
+                                 * 0x543a0 feeds [obj+0xa1] BY MODE:
+                                 * mode 0 (BY_X) adds |[obj+0xca]|, the
+                                 * distance this step travelled (PR-98
+                                 * item 2, PR-100's owner reading), and
+                                 * only the time modes add 100 per
+                                 * iteration. ll_level.c's obj_advance
+                                 * has modelled that split since PR-98
+                                 * (`walk ? facc : t`); the player side
+                                 * never had the distance half, and
+                                 * under the iteration feed a BY_X row
+                                 * list of 6-unit rows (RAN's and
+                                 * ZARIA's real walk lists) would cycle
+                                 * inside one iteration. Same law, same
+                                 * field name as lvl_obj.facc. */
     int grounded;
     int walkdir;                /* -1/1, set by K_BKWD/K_FWD transitions
                                  * (the real CH_DIR flag's effect)        */

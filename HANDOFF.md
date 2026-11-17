@@ -245,7 +245,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | jump gravity | `LL_PLAY_JUMP_G` | 1650 u/s^2 (= G.y 55 x 30) | same jump |
 | jump-state ending | ll_play.c | a state that DECLARES an AC_BREAK_NEXT exit ends at its frame-list WRAP (the landing no longer cuts it); forced ->A_STAY/A_DRAP kept ONLY as fallback for states with no such line | PR-86: real A_JUMP/A_JUMP_S declare A_WALK(7)/A_DRAP(1)=AC_BREAK_NEXT; ZARIA.01 leg pins it |
 | `TARGET(N)=COND` entry | ll_play.c `ll_mov_row_start` (used by BOTH the player path and ll_level.c `obj_transition`) | numeric (N) = start ROW (1-based) in the target's frame list; non-numeric = top; an N past the end clamps to the top | PR-86 evidence chain in the struct comment (PRE_JUMP skips A_JUMP's impulse row; A_WALK(7) mid-cycle re-join pinned on real data); PR-107 read the store (`entry-1` at 0x51e3b..0x51e49) and the use: the state record's live row field `rec+0x4`, written raw at 0x523cb by the row-setter, which is the record's own vtable slot +0x1c in the table every record stores at rec+0x44 (0xa25d4, from its constructors 0x524cf/0x52508), and which the transition step 0x535a2 calls on the new state (0x535ea). Two MODEL CHOICES, recorded in the helper's comment: the engine writes the value RAW there, so clamping an over-long row is ours; and "absent / non-numeric" is -1 = "leave the row alone" (0x51e3e, 0x52381), which only COINCIDES with the top because a row list wraps. One row counter per object (`o->fi`) vs the engine's one per state record is also ours |
-| BY_TY (mode 4) vertical feed, and the unit of the row clock | ll_play.c `ll_player_step` (row clock), ll_play.h vocabulary note | NOT MODELLED: the frame list runs on the authored per-row numbers as if they were milliseconds, with no gate and no vertical force; BY_TY/SEQ_REV_Y are counted in `ctrl_other` | PR-108: the engine feeds rows at 100 per step ONLY while `[obj+0xbe] != 0` (0x5441b; 0x543fb for mode 2 = no gate) and the same register is v_y's force (0x542cd). PR-109 DECIDES the unit from the owner's clip: an authored threshold T is displayed for T/100 FRAME-LOOP ITERATIONS, not T ms — the pacer 0x4b0e0 -> 0x4a120/0x1dba0 holds one iteration to two display frames, and the `[A_WSP]` rows 200/300 measure 66-100 ms on screen, so the port's ms clock is 3.0-3.5x too slow; during play the counter is a real 1 ms clock (0x5b9e0 set-period called at 0x5d195), which corrects PR-106's "55-unit steps" and its "sound driver's 70.0 Hz PIT" (that write is 7.00 Hz). The port still counts ms until PR-110, whose plan (law, `LL_ITER_MS`, data-free 22-step leg, three mutations) is named in the PR-109 record; the climb's vertical DISTANCE law stays open. The port's current model stays pinned by a `--play-selftest` leg (non-vacuous by four mutations) |
+| The unit of the row clock, and the BY_* mode feed (0 BY_X / 1 BY_Y / 2 BY_TIME / 3 BY_TX / 4 BY_TY) | ll_play.c `ll_player_step` sections 4 and 7 + `LL_ITER_MS` (ll_play.h), ll_level.c `obj_row_tick` / `obj_advance` | MODELLED since PR-110, as ONE accumulator per moving thing fed BY MODE, mirroring the dispatcher 0x543a2: a BY_X state with a non-zero state `F=` adds travelled distance (`|vx| * dt`) and its time accumulator stays at 0; every time mode adds 100 per ITERATION and never any distance, an iteration being `LL_ITER_MS` = 28 ms of wall time, fed through a whole-millisecond carry (`row_rem`) so no step size drifts; the engine gates mode 3 on `[obj+0xba] != 0` and mode 4 on `[obj+0xbe] != 0` (0x543f2 / 0x5441b, PR-108) and the port does NOT model that guard, nor any vertical force — a BY_TY state is simply time-fed, and the climb's vertical DISTANCE law stays open (T5). A row stays current while `acc < thresh`; the compare is AFTER the feed and the threshold is SUBTRACTED on a hit, so the remainder carries into the next row. `time_scale=` is a parse-time scale on the stored thresholds (`thresh * time_scale / 1000`, default 1000, rows before the line unscaled), NOT a duration | The dispatcher and its mode jump table are PR-99's (NEXT_STEPS.md:5439-5447); the feed constant 100 has exactly one writer, 0x4c8b7 (PR-100), and the row comparison at 0x52320-0x5232b hands `acc - thresh` to the row handler rather than zeroing the accumulator (PR-100). PR-108 read the mode-3/4 guards above and that `[obj+0xbe]` is also v_y's force register (0x542cd). PR-109 decided the unit from the owner's clip (the `[A_WSP]` rows of 200/300 measure 66-100 ms on screen, the pacer 0x4b0e0 -> 0x4a120/0x1dba0 holds one iteration to two display frames, the engine's own fallback setpoint is 27) and corrected PR-106's "55-unit steps" and "sound driver's 70.0 Hz PIT" (that write is 7.00 Hz; during play the counter is a real 1 ms clock, 0x5b9e0 set-period called at 0x5d195); PR-110 takes 28 ms, the low end of that bracket, and implements the mode split. OPEN, all recorded in the PR-110 record: whether a row fires AT `acc == thresh` (13932 of 14881 authored BY_TIME thresholds are exact multiples of the 100 feed); the engine admits ONE row per record step, the port loops; the engine's mode-0 feed is the TRUNCATED `v_x/100` of the tick while the port feeds `|vx| * dt`; the `fx != 0` half of the walk gate (30 shipped BY_X blocks with `F=0,0`, no leg covers one); the AC_TIME pending-flag lifetime; the climb's vertical DISTANCE law. PINNED by: the RC fixture walked on two grids with the exact carry identity and `facc` read at every step (0 in a BY_TIME state), the `time_scale=2000` leg plus its control, the ZM leg reading both accumulators at both ends of the mode gate (no key in a BY_X state: everything stays 0; key held: the time accumulator stays 0 while the list runs on distance), 7 mutations caught, plus one recorded survivor (`mut_nogate4`, section 4's feed-site condition removed: `facc` is only read through the walk gate, so no leg can see it), and every verify leg re-derived by hand (the derivation is written beside each leg in the Makefile) |
 | jump key | ll_level.c | Space | viewer choice |
 | fire keys | ll_level.c `play loop` + platform_sdl `map_key` | Ctrl=K_FIRE, F1..F4=K_F1..4 (weapon selectors), Alt=K_ALT; script tokens FIRE/F1..F4/ALT comma-combinable | PR-87; names from the walkthrough, the .MOV conditions are the contract |
 | `,` in transition COND = AND | ll_play.c `parse_cond`/`cond_true` (groups) | `|` ORs groups, `,` ANDs tokens within one; OTHER poisons only its group | PR-87 MODEL CHOICE (evidence in ll_play.h: AC_ONAIR/AC_DRECT pairs, every K_FIRE,K_Fn attack line); A_FIGHT entry pinned real |
@@ -280,7 +280,10 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
     BOTH engines - the player scripts prove it, e.g. ZARIA A_WALK rows
     "10,6" while T=20 px/s does the moving; the 4-vs-400 observation
     stays as data, not as a motion unit.) Model: speed = |F|/4 game
-    px/s, frames advance on ms, bounds= patrol
+    px/s, frames advance on the row clock (PR-110: that clock is the
+    engine's ITERATION clock, and a BY_X state's accumulator is fed by
+    TRAVELLED DISTANCE instead - see the section 6 row above),
+    bounds= patrol
     flip, no time consumed while walking;
     BY_X with F=0 falls back to time-driven frames without moving
     (labelled estimate). CORROBORATED on video: the ZARIA.01 worm's
@@ -1060,6 +1063,43 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      mutations are named in the PR-109 record). The climb's vertical
      DISTANCE law stays open: measured ~100 source px/s, and no reading
      of `F=0,100 T=160,50` in this port produces it.
+   - PR-110 MAKES THAT CLOCK THE PORT'S CLOCK (behaviour change; the
+     law, the constant, every moved pin and where each came from are in
+     the NEXT_STEPS PR-110 record). `LL_ITER_MS` = 28 ms - the low end
+     of the clip's 28-33 ms bracket, and the closest value inside that
+     bracket to the engine's own 27 fallback setpoint - with the
+     accumulator counting 1/100-iteration units fed through a
+     whole-millisecond carry, so the ROW counts no longer depend on the
+     step size at all. The mode split is now in both engines: a BY_X
+     state with a non-zero `F=` feeds its row accumulator from travelled
+     distance and its time accumulator stays at 0 (0x543a2's mode-0
+     branch REPLACES the 100-per-iteration feed, it does not add to it) -
+     measured difference on the ZM fixture: at HEAD, 3 rows per 20 ms
+     step, AC_TIME inside tick 1 and A_DRAP at tick 2; on this tree
+     nothing moves and both accumulators read exactly 0. `time_scale=`
+     is a parse-time scale on the thresholds (0x51679 `imul`, 0x5168d
+     `idiv 0x3e8`) with the rows-before-the-line rule, and `ll_mov_fr.ms`
+     became `.thresh` as PR-109 said it would. Every leg quoting a row
+     duration was re-derived from the row list, never scaled, with the
+     arithmetic written beside each leg in the Makefile; the new tests
+     are data-free (a 5-row 1200-unit fixture walked on two grids under
+     the exact carry identity, a `time_scale=2000` leg plus its control,
+     and the ZM leg reading both accumulators at both ends of the mode
+     gate, `facc` read at every step of the RC loops) and 8 mutations
+     run, 7 caught; the one survivor is `mut_nogate4` (section 4's
+     feed-site condition removed) and its reason is in that record - the
+     observable half of the mode split is the read site, which is what
+     `mut_bothfeed` catches. Two corrections in PR-109's plan's wake: a
+     data-free test cannot quote the authored A_WSP table, so its 22-step
+     cycle is right arithmetic that shipped nothing - the shipped fixture
+     is the 12-feed one - and PR-104's "`time_scale=` ... an unmodelled
+     counter" sentence is superseded. Still open, with counts in that
+     record: the boundary at exact equality (13932 of 14881 authored
+     BY_TIME thresholds are exact multiples of the 100 feed), one row per
+     record step vs the port's loop, the engine's truncated `v_x/100`
+     mode-0 feed vs the port's `|vx| * dt`, and the 30 shipped BY_X
+     blocks with `F=0,0` that the `fx != 0` half of the gate covers and
+     no test does.
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
      files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's
@@ -1419,8 +1459,8 @@ TUNGA.11, TUNGA2.12), the mode-4 feed 0x5441b with its `[obj+0xbe]`
 guard, the input-apply 0x549f0 that writes that register from a contact
 record, and the fact that the entry/exit conditions are
 AC_DRAB/AC_DRAB_CATCH/AC_LINA/AC_EDGE, which no port code raises. The
-port's model (plain ms clock, no vertical feed) is pinned by a
-`--play-selftest` leg.
+port's model AT THAT POINT (plain ms clock, no vertical feed) was pinned
+by a `--play-selftest` leg.
 DECIDED, by the owner's clip (PR-109): the row clock is the frame-loop
 ITERATION count, NOT milliseconds - an authored threshold T is displayed
 for T/100 iterations (measured 66-100 ms on screen for the authored
@@ -1431,6 +1471,15 @@ record. The clip also fixes what these states are: rung-ladder /
 DRABINKA climbs (`seq=climb`/`climb_r`), not vine or rope hangs; ENA2's
 rope state A_CLIMB is BY_Y (mode 1) with a |v_y| feed and thresholds of
 4, a velocity-coupled animation and a different mechanism.
+PR-110 SHIPPED THAT CHANGE: the port's row clock now counts
+1/100-iteration units with one iteration = `LL_ITER_MS` = 28 ms, fed
+through a whole-millisecond carry, and the mode split of 0x543a2 is in
+both the player and the object path - a BY_X state is fed by travelled
+distance alone, every time mode (BY_TY included) by 100 per iteration.
+The BY_TY selftest leg was re-derived on that grid (a 1700-unit list =
+17 feeds), and the legs of every other task that quoted a row duration
+moved with it, each with its derivation in the Makefile. The port still
+does NOT model the `[obj+0xbe]` guard of mode 4, nor any vertical force.
 STILL OPEN: the vertical DISTANCE law (measured ~100 source px/s, and
 nothing in the repo turns `F=0,100 T=160,50` into it), which conditions
 the port should raise to enter and leave a climb, and PR-108's question

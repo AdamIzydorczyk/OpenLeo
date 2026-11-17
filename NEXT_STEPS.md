@@ -8246,6 +8246,249 @@ PR-110, named at the end of this record.
   still counts ms until PR-110. Nothing under .github/workflows,
   nothing copyrighted staged.
 
+## PR-110 — the row clock becomes an ITERATION clock: `LL_ITER_MS` = 28,
+one accumulator fed BY MODE the way 0x543a2's dispatcher does (a walking
+state's rows are fed by travelled distance ONLY, a time-driven state's
+distance accumulator stays 0), `time_scale=` implemented at parse time,
+and every row-duration pin in CI re-derived by hand rather than scaled
+(the behaviour change PR-109 named; PR-104's time_scale sentence and two
+of PR-109's are corrected, and one stale PR-102 code comment with them)
+
+This is the PR-110 that PR-109's record named (NEXT_STEPS.md:8188-8213).
+It changes behaviour, so it moves pins, and the interesting part of the
+review is not the numbers but where each one comes from: none of them is
+the old number multiplied by a ratio.
+
+- WHAT CHANGED, FILE BY FILE. `ll_play.h`: `LL_ITER_MS` (28u, :466),
+  `ll_mov_fr.ms` -> `.thresh` (:244), `ll_mov_st.time_scale` +
+  `.scale_at` (:381, :400), `ll_player.row_t` / `.row_rem` / `.facc`
+  (:499-:529). `ll_play.c`: the `time_scale=` branch and the block's
+  scale post-pass (:671-:694, :735-:737); section 4's player-side
+  distance feed and its mode condition (:1103-:1119); section 7's
+  mode-gated row clock (:1275-:1319); both accumulators zeroed on a
+  state change (:960-:963, :1211-:1212). `ll_level.c`: `obj_row_tick`
+  (:1145-:1152),
+  the same mode gate in `obj_advance` (`walk0`), and the renames.
+  `Makefile`: the legs that quote a row duration, each with its
+  derivation written out beside it.
+- THE LAW IT IMPLEMENTS, ALL OF IT ALREADY ON RECORD. PR-99 read the
+  dispatcher (NEXT_STEPS.md:5439-5447): one accumulator `[obj+0xa1]`,
+  fed by the state's mode - mode 0 BY_X adds `|[obj+0xca]|`, mode 1
+  BY_Y `|[obj+0xce]|`, modes 2/3/4 the global
+  `[[0xcef40]+0x388]`, modes 5-7 nothing. PR-100 read the rest
+  (:5660-5680): that global has exactly one writer, 0x4c8b7, and it is
+  the constant **100**; the row comparison is `[node+0x10]` against the
+  accumulator at 0x52320-0x5232b, and on a hit the remainder
+  (`sub ebx,eax`, 0x52334) is handed to the row handler, so the
+  accumulator is NOT zeroed. So: one accumulator, one feed source chosen
+  by mode, 100 per iteration for the time modes, distance for BY_X,
+  remainder carried. `walk = (st->ctrl & LL_CTRL_BY_X) && st->fx != 0`
+  is that gate; `if (!walk)` feeds the time accumulator and `walk ?
+  facc : row_t` is what the comparison reads. `ll_level.c` has modelled
+  the split since PR-98 (`obj_walk` / `obj_advance`); PR-110 puts it in
+  the player too, which is the scope extension in this PR - a walking
+  lion state's row clock now does not run at all, and its frames move
+  on travelled distance alone.
+- `LL_ITER_MS = 28`. The port has no iteration concept of its own (its
+  play tick is a fixed 20 ms), so the constant is the decision PR-109
+  said had to be made and stated. Two sources, both already measured:
+  the engine's own fallback pacer setpoint is 27 (PR-106, read as 27 ms
+  per iteration at the played 1 ms clock), and the owner's ladder clip
+  brackets one iteration at 28-33 ms (PR-109). 28 is the low end of the
+  clip's bracket and the closest number to the setpoint that is inside
+  it, so it is the honest choice - and it is a CONSTANT, not a fit: the
+  accumulator counts 1/100-iteration units and `row_rem` carries whole
+  milliseconds, so the wall-clock speed is the only thing the constant
+  touches, and the row counts do not depend on the step size at all.
+- THE FEED AND THE CARRY. `row_rem += dt_ms`, and every whole
+  `LL_ITER_MS` adds exactly 100 to `row_t` (Bresenham: nothing is
+  multiplied by dt and nothing drifts). The compare stays AFTER the add
+  and the threshold is SUBTRACTED on a hit, which is the engine's shape
+  (above), and it is what makes a row of 300 exactly 3 feeds and a row
+  of 200 exactly 2, at any step size. On the CI's 20 ms grid that means
+  the m-th feed lands at step `ceil(28m/20)` and `floor(20k/28)` feeds
+  have happened by step k - the identity the RC test below asserts, step
+  by step, for both accumulators (`row_t == 100*floor(20t/28)` minus
+  the closed thresholds, `row_rem == 20t mod 28`). The port's loop is a
+  `while` with a `4 * nfr` guard; the engine admits at most ONE row per
+  record step, which is open item 1.
+- `time_scale=` AT PARSE TIME (PR-104's reading, now in the code). The
+  row node's ctor scales every threshold it builds: 0x51679 `imul`,
+  0x51683/0x5168d `idiv 0x3e8`, 0x5168f store - `thresh = value *
+  time_scale / 1000`, default 1000, and only rows built AFTER the line
+  see it (PR-104's ctor-order reading), hence `scale_at = s->nfr` when
+  the line is read and the post-pass `for (r = s->scale_at; ...)`.
+  KADMAR.07's balloon rows are 4 and 6 ITERATIONS, not 2000 ms. Two
+  honest notes. (a) The first version of the branch read the value at
+  `line + 10`, which lands on the `=`; every shipped line joins with
+  `=`, so the value now starts at `strchr(line, '=') + 1` and the
+  fixture asserts the parsed scale, not just the effect. (b) The census
+  (`/tmp/opencode/pr110_census4.py` over the 777 cleaned .MOV texts):
+  120 `time_scale=` lines in 38 files, 4 of them commented out
+  (`;time_scale=`, which never matches), 116 active; values 60..4000,
+  26 distinct, 78 of them BELOW 1000 - so the shipped scale mostly
+  makes rows SHORTER, and it is not all round hundreds (150, 550, 650,
+  750, 820, 850 all appear). Not one active line sits after a row in
+  its own state, so `scale_at` records the position rule without
+  changing any shipped result.
+- WHAT MOVED ON SCREEN, AND WHERE THE NEW NUMBERS COME FROM. Every leg
+  that quotes a row duration was re-derived from the row list and the
+  feed law, then confirmed against a fresh log; the Makefile comment
+  beside each leg carries its arithmetic. The `--play-selftest`
+  fixtures (ZM/JM/JE/FK/GL/PK/HR/CE, the PR-108 BY_TY leg, the
+  PR-69/107/90 legs) were re-derived on the 28 ms grid; the object-side
+  legs in `obj_state_selftest` and `obj_motion_selftest`
+  (`--mov-selftest`) on the object row clock. In
+  verify-play: solid contact 28, enemy contact 186 (energy 85), the lion
+  attack kills at 180 with its window entry+26..+47, DANGER arms at 171
+  with its window entry+23..+45 (LICHA's [A_ATAK] is 8 rows of 400 = 16
+  feeds), hit 199, react 200, A_DRAP 226, the two later contacts 238 and
+  268; the idle lion holds `frame 10 pos 50,648` at ticks 1 and 100;
+  the key leg reaches `frame 4 pos 88` at 99 and A_TURN at 132/135; in
+  the left-walk leg A_TURN enters at 130, its five rows of 200 are 10
+  feeds and the wrap that arms AC_BREAK_NEXT lands at 143, so the hub
+  hand-off is at 144 and A_WALK starts at 145; the jump leg's apex is
+  110, its row boundaries are steps 1,2,4,5,6,9,12,25,27,... of the
+  authored 75,75,75,100,150,150,225,900,225,0+WAIT,150 list
+  (2125 units), frame 6 spans 112-124 and the list wraps at 132
+  (behind the `8,0,WAIT AC_DUP` row's own gate); that leg's PPM tick
+  is 133, which is where its own `A_WALK(7)=AC_BREAK_NEXT` re-join
+  prints authored frame 4 - ZARIA's walk list is ROTATED, so row index
+  6 is frame 4, and the `(N)` token is the target's start row, on real
+  data; and the next row closes on DISTANCE, at exactly 6 px of travel
+  (x 90 -> 96) as `frame 5 pos 96,649` at 152. The fight leg's frames
+  5/8/15 land at 62/70/100 on the A_FIGHT row boundaries at ticks
+  54,58,62,66,70,75,80,87,94,100; TUNGA's walk
+  prints `frame 11 pos 60,370` at 30. In verify-level the strum fixtures
+  land at `frame 2` and `frame 3` (`floor(40t/28)` feeds). Two script
+  changes came with the re-derivation, both in the direction of testing
+  the same claim, not weakening it: the lion-attack leg moved its punch
+  from tick 74 to 150 so the kill still lands INSIDE the window the
+  .MOV's own ATC_ON/ATC_OFF frames open, and the idle leg no longer
+  claims an idle-drop (`A_WALK -> A_DRAP`) that was a property of the ms
+  clock - on the iteration clock ZARIA's A_WALK rows do not time out,
+  which is the correct reading of a BY_X state, so that `! grep` is a
+  stronger pin than the old one. A_DRAP stays pinned through the
+  authored attack chain (the DANGER leg, 226).
+- TESTS. New in `--play-selftest`: the RC fixture (`BY_TIME`, 5 rows
+  300/200/200/200/300 = 1200 units = 12 feeds, data-free, no authored
+  data in git) walked on TWO grids - 28 ms (one feed per step: closes
+  at 3,5,7,9,12) and 20 ms (closes at 5,7,10,13,17) - with the exact
+  carry identity checked after every step, and a wrap check; a
+  `time_scale=2000` fixture (rows before the line unscaled, after it
+  doubled: 300+400+400 = 11 feeds, closing at 3,7,11) with the same
+  list without the line as its control; and the ZM leg, which is the
+  mode gate itself under test and the sharpest evidence in this PR. It
+  reads the accumulators at both ends of the gate: with no key held in a
+  BY_X state `facc`, `row_t` and `row_rem` all stay exactly 0 for 17
+  steps, and with the key held the list runs on travelled distance alone
+  - `fi` stays 0 until 6 px of travel and then closes exactly one row
+  (ZARIA's own authored threshold), where a time feed on that same
+  20 ms grid would have cycled the 6-unit list inside the first step.
+  Measured with the scratch probe `/tmp/opencode/zm_probe.c`, that same
+  fixture at HEAD (f86280c, the ms clock PR-109 shipped) runs 3 rows per
+  20 ms step, raises AC_TIME inside tick 1 and enters A_DRAP at tick 2.
+  The RC loops also read `facc` at every step - in a BY_TIME state it
+  stays exactly 0 - and the ZM walk loop reads the time accumulator the
+  same way. Seven mutations, each rebuilt and re-run on this tree, are
+  caught. `mut_ms`
+  (accumulator in ms) fails the jump leg at `air == 18`; `mut_fixed2`
+  (a fixed 200 as the threshold) fails `top > 75.69 && top < 75.71`;
+  `mut_noscale` (the post-pass disabled) fails the parse assertion
+  `fr[1].thresh == 400u`; `mut_nodrift` (`row_rem = 0`, the remainder
+  dropped) fails `land == 19`; `mut_bothfeed` (section 7's time feed
+  unconditional) fails the ZM invariant
+  `s.facc == 0.0 && s.row_t == 0u && s.row_rem == 0u`; `mutl1` (object
+  clock in ms) fails
+  `object state selftest: ... (state 0 frame 0 t 28)`; `mutl2` (object
+  time feed removed) fails the same check at `t 0`. PR-109's three named
+  mutations all shipped, under these names: its MUT-A (a fixed 2
+  iterations per row) is `mut_fixed2`, its MUT-B (ignore `time_scale`)
+  is `mut_noscale`, its MUT-C (keep the ms feed) is `mut_ms`. An eighth,
+  `mut_nogate4` (section 4's own
+  `if ((st->ctrl & LL_CTRL_BY_X) && st->fx != 0)` removed, so the
+  distance feed runs in every mode), SURVIVES `--play-selftest` on this
+  tree, and the reason is worth stating: `facc` is only ever read
+  through the walk gate and is zeroed at every state change, so no
+  current leg can observe the feed-site condition. The half of the mode
+  split with behavioural consequences is the read site, and that is what
+  `mut_bothfeed` catches; the feed-site condition stays as
+  belt-and-braces for 0x543a2's shape.
+- CORRECTIONS. (1) PR-109's PR-110 plan, item (3): "hand-derived from
+  the authored A_WSP table that rows 1-10 span 3,2,2,2,2,2,2,2,2,3
+  iterations and that the 10-row cycle closes after exactly 22 steps and
+  never 23". The spans and the 22 are right arithmetic for that table,
+  but a data-free test cannot quote authored data in git, so the test
+  that shipped is the RC fixture above: the shipped fixture is 5 rows
+  summing to 1200 units, 12 feeds, and no shipped test measures 22.
+  (2) PR-104: "This port reads `time_scale=` into `s->field_other` (an
+  unmodelled counter, ll_play.c line ~624) and treats `f->ms` as a
+  duration directly (`o->t < f->ms`, ll_level.c:1136)". Both halves are
+  superseded by this PR: the scale is applied at parse time and the
+  field is named `.thresh` because it is a threshold, compared against
+  the accumulator, not a duration. (3) The same census sentence in a
+  code comment (ll_play.c, PR-102's RE note): "all 120 shipped values
+  are multiples of 100, 400..2000" - 120 lines is right, 116 are active
+  and they run 60..4000, mostly below 1000. Corrected in place.
+- OPEN ITEMS (PR-110 1-9). (1) The engine admits at most ONE row per
+  record step (0x5232b jumps to the epilogue); the port's loop takes
+  several, bounded by the `4 * nfr` guard. With the feed at exactly 100
+  and a threshold below it, "one per step" and "all that fit" differ -
+  170 of 18617 authored rows have threshold 0 (73 files) and 1715 have
+  threshold in 1..99 units after scaling (111 files), so this is not
+  hypothetical. (2) The boundary at exact equality: 13932 of the 14881
+  authored BY_TIME rows are exact multiples of 100 and the feed is
+  exactly 100, so whether a row fires at `acc == thresh` (the port) or
+  only above it (the literal flag direction of `39 d8` / `7d 27` read
+  AT&T-style, which also makes the `sub ebx,eax` remainder negative) is
+  a systematic +1-feed difference. PR-100's reading - threshold first,
+  "return with the debt kept" - is the coherent one and is what the
+  port implements; the two readings are not equivalent, and nothing in
+  the repo or the clip separates them. (3) The engine's mode-0 feed
+  adds `|[obj+0xca]|` = the truncated `v_x/100` of that tick (PR-99's
+  record, 0x54365); the port's section-4 feed adds `|vx| * dt`
+  untruncated. At the lion's own authored T=20 cap the engine's term
+  truncates to 0. That is PR-98/99/100's pacing tension, unchanged by
+  this PR. (4) PR-109 wrote "Nothing here touches BY_X (mode 0) or BY_Y
+  (mode 1) thresholds" (NEXT_STEPS.md:8185-8187) - PR-110 does touch
+  them, and the `fx != 0` half of the gate has shipped data behind it
+  and no test in front of it: 105 state blocks in 69 files are BY_X,
+  and 30 of them (290 rows, 21 files - ZARIA's own [A_ZABLOK] among
+  them) declare `F=0,0`, which the port then treats as time-fed. No leg
+  in the suite enters such a state, so which half of that gate the
+  engine really keys on is untested. (5) The ordering of the
+  record step and the merge inside one iteration (PR-100's open item 7)
+  is why the port's entry step already accrues a feed, which is what
+  makes every play leg's hit land at `entry + ceil(28m/20)` counting
+  the entry step; nothing proves the engine accrues on the entry step.
+  (6) Whether an armed AC_TIME outlives its own step is PR-83's open
+  item and PR-110 did not settle it; the legs show how sensitive the
+  answer is: in the press/release leg, releasing the walk key at step 18
+  or 35 drops the lion into A_DRAP (a `GEN AC_TIME` row completes
+  during the brake, after the key is up) and releasing at 22, 26 or 30
+  does not. (7) ZARIA's
+  [A_WALK] rows 10, 11, 3, 4, 5 carry `GEN AC_TIME` while the same
+  state declares `A_WALK(x)=K_FWD`; no leg distinguishes the two paths.
+  (8) The 170 rows with threshold 0: the port's compare-after-add makes
+  them close on every step that feeds, and the guard exists, but no
+  sample shows what the engine does with one. (9) PR-109's items 1-6
+  (the BY_TY vertical distance law, the real display rate, PIT
+  reprogramming, the accumulator's width, the pacer's second caller) are
+  untouched.
+- TESTS AND GATES. Run on the committed tree, exactly: `make`,
+  `make win`, `make ll_level` warning-free; `./ll_level --play-selftest`
+  and `./ll_level --mov-selftest` EXIT=0; `make -k verify-all
+  DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files` EXIT=0;
+  the same with DATA and HD pointed at an empty directory EXIT=0 with
+  its 23 SKIPs; never two verify runs at once. PR-109's CI run
+  44148176755 is now `completed / success` including the windows-smoke
+  job after its rerun, so the clock work sits on a green base.
+- DOCS: this record in NEXT_STEPS.md; HANDOFF.md (section 6's row-clock
+  row of the estimates table rewritten as the mode law, the item-0
+  sentence that said "frames advance on ms", a section 7 item-13 bullet
+  for this PR, and section 8's T5 status). Nothing under
+  .github/workflows, nothing copyrighted staged.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

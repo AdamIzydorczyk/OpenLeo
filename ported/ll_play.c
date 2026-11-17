@@ -446,6 +446,9 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                         nl = sizeof s->name - 1;
                     memcpy(s->name, line + 1, nl);
                     s->name[nl] = '\0';
+                    s->time_scale = 1000;   /* PR-110: the engine's row */
+                    s->scale_at = 0;        /* ctor passes 1000 when no */
+                                            /* time_scale line exists   */
                 } else {
                     m->drop_st++;
                 }
@@ -468,12 +471,14 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                     if (s->nfr < LMOV_MAXFR) {
                         ll_mov_fr *mf = &s->fr[s->nfr++];
                         mf->frame = f;
-                        /* M4-C (FIX-13): non-positive durations would make
-                         * obj_advance / the player spin forever: clamp.
-                         * Positive author values (walk frames say 6 ms ->
-                         * a 72 ms 12-frame cycle) are kept as-is, exactly
-                         * matching the viewer's mov_parse. */
-                        mf->ms = ms > 0 ? (unsigned)ms : 100u;
+                        /* M4-C (FIX-13): non-positive thresholds would
+                         * make obj_advance / the player spin forever:
+                         * clamp. Positive author values (walk rows say
+                         * 6 units) are kept as-is before the block's
+                         * time_scale is applied below, exactly as the
+                         * engine reads %hi into node+0x10 first
+                         * (0x51679), matching the viewer's mov_parse. */
+                        mf->thresh = ms > 0 ? (unsigned)ms : 100u;
                         mf->dx = mf->dy = 0;
                         mf->gsig = 0;
                         mf->atc = 0;
@@ -663,19 +668,51 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                     if (t1 > 0)
                         s->time_ms = t1;
                     s->field_other++;
+                } else if (strncmp(line, "time_scale", 10) == 0) {
+                    /* PR-110 IMPLEMENTS this, it used to be counted.
+                     * The engine stores the value at rec+0xe (its row-
+                     * node ctor 0x51660 takes it as an argument) and
+                     * multiplies EVERY row threshold by it at parse
+                     * time: 0x51679 `mov ebp,[esi+0x10]` (the %hi
+                     * value just read), `imul edx,ebp`, 0x51683/
+                     * 0x5168d `idiv 1000`, 0x5168f `mov [esi+0x10],
+                     * eax` - `threshold = value * time_scale / 1000`,
+                     * and only rows constructed AFTER the line saw it
+                     * (PR-104's ctor-order reading). The census of all
+                     * 777 .MOV: 116 active `time_scale=` lines in 38
+                     * files, and not one row sits before its line, so
+                     * scale_at records the position rule without
+                     * changing any shipped result; a commented line
+                     * (`;time_scale=`) never matches. The values run
+                     * 60..4000. Applied to the block at the end of
+                     * ll_mov_parse below. The value starts right after
+                     * the '=' (the shipped form is `time_scale=700` and
+                     * its 16 spellings, every one of them `=`-joined). */
+                    const char *sv = strchr(line, '=');
+
+                    s->time_scale = sv ? (int)strtol(sv + 1, NULL, 10) : 1000;
+                    s->scale_at = s->nfr;
                 } else if (line[0] != ';' && strchr(line, '=')) {
                     /* state payload fields the model does not act on yet:
-                     * sample= (487, sound ids), time_scale= (115).
-                     * Counted, never dropped in silence (PLAN 8g).
+                     * sample= (487, sound ids). Counted, never dropped in
+                     * silence (PLAN 8g).
                      * PR-102 RE note, no behaviour change here: the
                      * engine stores `time=N,M` as two 16-bit halves at
                      * record +0x8/+0xa and `time_scale` at +0xe
                      * (parser 0x51910), and every row's threshold is
                      * then pre-scaled at parse time by
-                     * `T * time_scale / 1000` (0x51660). So this
-                     * counter is an unmodelled SCALE on frame timing
-                     * (all 120 shipped values are multiples of 100,
-                     * 400..2000), not just an unused field. */
+                     * `T * time_scale / 1000` (0x51660). PR-110 CORRECTS
+                     * the census sentence PR-102 left here ("all 120
+                     * shipped values are multiples of 100, 400..2000"):
+                     * 120 lines is right, but 4 of them are commented
+                     * out (`;time_scale=`), and the 116 active values
+                     * run 60..4000, 26 distinct values, 78 of them
+                     * BELOW 1000 - the shipped scale mostly makes rows
+                     * SHORTER, and it is not all round hundreds (150,
+                     * 550, 650, 750, 820, 850 all appear). See the
+                     * time_scale= branch above, modelled in PR-110.
+                     * So this counter is an unmodelled SCALE on frame
+                     * timing, not just an unused field. */
                     s->field_other++;
                 }
                 /* the bare state names before the first '[' stay ignored,
@@ -689,6 +726,15 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
     }
     for (int k = 0; k < m->nst; k++) {
         ll_mov_st *s = &m->st[k];
+        /* PR-110: apply the block's time_scale to its row thresholds at
+         * parse time, as the engine does inside each row node's ctor
+         * (0x51679 imul / 0x5168d idiv 0x3e8): only rows read AFTER
+         * the `time_scale=` line are scaled (scale_at). KADMAR.07's
+         * balloon: authored 200 with time_scale=2000 stores 400, i.e.
+         * FOUR iterations per row, not two. */
+        for (int r = s->scale_at; r < s->nfr; r++)
+            s->fr[r].thresh = (unsigned)((long)s->fr[r].thresh *
+                                         s->time_scale / 1000);
         for (int t = 0; t < s->ntr; t++)
             s->tr[t].tidx = ll_mov_find(m, s->tr[t].target);
     }
@@ -911,7 +957,10 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
             p->fi = ll_mov_row_start(nt, st->tr[t].entry);
                                      /* PR-107: the shared rule, now the same
                                       * one the scene objects use */
-            p->ft = 0;
+            p->row_t = 0;
+            p->facc = 0.0;             /* PR-110: a state change zeroes
+                                        * both feeds of the accumulator,
+                                        * as obj_transition does */
             p->atc = 0;                /* PR-89: an attack window belongs *
                                         * to the state that opened it.    */
             p->atc_hit = 0;
@@ -1048,8 +1097,26 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
 
     /* 4) integrate (double accumulators; the DRAW position is (int) in
      * ll_level.c, integer steps are deterministic on the fixed grid) */
-    p->x += p->vx * dt;
+    double dxv = p->vx * dt;              /* the distance THIS step moves */
+    p->x += dxv;
     p->y += p->vy * dt;
+    /* PR-110: the row accumulator's feed depends on the state's control
+     * mode, and this is the other half of it. The engine's dispatcher
+     * 0x543a0 (PR-98 item 2, its owner read by PR-100) feeds mode 0 =
+     * BY_X from |[obj+0xca]|, the distance the step travelled, and the
+     * time modes from the level's 100-per-iteration constant;
+     * obj_walk + obj_advance have modelled exactly that split on the
+     * scene-object side since PR-98 (`walk ? facc : ...`). The player
+     * side had only the time half, which was harmless while the clock
+     * ran ms and is not harmless now: a real BY_X walk list (RAN.01
+     * 12 rows x 6, ZARIA.01 the same) totals 66 units, BELOW the 100
+     * one iteration feeds, so on the iteration feed alone it would
+     * cycle inside a single iteration. Both accumulators run here, and
+     * section 7's gate picks by mode, as obj_advance's does. The feed
+     * is the velocity's own distance, before the bounds clamp in (6) -
+     * [obj+0xca] is the velocity register, not the post-clip position. */
+    if ((st->ctrl & LL_CTRL_BY_X) && st->fx != 0)
+        p->facc += dxv < 0 ? -dxv : dxv;
 
     /* 5) ground logic (.plt lines, the shape bottom on top).
      * PR-97: the tested point is `y + p->contact` - the contact line the
@@ -1141,7 +1208,8 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
                     if (idle >= 0 && idle != p->sti) {
                         p->sti = idle;
                         p->fi = 0;
-                        p->ft = 0;
+                        p->row_t = 0;
+                        p->facc = 0.0;
                         p->vx = 0;
                         ev |= LL_PLAY_EV_STATE;
                         st = &p->mov->st[p->sti];   /* step 7 uses the NEW state */
@@ -1163,19 +1231,38 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
         p->vx = 0;
     }
 
-    /* 7) frame advance on the same ms clock (identical semantics to
-     * obj_advance: wrap at the end, apply M dx,dy deltas; AC_BREAK_NEXT
-     * is armed by a wrap and consumed by transitions next tick.
-     * PR-109 MEASURED THE UNIT, AND THIS CLOCK IS THE WRONG ONE: the
-     * engine feeds the row accumulator 100 per FRAME-LOOP ITERATION (the
-     * level constant written at 0x4c8b7) and its pacer (0x4b0e0 ->
-     * 0x4a120 -> 0x1dba0) holds one iteration to two display frames, so
-     * the authored row numbers are thresholds in 1/100-iteration units:
-     * a row of 200 stays on screen 66-100 ms, as measured frame by frame
-     * on the owner's ladder clip, not the 200 ms this clock gives. The
-     * ms feed is kept until PR-110 replaces it with an iteration clock;
-     * until then every leg that quotes a row duration is quoting this
-     * model, and must be re-derived by hand if that changes.
+    /* 7) frame advance on the ITERATION clock (PR-110; same semantics
+     * here as obj_advance: wrap at the end, apply M dx,dy deltas;
+     * AC_BREAK_NEXT is armed by a wrap and consumed by transitions next
+     * tick). PR-109 measured the unit: the authored row numbers are
+     * thresholds in 1/100-iteration units (the engine feeds its row
+     * accumulator exactly 100 per frame-loop iteration, 0x4c8b7, and
+     * its pacer 0x4b0e0 -> 0x4a120 -> 0x1dba0 holds one iteration to
+     * two display frames), and on the owner's ladder clip the rows of
+     * 200/300 ran 66-100 ms, NOT the 200/300 ms the old wall-ms clock
+     * gave. So `row_t` now counts the same 1/100-iteration units the
+     * thresholds are in, fed in whole batches of 100 whenever
+     * `row_rem` - the same millisecond grid as before - completes an
+     * iteration of LL_ITER_MS. The compare stays AFTER the add and the
+     * threshold is subtracted on a hit, which is the engine's rule
+     * (0x521f0 compares [obj+0xa1] with the current row's node+0x10
+     * and the accumulator keeps the remainder): a row of 200 is
+     * current for exactly 2 iterations whatever the step size, and
+     * short rows (20, 40 - real A_JUMP rows) all land inside one
+     * iteration, as they do there. The carry makes the port
+     * grid-independent: at dt == LL_ITER_MS the feed is exactly 100
+     * per step; at the CI's 20 ms grid it is 100 per 28 ms with the
+     * leftover ms carried (Bresenham), never a drifted fraction.
+     * The BY_X branch (PR-110, and the reason `walk` is in the gate):
+     * the engine's dispatcher 0x543a0 feeds the SAME accumulator by
+     * mode - mode 0 (BY_X) adds the distance travelled, |[obj+0xca]|,
+     * and ONLY the time modes add 100 per iteration (PR-98 item 2,
+     * PR-100's owner reading; ll_level.c's obj_walk/obj_advance have
+     * modelled that split since PR-98). So a walking state's row clock
+     * does not run at all - its rows are fed by section 4's distance
+     * alone - and a time-driven state's distance accumulator stays 0.
+     * One accumulator, one feed source, chosen by the state's mode:
+     * that is the whole gate below.
      * PR-83: `GEN` tails raise their signal as the frame completes
      * (same rule the object engine follows, ll_level.c obj_advance) -
      * that is the player's AC_TIME mechanism. The state time= timer is
@@ -1186,10 +1273,23 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
      * at the list WRAP - was wrong for the player: the real scripts
      * name their own source.) */
     if (st->nfr > 0) {
-        p->ft += dt_ms;
+        int walk = (st->ctrl & LL_CTRL_BY_X) && st->fx != 0;
+        if (!walk) {                        /* the time modes feed the  */
+            p->row_rem += dt_ms;            /* accumulator; a walking    */
+            while (p->row_rem >= LL_ITER_MS) {
+                p->row_rem -= LL_ITER_MS;
+                p->row_t += 100;      /* one iteration = one feed
+                                        * of the engine's constant */
+            }
+        }
         unsigned guard = 0;
-        while (p->ft >= st->fr[p->fi].ms && guard++ < 4u * (unsigned)st->nfr) {
-            p->ft -= st->fr[p->fi].ms;
+        while ((walk ? p->facc : (double)p->row_t) >=
+                   (double)st->fr[p->fi].thresh &&
+               guard++ < 4u * (unsigned)st->nfr) {
+            if (walk)
+                p->facc -= (double)st->fr[p->fi].thresh;
+            else
+                p->row_t -= st->fr[p->fi].thresh;
             p->x += st->fr[p->fi].dx;
             p->y += st->fr[p->fi].dy;
             unsigned long long gf = st->fr[p->fi].gsig;
@@ -1214,8 +1314,8 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
                 apply_impulse(p, st, p->fi);
             }
         }
-        if (p->ft >= st->fr[p->fi].ms)                /* guard hit (data */
-            p->ft = 0;                                /* safety): resync  */
+        if (!walk && p->row_t >= st->fr[p->fi].thresh) /* guard hit (data */
+            p->row_t = 0;                              /* safety): resync  */
     }
     return ev;
 }
@@ -1335,7 +1435,7 @@ int ll_play_selftest(void)
     CHECK(m.st[1].tr[1].tidx == 1 &&
           m.st[1].tr[1].c[0].cond == LL_COND_K_FWD &&
           m.st[1].tr[1].c[0].neg == 0);
-    CHECK(m.st[1].fr[0].ms == 6);                    /* author values kept */
+    CHECK(m.st[1].fr[0].thresh == 6);                /* authored values kept */
 
     /* PR-87: ',' groups are AND ('|' alternatives stay as before): the
      * unmodeled token poisons only its own group; a leading '|' is an
@@ -1359,8 +1459,8 @@ int ll_play_selftest(void)
 
     ll_mov_t m2;
     ll_mov_parse("X\n[A]\n0,0\n1,-5\n", &m2);
-    CHECK(m2.nst == 1 && m2.st[0].fr[0].ms == 100 &&
-          m2.st[0].fr[1].ms == 100);                 /* M4-C clamp */
+    CHECK(m2.nst == 1 && m2.st[0].fr[0].thresh == 100 &&
+          m2.st[0].fr[1].thresh == 100);                 /* M4-C clamp */
     CHECK(strcmp(m.seqkey, "uj09") == 0);
 
     /* runtime: STAY -> WALK_FWD, T=90 cap respected, edge fall, landing
@@ -1495,12 +1595,23 @@ int ll_play_selftest(void)
     CHECK(ll_player_mirror_of(&p, 0) == 1);          /* mirrored again      */
     CHECK(ll_player_mirror_of(&p, 1) == 0);          /* authored mir -> plain   */
     ll_plt_free(&pl);
-    {   /* PR-74: the jump impulse (hand-derived, ESTIMATED units): `I 120,-1200`
-         * -> vy = -300 u/s, vx = +30 u/s; g = 1650, 20 ms ticks, gravity
-         * applied before integration: after k ticks vy = -300 + 33k, rise =
-         * 0.02 * sum(-300 + 33j, j=1..9) = -24.3 at k = 9 (vy = -3), then it
-         * falls back to the ground at y = 100 (about 18 ticks in the air) and
-         * the viewer rule returns to the idle state. */
+    {   /* PR-74: the jump impulse (hand-derived, ESTIMATED units):
+         * `I 120,-1200` -> vy = -300 u/s, vx = +30 u/s; g = 1650,
+         * 20 ms ticks, gravity applied before integration: after k
+         * ticks vy = -300 + 33k, rise = 0.02 * sum(300 - 33j, j=1..9)
+         * = 24.3 px at k = 9 (vy = -3), then it falls back to y = 100
+         * and the viewer rule returns to the idle state.
+         * PR-110 RE-DERIVED THE ROW TIMING: this list is 20,20,2000 -
+         * the two short rows sit INSIDE one iteration, so the first
+         * feed (leg step 2, ceil(28/20) = 2) closes both of them and
+         * the impulse fires right then; the 2000-unit row never gets a
+         * chance to end (the landing fallback removes the state first).
+         * That is the model's rule, not an artifact: the engine's
+         * 0x521f0 admits a row whenever acc >= threshold with the
+         * remainder kept, so a 20-unit row and a 2000-unit one are 0.2
+         * and 20 iterations. Impulse end of step 2, apex (24.3 px up)
+         * at step 11, back on the ground at step 20, 18 airborne steps
+         * (steps 2..19). */
         static const char JM[] =
             "A_STAY\nA_JUMP\n\n[A_STAY]\ncontrol=BY_TIME|CHECK_LN\n"
             "F=600,0\nT=90,90\nG=0,0\nA_JUMP(1)=K_JUMP\nseq=a\n1,100\n\n"
@@ -1532,32 +1643,61 @@ int ll_play_selftest(void)
             if (q.grounded && air > 3 && !back)
                 back = t;
         }
-        CHECK(top > 100 - 26.5 && top < 100 - 22.5);     /* apex ~24.3 */
-        CHECK(air >= 16 && air <= 20);
-        CHECK(back > 0 && q.sti == 0 && q.y == 100 && q.vx == 0);
+        CHECK(top > 75.69 && top < 75.71);           /* apex = 100 - 24.3 */
+        CHECK(air == 18);
+        CHECK(back == 18 && q.sti == 0 && q.y == 100 && q.vx == 0);
         ll_plt_free(&jp);
         free(jm);
     }
     {   /* PR-86: the (N) token = START ROW (1-based) of the TARGET's
          * frame list, and a state that DECLARES an AC_BREAK_NEXT exit
          * ends by itself - the landing does not cut it (that was the
-         * old fallback viewer rule). Shape copied from the real ZARIA/
-         * TUNGA jump states: A_JUMP's own list runs LONGER than the
-         * physics air (~18 ticks), the landing happens INSIDE it, and
-         * only the list wrap arms AC_BREAK_NEXT -> back to the walk
-         * state at row 3 (mid-phase re-join, exactly ZARIA's
-         * "A_WALK(7)" after its 12-row cycle).
-         * Arithmetic: rows 20+20+400+200 = 640 ms = 32 ticks; the
-         * impulse arms at ~tick 2, air ~18 ticks -> landing ~tick 20;
-         * wrap ~tick 33, transition match ~tick 34 with fi = 3-1 = 2.
-         * (The JM fixture above keeps covering the FALLBACK branch:
-         * its A_JUMP declares no exit, so its landing still goes idle.) */
+         * old fallback viewer rule). A state whose list runs LONGER than
+         * the physics air keeps playing through the landing, and only
+         * the list WRAP arms AC_BREAK_NEXT -> back to the walk state
+         * mid-phase ("A_WALK(7)" after ZARIA's 12-row cycle).
+         * PR-110 RE-AUTHORED THIS LEG'S FIXTURE on ZARIA.01's real
+         * [A_JUMP] rows (11 rows: 75,75,75,100,150,150,225,900,225,0 ->
+         * the M4-C clamp makes that 100,150 = 2225 units, the `I
+         * 150,-1200` on the third, `GEN K_GEN1` tails on rows 5..8,
+         * `WAIT AC_DUP` on the 0 row), and every number below is
+         * re-derived for the ITERATION clock, dt = 20 ms.
+         * Row timeline: the m-th feed lands at leg step ceil(28m/20),
+         * i.e. 2,3,5,6,7,9,10,12,13,14,16,17,19,20,21,23,24,26,27,28,
+         * 30,31,33; the cumulative units closed run 75 at step 2, 150
+         * at 3, 225 at 5, 325 at 6, 475 at 7, 625 at 10, 850 at 13,
+         * 1750 at 26, 1975 at 28, 2075 at 30, 2225 at 33 - so the
+         * 900-unit row (index 7) holds steps 13..26, and the landing
+         * (step 21) happens INSIDE it, exactly the PR-86 shape. Row 10
+         * closes at the 23rd feed (2225 units = 22.25 iterations):
+         * ceil(28*23/20) = 33, and the remaining 75 units close row 0
+         * in that SAME step (the port's `while` admits two rows; the
+         * engine's 0x52320 admits one - PR-110's open item) - which
+         * wraps the list, arms AC_BREAK_NEXT, and the match comes at
+         * the top of step 34.
+         * The jump physics are unchanged (PR-74's ESTIMATED units):
+         * row index 2 becomes current at the 2nd feed = step 3, so
+         * vy = -1200/4 = -300 u/s from step 4; with g = 1650 (G=0,55 x
+         * 30) vy = -300 + 33k, and the rise is
+         * 0.02 * sum(300 - 33j, j=1..9) = 24.3 px at k = 9 (vy = -3)
+         * -> apex y = 75.70; the fall passes y = 100 during step 21
+         * (98.98 -> 104.86, snapped back by the landing search), so 18
+         * steps are airborne (steps 3..20) and the landing is leg step
+         * 21 = loop index 19. The state stays A_JUMP from there to step
+         * 34 - that is the whole point of the leg. A_WALK(3) sets index
+         * 2 (row `3,100`), and that same step's feed closes it, hence
+         * exit_fi = 3. (The JM fixture above keeps covering the
+         * FALLBACK branch: its A_JUMP declares no exit, so its landing
+         * still goes idle.) */
         static const char JE[] =
             "A_WALK\nA_JUMP\n\n[A_WALK]\ncontrol=BY_TIME|CHECK_LN\n"
             "F=600,0\nT=90,90\nG=0,0\nA_JUMP(1)=K_JUMP\n"
             "A_WALK(3)=AC_BREAK_NEXT\nseq=a\n1,100\n2,100\n3,100\n4,100\n\n"
             "[A_JUMP]\ncontrol=BY_TIME\nF=180,0\nT=20,1\nG=0,55\nseq=a\n"
-            "1,20\n2,20,I 120,-1200\n3,400\n4,200\n"
+            "1,75,F 0,350\n2,75,F 0,350,smpauto\n2,75,I 150,-1200\n2,100\n"
+            "3,150,FC 30,0\n4,150,GEN K_GEN1\n5,225,GEN K_GEN1\n"
+            "6,900,GEN K_GEN1\n7,225,GEN K_GEN1\n8,0,WAIT AC_DUP\n"
+            "9,150,F 0,100\n"
             "A_WALK(3)=AC_BREAK_NEXT\n";
         ll_mov_t *je = calloc(1, sizeof *je);
         static const char JP2[] = "1\n1 0,100;2000,100;\n";
@@ -1566,9 +1706,15 @@ int ll_play_selftest(void)
         ll_play_keys jk = { 0 };
         double top2 = 100;
         int air2 = 0, land = 0, held = 1, exit_t = 0, exit_fi = -1;
+        int first_exit = 0;
 
         CHECK(je && ll_plt_parse(JP2, &jp2) == 0);
         ll_mov_parse(JE, je);
+        CHECK(je->st[1].nfr == 11);
+        CHECK(je->st[1].fr[2].has_i && je->st[1].fr[2].ix == 150 &&
+              je->st[1].fr[2].iy == -1200);
+        CHECK(je->st[1].fr[7].thresh == 900u);      /* the 900-unit middle */
+        CHECK(je->st[1].fr[9].thresh == 100u);      /* authored 0 -> 100   */
         CHECK(je->st[1].tr[0].tidx == 0 && je->st[1].tr[0].entry == 3);
         ll_player_start(&q, je, 500, 100, 1);
         CHECK(q.sti == 0);                           /* no A_STAY: the
@@ -1577,9 +1723,8 @@ int ll_play_selftest(void)
         ll_player_step(&q, &jp2, &jk, 0, 2000, 20); /* WALK -> JUMP(1)  */
         jk.k_jump = 0;
         CHECK(q.sti == 1);
-        CHECK(q.fi <= 1);               /* entry (1) = top; the entry tick
-                                         * itself consumes row 1 (20 ms)  */
-        for (int t = 0; t < 60; t++) {
+        CHECK(q.fi == 0);                                /* the top row */
+        for (int t = 0; t < 40; t++) {              /* t = leg step - 2    */
             ll_player_step(&q, &jp2, &jk, 0, 2000, 20);
             if (!q.grounded)
                 air2++;
@@ -1587,19 +1732,22 @@ int ll_play_selftest(void)
                 top2 = q.y;
             if (q.grounded && air2 > 3 && !land)
                 land = t;
-            if (land && t >= land + 2 && t < 29 && q.sti != 1)
+            if (!first_exit && land && t >= land && q.sti != 1)
+                first_exit = t;
+            if (land && t >= land + 1 && !first_exit && q.sti != 1)
                 held = 0;                            /* landing must NOT */
             if (!exit_t && q.sti == 0) {             /* first re-entry   */
-                exit_t = t;
+                exit_t = t + 2;
                 exit_fi = q.fi;
             }
         }
-        CHECK(top2 > 100 - 26.5 && top2 < 100 - 22.5);/* same physics    */
-        CHECK(air2 >= 16 && air2 <= 20);
-        CHECK(land > 0 && held == 1);                /* stays authored   */
-        CHECK(exit_t >= 30 && exit_t <= 36);         /* wrap arms the    */
-        CHECK(exit_fi >= 2);                         /* OWN exit at row  */
-        CHECK(q.fi >= 2 && q.grounded && q.y == 100);/* cycle (mid-phase)*/
+        CHECK(top2 > 75.69 && top2 < 75.71);         /* apex = 100 - 24.3 */
+        CHECK(air2 == 18);
+        CHECK(land == 19);                           /* landing, leg step 21 */
+        CHECK(land && held == 1);                    /* stays authored   */
+        CHECK(first_exit == 32 && exit_t == 34);     /* wrap arms the    */
+        CHECK(exit_fi == 3);                         /* OWN exit at row  */
+        CHECK(q.sti == 0 && q.grounded && q.y == 100);/* cycle (mid-phase)*/
         ll_plt_free(&jp2);
         free(je);
     }
@@ -1688,23 +1836,40 @@ int ll_play_selftest(void)
          * measured from ZARIA LEW.ZAR): the declared list - not block
          * order - names the spawn state; A_WALK is the combined
          * idle+walk (NO !K_FWD exit anywhere: stopping comes from the
-         * key-gated target velocity + the authored F brake, and the walk
-         * state's own GEN AC_TIME tail is what drops to the idle hub);
-         * BKWD plays A_TURN once and it STAYS while the key is held;
-         * and the frame `I 100,0` horizontal impulse (A_TURN frame 0)
-         * never lifts the feet. Also guards: `time=` is parsed but NOT
-         * acted on, and the frame-list wrap does not arm AC_TIME. */
+         * key-gated target velocity + the authored F brake); BKWD plays
+         * A_TURN once and it STAYS while the key is held; and the frame
+         * `I 100,0` horizontal impulse (A_TURN frame 0) never lifts the
+         * feet. Also guards: `time=` is parsed but NOT acted on, and the
+         * frame-list wrap does not arm AC_TIME.
+         * PR-110 CHANGED THE ROW TIMING HERE, and the row values used
+         * are now ZARIA's real ones (A_WALK: 12 rows of 6, `GEN
+         * AC_TIME` on list indices 0,1,5,6,7; A_TURN: 5 rows of 200 =
+         * 1000 units, the `I 100,0` on the first, F=0,0). A_WALK is
+         * BY_X, so its rows are gated by DISTANCE (0x543a0 mode 0,
+         * PR-98/PR-100 - the feed ll_player_step section 4 now has):
+         * no distance, no row. That replaces the old ms-clock claim
+         * "standing in A_WALK cycles the 100 ms frame list and the
+         * GEN AC_TIME tail drops to the idle hub", which was a
+         * property of the ms clock, not of the data: with the key held
+         * the state's own `A_WALK(x)=K_FWD` line comes first in the
+         * list and wins (first match wins), and with the key released
+         * the rows do not advance at all. Whether AC_TIME has another
+         * source in the engine, or those five ZARIA rows are
+         * vestigial, is a new open item (NEXT_STEPS PR-110); what is
+         * NOT open is the feed. */
         static const char ZM[] =
             "A_WALK\nA_DRAP\nA_TURN\nA_JUMP_DOWN\n\n"
             "[A_JUMP_DOWN]\ncontrol=BY_TIME\nF=0,0\nG=0,0\nseq=a\n1,100\n\n"
             "[A_WALK]\ncontrol=BY_X|CH_DIR\nF=100,0\nT=20,5\nG=0,0\n"
             "A_TURN(1)=K_BKWD\nA_WALK(x)=K_FWD\nA_DRAP(1)=AC_TIME\n"
-            "seq=a\n1,50\n2,50,GEN AC_TIME\n\n"
+            "seq=a\n10,6,GEN AC_TIME\n11,6,GEN AC_TIME\n12,6\n1,6\n2,6\n"
+            "3,6,GEN AC_TIME\n4,6,GEN AC_TIME\n5,6,GEN AC_TIME\n6,6\n"
+            "7,6\n8,6\n9,6\n\n"
             "[A_DRAP]\ncontrol=BY_TIME\nF=100,0\nG=0,0\n"
             "A_TURN(1)=K_BKWD\nA_WALK(1)=K_FWD\nseq=a\n1,100\n\n"
-            "[A_TURN]\ncontrol=BY_TIME|CH_DIR\nF=100,0\nG=0,0\n"
+            "[A_TURN]\ncontrol=BY_TIME|CH_DIR\nF=0,0\nG=0,0\n"
             "A_DRAP(1)=AC_BREAK_NEXT\nA_DRAP(1)=AC_BREAK_PREV\n"
-            "seq=a\n1,50,I 100,0\n2,100\n3,100\n";
+            "seq=a\n-5,200,I 100,0\n-4,200\n3,200\n4,200\n5,200\n";
         static const char ZP[] = "1\n1 0,100;2000,100;\n";
         ll_mov_t *zm = calloc(1, sizeof *zm);
         ll_plt zp;
@@ -1719,52 +1884,109 @@ int ll_play_selftest(void)
         CHECK(zm->start_st == 1 && ll_mov_find(zm, "A_JUMP_DOWN") == 0);
         ll_player_start(&s, zm, 500, 100, 1);
         CHECK(s.sti == 1 && strcmp(zm->st[1].name, "A_WALK") == 0);
-        /* zero input: the A_WALK frames' GEN AC_TIME tail (never the
-         * frame-list wrap, never a timer) drops to the idle hub after a
-         * few frames - and the lion never drifts on the way. */
+        /* zero input: A_WALK is BY_X, so NOTHING feeds its row
+         * accumulator (0x543a0 mode 0 adds the distance travelled, and
+         * the lion is not travelling) - the 12-row list does not move,
+         * no row completes, no `GEN AC_TIME` is raised, no idle hub is
+         * reached, and he never drifts. PR-110's non-twin test for the
+         * player-side mode feed: MEASURED against HEAD f86280c with the
+         * scratch probe /tmp/opencode/zm_probe.c, that same fixture on
+         * the ms clock ran 3 rows per 20 ms step (6 "ms" each), raised
+         * AC_TIME inside tick 1 and entered A_DRAP at tick 2. Under the
+         * mode feed the leg's 12 steps of 20 ms (240 ms) advance no row
+         * at all AND accrue no wall time: the mode-0 branch of the
+         * dispatcher replaces the 100-per-iteration feed, it does not
+         * add to it, so the engine's one accumulator stays exactly 0 -
+         * row_t and row_rem say so. A port that fed both clocks would
+         * read 1200 units and a wrapped list here. */
         double zx = s.x;
         int idle_at = 0;
-        for (int t = 1; t <= 12 && !idle_at; t++) {
+        for (int t = 1; t <= 12; t++) {
             ll_player_step(&s, &zp, &sk, 0, 2000, 20);
             if (s.sti == 2)
                 idle_at = t;
         }
-        CHECK(idle_at >= 4 && idle_at <= 10);          /* frame cycle is 100ms */
+        CHECK(idle_at == 0 && s.sti == 1 && s.fi == 0);
+        CHECK(s.facc == 0.0 && s.row_t == 0u && s.row_rem == 0u);
         CHECK(s.x == zx);                              /* zero input never creeps */
         for (int t = 0; t < 5; t++)
             ll_player_step(&s, &zp, &sk, 0, 2000, 20);
         CHECK(s.x == zx);
-        /* press FWD: A_DRAP -> A_WALK, walking up to the authored T=20 */
+        CHECK(s.row_t == 0u && s.row_rem == 0u && s.facc == 0.0);
+                                                       /* 17 steps = 340 ms
+                                                        * in a mode-0 state:
+                                                        * no wall feed, ever */
+        /* press FWD: the state's own A_WALK(x)=K_FWD line re-arms the
+         * key-gated mode (a self-target, no reset), and he walks up to
+         * the authored T=20. The row list now runs on DISTANCE: v =
+         * min(20, 2n) px/s (F=100 accels 2 px/s per 20 ms step), so
+         * the travelled total is 0.02*n(n+1) up to n=10 and
+         * 2.2 + 0.4*(n-10) after it - 5.8 px at n=19, 6.2 at n=20.
+         * ZARIA's first walk row is 6 units: it closes at n=20 and
+         * nowhere earlier. */
         sk.k_fwd = 1;
         ll_player_step(&s, &zp, &sk, 0, 2000, 20);
         CHECK(s.sti == 1);
         zx = s.x;
+        int badlaw = 0;
         for (int t = 0; t < 25; t++) {
+            int n = t + 2;                  /* steps since the key went down */
             ll_player_step(&s, &zp, &sk, 0, 2000, 20);
             CHECK(s.vx <= 20.000001);
+            if (s.row_t != 0u || s.row_rem != 0u)
+                badlaw = 1;             /* section 7 must NOT feed a walking
+                                         * BY_X state: 0x543a2's mode-0
+                                         * branch replaces the 100-per-
+                                         * iteration feed */
+            if (n < 20 && s.fi != 0)
+                badlaw = 1;                 /* a time-driven row gate would
+                                             * have cycled this list long
+                                             * before the 6th px */
+            if (n == 20 && s.fi != 1)
+                badlaw = 1;
         }
+        CHECK(!badlaw);
+        CHECK(s.fi == 1);                    /* only that one row: the next
+                                              * needs 12 px of travel */
+        CHECK(s.sti == 1);                   /* the row raised AC_TIME, but
+                                              * this state's own A_WALK(x)
+                                              * line is earlier in the list
+                                              * and first match wins */
         CHECK(s.x > zx + 5);
         /* RELEASE (this is where the SDL KEYUP fix enters the picture -
          * a stuck key would keep walking forever): NO !K_FWD exit exists,
          * so the walk state stays - the key-gated target velocity plus
-         * F=100 brake him to a standstill within a few px, then the next
-         * AC_TIME pulse moves to the idle. */
+         * F=100 brake him to a standstill within a few px. And with the
+         * key gone the AC_TIME line is no longer shadowed, but nothing
+         * raises it either: 26 key-held steps travelled
+         * 0.02*(110 + 16*20) = 8.6 px, the first row took 6 and left
+         * 2.6, and the brake adds 0.02*(18+16+...+0) = 1.8 px, total
+         * 4.4 < 6 - the
+         * second row never completes, so no pulse and no idle hub. The
+         * velocity ramp is the exact model claim: v = 20 - 2m after m
+         * braking steps, 0 at m=10. */
         double xr = s.x;
         int rel_idle = 0;
         sk.k_fwd = 0;
-        for (int t = 1; t <= 30 && !rel_idle; t++) {
+        for (int t = 1; t <= 30; t++) {
             ll_player_step(&s, &zp, &sk, 0, 2000, 20);
             if (s.sti == 2)
                 rel_idle = t;
+            double want_v = 20.0 - 2.0 * t;
+            if (want_v < 0.0)
+                want_v = 0.0;
+            if (s.vx > want_v + 1e-6 || s.vx < want_v - 1e-6)
+                badlaw = 1;                 /* a non-gated BY_X state
+                                             * would sit at the T=20
+                                             * target through all of this */
         }
-        CHECK(rel_idle >= 1 && rel_idle <= 8);
-        /* the exact key-gated model: velocity has been braking at
-         * F=100 (2 u/s per 20 ms tick) since the release; a non-gated
-         * BY_X state would still sit at the T=20 target here */
-        CHECK(s.vx <= 20.0 - 2.0 * rel_idle + 1e-9);
+        CHECK(rel_idle == 0 && s.sti == 1);
+        CHECK(!badlaw && s.vx == 0.0);
+        CHECK(s.fi == 1);                    /* stopped MID-list: 4.4 px of
+                                              * distance, 6 units per row */
         for (int t = 0; t < 10; t++)
             ll_player_step(&s, &zp, &sk, 0, 2000, 20);
-        CHECK(s.sti == 2 && s.vx == 0);
+        CHECK(s.sti == 1 && s.vx == 0);
         CHECK(s.x - xr < 8.0);                         /* braked, not coasted */
         double xs = s.x;
         for (int t = 0; t < 5; t++)
@@ -1772,7 +1994,18 @@ int ll_play_selftest(void)
         CHECK(s.x == xs);
         /* BKWD (the left key, the user's "turns but never walks left"):
          * A_TURN plays, and the REAL exit is AC_BREAK_NEXT - armed by
-         * the frame-list WRAP (250 ms here) - back to the A_DRAP hub;
+         * the frame-list WRAP. The real A_TURN list is 5 rows of 200 =
+         * 1000 units = 10 iteration feeds. The A_TURN entry is the 89th
+         * step of this leg (88 steps before it: 17 idle + 1 press + 25
+         * walk + 30 release + 10 + 5), all of them in the BY_X A_WALK
+         * state - whose mode feeds no wall time at all, so the state
+         * change hands row_t = 0 AND row_rem = 0 to A_TURN, and the
+         * k-th feed of the time-mode clock lands at the S-th A_TURN
+         * step with floor(20S/28) = k: feeds at S =
+         * 2,3,5,6,7,9,10,12,13,14, and a 200-row closes on every EVEN
+         * feed, so the 5th row and the WRAP land at S=14 = leg step
+         * 102, with the transition match at the top of step 103. - back
+         * to the A_DRAP hub;
          * with the key STILL held the hub's A_WALK(1)=K_FWD matches
          * (facing-relative: LEFT is K_FWD once face=-1) and the lion
          * WALKS LEFT. Under the old literal-key model this was a dead
@@ -1789,11 +2022,19 @@ int ll_play_selftest(void)
         CHECK(s.walkdir == -1 && s.face == -1);        /* the LEFT key      */
         CHECK(s.grounded && !s.jumping && s.y == 100); /* horizontal impulse */
         /* the impulse IS applied (I/4 = 25 u/s), mirrored by walkdir as
-         * everywhere in this model: A_TURN slides LEFT with it; F=100
-         * brakes one tick of it in the same step */
-        CHECK(s.vx <= -20.0);
-        for (int t = 1; t <= 12; t++)                  /* 250 ms: frames
-                                                         * 1,2,3 then wrap  */
+         * everywhere in this model: A_TURN slides LEFT with it, and the
+         * real A_TURN's F=0,0 brakes NOTHING (ZARIA's own turn: the
+         * slide runs until the row list ends it - the behaviour PR-83
+         * recorded as "froze the turn slide forever") */
+        CHECK(s.vx == -25.0);
+        for (int t = 1; t <= 12; t++)                  /* 13 A_TURN steps:
+                                                         * rows close on the
+                                                         * even feeds (S=3,6,
+                                                         * 9,12) and the 10th
+                                                         * feed at S=14 ends
+                                                         * the list, but the
+                                                         * exit only matches
+                                                         * next step */
             ll_player_step(&s, &zp, &sk, 0, 2000, 20);
         CHECK(s.sti == 3);                             /* no early exit:
                                                         * wrap != AC_TIME  */
@@ -1852,19 +2093,62 @@ int ll_play_selftest(void)
     }
     {   /* PR-91 (T3 stage 2): an enemy attack raises AC_ENEMY_ATC on
          * the LION's own set; everything after that is authored data.
-         * Exact mirror of ZARIA LEW.ZAR's A_WALK -> A_DOSTAL (frame 1
-         * `I -320,-250` pullback, exit A_DRAP(1)=AC_BREAK_NEXT at the
-         * list end): the CURRENT state's line drives the reaction, the
-         * (N) token picks the target's entry row, and the reaction ends
-         * at its OWN wrap - no new mechanism anywhere (the raise itself
-         * is play_collide's, covered by the Makefile play legs). */
+         * The reaction state and its exit line are ZARIA LEW.ZAR's own
+         * (A_WALK's `A_DOSTAL(1)=AC_ENEMY_ATC`, A_DOSTAL's 9 rows of
+         * 200 with the `I -320,-250` pullback on the first and
+         * `A_DRAP(1)=AC_BREAK_NEXT`), the CURRENT state's line drives
+         * the reaction, and the reaction ends at its OWN wrap - no new
+         * mechanism anywhere (the raise itself is play_collide's,
+         * covered by the Makefile play legs).
+         * PR-110 RE-DERIVED THE TIMING for the iteration clock and put
+         * the REAL row values in the fixture (the old one had 100-unit
+         * rows, which the new clock closes in one iteration, so the
+         * entry row vanished in the step that entered it). The state
+         * headers stay the fixture's own: the T-as-cap and G= readings
+         * are PR-98/PR-99's open physics questions and this leg is not
+         * the place to pin them. Arithmetic, dt = 20 ms:
+         * - idle 4 steps: A_WALK is BY_X with no key held, so NOTHING
+         *   feeds its rows at all (section 4 feeds distance only and
+         *   there is none; section 7's wall clock belongs to the time
+         *   modes, and 0x543a0 mode 0 does not run it). row_t and
+         *   row_rem stay 0, no row closes: 3 rows of 6 need 6 px of
+         *   travel.
+         * - leg step 5: the raise makes the transition match at the top
+         *   of the step; the entry row (index 0) STAYS - the state
+         *   change hands row_t = 0 to A_DOSTAL and its 20 ms do not
+         *   complete an iteration (row_rem 20 < 28) - and its
+         *   `I -320,-250` fires:
+         *   vx = -320/4 = -80, vy = -250/4 = -62.5. Nothing brakes it
+         *   (F=0,0) and no T cap exists here. Gravity (the PR-74 jump
+         *   constant, 1650) gives vy = -29.5 and y = 100 - 0.59.
+         * - step 6: vy = +3.5, y = 99.48 - inside the 1 px landing
+         *   tolerance, so he is back on his feet at once; the pullback
+         *   keeps running (that is the authored hit stagger).
+         * - the rows are 200 units = TWO feeds each. A_DOSTAL is a time
+         *   mode, so its clock starts at 0 with the entry: the k-th
+         *   feed lands at the S'-th A_DOSTAL step with
+         *   floor(20S'/28) = k, i.e. leg steps 6,7,9,10,11,13,14,16,
+         *   17,18,20,21,23,24,25,27,28,30, and the rows therefore
+         *   close at leg steps 7,10,13,16,18,21,24,27,30 - the 9th
+         *   closes the list, which WRAPS it and arms AC_BREAK_NEXT.
+         *   That is 18 iterations for a 9-row list, where
+         *   the old ms clock made it 1800 ms = 90 steps - this is the
+         *   leg that shows the difference on a hit reaction.
+         * - step 31: the exit matches, `A_DRAP(1)` = the hub's row 1
+         *   (index 0) and it stays: the state change zeroes row_t
+         *   again and one feed (100) is below that row's 200. The
+         *   pullback by then has run 26 steps at -80 u/s
+         *   = 41.6 px. */
         static const char HR[] =
             "A_WALK\nA_DOSTAL\nA_DRAP\n\n"
-            "[A_WALK]\ncontrol=BY_X\nF=0,0\nT=10,0\nG=0,0\n"
-            "A_DOSTAL(1)=AC_ENEMY_ATC\nseq=a\n1,50\n\n"
+            "[A_WALK]\ncontrol=BY_X|CH_DIR\nF=100,0\nT=20,5\nG=0,0\n"
+            "A_DOSTAL(1)=AC_ENEMY_ATC\nseq=walk\n1,6\n2,6\n3,6\n\n"
             "[A_DOSTAL]\ncontrol=BY_TIME\nF=0,0\nG=0,0\n"
-            "A_DRAP(2)=AC_BREAK_NEXT\nseq=a\n1,100,I -320,-250\n2,100\n\n"
-            "[A_DRAP]\ncontrol=BY_TIME\nF=0,0\nG=0,0\nseq=a\n1,100\n2,100\n";
+            "A_DRAP(1)=AC_BREAK_NEXT\nseq=hit\n"
+            "1,200,I -320,-250\n2,200\n3,200\n4,200\n"
+            "5,200,WAIT !AC_ENEMY_ATC\n6,200\n7,200\n8,200\n9,200\n\n"
+            "[A_DRAP]\ncontrol=BY_TIME\nF=0,0\nG=0,0\nseq=idle\n"
+            "1,200\n2,200\n";
         static const char HP[] = "1\n1 0,100;2000,100;\n";
         ll_mov_t *hm = calloc(1, sizeof *hm);
         ll_plt hp;
@@ -1873,26 +2157,47 @@ int ll_play_selftest(void)
 
         CHECK(hm && ll_plt_parse(HP, &hp) == 0);
         CHECK(ll_mov_parse(HR, hm) == 3);
+        CHECK(hm->st[1].nfr == 9 && hm->st[1].fr[0].thresh == 200u &&
+              hm->st[1].fr[0].has_i && hm->st[1].fr[0].ix == -320 &&
+              hm->st[1].fr[0].iy == -250);
+        CHECK(hm->st[1].tr[0].tidx == 2 && hm->st[1].tr[0].entry == 1);
         ll_player_start(&u, hm, 500, 100, 1);
         CHECK(u.sti == 0);
         for (int t = 1; t <= 4; t++)                  /* nobody attacked:  */
             ll_player_step(&u, &hp, &uk, 0, 2000, 20); /* the line stays dark */
-        CHECK(u.sti == 0);
+        CHECK(u.sti == 0 && u.fi == 0);
+        CHECK(u.facc == 0.0 && u.row_t == 0u && u.row_rem == 0u);
         u.sig |= 1ull << LL_SIG_AC_ENEMY_ATC;         /* the hit raises it */
-        ll_player_step(&u, &hp, &uk, 0, 2000, 20);
+        ll_player_step(&u, &hp, &uk, 0, 2000, 20);    /* leg step 5       */
         CHECK(u.sti == 1 && u.fi == 0);               /* A_DOSTAL, row 1   */
-        CHECK(u.vy < 0.0 && !u.grounded);             /* -250 lifts (up)   */
-        CHECK(u.vx < 0.0);                            /* -320 pulls back   */
+        CHECK(u.vy < -29.4 && u.vy > -29.6 && !u.grounded); /* -250/4 lifts */
+        CHECK(u.vx == -80.0);                         /* -320/4 pulls back   */
         double ux0 = u.x;
-        int rec_at = 0;
-        for (int t = 1; t <= 24 && !rec_at; t++) {    /* 2x100 ms + wrap   */
-            ll_player_step(&u, &hp, &uk, 0, 2000, 20);
-            if (u.sti == 2)
+        int rec_at = 0, badlaw = 0;
+        static const int close_at[] = { 7, 10, 13, 16, 18, 21, 24, 27, 30 };
+        for (int t = 6; t <= 31; t++) {               /* 18 iterations of  */
+            ll_player_step(&u, &hp, &uk, 0, 2000, 20); /* hit rows         */
+            if (t == 6 && (!u.grounded || u.y != 100.0))
+                badlaw = 1;                           /* the 1 px tolerance
+                                                       * lands him at once */
+            if (u.sti == 1) {
+                int nc = 0;
+                for (int k = 0; k < 9; k++)
+                    if (close_at[k] <= t)
+                        nc++;
+                if (u.fi != nc % 9)                   /* the 9th close wraps */
+                    badlaw = 1;                       /* back to row 1    */
+            }
+            if (!rec_at && u.sti == 2) {
                 rec_at = t;
+                if (u.fi != 0)
+                    badlaw = 1;                       /* A_DRAP(1): the entry
+                                                       * row stays standing */
+            }
         }
-        CHECK(rec_at >= 5 && rec_at <= 20);           /* AC_BREAK_NEXT at the wrap */
-        CHECK(u.fi == 1);                             /* A_DRAP(2): entry row 2  */
-        CHECK(u.x < ux0);                             /* the pullback moved him  */
+        CHECK(rec_at == 31 && !badlaw);          /* AC_BREAK_NEXT at wrap */
+        CHECK(u.x < ux0 - 40.5 && u.x > ux0 - 42.5);  /* the pullback: 26 steps
+                                                       * x 1.6 px = 41.6 */
         ll_plt_free(&hp);
         free(hm);
     }
@@ -1900,39 +2205,58 @@ int ll_play_selftest(void)
          * A census of the shipped files (tools note in NEXT_STEPS PR-108,
          * script kept out of git at /tmp/opencode/pr108_census.py) finds
          * BY_TY in 12 state blocks in 7 .MOV files and three state names
-         * only: A_WSP (seq climb / climb_r), A_WSP_LIN and TUNGA2's
-         * A_DRAB - every one of them the lion hanging on a vine or rope.
+         * only: A_WSP (seq climb / climb_r), A_WSP_LIN (the rope
+         * variant of the same block) and TUNGA2's A_DRAB - the
+         * DRABINKA rung-ladder family (PR-109 corrected the earlier
+         * "vine or rope": ENA2's rope state A_CLIMB is BY_Y mode 1,
+         * a different mechanism).
          * They all read `F=0,100 T=160,50` (A_DRAB `T=1000,50`), all
          * `G=0,0`, all `control=BY_TY|CHECK_ALL|SEQ_REV_Y` (KARA's adds
          * ANTI_SOLID|FRAME_REV), they are entered by
          * AC_DRAB/AC_DRAB_CATCH/AC_LINA(+AC_ONAIR) and left by
-         * `!AC_DRAB`/`!AC_LINA`. What the engine does with the mode is
-         * NOT what this port does: its feed dispatcher (0x543a0, jump
-         * table 0x54380) sends mode 4 to 0x5441b, which adds the level
-         * constant 100 to the frame-advance accumulator [obj+0xa1] only
-         * while [obj+0xbe] is non-zero - the vertical force register the
-         * input-apply method 0x549f0 writes - and the same register
-         * drives v_y in the velocity loop (0x542cd, /20). The port has
-         * no such gate and no such feed: BY_TY is an unknown control
-         * name there, counted in ctrl_other exactly like SEQ_REV_Y, and
-         * the frame list runs on the plain ms accumulator. THAT is what
-         * this leg pins, so a later move toward the engine's reading has
-         * to be a deliberate one with a test that says so. None of it
-         * is reachable from shipped data in the player sim - no port
-         * code raises AC_DRAB/AC_DRAB_CATCH/AC_ONAIR/AC_LINA/AC_EDGE
-         * (PR-50 showed those are engine-raised) - so the signals are
-         * raised directly, the way PR-91's leg does.
-         * Arithmetic, dt = 20 ms, the authored frame list 300,200x8,300:
-         * `A_WSP(3)=` enters at list index 2 (drawn frame 3), so the
-         * cycle from there is 7*200 + 300 = 1700 ms = 85 ticks: index 3
-         * at tick 10, one row every 10 ticks after that, index 9 (frame
-         * 10) at tick 70, and the wrap to index 0 at tick 85 - which
-         * arms AC_BREAK_NEXT. x, y, v_x and v_y never move: F= gives no
-         * acceleration and no vertical feed is modelled, while the
-         * engine's mode 4 would be pulling him up at about 1 px per
-         * tick. With AC_DRAB held the state's other three exits stay
-         * dark; the tick it is not held, `A_FALL_DOWN(1)=!AC_DRAB`
-         * wins and the fall starts at the top of its own list. */
+         * `!AC_DRAB`/`!AC_LINA`. What the engine does with the mode
+         * is still only half modelled: its feed dispatcher (0x543a0,
+         * jump table 0x54380) sends mode 4 to 0x5441b, which adds the
+         * level constant 100 to the frame-advance accumulator
+         * [obj+0xa1] only while [obj+0xbe] is non-zero - the vertical
+         * force register the input-apply method 0x549f0 writes - and
+         * the same register drives v_y in the velocity loop (0x542cd,
+         * /20). The port still has no such gate and no vertical feed
+         * (BY_TY is counted in ctrl_other exactly like SEQ_REV_Y),
+         * but PR-110 gave its row clock the engine's UNIT: the
+         * accumulator is fed 100 per iteration of LL_ITER_MS, not in
+         * wall ms. The gate - whether the clock runs at all while the
+         * lion hangs - stays unmodelled and open (T5 question 1).
+         * None of it is reachable from shipped data in the player sim
+         * - no port code raises AC_DRAB/AC_DRAB_CATCH/AC_ONAIR/
+         * AC_LINA/AC_EDGE (PR-50 showed those are engine-raised) - so
+         * the signals are raised directly, the way PR-91's leg does.
+         * Arithmetic, RE-DERIVED BY HAND for PR-110 (not scaled from
+         * the old numbers), dt = 20 ms, the authored frame list
+         * 300,200x8,300 with no time_scale line (thresholds 300/200
+         * as written). The feed fires when row_rem (raised 20 per
+         * tick) passes LL_ITER_MS = 28, so the m-th feed lands at
+         * tick ceil(28m/20): m=1 at 2, 2 at 3, 3 at 5, 4 at 6, 5 at
+         * 7, 6 at 9, 7 at 10, 8 at 12, 9 at 13, 10 at 14, 11 at 16,
+         * 12 at 17, 13 at 19, 14 at 20, 15 at 21, 16 at 23, 17 at
+         * 24. `A_WSP(3)=` enters at list index 2 (drawn frame 3)
+         * with the accumulator reset, so each 200-row closes at the
+         * EVEN feed of its pair: index 3 at feed 2 (t=3), 4 at 4
+         * (t=6), 5 at 6 (t=9), 6 at 8 (t=12), 7 at 10 (t=14), 8 at
+         * 12 (t=17), 9 at 14 (t=20); the final 300-row takes three
+         * feeds (15,16,17) and closes at t=24, where the list WRAPS
+         * to index 0 - which arms AC_BREAK_NEXT. That is the whole
+         * 1700-unit cycle = 17 iterations, at 24 grid ticks (the 20
+         * ms grid quantises the 28 ms iteration; the clean pattern,
+         * one feed per tick and spans of 3,2,2,...,3, is the leg
+         * added below on a 28 ms grid). The ms model had the same
+         * boundaries at 10, 20, ... 70, 85. x, y, v_x and v_y never
+         * move: F= gives no acceleration and no vertical feed is
+         * modelled, while the engine's mode 4 would be pulling him up
+         * at each iteration. With AC_DRAB held the state's other
+         * three exits stay dark; the tick it is not held,
+         * `A_FALL_DOWN(1)=!AC_DRAB` wins and the fall starts at the
+         * top of its own list. */
         static const char CE[] =
             "A_JUMP\nA_WSP\nA_FALL_DOWN\nA_PRE_JUMP\nA_TURN_BACK\n"
             "A_PODCIAG\n\n[A_JUMP]\ncontrol=BY_TIME|CHECK_ALL\nF=0,100\n"
@@ -1951,14 +2275,14 @@ int ll_play_selftest(void)
         ll_mov_t *cm = calloc(1, sizeof *cm);
         ll_player r;
         ll_play_keys rk = { 0 };
-        static const int at[] = { 1, 10, 20, 30, 40, 50, 60, 70, 84, 85 };
-        static const int want[] = { 2, 3, 4, 5, 6, 7, 8, 9, 9, 0 };
+        static const int at[] = { 1, 3, 6, 9, 12, 14, 17, 20, 24 };
+        static const int want[] = { 2, 3, 4, 5, 6, 7, 8, 9, 0 };
         int nx = 0;
         int bad = 0;
 
         CHECK(cm && ll_mov_parse(CE, cm) == 6);
-        CHECK(cm->st[1].nfr == 10 && cm->st[1].fr[2].ms == 200 &&
-              cm->st[1].fr[9].ms == 300);
+        CHECK(cm->st[1].nfr == 10 && cm->st[1].fr[2].thresh == 200 &&
+              cm->st[1].fr[9].thresh == 300);
         /* BY_TY and SEQ_REV_Y have no bit: both are counted, never
          * dropped in silence, and the one flag the model does know
          * (CHECK_ALL) still reaches ctrl. */
@@ -1974,12 +2298,19 @@ int ll_play_selftest(void)
               cm->st[0].tr[0].c[0].sig == LL_SIG_AC_DRAB_CATCH);
         ll_player_start(&r, cm, 500, 500, 1);
         CHECK(r.sti == 0);                            /* the declared name  */
-        for (int t = 1; t <= 85; t++) {
-            r.sig |= 1ull << LL_SIG_AC_DRAB;   /* the vine stays held     */
+        for (int t = 1; t <= 24; t++) {
+            r.sig |= 1ull << LL_SIG_AC_DRAB;   /* the ladder stays held   */
             if (t == 1)
                 r.sig |= (1ull << LL_SIG_AC_DRAB_CATCH) |
                          (1ull << LL_SIG_AC_ONAIR);
             ll_player_step(&r, NULL, &rk, 0, 2000, 20);
+            if (t == 23 && (r.fi != 9 || r.broke))
+                bad = 1;      /* the final 300-row must STILL be running at
+                               * feed 16 (its 17th unit needs one more): a
+                               * mutation that treats every row as 2 feeds
+                               * wraps here instead of at 24 (the new leg
+                               * below is the full non-twin test; this is
+                               * the cheap trip-wire inside this one) */
             if (nx < (int)(sizeof at / sizeof at[0]) && t == at[nx]) {
                 if (r.sti != 1 || r.fi != want[nx] ||
                     ll_player_frame(&r) != want[nx] + 1)
@@ -1990,9 +2321,145 @@ int ll_play_selftest(void)
         CHECK(!bad && nx == (int)(sizeof at / sizeof at[0]));
         CHECK(r.broke == 1);                     /* the wrap arms BREAK_NEXT */
         CHECK(r.x == 500 && r.y == 500 && r.vx == 0 && r.vy == 0);
-        ll_player_step(&r, NULL, &rk, 0, 2000, 20);    /* the vine let go  */
+        ll_player_step(&r, NULL, &rk, 0, 2000, 20);    /* the ladder let go */
         CHECK(r.sti == 2 && r.fi == 0);        /* A_FALL_DOWN(1): its top */
         free(cm);
+    }
+    {   /* PR-110's own non-twin test: the row clock counts ITERATIONS,
+         * not wall ms, and one authored list must keep the same
+         * ITERATION spans on two different play grids. The fixture is
+         * this test's own - deliberately, since what is under test is
+         * the clock, not a shipped script.
+         * Hand-derived, no game data. `A_ONE` is a BY_TIME list of
+         * 300,200,200,200,300 = 1200 units = 12 iteration feeds
+         * (a feed is 100 units, ll_play.h). Section 7 adds a feed,
+         * then subtracts a row's threshold when the accumulator
+         * reaches it, so a 300-unit row is current for 3 feeds and a
+         * 200-unit row for 2: spans of 3,2,2,2,3 however the grid is
+         * cut (MUT-A: hard-wiring "a row is 2 iterations" would break
+         * the 300s).
+         * Grid 1, dt = LL_ITER_MS: exactly one feed per step, so the
+         * rows close at steps 3,5,7,9,12 and the 1200th unit WRAPS the
+         * list in step 12 - 12 steps for the whole cycle, where the
+         * wall-ms model took 1200 ms = 43 steps of 28 ms. Because 12 x
+         * 100 is exactly the list, the accumulator and the ms carry are
+         * both 0 after every step; that is the sharpest form of the
+         * claim, and it fails at once on a mutated LL_ITER_MS, a
+         * subtract-once rule, or a feed that does not carry.
+         * Grid 2, dt = 20 ms (the CI's grid): the m-th feed lands at
+         * step ceil(28m/20), i.e. 2,3,5,6,7,9,10,12,13,14,16,17 for
+         * m = 1..12, so the SAME list closes its rows at steps 5,7,10,
+         * 13,17 - the same 12 feeds, 17 grid steps (340 ms, the grid's
+         * own quantisation of 336 ms), and at step 12 the old model
+         * would still be holding row 1 (600 ms of 1200) while this one
+         * is on row 4. The arithmetic inside the loop is the MUT-C
+         * trip-wire: after every step the accumulator must be exactly
+         * 100 x floor(20t/28) minus the thresholds closed so far, and
+         * row_rem exactly (20t) mod 28 - a feed that drifted would show
+         * a residue, a feed in ms would show 20t.
+          * Both loops also read `facc`, which section 4 only feeds in a
+          * BY_X state with a non-zero state F= (0x543a2's mode-0 branch
+          * REPLACES the 100-per-iteration feed, it does not add to it):
+          * in this BY_TIME state it stays exactly 0 at every step.
+         * time_scale= is the engine's own pre-scale of the authored
+         * row values: `threshold = value * time_scale / 1000` inside
+         * each row node's ctor (0x51679 `imul`, 0x5168d `idiv 0x3e8`),
+         * so a block with time_scale=2000 runs its rows at DOUBLE the
+         * iteration count - the same list is then 1100 units and 11
+         * feeds, not 7. PR-104's ctor-order reading (only rows built
+         * after the line see the scale) is asserted too; no shipped
+         * .MOV has a row before its line (116 active lines in 38
+         * files, none with a preceding row), and the block without the
+         * line is the MUT-B control: 300,200,200 unchanged, the default
+         * scale 1000. */
+        static const char RC[] =
+            "A_ONE\n\n[A_ONE]\ncontrol=BY_TIME\nF=0,0\nG=0,0\nseq=a\n"
+            "1,300\n2,200\n3,200\n4,200\n5,300\n";
+        static const unsigned RC_THR[] = { 300, 200, 200, 200, 300 };
+        static const int RC_CLOSE28[] = { 3, 5, 7, 9, 12 };
+        static const int RC_CLOSE20[] = { 5, 7, 10, 13, 17 };
+        ll_mov_t *rcm = calloc(1, sizeof *rcm);
+        ll_player v, w;
+        ll_play_keys vk = { 0 };
+
+        CHECK(rcm && ll_mov_parse(RC, rcm) == 1);
+        CHECK(rcm->st[0].nfr == 5 && rcm->st[0].fr[0].thresh == 300u &&
+              rcm->st[0].fr[1].thresh == 200u);
+        CHECK(rcm->st[0].time_scale == 1000 && rcm->st[0].scale_at == 0);
+        ll_player_start(&v, rcm, 500, 100, 1);
+        for (int t = 1; t <= 12; t++) {         /* grid 1: one feed/step */
+            unsigned closed = 0;
+            int want = 0;
+            for (int k = 0; k < 5; k++)
+                if (RC_CLOSE28[k] <= t) {
+                    closed += RC_THR[k];
+                    want = k + 1;
+                }
+            if (want == 5)
+                want = 0;                      /* the 12th feed wraps */
+            ll_player_step(&v, NULL, &vk, 0, 2000, LL_ITER_MS);
+            CHECK(v.fi == want &&
+                  v.row_t == 100u * (unsigned)t - closed &&
+                  v.row_rem == 0u && v.facc == 0.0);
+            CHECK(v.x == 500 && v.y == 100);    /* rows with no M dx,dy */
+        }
+        CHECK(v.broke == 1);                    /* the wrap armed it */
+        ll_player_start(&w, rcm, 500, 100, 1);
+        for (int t = 1; t <= 17; t++) {         /* grid 2: 100 per 28 ms */
+            unsigned closed = 0;
+            int want = 0;
+            for (int k = 0; k < 5; k++)
+                if (RC_CLOSE20[k] <= t) {
+                    closed += RC_THR[k];
+                    want = k + 1;
+                }
+            if (want == 5)
+                want = 0;
+            ll_player_step(&w, NULL, &vk, 0, 2000, 20);
+            CHECK(w.fi == want &&
+                  w.row_t == 100u * (unsigned)((20 * t) / 28) - closed &&
+                  w.row_rem == (unsigned)((20 * t) % 28) &&
+                  w.facc == 0.0);
+        }
+        static const char TS[] =
+            "A_ONE\n\n[A_ONE]\ncontrol=BY_TIME\nF=0,0\nG=0,0\nseq=a\n"
+            "1,300\ntime_scale=2000\n2,200\n3,200\n";
+        static const char TS0[] =
+            "A_ONE\n\n[A_ONE]\ncontrol=BY_TIME\nF=0,0\nG=0,0\nseq=a\n"
+            "1,300\n2,200\n3,200\n";
+        static const unsigned TS_THR[] = { 300, 400, 400 };
+        static const int TS_CLOSE[] = { 3, 7, 11 };
+        ll_mov_t *tsm = calloc(1, sizeof *tsm), *ts0 = calloc(1, sizeof *ts0);
+        ll_player u;
+
+        CHECK(tsm && ts0 && ll_mov_parse(TS, tsm) == 1 &&
+              ll_mov_parse(TS0, ts0) == 1);
+        CHECK(tsm->st[0].nfr == 3 && tsm->st[0].time_scale == 2000 &&
+              tsm->st[0].scale_at == 1);
+        CHECK(tsm->st[0].fr[0].thresh == 300u &&     /* before the line  */
+              tsm->st[0].fr[1].thresh == 400u &&     /* after it: x2     */
+              tsm->st[0].fr[2].thresh == 400u);
+        CHECK(ts0->st[0].fr[1].thresh == 200u &&     /* MUT-B control    */
+              ts0->st[0].time_scale == 1000 && ts0->st[0].scale_at == 0);
+        ll_player_start(&u, tsm, 500, 100, 1);
+        for (int t = 1; t <= 11; t++) {         /* 1100 units = 11 feeds */
+            unsigned closed = 0;
+            int want = 0;
+            for (int k = 0; k < 3; k++)
+                if (TS_CLOSE[k] <= t) {
+                    closed += TS_THR[k];
+                    want = k + 1;
+                }
+            if (want == 3)
+                want = 0;
+            ll_player_step(&u, NULL, &vk, 0, 2000, LL_ITER_MS);
+            CHECK(u.fi == want &&
+                  u.row_t == 100u * (unsigned)t - closed &&
+                  u.row_rem == 0u);
+        }
+        free(rcm);
+        free(tsm);
+        free(ts0);
     }
     if (!rc)
         printf("play selftest: .plt physics (+ the '!' separator variant,"
@@ -2010,10 +2477,16 @@ int ll_play_selftest(void)
                " attack entry - FIRE alone never fires it), PR-91: a raised"
                " AC_ENEMY_ATC drives the authored hit reaction (entry row,"
                " pullback impulse, its OWN AC_BREAK_NEXT wrap ends it),"
-               " PR-108: a BY_TY climb's list runs on the plain ms clock"
+               " PR-108: a BY_TY climb's list runs on the ITERATION clock"
                " with no key and no vertical feed (mid-list entry row 3,"
-               " 1700 ms cycle, wrap arms AC_BREAK_NEXT, position never"
-               " moves, !AC_DRAB drops him into A_FALL_DOWN) - the CURRENT"
-               " model, not the engine's gated mode-4 feed (ok)\n");
+               " a 1700-unit list = 17 feeds, wrap arms AC_BREAK_NEXT,"
+               " position never moves, !AC_DRAB drops him into"
+               " A_FALL_DOWN) - the CURRENT model, not the engine's gated"
+               " mode-4 feed, PR-110: the row clock is that iteration"
+               " clock (a 300-unit row is 3 feeds, a 200-unit row 2, on"
+               " the 28 ms AND the 20 ms grid, with the exact carry"
+               " arithmetic checked), a mode-0 state's rows are fed by"
+               " its distance only, and time_scale= pre-scales the rows"
+               " of its block (ok)\n");
     return rc;
 }
