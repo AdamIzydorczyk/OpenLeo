@@ -8933,6 +8933,30 @@ asserted 20 times at zero tolerance instead of once
   theory is no longer needed to explain anything. Nothing in the code
   changes: re-reading our own clock is exactly what a 40 us early wake
   needs, which is why the fix was written to not depend on the answer.
+- THE RUN NUMBERS IN THE TWO BULLETS ABOVE ARE WRONG, quoted rather than
+  edited: they read "Run 135 / 44179955442", "Run 136 / 44180333781"
+  and "run 135 `early=0`, run 136 `early=1 worst=40us`". The correct
+  `ci.yml` numbers are **126** and **127**. Checked against the API:
+  `actions/runs/44043011593` answers `wf=ci wf_run#101` (so the run 101
+  citation in the WHY bullet is right, and run 124 / 44176302862 is
+  right too), and the repository has 128 Actions runs in total, all of
+  them `ci`, so no numbering can reach 135. Every run ID, job ID and log
+  line number quoted in this record comes from the API and is correct -
+  what was wrong is a label I invented, not a measurement.
+- THE TALLY, corrected and extended with the third sample, superseding
+  the "Tally so far" sentence quoted above. Run 128 / 44181397463 (the
+  push of the two bullets above) is green on all three legs, and its
+  `windows-smoke` job 134386350669 prints `diag raw-CRT clock_nanosleep
+  20ms x20: early=1 unsupported=0 worst_undershoot_us=11` while its asan
+  job 134386349975 prints `early=0 ... worst_undershoot_us=0`. Three
+  Windows legs now: 126 `early=0`, 127 `early=1 40us`, 128 `early=1
+  11us`. Three glibc legs: all `early=0`. The `linux` job prints nothing
+  either time (its `verify-platform` SKIPs for want of `$(DATA)`). So
+  two of three Windows runs show an early wake and none of three glibc
+  runs do, at 11 and 40 us. Still a tiny census, still not evidence that
+  those two failures undershot this far, but the shape - intermittent,
+  Windows-only, sub-millisecond - is now supported twice, and the
+  diagnostic keeps collecting it for free.
 
 ## Next — pick from the Deferred list below
 
