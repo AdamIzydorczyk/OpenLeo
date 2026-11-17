@@ -658,6 +658,48 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      cluster at x 75..115 on ZARIA.01), so they are regression tripwires, not
      measurements of the lion. Fix: window the sprite from its own bbox.
 
+13. PR-98 OPEN ITEMS (the F=/FC=/I/IC motion model; each flagged in code too,
+    full list in the PR-98 NEXT_STEPS record):
+   - THE ENGINE'S WALK LAW IS REFUTED BY THIS REPO'S OWN MEASUREMENTS. Its
+     loop's steady state is v_eq = 5*F_eff*s/T, i.e. speed proportional to
+     F/T, while PR-79's video measurements track F alone: 25 px/s for the
+     lion's A_WALK (F=100,T=20), 25 px/s for the worm's BY_X A_RUN
+     (F=100,T=40), 40-50 px/s for the rhino (F=180,T=40). Nothing was
+     re-pinned on the strength of the RE.
+   - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
+     a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
+     authored pairs into exactly the two divisors the port fitted from the
+     video: F/100 px/tick -> F/4 px/s (PR-79's walk law) and `I 150,-1200`
+     -> (37.5, -300) px/s = LL_PLAY_JUMP_DIV=4 (PR-74's jump). The struct
+     mapping was verified from the image (0x52590: `F=` = rec+0x50/+0x54,
+     `T=` = +0x58/+0x5c capped at 130, `G=` = +0x48/+0x4c), and it rules
+     out the one escape that could have made the loop fit: the header `F=`
+     feeds ONLY the increment channel, 0x54170's target comes from the row
+     `F`/`I` nodes alone. So the F/T steady state stays refuted, and the
+     next question is a different mechanism - the `control=` dispatch and
+     the BY_X frame-advance-by-distance path, which is a position
+     mechanism and needs no integrator (PR-98 open item 2).
+   - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
+     `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
+     files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's
+     penguin `T=1600`). Today the port never reads T= for those (BY_TY)
+     states, so nothing is wrong - but any future drag model must apply
+     the cap; `python3 tools/re/mov_channels.py` prints the count.
+   - A SHIPPED DISCREPANCY, now recorded on purpose: the port drives the
+     player's walk to the authored cap T=20 -> 20 px/s on ZARIA while the
+     measurement is 25 px/s, whereas its object-side F/4 law gives 25.
+     PR-79 itself ended with "re-resolve player physics in T1 with the
+     video as referee"; a PR-99 candidate is exactly that, one model for
+     both sides, decided by PR-98's tests.
+   - Whether the player object goes through the step at 0x54250 at all (its
+     three call sites are lion-adjacent but do not check the class).
+   - The `obj+0x95` flag that turns `I`/`IC` rows on, the `[vt+0xbc]` test
+     and byte +0xb6 bit 2 behind the drag floor 20, and the caller of the
+     row-list dispatcher 0x45df4 (outside the dump).
+   - `ds:0xcef40 -> +0x388` is added into the frame-advance distance
+     accumulator when the terrain scalar is non-zero (0x543f2..0x5443d): a
+     global time/tick scalar, meaning unread.
+
 ## 8. Plan: tasks, in order. One task = one or a few PRs.
 
 Each task: goal / where / how / done when. Do not start a task whose "how"
@@ -671,6 +713,31 @@ documented; interpretation still open), (b) parse the directives into
 ~316-317 s and ep.2 ~465 s contain running jumps; ZARIA_A.PLT gives the gap
 widths (`ll_plt` polylines). Done when: a hand-derived data-free test pins the
 horizontal range for one state, and a video measurement agrees within ~15%.
+STATUS after PR-98: (a) is CLOSED for the velocity chain - the engine's
+whole F=/FC=/I/IC path is now read, at instruction level and with its data
+links read out of the image (merge at 0x526df..0x5273d: the current row's
+`FC`/`IC` pairs fold ONTO the state's `F=` pair, which then enters a
+per-tick velocity increment scaled by a terrain scalar /20; `T=` is a
+per-tick PERCENT drag taken from the pre-add velocity; frame `F`/`I` pairs
+are a velocity that 0x54170 SETS, never past the target, and it runs after
+the drag; the PR-79 frame-advance-by-distance mechanism is confirmed at
+0x543a0 + 0x52317..0x52338; and the header keys map to rec+0x50/+0x54
+(`F=`, +0x58/+0x5c (`T=`, clamped to 130 by the parser) and +0x48/+0x4c
+(`G=`)). (b)/(c) still cannot be applied: that loop's steady state couples
+walking speed to F/T, which the measured walks refute (all three track
+F/4 px/s; T=20 and T=40 give the same answer), and now that the mapping is
+read, the header-`F`-as-velocity escape is closed too - 0x54170's target
+comes only from the row nodes. The units by contrast look close to pinned:
+v is hundredths of a px per tick and 25 ticks/s reproduces this port's own
+two fitted /4 constants. The remaining half of (a) is how a BY_X state
+consumes `F=`. Next steps, in order: (1) the `control=` dispatch - which
+handler runs a BY_X / BY_TY state and what writes the row distance
+accumulator [obj+0xa1], the prime suspect for the measured F/4 law,
+(2) read what writes [obj+0xba]/[obj+0xbe] (0x54a00..0x54ab0) and what
+paces 0x54250's callers, (3) the video tests PR-98 lists (the jump's x
+track against the port's one-shot `ix/4`; an `FC` window in A_FIGHT; a
+second walk pair at different F and T), then a PR-99 that puts both sides
+on one measured law with every play pin re-pinned from it.
 
 **T2. The lion's attack and enemy energy.**
 Goal: kill the first LICHA. Where: `LEW.MOV` states `A_FIGHT*`, `A_FG_PACKA*`

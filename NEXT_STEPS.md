@@ -4974,6 +4974,16 @@ gis legs are cutted becouse it is to low", on ZARIA.01)
   line. Self-consistent (the offset always belongs to the animation being
   shown), but it is why that pair moved 298 -> 286/284 and not by one clean
   constant.
+- CI: PR-97 (`176699b`) linux + asan green on the first pass; the
+  windows-smoke job failed at `platform_selftest: sleep_until honors the
+  deadline (>=20ms)` - the same wall-clock selftest that flaked on PR-35,
+  PR-36 and PR-94 (see the note under the PR-95 record). This PR's own
+  platform code is untouched and the full `verify-all` (which runs
+  `verify-platform`) passed locally twice before the commit, so the tree was
+  re-run rather than changed (`gh run rerun --failed`), and that rerun then
+  completed green - the same outcome as PR-35/36/94, which confirms the
+  flake reading rather than a code cause. A non-wall-clock rework of that
+  selftest stays a low-priority item.
 - Open questions this leaves:
   1. Whether the engine's grounded y bookkeeping is really `pos + contact` or
      a per-class constant. The shape bottom is what the data pins to the ground
@@ -4993,6 +5003,323 @@ gis legs are cutted becouse it is to low", on ZARIA.01)
   5. The drawn-art extent and the shape box are different rectangles; the
      anchor windows above conflate the lion and same-coloured scenery. A
      future leg should window the sprite from its own bbox instead of colour.
+
+## PR-98 — the engine's motion model for the `F=`/`FC=`/`I`/`IC` channels,
+verbatim RE (documentation + code comments only: no behaviour change, no
+re-pins; closes the F=/FC=/I/IC chain half of HANDOFF §8 T1(a) - what is
+left of (a) is how a BY_X state consumes `F=`, recorded as open item 2)
+
+- Source: /tmp/opencode/vis/text.asm (tools/re/make_text_asm.sh, from
+  build/leo/leo.elf: VA = file offset + 0xf000, and the dump starts at VA
+  0x10000 = file offset 0, so a labelled address here is its byte offset +
+  0x10000). Strings and vtables are OUTSIDE that dump, but they ARE in the
+  image, so this PR reads them directly (file offset = VA - 0xf000):
+
+      python3 -c "d=open('build/leo/leo.elf','rb').read();o=0x92281-0xf000;
+      print(d[o:o+32])"          # for a string
+      # for a vtable: struct.unpack_from('<12I', d, va-0xf000)
+
+  That covers every string and vtable quoted below (0x91966/0x9196f/
+  0x91971/0x91974, 0x92281/0x9228a/0x92293, 0x92270, 0xa1090, 0xa25d4,
+  0xa2638); `ds:` globals stay UNREAD. Every quoted address was re-read
+  rather than taken on trust.
+- Builds on PR-77 (which found the parser, the 17-byte node, the vtable
+  0xa1090 +0x10 accumulator handler, and the selector values `F`=0, `FC`=1,
+  `I`=2, `IC`=3) and stops exactly where it stopped: "additive vector
+  accumulation, NOT yet what the vectors mean physically". That is now
+  answered.
+- PARSER (FACT): the frame-row dispatcher is the function at 0x45df4 (no
+  instruction in the dump calls it - its caller is reached through data,
+  UNREAD). Each motion branch allocates a 17-byte node and fills the same
+  layout: vtable 0xa1090 at +4, the selector byte at +0x10, and the `%i,%i`
+  pair at +8/+0xc. Chain order 0x46878 (`I` 0x91966, `468a5: mov dl,0x2`) ->
+  0x468dc (`F` 0x9196f, `46910: xor dl,dl` -> 0) -> 0x46944 (`IC` 0x91971,
+  `46971: mov dl,0x3`) -> 0x469ac (`FC` 0x91974, `469d9: mov dl,0x1`). So
+  these rows are not fixed struct fields in the engine either - they are a
+  per-row list of nodes, exactly as the port counts them.
+- THE HEADER-KEY MAPPING, READ FROM THE IMAGE (FACT). Everything below
+  names struct fields after PR-77, so that mapping was re-verified rather
+  than trusted. The `=` parser is 0x52590: it splits the key with the
+  format at 0x92270 (`%[^[=,( ] %*[,=]`, i.e. read up to `=` and skip it),
+  string-compares the key, and sscanf's the `%i,%i` pair into the record:
+    * `52598: mov edx,0x92281` = `"F"`, format `0x92283` = `" %i,%i"`,
+      `525b1/525b5: push ecx+0x54 / ecx+0x50` -> state `F=` = rec+0x50/54
+    * `525c7: mov edx,0x9228a` = `"T"`, -> `525df/0x525e3: +0x5c / +0x58`
+      -> state `T=` = rec+0x58/+0x5c
+    * `5261a: mov edx,0x92293` = `"G"`, -> `52632/0x52636: +0x4c / +0x48`
+      -> state `G=` = rec+0x48/+0x4c
+    * any other key -> `5264f: call 0x51910` (unknown-key path)
+  The bytes at those addresses are `F\0`, `" %i,%i"`, `T\0`, `G\0`, so the
+  header keys really are `F=`/`T=`/`G=` and PR-77's naming was right. Same
+  recipe for the vtables: 0xa25d4 is THIS record class's method table -
+  slot +0x0 = 0x52590 (the `=` parser), +0x2c = 0x52680 (the merge below),
+  +0x24 = 0x52660, plus 0x23c90/0x52750/0x521f0/0x23c80/0x52570/0x520c0/
+  0x52360/0x1ffd0/0x52470 - and 0xa1090's +0x10 slot is 0x45d50, so the
+  `call DWORD PTR [ebp+0x10]` at 0x526e9 IS the accumulator handler PR-77
+  read. No unread vtable is left inside the chain merge -> 0x54250 -> /100.
+  TWO MORE FACTS from 0x52590: it CLAMPS the `T=` pair to at most
+  0x82 = 130 (`525f8: mov DWORD PTR [ecx+0x58],0x82`, mirrored at 0x52610
+  for +0x5c), a cap no other key gets. And 0x52540..0x52567 zeroes all six
+  fields (it clears +0x5c/+0x54/+0x4c and copies those zeros into
+  +0x58/+0x50/+0x48); its callers are unread, so the useful consequence -
+  a state with no `F=`/`T=`/`G=` line starting from 0 instead of keeping
+  the previous state's values - is INFERENCE from its shape. THE CAP
+  BITES ON REAL DATA: 172 authored `T=` components (last-wins per state)
+  in 64 files sit above it - the lion's own TUNGA.11 A_WPAD `T=150` and
+  A_WSP_LIN `T=160,50` (a BY_TY climb), LONA.05's penguin `T=1600`,
+  TUNGA.11 POCISK_ARROW A_DEAD `T=1000`; `python3
+  tools/re/mov_channels.py` prints that count. The port parses the
+  authored number and applies no cap, which today is harmless because
+  those states are BY_TY/other classes whose T= the port never reads - but
+  it is a faithfulness gap for any future drag model, and it is not a
+  measurement risk: the walks this repo measured are T=20 and T=40, well
+  under the cap.
+- MERGE, per row (0x52680 = slot +0x2c of the 0xa25d4 class table above). It
+  copies the three state-header pairs into a context buffer (`+0x50/+0x54 ->
+  ctx+0x0/+0x4` = the state's `F=`, `+0x58/+0x5c -> ctx+0x8/+0xc` = `T=`,
+  `+0x48/+0x4c -> ctx+0x10/+0x14` = `G=` - the exact fields the `=` parser
+  writes, so this mapping is FACT, not PR-77's naming), and then, through
+  the node handler at 0x45d50 (`45d6e: movsx eax,BYTE PTR
+  [esi+0x10]` / `45d72: cmp eax,edx` / `jne` - add `[+8]`/`[+0xc]` into two
+  caller ints only when the selector equals the requested mode):
+    * `526e4: mov edx,0x1` -> the `FC` nodes are added ONTO THE COPY OF THE
+      STATE'S `F=` PAIR (ctx+0x0/+0x4), so F_eff = state `F=` + those pairs.
+      Not decoration, and the data says so: ZARIA's A_FIGHT header is
+      `F=0,0` while its rows carry `FC 100,0`, `FC 90,0`, `FC 90,0`,
+      `FC 100,0`, `FC 120,0` (sum +500 x over 20 rows) - without those rows
+      the punch has NO authored forward motion at all. A_JUMP is `F=180,0` +
+      `FC 30,0`, A_JUMP_S `F=180,0` + `FC 80,0`, TUNGA's A_FIGHT `F=0,0` +
+      `FC` sum +500. How often each appears in the 777 extracted .MOV files:
+      `F` pairs 272, `FC` 65, `I` 60, `IC` 3 (re-run:
+      `python3 tools/re/mov_channels.py`, added with this PR, which prints
+      both channels for every state of every .MOV). The row syntax is
+      `<index>,<threshold>,<directives>` (`9,300,FC 100,0`) and a leading
+      `;` comments a row out, which is why PR-77 could only see the parser
+      and not the counts.
+    * `526f3/526fc: lea ebp,[esi+0x18]` + `call 0x45900` with dl=0 -> 0x45900
+      (`45901/45907: mov DWORD PTR [...],0x0`) zeroes ctx+0x18/0x1c and then
+      sums the `F` pairs there (the port's ll_mov_fr carries no F field;
+      those rows are parsed and counted in the .MOV parser's
+      directive-counting branch, never kept).
+    * gate `5270b: cmp DWORD PTR [eax+0x95],0x0`: when that per-object flag
+      is set, `mov edx,0x3` adds the `IC` pairs INTO THE F CHANNEL too and
+      `mov edx,0x2` adds the `I` pairs into ctx+0x18/0x1c. What sets the flag
+      is NOT pinned (set at 0x5234a/0x535d1/0x538b7, cleared at 0x52217 -
+      row-transition sites); OPEN.
+  So the two channels are: **F_eff = state `F=` + Σ`FC` (+ Σ`IC` when
+  gated)** and **target = Σ`F` + Σ`I` (when gated)**. THE SCOPE OF THE SUMS,
+  now at instruction level: the merge takes the node chain as
+  `5268e: lea edi,[eax+0x2e]` / `52694: mov edi,[edi]` / `52696:
+  mov edi,[edi+[A+0x4]*4]` - a table of node-chain heads inside the record,
+  indexed by the field at rec+0x4 - and calls that chain's +0x10 handler,
+  which adds up the nodes whose selector byte matches (0x45d50). Since the
+  parser builds one chain per frame row (0x45df4 is the per-row dispatcher),
+  the reading used here and in the code comments is **the sums are of the
+  current frame row's directives**. Marked INFERENCE: nothing read here
+  writes rec+0x4, and 0x518b6 stores the vtable 0xa2638 at [obj+0x4] of a
+  neighbouring class, so that field's own role is unverified. It matters: an
+  `FC` folded in for a whole state is a different animation from an `FC`
+  that only applies while its own rows run.
+  The authored lion data also shows the target channel is SPARSE - most
+  states have no `F`/`I` rows at all (A_WALK, A_STAY, A_FIGHT have none),
+  the ones that do are the jumps and the knocked-back states: ZARIA
+  A_PRE_JUMP `I 250,-1100`, A_JUMP `F 0,350` + `I 150,-1200`, A_JUMP_S
+  `F 0,350` + `I 120,-1200`, A_DOSTAL `I -320,-250` (its header carries
+  `G=-50,55`), KARA A_PRE_JUMP one row `9,150,F -1000,100`, ENA2
+  A_JUMP_LINE rows summing (1500,-1650) over 6 rows, ZARIA A_ODLOT `F` sum
+  +1200. In every jump and fall row a NEGATIVE y goes UP (the launch
+  pairs) and a POSITIVE y goes DOWN (the `F 0,350` rows on the fall
+  states), i.e. the same y convention the port uses.
+- CONSUMER, the velocity step at 0x54250 (called at 0x24731/0x321fe/0x33348;
+  the wrappers pass `eax`=the object, `edx`=a filled param struct - the same
+  field layout as that context, byte for byte, so it is THIS ctx: INFERENCE,
+  the connecting call is through the unread vtable). Ranges 0x54170 and up
+  need a clean `objdump -D -b binary -m i386 --adjust-vma=0x10000 -M intel
+  --start-address=... /tmp/opencode/vis/text.bin`: text.asm's linear sweep
+  desynchronizes at the jump table at 0x543be.
+    * `54259..0x5427c`: if a [vt+0xbc] test passes and param+0x8 (the state
+      `T=` x) is < 0x14, force it to 0x14 unless the object's byte +0xb6 has
+      bit 2 - a default drag floor of 20 (OPEN: which objects carry +0xb6&2).
+    * `5427c..0x542a7`: drag1 = param+0x8 · v_x /100, drag2 = param+0xc ·
+      v_y /100 (the `T=` pair, as a PERCENT per tick) - computed from the
+      velocity BEFORE this tick's increments, which is what makes the steady
+      state below solvable.
+    * `542a9..0x542c7`: `v_x += F_eff_x · [obj+0xba]/20 + G_x · [obj+0x6d]`,
+      where [obj+0x6d] is the facing (+-1) and [obj+0xba]/[obj+0xbe] are
+      terrain scalars the ground code recomputes each tick (written +-10/0 at
+      0x54a57/0x54a82/0x54a93 - NOT .MOV-authored). y-symmetric at
+      0x542cd..0x542fa. **`F=` is a per-tick velocity increment (a force),
+      not a velocity and not a slew-rate limit.**
+    * `0x54300..0x54337`: `v_x -= drag1`, `v_y -= drag2`; if the update
+      reversed the sign, the component is set to 0 (0x5431b/0x54330).
+    * `0x5433a..0x54348`: `edx = ctx+0x18 · facing`, `ebx = ctx+0x1c`
+      (NO facing on y) into **0x54170, which is neither an add nor a force**.
+      For a positive target: `5417e: cmp edx,ebp / jle` skips when v is
+      already at or past it; otherwise `54182: lea ecx,[edx+ebp]` computes
+      v + target and `5418b: cmp edx,ecx` keeps that ONLY if it did not pass
+      the target (which can only happen when v opposed it), else `541a8`
+      stores the target itself. So v is moved TO the target and never past
+      it: from rest or from the same sign it is a ONE-TICK SET, and only a v
+      that OPPOSES the target steps toward it, |target| per tick. A target of
+      0 changes nothing (`0x54174`/`0x54176` and the mirror at
+      `0x54191..0x541a8`), which is why states with no `F`/`I` rows are
+      driven by the F=/T= loop alone. The mirror branch handles a negative
+      target. This runs AFTER the drag, so while a row carrying a target is
+      the current row, the `T=` drag cannot slow that axis: an `I 150,-1200`
+      row pins v_x at +150·facing and v_y at -1200, it does not launch a
+      burst that then decays.
+    * `0x5434d..0x54372`: `v/100` is written to +0xca/+0xce (position
+      deltas), so **v is in hundredths of a pixel per tick** - the port's own
+      px/s numbers are a different scale, which is why no constant here can
+      yet be compared with the video.
+- FRAME ADVANCE BY DISTANCE, now seen in the machine code (this is PR-79's
+  "movement units per frame" mechanism, which had only been measured on the
+  video): the next entry in the same switch at 0x543a0 (`0x543be: jmp DWORD
+  PTR cs:[eax*4+0x54380]`, indexed by a state kind `and eax,0x7 / cmp
+  eax,0x4`) adds |obj+0xca| / |obj+0xce| - the WHOLE-PIXEL position deltas,
+  not the scaled velocity - into [obj+0xa1] (0x543c6..0x543d1, and 0x543e7
+  for the other case), and at 0x52317..0x52338 the row's own threshold comes
+  from `call [vt+0xa0]` (0x52320: `mov eax,[ebx+0x10]`), is compared with
+  `cmp eax,ebx` against [obj+0xa1], and when it is not reached yet the
+  threshold is SUBTRACTED from the accumulator (0x52334) before the row is
+  re-entered through `[esi+0x18]` - i.e. the row is held and the debt is
+  carried, exactly the behaviour PR-79 pinned. The +0xa1 accumulator is set
+  at 0x52118 and zeroed at 0x5236b/0x533b0/0x5389e (state/row changes), and
+  two switch entries add `ds:0xcef40 -> +0x388` into it (0x543f2..0x5443d)
+  when the terrain scalar is non-zero - a global tick/time scalar whose
+  meaning is UNREAD (a `ds:` global).
+- WHAT THE ROW CHANNEL IS FOR (DATA, and it reads cleanly): the row-level
+  `F`/`I` pairs sit on exactly the motions that are SCRIPTED rather than
+  continuous - jumps and their launches, the knocked-back states
+  (A_DOSTAL), thrown things (ZARIA.02 POCISK_JAJO and POCISK_KOKOS
+  `F 1200,-300`, SADES.06 POCISK_ARROW `F 2000,2000`, the sinking
+  POCISK_HARPUN `F 1300,2200`) and the scripted rides (ENA2 A_JUMP_LINE) -
+  and NEVER on a walk, idle or stand state (no lion A_WALK/A_STAY row
+  carries one; A_FIGHT carries `FC` only). Read next to the
+  row-held-until-travelled mechanism above (the [obj+0xa1] accumulator
+  against the row's own threshold), the design says: **a row sets the
+  velocity for its own segment, and the row ends when the travelled
+  distance reaches its threshold**. Two consequences worth stating: the
+  row-target channel and the walk law are separate questions, and the
+  port's ll_mov_fr - which keeps `I` but throws the row-level `F` pairs
+  away with the directive counter - is missing half of a mechanism that
+  already works in the engine.
+- WHAT THIS SAYS ABOUT THE PORT'S MODEL (recorded, NOT changed here). The
+  port actually has TWO parameterizations: the object side (ll_level.c
+  obj_walk, PR-79) walks BY_X states at F/4 px/s with the per-row distance
+  thresholds; the player side (ll_play.c block 2) drives toward +/-T for a
+  key-held or auto_walk BY_X state, ramping at |F| per second and clamped
+  at T. Taking the engine loop exactly as read above (drag from the pre-add
+  velocity, then the increment), its steady state is solvable:
+      v_eq = 5·F_eff·s/T            (v units, = hundredths of a px per tick)
+      px/tick = v_eq/100 = F_eff·s/(20·T)
+  and that says the walking speed is proportional to F/T. THE MEASURED DATA
+  SAYS OTHERWISE, and it says so with the samples this repo already has:
+  PR-79 measured 25 px/s for the worm's BY_X A_RUN (F=100, T=40), 25 px/s
+  for the lion's A_WALK (F=100, T=20) and ~40-50 px/s for the NOSOROG
+  rhino (F=180, T=40) - three samples, two actor classes, and the speed
+  follows F alone (F/4 px/s), with T=20 and T=40 giving the same result.
+  So as read, the chain cannot be the whole story.
+- THE OBVIOUS ESCAPE IS NOW CLOSED BY THE MAPPING. The reading that would
+  have made that loop agree with the measurements was "the two channels are
+  the other way round": the state's `F=` pair reaching 0x54170's target,
+      v = F=   ->   px/s = F/100 * ticks/s = F/4 at 25 ticks/s
+  with no T in it - literally the law the port already ships on the object
+  side. The instruction-level chain rules it out: 0x54170 reads its target
+  from ctx+0x18/+0x1c (0x5433a's `mov edx,[ebx+0x18]`, `mov eax,[ebx+
+  0x1c]`), and 0x52680 writes those two words ONLY from the row-node sums,
+  while the header pairs go to ctx+0x0..+0x14. So the header `F=` is not a
+  velocity target; RAN's `A_STAY F=600` is an increment, not a 150 px/s
+  target - which is also the sane reading of that data.
+- WHAT IS SOLID ABOUT THE UNITS, and it is not nothing: v is divided by 100
+  before it moves the object (0x5435d/0x54370), so the engine's velocity
+  unit IS hundredths of a px per tick, and
+      `I 150,-1200` / 100 px per tick at 25 ticks/s = (37.5, -300) px/s
+  is exactly the impulse this port fitted from the video (PR-74's
+  LL_PLAY_JUMP_DIV = 4 gives the same two numbers), just as PR-79's walk
+  divisor 4 is F/100 px per tick at 25 Hz. Two divisors fitted from video
+  landing on 100/25 is what those units at that cadence would produce; the
+  cadence is still UNREAD (open item 4), so this stays a strong hint, not
+  a pin.
+- WHERE THE MEASURED LAW MOST LIKELY LIVES (INFERENCE, and it redirects
+  the next RE step). Every F/4 measurement is a BY_X state, and a BY_X walk
+  needs no velocity integrator at all: the frame-advance-by-distance
+  machinery above IS a position mechanism - a row's own threshold compared
+  against a travelled-distance accumulator ([obj+0xa1], with the debt
+  carried at 0x52334), which is precisely what PR-79 pinned as "advance the
+  frame list by distance, with a fractional carry". So a walking BY_X
+  object probably never goes through 0x54250: some BY_X handler turns `F=`
+  into the distance added to that accumulator per tick, and F/100 px per
+  tick at 25 Hz is F/4 px/s with no T anywhere. The next step is the
+  `control=` dispatch (which handler runs a BY_X / BY_TY / BY_TIME state)
+  and the writer of [obj+0xa1], not another pass over 0x54250.
+- A SHIPPED DISCREPANCY this brings into the open: the port's player walk
+  speed on ZARIA is the authored cap T=20 -> 20 px/s, while the video
+  measurement is 25 px/s (PR-79 closed its own record with "re-resolve
+  player physics in T1 with the video as referee" for exactly this). The
+  object-side law would give 25. On RAN's A_WALK_FWD the two readings
+  nearly agree (T=90 vs F/4=100 px/s), which is why it has stayed hidden.
+  No pin is changed by this note; it is recorded so the next physics PR
+  faces it on purpose.
+- OPEN ITEMS this leaves (each flagged in the code too):
+  1. CLOSED by this PR ("THE HEADER-KEY MAPPING" above): `F=` = rec+0x50/
+     +0x54, `T=` = +0x58/+0x5c (the parser caps it at 130), `G=` = +0x48/
+     +0x4c, read from the key strings and sscanf formats in the image, and
+     the merge copies exactly those. The increment channel is the header
+     `F=` plus the row `FC` pairs; 0x54170's target is only the row `F`/
+     `I` sums. No claim above rests on PR-77's naming any more.
+  2. THE NEW FIRST TARGET: the `control=` dispatch. Which handler runs a
+     BY_X (or BY_TY) state, and what writes [obj+0xa1] - the distance
+     accumulator the row thresholds are compared against. That is where the
+     measured F/4 law should be, and it is also the caller of the row
+     dispatcher 0x45df4 and probably the user of `ds:0xcef40 -> +0x388`.
+  3. What rec+0x4 is: the index that picks which node chain the merge sums
+     (see the scope note above). Per-row is the reading used here; nothing
+     read here writes it.
+  4. The cadence: how often 0x54250 runs (its callers 0x24731/0x321fe/
+     0x33348 and what paces them), and the same question for the BY_X
+     handler. The /4 coincidences point at 25 Hz; the port's own play tick
+     is 60 ms, and those numbers must be reconciled before any unit is
+     re-derived.
+  5. `[obj+0xba]/[obj+0xbe]`: read their writer (0x54a00..0x54ab0 writes
+     +-10/0) - a terrain constant, or a per-object scalar.
+  6. The `+0x95` gate that turns `I`/`IC` rows on at all (set at
+     0x5234a/0x535d1/0x538b7, cleared at 0x52217) - in the shipped data it
+     decides whether an `I` row is live, so it is on the critical path of
+     the jump tests below.
+  7. The `[vt+0xbc]` test and the byte +0xb6 bit 2 behind the drag floor
+     20 (0x54266) - the engine also EDITS param+0x8, so the effective drag
+     need not be the authored T= (which its parser already caps at 130).
+  8. Whether the player object goes through 0x54250 at all (the three call
+     sites touch lion-adjacent fields but check no class).
+- TESTS THAT SETTLE T1 (the fixture is already in scope; no code change is
+  needed to run any of them).
+  a. T-dependence, ALREADY MEASURED and the sharpest result here: PR-79's
+     windows give the same 25 px/s at T=20 (lion) and T=40 (worm), and
+     40-50 px/s for F=180 (rhino, T=40) - so speed tracks F/4 and T plays
+     no part in it. Any model whose steady state goes like F/T is dead on
+     that data, and the number is consistent with the engine's own units
+     (F/100 px per tick at 25 Hz = F/4 px/s). What the video does NOT
+     settle is the MECHANISM: a distance added per tick to the row's
+     distance accumulator (open item 2, the BY_X handler) versus an
+     integrated velocity. A pair of walk states at different F AND
+     different T in one level (KARA's A_WALK F=150,T=40 vs ZARIA's
+     F=100,T=20: the F law predicts 37.5 vs 25 px/s, the port's
+     player-side T law 40 vs 20) would pin the law harder - and gp.mp4 is
+     ZARIA only, so that needs footage of another level.
+  b. The row-target channel, on ZARIA's jump: A_PRE_JUMP `I 250,-1100` and
+     A_JUMP `I 150,-1200` are, on the reading above, a velocity that is SET
+     (not a burst that decays) and re-set every tick of that row, while the
+     port sets vx/vy once at the impulse row (apply_impulse: `vx = ix/4`).
+     Discriminate on the HORIZONTAL track between takeoff and landing
+     (gp.mp4 ep.1 ~316-317 s, ep.2 ~465 s): constant-then-cut-at-row-end
+     versus a single fixed value; and with a direction change in the air,
+     which the row target can reverse and the port's one-shot set cannot.
+  c. The `FC` channel: any A_FIGHT window - ZARIA's A_FIGHT has F=0 and
+     FC rows, so the lunge exists only while those rows run, and stops
+     with them.
+  Those measurements, not this note, decide whether a PR-99 re-parameterizes
+  block 2. Until then T1's RE half is closed and its units half is open.
 
 ## Next — pick from the Deferred list below
 

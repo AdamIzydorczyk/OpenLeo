@@ -18,6 +18,12 @@ for another machine. No game data and no video frames live in git.
 | `llrs_extract_mov.c` | dump every `.MOV` of an HD ANIMACJE container to `/tmp/opencode/mov/` (for statistics). |
 | `seq_sheet.c` | `seq_sheet PCX SEQ OUT.ppm` - draw every element of a `.SEQ` in a grid (used to look at the HUD art). |
 
+## .MOV text (python, stdlib only)
+
+| file | what it does |
+| --- | --- |
+| `mov_channels.py` | `mov_channels [DIR]` - per state, the header `F=`/`T=`/`G=` pairs plus the sums of the row-level `F`/`FC`/`I`/`IC` pairs, i.e. the two motion channels the engine merges (NEXT_STEPS PR-98); also counts the `T=` values over the 130 cap the engine's parser applies. Reads `/tmp/opencode/mov` by default. |
+
 ## Disassembly
 
 `make_text_asm.sh` - objdump of the LE image's `.text`; VA = file offset + 0xf000.

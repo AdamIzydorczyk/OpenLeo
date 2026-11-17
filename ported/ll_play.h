@@ -265,7 +265,49 @@ typedef struct {
 typedef struct {
     char name[24];
     char seqkey[16];                        /* per-state seq= art select   */
-    int fx, fy, tx, ty, gx, gy;             /* F= T= G= (px/s^2, px/s)    */
+    int fx, fy, tx, ty, gx, gy;             /* F= T= G= (px/s^2, px/s)    *
+                                             * ENGINE SEMANTICS, PR-98 RE'd
+                                             * (NEXT_STEPS PR-98; the port's
+                                             * parameterization below is NOT
+                                             * the engine's): per tick the
+                                             * engine drags first
+                                             * (`v -= T= * v/100`, a PERCENT,
+                                             * sign flip stops it, x drag
+                                             * floored at 20 at 0x54266) and
+                                             * then increments
+                                             * `v += F_eff*s/20 + G=*facing`,
+                                             * F_eff = the state F= plus the
+                                             * current row's `FC` pairs (+
+                                             * `IC` when obj+0x95 is set),
+                                             * s = an unread per-object
+                                             * terrain scalar. A row's `F`/
+                                             * `I` pairs are instead a
+                                             * velocity TARGET (0x54170 sets
+                                             * v to it, never past it, x by
+                                             * facing, y down-positive, after
+                                             * the drag). Its steady state
+                                             * v_eq = 5*F_eff*s/T is refuted
+                                             * by the measured walks, which
+                                             * all track F/4 px/s with T
+                                             * playing no part; and at 25
+                                             * ticks per second the /100
+                                             * position scale reproduces
+                                             * PR-79's /4 and PR-74's
+                                             * LL_PLAY_JUMP_DIV exactly. The
+                                             * struct mapping is no longer
+                                             * the open part - 0x52590
+                                             * parses `F=` to +0x50/54,
+                                             * `T=` to +0x58/5c (capped at
+                                             * 130) and `G=` to +0x48/4c,
+                                             * and the header F= reaches
+                                             * only the increment - what is
+                                             * open is the MECHANISM behind
+                                             * the measured F/4 walk (the
+                                             * BY_X distance-based frame
+                                             * advance, NEXT_STEPS PR-98
+                                             * open item 2). The port keeps
+                                             * the px/s reading until that
+                                             * is read. */
     int time_ms;                            /* time=<ms?>: parsed and
                                              * counted but NOT acted on -
                                              * unit undetermined (ranges

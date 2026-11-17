@@ -745,7 +745,14 @@ static int cond_true(const ll_player *p, const ll_play_keys *k,
 }
 
 /* PR-74: entering a frame that carries `I ix,iy` throws the lion: the
- * horizontal part follows his facing, the vertical part is up (negative). */
+ * horizontal part follows his facing, the vertical part is up (negative).
+ * PR-98 RE (no change): the engine does NOT set the velocity here. That
+ * row's `I` pairs are summed (0x5273d) into a target that 0x54170 moves v
+ * to and never past - a SET from rest or the same sign, a climb of |target|
+ * per tick from the opposite sign - and the pair runs after the T= drag, so
+ * it holds that axis for as long as the row runs. So a one-shot assignment
+ * is the port's model and its /4 divisor is a fitted unit, not an
+ * instruction (the engine's scale is unresolved: NEXT_STEPS PR-98). */
 static void apply_impulse(ll_player *p, const ll_mov_st *st, int fi)
 {
     if (fi < 0 || fi >= st->nfr || !st->fr[fi].has_i)
@@ -881,7 +888,48 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
      * brake-to-standstill); RAN never reaches this gate at key release
      * because its !K_FWD transition to A_STAY wins the same tick.
      * auto_walk states (K_GEN1 cutscene walkers: GO_TO_BALON_*, EXIT,
-     * CHANGE_LEVEL) keep walking with no key held. */
+     * CHANGE_LEVEL) keep walking with no key held.
+     * PR-98 (RE, no behaviour changed): the ENGINE does not parameterize
+     * these two numbers this way. Its velocity step at 0x54250 is, per tick,
+     *   v -= state T= * v / 100      (a PERCENT drag, computed from the OLD
+     *                                 v first; a sign flip across the
+     *                                 update sets the component to 0;
+     *                                 0x54266 also floors the x drag at
+     *                                 20, and the .MOV parser caps the
+     *                                 authored T= at 130 - 172 shipped
+     *                                 components are above that cap)
+     *   v += (state F= + that row's `FC` pairs, + its `IC` pairs when
+     *         obj+0x95 is set) * [obj+0xba|be] / 20 + state G= * facing
+     * and separately that row's `F`/`I` pairs (summed at 0x526df..0x5273d)
+     * are a velocity TARGET: 0x54170 moves v to it and never past it (from
+     * rest or the same sign it is a SET, from the opposite sign it climbs by
+     * the target per tick until it lands on it), and it runs AFTER the drag,
+     * so a row that carries a target pins that axis for as long as it runs.
+     * x is multiplied by facing; y is not, and y is DOWN-positive there -
+     * the jump rows aim `F 0,350` (falling) and `I 150,-1200` (upward).
+     * So F= is a sustained force, T= is a drag, and `FC` is load-bearing:
+     * ZARIA's A_FIGHT header is `F=0,0` and its rows carry `FC 100,0`,
+     * `FC 90,0`..., i.e. without FC the punch has no authored motion at all.
+     * NOT APPLIED, deliberately (NEXT_STEPS PR-98 carries the detail):
+     * that loop's steady state is v_eq = 5*F_eff*s/T, so px/s =
+     * F_eff*s*fps/(20*T) - a speed that depends on T - while every walk
+     * this repo measured on the video tracks F alone: 25 px/s for the
+     * lion's A_WALK (F=100,T=20), 25 px/s for the worm's BY_X A_RUN
+     * (F=100,T=40), 40-50 px/s for the rhino (F=180,T=40). Note also that
+     * the units half of the question may already be answered by this
+     * file's own fitted constants: v is hundredths of a px per tick (the
+     * /100 at 0x5435d), and at 25 such ticks/s an `I 150,-1200` pair is
+     * (37.5, -300) px/s - exactly what LL_PLAY_JUMP_DIV=4 below produces.
+     * What is now settled, from the image itself (0x52590 parses the
+     * header keys): `F=` = rec+0x50/+0x54, `T=` = +0x58/+0x5c, capped by
+     * that parser at 130, `G=` = +0x48/+0x4c - and the merge copies
+     * exactly those, so the header F= feeds ONLY the increment channel
+     * (0x54170's target comes from the row-node sums, never from the
+     * header). No re-reading of F= as a velocity target can rescue the F/T
+     * law. Where the measured F/4 law most likely lives instead is the
+     * BY_X frame-advance-by-distance path, which is a position mechanism
+     * and needs no integrator (NEXT_STEPS PR-98, open item 2). This model
+     * stays until that is read, with the measured F/4 law as referee. */
     int key_walk = p->walkdir > 0 ? keys->k_fwd : keys->k_bkwd;
     double tv = (st->ctrl & LL_CTRL_BY_X) && (key_walk || p->auto_walk)
                     ? p->walkdir * (double)(st->tx > 0 ? st->tx : 0)
