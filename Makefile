@@ -439,11 +439,18 @@ ifeq ($(PX_DATA),1)
 	  rc=$$?; if [ $$rc -ne 0 ]; then echo "level scene FAILED (rc=$$rc)"; \
 	    cat /tmp/opencode/lv_tick$$T.log; exit 1; fi; done
 # the authored scene, read from the level's own data: 7 placement files, 77
-# entry lines -> 69 placed + 8 outside its own world, 43 scripts / 50 art
+# entry lines -> 68 placed + 1 authored at 0,0 (an attached child, PR-93) +
+# 8 outside its own world, plus the PR-93 static image grammar: 18 lines
+# -> 18 placed (the WODOSPAD waterfalls and the TABLICA signs: the line
+# names its own .SEQ in that CD ANIMACJE leaf), 43 scripts / 50 art
 # tables, ONE real art hole (ogien_m.SEQ), two stale count headers reported as
 # what they are, and the bare `none` keyword of ani_plat= never a fake hole.
-	@grep -q 'show TUNGA.11: bg PLAN3.PCX 640x359, 69 animated object' \
+	@grep -q 'show TUNGA.11: bg PLAN3.PCX 640x359, 68 animated object(s), 18 static image(s)' \
 	    /tmp/opencode/lv_tick8.log \
+	  && grep -q 'authored scene TUNGA.11: 18 static image line(s).*-> 18 placed' \
+	      /tmp/opencode/lv_tick8.log \
+	  && grep -q 'obj WODOSPAD/wodos1.seq\[static image\]: art WODOS1.SEQ, 0 state(s), bbox 32x394 at (168,185)' \
+	      /tmp/opencode/lv_tick8.log \
 	  && grep -q 'authored scene TUNGA.11: 7 placement file(s), 77 object' \
 	      /tmp/opencode/lv_tick8.log \
 	  && grep -q 'placement ANI3.DES (72 B, from animacje=)' \
@@ -466,7 +473,7 @@ ifeq ($(PX_DATA),1)
 	    /tmp/opencode/lv_tick8.log \
 	  && grep -q 'tick 8: ANIBACK/strum2.mov state 0 frame 1' \
 	    /tmp/opencode/lv_tick8.log \
-	  && grep -q 'tick 8: 57 more placement(s) advanced' \
+	  && grep -q 'tick 8: 74 more placement(s) advanced' \
 	      /tmp/opencode/lv_tick8.log \
 	  && echo "scene animation: the authored .MOV cycles advance on the fixed grid, proof bounded at 12 placements (ok)" \
 	  || { echo "scene animation grep FAILED"; cat /tmp/opencode/lv_tick8.log; exit 1; }
@@ -486,8 +493,37 @@ ifeq ($(PX_DATA),1)
 	    /tmp/opencode/lv_objall.log \
 	  && ! grep -q 'more placement(s) of those scripts' \
 	      /tmp/opencode/lv_objall.log \
-	  && echo "LEO_OBJ_ALL: all 69 placements named, the animated platform comes from ani_plat= with its authored x,y (ok)" \
+	  && echo "LEO_OBJ_ALL: all 68 + 18 placements named, the animated platform comes from ani_plat= with its authored x,y (ok)" \
 	  || { echo "LEO_OBJ_ALL grep FAILED"; cat /tmp/opencode/lv_objall.log; exit 1; }
+# PR-93: the two placement grammars the user's ZARIA.01 report led to. The
+# 3-comma "<LEAF>,<name>.seq,x,y" lines ARE placed: ZARIA.01's 14 (the stone
+# shelves the authored objects stand on - plan4 at 70,480 under the balloon at
+# 78,460, plan3 at 180,515 under the ladder, plan6 at 287,430 under the
+# vulture) all join on the CD ANIMACJE PICT leaf; the five-field entries
+# authored at exactly 0,0 are NOT (measured: all 130 in the shipped data
+# follow another entry - the vulture's carried jajo here - children the
+# engine spawns from their parent, whose trigger is unresolved).
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=1 \
+	  LEO_OBJ_ALL=1 \
+	  ./ll_level $(DATA) ZARIA.01 > /tmp/opencode/lv_statics.log 2>&1; \
+	  rc=$$?; if [ $$rc -ne 0 ]; then echo "PR-93 statics leg FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/lv_statics.log; exit 1; fi
+	@grep -q 'authored scene ZARIA.01: 14 static image line(s).*-> 14 placed, 0 at an x outside' \
+	    /tmp/opencode/lv_statics.log \
+	  && grep -q 'obj PICT/plan4.seq\[static image\]: art PLAN4.SEQ, 0 state(s), bbox 136x60 at (70,480)' \
+	      /tmp/opencode/lv_statics.log \
+	  && grep -q 'obj PICT/gniazd.seq\[static image\]: art GNIAZD.SEQ, 0 state(s), bbox 84x28 at (2140,270)' \
+	      /tmp/opencode/lv_statics.log \
+	  && grep -q 'show ZARIA.01: bg PLAN3.PCX .*51 animated object(s), 14 static image(s)' \
+	      /tmp/opencode/lv_statics.log \
+	  && grep -q '2 entry line(s) authored at 0,0.*children the engine spawns from their parent' \
+	      /tmp/opencode/lv_statics.log \
+	  && grep -q 'placement ZWIERZ1.DES: POCISK/jajo.mov is authored at 0,0' \
+	      /tmp/opencode/lv_statics.log \
+	  && ! grep -q 'obj POCISK/jajo.*at (0,0)' /tmp/opencode/lv_statics.log \
+	  && echo "placement grammars: static .SEQ lines joined from the CD leaf and placed at their authored x,y, 0,0 entries joined but never instantiated (ok)" \
+	  || { echo "PR-93 statics grep FAILED"; cat /tmp/opencode/lv_statics.log; exit 1; }
 	@rm -f /tmp/opencode/lv_cam300.ppm
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
@@ -509,17 +545,19 @@ ifeq ($(PX_DATA),1)
 	  if [ $$rc -ne 0 ]; then echo "RAN.01 level scene FAILED (rc=$$rc)"; \
 	    cat /tmp/opencode/lv_ran.log; exit 1; fi
 # the largest authored scene in the shipped game: 827 entries from 4 placement
-# files (CHMURY.DES from zwierzaki=), 82 scripts, 92 art tables. 48 of those
+# files (CHMURY.DES from zwierzaki=) -> 826 placed + 1 authored at 0,0 (the
+# demo text child, PR-93: joined and counted, never instantiated at the world
+# origin), 82 scripts, 92 art tables. 48 of those
 # tables carry the element SHAPE margins only, no patch art (w0=2): invisible
 # solids the ORIGINAL game never drew either - reported with their measured
 # geometry, not counted as data holes or draw gaps.
 # The proof listing is bounded (24 + the count of the rest).
 	@grep -q 'tlo.*= plan3.pcx,plan2.pcm,plan1.pcm' /tmp/opencode/lv_ran.log \
-	  && grep -q 'show RAN.01: bg PLAN3.PCX 960x400, 827 animated object' \
+	  && grep -q 'show RAN.01: bg PLAN3.PCX 960x400, 826 animated object(s)' \
 	      /tmp/opencode/lv_ran.log \
 	  && grep -q 'placement CHMURY.DES (16459 B, from zwierzaki=)' \
 	      /tmp/opencode/lv_ran.log \
-	  && grep -q 'authored scene RAN.01: 4 placement file(s), 827 object entry line(s) -> 827 placed' \
+	  && grep -q 'authored scene RAN.01: 4 placement file(s), 827 object entry line(s) -> 826 placed' \
 	      /tmp/opencode/lv_ran.log \
 	  && grep -q '48 carry shape geometry only - invisible solids the original' \
 	      /tmp/opencode/lv_ran.log \
@@ -527,7 +565,7 @@ ifeq ($(PX_DATA),1)
 	      /tmp/opencode/lv_ran.log \
 	  && grep -q 'its seq= names EDGE0000.SEQ: the record is there, and element 0 of it carries the SHAPE margins only, no patch art: shape frame tw 28, 19 rows, bbox 1 0 28 20' \
 	      /tmp/opencode/lv_ran.log \
-	  && grep -q '\.\.\. 803 more placement(s) of those scripts' \
+	  && grep -q '\.\.\. 802 more placement(s) of those scripts' \
 	      /tmp/opencode/lv_ran.log \
 	  && grep -q 'PCM PLAN2.PCM: transparent overlay layer 1280 px x 400 rows (16 strips of 80, tiles of 16), 45.9% painted.*-> layer 1 over PLAN3.PCX' \
 	      /tmp/opencode/lv_ran.log \

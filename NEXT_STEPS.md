@@ -4359,6 +4359,114 @@ the CONTACT path really raises (RE after PR-91; answers half of the
   at (893,480) in a level no play leg runs. Live consumption waits for
   swimming/flight locomotion work, not for more signal plumbing.
 
+## PR-93 - the two missing placement grammars: static image lines and
+attached children (the user's ZARIA.01 "objects not in place" report)
+
+- The report first, honestly: the user saw ZARIA.01's scene objects in
+  the wrong places (fruits in the top-left corner, the ladder/vulture/
+  balloon standing on nothing) and asked whether we read the coordinates
+  at all. We DO - every .des placement coordinate in the level block is
+  read and used (ZWIERZ1/2.DES, ANI1/2/3/ANIPL2.DES inside the HD
+  ETAPY ZARIA.01 id=2 block). What the audit found were TWO GRAMMARS of
+  the placement files that the port never acted on, and both were real
+  scene content:
+- Grammar 1 - static image lines, three commas:
+  "<LEAF>,<name>.seq,<x>,<y>" (e.g. `PICT,plan4.seq,70,480`). Measured
+  census over all 13 level blocks: 84 such lines game-wide; 69 of them
+  join as <level>/<LEAF-as-class-named-leaf-block>/<name>.SEQ on the CD
+  ANIMACJE (the first field names the leaf table on BOTH installs; the
+  15 misses are ALL LONA.05 WODOSPAD2 asking for elem26/27/29.seq,
+  which the install does not carry - reported as named data holes);
+  ZARIA.01 joins 14 of 14 including PANC.SEQ, which does exist. The HD
+  ANIMACJE carries NO PICT/TABLICA blocks for these levels - this art
+  is CD-only, so obj_static_get resolves art through the CD container
+  only. These 14 ARE the visible scene the user compared against the
+  video: the stone shelves the objects stand on (plan4 at 70,480 under
+  the balloon at 78,460, plan3 at 180,515 under the ladder at 180,510,
+  plan6 at 287,430 under the vulture at 300,450, the vine from
+  plan5.seq at 130,350), the leaves and the nest. The lines carry no
+  script, no properties, no motion: the element drawn is the first one
+  of that table that carries patch art (obj_elem's existing no-script
+  fallback) at the authored x,y through the element's own anchor (the
+  PR-49 rule, no new geometry). Runtime inertness is not a policy
+  choice - every play path (obj_hit/arm/advance/settle/shape_elem/
+  touch_enemy/play_collide/balloon) already gates on o->sc->mov being
+  non-NULL, so a placement with no .MOV was always inert; PR-93 only
+  makes it DRAWN and counted. One model choice, stated in code: the
+  frame-1-only draw. Whether the original animated some of these
+  tables stays OPEN (no motion data exists for them; drawing frame one
+  is the absence of motion data, not a guess at motion).
+- Grammar 2 - attached children: five-field entries authored at exactly
+  0,0. Measured: 130 such lines in the shipped data and EVERY one of
+  them directly follows another entry or one of its property lines -
+  the vulture's carried egg (ZARIA.01 `SEP ... POCISK,jajo.ani,
+  jajo.mov,0,0`), the saw-fish on each authored RBLOK log (ENA.03), a
+  drop on each leaf, the seaweed segments, the volcano smoke from each
+  crater, the demo texts. Not one is a placement at the world origin -
+  they are children the engine spawns FROM their parent, and WHICH
+  event spawns them is unresolved. The port now still joins and counts
+  their scripts and art exactly as before (only instantiation at (0,0)
+  is skipped - which is what put those fruits in the corner), resets
+  last_obj so a following property line cannot bind the child, and
+  reports them in the "does not act on" census ("N entry line(s)
+  authored at 0,0 ... never a placement at the world origin") plus the
+  first four by name.
+- Draw order (from the video, stated as model choice): statics compose
+  BEFORE animated objects - the lion and the balloons stand IN FRONT of
+  the stone shelves, and the placement-file order does not give that
+  (ANI1.DES comes after the ZWIERZ files in every level). objs_draw
+  became a two-pass loop over the static_img flag. PLT physics is
+  unchanged and stays the only shelf collision (obj_shape_elem returns
+  NULL without a .mov) - intended, the lion stands on the authored
+  polylines, not on the pictures.
+- Measured after PR-93 (all RE): ZARIA.01 "14 static image line(s) ...
+  -> 14 placed, 0 ... data holes", "2 entry line(s) authored at 0,0",
+  show line "51 animated object(s), 14 static image(s)" (51 unchanged),
+  obj dump "obj PICT/plan4.seq[static image]: art PLAN4.SEQ, 0
+  state(s), bbox 136x60 at (70,480)". TUNGA.11: 77 entries -> 68
+  placed (1 was the 0,0 demo text, 8 stay outside its world) + 18
+  statics all placed (the WODOSPAD waterfalls wodos1.seq at their
+  authored x,y, the TABLICA sign, DOMEK); "tick 8: 74 more
+  placement(s) advanced" (statics advance inertly and are counted; they
+  take NONE of the 12 proof slots, so the strum1/strum2 proof lines are
+  byte-identical). RAN.01: 827 -> 826 placed (the one 0,0 line is its
+  demo text child), 0 statics - the show line keeps its old shape
+  exactly when there are none. Frame/script/art census counts did NOT
+  move anywhere (children stay joined). The bounded obj listing and
+  LEO_OBJ_ALL counts moved with the placed set (pins updated).
+- Visual proof (method now recorded for reuse): the probe recipe is
+  byte-deterministic (same binary twice -> cmp identical), so a
+  before/after PPM diff at a PINNED camera (LEO_LEVEL_CAM=0
+  LEO_LEVEL_CAMY=440 LEO_LEVEL_PPM_TICK=10 --show) attributes pixels
+  exactly: the added clusters land at the authored shelf positions, and
+  they are the stone platforms + leafy branches the original footage
+  shows there (yt/gp.mp4 ZARIA segment ~240-320 s). The corner fruits
+  in the before frame are authored KOKOS placements at real x,y; the
+  0,0 jajo children were never at the corner at this camera.
+- Pins: --mov-selftest grew place_grammar_selftest - the shipped line
+  shapes verbatim (SEP + its 0,0 jajo child + two PICT statics + an
+  outside-world static + the GRABG 3-comma NON-entry + the ZARIA.02
+  6-parameter KAMIEN line), asserting classification and placement only
+  (no containers in the fixture: every name is a data hole there): 3
+  entries/2 placed, 1 attached, 3 statics/2 placed/1 outside/2 art
+  holes, group 1 (GRABG is NOT a static), zero instances at (0,0), the
+  parent's energy= still binds the PARENT. Makefile: TUNGA.11 show +
+  statics + WODOSPAD obj lines + "74 more advanced" pinned with the
+  census justification in the comment; RAN.01 826/802 pinned; a NEW
+  verify leg pins ZARIA.01's statics report, two static obj lines
+  (plan4 shelf + gniazd nest), the split show line, the 0,0 census
+  clause, and NEGATIVE-pins that jajo never stands at (0,0). JUNCTION
+  and the authored-scene file/entry pins stay as they were.
+- OPEN (recorded, not guessed): (a) whether any PICT .SEQ was animated
+  by the original; (b) the engine trigger that spawns attached children
+  from their parents; (c) the ZARIA.01 `PICT,panc.seq,20,29` line
+  following the NOSOROG entry - placed at its authored (20,29) by the
+  uniform grammar; a parent-relative reading of those coordinates is
+  possible but unproven; (d) ZAR.BLK's fields and the GRP format
+  (WODOSPAD.GRP/KIJ.GRP/KILOF.GRP) remain unread; (e) the lion's feet
+  sink ~20 units below the drawn grass tops - camera/anchor follow-up,
+  unrelated to placement.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
@@ -4376,6 +4484,15 @@ exactly where the remaining gaps are:
   2188 entries, real .MOV scripts per object, art per state via the
   script's own seq=. All 13 levels report their own authored scene
   (JUNCTION's is honestly 0).
+- DONE in PR-93: the two placement grammars PR-45 had not recognised -
+  the 3-comma static image lines ("<LEAF>,<name>.seq,x,y": the line
+  names its own .SEQ in that CD leaf; 84 game-wide, 69 join, the 15
+  LONA.05 WODOSPAD2 misses named) are placed and drawn BEHIND the
+  actors, and the 130 five-field entries authored at exactly 0,0 are
+  attached children (joined and counted, never instantiated at the
+  world origin - that was the user's "fruits not in place" corner).
+  See the PR-93 record for the census and the open items (§ statics
+  animation, child spawn trigger, panc.seq coordinates, GRP format).
 - DONE in PR-46: the SHAPE model. The census item "draw the inline
   .SEQ form (169 tables)" turns out to be the MISREADING itself:
   those tables are w0=2 shape-only invisible solids - the original

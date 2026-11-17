@@ -24,7 +24,7 @@ What exists and works (all verified by `make verify-all`, section 3):
 | music (`.MOD`) | played; parse oracle 22/22; the mixer has NO independent oracle |
 | title menu + chapter map | drawn from data (11 chapters, titles from `LEVELnn.SEQ`, arrow colours); progress/"start" variants not done |
 | level scene | 320x200 world view shown 2x; world size from `back_rect` or the reference layer; per-layer parallax (`speed=`, `main_back=`) for PCM layers, the PCX backdrop and every object; HUD from `BELKA*.DES` |
-| objects | 827+ placements, art by each state's `seq=`, `.MOV` state machines (loop until a transition fires; `GEN K_GENn`, `AC_BREAK_NEXT`) |
+| objects | 827+ placements, art by each state's `seq=`, `.MOV` state machines (loop until a transition fires; `GEN K_GENn`, `AC_BREAK_NEXT`); PR-93: the 3-comma static image lines (`<LEAF>,<name>.seq,x,y` -> that CD leaf's `.SEQ`, drawn at the authored x,y behind the actors) and the 0,0 entries = attached children (joined+counted, never instantiated at the world origin) |
 | lion (play mode) | walks on the level's own ground (`.PLT`), jumps (ESTIMATED units), keys facing-relative (Model M, PR-85), camera follows (lead + grounded feet-at-178 anchor), HUD shows energy/lives |
 | collision | push-out ported from the machine code (`FUN_00042de0/42cf0`), solid/semi-solid response, enemy contact damage from the placement files, the enemy's own ATC-window attack when armed (PR-90, off unless `LEO_PLAY_DANGER=1`), balloon pickup; ON by default except RAN.01 |
 
@@ -152,6 +152,17 @@ Level data
   (H_R-200)*Y[i]/100 (FUN_00057460/57500/57530).
 - Placement files: `class,dummy,script.mov,x,y` lines, then `damage=`,
   `bounds=x0,x1`, `scope=`, `energy=` lines for enemies.
+- Placement grammar, the two extra forms (PR-93, census RE): the 3-comma
+  `<LEAF>,<name>.seq,x,y` line places a STATIC image - the first field is
+  the same class-named ANIMACJE leaf table as a 5-field entry, the second
+  names the single `.SEQ` to draw at x,y (84 lines game-wide, 69 join on
+  the CD; the 15 misses are all LONA.05 WODOSPAD2 asking elem26/27/29.seq
+  the install lacks; HD ANIMACJE has no PICT/TABLICA blocks - this art is
+  CD-only). And 5-field entries authored at exactly 0,0 (130 of them, all
+  shipped) always follow another entry or its properties - they are
+  children the engine spawns from their parent (the vulture's egg, the
+  saw-fish on each log, drops on leaves, demo text), never placements at
+  the world origin; the spawn trigger is unresolved.
 - HUD (`BELKA`): `x,y` + `[N ]name.seq` items: energy head (10 frames), lives
   digits, tools icons (4), count digits, item frame, crown.
 
@@ -224,6 +235,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | enemy attack (T3 st. 1) | ll_level.c `obj_arm_atak`, `play_collide` window block; `ll_play.h` `LL_CTRL_DANGER` | a current state carrying the authored DANGER flag arms the script's OWN A_ATAK by name when the lion is inside abs(dx) < 40 AND abs(dy) < 50 (strict); the enemy lands ONE hit through its own ATC window (authored damage=, 30-tick lion lock) before/instead of the contact block; OFF unless LEO_PLAY_DANGER=1 | the box numbers are RE-pinned FOR THE CLASS "LICHA" (class chosen from the .des token at 0x616d0; box at 0x61b6e) - the flag-as-precondition, A_ATAK-by-name entry and window-hit mirror are the port's stand-in (engine driver open, §7 item 10) (PR-90) |
 | AC_ENEMY_ATC raiser | ll_level.c `obj_hit`, `play_collide` window block | the hit raises it on the HIT object's own set (PR-88 mechanism) so its `A_DOSTAL(1)=AC_ENEMY_ATC` line fires; PR-91 mirrors the raise onto the LION for the enemy's WINDOW hit (never contact) - his authored A_DOSTAL chain then runs itself | INFERENCE (0 of 279 shipped GEN lines raise it; the combat code must be the raiser); contact NOT raising it is now SUPPORTED by pinned code: the engine's contact tail raises AC_ENEMY (bit 7) into the answer packet (`or dh,0x80`, 0x51050), never bit 16 (post-PR-91 RE addendum); the bit-16 raiser itself stays unpinned (PR-89/91) |
 | AC_ENEMY raiser (PR-92) | ll_level.c `obj_touch_enemy`, called from `play_collide` (solid loop + post-loop non-solid pass) | the lion's touch raises bit 7 on the TACHED object's own set and its OWN table reacts (raise-consume like the balloon path); gated by `hit_cd` (the [obj+0x102] countdown), default-on like contact | PINNED raise site (0x51050 `or dh,0x80` in the 0x50ed0 tail, packet to [obj+0x0..0xb]); feeding the object's own set instead of the unmodelled mailbox head is MODEL, the second non-solid pass is data-forced (no consumer state carries SOLID); a pure touch NOT setting hit_cd=14 is an open item (item 10) |
+| static image draw + order (PR-93) | ll_level.c `obj_static_get`, `objs_draw` (two-pass) | frame-one draw: first patch-art element of the named .SEQ at the authored x,y through the element's anchor; statics compose BEFORE animated objects | the join and positions are RE (census in the code comment); frame-one (no motion data exists) and the behind-actors order (matches the ZARIA footage) are model choices; whether the original animated any static is open (item 11) |
 | shape payloads for lion-vs-object tests | ll_seq.c `ll_seq_shape_push2`, ll_level.c `play_collide` | each element's margin lists read from its OWN .SEQ payload (paired form) | model choice: how the original resolved two elements into its single-payload routine is unpinned; same-payload pairings stay byte-identical (selftest-pinned, PR-89) |
 
 ## 7. Open questions (ranked by how much they block)
@@ -514,6 +526,30 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      the 40x50 box, BY_TIME; LONA.05 FOKA at (893,480), level never
      played). The next live proof wants swimming/flight motion work,
      not more signal plumbing.
+11. PR-93 OPEN ITEMS (the placement grammars; each flagged in code too):
+   - Are any PICT/`.SEQ` statics ANIMATED by the original? The port
+     draws the first patch-art element only (frame one) - the lines
+     carry no motion data, so this is the absence of data, not a
+     guess; the video's ZARIA shelves look static, but that segment
+     cannot settle the other levels.
+   - The engine TRIGGER that spawns attached children (every 0,0 entry)
+     from their parents - which event, which offset from the parent.
+     Until then those scripts are joined+counted but never
+     instantiated (the corner fruits are gone; their live behaviour
+     is not modelled).
+   - The ZARIA.01 `PICT,panc.seq,20,29` line directly follows the
+     NOSOROG entry: placed at its authored (20,29) by the uniform
+     grammar; a PARENT-RELATIVE reading of such coordinates is
+     possible and unproven (the 84-line census has no other follower
+     of a class entry).
+   - `ZAR.BLK` fields and the GRP format (WODOSPAD.GRP/KIJ.GRP/
+     KILOF.GRP in GRAB*/ZWODOSPD leaves) stay unread - the placement
+     lines that name them (`GRABG,2113,350,kilof.grp`) are counted as
+     group headers, not placed.
+   - Not placement: the lion's feet sink ~20 units below the drawn
+     grass tops on ZARIA.01 once the shelves are drawn - a
+     camera/anchor follow-up for §6/PR-84's feet-at-178 anchor, not a
+     data gap in the placement work.
 
 ## 8. Plan: tasks, in order. One task = one or a few PRs.
 
@@ -597,6 +633,18 @@ consumption (swimming/flight locomotion - see open question 10), and
 `scope=`'s real consumer (measurably NOT the attack box); the attack
 itself has NO authored motion - the worm stands and swings, matching
 the frames.)
+
+Scene placement (M4-C line, closed further by PR-93): the user's
+ZARIA.01 report led to the audit - placement coordinates WERE already
+read; what was missing were the two grammars the census proved (§5):
+PR-93 places and draws the static `.SEQ` images (the stone shelves,
+14/14 in ZARIA.01, 69 join game-wide, the LONA.05 WODOSPAD2 holes
+named) behind the actors, and stops instantiating the 0,0 attached
+children (the corner fruits) while joining their scripts unchanged. The
+before/after probe method (byte-deterministic pinned camera,
+LEO_LEVEL_CAM/CAMY/PPM_TICK) is recorded in the PR-93 NEXT_STEPS
+record. Open follow-ups are §7 item 11 (statics animation, the child
+spawn trigger, panc.seq's coordinate reading, ZAR.BLK/GRP formats).
 
 **T4. Signal bus, pickups, inventory.**
 Resolve open question 2 (RESOLVED in PR-88: the full name->bit table decoded

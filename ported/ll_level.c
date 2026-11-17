@@ -530,6 +530,14 @@ typedef struct {                     /* one placement of a script        */
      * no extra mirror, so non-walkers are unaffected. */
     double xa, facc;
     signed char dir, face;
+    /* PR-93: 1 = a static image placement (the line named its .SEQ
+     * directly; no .MOV, no states, no interaction - and drawn BEFORE the
+     * animated objects, which is what the video shows: actors in front of
+     * the stone shelves). Every runtime path already treats a placement
+     * whose script has no .mov as inert (obj_hit/arm/advance/settle/
+     * shape/touch all gate on sc->mov), so the flag drives only the
+     * counts, the draw order and the report labels. */
+    unsigned char static_img;
 } lvl_obj;
 
 typedef struct {                     /* one level's authored scene: the
@@ -1478,6 +1486,12 @@ static int seq_push_selftest(void)
  *   100 ms later the frame list of A_DEAD ends -> A_RUN again. */
 static int balloon_hit(int bx, int by, int rx, int ry, int rw, int rh);
 static void obj_touch_enemy(lvl_obj *o, int verbose, int tick);
+/* PR-93: the two placement grammars proved on synthetic lines (the two
+ * real shapes from ZARIA.01 ZWIERZ1.DES + ANI1.DES: one SEP entry with its
+ * carried jajo child at 0,0, and PICT/plan4.seq + plan6.seq static images
+ * whose art is NOT on these synthetic containers - only the classification,
+ * counts and placement are exercised). */
+static int place_grammar_selftest(void);
 
 /* PR-78: a placement whose START state has CHECK_LN is a ground-bound actor
  * (the lion's own spawn works the same way: authored pozycja 50,640 falls to
@@ -2265,7 +2279,8 @@ int ll_mov_selftest(void)
     if (seq_codec_selftest() != 0 || seq_anchor_selftest() != 0 ||
         seq_shape_selftest() != 0 || seq_push_selftest() != 0 ||
         obj_layer_selftest() != 0 || obj_state_selftest() != 0 ||
-        obj_motion_selftest() != 0) {
+        obj_motion_selftest() != 0 ||
+        place_grammar_selftest() != 0) {
         free(sc.mov);
         free(m);
         return 1;
@@ -2276,7 +2291,10 @@ int ll_mov_selftest(void)
     printf("mov selftest: duration clamp + cycle guard + per-state seq= art"
            " selection + patch codecs + anchored draw + shape geometry + push-out + object layers + object state machine + object walking motion"
            " + PR-92 AC_ENEMY touch raise (touch arms A_ATAK, A_ATAK meets"
-           " A_DEAD, hit_cd/dead gate it, bus empty) (ok)\n");
+           " A_DEAD, hit_cd/dead gate it, bus empty) + PR-93 placement"
+           " grammars (0,0 child joined not instantiated, static .SEQ lines"
+           " placed at their authored x,y, x-outside-world and non-.SEQ"
+           " 3-comma lines stay unplaced) (ok)\n");
     return 0;
 }
 
@@ -3266,12 +3284,24 @@ static void objs_draw(const lvl_obj *objs, int nobj, unsigned char *canvas,
                       const ll_pcm *lay, const int *lay_tix, int nlay,
                       int world_h)
 {
-    for (int k = 0; k < nobj; k++) {
-        int c, cy;
-        obj_layer_cam(&objs[k], pp, lay, lay_tix, nlay, cam, camy, ch,
-                      world_h, &c, &cy);
-        obj_draw(&objs[k], canvas, cw, ch, c, cy);
-    }
+    /* PR-93: static images first - they are the scene the actors stand
+     * on (the video: the lion in front of the stone shelves, the balloons
+     * in front of them too), and the placement files order does not give
+     * that: ANI1.DES comes after the ZWIERZ files in every level. */
+    for (int k = 0; k < nobj; k++)
+        if (objs[k].static_img) {
+            int c, cy;
+            obj_layer_cam(&objs[k], pp, lay, lay_tix, nlay, cam, camy, ch,
+                          world_h, &c, &cy);
+            obj_draw(&objs[k], canvas, cw, ch, c, cy);
+        }
+    for (int k = 0; k < nobj; k++)
+        if (!objs[k].static_img) {
+            int c, cy;
+            obj_layer_cam(&objs[k], pp, lay, lay_tix, nlay, cam, camy, ch,
+                          world_h, &c, &cy);
+            obj_draw(&objs[k], canvas, cw, ch, c, cy);
+        }
 }
 
 /* 4b) the authored scene: the level's own placement data (PR-45) ---------
@@ -3368,6 +3398,16 @@ typedef struct {                    /* counted while reading, never guessed */
         state_noart;
     int prop, group, comment, class_hint, shortline, poly;
     int param_extra, field_space, entry_noext, longline;
+    /* PR-93: the two placement grammars the census proved. Static image
+     * lines ("<LEAF>,<name>.seq,<x>,<y>", 3 commas) place one image whose
+     * .SEQ is named by the line itself; attached children are the five-
+     * field entries authored at exactly 0,0 - every one of the 130 in the
+     * shipped data follows another entry or its property lines (a vulture's
+     * egg, a saw-fish on a log, a drop on a leaf, demo text), so none of
+     * them is a placement at the world origin. All counted here; the
+     * statics are also placed and drawn, the children are not. */
+    int statics, statics_placed, static_out, static_missing,
+        static_shapeonly, attached;
     int ntrans, ctrl_other, directive, field_other, drop_st, drop_fr, drop_tr;
     int fr_total, fr_blank, fr_mirror, fr_oob;   /* frame numbers: the game's
                                                   * 1-based/signed grammar */
@@ -3675,6 +3715,82 @@ static obj_script *obj_script_get(place_ctx *pc, const char *leaf,
     return sc;
 }
 
+/* PR-93: one static image entry. The census over all 13 level blocks found
+ * this grammar in the placement files themselves: exactly three commas,
+ * "<LEAF>,<name>.seq,<x>,<y>" - the SAME first field as a five-field entry
+ * (the ANIMACJE leaf table), but instead of naming a .MOV script the line
+ * names the single .SEQ to draw there. Measured joins: 69 of the 84 shipped
+ * lines resolve to <level>/<LEAF>/<name>.SEQ on the CD install (the 15
+ * misses are all LONA.05 WODOSPAD2, named in the report); ZARIA.01 resolves
+ * 14 of 14, and those 14 are the visible scene: the stone shelves the
+ * objects stand on (plan4.seq at 70,480 under the balloon at 78,460,
+ * plan3.seq at 180,515 under the ladder at 180,510, plan6.seq at 287,430
+ * under the vulture at 300,450), the leaves and the nest. The lines carry
+ * no class hint, no properties of their own, no motion: the element to draw
+ * is the first one of that table that carries patch art (obj_elem's no-
+ * script fallback), at the authored x,y through the element's own anchor -
+ * the same draw rule every other placement uses (PR-49). Whether the
+ * original animated some of these tables stays an open question; drawing
+ * frame one is the absence of motion data, not a guess at motion. */
+static obj_script *obj_static_get(place_ctx *pc, const char *leaf,
+                                  const char *seqname)
+{
+    scene_owner *own = pc->own;
+    obj_stats *st = &pc->st;
+    obj_script *sc = obj_script_find(own, leaf, seqname);
+    if (sc)
+        return sc;
+    sc = obj_script_new();
+    if (!sc)
+        return NULL;
+    snprintf(sc->leaf, sizeof sc->leaf, "%s", leaf);
+    snprintf(sc->movname, sizeof sc->movname, "%s", seqname);
+    /* no .MOV: the line IS the whole script */
+    sc->mov = NULL;
+    sc->movtxt = NULL;
+    obj_art *a = &sc->art[0];
+    snprintf(a->name, sizeof a->name, "%s", seqname);
+    llrs_slot sl;
+    long asz = -1;
+    if (leaf_record(pc->ac.cd, pc->ac.cd_blk, leaf, seqname, &sl))
+        asz = llrs_read(pc->ac.cd, &sl, &a->blob);
+    if (asz >= 0 && ll_seq_parse(a->blob, (uint32_t)asz, &a->seq) == 0) {
+        a->found = 1;
+        snprintf(a->name, sizeof a->name, "%s", sl.name);
+        seq_geom(a);
+        if (a->eidx0 < 0) {
+            st->static_shapeonly++;
+            printf("ll_level: static %s/%s: the record is there but carries"
+                   " the SHAPE margins only, no patch art: an invisible"
+                   " solid, drawn as nothing by the original game too (not"
+                   " a data hole)\n", leaf, seqname);
+        }
+    } else {
+        free(a->blob);
+        a->blob = NULL;
+        a->seq.count = 0;
+        st->static_missing++;
+        printf("ll_level: static %s/%s: no such record (or no parsable .SEQ"
+               " in it) in that CD ANIMACJE leaf (data hole: the placement"
+               " asks for this image, the install does not carry it) - it"
+               " draws nothing\n", leaf, seqname);
+    }
+    sc->nart = 1;
+    sc->ast[0] = 0;
+    if (own->nsc == own->capsc) {
+        int nc = own->capsc ? own->capsc * 2 : 128;
+        obj_script **p = realloc(own->set, (size_t)nc * sizeof *p);
+        if (!p) {
+            obj_script_free(sc);
+            return NULL;
+        }
+        own->set = p;
+        own->capsc = nc;
+    }
+    own->set[own->nsc++] = sc;
+    return sc;
+}
+
 static lvl_obj *obj_slot(place_ctx *pc)
 {
     scene_owner *own = pc->own;
@@ -3823,10 +3939,54 @@ static void des_place_file(place_ctx *pc, const char *fname,
                     }
                 }
             }
-            else if (strchr(line, ';'))
-                st->poly++;                     /* polyline data (ground) */
-            else
-                st->group++;
+            else {
+                char sleaf[16], sfname[24];
+                int sx = 0, sy = 0;
+                const char *eos2 = line + ll;
+                const char *q1 = place_field(line, eos2, sleaf,
+                                             sizeof sleaf);
+                const char *q2 = q1 ? place_field(q1, eos2, sfname,
+                                                  sizeof sfname) : NULL;
+                const char *qx = q2 ? place_int(q2, eos2, &sx) : NULL;
+                const char *qc = qx ? place_comma(qx, eos2) : NULL;
+                const char *qy = qc ? place_int(qc, eos2, &sy) : NULL;
+                size_t fnl = strlen(sfname);
+                if (qy && qy == eos2 && fnl > 4 &&
+                    ci_eq(sfname + fnl - 4, ".SEQ")) {
+                    /* the PR-93 static image line (grammar and joins in
+                     * obj_static_get). Counted apart from the entry lines:
+                     * this grammar has no script and no properties. */
+                    st->statics++;
+                    if (sx < 0 || sx >= pc->world_w) {
+                        st->static_out++;   /* same rule as an entry's
+                                             * coord_bad: outside the level's
+                                             * own world, not placed */
+                        goto next;
+                    }
+                    obj_script *sc2 = obj_static_get(pc, sleaf, sfname);
+                    if (!sc2)
+                        goto next;
+                    lvl_obj *so = obj_slot(pc);
+                    if (!so)
+                        goto next;
+                    so->sc = sc2;
+                    so->static_img = 1;
+                    so->src = (unsigned char)pc->cur_src;
+                    so->layer = (unsigned char)pc->cur_layer;
+                    so->sti = 0;
+                    so->face = 1;
+                    so->bx = so->x = sx;
+                    so->by = so->y = sy;
+                    last_obj = -1;    /* the grammar has no properties;
+                                       * a following property line belongs
+                                       * to nothing and is only counted */
+                    st->statics_placed++;
+                }
+                else if (strchr(line, ';'))
+                    st->poly++;             /* polyline data (ground) */
+                else
+                    st->group++;
+            }
         } else {
             char leaf[16], cls[24], mov[24];
             int x = 0, y = 0;
@@ -3896,6 +4056,34 @@ static void des_place_file(place_ctx *pc, const char *fname,
                 obj_script *sc = obj_script_get(pc, leaf, mov);
                 if (!sc)
                     goto next;
+                if (x == 0 && y == 0) {
+                    /* PR-93: an entry authored at exactly 0,0. Measured
+                     * over all 13 level blocks: 130 such lines, and every
+                     * one of them directly follows another entry or one of
+                     * its property lines - the vulture's carried egg
+                     * (ZARIA.01 `SEP ... POCISK,jajo.ani,jajo.mov,0,0`),
+                     * the saw-fish on each authored RBLOK log (ENA.03), a
+                     * drop on each leaf (KROPLA->KROPLAS), the seaweed
+                     * segments, the volcano's smoke from each crater, the
+                     * demo texts. Not one of them is a placement at the
+                     * world origin; they are the children the engine
+                     * spawns FROM their parent when some event fires, and
+                     * which event is unresolved. The script and its art
+                     * stay joined and counted above (the data authors
+                     * them); what is not done is instantiating a world
+                     * object at (0,0), which is what drew those fruits and
+                     * texts in the top-left corner. */
+                    st->attached++;
+                    if (st->attached <= 4)
+                        printf("ll_level: placement %s: %s/%s is authored at"
+                               " 0,0 right after another entry: a child the"
+                               " engine spawns from its parent, not a"
+                               " placement at the world origin (the spawn"
+                               " trigger is unresolved) - joined and"
+                               " counted, not instantiated\n",
+                               fname, leaf, mov);
+                    goto next;
+                }
                 sc->ninst++;
                 lvl_obj *o = obj_slot(pc);
                 if (!o)
@@ -3926,6 +4114,99 @@ next:
                " of the 68 shipped files, so every line is read\n",
                fname, declared, entries);
     st->files++;
+}
+
+/* PR-93: the placement grammar legs. Lines are the shipped shapes, verbatim
+ * in structure (ZARIA.01: `SEP,dummy,sep.mov,300,450` + its
+ * `POCISK,jajo.ani,jajo.mov,0,0` child + `PICT,plan4.seq,70,480` /
+ * `PICT,plan6.seq,287,430`; ZARIA.02 ZWIERZ2: the KAMIEN extra-parameter
+ * line; the GRABG 3-comma non-entry): with no containers attached every
+ * .MOV and .SEQ is a data hole, so what is asserted is exactly the
+ * classification and the placement: entries, the 0,0 child joined but NOT
+ * instantiated (no world object at 0,0 - that was the fruit in the
+ * corner), static images placed at their authored positions, an x outside
+ * the level's own world not placed, the 6-parameter KAMIEN line still an
+ * ordinary entry, the GRABG line still only a group header. */
+static int place_grammar_selftest(void)
+{
+    static const char txt[] =
+        "5\n"
+        "SEP,dummy,sep.mov,300,450\n"
+        "damage=10\n"
+        "energy=40\n"
+        "POCISK,jajo.ani,jajo.mov,0,0\n"
+        "PICT,plan4.seq,70,480\n"
+        "PICT,nothere.seq,10,20\n"
+        "PICT,outsidex.seq,9000,10\n"
+        "GRABG,2113,350,kilof.grp\n"
+        "KAMIEN,dummy,kamien1.mov,160,250,1308\n";
+    place_ctx pc;
+    scene_owner own;
+    memset(&pc, 0, sizeof pc);
+    memset(&own, 0, sizeof own);
+    pc.own = &own;
+    pc.level = "PR93.TEST";
+    pc.world_w = 1000;
+    des_place_file(&pc, "PR93.DES", txt, sizeof txt - 1);
+    const obj_stats *st = &pc.st;
+    int nstatic = 0, natzero = 0;
+    for (int k = 0; k < own.nobj; k++) {
+        if (own.objs[k].static_img)
+            nstatic++;
+        if (own.objs[k].x == 0 && own.objs[k].y == 0)
+            natzero++;
+    }
+    int fail = 0;
+    struct { const char *what; int got, want; } chk[] = {
+        { "entry lines", st->entries, 3 },        /* SEP, its child, KAMIEN */
+        { "entries placed", st->placed, 2 },      /* the child is NOT one */
+        { "attached children", st->attached, 1 },
+        { "class hints", st->class_hint, 1 },
+        { "property lines", st->prop, 2 },
+        { "static lines", st->statics, 3 },
+        { "statics placed", st->statics_placed, 2 },
+        { "statics outside the world", st->static_out, 1 },
+        { "static art holes", st->static_missing, 2 },
+        { "group lines", st->group, 1 },          /* GRABG: not a static */
+        { "objects total", own.nobj, 4 },         /* 2 entries + 2 statics */
+        { "static instances", nstatic, 2 },
+        { "instances at 0,0", natzero, 0 },
+        { "param-extra entries", st->param_extra, 1 },
+    };
+    for (unsigned k = 0; k < sizeof chk / sizeof chk[0]; k++)
+        if (chk[k].got != chk[k].want) {
+            fprintf(stderr, "mov selftest: FAILED placement grammar: %s"
+                    " counted %d, expected %d\n",
+                    chk[k].what, chk[k].got, chk[k].want);
+            fail = 1;
+        }
+    /* the static at 70,480 stands there with its art unresolved; the
+     * child of SEP does not stand anywhere of its own, and its parent's
+     * energy= property still bound the PARENT (an attached child never
+     * becomes the property target either: last_obj was reset) */
+    if (own.nobj >= 1 && own.objs[0].hp != 40) {
+        fprintf(stderr, "mov selftest: FAILED placement grammar: the SEP"
+                " entry's energy= property did not reach it (hp %d)\n",
+                own.objs[0].hp);
+        fail = 1;
+    }
+    if (own.objs[0].x != 300 || own.objs[0].y != 450) {
+        fprintf(stderr, "mov selftest: FAILED placement grammar: the SEP"
+                " entry moved (%d,%d)\n", own.objs[0].x, own.objs[0].y);
+        fail = 1;
+    }
+    int found70 = 0;
+    for (int k = 0; k < own.nobj; k++)
+        if (own.objs[k].static_img && own.objs[k].x == 70 &&
+            own.objs[k].y == 480 && own.objs[k].static_img)
+            found70 = 1;
+    if (!found70) {
+        fprintf(stderr, "mov selftest: FAILED placement grammar: no static"
+                " image stands at the authored (70,480)\n");
+        fail = 1;
+    }
+    scene_owner_free(&own);
+    return fail;
 }
 
 static void des_placement(place_ctx *pc, llrs *hd_ety,
@@ -4002,9 +4283,18 @@ static void des_placement(place_ctx *pc, llrs *hd_ety,
            st->nscript, st->nart, st->nart - st->art_shapeonly,
            st->art_shapecarry, st->art_shapeonly, st->nscript_missing,
            st->nart_missing);
+    if (st->statics)
+        printf("ll_level: authored scene %s: %d static image line(s) (the"
+               " 3-comma \"<LEAF>,<name>.seq,<x>,<y>\" grammar: the line"
+               " names its own .SEQ in that CD ANIMACJE leaf, no script)"
+               " -> %d placed, %d at an x outside the level's own world,"
+               " %d whose .SEQ is not on these containers (data holes"
+               " listed above), %d carry shape only (drawn as nothing)\n",
+               pc->level, st->statics, st->statics_placed, st->static_out,
+               st->static_missing, st->static_shapeonly);
     if (st->prop || st->group || st->comment || st->class_hint ||
         st->poly || st->shortline || st->param_extra || st->field_space ||
-        st->entry_noext || st->longline)
+        st->entry_noext || st->attached || st->longline)
         printf("ll_level: placement data the scene model does not act on"
                " (counted, never invented): %d per-entry property line(s)"
                " (damage/energy/bounds/scope), %d group header line(s),"
@@ -4015,10 +4305,14 @@ static void des_placement(place_ctx *pc, llrs *hd_ety,
                " (listed above), %d entry line(s) whose fields are written"
                " with spaces around the commas (parsed as the same names), %d"
                " entry line(s) whose script field is not a file name (listed"
+               " above), %d entry line(s) authored at 0,0: all of them"
+               " follow another entry or its properties - children the"
+               " engine spawns from their parent (its trigger is"
+               " unresolved), never a placement at the world origin (listed"
                " above), %d line(s) this reader cannot classify\n",
                st->prop, st->group, st->comment, st->class_hint, st->poly,
                st->param_extra, st->field_space, st->entry_noext,
-               st->shortline + st->longline);
+               st->attached, st->shortline + st->longline);
     if (st->nscript)
         printf("ll_level: those scripts author %d state transition(s), %d"
                " control flag(s) with no model bit, %d frame"
@@ -5039,8 +5333,20 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         }
     }
 
-    printf("ll_level: show %s: bg %s %dx%d, %d animated object(s)\n", level,
-           bgname, img.idx ? (int)img.w : cw, img.idx ? (int)img.h : ch, nobj);
+    int nstatic = 0;
+    for (int k = 0; k < nobj; k++)
+        if (objs[k].static_img)
+            nstatic++;
+    if (nstatic)
+        printf("ll_level: show %s: bg %s %dx%d, %d animated object(s), %d"
+               " static image(s)\n", level,
+               bgname, img.idx ? (int)img.w : cw, img.idx ? (int)img.h : ch,
+               nobj - nstatic, nstatic);
+    else
+        printf("ll_level: show %s: bg %s %dx%d, %d animated object(s)\n",
+               level,
+               bgname, img.idx ? (int)img.w : cw, img.idx ? (int)img.h : ch,
+               nobj);
     printf("ll_level: view %dx%d world units, shown 2x as %dx%d\n", cw, ch,
            cw * 2, ch * 2);
     /* Proof of the join, bounded: 24 placements in file order, then the
@@ -5065,7 +5371,9 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                : "";
         printf("ll_level: obj %s/%s%s: art %s%s, %d state(s), bbox %dx%d at"
                " (%d,%d)\n", sc->leaf, sc->movname,
-               sc->mov && sc->mov->nst ? "[mov]" : "[no script: data hole]",
+               objs[k].static_img ? "[static image]"
+               : sc->mov && sc->mov->nst ? "[mov]"
+               : "[no script: data hole]",
                a && a->name[0] ? a->name : "(none)", why,
                sc->mov ? sc->mov->nst : 0, a ? a->sw : 0, a ? a->sh : 0,
                objs[k].x, objs[k].y);
@@ -5163,7 +5471,11 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             for (int k = 0; k < nobj; k++) { /* advance fixed-step then redraw */
                 for (int m = 0; m < ticks; m++)
                     obj_advance(&objs[k], 40);
-                if (shown < 12) {             /* proof of the cycle, bounded */
+                /* PR-93: static images are advanced (inert: no script) but
+                 * never take one of the 12 proof slots: a static has no
+                 * state or frame to prove; the proof belongs to the
+                 * animated cycle, exactly as before PR-93. */
+                if (shown < 12 && !objs[k].static_img) {  /* proof of the cycle, bounded */
                     printf("ll_level: tick %d: %s/%s state %d frame %d at"
                            " (%d,%d)\n", ticks, objs[k].sc->leaf,
                            objs[k].sc->movname, objs[k].sti, objs[k].fi,
