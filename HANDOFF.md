@@ -26,10 +26,12 @@ What exists and works (all verified by `make verify-all`, section 3):
 | level scene | 320x200 world view shown 2x; world size from `back_rect` or the reference layer; per-layer parallax (`speed=`, `main_back=`) for PCM layers, the PCX backdrop and every object; HUD from `BELKA*.DES` |
 | objects | 827+ placements, art by each state's `seq=`, `.MOV` state machines (loop until a transition fires; `GEN K_GENn`, `AC_BREAK_NEXT`) |
 | lion (play mode) | walks on the level's own ground (`.PLT`), jumps (ESTIMATED units), keys facing-relative (Model M, PR-85), camera follows (lead + grounded feet-at-178 anchor), HUD shows energy/lives |
-| collision | push-out ported from the machine code (`FUN_00042de0/42cf0`), solid/semi-solid response, enemy contact damage from the placement files, balloon pickup; ON by default except RAN.01 |
+| collision | push-out ported from the machine code (`FUN_00042de0/42cf0`), solid/semi-solid response, enemy contact damage from the placement files, the enemy's own ATC-window attack when armed (PR-90, off unless `LEO_PLAY_DANGER=1`), balloon pickup; ON by default except RAN.01 |
 
-What does NOT exist yet (the real gap to "a playable game"): the lion's attack
-and other moves, enemy behaviour (patrol/detect/attack), the signal bus's
+What does NOT exist yet (the real gap to "a playable game"): combat
+motion beyond the hits (the lion's attack landed in PR-89 and enemies
+land through their own windows in PR-90 stage 1 - what is missing is
+the engine's per-class AI driver and the attack/charge motion), the signal bus's
 routing between objects and its engine-internal raisers (the bit table and
 named `GEN`/condition wiring landed in PR-88), pickups/inventory,
 ladders/vines, level flow (end of level, exchange between
@@ -219,6 +221,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | player facing model | ll_play.c `face`, ll_level.c `play_draw/play_collide` | face follows walkdir only in CH_DIR states; draw/shape = authored XOR face, face sticks | flags real (LEW census, PR-82); the always-XOR rule for no-CH_DIR states is a model-consistency choice, NOT decompile- or video-pinned (HANDOFF Q0) |
 | K_FWD/K_BKWD key model | ll_play.c `cond_true` (MODEL CHOICE note) | facing-relative: K_FWD = arrow along current face; walkdir = the literal arrow; a left-facing turn settles via the state pair or A_TURN+AC_BREAK | PR-85; forced by data (one A_WALK, no BKWD-walk state); NOT yet confirmed on video |
 | lion attack damage / object hit rule | ll_level.c `LL_LION_HIT_DAMAGE` 30, `obj_hit`, `LL_OBJ_HIT_CD` 14, `ll_play.h` `atc`/`atc_hit` | damage 30 = the 0x34103 dispatcher default; hp<0 forces A_DEAD by name; energy -1 never hit-able; countdown 14 (0x27264); window open from `ATC_ON` until `ATC_OFF`, one hit per window, cleared on state change for the 18 blocks that never close it | addresses verified; the 30 stays until the 45%-of-energy+10 template (0xcecfc) identity decodes; the window-clear rule and the corpse-deal-contact rule are model choices (PR-89) |
+| enemy attack (T3 st. 1) | ll_level.c `obj_arm_atak`, `play_collide` window block; `ll_play.h` `LL_CTRL_DANGER` | a current state carrying the authored DANGER flag arms the script's OWN A_ATAK by name when the lion is inside abs(dx) < 40 AND abs(dy) < 50 (strict); the enemy lands ONE hit through its own ATC window (authored damage=, 30-tick lion lock) before/instead of the contact block; OFF unless LEO_PLAY_DANGER=1 | the box numbers are RE-pinned FOR THE CLASS "LICHA" (class chosen from the .des token at 0x616d0; box at 0x61b6e) - the flag-as-precondition, A_ATAK-by-name entry and window-hit mirror are the port's stand-in (engine driver open, §7 item 10) (PR-90) |
 | AC_ENEMY_ATC raiser | ll_level.c `obj_hit` | the hit raises it on the HIT object's own set (PR-88 mechanism) so its `A_DOSTAL(1)=AC_ENEMY_ATC` line fires | INFERENCE (0 of 279 shipped GEN lines raise it; the combat code must be the raiser); the lion-side raise deliberately NOT shipped (would re-pin walking fixtures) |
 | shape payloads for lion-vs-object tests | ll_seq.c `ll_seq_shape_push2`, ll_level.c `play_collide` | each element's margin lists read from its OWN .SEQ payload (paired form) | model choice: how the original resolved two elements into its single-payload routine is unpinned; same-payload pairings stay byte-identical (selftest-pinned, PR-89) |
 
@@ -444,6 +447,40 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
    - Raising AC_ENEMY_ATC on the LION when he takes contact damage
      (his many `A_DOSTAL(1)=AC_ENEMY_ATC` lines) - deliberately not
      shipped with PR-89, needs its own step + re-pins.
+10. ENEMY ATTACK AI, PR-90 OPEN ITEMS (each flagged in code too):
+   - The engine's per-class AI DRIVER: how the behavior records
+     (MAIN/WALK/ATACK/TURN at [x+0x106], method tables 0xa30a8/
+     0xa308c/0xa3070/0xa3054) are evaluated each tick and how a
+     satisfied check APPLIES the pushed state-name records (which
+     check case arms A_ATAK, what the jump-table case indices mean,
+     what the [x+0x1a] and 0x3fdb0/[x+0x16] cases are). The port
+     ships the pinned BOX only, as a stand-in behind LEO_PLAY_DANGER.
+   - ATACK::check (0x61cd2): the lion's side vs the facing getter
+     (vtable +0x70) semantics, and the 0.5-argument random gate
+     (0x61d26 -> 0x3fee0). Not modelled.
+   - The other classes' boxes/parameters (SNAKE 0x64830, PAJAK
+     0x626c0, NOSOROG 0x63750, PAPUGA 0x53ff0 constructors build
+     their own classes with their own immediates): only LICHA's
+     |dx| < 40, |dy| < 50 (0x61b6e) is pinned.
+   - What the engine's scope= pair ([obj+0xfa]/+0xfe, chosen at
+     0x3bde0, passed at 0x3bc1d/0x3bcb9, compared at 0x3d70c) is
+     FOR. Measured NOT to be the attack box.
+   - The engine's consumer of the frame atc_on window (0xa10f0
+     directive objects, runtime templates 0xa0e60/0xa0e74), and how
+     the "toucher moving toward touched" gate (0x550c0) and the
+     table-referenced attack dispatcher (0x34020 only as a pointer
+     at 0x9e204) fit the hit path. The port's enemy-window hit is
+     the lion-side mirror, not the engine's pipeline.
+   - DANGER semantics: the touch branch gated by `test ah,0x20`
+     (0x5528b/0x51019) loads [level+0x54] (the never-authored
+     danger_power) - is the authored control flag really an AI
+     precondition or only a contact-hazard marker? The port uses it
+     as the arming precondition because every shipped enemy walk
+     state carries it; MODEL.
+   - The attack's MOTION: what the armed A_ATAK drives in the
+     engine (charge? T=/F= only?), and whether the lion-side raise
+     of AC_ENEMY_ATC when hit belongs here (item 9's open lead).
+     T3 stage 2.
 
 ## 8. Plan: tasks, in order. One task = one or a few PRs.
 
@@ -487,7 +524,9 @@ identity - see open question 9.)
 Patrol between `bounds=` (LANDED in PR-79: BY_X states walk at F/4 px/s and
 flip at the bounds range; CH_DIR landed in PR-81 as the facing flip - the
 census pairs bounds= with CH_DIR and the video's winning art polarity flips
-with the travel direction), detect within `scope=`, `AC_ENEMY_ATC` attack, the
+with the travel direction), detect via the class AI's compiled box
+(PR-90 pinned LICHA's; `scope=`'s consumer still open - measurably NOT
+that box), `AC_ENEMY_ATC` attack, the
 `ATC_ON/OFF` directives and the `F` motions in their scripts. Needs T1's `F`
 semantics and open question 3. Done when: ZARIA.01's LICHA/PAJAK/NOSOROG move
 and attack in a headless run (log pins), and the contact damage uses the state.
@@ -497,9 +536,18 @@ direction of every CH_DIR state for objects AND the lion, so a future
 charge/push source turns the sprite with it automatically. PR-89 adds
 the missing attack MECHANICS: the ATC window is parsed for every script
 (the LICHA's A_ATAK opens it at frame -4, closes at -8) and obj_hit is
-symmetric - wiring `o->atc` into a lion-side hit is the next step,
-together with what arms A_ATAK (DANGER + `scope=`, still open) and the
-DANGER charge's own motion, which needs T1's `F`/`I` semantics.)
+symmetric. PR-90 lands T3 STAGE 1 - the ENEMY ATTACKS THE LION: the
+engine's enemy AI is compiled per class and its class is the placement
+token ("LICHA" at 0x9321c vs the .des field 1, 0x616d0), so A_ATAK is
+entered by CODE, never by .MOV data; the port's stand-in (OFF unless
+LEO_PLAY_DANGER=1) arms the script's OWN A_ATAK by name from a
+DANGER-flagged state when the lion enters the pinned LICHA MAIN box
+(abs(dx) < 40 && abs(dy) < 50, 0x61b6e), and the enemy lands one hit
+through its OWN ATC window (verify-play pins: arm 171, window hit 265,
+energy 55). What remains for T3: the attack's MOTION / the DANGER
+charge (needs T1's `F`/`I` semantics), the engine's own driver and
+ATACK-side test (open question 10), and `scope=`'s real consumer
+(measurably NOT the attack box).)
 
 **T4. Signal bus, pickups, inventory.**
 Resolve open question 2 (RESOLVED in PR-88: the full name->bit table decoded

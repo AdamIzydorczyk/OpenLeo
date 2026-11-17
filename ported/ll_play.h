@@ -125,7 +125,17 @@ enum {
      * keeps its own bit (the port's LN physics is unchanged) plus ANI|ZW. */
     LL_CTRL_CHECK_ANI       = 0x2000u,
     LL_CTRL_CHECK_ZW        = 0x4000u,
-    LL_CTRL_CHECK_LEW       = 0x8000u
+    LL_CTRL_CHECK_LEW       = 0x8000u,
+    /* PR-90 (T3): DANGER. The game's own flag word carries it as 0x2000:
+     * the touch path tests exactly that bit of the state word at
+     * 0x5528b/0x51019 (`test ah,0x20`) and that branch then reads the
+     * level's danger_power at [level+0x54]. The authored data carries it
+     * on every enemy walk state, and the port uses it as the attack
+     * arming PRECONDITION - a model: the engine's per-class AI is
+     * compiled and reads no control flag (NEXT_STEPS PR-90 record,
+     * HANDOFF §7 item 10). Here it is an internal bit again (the
+     * enum's values never are the wire values). */
+    LL_CTRL_DANGER          = 0x10000u
 };
 #define LL_CTRL_NAMES \
     X(BY_TIME) X(BY_X) X(BY_Y) X(BY_TY) X(CHECK_LN) X(CHECK_LEW) \

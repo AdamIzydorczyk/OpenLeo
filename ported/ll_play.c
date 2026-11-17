@@ -295,14 +295,15 @@ static void ctrl_flag(const char *tok, unsigned *f, int *other)
         { "SEMI_SOLID", LL_CTRL_SOLID | LL_CTRL_SEMI_SOLID },
         { "ANTI_SOLID", LL_CTRL_ANTI_SOLID },
         { "ANTI_POCISK", LL_CTRL_ANTI_POCISK },
+        { "DANGER", LL_CTRL_DANGER },
     };
     for (unsigned k = 0; k < sizeof tbl / sizeof tbl[0]; k++)
         if (strcasecmp(tbl[k].n, tok) == 0) {
             *f |= tbl[k].bit;
             return;
         }
-    /* Named in the ll_play.h vocabulary but without a bit (CHECK_LEW,
-     * DANGER, ...), or a name we have never seen:
+    /* Named in the ll_play.h vocabulary but without a bit (SEQ_REV_X,
+     * INV_V, ...), or a name we have never seen:
      * counted so a missing behaviour is a known gap, never a silent one. */
     if (other)
         (*other)++;

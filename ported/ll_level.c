@@ -496,10 +496,14 @@ typedef struct {                     /* one placement of a script        */
      * tests death as `energy < 0` at 0x544a5). hit_cd = the hit
      * countdown at [obj+0x102] (FUN_000502f0 asks "invulnerable?" by
      * testing it non-zero; 0x27264 arms the generic default 0xe = 14).
-     * atc = the object's own attack-connect window (T3 uses it to make
-     * the ENEMY hit the lion; parsed already so the flag is visible). */
+     * atc = the object's own attack-connect window (PR-90: the ENEMY
+     * hits the LION through it, the mirror of the lion's own). */
     int hp, hit_cd;
     unsigned char atc;
+    unsigned char atc_hit;          /* PR-90: this object's window has    *
+                                     * already landed its one hit (mirror  *
+                                     * of ll_player.atc_hit, reset exactly *
+                                     * like atc on every state change).    */
     unsigned char dead;             /* the engine-forced death (A_DEAD) */
     unsigned long long sig;         /* PR-88: pending signal pulses at the
                                      * LL_SIG_* bit indexes of the engine's
@@ -763,6 +767,7 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
         o->sig = 0;
         o->atc = 0;                  /* PR-89: an attack window belongs to
                                       * the state that opened it           */
+        o->atc_hit = 0;              /* PR-90: and so does its one-hit flag */
         return 1;
     }
     return 0;
@@ -840,6 +845,8 @@ static int obj_hit(lvl_obj *o, int damage)   /* 0 = no hit, 1 = hurt,
             o->facc = 0.0;
             o->xa = 0.0;
             o->sig = 0;
+            o->atc = 0;             /* PR-90: same window rule as the     */
+            o->atc_hit = 0;         /* transition table's own             */
         }
         return 2;
     }
@@ -847,6 +854,73 @@ static int obj_hit(lvl_obj *o, int damage)   /* 0 = no hit, 1 = hurt,
     obj_transition(o, mov, 0);
     o->sig = 0;
     return 1;
+}
+
+/* PR-90 (T3): what ARMS an enemy's attack state. The .MOV data never
+ * transitions into A_ATAK - ZARIA's LICHA3 has no line into it - because
+ * the engine's enemy AI is COMPILED PER CLASS, and the class comes from
+ * the placement's OWN class token (measured in the image, NEXT_STEPS
+ * PR-90 record): 0x616d0 string-compares the token against "SEP",
+ * "PARROT", "SNAKE", "LICHA" (0x9320b..0x93234) and builds that class's
+ * AI object (LICHA: 0x120 bytes, constructor 0x61890); the AI attach
+ * (0x618b0) creates four behavior records named "MAIN", "WALK", "ATACK",
+ * "TURN" (0x93238..0x93248, list [x+0x106]) with method tables 0xa30a8
+ * / 0xa308c / 0xa3070 / 0xa3054, and those classes' state-NAME tables
+ * hardcode "A_RUN" and "A_ATAK" (0x93262/0x9326d) - the exact state
+ * names of this script. So the attack state is ENTERED BY CODE. The gate
+ * for the class LICHA is pinned: its MAIN behavior's check (table
+ * 0xa30a8 slot +0x18 -> 0x61b50, jump table 0x61b40 case 0 -> 0x61b6e)
+ * tests |obj.x - lion.x| < 0x28 (40) AND |obj.y - lion.y| < 0x32 (50)
+ * game px, both against CURRENT positions (position objects: the
+ * object's own [x+0x26], the lion's through getter 0x3ff60 = [x+0x394];
+ * x at +4, y at +0 of those). The same class's ATACK::check (0x61cd2)
+ * then tests the lion's side against a facing getter (vtable +0x70);
+ * that second stage, the other AI classes' boxes (they are per class)
+ * and the engine's consumer of the placement's scope= pair
+ * ([obj+0xfa]/+0xfe: a pair argument to a vtable+0x4 method at
+ * 0x3bc1d/0x3bcb9, compared against a vtable+0x70 result at 0x3d70c)
+ * are open question 10. scope= is NOT the box: measured with this
+ * port's own shape margins the centers hold >= 21 px apart in ZARIA.01,
+ * so an authored scope=20 box could never open at all. MODEL CHOICE
+ * shipped (flagged everywhere it is used): an object whose CURRENT state
+ * carries the authored DANGER control flag arms the script's OWN A_ATAK
+ * state by name (the PR-89 A_DEAD pattern) when the lion enters the
+ * pinned LICHA MAIN box; only that pinned stage, no invented extras.
+ * The engine's per-class AI stays open; this gate is the port's
+ * stand-in, off unless LEO_PLAY_DANGER=1, exactly like the PR-59 solid
+ * gate. What the armed attack drives (charge motion, TURN behaviors) is
+ * T3 stage 2. */
+static void obj_arm_atak(lvl_obj *o, int lx, int ly, int verbose, int tick)
+{
+    ll_mov_t *mov = (o->sc && o->sc->mov) ? o->sc->mov : NULL;
+    if (!mov || o->dead || o->sti < 0 || o->sti >= mov->nst)
+        return;
+    ll_mov_st *s = &mov->st[o->sti];
+    if (!(s->ctrl & LL_CTRL_DANGER))     /* the authored DANGER flag is  */
+        return;                          /* the port's own precondition  */
+    int dx = o->x - lx, dy = o->y - ly; /* the pinned LICHA MAIN box    */
+    if (dx <= -40 || dx >= 40 || dy <= -50 || dy >= 50)
+        return;                          /* |dx| < 40, |dy| < 50 (0x61b6e) */
+    int a = ll_mov_find(mov, "A_ATAK");
+    if (a < 0 || a == o->sti)            /* nothing to arm               */
+        return;
+    int byx = (s->ctrl & LL_CTRL_BY_X) ||
+              (mov->st[a].ctrl & LL_CTRL_BY_X);
+    if (verbose)
+        printf("ll_level: play tick %d: %s/%s DANGER: lion within the class"
+               " MAIN box (dx %d dy %d): %s arms A_ATAK (model)\n",
+               tick, o->sc->leaf, o->sc->movname, dx, dy, s->name);
+    o->sti = a;                          /* the PR-89 force-by-name      */
+    o->fi = 0;                           /* pattern (A_DEAD): same       */
+    if (!byx) {                          /* per-state rules the transi-  */
+        o->x = o->bx;                    /* tion table itself applies    */
+        o->y = o->by;
+    }
+    o->facc = 0.0;
+    o->xa = 0.0;
+    o->sig = 0;
+    o->atc = 0;
+    o->atc_hit = 0;
 }
 
 /* PR-79: BY_X states WALK. The frame-list slot semantics are data-
@@ -1600,6 +1674,100 @@ static int obj_state_selftest(void)
         if (ok)
             goto out;
     }
+    {   /* PR-90: the DANGER + class MAIN box arming stand-in. A
+         * DANGER-flagged state arms the script's OWN A_ATAK by name when
+         * the lion enters the pinned LICHA MAIN box (|dx| < 40,
+         * |dy| < 50 - strict, so dx = -40 and dy = -50 are OUT) - and
+         * only then: without the DANGER flag, out of range, with no
+         * A_ATAK state in the script, or dead, nothing moves. The
+         * walking (BY_X) position carries across the forced entry
+         * (same rule as the transition table's), the armed state loops
+         * (its own frames open/close the attack window), and the one-
+         * hit flag resets only on the next state change. */
+        static const char dg[] =
+            "A_RUN\nA_ATAK\n\n[A_RUN]\ncontrol=BY_X|DANGER\nF=100,0\n"
+            "T=40,0\n-1,4\n-2,4\n\n[A_ATAK]\ncontrol=BY_TIME\n"
+            "-1,200,ATC_ON\n-2,200\n-3,200,ATC_OFF\n";
+        static const char ndg[] =
+            "A_RUN\nA_ATAK\n\n[A_RUN]\ncontrol=BY_X\nF=100,0\n"
+            "T=40,0\n-1,4\n-2,4\n\n[A_ATAK]\ncontrol=BY_TIME\n"
+            "-1,200,ATC_ON\n-2,200\n-3,200,ATC_OFF\n";
+        static const char na[] =
+            "A_RUN\n\n[A_RUN]\ncontrol=BY_X|DANGER\nF=100,0\n"
+            "T=40,0\n-1,4\n-2,4\n";
+        ll_mov_t *md = calloc(1, sizeof *md), *mn = calloc(1, sizeof *mn),
+                 *ma = calloc(1, sizeof *ma);
+        obj_script sd, sn, sa;
+        lvl_obj d, n, a;
+        int ok = md && mn && ma;
+
+        if (ok) {
+            ll_mov_parse(dg, md);
+            ll_mov_parse(ndg, mn);
+            ll_mov_parse(na, ma);
+            if (md->nst < 2 || mn->nst < 2 || ma->nst < 1)
+                ok = 0;                           /* parse guard           */
+            memset(&sd, 0, sizeof sd);
+            memset(&sn, 0, sizeof sn);
+            memset(&sa, 0, sizeof sa);
+            sd.mov = md;
+            sn.mov = mn;
+            sa.mov = ma;
+            memset(&d, 0, sizeof d);
+            d.sc = &sd; d.x = d.bx = 100; d.y = d.by = 50;
+            d.hp = 20;
+            n = d; n.sc = &sn;
+            a = d; a.sc = &sa;                   /* script has no A_ATAK */
+            obj_arm_atak(&d, 140, 50, 0, 0);     /* dx -40: out (< test) */
+            obj_arm_atak(&d, 100, 100, 0, 0);    /* dy -50: out (< test) */
+            obj_arm_atak(&n, 115, 50, 0, 0);     /* no DANGER flag       */
+            obj_arm_atak(&a, 115, 50, 0, 0);     /* no A_ATAK to arm     */
+            if (d.sti != 0 || n.sti != 0 || a.sti != 0) {
+                fprintf(stderr, "object state selftest: FAILED a negative"
+                                " DANGER case armed (%d %d %d)\n",
+                        d.sti, n.sti, a.sti);
+                ok = 0;
+            } else {
+                d.dead = 1;                       /* dead: never arms */
+                obj_arm_atak(&d, 135, 50, 0, 0);
+                d.dead = 0;
+                obj_arm_atak(&d, 135, 50, 0, 0);  /* dx -35, dy 0: arms  */
+                if (d.sti != 1 || d.fi != 0 || d.x != 100 || d.atc ||
+                    d.atc_hit) {
+                    fprintf(stderr, "object state selftest: FAILED the"
+                                    " DANGER arming did not force A_ATAK"
+                                    " (state %d frame %d x %d)\n",
+                            d.sti, d.fi, d.x);
+                    ok = 0;
+                } else {
+                    obj_advance(&d, 400);         /* its own frames open */
+                    if (!d.atc) {                 /* the attack window    */
+                        fprintf(stderr, "object state selftest: FAILED"
+                                        " A_ATAK did not open the attack"
+                                        " window (state %d frame %d)\n",
+                                d.sti, d.fi);
+                        ok = 0;
+                    } else {
+                        obj_advance(&d, 200);     /* its ATC_OFF closes  */
+                        if (d.atc) {
+                            fprintf(stderr, "object state selftest: FAILED"
+                                            " A_ATAK did not close the"
+                                            " window\n");
+                            ok = 0;
+                        }
+                    }
+                }
+            }
+        }
+        free(md);
+        free(mn);
+        free(ma);
+        if (!ok) {
+            fprintf(stderr, "object state selftest: FAILED DANGER/MAIN-box"
+                            " arming leg\n");
+            goto out;
+        }
+    }
     /* balloon_hit: rect 100,50 20x30; the point is (x+10, y+10), inclusive */
     if (!balloon_hit(90, 40, 100, 50, 20, 30) ||     /* corner 100,50      */
         !balloon_hit(110, 70, 100, 50, 20, 30) ||    /* far corner 120,80  */
@@ -2071,6 +2239,9 @@ typedef struct {
     int layer;                              /* the lion's layer = main_back */
     int energy, lives, lock;                /* PR-68: 100 / 6 / hurt-lock ticks */
     int solid;                              /* PR-71: contact pass on/off      */
+    int danger;                             /* PR-90: the DANGER + class   *
+                                             * MAIN box arming stand-in    *
+                                             * (off by default)            */
     int cam_ox, camy_v, camy_set;           /* PR-72: camera follow state      */
 } play_ctx;
 
@@ -2333,6 +2504,31 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                            hh == 2 ? " (dead)" : "");
             }
         }
+        if (o->atc && !o->atc_hit && o->damage > 0 && pl->lock == 0) {
+            /* PR-90: an enemy whose OWN attack window is open (its
+             * A_ATAK frames carry the ATC_ON/ATC_OFF pair: ZARIA's
+             * LICHA3 opens its window at frame -4 and closes it at
+             * -8) lands through it on the lion. One hit per armed
+             * state episode, exactly like the lion's own (o->atc_hit
+             * resets only on a state change). The numbers are the
+             * ones the contact path already uses: the authored
+             * damage= (the engine delivers [obj+0xb1], 0x55130) and
+             * the lion's 30-tick hurt lock (0x50304). What the
+             * window adds over the contact model: the hit is the
+             * object's ACTIVE attack (and it runs BEFORE the contact
+             * block, so while a window is open the touch answers as
+             * the attack, not as an extra contact hit). MODEL: the
+             * engine's consumer of the atc_on window is still not
+             * pinned (NEXT_STEPS PR-90 record). */
+            pl->energy -= o->damage;
+            pl->lock = 30;
+            o->atc_hit = 1;
+            if (verbose)
+                printf("ll_level: play tick %d: %s/%s ATTACKS through"
+                       " its window: damage %d -> lion energy %d\n",
+                       tick, o->sc->leaf, o->sc->movname, o->damage,
+                       pl->energy);
+        }
         if (o->damage > 0 && pl->lock == 0 && !o->dead) {
             /* FUN_00050ed0 / 00054550: a touched enemy hits with ITS OWN
              * damage (the .des `damage=` of the placement); the lion's hurt
@@ -2364,6 +2560,14 @@ static void play_advance(play_ctx *pl, const ll_play_keys *keys,
     int ev = ll_player_step(&pl->p, &pl->plt, keys, pl->xmin, pl->xmax,
                             dt_ms);
     play_collide(pl, objs, nobj, verbose, tick);
+    if (pl->danger && pl->have) {   /* PR-90 stand-in for the engine's
+                                     * per-class attack AI: see
+                                     * obj_arm_atak's model note. */
+        int ax = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5);
+        int ay = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5);
+        for (int k = 0; k < nobj; k++)
+            obj_arm_atak((lvl_obj *)&objs[k], ax, ay, verbose, tick);
+    }
     if (pl->energy <= 0) {                  /* 0x50400: lives--, energy 100 */
         pl->lives--;
         pl->energy = 100;
@@ -3290,6 +3494,7 @@ static lvl_obj *obj_slot(place_ctx *pc)
     o->damage = o->b0 = o->b1 = o->scope = o->energy = o->hp = -1;
     o->hit_cd = 0;
     o->atc = 0;
+    o->atc_hit = 0;
     o->dead = 0;
     return o;
 }
@@ -4214,6 +4419,12 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
          * plays there); LEO_PLAY_SOLID=0/1 forces it either way */
         const char *sv = getenv("LEO_PLAY_SOLID");
         pl.solid = (sv && *sv) ? *sv != '0' : !ci_eq(level, "RAN.01");
+        /* PR-90: the DANGER + class MAIN box arming stand-in is a MODEL
+         * (the pinned box applied to DANGER-flagged states), not a
+         * recovered driver (the engine's real per-class AI is open, see
+         * obj_arm_atak) - OFF unless LEO_PLAY_DANGER=1 asks for it. */
+        pl.danger = getenv("LEO_PLAY_DANGER")
+                        ? atoi(getenv("LEO_PLAY_DANGER")) != 0 : 0;
     }
     pl.cam_ox = CAM_LEAD_R;
     /* PR-84: the follow-cam-y state (play_ctx camy_v/camy_set) starts

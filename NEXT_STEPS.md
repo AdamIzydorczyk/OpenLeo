@@ -4072,6 +4072,133 @@ in a loop continuously". Both root-caused, both fixed, both pinned.
     no `lion hits` line (exactly one hit per window) and the killed
     worm never deals contact damage again.
 
+## PR-90 — the ENEMY attacks: class AI identified by the .des token,
+## the LICHA MAIN gate pinned, DANGER arming + window hits shipped (2026-11-17)
+
+T3 stage 1 ("enemies attack the lion"). The RE groundwork closed the
+central question of why NO .MOV anywhere transitions INTO an attack
+state (ZARIA's LICHA3 included): the engine's enemy AI is COMPILED PER
+CLASS and the class is selected by the placement file's own class token.
+
+RE facts (all measured in build/leo/leo.elf, VA = file offset + 0xf000;
+recipe in tools/re/make_text_asm.sh, working disassembly
+/tmp/opencode/pr89_text.asm):
+
+    (1) CLASS IDENTIFICATION. 0x616d0 is a factory: it string-compares
+        a name against "SEP" (0x9320b), "PARROT" (0x9320f), "SNAKE"
+        (0x93216), "LICHA" (0x9321c), "PAJAK" (0x93222), "NOSOROG"
+        (0x93228), "PAPUGA" (0x93230) and allocates that class's AI
+        object (0x120 bytes for the ground classes, 0x124 for NOSOROG)
+        and calls its constructor: LICHA -> 0x61890 (sets [x+8] =
+        0xa2f78, [x+0xc] = 0xa2f70), SNAKE -> 0x64830, PAJAK ->
+        0x626c0, NOSOROG -> 0x63750, PAPUGA -> 0x53ff0. Those strings
+        are exactly the class tokens the zwierzaki .des entries carry
+        as field 1 (verified in the ETAPY container bytes:
+        "LICHA,dummy,licha3.mov,120,650"). The same 0x931b1 string
+        block also holds the LION's state names (A_JUMP, A_JUMP_S,
+        A_JUMP_DOWN, A_LOOKUP, A_LOOKDOWN, A_FALL_DOWN at
+        0x931cf..0x93207) - the engine knows the player's states as
+        code names too.
+    (2) BEHAVIOR RECORDS. The LICHA AI attach (0x618b0) builds FOUR
+        behavior objects (0x32 bytes each through 0x3fb30) named
+        "MAIN", "WALK", "ATACK", "TURN" (0x93238..0x93248), appends
+        them to the list at [x+0x106] and gives each a method table:
+        MAIN -> 0xa30a8, WALK -> 0xa308c, ATACK -> 0xa3070,
+        TURN -> 0xa3054 (written at [behavior+0x2e]). Each table's
+        slot +0x0c is a SETUP that pushes records by state NAME onto
+        the behavior's own lists ([x+0]/[x+8]/[x+c]): 0x3fe80
+        resolves a name against the script's state list at [x+0x106]
+        (0x3ffe0 scans entries at +0x1e with 0x76d20) and 0x3fa20
+        wraps the state object (record vtable 0xa0a28); 0x3fe10 wraps
+        a state-index record. The names the setups hardcode are the
+        script's own state names - "TURN","TURN","A_RUN","TURN",
+        "A_ATAK" at 0x93258..0x93273, and sibling classes carry
+        bigger tables (0x93480.., 0x93588.. with A_RUN/A_ATAK, IDLE
+        variants, ...). So A_ATAK is ENTERED BY CODE, never by .MOV
+        data - exactly what the data census had implied.
+    (3) THE PINNED GATE (class LICHA). MAIN's check method is table
+        0xa30a8 slot +0x18 -> 0x61b50: ebx = 2*flag + (edx==0),
+        > 3 -> the "Blad zakresu w TExt...MAIN::check BOOL" error
+        (0x93274), else jump table 0x61b40. CASE 0 (0x61b6e) is the
+        near-lion box: abs([obj+0x26].x - lion.x) < 0x28 (40) AND
+        abs([obj+0x26].y - lion.y) < 0x32 (50) - CURRENT positions
+        (position objects: the object's own [x+0x26], the lion's via
+        getter 0x3ff60 = [x+0x394]; x at +4, y at +0). Cases 1-3
+        are [ecx+0x1a] (0x61bb1), always-true (0x61ba6), and a
+        cooldown-style call 0x3fdb0 with edx=1 on [ecx+0x16]
+        (0x61bb6). ATACK's check (0x61cb0, error 0x932da) case 0
+        (0x61cd2) tests the lion's SIDE against a facing getter
+        (vtable slot +0x70): (obj.pos0 - lion.pos0) < 0 with side
+        == -1, or > 0 with side == +1; another case (0x61d26) pushes
+        the double 0.5 (0x3FE999999999999A) into a random helper
+        0x3fee0. The boxes differ PER CLASS (each sibling's check
+        has its own immediates); only the LICHA numbers are pinned
+        and used here.
+    (4) scope= IS NOT THAT BOX. The placement scope pair lands at
+        [obj+0xfa]/+0xfe (0x3bde0 selects a pair from the table at
+        [obj+0x10e] using a counter [obj+0xf6] bounded by [obj+0xf2]
+        and copies it there; used as a pair argument to a
+        vtable+0x4 method at 0x3bc1d/0x3bcb9 and compared with a
+        vtable+0x70 result at 0x3d70c) - consumer NOT pinned. And it
+        is measurably not the arming distance: with this port's own
+        shape margins the lion/worm centers hold >= 21 px apart in
+        ZARIA.01, so an authored scope=20 box could NEVER open.
+        scope= stays counted, unmodelled placement data.
+    (5) attack-adjacent leads, still open: 0x550c0 is a "toucher is
+        MOVING TOWARD the touched" gate (B's vtable+0x40 getter true,
+        then sign(xB - xA) * dirB < 0) right before the generic
+        contact-damage call; the attack dispatcher 0x34020 appears
+        ONLY as a pointer at 0x9e204 inside the big table at
+        0x9d6d8.. (called through it, no direct call site found);
+        the atc_on/atc_off directive objects (parse 0x4636b..,
+        12-byte objects vtable 0xa10f0, +8 = 1/0; runtime clones the
+        window templates 0xa0e60/0xa0e74, whose slots are small
+        data not code) still have no pinned consumer in the hit
+        path.
+
+The port (MODEL parts flagged as such; the box numbers are RE-pinned
+for the class LICHA):
+  - LL_CTRL_DANGER = 0x10000 internal bit (the engine's own flag word
+    carries DANGER as 0x2000 - the touch path tests exactly that bit
+    of the state word (`test ah,0x20` at 0x5528b/0x51019, and that
+    branch loads [level+0x54], the never-authored danger_power; the
+    enum's values are never the wire values). ctrl_flag() now maps
+    the authored "DANGER" token (was counted-only).
+  - obj_arm_atak(): an object whose CURRENT state carries the authored
+    DANGER flag arms the script's OWN A_ATAK by NAME (the PR-89
+    force-by-name pattern, per-state rules identical to the transition
+    table's, BY_X walking position carried across) when the lion is
+    inside the pinned |dx| < 40, |dy| < 50 box. No facing test, no
+    probability gate - only the pinned stage. OFF unless
+    LEO_PLAY_DANGER=1 (like the PR-59 solid gate); every default run
+    is unchanged.
+  - The enemy lands through its OWN window: in play_collide, an
+    object with atc set, damage > 0, its window unlanded
+    (atc_hit == 0) and the lion out of his hurt lock hits -
+    energy -= authored damage=, lion lock = 30 (0x50304),
+    atc_hit = 1. atc/atc_hit reset ONLY on state change (mirror of
+    ll_player.atc / atc_hit). The block runs BEFORE the contact
+    block: while a window is open the touch answers as the attack,
+    not as an extra contact hit.
+  - obj_state_selftest (under --mov-selftest) gained the arming leg:
+    negatives at the EXACT boundaries (dx = -40, dy = -50 never arm -
+    the engine's jge), no DANGER flag, no A_ATAK in the script,
+    dead; the armed state keeps the BY_X position, its own frames
+    open the window by 400 ms and close it by 600 ms.
+  - verify-play leg: LEO_PLAY_DANGER=1 on ZARIA.01, 300 ticks.
+    Pins (model pins, documented): arm at tick 171 (dx 38, dy 1 -
+    two ticks before the old contact-only hit at 175); the worm
+    STANDS in the BY_TIME attack state so the contact model next
+    answers at 195/231; A_ATAK's own frames open the window at 251
+    (three completed 400-unit frames, ATC_ON on the fourth) and the
+    window hit lands at 265 ("ATTACKS through its window: damage 15
+    -> lion energy 55"), right after the 231 contact's 30-tick lock;
+    `! grep 'DANGER: lion' /tmp/opencode/ly_hit.log` pins that the
+    default run never arms.
+  - Tooling note that cost an hour: the Makefile's DEFAULT goal does
+    NOT build ll_level - run `make ll_level` explicitly (verify-play
+    depends on it, but ad-hoc probes silently used a stale binary).
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

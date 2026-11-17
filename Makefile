@@ -694,6 +694,50 @@ ifeq ($(PX_DATA),1)
 	       "at hp < 0, and the killed worm stops dealing contact damage (ok)" \
 	  || { echo "play lion attack grep FAILED"; grep -E 'lion (hits|KILLS)|hit by|A_FIGHT' \
 	       /tmp/opencode/ly_atk.log | head -6; exit 1; }
+# PR-90 (T3 stage 1): the ENEMY attacks. There is no transition INTO
+# A_ATAK in any .MOV because the engine's enemy AI is COMPILED PER
+# CLASS, chosen by the placement's own class token (0x616d0 string-
+# compares it against "SEP"/"PARROT"/"SNAKE"/"LICHA"/"PAJAK"/"NOSOROG"/
+# "PAPUGA" 0x9320b..0x93234 and builds that class; the behavior records
+# "MAIN"/"WALK"/"ATACK"/"TURN" 0x93238..0x93248 carry state-name tables
+# hardcoding "A_RUN"/"A_ATAK"). LICHA's MAIN check is pinned: jump
+# table 0x61b40 case 0 (0x61b6e) = |dx| < 0x28 (40) && |dy| < 0x32 (50)
+# of the CURRENT positions. The port's stand-in (LEO_PLAY_DANGER=1, OFF
+# by default like the PR-59 solid gate): a DANGER-flagged current state
+# arms the script's OWN A_ATAK by name when the lion enters that box;
+# the enemy then lands one hit through its OWN frames' ATC_ON window -
+# the exact mirror of the lion's attack (one hit per armed state, the
+# flag resets on state change only). Model pins (the port's stand-in,
+# not the engine's driver): arming at 171 (dx 38, dy 1 - inside the box
+# two ticks before the old contact hit at 175); the worm STANDS in the
+# BY_TIME attack state, so the contact model next answers at 195/231;
+# A_ATAK's frames open its window at 251 (3 completed 400-unit frames,
+# ATC_ON on the 4th) and the window hit lands at 265, right after the
+# 30-tick hurt lock of the 231 contact expires - while a window is open
+# the touch answers as the attack, not as an extra contact hit. The
+# default legs (above) are unchanged: with the flag off no arming runs.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SOLID=1 \
+	  LEO_PLAY_DANGER=1 LEO_PLAY_SCRIPT="1:FWD" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_dgr.ppm LEO_LEVEL_PPM_TICK=300 \
+	  ./ll_level $(DATA) ZARIA.01 --play --no-audio \
+	  > /tmp/opencode/ly_dgr.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play enemy attack FAILED (rc=$$rc)"; \
+	    exit 1; fi
+	@grep -q 'play tick 171: LICHA/licha3.mov DANGER: lion within the class' \
+	    /tmp/opencode/ly_dgr.log \
+	  && grep -q 'play tick 265: LICHA/licha3.mov ATTACKS through its window' \
+	    /tmp/opencode/ly_dgr.log \
+	  && grep -q 'window: damage 15 -> lion energy 55' \
+	    /tmp/opencode/ly_dgr.log \
+	  && ! grep -q 'DANGER: lion' /tmp/opencode/ly_hit.log \
+	  && echo "play enemy attack: the DANGER/MAIN-box stand-in arms A_ATAK" \
+	       "at the pinned LICHA 40x50 gate, the worm stands there and lands" \
+	       "exactly one hit through its OWN ATC_ON window, and the default" \
+	       "runs are unaffected (ok)" \
+	  || { echo "play enemy attack grep FAILED"; \
+	       grep -E 'DANGER:|ATTACKS|hit by' /tmp/opencode/ly_dgr.log \
+	       | head -6; exit 1; }
 # render leg: SAME tick count, the only difference is the held key -
 # the frame delta is the lion walking (and the NONE run stays at spawn)
 	@rm -f /tmp/opencode/ly_p40_NONE.ppm /tmp/opencode/ly_p40_FWD.ppm
