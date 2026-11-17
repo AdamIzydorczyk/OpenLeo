@@ -323,7 +323,13 @@ Pitfalls seen:
   20x at zero tolerance and prints the raw CRT call's undershoot as a
   diagnostic. On this Linux box that diagnostic reads
   `early=0 worst_undershoot_us=0` - glibc keeps the deadline, which is
-  why the defect was Windows-only.
+  why the defect was Windows-only. After PR-112 the same diagnostic on a
+  real Windows runner (`ci` run 135, job 134381308755) also reads
+  `early=0 worst_undershoot_us=0` for 20 samples, i.e. the
+  "the CRT wrapper wakes early" theory did NOT reproduce on demand; a
+  rare backward step of the clock is the surviving candidate and
+  neither is pinned. Treat the leg as fixed-but-watched: if it fails
+  again, the diag line in that job's log is the first thing to read.
 - peak `ll_level` RSS is ~1.1 GB (RAN.01); run one level at a time.
 
 ## 4. Architecture map

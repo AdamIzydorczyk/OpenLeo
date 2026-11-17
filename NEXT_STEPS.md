@@ -8860,6 +8860,37 @@ asserted 20 times at zero tolerance instead of once
   wall-clock-dependent assertion; if it ever needs a second, it should
   be written with the same zero-tolerance-on-the-lower-bound + loose
   upper-bound shape, or the flake rate comes back.
+- CI FOR THIS COMMIT, and the diagnostic answers back. Run 135 /
+  44179955442 on `b273981`: `linux`, `asan`, `windows-smoke` all
+  success. The three sleep_until checks pass on the NATIVE msys2 leg
+  (job 134381308755, `/tmp/opencode/g5_job_134381308755.log` lines
+  439-441: `sleep_until honors the deadline (>=20ms) (ok)`, `... never
+  returns before its deadline, 20x (ok)`, `... stays within 200ms ...,
+  20x (ok)`), and the diagnostic prints:
+  `diag raw-CRT clock_nanosleep 20ms x20: early=0 unsupported=0
+  worst_undershoot_us=0` - and the same line on the asan job
+  (134381309044, line 665). The `linux` job does not print it: its
+  full suite runs `verify-all`, where `verify-platform` SKIPs for want
+  of `$(DATA)` (4 mentions of `platform_selftest` in that log, zero
+  diag lines).
+  So, honestly: **the raw CRT call showed no undershoot on the very
+  runner class where the check failed twice.** That does NOT prove the
+  wrapper is exact - 20 samples on one run of a 2-in-125 event is not
+  evidence of absence, and the failure may need a loaded runner. What it
+  does is fail to support the "sub-millisecond early wake" theory on
+  demand, which leaves a rare backward step of the clock source as the
+  surviving candidate. Neither is pinned; the diagnostic will accumulate
+  the number on every future Windows run at no cost, and only a
+  non-zero line - or a real Windows box running `/tmp/opencode/cnsl.c`
+  with hundreds of samples - can settle it. What PR-112 changes does not
+  depend on which it was: the contract is now enforced by re-reading our
+  own clock, which covers both.
+  One residual to state rather than hide: that loop is safe under a
+  backward step (it re-sleeps to the same absolute deadline), but it is
+  bounded only by the clock, not by a retry limit - an unbounded
+  backward step would hang the selftest rather than fail it. A limit was
+  left out deliberately: a bounded loop that gives up would reintroduce
+  exactly the silent undershoot this PR removes.
 
 ## Next — pick from the Deferred list below
 
