@@ -2574,6 +2574,151 @@ static int obj_motion_selftest(void)
                         " NOT snapped)\n", a.fi, a.x, a.y);
         goto out;
     }
+    /* 7. PR-115 (PR-110 open items 1 and 8): how many rows ONE step may
+     * close. The player's row loop caps the closures at `4 * nfr`
+     * (ll_play.c:1288) and then resyncs the leftover to 0 (:1318-1319,
+     * "guard hit (data safety): resync"). This loop has NEITHER: its
+     * only bound is the accumulator itself and the FIX-13 4096-iteration
+     * guard at :1188-1189, and it never drops a debt. The engine has
+     * no cap either, and no resync - 0x52329 `39 d8` (cmp threshold,
+     * accumulator) `7d 27` (jge -> the epilogue) admits EXACTLY one
+     * row per record step and 0x52334 `29 c3` hands `acc - thr` to the
+     * row handler in registers only, so the accumulator at [obj+0xa1]
+     * is monotonic (the only writes to it are the feeds at 0x543d1 /
+     * 0x543e7 / 0x54412 / 0x5443b). And the port's parse-time clamp at
+     * ll_play.c:481 (`ms > 0 ? ms : 100u`) has no counterpart in the
+     * engine's row-node reader: 0x51667/0x51679 read the authored value
+     * with `%hi` into [node+0x10] and 0x51680-0x5168f only scale it by
+     * the block's `time_scale`, so an authored `1,0` really is a
+     * threshold of 0 there - it closes on every fed step - and the port
+     * turns it into 100. So PR-110 item 1's "170 of 18617 authored rows
+     * have threshold 0 (73 files)" measures the clamp difference, not a
+     * rows-per-step difference; the rows-per-step set, per
+     * the tool's PR-110 items 1 and 8 block, is 108 time-fed states in
+     * 77 files whose stored minimum threshold is <= 50. Hand-derived, no
+     * game data; the fixture's first row IS the authored `1,0` shape.
+     * OBJM at dt = 116 = 4 x LL_ITER_MS + 4: row_rem 4, feed 400.
+     * row_t 400 closes index 0 (-> 300), index 1 (-> 270) and index 2
+     * (-> 240); the next test takes the end-of-list branch, no
+     * transition, so fi = 0 and the anchor snap (BY_TIME, :1212) lands
+     * it back at (5,9) - then index 0 (-> 140) and index 1 (-> 110)
+     * close, index 2 closes (-> 80) and wraps a SECOND time, and 80 <
+     * 100 finally stops it. SIX closures and two wraps in ONE call; the
+     * loop's 7th iteration, guard 7 of 4096, is the one that finds 80 <
+     * 100 and stops. Call 2 at dt = LL_ITER_MS: row_rem 4 + 28 = 32, one
+     * more feed, 180: index 0 (-> 80), index 1 (-> 50), index 2 (->
+     * 20), wrapped again. That leftover 20 is never dropped - the port
+     * keeps the debt exactly as the engine's untouched accumulator
+     * does, so a feed of 100 can never land the accumulator on 0 once
+     * a threshold is not a divisor of 100. ONE is the cap made visible
+     * by its absence: one 100-unit row, dt = 500 = 17 x 28 + 24, feed
+     * 1700, and 17 rows close in the ONE call, to exactly 0 (guard 18 of
+     * 4096: 17 closures plus the check that finds the accumulator
+     * empty), with row_rem 24 left over. The engine would spend 17 record steps on
+     * those rows and never reach 0 in one. The player's cap and resync
+     * are pinned in its own leg (ll_play.c, PR-115): there a 6000-unit
+     * feed closes EIGHT - the cap is 4 x nfr - and the resync drops
+     * the 5200 left over, so this object leg (1700 closes SEVENTEEN,
+     * nothing dropped) and that one together pin the only two places
+     * in the port where a step can stop closing rows early.
+     * MUTATION RUNS (/tmp/opencode/mut/run115.sh, logs m4.* m5.*, and
+     * a second pass with obj_state_selftest skipped, .mov2): copying
+     * the player's resync into THIS loop (M5) is caught by this leg
+     * first - "rows per step: call 1 fi 1 row_t 0", because the
+     * resync fires after the first closure and 80 never re-forms.
+     * Bounding this loop at one closure per call (M4) is caught, but
+     * not here: the chain dies earlier, at the PR-110 object-state leg
+     * ("the first iteration did not close exactly one row") and, with
+     * that leg skipped, at the PR-110 unit-driven-frames walk leg.
+     * Both are the honest record: on the object side the older legs
+     * already pin one-row-per-feed nowhere, so M4 is a chain failure
+     * rather than a leg-7 failure, and no claim is made that it is
+     * not. */
+    {
+        static const char objm[] =
+            "A_RUN\n\n[A_RUN]\ncontrol=BY_TIME\n1,0\n2,30\n3,30\n";
+        static const char one[] =
+            "A_RUN\n\n[A_RUN]\ncontrol=BY_TIME\n1,100\n";
+        ll_mov_t *mo = calloc(1, sizeof *mo), *on = calloc(1, sizeof *on);
+        obj_script so;
+        lvl_obj c;
+        memset(&so, 0, sizeof so);
+        so.mov = mo;
+        if (!mo || !on || ll_mov_parse(objm, mo) != 1 || mo->st[0].nfr != 3 ||
+            mo->st[0].fr[0].thresh != 100u || mo->st[0].fr[1].thresh != 30u ||
+            mo->st[0].fr[2].thresh != 30u) {
+            fprintf(stderr, "motion selftest: FAILED the multi-row fixture"
+                            " did not parse as authored (an authored 0 must"
+                            " land on 100 here, the M4-C rule)\n");
+            free(mo);
+            free(on);
+            goto out;
+        }
+        memset(&c, 0, sizeof c);
+        c.sc = &so;
+        c.bx = 5;
+        c.by = 9;
+        c.x = 40;
+        c.y = 30;
+        c.b0 = c.b1 = -1;
+        obj_advance(&c, 116);
+        if (c.fi != 0 || c.sti != 0 || c.row_t != 80u || c.row_rem != 4u ||
+            c.facc != 0.0 || c.xa != 0.0 || c.x != 5 || c.y != 9) {
+            fprintf(stderr, "motion selftest: FAILED rows per step: call 1"
+                            " fi %d row_t %u rem %u at (%d,%d) (want SIX"
+                            " closures and two wraps from one 400 feed: 400"
+                            " - 100 - 30 - 30 - 100 - 30 - 30 = 80, and the"
+                            " wrap snapping a BY_TIME object to its 5,9"
+                            " anchor)\n", c.fi, c.row_t, c.row_rem, c.x,
+                    c.y);
+            free(mo);
+            free(on);
+            goto out;
+        }
+        obj_advance(&c, LL_ITER_MS);
+        if (c.fi != 0 || c.row_t != 20u || c.row_rem != 4u || c.x != 5 ||
+            c.y != 9) {
+            fprintf(stderr, "motion selftest: FAILED rows per step: call 2"
+                            " fi %d row_t %u rem %u (want 80 + 100 closing"
+                            " 100, 30 and 30 = 20 kept as a debt, the"
+                            " millisecond carry 4 kept too)\n", c.fi,
+                    c.row_t, c.row_rem);
+            free(mo);
+            free(on);
+            goto out;
+        }
+        memset(&so, 0, sizeof so);
+        so.mov = on;
+        if (ll_mov_parse(one, on) != 1 || on->st[0].nfr != 1) {
+            fprintf(stderr, "motion selftest: FAILED the one-row fixture"
+                            " did not parse\n");
+            free(mo);
+            free(on);
+            goto out;
+        }
+        memset(&c, 0, sizeof c);
+        c.sc = &so;
+        c.bx = 5;
+        c.by = 9;
+        c.x = 40;
+        c.y = 30;
+        c.b0 = c.b1 = -1;
+        obj_advance(&c, 500);
+        if (c.fi != 0 || c.row_t != 0u || c.row_rem != 24u || c.x != 5 ||
+            c.y != 9) {
+            fprintf(stderr, "motion selftest: FAILED no cap here: row_t %u"
+                            " rem %u fi %d at (%d,%d) (want all 17 rows of"
+                            " a 1700 feed closed in ONE call - this loop's"
+                            " only bound is the 4096 guard, and nothing"
+                            " resyncs the debt the way ll_play.c:1318 does)"
+                            "\n", c.row_t, c.row_rem, c.fi, c.x, c.y);
+            free(mo);
+            free(on);
+            goto out;
+        }
+        free(mo);
+        free(on);
+    }
     rc = 0;
 out:
     free(m1);
@@ -2768,7 +2913,14 @@ int ll_mov_selftest(void)
            " distance feed does not run at all so facc/xa stay 0 and the"
            " object does not move, and its state-loop wrap does NOT snap"
            " the anchor - line 1212 asks for the mode bit, not for a"
-           " non-zero F=; the BY_TIME control does snap) (ok)\n");
+           " non-zero F=; the BY_TIME control does snap) + PR-115 this"
+           " loop has NO cap and NO resync (a 400-unit call closes SIX"
+           " rows of a 100/30/30 list and wraps twice, keeping the"
+           " leftover 20 and the millisecond carry as a debt the next"
+           " call inherits; a 1700-unit call on a one-row list closes"
+           " ALL 17 rows in that one call) - the player's own row loop"
+           " is the one that stops at 4 * nfr closures and drops what"
+           " its cap leaves over (ok)\n");
     return 0;
 }
 

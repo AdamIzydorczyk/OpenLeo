@@ -518,6 +518,35 @@ passes when the object gate's `fx` term is deleted, which is the gap
 PR-114's leg 6 closes. Which half the engine keys on stays OPEN.
 NEXT_STEPS.md, PR-114 record.
 
+CORRECTION TO THE ROW-CLOCK ROW ABOVE, added 2026-11-18 by PR-115 and quoted
+here rather than edited in the table (the row still says "the engine admits ONE
+row per record step, the port loops"): the engine half is right and the port
+half is about ONE of the port's two loops. The compare at 0x52329 `39 d8` /
+0x5232b `7d 27` admits at most one row per record step, and 0x52334 `29 c3`
+hands `acc - thresh` to the row handler in registers only - the only writes to
+[obj+0xa1] anywhere are the feeds at 0x543d1 / 0x543e7 / 0x54412 / 0x5443b, so
+the accumulator is monotonic and the engine has no cap and no resync. The
+port's player loop (ll_play.c:1286-1288) does cap a step at `4 * nfr` closures
+and then zeroes what the cap leaves over (:1318-1319, "guard hit (data safety):
+resync") - that resync DROPS a debt the engine keeps; the object loop has no
+cap and no resync, only the FIX-13 4096-iteration guard (ll_level.c:1188-1189),
+and it closed all 17 rows of a 1700-unit feed in one call in the new leg. And
+the threshold table the row's OPEN list leans on needs its own correction: 170
+rows at authored threshold 0 in 73 files is a count of the port's parse-time
+clamp (ll_play.c:481 turns any authored value <= 0 into 100 before the scaling
+at :735, so the port never stores a 0, and for those rows both engines close
+exactly one row per fed step); 0 thresholds are negative anywhere. What
+actually lets one feed close two rows is a threshold STORED under 100: 108
+time-fed states in 77 files whose stored minimum is <= 50, and 1682 rows in
+1..99 as written, where PR-110's record quotes "1715 ... after scaling (111
+files)" from its own scaling rule. Two data-free legs now pin the port's
+current behaviour in both engines without changing it (`MULTI`/`BOUND` in
+`ll_play_selftest`, leg 7 of `obj_motion_selftest`), and six mutations of the
+loop bounds, the resync and the parse-time clamp are all caught. Census and
+arithmetic: `tools/re/mov_byx_gate.py`, NEXT_STEPS.md, PR-115 record. Whether
+the game closes one row per step or all that fit is STILL open - that needs a
+capture, not a compare.
+
 ## 7. Open questions (ranked by how much they block)
 
 0. SCENE OBJECT MOTION (SOLVED in PR-79, 2026-11-16; basis re-checked
@@ -1373,6 +1402,35 @@ NEXT_STEPS.md, PR-114 record.
      (those 5 no-exit states would neither advance a row nor leave the
      state under it). Counts, arithmetic and the five mutations:
      NEXT_STEPS.md, PR-114 record.
+   - "ONE ROW PER RECORD STEP VS THE PORT'S LOOP" IS MEASURED NOW, and the
+     sentence two bullets up is wrong about the port (added by PR-115,
+     quoting it instead of editing it). The engine half stands: 0x52329 `39
+     d8` / 0x5232b `7d 27` admit at most one row per record step. The port
+     half describes one of its two loops. `ll_player_step` section 7 caps
+     one step at `4 * nfr` closures (ll_play.c:1288) and then zeroes what
+     the cap leaves over (:1318-1319), so the port DROPS a row-debt the
+     engine keeps - nothing in that path ever rewrites `[obj+0xa1]`, whose
+     only writers are the feeds at 0x543d1 / 0x543e7 / 0x54412 / 0x5443b, so
+     the engine's accumulator is monotonic and has neither a cap nor a
+     resync. `obj_advance`'s loop matches the engine there: no cap, no
+     resync, only the FIX-13 4096 guard (ll_level.c:1188-1189) - leg 7 gave
+     it a 1700-unit feed and all 17 rows of a one-row list closed in that
+     one call. The threshold table PR-110 quoted needs its own correction:
+     170 rows at authored threshold 0 in 73 files counts the port's parse-
+     time clamp (ll_play.c:481 makes any authored <= 0 into 100 BEFORE the
+     `time_scale` scaling at :735, so no stored 0 exists), 0 thresholds are
+     negative anywhere, and as-authored rows in 1..99 number 1682 in 109
+     files against that record's 1715 in 111. The set where "one per step"
+     and "all that fit" really differ is 108 time-fed states in 77 files
+     whose stored minimum threshold is <= 50, and 0 in the distance-fed half
+     under both per-step feed estimates. Two data-free legs
+     (`MULTI`/`BOUND`, `objm`/`one`) pin the port's current behaviour
+     without changing it, and six mutations of the cap, the resync and the
+     parse clamp are all caught - the one asymmetry worth keeping: bounding
+     the OBJECT loop is caught by PR-110's older legs, not by the new one.
+     Which of the two laws the game runs is still open and needs a capture,
+     not a disassembly (T5/T10); the exact-equality boundary is the next
+     question in line. NEXT_STEPS.md, PR-115 record.
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
      files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's

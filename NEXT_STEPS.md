@@ -9125,6 +9125,174 @@ current choice without changing it
   `/tmp/opencode/mut/{ll_play,ll_level}.orig` after each and the diff
   was checked to contain no deletions.
 
+## PR-115 — how many rows ONE step may close: the engine's record step admits
+exactly one and the port's loops do not, the port's player then DROPS a debt
+the engine keeps, and both loops' current behaviour is pinned without changing
+it
+- WHY. The night prompt's item 2 is PR-110's open items 1 and 8, the rows-
+  per-step question. Item 1, quoted from this file (NEXT_STEPS.md:8433-8438):
+  "The engine admits at most ONE row per record step (0x5232b jumps to the
+  epilogue); the port's loop takes several, bounded by the `4 * nfr` guard.
+  With the feed at exactly 100 and a threshold below it, "one per step" and
+  "all that fit" differ - 170 of 18617 authored rows have threshold 0 (73
+  files) and 1715 have threshold in 1..99 units after scaling (111 files), so
+  this is not hypothetical." Item 8 (NEXT_STEPS.md:8472-8474): "The 170 rows
+  with threshold 0: the port's compare-after-add makes them close on every
+  step that feeds, and the guard exists, but no sample shows what the engine
+  does with one." Two of those claims are about the port and can be measured,
+  and one of them - the one the whole item rests on, the 170 threshold-0 rows
+  - points at the wrong set of rows. Both were measured before anything was
+  written, and no behaviour changed.
+- WHAT SHIPPED: `tools/re/mov_byx_gate.py` gains a section that reads the row
+  threshold AS AUTHORED (the engine's `%hi` read, no clamp) against what the
+  port STORES (its parse-time clamp), per mode, and counts the states where
+  one iteration's feed of 100 units crosses a row twice; plus two data-free
+  legs, one in `ll_play_selftest` and one as leg 7 of `obj_motion_selftest`,
+  that PIN what each of the port's two row loops does today - the multi-
+  closure loop, the player's `4 * nfr` cap and its accumulator resync, and
+  the object loop's missing cap and missing resync. The census output
+  (`/tmp/opencode/pr115_census.txt`, 146 lines) is the evidence this record
+  cites; the legs cite their own arithmetic.
+- WHAT THE MACHINE CODE SAYS, read again for this record with the DB rebuilt
+  (`python3 tools/re/leodb.py build`, then `leodb.py dis/func/refs`). The row
+  node's threshold: 0x51660/0x51667/0x51679 read the authored value with
+  `%hi` into `[node+0x10]`, and 0x51680-0x5168f scale it by the block's
+  `time_scale` - nothing clamps it, so an authored 0 really is a threshold of
+  0 in the engine. The per-step decision: 0x52320 `8b 43 10` (`mov eax,
+  [ebx+0x10]` = the row's threshold), 0x52323 `8b 9a a1 00 00 00` (`mov ebx,
+  [edx+0xa1]` = the accumulator), 0x52329 `39 d8` (`cmp eax, ebx`), 0x5232b
+  `7d 27` (`jge 0x52354` = the epilogue, no row this step). That compare
+  admits at most ONE row per record step - the record's item 1 is right about
+  the engine. And 0x52334 `29 c3` (`sub ebx, eax`) computes the remainder in
+  REGISTERS only: the only writes to `[obj+0xa1]` anywhere are the feeds at
+  0x543d1 / 0x543e7 / 0x54412 / 0x5443b, so the accumulator is monotonic and
+  there is no cap and no resync in that path. A row whose stored threshold is
+  0 therefore closes once per fed step in the engine, and once the port's
+  clamp has turned it into 100 it closes after one feed there too - the
+  difference is one feed, not "several rows per step".
+- WHAT THE CENSUS MEASURES (the same tool, the new section). As authored,
+  over the 777-file corpus: 18617 row lines, 170 at threshold 0 in 73 files,
+  0 negative thresholds anywhere, and 1682 in 1..99 in 109 files - against
+  that record's "1715 ... after scaling (111 files)", which comes from its
+  own scaling rule; both readings are printed side by side now. Per mode, as
+  authored: BY_X 1349 rows (14 at 0 in 13 files, 1282 in 1..99 in 69 files),
+  BY_Y 149 (0 at 0, 149 in 1..99 in 8), BY_TIME 17011 (156 at 0 in 66, 251 in
+  1..99 in 51), BY_TY 108 (none below 100). What actually lets the port close
+  more than one row in a step is a threshold STORED under one iteration's
+  feed of 100: 1282 BY_X rows in 69 files, 149 BY_Y in 8, 299 BY_TIME in 59
+  (BY_TY: 0), and 108 time-fed states in 77 files whose stored minimum
+  threshold is <= 50, where a single 100-unit feed covers two of their rows.
+  For the 75 states the port calls walking the count is 0 under both per-step
+  feed estimates (`|T| * 0.028` for the player, `|F| * 0.028 / 4000` for a
+  scene object) - the tool labels both as estimates. The loops' own bounds,
+  printed with it: `ll_play.c:1288` caps one step at `4 * nfr` closures and
+  `:1318-1319` then zeroes the accumulator ("guard hit (data safety):
+  resync"); `ll_level.c` has no such cap - its loop is bounded by the
+  accumulator and the FIX-13 4096-iteration guard at `:1188-1189`, and it
+  never resyncs.
+- THE PLAYER LEG (`ll_play_selftest`, fixtures `MULTI` and `BOUND`, hand-
+  derived, no game data). `MULTI` is `control=BY_TIME` with rows `1,0` + `M
+  100,0`, `2,30` + `M 30,0`, `3,30` + `M 30,0` - the first row is exactly the
+  authored shape of those 170, and the port parses it to 100. Step 1, `dt =
+  116 ms` (116 = 4 x 28 + 4), feeds 4 x 100 = 400: the loop closes 1 (->
+  300), 2 (-> 270) and 3 (-> 240, the list WRAPS, `broke` armed at `:1312`),
+  then 1 (-> 140), 2 (-> 110) and 3 again (-> 80, a SECOND wrap), and only
+  then does 80 < 100 stop it: SIX closures and two wraps in ONE step, `x` 420
+  after the six rows' authored `M` deltas, and the `4 * nfr` guard (12) never
+  fired. Step 2, `dt = LL_ITER_MS`, feeds exactly 100 more (row_rem 4 + 28 -
+  28 = 4) and closes three more rows, keeping the leftover 20 - the debt the
+  engine's untouched `[obj+0xa1]` keeps too, and the reason no feed of 100
+  can land the accumulator on 0 once a threshold is not a divisor of 100.
+  `BOUND` is the cap and the resync made observable: TWO rows of 100 with `M
+  100,0` / `M 1,0`, so `nfr = 2` and the cap is 8, and `dt = 1706 ms` (60 x
+  28 + 26) feeds 6000 - enough for 60 rows. Exactly EIGHT close (x 504, four
+  trips round the list), the guard ends the loop, and the resync DROPS the
+  5200 still owed (`row_t` 0, `row_rem` 26). The next step feeds 100 and
+  closes exactly one row (x 604, `fi` 1) with `broke` 0 - it is cleared at
+  the head of every step (`:987`) and only a wrap arms it.
+- THE OBJECT LEG (`obj_motion_selftest` leg 7, fixtures `objm` and `one`).
+  `objm`, `BY_TIME`, the same 100/30/30 rows: `obj_advance(…, 116)` closes
+  SIX rows in ONE call and wraps twice, `row_t` 80, `row_rem` 4, `facc`/`xa`
+  0, and the wrap snaps it back to its (5,9) anchor (`:1212` asks for the
+  mode bit); the next `LL_ITER_MS` call keeps the debt and ends at `row_t`
+  20. `one` is the cap shown by its absence: one 100-unit row, `dt = 500 ms`
+  (17 x 28 + 24), feed 1700 - and ALL 17 rows close in that one call,
+  `row_t` 0, `row_rem` 24, guard 18 of 4096 (17 closures plus the one
+  iteration that finds the accumulator empty). The engine would spend 17
+  record steps on those rows; the player's loop, given the same feed,
+  stops at its cap and throws the rest away.
+- MUTATIONS (`/tmp/opencode/mut/run115.sh`, logs `m1..m6.*`; each run prints
+  the diff it applied first, because a `perl -0pi` pattern with escaped `\*`
+  had silently no-opped in an earlier harness - the M2 and M5 patches now
+  live in `prog/m2.py` and `prog/m5.py` with asserts). The object chain is
+  also re-run with `obj_state_selftest` skipped (`skip_state.py`, logs
+  `*.mov2`), since that leg aborts the chain at its own first failure. M1,
+  bounding the PLAYER loop at one closure per step (the engine's shape): 10
+  failures, every one inside the new leg (`ll_play.c:2695-2712`), nothing
+  else moves. M2, deleting the resync: 4, all in that leg (`:2705-2710`). M3,
+  raising the cap to 100000: exactly 2, the two `x` CHECKs (`:2708`,
+  `:2712`). M4, `break` after one closure in the OBJECT loop: the chain fails
+  first at the PR-110 object-state leg (`ll_level.c:1761`, "the first
+  iteration did not close exactly one row") and, with that leg skipped, at
+  the PR-110 unit-driven-frames walk leg - so leg 7 is NOT the first thing M4
+  breaks, and no such claim is made. M5, copying the player's resync into the
+  object loop: with that earlier leg skipped the FIRST failure is leg 7's own
+  call-1 check ("rows per step: call 1 fi 1 row_t 0"), because the resync
+  fires after the first closure. M6, dropping the parser's clamp so an
+  authored 0 stays 0 as the engine stores it: 10 play failures, 6 of them in
+  the new leg (`:2687`, `:2696-2701`), and the mov chain's own duration-
+  clamp leg. One fixture lesson is recorded in the leg's own comment: the
+  first version of `BOUND` was a single-row list and M3 PASSED it - with one
+  row of 100 any feed drains exactly to 0, so a cap is invisible in `row_t`
+  alone; it is a two-row list with distinguishable authored `M` moves for
+  that reason.
+- CORRECTIONS TO ITEMS 1 AND 8 (new text, the old wording quoted and left in
+  place above). (1) "the port's loop takes several, bounded by the `4 * nfr`
+  guard" is true of ONE of the port's two loops: `ll_player_step` section 7
+  (`ll_play.c:1286-1288`) caps at `4 * nfr` and then resyncs; `obj_advance`'s
+  loop (`ll_level.c:1188-1189` is its only bound, the FIX-13 guard) has no
+  cap, no resync, and closed 17 rows
+  from one 1700-unit feed in the leg above. (2) The resync is not a safety
+  net that costs nothing: it DROPS a debt the engine's monotonic accumulator
+  keeps, so on the port's player side a capped step loses rows the engine
+  would still close later. Which of the two is the game's law is not decided
+  here - the engine has neither half. (3) "170 of 18617 authored rows have
+  threshold 0 ... so this is not hypothetical" measures the parse-time clamp,
+  not rows-per-step: the port turns any authored value <= 0 into 100 at
+  `ll_play.c:481` BEFORE scaling at `:735`, so it never stores a 0, and an
+  authored-0 row closes exactly one row per fed step in both engines. The set
+  where "one per step" and "all that fit" really differ is 108 time-fed
+  states in 77 files with a stored minimum threshold <= 50 (0 in the
+  distance-fed half under both estimates), and the count of low-but-positive
+  rows as written is 1682 in 109 files, not 1715 in 111. Item 8's "no sample
+  shows what the engine does with one" still stands: what the legs pin is the
+  port, and the engine's 0-threshold behaviour is read off the compare, never
+  observed.
+- WHAT THIS DOES NOT DECIDE. (1) Whether one-row-per-record-step is what the
+  footage shows - no capture of a multi-row state was read for this record;
+  that is T5/T10 work. (2) The `acc == thresh` boundary (PR-110 item 2,
+  PR-116): the legs above close rows at exact equality, which is the port's
+  shipped reading of `39 d8` / `7d 27`, and the alternative reading is
+  untouched. (3) Whether a threshold of 0 in a real engine state does
+  anything beyond what the compare implies. (4) The `4 * nfr` cap's own
+  provenance: the port's comment calls it "data safety"; nothing in the image
+  has it, and no data was found that needs it - removing it is now a visible
+  decision (M3), not a silent one.
+- DOCS: `tools/re/README.md` gains the new section in the tool's entry;
+  HANDOFF.md §2's row-clock row and §7 item 13 get a new paragraph and a
+  new bullet quoting their own wording rather than being edited, since both
+  still say "the engine admits ONE row per record step, the port loops" /
+  "one row per record step vs the port's loop".
+- TESTS AND GATES: `make`, `make win`, `make ll_level` with 0 warnings;
+  `./ll_level --play-selftest` and `./ll_level --mov-selftest` pass with the
+  two new legs and their summary strings now name PR-115; `make -k verify-all
+  DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files` and the
+  fixture-free `DATA=/tmp/opencode/nope HD=/tmp/opencode/nope` both EXIT=0,
+  the fixture-free run printing the same 23 named SKIPs as the PR-110 /
+  PR-111 / PR-112 / PR-114 baseline. The six mutations above are the evidence
+  the legs are load-bearing; the tree was restored from
+  `/tmp/opencode/mut/{ll_play,ll_level}.orig` after each and the census
+  output was reproduced before committing.
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

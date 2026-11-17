@@ -47,6 +47,18 @@ WHAT IT PRINTS
    so its rows never advance, its list never wraps and an exit that waits
    for the wrap can never fire. INFERRED from 0x543a0 + 0x521f0, not
    measured on a capture.
+5. PR-110 items 1 and 8 (PR-115): the row threshold counted AS AUTHORED,
+   which is what the engine stores - the row-node reader 0x51660 takes it
+   with `%hi` into `[node+0x10]` and scales it at 0x51680-0x5168f
+   (`value * time_scale / 1000`) with NO clamp anywhere - against what
+   `ll_mov_parse` stores, which clamps `ms <= 0` to 100 FIRST
+   (ll_play.c:481) and scales after (ll_play.c:735). Then the rows whose
+   STORED threshold is under one iteration of feed (100 units), because
+   those are exactly the ones where "the engine admits one row per record
+   step" (0x52329 `cmp eax,ebx; jge 0x52354`) and "the port's loop takes
+   all that fit" differ. Plus the distance-fed half as an ESTIMATE from
+   each state's own `T=`, and the two loops' bounds as written in the
+   port (`4 * nfr` + a resync in the player; no cap in the object loop).
 
 Nothing is written; output only. Pure stdlib, no game data in git.
 """
@@ -424,6 +436,118 @@ def main(argv):
           " in a block is the one that block keeps."
           % (stats["ts_lines"], len(stats["ts_files"]), stats["ts_comment"],
              len(stats["ts_cfiles"]), stats["ts_lines"], vals[0], vals[-1]))
+
+    # 4. PR-110 items 1 and 8, measured. The authored value is what the
+    # ENGINE keeps: the row-node reader 0x51660 reads it with `%hi` into
+    # [node+0x10] (0x51667/0x51679), scales it at 0x51680-0x5168f
+    # (`imul` by the record's time_scale, `idiv 0x3e8`, store back) and
+    # clamps nothing; the step at 0x52320-0x5232b then compares
+    # `cmp eax,ebx; jge` and admits a row only when the accumulator is
+    # strictly greater, so a threshold of 0 or less admits one on every
+    # fed step. The PORT clamps at parse time instead (`ms > 0 ? ms :
+    # 100`, ll_play.c:481) before scaling, and its row loop runs as long
+    # as the accumulator still covers a threshold - so the difference
+    # between "one row per record step" and "all that fit" is about
+    # thresholds BELOW one step of feed, which is what this counts.
+    print("\n== PR-110 items 1 and 8: the threshold AS AUTHORED (what the"
+          " engine stores, it\n   reads `%hi` at 0x51679, scales at"
+          " 0x51680-0x5168f, and has NO clamp) versus\n   what the port"
+          " stores (ll_play.c:481 clamps `ms <= 0` to 100 FIRST, then\n"
+          "   scales at :735). One iteration of the port's feed is 100 of"
+          " its own units,\n   so a stored threshold under 100 is one the"
+          " port's loop can cross more than\n   once in a single step.")
+    allauth = []
+    for mode in MODE_ORDER:
+        t = thr.get(mode)
+        if not t or not t["c"]:
+            continue
+        auth = t["c"]
+        allauth += auth
+        fset = {os.path.basename(s["path"]) for s in states
+                if s["mode"] == mode and any(v <= 0 for v in s["thr_c"])}
+        gset = {os.path.basename(s["path"]) for s in states
+                if s["mode"] == mode and any(0 < v <= 99 for v in s["thr_c"])}
+        print("   %-8s as authored rows %6d   thr<0 %4d   thr==0 %4d (in %d"
+              " files)   1..99 %5d (in %d files)"
+              % (mode, len(auth), sum(1 for v in auth if v < 0),
+                 sum(1 for v in auth if v == 0), len(fset),
+                 sum(1 for v in auth if 0 < v <= 99), len(gset)))
+    fset = {os.path.basename(s["path"]) for s in states
+            if any(v <= 0 for v in s["thr_c"])}
+    gset = {os.path.basename(s["path"]) for s in states
+            if any(0 < v <= 99 for v in s["thr_c"])}
+    print("   every mode: as authored %d rows, %d at threshold 0 in %d"
+          " files, %d negative,\n   %d in 1..99 in %d files. PR-110 item 1"
+          " quotes \"170 of 18617 ... threshold 0\n   (73 files) and 1715"
+          " have threshold in 1..99 units after scaling (111\n   files)\":"
+          " the 170 and 1715 come from that record's own scaling rule, the\n"
+          "   count under the file as written is printed above."
+          % (len(allauth), sum(1 for v in allauth if v == 0), len(fset),
+             sum(1 for v in allauth if v < 0),
+             sum(1 for v in allauth if 0 < v <= 99), len(gset)))
+    # Per-state stored minimum and the two feed estimates for a walking
+    # state, needed by both tables below: a player step at LL_ITER_MS
+    # feeds |vx| * 0.028 with |vx| capped by the authored T= (the engine
+    # clamps T= to 130 at 0x525f8), a scene object's step feeds
+    # |F| * 0.028 / 4000 (obj_walk's law). Both are ESTIMATES from the
+    # state's own header pairs.
+    for s in states:
+        s["tmin"] = min(stored_thresholds(s)) if s["rows"] else 0
+        tmax = max(abs(v) for v in s["hdr"].get("T", (0, 0)))
+        fmax = max(abs(v) for v in s["hdr"].get("F", (0, 0)))
+        s["T_est"] = tmax / 1000.0             # |T| * 0.028, player bound
+        s["F_est"] = fmax * 28.0 / 4000.0      # object bound
+    for mode in MODE_ORDER:
+        t = thr.get(mode)
+        if not t or not t["stored"]:
+            continue
+        st = t["stored"]
+        lo = [v for v in st if 0 < v < 100]
+        fs = {os.path.basename(s["path"]) for s in states
+              if s["mode"] == mode and any(0 < v < 100
+                                           for v in stored_thresholds(s))}
+        two = [s for s in states if s["mode"] == mode
+               and s["feed"] == "time" and s["tmin"] and s["tmin"] <= 50]
+        tail = ""
+        if mode in ("BY_X", "BY_Y", "BY_TIME", "BY_TY"):
+            tail = ("\n            %d %s states (in %d files) have a"
+                    " minimum low enough that ONE 100-unit\n"
+                    "            feed closes TWO rows in the port's loop;"
+                    " the engine's step\n"
+                    "            admits exactly one."
+                    % (len(two), mode, len({os.path.basename(s["path"])
+                                            for s in two})))
+        print("   %-8s as STORED, under one iteration's feed (100): %5d rows"
+              " in %3d files"
+              "   (min %d)%s"
+              % (mode, len(lo), len(fs), min(st) if st else 0, tail))
+    two_t = [s for s in states if s["feed"] == "time" and s["tmin"]
+             and s["tmin"] <= 50]
+    two_p = [s for s in states if s["feed"] == "distance" and s["tmin"]
+             and s["T_est"] and s["tmin"] * 2 <= s["T_est"]]
+    two_o = [s for s in states if s["feed"] == "distance" and s["tmin"]
+             and s["F_est"] and s["tmin"] * 2 <= s["F_est"]]
+    print("   the whole corpus: %d time-fed states have a stored minimum at"
+          " or below 50, so one\n   iteration of the port's feed closes TWO"
+          " of their rows in one step;\n   the engine's step (0x52329 `cmp"
+          " eax,ebx; jge`) admits one." % len(two_t))
+    print("   the distance-fed half, ESTIMATE only: of the %d states the port"
+          " calls walking,\n   %d have a stored minimum at or below half the"
+          " |T| * 0.028 bound (two\n   rows could close in one player step)"
+          " and %d at or below half the object\n   |F| * 0.028 / 4000 bound."
+          % (port["distance"][0], len(two_p), len(two_o)))
+    for s in sorted(two_p, key=lambda s: -s["T_est"])[:12]:
+        print("     %-34s %-16s rows %3d  min stored thr %5d   T=%5d"
+              "  est feed/step %.3f"
+              % (os.path.basename(s["path"])[:34], s["name"][:16], s["rows"],
+                 s["tmin"], max(abs(v) for v in s["hdr"].get("T", (0, 0))),
+                 s["T_est"]))
+    print("   the loop's own bound, for the record: ll_play.c:1288 caps a"
+          " step at\n   `4 * nfr` row closures and :1318-1319 then zeroes"
+          " the accumulator\n   (`guard hit (data safety): resync`);"
+          " ll_level.c has NO such cap - its\n   state loop is bounded by"
+          " the accumulator and by the 4096-iteration guard\n   at :1188-1189,"
+          " and it never resyncs the debt.")
     return 0
 
 

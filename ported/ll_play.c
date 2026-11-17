@@ -1286,6 +1286,7 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
         while ((walk ? p->facc : (double)p->row_t) >=
                    (double)st->fr[p->fi].thresh &&
                guard++ < 4u * (unsigned)st->nfr) {
+
             if (walk)
                 p->facc -= (double)st->fr[p->fi].thresh;
             else
@@ -2581,6 +2582,136 @@ int ll_play_selftest(void)
         CHECK(!bad);
         free(bxm);
     }
+    {   /* PR-115: PR-110 open items 1 and 8 - how many ROWS ONE STEP may
+         * close. The engine admits exactly one. 0x52320-0x5232b, the
+         * exact bytes read again for this record: `8b 43 10` (eax = the
+         * row's threshold, [node+0x10]), `8b 9a a1 00 00 00` (ebx = the
+         * accumulator [obj+0xa1]), `39 d8` (cmp eax,ebx), `7d 27`
+         * (jge 0x52354: threshold >= accumulator -> the epilogue, no row
+         * this step) - and `29 c3` at 0x52334 subtracts in REGISTERS
+         * only, handing `acc - thr` to the row handler at
+         * [[rec+0x44]+0x18]. Nothing in that path writes [obj+0xa1],
+         * and the only writes to it in the dispatcher are feeds:
+         * `add [obj+0xa1], eax` at 0x543d1 (mode 0: the truncated
+         * v_x/100 of the tick), 0x543e7 (the constant 100) and 0x54412
+         * / 0x5443b (the gated modes 3/4). So the accumulator is
+         * monotonic and a covered threshold is admitted once per step.
+         * The port's loop instead runs until the accumulator no longer
+         * covers the current row, capped by `4 * nfr` (ll_play.c:1288)
+         * and followed by a resync that DROPS the leftover (:1317-
+         * 1318). Item 1 expected the data behind that difference to be
+         * "170 of 18617 authored rows have threshold 0 (73 files) and
+         * 1715 have threshold in 1..99 units after scaling (111
+         * files)". The census (mov_byx_gate.py, the PR-110 items 1 and
+         * 8 block, output /tmp/opencode/pr115_census.txt) says
+         * otherwise: the
+         * 170 at threshold 0 are confirmed (73 files, and 0 negative
+         * thresholds anywhere), but with an authored 0 BOTH engines
+         * close exactly one row per fed step - the engine has no clamp
+         * (0x51667/0x51679 read `%hi` into [node+0x10], 0x51680-
+         * 0x5168f scale, nothing clamps: it stores 0) while the port
+         * clamps to 100 (ll_play.c:481), and a monotonic accumulator
+         * admits one either way. The set that differs is 108 time-fed
+         * states in 77 files whose stored minimum threshold is <= 50,
+         * where one 100-unit feed covers two rows; for the 75
+         * distance-fed states that count is 0 under both per-step feed
+         * estimates (|T| * 0.028 for the player, |F| * 0.028 / 4000
+         * for a scene object), and 1682 rows in 1..99 in 109 files are
+         * the as-written count against that record's 1715 in 111.
+         * Hand-derived, no game data. MULTI's first row is authored
+         * `1,0`, the shape of those 170: the port parses it to 100.
+         * Step 1 is dt = 116 ms: 116 = 4 x LL_ITER_MS + 4, so
+         * row_rem is 4 and the feed is 4 x 100 = 400. The port's loop
+         * does not stop at one row: 400 closes row 1 (-> 300), row 2
+         * (-> 270) and row 3 (-> 240, the list WRAPS: fi back to 0,
+         * `broke` armed at ll_play.c:1312), then row 1 again (-> 140),
+         * row 2 (-> 110) and row 3 again (-> 80, a SECOND wrap; six
+         * closures, so x moves by the sum of the six rows' authored
+         * M deltas, +100 + 30 + 30 + 100 + 30 + 30 = +320 from the
+         * 100 the fixture starts at, x 420), and only then does row_t
+         * 80 < 100 stop it. SIX closures, two
+         * wraps, in one step - and the `4 * nfr` guard (12) never
+         * fired. The engine's record step admits ONE row, so it would
+         * be at row 2 with the accumulator still 300. Step 2, dt =
+         * LL_ITER_MS, feeds exactly 100 more and leaves row_rem at 4
+         * (4 + 28 - 28): 180 closes row 1 (-> 80), row 2 (-> 50) and
+         * row 3 (-> 20, a third wrap, x 580). That leftover 20 is the debt
+         * the engine keeps too - nothing in that path writes
+         * [obj+0xa1], so the remainder of one step is the head start
+         * of the next, and no feed of 100 can ever land the
+         * accumulator on 0 when a threshold is not a divisor of 100.
+         * BOUND is the port's cap and resync, made observable: TWO
+         * rows of 100, each with its own `M 100,0` / `M 1,0` move, so
+         * nfr = 2 and the cap is `4 * nfr` = 8 closures, while dt =
+         * 1706 ms = 60 x 28 + 26 feeds 60 x 100 = 6000 - enough for 60
+         * rows. Exactly EIGHT close, four trips round the list (x
+         * +100, +1 four times each = 504), the wraps arm `broke`, the
+         * guard ends the loop, and the resync at :1318-1319 DROPS the
+         * 5200 still owed, leaving row_t 0 and row_rem 26. The M
+         * moves are what make the count visible: a single-row list
+         * cannot tell a capped loop from an uncapped one, because a
+         * feed of 100k drains exactly to 0 either way - which is why
+         * the first version of this leg let M3 through. Call 2, dt =
+         * LL_ITER_MS, feeds 100 more and closes exactly one row: x
+         * +100 = 604, fi 1, and `broke` 0 - it is cleared at the head
+         * of every step (:987) and only a wrap arms it, and this step
+         * did not wrap. Each half of the pair is caught: deleting the
+         * cap closes all 60 rows, x lands at 3130 and the accumulator
+         * empties itself with nothing left to resync (M3); deleting
+         * the resync leaves it at 5200 (M2); bounding the loop at one
+         * closure lands x at 200 (M1). The engine has neither half:
+         * 0x5232b admits ONE row per record step, so those 60 rows are
+         * 60 record steps, and nothing anywhere rewrites the
+         * accumulator - there is no "data safety" resync to drop a
+         * debt. The bounds clamp at :1228 is why the deltas here are
+         * positive and the window is wide.
+         * MUTATION RUNS (/tmp/opencode/mut/run115.sh, logs m1..m6.*):
+         * M1, bounding the loop at one closure per step (the engine's
+         * shape) fails 10 CHECKs, all of them in this leg; M2,
+         * deleting the resync, fails 4, again only here; M3, raising
+         * the cap to 100000, fails exactly the two x CHECKs - the
+         * accumulator alone cannot show a cap, only the position the
+         * rows move can. M6, dropping the parser's clamp so an
+         * authored 0 stays 0 as the engine stores it, fails 10 play
+         * CHECKs including this leg's first fixture CHECK. */
+        static const char RRW[] =
+            "MULTI\nBOUND\n\n[MULTI]\ncontrol=BY_TIME\n"
+            "1,0, M 100,0\n2,30, M 30,0\n3,30, M 30,0\n"
+            "\n[BOUND]\ncontrol=BY_TIME\n1,100, M 100,0\n"
+            "2,100, M 1,0\n";
+        ll_mov_t *rm = calloc(1, sizeof *rm);
+        ll_player rp;
+        ll_play_keys rk = { 0 };
+
+        CHECK(rm && ll_mov_parse(RRW, rm) == 2);
+        CHECK(rm->st[0].nfr == 3 && rm->st[0].fr[0].thresh == 100u &&
+              rm->st[0].fr[1].thresh == 30u && rm->st[0].fr[2].thresh == 30u);
+        CHECK(rm->st[0].fr[0].dx == 100 && rm->st[0].fr[1].dx == 30 &&
+              rm->st[1].nfr == 2 && rm->st[1].fr[0].dx == 100 &&
+              rm->st[1].fr[1].dx == 1);
+        ll_player_start(&rp, rm, 100, 100, 1);
+        CHECK(rp.sti == 0 && rp.fi == 0 && rp.row_t == 0u);
+        ll_player_step(&rp, NULL, &rk, 0, 200000, 116);
+        CHECK(rp.sti == 0 && rp.fi == 0 && rp.broke == 1);
+        CHECK(rp.row_t == 80u && rp.row_rem == 4u);
+        CHECK(rp.x == 420.0);        /* 100 + six closures' M deltas */
+        ll_player_step(&rp, NULL, &rk, 0, 200000, LL_ITER_MS);
+        CHECK(rp.fi == 0 && rp.broke == 1);
+        CHECK(rp.row_t == 20u && rp.row_rem == 4u);
+        CHECK(rp.x == 580.0);       /* three more: +100 +30 +30       */
+        ll_player_start(&rp, rm, 100, 100, 1);
+        rp.sti = 1;
+        rp.fi = 0;
+        ll_player_step(&rp, NULL, &rk, 0, 200000, 1706);
+        CHECK(rp.fi == 0 && rp.broke == 1);
+        CHECK(rp.row_t == 0u && rp.row_rem == 26u);   /* the resync */
+        CHECK(rp.x == 504.0);       /* exactly 8 closures = 4 x 2      */
+        ll_player_step(&rp, NULL, &rk, 0, 200000, LL_ITER_MS);
+        CHECK(rp.fi == 1 && rp.broke == 0);           /* no wrap here */
+        CHECK(rp.row_t == 0u && rp.row_rem == 26u);
+        CHECK(rp.x == 604.0);
+        free(rm);
+    }
     if (!rc)
         printf("play selftest: .plt physics (+ the '!' separator variant,"
                " + an authored-empty '0' ground is data not an error),"
@@ -2615,6 +2746,17 @@ int ll_play_selftest(void)
                " release), its rows run on the ITERATION clock (one"
                " 100-unit row per feed, the sixth wraps the list and only"
                " that wrap arms BREAK_NEXT), and the distance"
-               " accumulator stays exactly 0 (ok)\n");
+               " accumulator stays exactly 0, PR-115: ONE step closes as"
+               " many rows as its feed covers, PAST the list wrap (a"
+               " 400-unit feed closes SIX rows of a 100/30/30 list and"
+               " wraps twice, and the leftover 20 plus the millisecond"
+               " carry are kept as a debt the next step inherits, which"
+               " is what the engine's never-rewritten [obj+0xa1] does"
+               " too) - while the player's own loop stops at `4 * nfr`"
+               " closures and then resyncs the rest to 0 (a 6000-unit"
+               " feed closes EIGHT rows of a two-row 100 list, x moves"
+               " by exactly those eight rows' authored M deltas, and the"
+               " 5200 still owed is dropped; the engine has neither"
+               " half) (ok)\n");
     return rc;
 }

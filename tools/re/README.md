@@ -45,7 +45,19 @@ and the threshold table for PR-110 items 1, 2 and 8 under four readings
 becomes 100, so a stored threshold of 0 does not exist), with the block's
 `time_scale=` applied, and as PR-110 counted. Also counts active and
 commented `time_scale=` lines. Stdlib only, inventories only, no game
-data in git. NEXT_STEPS.md PR-114. |
+data in git. PR-115 adds a section, the one items 1 and 8
+actually need: it reads the row threshold AS AUTHORED (the engine's
+`%hi` read at 0x51667/0x51679 into `[node+0x10]`, scaled at
+0x51680-0x5168f, and NO clamp anywhere) against what the port stores
+(its `ms > 0 ? ms : 100u` at `ll_play.c:481` runs BEFORE the
+`time_scale` scaling at `:735`), per mode: rows under 100 as stored,
+the states whose stored minimum one 100-unit iteration crosses TWICE,
+the same question for the distance-fed half under both per-step feed
+estimates (`|T| * 0.028` for the player, `|F| * 0.028 / 4000` for a
+scene object, both labelled estimates), and the loops' own bounds -
+`4 * nfr` closures plus the accumulator resync in the player, nothing
+but the 4096-iteration guard in the object engine. Stdlib only,
+inventories only, no game data in git. NEXT_STEPS.md PR-114, PR-115. |
 
 ## Disassembly
 
