@@ -930,6 +930,36 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      (0x1e0f0), which special-cases the state NAME 'A_DEAD' to give
      per-level death states the base sub-table 0x97c9c. PR-104's
      direct probe [[obj+8]+0xe4]=0x50300 stands (body unread).
+   - PR-106 FINDS THE FRAME LOOP AND THE GATE (RE only, nothing
+     pinned). The level frame loop is 0x4abd0, one caller: 0x5d251
+     inside the level-run wrapper 0x5d170. Its think pass 0x4ba90
+     walks the four lists (three groups at [[level+0/4/8]+0x58] with
+     counts at +0x44, plus [level+0x64]) and per item calls slot
+     +0x60, stepping the object (0x52b80 -> +0x14) ONLY when that
+     returns non-zero; in 132 of the 162 measured class tables +0x60
+     is `mov eax,[eax+0x2c]; ret`, and the flag it reads is written
+     by the OTHER pass: slot +0x64 (0x238e0 in 111 tables) sets
+     [obj+0x2c] from a rect-in-view test (slot +0x08 = 0x23e00 in
+     157 tables, the variant 0x53690 asks 0x534e0 for its rect). So
+     off-camera objects are never stepped, and the drawing pass, not
+     the state machine, decides what thinks; the lion is stepped
+     every iteration (0x4aed6). CORRECTS PR-105: 0x4bb30 is a
+     FILTERED MESSAGE BROADCAST - its `[[item+8]+0xc]` call is a
+     predicate compared against a filter argument, not the state
+     step, and delivery goes to slot +0x10 with a 4-dword stack
+     message. The loop's own period: 0x4b0e0 -> 0x4a120, which
+     spins on the clock ds:0xcf1b2 until a setpoint [0xcef38] is
+     reached, then waits ONE VGA retrace (0x1dba0: in al,0x3DA, bit
+     3); that setpoint is authored at startup by 0x4a190 as 2 x
+     measured-retrace-ms - 1, fallback 27 = 2*14-1, replacing the
+     reset value 1000 from 0x4a0e0. The clock advances only through
+     the INT 8 ISR chain 0x1c6d0 -> 0x1c680 -> the dispatcher
+     0x1c5b0, adding ds:0xcf1b6 = 55 (set by the clock ctor
+     0x5b860), and the level wrapper starts it (0x5d18b). The mode
+     is INT 10h AX=0x13 over an internal 400-pitch buffer (0x4a230,
+     0x4a170), lives=9 is set on the single-level path (0x5eae0 ->
+     0x5d170), and the sound init reprograms PIT counter 0 to 70.0
+     Hz (0x18870).
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
      files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's
@@ -1033,11 +1063,29 @@ concrete mechanism the pacing tension was missing - the row's threshold
 is stored pre-scaled at parse time, `[node+0x10] = T * time_scale /
 1000` (0x51660), and 0x52320 compares that against the accumulator, so
 a threshold of 200 with the 1000 default is 2 feed steps and the same
-row under `time_scale=2000` is 4. What a row's duration is, in seconds,
-is now exactly one unread number: how often the +0x14 slot (0x536f0
-and its wrappers) is called during play - PR-105 found the pump
-(0x4bb30, which steps every object in the level's four lists at
-[X+0x58]/[X+0x64]) but only its setup-time callers, not a frame loop.
+row under `time_scale=2000` is 4. What a row's duration is, in
+seconds, used to be exactly one unread number: how often the +0x14
+slot (0x536f0 and its wrappers) runs during play. PR-106 read that
+caller - the level frame loop 0x4abd0 (one caller, 0x5d251 in the
+level-run wrapper 0x5d170) calls the think pass 0x4ba90, which steps
+an object through 0x52b80 -> +0x14 only when its slot +0x60 answers
+non-zero, and 132 of 162 measured class tables have +0x60 = `return
+[obj+0x2c]`, a flag written by the drawing pass at 0x4b970 through
+slot +0x64 (a rect-in-view test). PR-105's "the pump 0x4bb30 steps
+every object in the level's four lists" is corrected: it is a
+filtered message broadcast. What is left is the loop's own period,
+and that is now a measurement question, not an RE one: the pacer
+0x4a120 (called from the loop at 0x4aef5 via 0x4b0e0) waits for a
+setpoint at [0xcef38] that startup code 0x4a190 authors as 2 x
+measured-retrace-ms - 1 with a 27 ms fallback (= 2*14-1) and then
+syncs to one VGA retrace (0x1dba0: port 3DAh bit 3); the ms clock it
+spins on moves in 55-unit BIOS ticks (the INT 8 chain 0x1c6d0 ->
+0x1c680 -> 0x1c5b0, the clock started by 0x5b860 from the level
+wrapper at 0x5d18b); the video mode is 320x200 via INT 10h AX=0x13
+(0x4a230) and the sound init sets PIT counter 0 to 70.0 Hz
+(0x18870). So the row-to-seconds factor depends on which of those
+rates a real machine actually ran at (NEXT_STEPS PR-106 open item 2)
+- the port's 20 ms tick is not re-pinned here.
 (3) what writes
 [obj+0xba]/[obj+0xbe] (0x54a00..0x54ab0) - they are now known to be
 the gate of the time feed, but their meaning is unread - and where the

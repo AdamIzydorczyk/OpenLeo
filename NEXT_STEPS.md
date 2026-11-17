@@ -7128,6 +7128,208 @@ happened.
   whole compose-step-lookup-apply sequence is one virtual method).
   No behaviour change, no pin moved.
 
+## PR-106 — the frame loop found: what drives the object state machine
+during play, the +0x60 gate and who writes the flag it reads, the
+correction of PR-105's pump paragraph, and the frame source the pacing
+question was really about (RE only: no behaviour change, no pin moved)
+
+Closes PR-105 open item 1 (the frame loop) and the "who calls +0x14
+during play" question that PR-98..PR-105 carried. Method change worth
+recording: grepping the linear-sweep listing had to be replaced by a
+call graph. Four new scratch tools under /tmp/opencode: cgraph.py
+(direct-call graph, reverse callers with depth, dword/pointer scans,
+--indcall/--reach), path.py (forward path from a root), dis.py (range
+listing, enclosing-function heuristic), dat.py (exact-byte disassembly
+at a VA with --adjust-vma, so no linear-sweep drift). Every address
+below was read through dat.py at its own VA, not from a sweep. The
+method also killed a false lead: the "jump-table entry at 0x587d9
+pointing at 0x4bb30" is instruction bytes (`mov esi,[eax]` at
+0x587d8, `mov ebx,4` at 0x587da) - an unaligned dword read, not data.
+
+- THE FRAME LOOP IS 0x4abd0 (level object in ecx; the caller keeps it
+  in eax/ecx). Exactly one caller: 0x5d251, inside 0x5d170 - the
+  level-run wrapper (C++ exception frames; it passes `mov eax,ds:
+  0xcef40`, so [0xcef40] is a POINTER to the level object; after the
+  loop it reads [level+4] as the return value and zeroes the global).
+  0x5d170 is reached from the per-level wrappers 0x5d3a0..0x5d7a0
+  (entry table at 0x5d9d0) and from the single-level path 0x5eb11.
+  Loop head 0x4ac3b, verbatim order: exit code 3 if
+  [[[level+0x394]+0x116]] != 0 (the lion's flag PR-105 knew); exit 1
+  if [level+4] != 0; `mov eax,0xcf400; call 0x58690`; if [level+
+  0x3a0] != 0 the iteration is skipped (jmp 0x4ae82); if [level+
+  0x3b0] != 0, 0x4a8f0(level), `[[[level+0x3b0]+4]+0x8]`, clear the
+  field, 0x4a8c0(level); three modal blocks keyed on bits 0x20/0x4/
+  0x8 of two stack bytes, each wrapped in 0x4a8f0/0x4a8c0 (0x4a8f0
+  suspends, 0x4a8c0 resumes - the pair brackets every modal path).
+  Then 0x4ae82: exit 2 if the lives global ds:0xa94f0 == 0; `call
+  0x4ab50` (a plain 12-byte copy, src=edx, dst=eax: [esp+0x1f0] ->
+  [esp+0x1e4]); `mov eax,edi; call 0x222d0`; **`mov eax,ecx; call
+  0x4b970`**; **`mov eax,ecx; call 0x4ba90`**; `mov eax,[ecx+0x394]`
+  (the LION, at +0x394 - the layer list is +0x390), `mov ebx,[eax+
+  8]`, `lea edx,[esp+0x1e4]`, `call [[ebx+0xcc]]`; then
+  `mov eax,[ecx+0x394]; call 0x52b80` at 0x4aed6 - the lion is
+  pumped+stepped unconditionally every iteration; then 0x4ab80,
+  `mov eax,0xcf068; call 0x563d0` (the music singleton), 0x4af10
+  (applies the `plany=` layer-command string at [level+0x30]),
+  `call 0x4b0e0` (the pacer, below), `inc DWORD PTR ds:0xcef3c`
+  (the frame counter) and `jmp 0x4ac3b`.
+- THE STEADY-STATE DRIVER OF +0x14 IS 0x4ba90 (the think pass), read
+  verbatim: three groups at [[level+0]/[level+4]/[level+8]], each
+  with a count at group+0x44 and a list of heads at group+0x58
+  indexed in bytes, plus a fourth list at [level+0x64]; every item
+  list is walked through the [item+0x34] link; per item:
+  `mov ebx,[edx+8]; call DWORD PTR [ebx+0x60]`, and ONLY if that
+  returns non-zero `call 0x52b80(item)` (0x4baed for the three
+  groups, 0x4bb12 for the fourth). So PR-105's slot +0x14 is called
+  once per frame-loop iteration per object, through a per-object
+  gate - and the four lists are the same four PR-105 saw in the
+  pump.
+- 0x52b80 IS THE PER-OBJECT PUMP: first 0x52b50, which drains the
+  object's own message queue at [obj+0x10] by repeatedly calling
+  `[[obj+8]+0x10]` with edx = the queue node and freeing it through
+  0x5c370 - the node's first dword IS the queue link, which is why
+  PR-105 read the type at [msg+4]: the delivery form is edx = &head,
+  so [msg+0] is the link and [msg+4] the type, one mechanism for
+  both queued and direct messages. Then `call [[obj+8]+0x14]` - the
+  state step, PR-105's chain. Then if [obj+0x28] != 0,
+  `call [[obj+8]+0x0]` with edx=2.
+- THE GATE READS A FLAG, AND THE OTHER PASS WRITES IT. Census over
+  the 162 class-table pairs that vtable_scan.py measures (new scratch
+  tool slot_census.py, reads the dwords straight out of
+  build/leo/leo.img): slot +0x60 = 0x23b80 in **132 of 162** tables,
+  and 0x23b80 is two bytes of body: `mov eax,[eax+0x2c]; ret`. So
+  the gate is the object's field +0x2c. Who writes it: the pass at
+  0x4b970 calls `[[item+8]+0x64]` with edx = [item+0x24]*0x14 + a
+  scratch block, and slot +0x64 = 0x238e0 in 111 tables: `[obj+0x2c]
+  = ([obj+0x5c] == 2) || ([[obj+8]+0x08] != 0)`, and the +0x08 slot
+  = 0x23e00 in 157 tables: a point-in-rect test of [obj]/[obj+4]
+  against a rect at [edx+0]/[edx+4]/[edx+8]/[edx+0xc]. The 21-table
+  variant 0x53690 gets its rect from a 5-dword request through
+  0x534e0 (request buffer {0,0,0,0,0x98274}) and compares it against
+  the record block. So: **on-camera objects are stepped, off-camera
+  objects are not stepped at all** (they keep no partial progress -
+  their accumulator simply does not move), and the author of the
+  activation flag is the drawing pass, not the state machine. The
+  lion is exempt: 0x4aed6 pumps it every iteration.
+- CORRECTION TO PR-105 (quote of the text being corrected: "per item
+  calls `[[item+8]+0xc]` - that IS the item's +0x14 state step,
+  second view - and where the step's returned value matches a filter
+  (esi) it then calls `[[item+8]+0x10]`", and "the steady-state
+  per-frame call of the pump (or of any +0x14 site) is STILL NOT
+  FOUND"). Both are wrong. 0x4bb30 is not a state-stepping pump: it
+  takes four register arguments (eax = the list owner, edx -> esi,
+  ebx -> edi, ecx -> ebp) plus a stack argument at [esp+0x44]; it
+  walks the same four lists; the `[[item+8]+0xc]` call is made ONLY
+  when esi != 0 and its result is compared against esi - it is a
+  filter predicate, and +0xc in the [obj+8] view is NOT the state
+  step (+0x14 is; the 8-byte view shift PR-105 documented does not
+  make +0xc into +0x14). When the predicate passes it builds a
+  4-dword stack message {0, edi, ebp, stack arg} and calls
+  `[[item+8]+0x10]`: a FILTERED MESSAGE BROADCAST, nothing more. Its
+  callers are 0x4d7ab/0x4d7c5 inside 0x4c8a0 - confirmed here as the
+  LEVELDES config parser (key literals from 0x91e01, the string
+  compare 0x76d20, the loop back to 0x4cbbc), i.e. setup, not play -
+  plus 0x4a6b7 (0x4a4be) and 0x1e333 (0x1e30c), still unreferenced.
+- THE FRAME SOURCE, in pieces, all read at their own VAs. (a)
+  0x4b0e0 = `mov eax,0xcef30; call 0x4a120; call 0x1cfe5; ret`.
+  (b) 0x4a120 is the pacer: if `ds:0xcf1b2 - [obj+4] >= [obj+8]` it
+  returns at once, else it spins on that clock and then `call
+  0x1dba0`; finally [obj+4] = ds:0xcf1b2. (c) 0x1dba0 is a VGA
+  retrace wait: `mov dx,0x3da` then `in al,dx; and al,8` waiting for
+  bit 3 to go 1, then again waiting for 0 - one retrace, port 3DAh.
+  (d) The pacer struct is the global controller object at 0xcef30:
+  [0xcef34] is the last stamp, [0xcef38] the setpoint. Its reset
+  0x4a0e0 writes 0, 0 and 1000 (a not-yet-measured value); the only
+  other writer of those words is 0x4a160 (`mov [eax+4],0`, called
+  with eax=0xcef30 from the loop's exit path) and the pacer itself.
+  (e) The setpoint is authored at startup by 0x4a190: it starts the
+  ms clock, measures 5 retrace pairs (0x1dba0, read the clock,
+  0x1dba0, read the clock), keeps the MINIMUM in ecx and the MAXIMUM
+  in esi, then if (max-min) > 2 writes **[obj+8] = 0x1b = 27**,
+  else writes **[obj+8] = min * edx - 1**; both call sites pass
+  edx = 2 (0x5e4a1 in 0x5e410, 0x5eaee in 0x5eae0). So the engine
+  paces over TWO display frames, and the fallback 27 is exactly
+  2*14-1: the author assumed a 14 ms frame.
+- THE CLOCK BEHIND IT, AND THE MODE THAT SETS THE FRAME TIME. The
+  clock ds:0xcf1b2 is advanced only at 0x1c65d: `add ds:0xcf1b2,
+  ds:0xcf1b6`, inside the dispatcher 0x1c5b0 (reached from the ISR
+  0x1c6d0 -> 0x1c680, which switches to the ISR stack at [0xcf450]);
+  that dispatcher first walks the registered periodic-handler list at
+  ds:0xcf1bc, per handler `call [[h+0x14]+0]` with its period at
+  h+0xc and last-fire at h+0x8. ds:0xcf1b6 = 0xcf1a8+0xe and the
+  clock ctor 0x5b860 sets `[esi+0xe] = 0x37 = 55` (also 0x5b9a2 for
+  another clock object), and 0x5b860 is the only thing that installs
+  0x1c6d0: it gets/saves the INT 8 vector through the DOS wrappers
+  0x75c5a (INT 21h AH=0x35) and 0x75c8c (AH=0x25; both have a DOS
+  7+ extended variant chosen by the version byte ds:0xa9bee) and
+  0x5b8f0 restores it. So the game's "ms" clock = one BIOS timer
+  tick stamped as 55 ms. 0x5b860 is called from 0x4a1ac (inside the
+  calibration), from **0x5d18b inside the level-run wrapper** and
+  from 0x5decb - the clock only runs during a level. Separately, the
+  video mode: 0x4a230 = INT 10h with AX=0x13 (mode 13h, 320x200)
+  through the real-mode INT wrapper 0x75c3d, then a helper 0x76a64
+  with eax = 0x13ba0 (80,800 = 400x202) whose result is stored in
+  ds:0xcef2c; the frame-address helper 0x4a170 = ds:0xcef2c +
+  ds:0xcf0e8 + 0x190 shows the internal buffer's row pitch is 400.
+  0x4a270 undoes it (INT 10h AX=3). Both are called by the run
+  wrappers 0x5e410 and 0x5eae0 - and the 0x5eae0 path is the single-
+  level path: set mode, calibrate the pacer, `mov edx,9; mov ds:
+  0xa94f0,edx` (lives = 9, the global the loop tests for exit 2),
+  then 0x5d170 (the level run) and 0x4a270. Finally, the sound
+  driver init (0x5cfc0 -> 0x1b800 -> ... -> 0x18870, reached from
+  the level-run setup) installs the INT 1Ch handler 0x18730 AND
+  writes PIT counter 0: control 0x36 then count bytes 0x95,0x42 =
+  0x4295 = 17045, i.e. 1193182/17045 = **70.0 Hz**, with 0x188c0
+  restoring count 0 (18.2 Hz) on teardown.
+- WHAT IS SETTLED FOR THE PORT (and what is arithmetic, labelled).
+  For an ON-CAMERA object one frame-loop iteration = exactly one
+  +0x14 call = one key composition + one feed update + at most one
+  row (PR-105), so the state machine's cadence is the frame loop's
+  cadence, and PR-105's "no other scheduler" stands: the loop calls
+  it, nothing else does at runtime. The loop's own period is bounded
+  by (i) the retrace wait 0x1dba0, (ii) the setpoint [0xcef38] =
+  2 measured retrace intervals - 1, or the 27 fallback, and (iii)
+  the clock's own tick, since the spin in 0x4a120 cannot exit until
+  the clock has advanced by >= the setpoint and the clock only moves
+  in 55-unit steps. INFERENCE, not measurement: with mode 13h's
+  70.08 Hz retrace and the sound driver's 70.0 Hz PIT, one
+  iteration is 2 retraces = 28.6 ms, i.e. ~35 object steps per
+  second, and the 27/2-frame design matches that. The port's 20 ms
+  tick (ll_level.c:1136, `facc < f->ms`, time_scale compared
+  unscaled) is NOT what the engine does; this record does not
+  re-pin it - the number to fit is now a small, well-posed set (see
+  open items) and any change needs the data-free test + mutation
+  check the ground rules require.
+- OPEN ITEMS (PR-106 1-6): (1) what 0x58690 does with the 0xcf400
+  singleton per iteration: it reads a state dword at [obj+0xb], and
+  for state 2 copies 12 bytes from a 16-byte-strided record array
+  (index at [obj+0x2b], sub-index at [obj+0x2f]); those 12 bytes are
+  then copied by 0x4ab50 into the block handed to the lion's slot
+  +0xcc at 0x4aeca. Input-record playback, format and authoring
+  unread. (2) The real-hardware frame time: 55 ms clock granularity
+  vs a 70 Hz PIT vs the 70.08 Hz mode-13h retrace - the three
+  numbers are machine-verified individually, their combination on a
+  real machine is not, and the port needs one of them (or a video
+  measurement) to convert rows to seconds. (3) What writes
+  [obj+0x5c] (the == 2 force-active case) and the other [obj+0x2c]
+  writers (0x2b809, 0x2db80, 0x3f7a0, 0x28eb6/0x28ef6/0x2905b, ...).
+  (4) PR-105 item 7 unchanged: what feeds the four lists. (5) The
+  unreferenced 0x4a4be/0x1e30c/0x1e12f cluster: the aligned-dword
+  pointer scan finds no reference, so either dead code or a
+  computed/unaligned address. (6) The +0x60 slots that are NOT
+  0x23b80 (26 other targets over 30 tables, e.g. 0x23280 in 4) -
+  per-class rate gates or flag variants, unread.
+- Docs: this record in NEXT_STEPS.md; mirrored into HANDOFF.md §7
+  item 13 and the §8 pacing paragraphs (the sentence "what a row's
+  duration is in seconds is one unread number: how often +0x14 is
+  called" is replaced by the frame loop + gate + pacer chain, and
+  PR-105's pump claim is corrected in place); the engine-comparison
+  comment at obj_walk in ported/ll_level.c is corrected the same way
+  (the 0x4bb30 "pump that steps every level object" sentence
+  replaced by the 0x4abd0 -> 0x4b970/+0x64 -> 0x4ba90/+0x60 ->
+  0x52b80 -> +0x14 chain and the pacer). No behaviour change, no
+  pin moved; §1/§6 estimates untouched.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

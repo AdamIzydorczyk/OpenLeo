@@ -1059,10 +1059,18 @@ static void obj_arm_atak(lvl_obj *o, int lx, int ly, int verbose, int tick)
  * slot, +0x14), and the feed dispatcher 0x543a0 itself has exactly
  * one call site (0x52317, in 0x521f0's own keyed branch). So one
  * call to slot +0x14 = one key composition + ONE feed update + at
- * most one row, with no other timer or scheduler anywhere; the only
- * open number is the CALL RATE of +0x14 - the pump that steps every
- * level object (0x4bb30) is measured, its steady-state caller is
- * not (NEXT_STEPS PR-105). */
+ * most one row, with no other timer or scheduler anywhere. PR-106
+ * found the caller: the level frame loop 0x4abd0 runs a think pass
+ * 0x4ba90 over the level's four object lists once per iteration, and
+ * an object is stepped (0x52b80 -> +0x14) only where its slot +0x60
+ * answers non-zero - in 132 of 162 measured class tables that slot
+ * is `return [obj+0x2c]`, a flag written during the draw pass
+ * 0x4b970 through slot +0x64, a rect-in-view test. So the engine
+ * steps on-screen objects once per frame and freezes off-screen ones
+ * completely; the loop's own period is a retrace sync (0x4b0e0 ->
+ * 0x4a120, 0x1dba0) against a startup-measured two-frame setpoint
+ * (0x4a190). The 20 ms tick below is a modelling choice, not a
+ * measurement (NEXT_STEPS PR-106). */
 static void obj_walk(lvl_obj *o, const ll_mov_st *s, unsigned dt_ms)
 {
     double dist = (double)(s->fx >= 0 ? s->fx : -s->fx) * dt_ms / 4000.0;
