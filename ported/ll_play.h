@@ -97,7 +97,18 @@ int  ll_plt_first_below(const ll_plt *o, int x, int from_y, ll_xy *hit);
  *   ANTI_POCISK 121  BY_X 105  SEMI_SOLID 92  ANTI_SOLID 87
  *   CHECK_ALL_PLANE 62  CHECK_ZW 47  SEQ_REV_Y 22  BY_Y 13  BY_TY 12
  *   CHECK_BASE_LN 8  SEQ_REV_X 7  INV_V 3
- * `BY_TY` is the data's own typo for BY_TIME (12 scripts). Names without a
+ * `BY_TY` and `BY_Y` are NOT typos/aliases in the engine, whatever this
+ * comment used to say (PR-102): the mode field at bits 0..2 of the
+ * state's control word has five values - BY_X 0 (sets nothing), BY_Y 1,
+ * BY_TIME 2, BY_TX 3, BY_TY 4 - and the dispatcher's jump table
+ * (0x54380) gives mode 1 its own feed of |v_y| (0x543dc: `mov
+ * eax,[obj+0xce]` -> abs -> `add [obj+0xa1],eax`), while mode 4 is a
+ * separate body (0x5441b) guarded by `[obj+0xbe] != 0` that feeds the
+ * same level constant 100 as modes 2/3, which are guarded by
+ * `[obj+0xba] != 0`. BY_TX appears in 0 shipped files and every BY_TY
+ * state is a climb/hang state of the lion, which fits the vertical
+ * reading; neither is modelled here (no LL_CTRL bit acts on either) and
+ * nothing is pinned from this. Names without a
  * bit below are parsed, named here for the record, and counted in
  * ctrl_other - never silently dropped, never invented into a behaviour. */
 enum {

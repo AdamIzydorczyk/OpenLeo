@@ -622,7 +622,16 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                 } else if (line[0] != ';' && strchr(line, '=')) {
                     /* state payload fields the model does not act on yet:
                      * sample= (487, sound ids), time_scale= (115).
-                     * Counted, never dropped in silence (PLAN 8g). */
+                     * Counted, never dropped in silence (PLAN 8g).
+                     * PR-102 RE note, no behaviour change here: the
+                     * engine stores `time=N,M` as two 16-bit halves at
+                     * record +0x8/+0xa and `time_scale` at +0xe
+                     * (parser 0x51910), and every row's threshold is
+                     * then pre-scaled at parse time by
+                     * `T * time_scale / 1000` (0x51660). So this
+                     * counter is an unmodelled SCALE on frame timing
+                     * (all 120 shipped values are multiples of 100,
+                     * 400..2000), not just an unused field. */
                     s->field_other++;
                 }
                 /* the bare state names before the first '[' stay ignored,

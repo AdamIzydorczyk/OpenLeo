@@ -6210,6 +6210,320 @@ from an objdump-confirmed entry. New tool:
   than only in engine code - the census tool counts row fields, not
   node images, so it cannot answer this; a node dump would.
 
+## PR-102 — the record class pair: their parsers and constructors, the
+transition table they fill, the `F=`/`T=`/`G=` fields, the state-name
+table, and a mode-enum correction (RE only: no behaviour change, no
+pin moved)
+
+Works PR-101's open items 1 and 2 (the transition table's writer and
+what 0x47e40 compares) and half of item 5. Method unchanged: objdump of
+`/tmp/opencode/vis/text.bin` for `.text`, words/strings/tables from
+`build/leo/leo.elf` (file offset = VA - 0xf000), every chain started
+from an objdump-confirmed entry. Cross-checked against the 777 shipped
+`.MOV` files in `/tmp/opencode/mov/`.
+
+- THE WRITER OF `[rec+0x1a]` IS THE RECORD CLASS'S OWN PARSE METHOD.
+  The class table PR-101 read at 0xa260c (its +0x0c is the row step
+  0x521f0, its +0x18 the row handler 0x520c0) has **0x51910 at its
+  +0x00 parse slot** - a real function start (`push ecx/esi/edi/ebp;
+  mov ebp,esp; sub esp,0x38`), referenced from exactly one table slot.
+  Inside it, 0x51e07..0x51e91 resolves a state name to an index
+  (0x53440), reads a number (0x57d30/0x57db0/0x57fd0), builds an entry
+  with `0x49610(eax=scratch, ebx=expression text, ecx=<that number>)`
+  and pushes it into the vector that lives AT `[rec+0x1a]` - `[+0x1a]`
+  base, `[+0x1e]` end, `[+0x22]` capacity, grow through 0x22010, then
+  `rep movsd` of 5 dwords + `movsb` = exactly the 21-byte entry.
+  0x49610 = `0x47d50` (the key-expression parser) followed by
+  `mov [entry+0xd],<state index>` and `mov [entry+0x11],<the number>`;
+  it is called from exactly one place, 0x51e4d, so the transition table
+  is filled ONLY by the `.MOV` parse path. So PR-101's "record index at
+  +0xd" is a **state index in the owner's `[obj+0x50]` array** and
+  "+0x11" is a **row index into that state's row list** - the same pair
+  of fields the engine itself uses for the current state and row.
+  WITHDRAWN from the first draft of this record: "the parse slot is
+  0x559c0 and it calls 0x51e07". 0x559c0 is a different slot of the
+  same table (+0x08) and is a 13-byte key reset (`mov byte [edx+0xc],0`
+  + `0x749a0` zeroing the other 12 bytes), not a parser and not a
+  caller of 0x51e07.
+- TWO RECORD CLASSES, THEIR SIZES, AND WHERE `F=`/`T=`/`G=` LIVE. The
+  sub-table's +0x14 slot is 0x518f0: `operator new(0x48)` then
+  0x517e0, a copy-ctor that copies the source's +0x00 (a pointer),
+  +0x04 (the row index), +0x08/+0x0a (the `time` pair, WORDs), +0x0c
+  (WORD), +0x0e (dword), +0x12 (the control dword), +0x16 (dword),
+  copy-constructs the vector at +0x1a (0x22190 / 0x21750 reserve 10),
+  initialises the vector at +0x2e, and ends with
+  `mov DWORD PTR [eax+0x44],0xa260c` - the first hard proof that
+  `[rec+0x44]` is that class table, and that the BASE record is 72
+  bytes. The table PR-100 called 0xa25d4 "this record class's method
+  table" is a DERIVED class: its +0x14 slot 0x52570 does
+  `operator new(0x60)` then a ctor 0x52500 that calls the base copy-
+  ctor 0x517e0 and writes `mov [eax+0x44],0xa25d4`, and its +0x00
+  parse slot 0x52590 parses three one-character keywords with the
+  format `' %i,%i'` - `F=` into `[rec+0x50]`/`[rec+0x54]`, `T=` into
+  `[rec+0x58]`/`[rec+0x5c]` (each clamped: `cmp 0x82` / `mov 0x82` =
+  the 130 cap PR-101 recorded), `G=` into `[rec+0x48]`/`[rec+0x4c]` -
+  and then DELEGATES any other line to the base parser: 0x5264b is
+  `mov edx,esi; mov eax,ecx; call 0x51910`. So `F=`/`T=`/`G=` are the
+  derived record's fields at +0x48..+0x5c, which is what the port's
+  `s->fx/fy`, `s->tx/ty`, `s->gx/gy` (ll_play.c) correspond to, and
+  the two tables share one slot numbering (+0x0c is the row step
+  0x521f0 in both, +0x18 the row handler 0x520c0 in both, the stubs
+  0x23c90/0x23c80 at +0x04/+0x10 in both). Reading that region also
+  shows why PR-101's node census flagged 0xa2638 and 0xa2650 as
+  "stray" node tables: they fall INSIDE the record class table at
+  0xa260c (its slots +0x2c..+0x44), and 0x457e0/0x45800/0x45870/
+  0x458e0 are PR-101's node chain getters and walk query. Where the
+  record class table ends and a node class table begins there is
+  unresolved (open item 3).
+- THE RECORD'S WHOLE BASE-CLASS VOCABULARY IS IN ONE FUNCTION, AND
+  IT MAPS ONTO THE LAYOUT PR-101/PR-100 inferred. 0x51910 dispatches
+  on the name and writes: `time` -> `"%hi"` at `[rec+0x8]` then
+  `",%hi"` at `[rec+0xa]` (so `time=60,100` is two 16-bit halves);
+  `sample` -> `"%d"` at `[rec+0x16]`; `time_scale` -> `"%d"` at
+  `[rec+0xe]`; `seq` -> reads `%s`, resolves the name through the
+  object at `[[0xcef40]+0x398]` (a vtable at +0x16, lookup slot +0x04
+  - a name->index map) and stores the index in the global 0xceff4;
+  `control` -> clears `[rec+0x12]` and ORs the tokens (PR-59/PR-99);
+  `NAME ( number ) =` -> the transition entry above. There is also a
+  branch at 0x51a4e keyed on the one-character name at 0x92146 (`s`)
+  that has exactly the shape of a row line: it reads a token with
+  `' %[^ ,]%*[ ,]'`, resolves it through the same name->index map,
+  reads the next number with `"%d,"`, allocates 0x18 (0x5c320) and
+  builds it with `0x515e0(eax=node, ebx=<that name's index>, ecx=<the
+  number>, edx=<the stream>)` with 1000 pushed as a fifth argument,
+  then pushes the POINTER into the vector at `[rec+0x2e]` - so that
+  vector is {+0x2e base, +0x32 capacity, +0x36 count, +0x3a
+  capacity-end} with 4-byte elements, grown through 0x21e80: PR-101's
+  "[rec+0x36] = the row count" and 0x52360's mirror
+  `[[rec+0x2e]+8]-edx-1` are both consistent with that (the count is
+  an element count, not a pointer: 0x51ae3 does `*4` then `inc`, not
+  `add 4`). What is NOT settled: the token is the single character at
+  0x92146 = `s`, and NO shipped `.MOV` has a line starting with `s`
+  followed by `=` (0 hits in 777 files), so this is not the branch the
+  row lists really take; the reading of the plain `N,T` lines is open
+  item 2. And `[rec+0x0c]`, the one WORD in the parsed range that
+  neither parser writes, is still unexplained.
+- ROW NODES ARE BUILT AT PARSE TIME, AND THAT IS WHERE `time_scale` IS
+  APPLIED. 0x51eb0 is a second real function start (`push ecx/esi/edi/
+  ebp; sub esp,0x10`) and the derived ctor 0x52500 calls it at 0x52568,
+  after the base copy-ctor. It clears `[rec+0x0c]` (`mov WORD
+  [eax+0xc],0` - so THIS is the only writer of the field both parsers
+  leave alone), copies it to `[rec+0x0a]`/`[rec+0x08]`, computes
+  `edi = rec + 0x2e` (the vector's head slot) and loops reading tokens
+  with `0x9226f: " %[^[=,( ] %*[,=]"` and numbers with 0x57db0/0x57fd0.
+  THE NODE ITSELF: the ctor 0x515e0 (`push esi/edi`, chains to 0x45770,
+  `new(0x18)` at its clone 0x51622) writes `mov DWORD [node+0x4],
+  0xa2638` - **0xa2638 is a row-node class table**, which is the answer
+  to PR-101's "stray node tables at 0xa2638/0xa2650": those words are
+  inside the record class table at 0xa260c (its slots +0x2c..+0x44) and
+  the same numbers 0x457e0/0x45800/0x45870/0x458e0 are PR-101's node
+  dtor, chain getters and walk query. Its fields: `+0x08`, `+0x0c`,
+  `+0x14` zeroed and `[node+0x10] = 1` (the PR-101 "threshold or id
+  byte" slot - it is THRESHOLD here), then it calls the reader 0x51660,
+  which reads a number at `[node+0x10]` with the format at 0x92115 =
+  `"%hi"` (a 16-bit integer: shipped T values are all small) and then
+  SCALES IT: `imul edx, value` by the caller's `time_scale` argument and
+  `idiv 0x3e8` - `node+0x10 = value * time_scale / 1000`. The s-branch
+  passes the constant 1000 (a no-op scale); the row path is where a
+  real `[rec+0xe]` reaches it. Then a three-way branch on `ecx` (the
+  number read after the token): `> 0` -> `[node+0x08] = ecx`,
+  `[node+0x0c] = ecx - 1`, `[node+0x14] = 0`; `== 0` -> `[node+0x08] =
+  0x44110([[0xcef40]+0x398])` (a count of that name->index map) and
+  the id is not stored; `< 0` -> `[node+0x14] = 1` and `[node+0x0c] =
+  -(ecx + 1)`. So `[node+0x14]` is a signed-input flag and `[node+
+  0x0c]` is an index offset by one, positive or negated.
+- `time_scale` IS NOT AN UNMODELLED FIELD - IT IS A PARSE-TIME SCALE ON
+  EVERY ROW THRESHOLD (this is the strongest lead yet on the PR-79/98/
+  99/100 pacing tension). The shipped data: `KADMAR.07_BAL_KBALONIK.
+  MOV` has `time_scale=2000` at line 19 followed by rows `1,200`,
+  `2,200`, ... So the engine stores `200 * 2000 / 1000 = 400` as that
+  row's threshold at `[node+0x10]`, which PR-101 showed is what
+  0x52320 compares `[obj+0xa1]` against, and PR-100 showed that
+  accumulator only ever grows by `[[0xcef40]+0x388]` = 100 per step:
+  400 = 4 feed steps. With the 1000 default and `T=200` it is 2 steps.
+  The census: `time_scale=` appears in 38 of 777 files, 120 lines, and
+  EVERY value is a multiple of 100 (700 x20, 800 x16, 600 x16, 1000
+  x14, 500, 2000, 1500, 650, 400, 1300, 1100, 900) - exactly the
+  shape of a per-mille frame-rate multiplier. It does NOT change the
+  cadence of the feed itself (that is still the unread step rate of
+  0x521f0), it changes how many feed steps one row needs, i.e. rows
+  per second. This port reads `time_scale=` into `s->field_other` (an
+  unmodelled counter, ll_play.c line ~624) and treats `f->ms` as a
+  duration directly (`o->t < f->ms`, ll_level.c:1136) - a 2.0x
+  difference for that balloon's whole state. Nothing pinned: it is a
+  reading of the code plus the data, and the test that would settle it
+  (a state with a non-1000 `time_scale` measured against the port) is
+  new to this PR.
+- THE AUTHORED FORM, READ OFF THE PARSER. Before 0x51e07 the record
+  parser matches a token and then `0x9225c: " ( %[^) ] %*[)] = "` -
+  i.e. `NAME ( number ) =` - and the expression after the `=` is read
+  with `0x9226f: " %[^[=,( ] %*[,=]"` and fed to the key parser. In
+  the shipped data that is exactly a state line
+
+      A_WAIT(1)=AC_BREAK_NEXT      2572 such lines in 777 .MOV files
+
+  and its meaning is now fully determined: "when the key expression
+  after `=` is raised, go to state A_WAIT starting at row 1". Census
+  (`/tmp/opencode/trans_census.py`, scratch): the left-hand name is
+  DIFFERENT from the enclosing state's name in 2447 of 2572 lines (so
+  it is a target, not the owner), and 37 target states are entered at
+  several different rows (A_DEAD: 1,26,30,...,97; A_JUMP: 1,4,6,...,14)
+  - those numbers reach 97, which is the documented maximum frame count
+  of one state, so they index rows and nothing else.
+  What the port does here: `ll_mov_parse` already reads the number into
+  `ll_mov_tr.entry` (PR-86) - and `obj_transition` then sets
+  `o->fi = 0` and never uses it. So the port parses the start row and
+  throws it away; the engine applies it thousands of times. RE
+  observation plus a data census, not a behaviour claim: nothing here
+  says the visible result differs.
+- 0x47e40 IS THE KEY MATCH, AND ITS FOUR CASES ARE NOW EXACT (the
+  diagnostic string it prints for a too-long key is `TEventSet::match
+  :Bledna operacja` at 0x919ca, which names the subsystem). Its switch
+  is on `[key+0xc]` (the significant-dword count), jump table at
+  0x47e30:
+      len 3 (0x47fb2): 13-byte compare - EXACT match
+      len 2 (0x47f42): 0x49550 = in-place AND of 3 dwords, then a
+                       13-byte compare of the AND result against the
+                       requested key - SUBSET ("every bit I asked for
+                       is set")
+      len 1 (0x47edc): AND, then 0x495b0 (all-zero test) inverted -
+                       NON-ZERO INTERSECTION ("any bit I asked for")
+      len 0 (0x47e63): AND then the same 13-byte compare - the
+                       degenerate case
+      len > 3: prints the diagnostic and answers "no match"
+  0x49550 (AND) is the sibling of PR-101's 0x49580 (OR); PR-101's
+  "key = OR-lineage of the node chain" and this "match = AND test"
+  are one bit-mask system. This closes PR-101 item 2's second half.
+- THE STATE-NAME TABLE `[obj+0x3c]`, AND WHAT IT IS WIRED TO. 0x53440
+  is a case-insensitive name search (`0x76a69`) over `[obj+0x3c]`
+  (entry stride 8, count at `[obj+0x44]`), returning a 1-based index,
+  0 for "not found" - it is what resolves the left-hand state name of a
+  transition line. 0x53480 (a method of the object class) composes the
+  object's key from two owner hooks (`[[obj+8]+0x84]`,
+  `[[obj+8]+0x88]`), looks its result up by name in that same table,
+  and stores a value at `[[obj+0x50] + state_index*4]` - and
+  `[obj+0x50]` is the array the engine indexes with `[obj+0x5c]` to
+  get the current state record (0x53711-0x53717, 0x543a6-0x543ac). So
+  `[obj+0x50]` is indexed by STATE INDEX, confirming the same reading
+  of entry+0xd. Who fills `[obj+0x3c]`/`[obj+0x50]` is unread - note
+  that state names resolve through the OBJECT's table while `seq` names
+  resolve through `[[0xcef40]+0x398]`: two different name spaces.
+- CORRECTION TO THE PORT'S CONTROL VOCABULARY NOTE - THE MODE FIELD
+  HAS FIVE VALUES, NOT THREE. The parser maps
+  `BY_X` -> 0 (sets nothing; 0x51b58 jumps to the end),
+  `BY_Y` -> mode 1 (0x51b6f), `BY_TIME` -> mode 2 (0x51b89),
+  `BY_TX` -> mode 3 (0x51ba3), `BY_TY` -> mode 4 (0x51bbd); the mode
+  is read by `mov eax,[rec+0x12]; and eax,7` with the jump table at
+  0x54380: mode 0 -> 0x543c6 feeds `|v_x|` (=[obj+0xca]) into
+  [obj+0xa1]; mode 1 -> 0x543dc feeds `|v_y|` (=[obj+0xce]) into
+  [obj+0xa1]; mode 2 -> 0x543f2 is guarded by `cmp [obj+0xba],0; je
+  out` and then `add [obj+0xa1], [[0xcef40]+0x388]` (PR-100's 100);
+  mode 3 -> 0x543fb is the SAME body reached after passing that guard;
+  mode 4 -> 0x5441b is a separate body, guarded by `cmp [obj+0xbe],0;
+  je out`, adding that same 100. So the shipped data's `BY_TY` is not a
+  harmless typo for BY_TIME: the engine gives it its own mode with a
+  different guard, and `BY_Y` is a real mode feeding the vertical
+  velocity. The data agrees with the engine, not with the port's note
+  (ll_play.h "BY_TY is the data's own typo for BY_TIME"): BY_TY occurs
+  in 7 files, BY_TX in none, and every BY_TY state is a climb/hang
+  state of the lion (`[A_WSP_LIN]`, `[A_WSP]`, `[A_DRAB]` -
+  ladder/rope), which fits a vertical feed. RE + a data census;
+  nothing pinned.
+- THE FEED GATES `[obj+0xba]` AND `[obj+0xbe]` ARE ASSIGNED, NOT
+  DERIVED (this replaces the "meaning unread" hedge of the first
+  draft). The method at 0x549f0 does the two assignments directly:
+  `mov eax,[edx]; mov [obj+0xba],eax` (0x549f9) and
+  `mov eax,[edx+4]; mov [obj+0xbe],eax` (0x54a08) - both fields come
+  from a 2-dword structure the caller hands in, so their production is
+  one level up (open item). The same function then re-decides
+  `[obj+0xba]` when `[[obj+0xd2]+4] == 1`: it computes
+  `flag = ([[obj+0xd2]+0xc] != [obj+0x6d])`, scales it by 15
+  (`shl 4` + `sub`), and compares `[[obj+0xd2]+8] +/- 15*flag` against
+  `[[[obj+8]+0x68](obj)]` with a +/- 5 margin, writing **+10**,
+  **-10** or **0** into `[obj+0xba]` (0x54a57, 0x54a82, 0x54a93). The
+  modes' use of it is only a zero test (see above), so what reaches
+  the accumulator is the constant 100 either way - but the gate is a
+  signed distance-to-something check with a 5-unit and 15-unit margin,
+  which is a much better lead than "an unread scalar". What `[obj+0xd2]`
+  is (its +4 kind field, +8 position, +0xc id) and who fills the
+  caller's two dwords: open.
+- THE CONTROL-TOKEN TABLE IS RE-DERIVED AND MATCHES THE PORT EXACTLY.
+  The 22 token strings (0x9216e..0x9222f, listed in PR-99) OR these
+  bits: SEQ_REV_X 0x10, SEQ_REV_Y 0x20, CHECK_ZW 0x80, CHECK_ANI
+  0x40, CHECK_LN 0x100, CHECK_ALL 0x1c0 (= ANI|ZW|LN), CHECK_LEW
+  0x200, CHECK_BASE_LN 0x4000, SOLID 0x400, CH_DIR 0x800, INV_V
+  0x1000, DANGER 0x2000, CHECK_ALL_PLANE 0x8000, ANTI_SOLID 0x10000,
+  SOLID2 0x20400, SEMI_SOLID 0x40400, ANTI_POCISK 0x80000, FRAME_REV
+  0x8. PR-59's/PR-60's/PR-90's word values in ll_play.h are
+  reproduced bit for bit by the token table this time read as tokens
+  (the earlier reads were of the test sites), and the runtime tests
+  agree: 0x527b3 `test byte [rec+0x13],0x2` (CHECK_LEW) / 0x527db
+  0x40 (CHECK_ANI) / 0x52805 0x80 (CHECK_ZW), each passing the
+  control word masked by 0x8000 to the list provider; 0x53b2e
+  `test eax,0x10000` (ANTI_SOLID) and 0x53b3b `and eax,0x40400;
+  cmp 0x40400` (SEMI_SOLID); 0x5528b/0x51019 `test ah,0x20` after
+  `mov eax,[rec+0x12]` (DANGER). No discrepancy to fix.
+- `;` AND `|` IN A CONDITION, CONFIRMED: the key parser 0x47d60 is
+  "parse one comma-free token; if its first character is `*` set
+  len=3, if `|` set len=2, if `!` set len=1, else len=2; resolve the
+  token by name (`!` = the NEGATE node, `*` = AND-with-set, `|` =
+  start another node, which is how the OR-of-AND-groups is built) or
+  as a decimal bit number; while the next character is `,` loop" -
+  so `,` folds into one node mask and `|` starts a new node, exactly
+  the port's PR-87/PR-88 reading. The shipped data has 49 lines whose
+  expression STARTS with `|` (`A_WALK(1)=|K_FWD,AC_BREAK_NEXT`),
+  which the engine reads as an empty first node - an open question,
+  not a bug claim.
+- WHAT THIS DOES NOT SETTLE (PR-102's open items):
+   1. Who fills `[obj+0x3c]` (the state-name table) and `[obj+0x50]`
+      (the state array), and who calls 0x53480. That is the object
+      class's construction path - PR-100's item 5, the class map,
+      still the biggest open item. The record side is now mapped
+      (0x518f0 factory, 0x517e0 copy-ctor, 0x51910 parse method,
+      `[rec+0x44]` written with the class table); the object side is
+      not, and the record's TEMPLATE stage that 0x517e0 copies from is
+      part of the same question.
+   2. Which token names a row line, and whether 0x51eb0's loop really
+      builds the nodes. 0x51eb0 is the only other reader of the
+      `[rec+0x2e]` vector and the derived ctor calls it, but its body
+      was read only as far as the token loop's start; the branch that
+      pushes into `[rec+0x2e]` is keyed on a token `s` that appears in
+      no shipped file, and the row lists plainly exist in every file.
+      Read the rest of 0x51eb0 (and 0x51a4e's role) in PR-103. Now
+      answered at least partly: `[rec+0x0c]` is cleared by 0x51eb0
+      itself.
+   3. Which of the 30 node-class tables (PR-101's census) is which
+      authored row property, and what the query ids 1/2/3/4/6 name.
+      PR-102 identifies ONE of them for certain - 0xa2638, the row node
+      - and explains where the "stray" ones sit (inside the record
+      class table's slots +0x2c..+0x44). Also unresolved there: 0x515e0
+      chains to 0x45770 (a base ctor, unread) and to 0x45df0 after the
+      reader.
+   3b. NEW: the actual step rate of 0x521f0 (how often one record step
+      runs) is still the one number between "T * time_scale/1000
+      compared against a 100-per-step accumulator" and a frame rate.
+      With `time_scale=1000, T=200` the answer is "2 steps per row",
+      so the whole pacing question is now exactly this one number.
+   4. What the row-start numbers actually change on screen: the port
+      parses them (PR-86) and ignores them. A video test would be an
+      entry with a large N (A_DEAD(97), A_JUMP(14)) - unmeasured, no
+      pin.
+   5. Who hands 0x549f0 its 2-dword structure, and what `[obj+0xd2]`
+      (+4 kind, +8 position, +0xc id) is; what
+      `[[0xcef40]+0x398]+0x16`'s name->index map contains and where
+      the global 0xceff4 (the resolved `seq` index) is used.
+   6. Unchanged from PR-101: items 3 (the `[[obj+8]+0x54/+0x8c/+0x90/
+      +0xac/+0xa8/+0x70/+0x04]` hooks, the `[[rec]+0xfa]` = -55/70/0
+      codes), 4 (the 0x98278-indirect call inside 0x520c0), 5, 6; and
+      from PR-98/99/100: the cadence question and items 1, 3, 7, 8, 9,
+      10.
+- TESTS: unchanged in kind (a BY_X object at T != 40 outside ZARIA is
+  still the decisive one). Two cheap new ones from this PR: a climb
+  state (BY_TY) measured against the port, which would test both the
+  mode-4 guard and the vertical-feed reading; and an entry with a
+  large row number (A_DEAD(97)), which would test whether the engine
+  really starts a state mid-list.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

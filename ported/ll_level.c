@@ -760,9 +760,22 @@ static int obj_cond_true(const lvl_obj *o, int brk, const ll_mov_tr *tr)
  * row, and the key it looks up is the OR of the attribute-node chains
  * of PR-101, not an authored name. What the port matches is the
  * CONDITION half (a key/flag test gating a state change) and the
- * per-state reset of the motion accumulators; the row-index half has no
- * counterpart here because the port's .MOV states carry their own frame
- * lists and start at 0. */
+ * per-state reset of the motion accumulators. PR-102 corrects what
+ * this comment first said about the row-index half: the engine's row
+ * number IS authored and the engine APPLIES it. The transition line in
+ * a .MOV state section is `TARGET(N)=<key expression>` (the base
+ * record parse method 0x51910 matches `" ( %[^) ] %*[)] = "` at
+ * 0x9225c - the same function that parses `control=`; the derived
+ * record class's parser 0x52590 handles `F=`/`T=`/`G=` and delegates
+ * everything else to it), N is stored at entry+0x11 and applied as the
+ * new row, and the shipped data asks for non-zero N thousands of times
+ * (37 states are entered at several different rows; the numbers reach
+ * 97, the documented maximum frames in one state). This port parses
+ * that number into ll_mov_tr.entry (PR-86) and then ignores it:
+ * obj_transition sets o->fi = 0. So the difference is one unused
+ * field, not a missing feature. Nothing is pinned from that: it is an
+ * observation of the code and the data, and what it changes on screen
+ * is unmeasured (NEXT_STEPS PR-102, open item 4). */
 static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
 {
     const ll_mov_st *s = &mov->st[o->sti];

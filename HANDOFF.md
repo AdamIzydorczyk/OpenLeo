@@ -755,6 +755,76 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      branches of 0x521f0 - the EMPTY-key row is the one that runs the
      feed dispatcher and the threshold compare, a keyed row is the one
      that must match 0x47e40 or nothing happens.
+   - PR-102 FINDS THE WRITER OF THAT TRANSITION TABLE AND THE RECORD
+     CLASS BEHIND IT (RE only, nothing pinned). The base record class
+     table is 0xa260c (PR-101 read its +0x0c row step and +0x18 row
+     handler) and its +0x00 parse slot is 0x51910; inside it 0x51e07
+     builds the entries, and the entry ctor 0x49610 is called from
+     exactly one place, so only the `.MOV` parse path fills the table.
+     It matches `NAME ( number ) =` (the format string at 0x9225c) and
+     pushes a 21-byte entry into the vector AT `[rec+0x1a]` (`[+0x1e]`
+     end, `[+0x22]` capacity, grow via 0x22010): the key from the
+     expression parser 0x47d50, the TARGET STATE index from 0x53440 (a
+     name search over `[obj+0x3c]`, stride 8, count `[obj+0x44]`), and
+     the number as the ROW index. So the .MOV line
+     `A_WAIT(1)=AC_BREAK_NEXT` means "go to state A_WAIT starting at
+     row 1 when key AC_BREAK_NEXT is raised", and the port parses that
+     number (PR-86, `ll_mov_tr.entry`) and then throws it away: a
+     census of the shipped data finds 2572 such lines, the left-hand
+     name differs from the enclosing state in 2447 of them, and 37
+     states are entered at several different rows (A_DEAD at rows up to
+     97 - the documented maximum frames in one state). Also closed:
+     0x47e40's four cases are EXACT (len 3) / subset via AND (len 2) /
+     any-common-bit (len 1) / degenerate (len 0), and it prints
+     `TEventSet::match` for a too-long key; and the control-token
+     table reproduces the port's PR-59/60/90 bit values exactly. That
+     parse method is the record's whole base vocabulary and it
+     confirms the layout: `time=N,M` two WORDs at `[rec+0x8]`/
+     `[rec+0xa]`, `time_scale` a dword at +0xe, `sample` a dword at
+     +0x16, `seq` a name through a name->index map at
+     `[[0xcef40]+0x398]`, `control` the dword at +0x12; the class
+     table's +0x14 slot (0x518f0) is a factory - `new(0x48)` then the
+     copy-ctor 0x517e0, which ends with `mov [rec+0x44],0xa260c`: the
+     first hard proof of what `[rec+0x44]` is. PR-100's "0xa25d4 is
+     this record class's method table" is now refined: 0xa25d4 is a
+     DERIVED record class - `new(0x60)` and a ctor (0x52500) that
+     calls the base copy-ctor and writes `[rec+0x44] = 0xa25d4` - and
+     its parse slot 0x52590 reads `F=` into `[rec+0x50]/+0x54`, `T=`
+     into `+0x58/+0x5c` with the 130 clamp, `G=` into `+0x48/+0x4c`,
+     then delegates every other line to the base parser (0x5264b:
+     `call 0x51910`). Those are exactly the port's `s->fx/fy`,
+     `s->tx/ty`, `s->gx/gy` fields (ll_play.c) and the cap it does not
+     model. Corrections to port notes: the mode field has FIVE values
+     (BY_X 0, BY_Y 1, BY_TIME 2, BY_TX 3, BY_TY 4) and the
+     dispatcher's jump table (0x54380) feeds mode 1 from `|v_y|` at
+     [obj+0xce] and mode 4 from the level constant behind a
+     `[obj+0xbe] != 0` guard, while modes 2/3 sit behind
+     `[obj+0xba] != 0` - so BY_TY is not a typo alias of BY_TIME
+     (BY_TX: 0 files; BY_TY: 7 files, all lion climb/hang states). And
+     those two gates are assigned, not derived: 0x549f9/0x54a08 copy
+     them from a caller-supplied 2-dword structure, after which the
+     same method rewrites `[obj+0xba]` to +10/-10/0 from a distance
+     comparison with +/-5 margins against `[[obj+0xd2]+8]` when
+     `[[obj+0xd2]+4] == 1` - the best lead yet on the PR-99-open
+     fields [obj+0xba]/[obj+0xbe]. Row nodes are built at PARSE time:
+     the derived ctor 0x52500 calls 0x51eb0 (which clears `[rec+0x0c]`
+     and loops on the vector at `[rec+0x2e]`), the node ctor 0x515e0
+     writes `mov [node+0x4],0xa2638` - that IS a row-node class table,
+     which explains PR-101's "stray" node tables (they sit inside the
+     record class table's slots +0x2c..+0x44) - and its reader 0x51660
+     reads the row's number with `"%hi"` and then scales it:
+     `[node+0x10] = T * time_scale / 1000`. So `time_scale` is not an
+     unmodelled curiosity: it is a parse-time scale on EVERY row
+     threshold, and all 120 shipped `time_scale=` lines are multiples of
+     100 (400..2000). `KADMAR.07_BAL_KBALONIK.MOV` has
+     `time_scale=2000` and rows `1,200`, `2,200` ..., i.e. the engine
+     compares 400 against an accumulator that PR-100 showed grows by 100
+     per record step - 4 feed steps per row, 2 with the 1000 default.
+     This port counts `time_scale=` as unmodelled and compares `f->ms`
+     as written (ll_level.c:1136), so that whole balloon state runs
+     2.0x off in this port's reading. Nothing pinned; the cadence
+     number (how often 0x521f0 runs) is now the only thing between this
+     and a frame rate.
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
      files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's
@@ -813,21 +883,40 @@ the T dependence, and only a BY_X object at T other than 40 can say
 which one is right. Next steps, in order: (1) that video test, which
 the authored data supplies in quantity (F=100 against 11 different T
 pairs) but which needs footage of a level other than ZARIA; (2) the
-state-transition table PR-101 found: 0x52000 (the record sub-table's
-+0x04 slot, called from 0x53520 inside the key compositor 0x536f0)
-scans 21-byte entries at `[rec+0x1a]` - a 13-byte key, a record index
-at +0xd, a row index at +0x11 - with 0x47e40, and a match means "go to
-record A, row B" through 0x535a2. That table owns every state change
-the port models in `obj_transition`, and its writer is unread; the RATE
-of the step at 0x521f0 is the same question now (0x536f0 runs the whole
-switch and 0x550a0, its one direct caller, is a handler tail - 10 direct
-call sites, all after a flag write or an expired countdown); and what
-"100 units" of the level global's +0x388 feed means (PR-99 item 11,
-half-closed by PR-100: the single writer is `mov [eax+0x388],0x64` at
-0x4c8b7);
+two cheap tests PR-102 points at, both data-supplied and neither done:
+an entry with a large row number (the authored data asks to START a
+state at a row - `A_DEAD(97)=...`, `A_JUMP(14)=...`, 37 states are
+entered at several different rows) against the port, which always
+starts at row 0, and a lion climb state (the 7 BY_TY states) against
+the port, which would test both the vertical-feed reading of mode 4
+and its `[obj+0xbe]` guard. The table itself is now read end to end:
+PR-102 found its writer (the base record parse method 0x51910 ->
+0x51e07, entries of {key, target state index, start row} pushed into
+the vector at `[rec+0x1a]`, and the derived record parser 0x52590 that
+reads `F=`/`T=`/`G=` and delegates every other line to 0x51910) and
+its authored form (`TARGET(N)=<key expression>` inside a state
+section), and 0x47e40's four key-match cases. This port parses that
+row number (PR-86) and ignores it. What is left of that line of work
+is the object-class map (who
+fills `[obj+0x3c]`/`[obj+0x50]` and the `[[obj+8]+0x54/+0x8c/+0x90/
++0xac/+0xa8/+0x70/+0x04]` hooks - PR-100 item 5, now the biggest
+open item) and the RATE of the step at 0x521f0 (0x536f0 runs the
+whole switch and 0x550a0, its one direct caller, is a handler tail);
+"100 units" of the level global's +0x388 feed is half-closed
+(PR-100: the single writer is `mov [eax+0x388],0x64` at 0x4c8b7) and
+PR-102 added its gate: that feed only runs when `[obj+0xba]` (modes
+2/3) or `[obj+0xbe]` (mode 4) is non-zero; and PR-102 found the
+concrete mechanism the pacing tension was missing - the row's threshold
+is stored pre-scaled at parse time, `[node+0x10] = T * time_scale /
+1000` (0x51660), and 0x52320 compares that against the accumulator, so
+a threshold of 200 with the 1000 default is 2 feed steps and the same
+row under `time_scale=2000` is 4. What a row's duration is, in seconds,
+is now exactly one unread number: how often 0x521f0 runs.
 (3) what writes
-[obj+0xba]/[obj+0xbe] (0x54a00..0x54ab0) and where the full-precision
-velocity moves the coordinates (PR-99 item 10; only `v/100` is stored);
+[obj+0xba]/[obj+0xbe] (0x54a00..0x54ab0) - they are now known to be
+the gate of the time feed, but their meaning is unread - and where the
+full-precision velocity moves the coordinates (PR-99 item 10; only
+`v/100` is stored);
 (4) the other video tests PR-98 lists (the jump's x track against the
 port's one-shot `ix/4`; an `FC` window in A_FIGHT), then a PR that puts
 both sides on one measured law with every play pin re-pinned from it.
@@ -881,6 +970,35 @@ it flagged as inconsistent is a row index after all - the index comes
 from the transition table at `[rec+0x1a]` (key, record index, row
 index), which is the engine's own version of `obj_transition` and the
 new head of this list.
+PR-102 then wrote that table's story (RE only, no pin): its writer is
+the base record class's own parse method (the class table 0xa260c
+holds 0x51910 at its +0x00 parse slot, and inside it 0x51e07 builds
+the entries - the entry ctor 0x49610 has exactly one caller), it
+matches the authored form `TARGET(N)=<key expression>` (format string
+at 0x9225c) and pushes {key, target-state index resolved from
+`[obj+0x3c]` by name, row index N} into the vector at `[rec+0x1a]`.
+The record class itself is now mapped: a base of 0x48 bytes (factory
+0x518f0, copy-ctor 0x517e0, which writes `[rec+0x44] = 0xa260c`) and
+a derived class of 0x60 (0x52570, ctor 0x52500 writing `[rec+0x44] =
+0xa25d4`) whose parser reads `F=`/`T=`/`G=` into `[rec+0x50]` and
+beyond, with the 130 clamp on `T=`, and delegates every other line to
+the base parser. So a shipped line like `A_WAIT(1)=AC_BREAK_NEXT`
+means "go to state A_WAIT starting at row 1 when AC_BREAK_NEXT is
+raised" - the engine's transition picks the START ROW, this port
+parses it (PR-86) and then sets fi = 0, and the
+data asks for other rows thousands of times (2572 lines, 37 states
+entered at several rows, up to 97). 0x47e40 is the match and its four
+length-byte cases are exact / subset-by-AND / any-common-bit /
+degenerate; the control-token table re-derives to the port's own
+PR-59/60/90 bit values exactly; and the mode field turns out to have
+five values, with BY_Y feeding `|v_y|` (0x543dc) and BY_TY being a
+separate guarded feed (0x5441b, gate `[obj+0xbe] != 0`) - so BY_TY is
+not a typo alias of BY_TIME, and those two gates
+([obj+0xba]/[obj+0xbe]) turn out to be *assigned*, not derived:
+0x549f9/0x54a08 copy them from a caller-supplied 2-dword structure and
+the same method then rewrites `[obj+0xba]` to +10/-10/0 from a
+distance comparison with +/-5 margins - the best lead yet on the
+fields PR-99 left unread.
 
 **T2. The lion's attack and enemy energy.**
 Goal: kill the first LICHA. Where: `LEW.MOV` states `A_FIGHT*`, `A_FG_PACKA*`
