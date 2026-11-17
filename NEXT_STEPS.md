@@ -3870,6 +3870,106 @@ in a loop continuously". Both root-caused, both fixed, both pinned.
   - verify-play 15 lines (13 + zfight + fire-alone negative);
     selftest prints updated.
 
+## PR-88 — the signal bus, part 1: the engine's signal-bit TABLE decoded
+          (open question 2 CLOSED, PR-70's bit-54 assumption confirmed);
+          named `GEN <signal>` tails + name conditions wired on both the
+          lion and scene objects; obj conditions grouped AND like the
+          player's (DONE 2026-11-17)
+
+  - RE (the big one): the engine's signal names and bit numbers came
+    straight off the code. The name block is 0x919ec..0x91c40 (NOT the
+    0x92180 range open question 2 guessed - that one is the control=
+    flags); the name->bit function is 0x48000 (not 0x51b30) and ORs an
+    EXPLICIT constant per name into the set at [obj+0x60] (TEventSet,
+    error string at 0x919cd): AC_BLOK 0 ... AC_BREAK_NEXT 2 ... AC_ENEMY
+    7, AC_TIME 9, AC_ENEMY_ATC 16, AC_ONAIR 18 ... K_FWD 36, K_FIRE 39,
+    K_JUMP 53, K_GEN1 54 ... K_GEN5 58, AC_PLAT_OFF 59 ... AC_EV_MAX 68
+    -> 3-dword masks. VERIFIED constants in the disassembly (mov al,0x0
+    / 0x1 / 0x2, mov dl,0x7 / 0x12, mov al,0x36 / 0x37); PR-70's
+    "bit 54 = K_GEN1" assumption CONFIRMED, no behavior change from it.
+  - Bonus grammar RE: the clause parser at 0x47d60 scans tokens with the
+    format string ' %[^, \r\n\t]' (exactly our token grammar), keeps
+    folding ','-separated names into ONE node bit-mask (AND), starts a
+    new node for '|' (OR), tags '!' (negate) and '*' (and-with-set,
+    unused in shipped texts), and special-cases K_ANY/K_NEVER as node
+    ops, not bits. That is the engine's own design behind PR-87's
+    OR-of-AND model choice - the reading is no longer a guess.
+  - Ported: LL_SIG_* enum + ll_sig_id() (ll_play.h/ll_play.c); ll_mov_fr
+    carries a 64-bit named-signal mask gsig (the K_GENn bit n-1 +
+    AC_TIME bit 4 encodings are gone - same bits now at table indexes;
+    names at index >= 64 never appear in a GEN tail in shipped data, a
+    hypothetical one stays a counted unmodeled directive); the PLAYER
+    keeps one signal word `p->sig` (was gen[3], same one-tick pulses at
+    bits 54..56 - landing K_GEN2, frame GEN tails raise ANY name:
+    `GEN AC_TIME` still arms ac_time, `GEN AC_BREAK_NEXT` now arms the
+    break directly - the real TUNGA A_FIGHT rows do exactly that);
+    obj_cond_true now tests any table NAME against the object's own
+    pulse set, maps K_GEN1..5 to bits 54..58, keeps AC_TIME = frame-list
+    end OR a raised bit, and evaluates PR-87's OR-of-AND-groups (the
+    engine folds commas into one node mask class-wide, so objects AND
+    too now - objects' keys/AC_* stay false pending the lion's set and
+    the internal raisers). obj state transitions do NOT apply the (N)
+    entry rows yet (the player's do since PR-86) - no legged data
+    needs it; recorded.
+  - Proof: obj_state_selftest gained a named-signal fixture pair -
+    `GEN K_GEN1,GEN AC_PLAT_OFF` + `A_DEAD(1)=K_GEN1,AC_PLAT_OFF`
+    enters A_DEAD at 200 ms, while the same script testing the
+    UNRAISED name (AC_PLAT_OUT) stays in A_RUN (wiring is per-name and
+    the AND really ANDs). Player-side real data: the ZARIA idle chain
+    (GEN AC_TIME x11) now flows through the table path - all 14
+    verify-play lines and all 7 verify-level lines unchanged and green
+    (no shipped self-signal pair exists outside AC_TIME/K_GENn, so no
+    behavior moved: honest null on real data, pinned fixtures cover the
+    new semantics). The scene stats line now says precisely what is
+    missing (cross-object routing, engine-internal raisers).
+  - Still open (recorded in HANDOFF 7.2): WHO ROUTES signals across
+    objects (ENA2's raft/barrels raise AC_PLAT_OUT on their own sets
+    while the LION's A_JUMP_PLAT(1)=AC_PLAT_OUT tests the lion's - a
+    message/broadcast connects them), WHO raises the engine-internal
+    AC_* bits (AC_ENEMY_ATC 279, AC_ONAIR 211 condition uses, zero GEN
+    lines - physics/combat must), and whether sets are ever CLEARED
+    (ours: one-tick pulses; engine's OR: latching; no data pin yet
+    discriminates - do NOT "fix" without evidence).
+
+## T2 RE lead (gathered 2026-11-17, before any T2 code) — how the engine
+          delivers damage (nothing ported yet from this)
+
+  - `energy` is the level-object field at **[obj+0xad]** (the earlier
+    "+0x54 danger_power" note is a DIFFERENT object: the LEVEL object at
+    global 0xcef40, +0x54). `FUN_00054550` = `sub [eax+0xad], ebx` —
+    "take damage ebx" — called from:
+    (a) `0x50ed0(eax=hit obj, edx=edi)`: skips types `[obj+0x11a]` 6/7,
+        requires ebx != 0; if `[obj+0x126] != 0` bails; method slot 0xc
+        (x10) and 0x40/0x44 (x10) = rects of both; walks the touch list
+        [obj+0xd2] calling slot 0x44 (x4) per entry (FUN_000551f0);
+        then `FUN_000502f0` = "invulnerable?" tests `[obj+0x102] != 0`
+        (a tick countdown: `0x50300` sets it to 30 when edx==0, else to
+        edx); when not invulnerable: `call [class+0xe4](edx=edi)` (the
+        per-class HOOK, e.g. 0x54250 / 0x55020 / 0x23a30 per vtable —
+        unresearched what it returns/does) and THEN 0x54550 takes edi
+        as the damage. Where edi comes from at each caller is NOT yet
+        traced — the OPEN question for T2.
+    (b) `0x30800`: after slot-0x80 interaction, subtracts `[ecx+4]`.
+  - Hit entry on TOUCH (`FUN_000552e0`): push-out 0x55130/0x53ae0, gate
+    slot 0x9c, then `FUN_00055230`: if the MOVER's flags ([x+0x44]) have
+    ANTI_POCISK 0x80000 -> `hit_method edx=0` (no damage); else if
+    flags & DANGER (test ah,0x20 of the dword = bit 0x2000) ->
+    `hit_method edx=level.danger_power` = `[[0xcef40]+0x54]` (so the
+    open question 4 default is this global's field, still uninitialized
+    in the ctor); the hit method = **class vtable slot 0xd0** (generic
+    actors 0x238b0, variant 0x23870/0x23880, bear-type class 0x544f0,
+    some classes stub it to 0x52a00/0x52a50 = never damaged).
+  - `FUN_0x3406b` (caller of 0x50ed0): for one enemy type (template
+    globals 0xcecf0/0xcecf8/0xced04 = five factory instances made at
+    0x33bd0 by 0x44350, identity NOT decoded yet) the "damage" passed is
+    `[other+0xad]*45/100 + 10` (45% of its current energy + 10); for
+    the 0xcecf8 type: `[obj+0xad] = -1` (indefinitely alive).
+  - Next when T2 starts: trace what `edi` is at the 0x50ed0 call sites
+    (the lion's attack damage source), identify the factory types, read
+    one hit method (0x238b0 / 0x544f0) for the energy<=0 -> death-state
+    transition, then port: attack hit test (the A_FIGHT art's own hit
+    box), damage to [obj+0xad], death, invulnerability countdown +0x102.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

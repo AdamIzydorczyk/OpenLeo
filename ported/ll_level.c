@@ -488,7 +488,18 @@ typedef struct {                     /* one placement of a script        */
      * file (zwierzaki .des: damage= contact damage, bounds= the patrol x
      * range, scope= detection range, energy= hit points). -1 = absent. */
     int damage, b0, b1, scope, energy;
-    unsigned gen;                    /* PR-69: pending K_GEN1..4 pulses    */
+    unsigned long long sig;         /* PR-88: pending signal pulses at the
+                                     * LL_SIG_* bit indexes of the engine's
+                                     * signal table (was: K_GEN1..4 in bits
+                                     * 0..3). The engine's own set at
+                                     * [obj+0x60] is a latching TEventSet;
+                                     * the raise-a-pulse-consume-it-same-
+                                     * tick model (raised as the frame ends,
+                                     * tested by the transition checks of
+                                     * the same advance) is from PR-69 and
+                                     * stays - the engine's clearing rule
+                                     * is unresearched and no data depends
+                                     * on it yet. */
     /* PR-79: BY_X walking (see obj_walk): fractional-pixel carry, units
      * accumulated toward the next frame, and the patrol direction
      * (0 = never flipped: walks right - PR-81 shows that is what the
@@ -663,28 +674,51 @@ static void obj_draw(const lvl_obj *o, unsigned char *canvas, int cw,
 /* PR-69: the object scripts are state machines, not a ring of states: a
  * state's frame list loops until one of its transitions fires. Conditions
  * the scene model can decide: AC_BREAK_NEXT (the frame list just ended),
- * K_GEN1..4 (a signal a frame raised with `GEN K_GENn`), K_NEVER; AC_TIME
+ * K_GEN1..5 and any other signal NAME of the LL_SIG_* table (PR-88: tested
+ * against this object's own pulse set - raised by frame `GEN <signal>`
+ * tails or by gameplay code like the PR-70 balloon pop); AC_TIME
  * (a timed wait, `time=min,max`, unit unresolved) is APPROXIMATED as "at the
- * end of the frame list" so a waiting state never freezes; everything else
- * (AC_ENEMY_ATC, AC_ONAIR, K_LEW, keys ...) is false here - those need the
- * lion/world and the unported signal bus. Same OR semantics and first-match
- * order as the player's transitions. */
+ * end of the frame list" so a waiting state never freezes - OR a raised
+ * AC_TIME bit; what still stays false (keys, AC_ONAIR, AC_ENEMY_ATC ...)
+ * needs the lion/world signals feeding this set (open). First-match order
+ * as the player's transitions; PR-88 aligned the grammar with the engine
+ * too: the clause parser at 0x47d60 folds a ',' run into ONE node bit
+ * mask (AND), '|' starts another node (OR) - the same OR-of-AND-groups
+ * the player evaluator uses since PR-87. */
 static int obj_cond_true(const lvl_obj *o, int brk, const ll_mov_tr *tr)
 {
-    for (int i = 0; i < tr->nc; i++) {
-        int v;
-        switch (tr->c[i].cond) {
-        case LL_COND_AC_BREAK_NEXT:
-        case LL_COND_AC_TIME:   v = brk; break;
-        case LL_COND_K_GEN1:    v = (o->gen & 1u) != 0; break;
-        case LL_COND_K_GEN2:    v = (o->gen & 2u) != 0; break;
-        case LL_COND_K_GEN3:    v = (o->gen & 4u) != 0; break;
-        case LL_COND_K_GEN4:    v = (o->gen & 8u) != 0; break;
-        default:                v = 0; break;
+    for (int i = 0; i < tr->nc; ) {                 /* PR-87/88: same */
+        int g = tr->c[i].grp, all = 1;              /* OR-of-AND-groups */
+        for (; i < tr->nc && tr->c[i].grp == g; i++) { /* as the player: the */
+            int v;                                  /* engine folds a  */
+            switch (tr->c[i].cond) {                /* ',' run into ONE node */
+            case LL_COND_AC_BREAK_NEXT:             /* bit mask (clause */
+            case LL_COND_AC_TIME:                   /* parser 0x47d60) */
+                v = brk || ((o->sig >> LL_SIG_AC_TIME) & 1); break;
+            case LL_COND_K_GEN1:
+                v = (o->sig >> LL_SIG_K_GEN1) & 1; break;
+            case LL_COND_K_GEN2:
+                v = (o->sig >> LL_SIG_K_GEN2) & 1; break;
+            case LL_COND_K_GEN3:
+                v = (o->sig >> LL_SIG_K_GEN3) & 1; break;
+            case LL_COND_K_GEN4:
+                v = (o->sig >> LL_SIG_K_GEN4) & 1; break;
+            case LL_COND_K_GEN5:
+                v = (o->sig >> LL_SIG_K_GEN5) & 1; break;
+            case LL_COND_OTHER:
+                v = tr->c[i].sig >= 0
+                    ? (int)((o->sig >> (unsigned)tr->c[i].sig) & 1)
+                    : 0;                            /* PR-88: a bare signal */
+                break;                              /* NAME tests the  */
+            default:                                /* object's own set - */
+                v = 0; break;                       /* still false until */
+            }                                       /* something raises */
+            if (tr->c[i].neg)                       /* it (keys/AC_* of  */
+                v = !v;                             /* the lion need the */
+            if (!v)                                 /* lion's own set:   */
+                all = 0;                            /* OPEN) */
         }
-        if (tr->c[i].neg)
-            v = !v;
-        if (v)
+        if (all)
             return 1;
     }
     return 0;
@@ -713,7 +747,7 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
          * around stays turned around when it changes state */
         o->facc = 0.0;
         o->xa = 0.0;
-        o->gen = 0;
+        o->sig = 0;
         return 1;
     }
     return 0;
@@ -821,7 +855,7 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
                 o->x = o->bx;
                 o->y = o->by;
             }
-            o->gen = 0;
+            o->sig = 0;
         }
         ll_mov_fr *f = &s->fr[o->fi];
         int walk = (s->ctrl & LL_CTRL_BY_X) && s->fx != 0;
@@ -834,11 +868,11 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
             o->t -= f->ms;
         o->x += f->dx;             /* the authored "N,ms, M dx,dy" motion  */
         o->y += f->dy;             /* directive of the frame being held    */
-        o->gen |= f->gen;          /* `GEN K_GENn`: raised as the frame ends */
+        o->sig |= f->gsig;          /* `GEN <signal>`: raised as the frame ends */
         o->fi++;
-        if (o->gen && obj_transition(o, mov, 0))
+        if (o->sig && obj_transition(o, mov, 0))
             continue;
-        o->gen = 0;
+        o->sig = 0;
     }
 }
 
@@ -1259,6 +1293,57 @@ static int obj_state_selftest(void)
         fprintf(stderr, "object state selftest: FAILED AC_BREAK_NEXT did not"
                         " return to A_RUN (state %d)\n", b.sti);
         goto out;
+    }
+    /* PR-88: the named-signal bus on objects. A frame raising a table
+     * signal by NAME (`GEN AC_PLAT_OFF` - the real platform scripts do
+     * exactly this, 181 lines shipped) satisfies a condition naming that
+     * signal; a condition naming a DIFFERENT raised-or-not name stays
+     * false (the wiring is per name, not "any GEN"); and ',' really
+     * ANDs here too (the engine folds a comma run into ONE node mask -
+     * clause parser 0x47d60): both raised fires, one raised does not. */
+    {
+        static const char named[] =
+            "A_RUN\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\n"
+            "A_DEAD(1)=K_GEN1,AC_PLAT_OFF\n"
+            "1,100\n2,100,GEN K_GEN1,GEN AC_PLAT_OFF\n\n[A_DEAD]\n"
+            "control=BY_TIME\n3,100\n";
+        static const char named_neg[] =
+            "A_RUN\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\n"
+            "A_DEAD(1)=K_GEN1,AC_PLAT_OUT\n"
+            "1,100\n2,100,GEN K_GEN1,GEN AC_PLAT_OFF\n\n[A_DEAD]\n"
+            "control=BY_TIME\n3,100\n";
+        ll_mov_t *mn = calloc(1, sizeof *mn), *mp = calloc(1, sizeof *mp);
+        obj_script sn, sp;
+        lvl_obj c, d;
+        int ok = mn && mp;
+
+        memset(&sn, 0, sizeof sn);
+        memset(&sp, 0, sizeof sp);
+        memset(&c, 0, sizeof c);
+        memset(&d, 0, sizeof d);
+        if (ok) {
+            ll_mov_parse(named, mn);
+            ll_mov_parse(named_neg, mp);
+            sn.mov = mn;
+            sp.mov = mp;
+            c.sc = &sn;
+            d.sc = &sp;
+            obj_advance(&c, 200);
+            obj_advance(&d, 250);
+            if (c.sti != 1)
+                fprintf(stderr, "object state selftest: FAILED named-signal"
+                                " AND did not enter A_DEAD (state %d)\n",
+                        c.sti);
+            else if (d.sti != 0)
+                fprintf(stderr, "object state selftest: FAILED unraised name"
+                                " in an AND group let it leave A_RUN\n");
+            else
+                ok = 0;                            /* both cases passed */
+        }
+        free(mn);
+        free(mp);
+        if (ok)
+            goto out;
     }
     /* balloon_hit: rect 100,50 20x30; the point is (x+10, y+10), inclusive */
     if (!balloon_hit(90, 40, 100, 50, 20, 30) ||     /* corner 100,50      */
@@ -1898,9 +1983,9 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
             pl->energy += 32;
             if (pl->energy > 100)
                 pl->energy = 100;
-            o->gen |= 1u;                       /* K_GEN1: the pop        */
+            o->sig |= 1ull << LL_SIG_K_GEN1;        /* K_GEN1: the pop  */
             (void)obj_transition(o, o->sc->mov, 0);
-            o->gen = 0;
+            o->sig = 0;
             if (verbose)
                 printf("ll_level: play tick %d: balloon at %d,%d picked:"
                        " energy %d\n", tick, o->x, o->y, pl->energy);
@@ -1967,7 +2052,7 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
             pl->p.vy = 0;
             if (!pl->p.grounded) {
                 pl->p.grounded = 1;
-                pl->p.gen[LL_COND_K_GEN2 - LL_COND_K_GEN1] = 1;
+                pl->p.sig |= 1ull << LL_SIG_K_GEN2;
             }
         }
         if (o->damage > 0 && pl->lock == 0) {
@@ -3248,7 +3333,9 @@ static void des_placement(place_ctx *pc, llrs *hd_ety,
                " smpauto / GOTO), %d sound-or-scale field(s); %d state(s)"
                " name no seq= art, %d state(s) / %d frame(s) / %d"
                " transition(s) over cap - all parsed and counted, acted on"
-               " only once the AC_*/K_* signal bus lands (M4-D)\n",
+               " only once the rest of the AC_*/K_* signal bus lands"
+               " (named-signal bits landed in PR-88; the cross-object"
+               " routing and the engine-internal raisers have not)\n",
                st->ntrans, st->ctrl_other, st->directive, st->field_other,
                st->state_noart, st->drop_st, st->drop_fr, st->drop_tr);
     if (st->fr_total)

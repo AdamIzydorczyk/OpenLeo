@@ -29,8 +29,10 @@ What exists and works (all verified by `make verify-all`, section 3):
 | collision | push-out ported from the machine code (`FUN_00042de0/42cf0`), solid/semi-solid response, enemy contact damage from the placement files, balloon pickup; ON by default except RAN.01 |
 
 What does NOT exist yet (the real gap to "a playable game"): the lion's attack
-and other moves, enemy behaviour (patrol/detect/attack), pickups/inventory and
-the signal bus, ladders/vines, level flow (end of level, exchange between
+and other moves, enemy behaviour (patrol/detect/attack), the signal bus's
+routing between objects and its engine-internal raisers (the bit table and
+named `GEN`/condition wiring landed in PR-88), pickups/inventory,
+ladders/vines, level flow (end of level, exchange between
 TUNGA I and II), RAN's balloon mode, sound effects, save/progress semantics.
 Section 8 lists them as tasks.
 
@@ -161,6 +163,16 @@ Engine (objects have a vtable at +8; the common slots)
   SEMI_SOLID 0x40400, ANTI_SOLID 0x10000, ANTI_POCISK 0x80000, DANGER 0x2000,
   CHECK_ANI 0x40, CHECK_ZW 0x80, CHECK_LN 0x100, CHECK_LEW 0x200, CHECK_ALL 0x1c0,
   CH_DIR 0x800, INV_V 0x1000, CHECK_BASE_LN 0x4000, CHECK_ALL_PLANE 0x8000.
+- Signals (TEventSet, PR-88): the name->bit function at 0x48000 maps the
+  name block at 0x919ec..0x91c40 onto explicit bit constants of the
+  object's set at [obj+0x60] (full table in HANDOFF 7.2 / ll_play.h
+  LL_SIG_*; K_GEN1 = 54 CONFIRMS the PR-70 assumption). The condition
+  grammar itself: clause parser 0x47d60 scans tokens with format
+  ' %[^, \r\n\t]', folds a ',' run into ONE node bit-mask (AND - the
+  engine's design matches PR-87's model choice), '|' starts a new node
+  (OR), '!' negates, '*' = and-with-another-set (unused in shipped
+  condition texts); K_ANY/K_NEVER (+AC_ aliases) are op special cases,
+  not bits; unknown names print "TEventSet::match :Bledna operacja".
 - Touch dispatch (FUN_0004b500, FUN_00052780): the mover's CHECK_ANI/CHECK_ZW
   pick the animacje/zwierzaki list; objects are tested only on the mover's layer
   unless CHECK_ALL_PLANE; the touch method (slot 0x78) runs the push-out
@@ -168,7 +180,8 @@ Engine (objects have a vtable at +8; the common slots)
 - Damage: energy -= damage (FUN_00054550); enemies hit with their own
   `damage=`; DANGER objects with the level's `danger_power`. Lion energy starts
   at 100 (0x503ac), lives = global 0xa94f0.
-- Frame tails in `.MOV`: `GEN <sig>`, `I vx,vy`, `F`, `FC`, `M dx,dy`, `WAIT`,
+- Frame tails in `.MOV`: `GEN <sig>` (any signal-table name - PR-88),
+  `I vx,vy`, `F`, `FC`, `M dx,dy`, `WAIT`,
   `lock/unlock`, `ATC_ON/OFF`, `GOTO_REL`, sound words (survey in NEXT_STEPS PR-69).
 
 Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
@@ -185,7 +198,8 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | fire keys | ll_level.c `play loop` + platform_sdl `map_key` | Ctrl=K_FIRE, F1..F4=K_F1..4 (weapon selectors), Alt=K_ALT; script tokens FIRE/F1..F4/ALT comma-combinable | PR-87; names from the walkthrough, the .MOV conditions are the contract |
 | `,` in transition COND = AND | ll_play.c `parse_cond`/`cond_true` (groups) | `|` ORs groups, `,` ANDs tokens within one; OTHER poisons only its group | PR-87 MODEL CHOICE (evidence in ll_play.h: AC_ONAIR/AC_DRECT pairs, every K_FIRE,K_Fn attack line); A_FIGHT entry pinned real |
 | hurt lock | ll_level.c `play_collide` | 30 ticks of 20 ms | 0x50304 constant, unit assumed |
-| `AC_TIME` | ll_level.c `obj_cond_true` | = end of frame list | `time=min,max` unit unknown |
+| `AC_TIME` | ll_level.c `obj_cond_true`, ll_play.c | obj: = end of frame list OR a raised bit; lion: raised by frame `GEN AC_TIME` (bit 9 = LL_SIG_AC_TIME) | `time=min,max` unit unknown |
+| signal bits | ll_play.h `LL_SIG_*`, `ll_sig_id()` | engine table 0x48000: AC_BLOK 0..AC_EV_MAX 68, K_GEN1 54; `GEN <name>` raises any, conditions test the object's own set | PR-88 (verified constants); pulse-vs-latch + cross-object routing OPEN |
 | lives / energy HUD | ll_level.c | 6 lives, energy frames (100-e)/10 | video start shows 6 |
 | camera | ll_level.c `follow_camx/camy` | lead 100/220, ease 6 u/tick, grounded feet-at-178 anchor (y-ease 2 u/tick invented) | video + owner frame comparison (PR-84) |
 | contact pass default | ll_level.c | on except RAN.01 | RAN is the balloon level |
@@ -277,9 +291,35 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
    and addresses are in the PR-76 investigation entry in NEXT_STEPS.md. Data
    statistics: FC values 20..120 (100: 17, 90: 14), F values e.g.
    `F -300,0,GEN K_GEN3` (enemies), `F 0,350`, `F 1200,-300`.
-2. The signal-bit table: which bit of the object's set at +0x60 is K_GEN1..4
-   and each `AC_*` (bit 54 was assumed K_GEN1). Read it from the condition
-   parser like the flag table was (strings near 0x92180, parser near 0x51b30).
+2. The signal-bit table: RESOLVED in PR-88, ported as `LL_SIG_*` +
+   `ll_sig_id()` (ll_play.h/ll_play.c). The name block is at
+   0x919ec..0x91c40 (not 0x92180 - that is the control= flags); the
+   name->bit function is at 0x48000 (not 0x51b30) and sets an EXPLICIT
+   constant per name: AC_BLOK 0, AC_BLOK_Y 1, AC_BREAK_NEXT 2,
+   AC_BREAK_PREV 3, AC_DUP 4, AC_OFF 5, AC_DEADDUP 6, AC_ENEMY 7,
+   AC_EDGE 8, AC_TIME 9, AC_DRAB 10, AC_DRABK 11, AC_DRAB_CATCH 12,
+   AC_DUP_CD 13, AC_STONE 14, AC_PUSH 15, AC_ENEMY_ATC 16, AC_RECT 17,
+   AC_ONAIR 18, AC_DRECT 19, AC_DRECT2 20, AC_LINA 21, AC_LINA_CATCH 22,
+   AC_LEAVE 23, AC_ATAK 24, AC_UP_DUP 25, AC_SPOKUJ 26, AC_BUTLA 27,
+   AC_BECZKA 28, AC_START 29, AC_MRECT 30, AC_TABLICZKA 31, AC_KILOF 32,
+   AC_KOREK 33, AC_KOLO 34, K_BKWD 35, K_FWD 36, K_UP 37, K_DOWN 38,
+   K_FIRE 39, K_ALT 40, K_F1..K_F12 41..52, K_JUMP 53, K_GEN1 54..
+   K_GEN5 58 (the PR-70 "bit 54" assumption CONFIRMED), AC_PLAT_OFF 59,
+   AC_PLAT_OUT 60, AC_XCHG_LEVEL 61, AC_SHOW_CROWN 62, AC_MSG_PUSH 63,
+   AC_WALK_UP 64, AC_WALK_DOWN 65, AC_APPEAR 66, AC_DISAPPEAR 67,
+   AC_EV_MAX 68. K_ANY/AC_K_ANY and K_NEVER/AC_K_NEVER are NOT bits:
+   the clause parser at 0x47d60 special-cases them into node op tags
+   ('!' negate, '*' and-set, '|' separate node = OR); a ',' keeps folding
+   bits into the SAME node mask - the engine's own design behind PR-87's
+   OR-of-AND reading, and its token format is ' %[^, \r\n\t]' exactly as
+   we parse. STILL OPEN inside this area: (a) who ROUTES a signal across
+   objects (ENA2's raft frames raise AC_PLAT_OUT on the RAFT's set while
+   the LION's A_JUMP_PLAT(1)=AC_PLAT_OUT tests the lion's - a message or
+   broadcast connects them, unresearched); (b) who raises the AC_*
+   engine-internal bits (AC_ENEMY_ATC 279 conditions, AC_ONAIR 211: no
+   frame GENs them - physics/combat code must); (c) whether the set is
+   ever CLEARED (ours pulses one tick, the engine's OR is latching; no
+   shipped data discriminates yet).
 3. `AC_DUP`, `AC_ONAIR`, `AC_DRECT`, `AC_EDGE`, `AC_DRAB_CATCH`, `AC_ENEMY_ATC`,
    `AC_BLOK`: meaning (they gate jumps, falls, ladders, enemy attacks).
 4. `danger_power` default (level object +0x54 is never initialised in 0x4a5d4).
@@ -385,10 +425,14 @@ horizontal range for one state, and a video measurement agrees within ~15%.
 Goal: kill the first LICHA. Where: `LEW.MOV` states `A_FIGHT*`, `A_FG_PACKA*`
 (conditions `K_FIRE`+`K_F1`/`K_F2`, `K_ALT`); enemy `.MOV` death states;
 `energy=` from the placement. How: add the fire keys (Ctrl=fire per the
-walkthrough, F1..F4 weapons; map as viewer choices), find where the lion's hit
+walkthrough, F1..F4 weapons; map as viewer choices — LANDED in PR-87:
+K_FIRE/K_F1..F4/K_ALT on all three input surfaces, comma groups as AND,
+A_FIGHT reachable and pinned on the real ZARIA script), find where the lion's hit
 box (`AC_RECT`) and the damage to enemies are decided (enemy hit method slot
 +0xd0, class 0x41180 / 0x3dae0), apply, play the enemy's dead state, remove
 the contact damage. Done when: a scripted run kills one LICHA and a pin shows it.
+(Partially met: the keys and the A_FIGHT entry exist since PR-87; the hit,
+the energy decrement and the death state do not.)
 
 **T3. Enemy behaviour.**
 Patrol between `bounds=` (LANDED in PR-79: BY_X states walk at F/4 px/s and
@@ -406,7 +450,10 @@ pause-in-place vs walk-burst (DANGER) state gating, `scope=`, and the
 DANGER charge's own motion, which needs T1's `F`/`I` semantics.)
 
 **T4. Signal bus, pickups, inventory.**
-Resolve open question 2, then: the `GEN`/signal delivery between objects, the
+Resolve open question 2 (RESOLVED in PR-88: the full name->bit table decoded
+from 0x48000/0x919ec, K_GEN1=54 confirmed), then: the `GEN`/signal delivery
+between objects (OPEN: who routes a signal raised on one object's set into
+another's conditions), the
 `AC_*` actions (`PLAT_OFF/OUT`, `XCHG_LEVEL`, `SHOW_CROWN`, `MSG_PUSH`, `LEAVE`),
 pickups (`GRABOBJ` handler at slot 0x78 = 0x3db90, `KORONA`, `SURPRISE`, stars
 `GWIAZDKI`), the item box (`TOOLS.SEQ` icons; the video shows the held item),

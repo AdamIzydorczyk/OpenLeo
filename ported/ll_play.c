@@ -194,6 +194,59 @@ int ll_mov_find(const ll_mov_t *m, const char *name)
     return -1;
 }
 
+/* PR-88: name -> LL_SIG_* index. The table is the engine's own (name
+ * block 0x919ec, bit constants from the comparison chain at 0x48000 -
+ * see the ll_play.h enum comment). K_ANY / K_NEVER and their AC_ aliases
+ * are NOT bits there (the parser turns them into node op tags), and our
+ * cond_id already models them, so they return -1 here. */
+int ll_sig_id(const char *name)
+{
+    static const struct { const char *n; int id; } tbl[] = {
+        { "AC_BLOK", LL_SIG_AC_BLOK },        { "AC_BLOK_Y", LL_SIG_AC_BLOK_Y },
+        { "AC_BREAK_NEXT", LL_SIG_AC_BREAK_NEXT },
+        { "AC_BREAK_PREV", LL_SIG_AC_BREAK_PREV },
+        { "AC_DUP", LL_SIG_AC_DUP },          { "AC_OFF", LL_SIG_AC_OFF },
+        { "AC_DEADDUP", LL_SIG_AC_DEADDUP },  { "AC_ENEMY", LL_SIG_AC_ENEMY },
+        { "AC_EDGE", LL_SIG_AC_EDGE },        { "AC_TIME", LL_SIG_AC_TIME },
+        { "AC_DRAB", LL_SIG_AC_DRAB },        { "AC_DRABK", LL_SIG_AC_DRABK },
+        { "AC_DRAB_CATCH", LL_SIG_AC_DRAB_CATCH },
+        { "AC_DUP_CD", LL_SIG_AC_DUP_CD },    { "AC_STONE", LL_SIG_AC_STONE },
+        { "AC_PUSH", LL_SIG_AC_PUSH },        { "AC_ENEMY_ATC", LL_SIG_AC_ENEMY_ATC },
+        { "AC_RECT", LL_SIG_AC_RECT },        { "AC_ONAIR", LL_SIG_AC_ONAIR },
+        { "AC_DRECT", LL_SIG_AC_DRECT },      { "AC_DRECT2", LL_SIG_AC_DRECT2 },
+        { "AC_LINA", LL_SIG_AC_LINA },        { "AC_LINA_CATCH", LL_SIG_AC_LINA_CATCH },
+        { "AC_LEAVE", LL_SIG_AC_LEAVE },      { "AC_ATAK", LL_SIG_AC_ATAK },
+        { "AC_UP_DUP", LL_SIG_AC_UP_DUP },    { "AC_SPOKUJ", LL_SIG_AC_SPOKUJ },
+        { "AC_BUTLA", LL_SIG_AC_BUTLA },      { "AC_BECZKA", LL_SIG_AC_BECZKA },
+        { "AC_START", LL_SIG_AC_START },      { "AC_MRECT", LL_SIG_AC_MRECT },
+        { "AC_TABLICZKA", LL_SIG_AC_TABLICZKA },
+        { "AC_KILOF", LL_SIG_AC_KILOF },      { "AC_KOREK", LL_SIG_AC_KOREK },
+        { "AC_KOLO", LL_SIG_AC_KOLO },        { "K_BKWD", LL_SIG_K_BKWD },
+        { "K_FWD", LL_SIG_K_FWD },            { "K_UP", LL_SIG_K_UP },
+        { "K_DOWN", LL_SIG_K_DOWN },          { "K_FIRE", LL_SIG_K_FIRE },
+        { "K_ALT", LL_SIG_K_ALT },            { "K_F1", LL_SIG_K_F1 },
+        { "K_F2", LL_SIG_K_F2 },              { "K_F3", LL_SIG_K_F3 },
+        { "K_F4", LL_SIG_K_F4 },              { "K_F5", LL_SIG_K_F5 },
+        { "K_F6", LL_SIG_K_F6 },              { "K_F7", LL_SIG_K_F7 },
+        { "K_F8", LL_SIG_K_F8 },              { "K_F9", LL_SIG_K_F9 },
+        { "K_F10", LL_SIG_K_F10 },            { "K_F11", LL_SIG_K_F11 },
+        { "K_F12", LL_SIG_K_F12 },            { "K_JUMP", LL_SIG_K_JUMP },
+        { "K_GEN1", LL_SIG_K_GEN1 },          { "K_GEN2", LL_SIG_K_GEN2 },
+        { "K_GEN3", LL_SIG_K_GEN3 },          { "K_GEN4", LL_SIG_K_GEN4 },
+        { "K_GEN5", LL_SIG_K_GEN5 },          { "AC_PLAT_OFF", LL_SIG_AC_PLAT_OFF },
+        { "AC_PLAT_OUT", LL_SIG_AC_PLAT_OUT },
+        { "AC_XCHG_LEVEL", LL_SIG_AC_XCHG_LEVEL },
+        { "AC_SHOW_CROWN", LL_SIG_AC_SHOW_CROWN },
+        { "AC_MSG_PUSH", LL_SIG_AC_MSG_PUSH },
+        { "AC_WALK_UP", LL_SIG_AC_WALK_UP },  { "AC_WALK_DOWN", LL_SIG_AC_WALK_DOWN },
+        { "AC_APPEAR", LL_SIG_AC_APPEAR },    { "AC_DISAPPEAR", LL_SIG_AC_DISAPPEAR },
+    };
+    for (unsigned i = 0; i < sizeof tbl / sizeof tbl[0]; i++)
+        if (strcasecmp(tbl[i].n, name) == 0)
+            return tbl[i].id;
+    return -1;
+}
+
 static int cond_id(const char *tok)
 {
     static const struct { const char *n; int id; } tbl[] = {
@@ -205,6 +258,7 @@ static int cond_id(const char *tok)
         { "K_GEN2", LL_COND_K_GEN2 },
         { "K_GEN3", LL_COND_K_GEN3 },
         { "K_GEN4", LL_COND_K_GEN4 },
+        { "K_GEN5", LL_COND_K_GEN5 },
         { "K_JUMP", LL_COND_K_JUMP },
         { "K_FIRE", LL_COND_K_FIRE },
         { "K_F1", LL_COND_K_F1 },
@@ -298,6 +352,13 @@ static void parse_cond(ll_mov_tr *tr, const char *expr)
                 tr->c[tr->nc].cond = cond_id(tok);
                 tr->c[tr->nc].neg = neg;
                 tr->c[tr->nc].grp = grp;
+                /* PR-88: remember the signal-table index of names the
+                 * model does not model as direct conditions (AC_ONAIR,
+                 * AC_EDGE, ...): the evaluator tests them against the
+                 * object's own signal set instead of never-true OTHER. */
+                tr->c[tr->nc].sig =
+                    tr->c[tr->nc].cond == LL_COND_OTHER
+                        ? (short)ll_sig_id(tok) : -1;
                 tr->nc++;
             }
             if (end == bend)
@@ -360,7 +421,7 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                          * matching the viewer's mov_parse. */
                         mf->ms = ms > 0 ? (unsigned)ms : 100u;
                         mf->dx = mf->dy = 0;
-                        mf->gen = 0;
+                        mf->gsig = 0;
                         mf->has_i = 0;
                         /* A frame line may carry further fields. The one the
                          * model acts on is the authored motion of THIS frame,
@@ -416,23 +477,40 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                                     }
                                 }
                                 if (strcasecmp(word, "GEN") == 0) {
-                                    /* PR-69: `GEN K_GENn` = the frame raises
+                                    /* PR-69: `GEN <signal>` = the frame raises
                                      * that signal when it completes.
                                      * PR-83: `GEN AC_TIME` is the same
                                      * mechanism for AC_TIME (the real
                                      * ZARIA A_WALK idle chain: 11 such
-                                     * lines across that script) */
+                                     * lines across that script).
+                                     * PR-88: ANY name in the engine's
+                                     * signal table (0x48000) can be
+                                     * raised - the shipped scripts do:
+                                     * K_GEN1 315x, AC_PLAT_OFF 181x,
+                                     * K_GEN3 139x, AC_TIME 60x ... The
+                                     * bits land at their LL_SIG_*
+                                     * indexes; a name the table has
+                                     * (but at index >= 64, none in the
+                                     * data) or no name at all stays a
+                                     * counted, unmodeled directive. */
                                     while (*q == ' ')
                                         q++;
-                                    if (strncasecmp(q, "K_GEN", 5) == 0 &&
-                                        q[5] >= '1' && q[5] <= '4') {
-                                        mf->gen |= 1u << (q[5] - '1');
-                                        q += 6;
-                                        continue;
+                                    char nm[24];
+                                    size_t nn = 0;
+                                    while (q[nn] &&
+                                           ((q[nn] >= 'A' && q[nn] <= 'Z') ||
+                                            (q[nn] >= 'a' && q[nn] <= 'z') ||
+                                            (q[nn] >= '0' && q[nn] <= '9') ||
+                                            q[nn] == '_') &&
+                                           nn + 1 < sizeof nm) {
+                                        nm[nn] = q[nn];
+                                        nn++;
                                     }
-                                    if (strncasecmp(q, "AC_TIME", 7) == 0) {
-                                        mf->gen |= LMOV_GEN_AC_TIME;
-                                        q += 7;
+                                    nm[nn] = '\0';
+                                    int sid = nn ? ll_sig_id(nm) : -1;
+                                    if (sid >= 0 && sid < 64) {
+                                        mf->gsig |= 1ull << sid;
+                                        q += nn;
                                         continue;
                                     }
                                 }
@@ -605,9 +683,11 @@ static int cond_true(const ll_player *p, const ll_play_keys *k,
             case LL_COND_K_BKWD: v = bkwd_rel; break;
             case LL_COND_K_UP:   v = k->k_up;   break;
             case LL_COND_K_DOWN: v = k->k_down; break;
-            case LL_COND_K_GEN1: v = p->gen[0]; break;
-            case LL_COND_K_GEN2: v = p->gen[1]; break;
-            case LL_COND_K_GEN3: v = p->gen[2]; break;
+            case LL_COND_K_GEN1: v = (p->sig >> LL_SIG_K_GEN1) & 1; break;
+            case LL_COND_K_GEN2: v = (p->sig >> LL_SIG_K_GEN2) & 1; break;
+            case LL_COND_K_GEN3: v = (p->sig >> LL_SIG_K_GEN3) & 1; break;
+            case LL_COND_K_GEN4: v = (p->sig >> LL_SIG_K_GEN4) & 1; break;
+            case LL_COND_K_GEN5: v = (p->sig >> LL_SIG_K_GEN5) & 1; break;
             case LL_COND_K_ANY:  v = any;       break;
             case LL_COND_K_JUMP: v = k->k_jump; break;
             case LL_COND_K_FIRE: v = k->k_fire; break;   /* PR-87 */
@@ -619,7 +699,16 @@ static int cond_true(const ll_player *p, const ll_play_keys *k,
             case LL_COND_AC_BREAK_NEXT: v = p->broke; break;
             case LL_COND_AC_TIME: v = p->ac_time; break;  /* PR-83: player-side
                  * arm = the frame list wrapped (ZARIA A_WALK->A_DRAP idle chain) */
-            default:             v = 0;         break;   /* OTHER: not simulated */
+            case LL_COND_OTHER:
+                v = tr->c[i].sig >= 0
+                    ? (int)((p->sig >> (unsigned)tr->c[i].sig) & 1)
+                    : 0;               /* PR-88: a bare signal NAME (AC_ONAIR,
+                                        * AC_EDGE, ...) tests the lion's own
+                                        * set - false until something raises
+                                        * it; an unknown token stays never-true
+                                        * OTHER (counted, not guessed) */
+                break;
+            default:             v = 0;         break;   /* not simulated */
             }
             if (tr->c[i].neg)
                 v = !v;
@@ -750,8 +839,7 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
      * SEQ_REV_X turns, not to stopping). */
     if (st->ctrl & LL_CTRL_CH_DIR)
         p->face = p->walkdir < 0 ? -1 : 1;
-    for (int i = 0; i < 3; i++)                        /* one-tick pulses */
-        p->gen[i] = 0;
+    p->sig = 0;                                      /* one-tick pulses */
     p->broke = 0;
     p->ac_time = 0;
 
@@ -836,7 +924,7 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
                 p->y = (double)hit.y;
                 p->vy = 0;
                 p->grounded = 1;
-                p->gen[LL_COND_K_GEN2 - LL_COND_K_GEN1] = 1; /* landing   */
+                p->sig |= 1ull << LL_SIG_K_GEN2;        /* landing pulse  */
                 ev |= LL_PLAY_EV_GROUND;
                 if (p->jumping && !st_has_break_next_exit(st)) {
                     /* FALLBACK viewer rule ONLY when the state declares
@@ -909,12 +997,15 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
             p->ft -= st->fr[p->fi].ms;
             p->x += st->fr[p->fi].dx;
             p->y += st->fr[p->fi].dy;
-            unsigned gf = st->fr[p->fi].gen;
-            if (gf & LMOV_GEN_AC_TIME)
-                p->ac_time = 1;
-            for (int gi = 0; gi < 3; gi++)   /* K_GEN4 has no player field */
-                if (gf & (1u << gi))
-                    p->gen[gi] = 1;
+            unsigned long long gf = st->fr[p->fi].gsig;
+            p->sig |= gf;                            /* PR-88: any named  */
+            if (gf & (1ull << LL_SIG_AC_TIME))       /* signal raises on  */
+                p->ac_time = 1;                      /* frame completion  */
+            if (gf & (1ull << LL_SIG_AC_BREAK_NEXT))
+                p->broke = 1;          /* TUNGA's A_FIGHT rows raise this
+                                        * directly (`GEN AC_BREAK_NEXT`);
+                                        * the frame-list wrap below keeps
+                                        * arming it the PR-83 way. */
             if (p->fi + 1 >= st->nfr) {
                 p->fi = 0;
                 p->broke = 1;
@@ -1113,7 +1204,7 @@ int ll_play_selftest(void)
     CHECK(maxfi > 0);
     CHECK(p.grounded && p.y == 150);
     CHECK(p.vx > 50);                                /* kept momentum  */
-    CHECK(p.gen[LL_COND_K_GEN2 - LL_COND_K_GEN1] == 1); /* landing pulse */
+    CHECK((p.sig >> LL_SIG_K_GEN2) & 1);               /* landing pulse */
 
     k.k_fwd = 0;
     ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);
@@ -1378,7 +1469,7 @@ int ll_play_selftest(void)
         ll_player_step(&q, &gp, &gk, 0, 2000, 20);   /* -> walk left     */
         CHECK(q.sti == 1 && q.face == -1);
         gk.k_bkwd = 0;
-        q.gen[0] = 1;                                /* K_GEN1 trigger   */
+        q.sig |= 1ull << LL_SIG_K_GEN1;                /* K_GEN1 trigger   */
         ll_player_step(&q, &gp, &gk, 0, 2000, 20);   /* -> the baked state */
         CHECK(q.sti == 2);
         CHECK(q.walkdir == -1);                      /* the transition set it */
@@ -1548,7 +1639,7 @@ int ll_play_selftest(void)
                 pull_at = t;
         }
         CHECK(pull_at >= 3 && pull_at <= 5);           /* frame 1 ends at 50 ms */
-        CHECK(q.auto_walk && !q.gen[0]);               /* pulse consumed   */
+        CHECK(q.auto_walk && !((q.sig >> LL_SIG_K_GEN1) & 1)); /* pulse consumed */
         double qx = q.x;
         for (int t = 0; t < 40; t++) {
             ll_player_step(&q, &pp, &qk, 0, 2000, 20);

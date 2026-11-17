@@ -158,15 +158,65 @@ enum {
      * K_ALT = the alternate-modifier condition (28 uses: A_FIGHT_END /
      * throw routes). */
     LL_COND_K_FIRE, LL_COND_K_F1, LL_COND_K_F2, LL_COND_K_F3,
-    LL_COND_K_F4, LL_COND_K_ALT,
+    LL_COND_K_F4, LL_COND_K_ALT, LL_COND_K_GEN5,
     LL_COND_OTHER
 };
 
-typedef struct { int frame; unsigned ms; int dx, dy; unsigned gen;
-                 int has_i, ix, iy; } ll_mov_fr;   /* has_i: `I ix,iy` impulse tail */   /* gen: bit n-1 = the frame's `GEN K_GENn` tail;
-                 bit 4 = the frame's `GEN AC_TIME` tail (PR-83: the real
-                 AC_TIME source, measured in ZARIA's player .MOV) */
-#define LMOV_GEN_AC_TIME (1u << 4)
+/* PR-88: the engine's signal bit table. The object's signal bitset at
+ * [obj+0x60] is a TEventSet (error string "TEventSet::match" at 0x919cd);
+ * the name->bit function at 0x48000 compares a condition/GEN token against
+ * the name block at 0x919ec..0x91c40 and sets an EXPLICIT bit constant per
+ * name (verified constants: AC_BLOK mov al,0x0; AC_BLOK_Y 0x1;
+ * AC_BREAK_NEXT 0x2; AC_ENEMY mov dl,0x7; AC_ONAIR mov dl,0x12;
+ * K_GEN1 mov al,0x36 = 54; K_GEN2 0x37 - PR-70's "bit 54 = K_GEN1"
+ * assumption CONFIRMED). K_ANY (and the AC_K_ANY alias) and K_NEVER /
+ * AC_K_NEVER are NOT bits: the clause parser at 0x47d60 special-cases them
+ * into node op tags ('!' = negate, '*' = and-with-set, '|' = separate node
+ * = OR), and a ',' keeps folding bits into the SAME node mask - the
+ * engine's own evidence for PR-87's OR-of-AND-groups reading. AC_EV_MAX =
+ * 68 bounds the table, so the node/set masks are 3 dwords. */
+enum {
+    LL_SIG_AC_BLOK = 0,     LL_SIG_AC_BLOK_Y,     LL_SIG_AC_BREAK_NEXT,
+    LL_SIG_AC_BREAK_PREV,   LL_SIG_AC_DUP,        LL_SIG_AC_OFF,
+    LL_SIG_AC_DEADDUP,      LL_SIG_AC_ENEMY,      LL_SIG_AC_EDGE,
+    LL_SIG_AC_TIME,         LL_SIG_AC_DRAB,       LL_SIG_AC_DRABK,
+    LL_SIG_AC_DRAB_CATCH,   LL_SIG_AC_DUP_CD,     LL_SIG_AC_STONE,
+    LL_SIG_AC_PUSH,         LL_SIG_AC_ENEMY_ATC,  LL_SIG_AC_RECT,
+    LL_SIG_AC_ONAIR,        LL_SIG_AC_DRECT,      LL_SIG_AC_DRECT2,
+    LL_SIG_AC_LINA,         LL_SIG_AC_LINA_CATCH, LL_SIG_AC_LEAVE,
+    LL_SIG_AC_ATAK,         LL_SIG_AC_UP_DUP,     LL_SIG_AC_SPOKUJ,
+    LL_SIG_AC_BUTLA,        LL_SIG_AC_BECZKA,     LL_SIG_AC_START,
+    LL_SIG_AC_MRECT,        LL_SIG_AC_TABLICZKA,  LL_SIG_AC_KILOF,
+    LL_SIG_AC_KOREK,        LL_SIG_AC_KOLO,
+    LL_SIG_K_BKWD = 35,     LL_SIG_K_FWD,         LL_SIG_K_UP,
+    LL_SIG_K_DOWN,          LL_SIG_K_FIRE,        LL_SIG_K_ALT,
+    LL_SIG_K_F1,            LL_SIG_K_F2,          LL_SIG_K_F3,
+    LL_SIG_K_F4,            LL_SIG_K_F5,          LL_SIG_K_F6,
+    LL_SIG_K_F7,            LL_SIG_K_F8,          LL_SIG_K_F9,
+    LL_SIG_K_F10,           LL_SIG_K_F11,         LL_SIG_K_F12,
+    LL_SIG_K_JUMP = 53,     LL_SIG_K_GEN1,        LL_SIG_K_GEN2,
+    LL_SIG_K_GEN3,          LL_SIG_K_GEN4,        LL_SIG_K_GEN5,
+    LL_SIG_AC_PLAT_OFF = 59, LL_SIG_AC_PLAT_OUT,  LL_SIG_AC_XCHG_LEVEL,
+    LL_SIG_AC_SHOW_CROWN,   LL_SIG_AC_MSG_PUSH,   LL_SIG_AC_WALK_UP,
+    LL_SIG_AC_WALK_DOWN,    LL_SIG_AC_APPEAR,     LL_SIG_AC_DISAPPEAR,
+    LL_SIG_AC_EV_MAX = 68
+};
+
+/* Table index of a signal name (case-insensitive), or -1 for unknown
+ * names and for the non-bit specials K_ANY / K_NEVER (+ AC_ aliases). */
+int ll_sig_id(const char *name);
+
+typedef struct { int frame; unsigned ms; int dx, dy;
+                 unsigned long long gsig;
+                 int has_i, ix, iy; } ll_mov_fr;   /* has_i: `I ix,iy` impulse tail */   /* gsig: the frame's `GEN <signal>` tail(s), one bit per name
+                 at its LL_SIG_* index (PR-88: any table name, not just
+                 K_GENn/AC_TIME - the engine's own GEN survey raises
+                 AC_PLAT_OFF 181x, AC_TIME 60x ...). Names at index >= 64
+                 (AC_WALK_UP/.., AC_EV_MAX) never appear in a GEN tail in
+                 any shipped script, so one u64 covers all raised signals;
+                 such a name would be counted unmodeled, not guessed.
+                 The old K_GENn bit n-1 / AC_TIME bit 4 encodings are
+                 gone: the same bits now live at their table indices. */
 typedef struct {
     char target[24];                        /* resolved at parse time      */
     int tidx;                               /* state index, -1 unresolved  */
@@ -183,11 +233,14 @@ typedef struct {
                               * `A_JUMP(9)` re-joins the jump mid-air. The
                               * token can be non-numeric (KADMAR2 "(x)"):
                               * then it starts from the top. */
-    struct { int cond; int neg; int grp; } c[LMOV_MAXCON];
+    struct { int cond; int neg; int grp; short sig; } c[LMOV_MAXCON];
     /* PR-87: tokens sharing a grp number are ANDed; the line is true
      * when ANY group is fully true ('|' starts a new group, ',' splits
      * one; see the enum comment). A single-token line is one group -
-     * identical behavior to the old OR-everything model. */
+     * identical behavior to the old OR-everything model. PR-88: sig is
+     * the LL_SIG_* table index when the token is a signal NAME that is
+     * not one of the modeled conditions (-1 otherwise) - the evaluator
+     * tests it against the object's own signal set. */
     int nc;
 } ll_mov_tr;
 typedef struct {
@@ -266,8 +319,14 @@ typedef struct {
                                  * states that bake their direction into the
                                  * frame sign (A_GO_TO_BALON_L) never touch
                                  * it. Starts +1 = what the frames ask for. */
-    int gen[3];                 /* K_GEN1..3 one-tick pulses (script
-                                 * triggers, set by gameplay logic)       */
+    unsigned long long sig;   /* PR-88: the lion's signal set, a mirror of
+                               * the engine's TEventSet at [obj+0x60] with
+                               * the LL_SIG_* bit table. One-tick pulses
+                               * (cleared every step): raised by a frame's
+                               * `GEN <signal>` tail, by gameplay logic
+                               * (K_GEN2 = bit 54+1 on landing), and read
+                               * by name conditions. The old gen[3] array
+                               * is the same K_GENn pulses at bits 54..56. */
     int broke;                  /* AC_BREAK_NEXT pending (frame list just
                                  * completed)                             */
     int ac_time;                /* PR-83: AC_TIME pending - raised by a
