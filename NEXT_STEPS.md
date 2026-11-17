@@ -8666,6 +8666,23 @@ are not used here (docs + .gitignore only, no code or Makefile change)
   that rounded picture IS the whole Mode X frame the movie decoder
   produces or a letterboxed copy of it is exactly what PR-55/56's movie
   work could answer, and no record settles it yet.
+- FOLLOW-UP, SAME DAY (owner's instruction, quoted rather than
+  paraphrased): "its worth reason why verify-all after that changes?"
+  and then "yes, not run veryfication for pure doc commits". PR-111
+  itself WAS fully gated and its numbers are above (the gate script was
+  `/tmp/opencode/gates_pr111.sh`); the rule changes for future docs
+  commits only. HANDOFF section 2 rule 4 gained the exception, in the
+  narrow scope the owner asked for: `.md`-only commits, and `.md` +
+  `.gitignore` is NOT inside it, because a `.gitignore` pattern can hide
+  a tree-based fixture and the data-free run's named-SKIP census is
+  exactly what catches that. Say the word and I will widen it to
+  `.gitignore` and `Makefile`-comment-only changes too. As evidence for
+  the change itself: grep over `Makefile`, `tools/checkfix.py` and
+  `tools/verify_help.py` shows those files only ever MENTION
+  NEXT_STEPS.md inside `#` comments and `@echo` SKIP strings - no leg
+  reads a `.md` file - so no build or verify target can be affected by a
+  docs edit. PR-111's own CI, for the record: run 44175913075,
+  completed / success, jobs linux, asan, windows-smoke.
 
 ## Next — pick from the Deferred list below
 

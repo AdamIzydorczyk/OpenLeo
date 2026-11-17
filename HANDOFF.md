@@ -60,6 +60,14 @@ Section 8 lists them as tasks.
    -> EXIT=0 with named SKIPs); a new `LEO_*` hook is documented in README; a
    record in NEXT_STEPS.md (what was found, what was ported, what is
    estimated, what is open); push; check CI (`gh run list --workflow=ci.yml`).
+   EXCEPTION (owner, 2026-11-17): for a **pure-docs commit** - only `.md`
+   files, nothing under `.gitignore`, `Makefile`, `tools/`, `ported/` or
+   `.github/` - `make`, `make win`, `make ll_level` and `verify-all` are
+   NOT run; record the reason instead (which files changed, and why no
+   leg can read them). `gh` still runs the suite on its own, so the CI
+   result is quoted as usual. The owner may widen the exception later
+   (e.g. to `.gitignore` edits); until then a `.gitignore` change is
+   still gated in full, because a pattern there can hide a fixture.
 5. `gh` token has no `workflow` scope: a commit touching `.github/workflows/*`
    cannot be pushed.
 6. The owner supplies reference material (screenshots, video timestamps).
@@ -1745,7 +1753,8 @@ Measuring on the reference video (episodes 1-11 of the playlist
       timestamp), estimates named in code AND in NEXT_STEPS
 - [ ] data-free hand-derived test + mutation check
 - [ ] `make`, `make win` warning-free
-- [ ] `make -k verify-all` EXIT=0 with fixtures and fixture-free
+- [ ] `make -k verify-all` EXIT=0 with fixtures and fixture-free - not run
+      for a pure-docs commit (section 2 rule 4's exception, 2026-11-17)
 - [ ] README hook list updated if a `LEO_*` variable was added
 - [ ] NEXT_STEPS.md record; this file's sections 1, 6, 7, 8 updated
 - [ ] commit "PR-NN: ..." ; `git push`; `gh run list --workflow=ci.yml` green
