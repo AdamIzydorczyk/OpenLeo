@@ -222,6 +222,26 @@ void ll_seq_shape_bbox(const ll_seq *s, const ll_seq_elem *e,
  * lets the cross-check show that those lines agree on both sides. */
 int ll_seq_shape_empty(const ll_seq *s, const ll_seq_elem *e);
 
+/* PR-97: the LAST solid row of the shape box, measured below the position
+ * point the element is drawn from = ll_seq_shape_bbox's y + h - 2 (the
+ * game's obj+0x0e + obj+0x12 - 2). This is the row where the sprite is
+ * solid on the ground side, and the frame anchors of an animation are
+ * authored to keep it at ONE fixed offset through the whole cycle: ZARIA
+ * LEW.ZAR WALK.SEQ holds 30..32 across its 12 frames while f2 stays 31,
+ * LEW.ZAR END.SEQ holds exactly 58 across 30 frames while f2 climbs from 5
+ * to 54, ZARIA's worm WAZ.SEQ holds 46..49 while f0 swings -2..-22 and f2
+ * -9..-16. It is NOT the frame anchor: LEW.RAN/UJ09.SEQ (the walk cycle the
+ * RAN.01 lion shows) keeps f2 = 45 on every frame while this value is only
+ * 10..14 - an anchor-based contact would leave that lion 33 px in the air.
+ * Callers that place an ACTOR use the value of its whole animation (the max
+ * over the frames its current state can show: ll_level.c mov_state_contact),
+ * because this per-element value wobbles a few px over a cycle (planted paw
+ * vs lifted paw) and the frame cursor is not a property of the ground.
+ * 0 when the element carries no margin lists (no shape: the game's hit test
+ * and push-out skip those too) or when the box math comes out negative (the
+ * all-empty-rows degenerate case above). */
+int ll_seq_shape_contact(const ll_seq *s, const ll_seq_elem *e);
+
 /* FUN_00042a70: do the positioned shapes overlap? 1/0. Positions are the
  * caller-frame x/y the game passes to its wrappers (the f0/f2 anchor shift
  * and the facing mirror happen inside, exactly as in the game). The row

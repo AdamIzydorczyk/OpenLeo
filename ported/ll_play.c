@@ -668,6 +668,13 @@ void ll_player_start(ll_player *p, const ll_mov_t *mov, double x, double y,
         p->sti = 0;
 }
 
+/* PR-97: see the ll_player.contact note. The viewer calls this with the
+ * shape-box bottom of the animation it is drawing, every tick. */
+void ll_player_set_contact(ll_player *p, int below_pos)
+{
+    p->contact = below_pos > 0 ? below_pos : 0;
+}
+
 static int cond_true(const ll_player *p, const ll_play_keys *k,
                      const ll_mov_tr *tr)
 {
@@ -911,14 +918,36 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
     p->x += p->vx * dt;
     p->y += p->vy * dt;
 
-    /* 5) ground logic (.plt lines, feet-on-top) */
+    /* 5) ground logic (.plt lines, the shape bottom on top).
+     * PR-97: the tested point is `y + p->contact` - the contact line the
+     * viewer resolved for the animation being shown (ll_player.contact,
+     * ll_seq_shape_contact) - not the position point. DATA: the frame
+     * anchors of an animation are authored so that its shape-box bottom sits
+     * at one fixed offset below the position point over the whole cycle -
+     * ZARIA LEW.ZAR WALK.SEQ 12 frames, f2 = 31 on every one and the shape
+     * box bottom at pos+30..+32; the same lion's END.SEQ runs f2 from 5 to
+     * 54 while the bottom stays at EXACTLY pos+58; ZARIA's worm WAZ.SEQ
+     * swings f0 -2..-22 and f2 -9..-16 with its bottom fixed at pos+46..49.
+     * Only the shape box is that stable, and the game's own terrain-side
+     * geometry (the hit test FUN_00042a70, the push-out FUN_00042de0) is
+     * shape-box geometry, so the contact line is the shape bottom.
+     * The view-side arithmetic against the original: ZARIA.01's camera clamp
+     * is cam_ymax 500 and its .plt main ground is world y=680-684, so that
+     * line renders at view row 180 - the paw line PR-84 measured on the video
+     * (paws at 175..180). Parking the SHAPE BOTTOM there keeps the lion the
+     * same height as the original. Parking the POSITION POINT there (what
+     * this port did until now) puts the same shape bottom at world 710 =
+     * view 210, outside the 200-row view: the "Lew is below the grass, his
+     * legs are cut" report. */
     int xi = (int)(p->x >= 0 ? p->x + 0.5 : p->x - 0.5);
+    int cont = p->contact > 0 ? p->contact : 0;
+    double ground_y = p->y + (double)cont;     /* where this frame touches */
+    int gyi = (int)(ground_y >= 0 ? ground_y + 0.5 : ground_y - 0.5);
     if (ground) {
         if (p->grounded && (st->ctrl & LL_CTRL_CHECK_LN)) {
             ll_xy hit;
-            int yi = (int)(p->y >= 0 ? p->y + 0.5 : p->y - 0.5);
-            if (ll_plt_surface_at(ground, xi, yi, LL_PLAY_STEP, &hit)) {
-                p->y = (double)hit.y;                    /* slope following */
+            if (ll_plt_surface_at(ground, xi, gyi, LL_PLAY_STEP, &hit)) {
+                p->y = (double)hit.y - (double)cont;  /* slope following */
                 p->vy = 0;
             } else if (p->support) {
                 p->vy = 0;                    /* standing on a solid object */
@@ -929,18 +958,22 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
             }
         } else if (!p->grounded) {
             /* Landing search. The start row sits LL_PLAY_STEP ABOVE the
-             * feet (y-down: minus = up): a CHECK_LN walker that briefly
-             * left the ground at a line END and sank a few px below the
-             * continuation line (real RAN.PLT: shelf 126..302@314 ->
+             * contact line (y-down: minus = up): a CHECK_LN walker that
+             * briefly left the ground at a line END and sank a few px below
+             * the continuation line (real RAN.PLT: shelf 126..302@314 ->
              * 323..485@313 across a 20 px gap) steps back UP onto it -
              * symmetric with the step-down tolerance in the grounded
              * branch. A fall from higher up is unaffected: its surface
-             * is below the feet either way. */
+             * is below the contact line either way. */
             ll_xy hit;
-            int yi = (int)(p->y >= 0 ? p->y : p->y - 1) - LL_PLAY_STEP;
-            if (p->vy >= 0 && ll_plt_first_below(ground, xi, yi, &hit) &&
-                p->y >= (double)hit.y - 1.0) {
-                p->y = (double)hit.y;
+            /* the old code truncated away from zero here (one px lower
+             * than the grounded branch's nearest rounding for a negative
+             * y); keeping that difference, only the tested point moved */
+            int start = (int)(ground_y >= 0 ? ground_y : ground_y - 1.0);
+            if (p->vy >= 0 && ll_plt_first_below(ground, xi,
+                                                 start - LL_PLAY_STEP, &hit) &&
+                ground_y >= (double)hit.y - 1.0) {
+                p->y = (double)hit.y - (double)cont;
                 p->vy = 0;
                 p->grounded = 1;
                 p->sig |= 1ull << LL_SIG_K_GEN2;        /* landing pulse  */

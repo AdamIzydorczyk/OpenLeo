@@ -634,6 +634,24 @@ endif
 # CONSTANTS), so it runs in EVERY configuration; the scripted demo legs
 # run on the real RAN.01 / TUNGA.11 player data (LEW.* leaves).
 verify-play: ll_level
+# PR-97 RE-PIN NOTE (applies to every y in this target): the player's x,y
+# is the POSITION POINT; what stands on the .plt line is the animation's
+# shape-box bottom (ll_seq_shape_contact -> ll_player.contact, and the same
+# rule for ground-bound placements through obj_settle/obj_contact). So every
+# grounded position point moved UP by exactly that art set's offset, which
+# is a property of the art, not a constant:
+#   RAN.01 LEW.RAN/UJ09.SEQ: 10..14 px per frame, 14 as the animation value
+#     (its 59-row art hangs 45 rows above the point and 10-14 below it, the
+#     lifted-paw frames less) -> the 298/313 values become 286/299;
+#   ZARIA.01 LEW.ZAR: WALK 32, TURN 29, FIGHT 34, IDLE 28 px -> the 680
+#     floor becomes 648 while walking (that art is centred on the point).
+# The offset is taken once per ANIMATION (the max over the state's frame
+# list, ll_level.c mov_state_contact) and a state change while grounded
+# keeps the CONTACT LINE invariant (play_advance): what never moves is the
+# surface, so the logged position point differs between states that carry a
+# different shape bottom (648 walking, 652 idling on the same grass line) and
+# never depends on which frame or which state came before. Scene-object
+# placements move the same way.
 # data-free leg: parser + physics + transition selftest (always runs)
 	@timeout 30 ./ll_level --play-selftest
 ifeq ($(PX_DATA),1)
@@ -652,7 +670,7 @@ ifeq ($(PX_DATA),1)
 	@grep -q 'play: art LEW.RAN/UJ09.SEQ: 12 element' /tmp/opencode/ly_walk.log \
 	  && grep -q 'play: LEW.MOV: 30 state' /tmp/opencode/ly_walk.log \
 	  && grep -q 'play: RAN.PLT: 153 polyline' /tmp/opencode/ly_walk.log \
-	  && grep -q 'spawn feet (40,298) grounded=1 bounds 0..28800' \
+	  && grep -q 'spawn feet (40,286) grounded=1 bounds 0..28800' \
 	      /tmp/opencode/ly_walk.log \
 	  && echo "play wiring: lew= leaf art + LEW.MOV + platformy=.PLT + pozycja snap + lew_rect bounds (ok - the RAN.01 player data is COMPLETE; the PR-42 'ZARIA.02 substitution' note was a probe-truncation artifact)" \
 	  || { echo "play wiring grep FAILED"; cat /tmp/opencode/ly_walk.log; exit 1; }
@@ -662,9 +680,9 @@ ifeq ($(PX_DATA),1)
 	  && grep -q 'play: A_WALK_FWD -> A_STAY' /tmp/opencode/ly_walk.log \
 	  && grep -q 'play tick 10: state A_WALK_FWD seq uj09.*grounded 1' \
 	      /tmp/opencode/ly_walk.log \
-	  && grep -q 'play tick 210: state A_WALK_FWD seq .* pos 39[0-9],313' \
+	  && grep -q 'play tick 210: state A_WALK_FWD seq .* pos 39[0-9],299' \
 	      /tmp/opencode/ly_walk.log \
-	  && grep -q 'play tick 250: state A_WALK_FWD seq .* pos 3[0-4][0-9],313' \
+	  && grep -q 'play tick 250: state A_WALK_FWD seq .* pos 3[0-4][0-9],299' \
 	      /tmp/opencode/ly_walk.log \
 	  && echo "play state machine: real LEW.MOV transitions walk the .plt; PR-85 facing-relative reading: BKWD at 200 enters A_WALK_BKWD for ONE tick (the turn), CH_DIR flips face so the pair's cross-lines settle into A_WALK_FWD walking LEFT (x 39x -> 33x proved below the flip), releasing (!K_FWD) goes to A_STAY (ok)" \
 	  || { echo "play state machine grep FAILED"; cat /tmp/opencode/ly_walk.log; exit 1; }
@@ -681,7 +699,7 @@ ifeq ($(PX_DATA),1)
 	  if [ $$rc -ne 0 ]; then echo "play RAN.01 fall FAILED (rc=$$rc)"; \
 	    cat /tmp/opencode/ly_fall.log; exit 1; fi
 	@grep -q 'below lew_rect at (314,[0-9]*) -> respawn' /tmp/opencode/ly_fall.log \
-	  && grep -q 'play tick 305: state A_STAY seq uj09 frame 1 pos 40,298 grounded 1' \
+	  && grep -q 'play tick 308: state A_STAY seq uj09 frame 1 pos 40,286 grounded 1' \
 	      /tmp/opencode/ly_fall.log \
 	  && echo "play world bounds: .plt gap fall -> lew_rect death -> pozycja respawn (ok)" \
 	  || { echo "play fall/respawn grep FAILED"; cat /tmp/opencode/ly_fall.log; exit 1; }
@@ -695,19 +713,24 @@ ifeq ($(PX_DATA),1)
 # used wrong bytes. The old pin "EDGE0046 pushes back 3 px at tick 54" was
 # one of those; with each element read from its own payload the lion's walk
 # pose first touches edge0041 at tick 28. Same model, correct bytes.)
+# PR-97: the lion's shape box now rests 14 px above the .plt line (the
+# UJ09 shape bottom), so the walk meets a different invisible solid
+# (edge0039, 2 px) at the same tick - the ANIBACK edge stack is a wall of
+# shape-only records, and which one the first contact hits depends on the
+# height the actor stands at, not on the model.
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SOLID=1 \
 	  LEO_PLAY_SCRIPT="1:FWD" LEO_LEVEL_PPM=/tmp/opencode/ly_solid.ppm \
 	  LEO_LEVEL_PPM_TICK=70 ./ll_level $(DATA) RAN.01 --play --no-audio \
 	  > /tmp/opencode/ly_solid.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "play solid FAILED (rc=$$rc)"; exit 1; fi
-	@grep -q 'play tick 28: solid ANIBACK/edge0041.mov SOLID at 102,259 push -1,0 (ret -1) lion 81,298' \
+	@grep -q 'play tick 28: solid ANIBACK/edge0039.mov SOLID at 100,243 push -2,0 (ret -2) lion 81,284' \
 	    /tmp/opencode/ly_solid.log \
 	  && ! grep -q ': solid ' /tmp/opencode/ly_walk.log \
-	  && echo "play solid contact: RAN.01 edge0041 pushes the lion back 1 px at tick 28 (paired-payload read); default run has no contacts (ok)" \
+	  && echo "play solid contact: RAN.01 edge0039 pushes the lion back 2 px at tick 28 (paired-payload read); default run has no contacts (ok)" \
 	  || { echo "play solid contact grep FAILED"; grep ': solid ' /tmp/opencode/ly_solid.log | head -3; exit 1; }
 # PR-68: enemy stats from the placement file (damage=/bounds=/scope=/energy=):
-# ZARIA.01's first LICHA (120,650, damage 15) hurts the lion at tick 175.
+# ZARIA.01's first LICHA (120,650, damage 15) hurts the lion at tick 170.
 # (Pinned history: 163 while the worms floated 30 units up -> 138 after the
 # PR-78 CHECK_LN settle -> 199 with PR-79 walking: the worm patrols its
 # bounds=100,180 range at the model speed (|F|/4 = 25 px/s) instead of
@@ -717,19 +740,22 @@ ifeq ($(PX_DATA),1)
 # lands at the authored x=120 at exactly T=20 px/s -> 175 with PR-89: the
 # shape test reads each element's margin lists from its OWN payload (the
 # lion's offsets read out of the worm's payload widened the effective
-# silhouette, so the touch came ~6 px = 6 ticks early). The tick is a model
-# pin, not a video number.)
+# silhouette, so the touch came ~6 px = 6 ticks early) -> 170 with PR-97:
+# both actors are settled by their own shape-box bottoms now, so their shape
+# boxes reach each other 5 ticks earlier (the lion stands 32 px above the
+# line, the worm's body sits 49 px above its placement point). The tick is a
+# model pin, not a video number.)
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SOLID=1 \
 	  LEO_PLAY_SCRIPT="1:FWD" LEO_LEVEL_PPM=/tmp/opencode/ly_hit.ppm \
 	  LEO_LEVEL_PPM_TICK=200 ./ll_level $(DATA) ZARIA.01 --play --no-audio \
 	  > /tmp/opencode/ly_hit.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "play hit FAILED (rc=$$rc)"; exit 1; fi
-	@grep -q 'play tick 175: hit by LICHA/licha3.mov: damage 15 -> energy 85' \
+	@grep -q 'play tick 170: hit by LICHA/licha3.mov: damage 15 -> energy 85' \
 	    /tmp/opencode/ly_hit.log \
-	  && grep -q 'play tick 175: first touch raises AC_ENEMY on LICHA/licha3.mov' \
+	  && grep -q 'play tick 170: first touch raises AC_ENEMY on LICHA/licha3.mov' \
 	    /tmp/opencode/ly_hit.log \
-	  && echo "play enemy contact: ZARIA.01's LICHA deals its authored damage=15 (energy 100 -> 85 at tick 175, inside the walking model, ok); the same touch raises AC_ENEMY on it (PR-92: the object's own A_* lines decide the reaction - this script has none, so it stays)" \
+	  && echo "play enemy contact: ZARIA.01's LICHA deals its authored damage=15 (energy 100 -> 85 at tick 170, inside the walking model, ok); the same touch raises AC_ENEMY on it (PR-92: the object's own A_* lines decide the reaction - this script has none, so it stays)" \
 	  || { echo "play enemy contact grep FAILED"; grep 'hit by' /tmp/opencode/ly_hit.log | head -3; exit 1; }
 # PR-89: the lion's own attack. K_FIRE,K_F1 (PR-87) enters A_FIGHT; the
 # .MOV's ATC_ON/ATC_OFF frame flags open and CLOSE the attack window; the
@@ -742,7 +768,9 @@ ifeq ($(PX_DATA),1)
 #                     have no transition INTO them; the engine hardcodes
 #                     the string at 0x9068c)
 # The tick numbers are model pins: A_FIGHT at 75, its frame-8 ATC_ON open
-# at 160, first contact inside the window at 184 = the kill.
+# at 160, first contact inside the window at 183 = the kill (184 before
+# PR-97 settled both shape boxes on the ground: the punch box now reaches
+# the worm one tick sooner).
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=4 LEO_PLAY_SOLID=1 \
 	  LEO_PLAY_SCRIPT="1:FWD 74:FIRE,F1 75:NONE" \
@@ -773,21 +801,21 @@ ifeq ($(PX_DATA),1)
 # the enemy then lands one hit through its OWN frames' ATC_ON window -
 # the exact mirror of the lion's attack (one hit per armed state, the
 # flag resets on state change only). Model pins (the port's stand-in,
-# not the engine's driver): arming at 171 (dx 38, dy 1 - inside the box
-# two ticks before the old contact hit at 175); the worm STANDS in the
-# BY_TIME attack state, so the contact model next answers at 195/231;
+# not the engine's driver): arming at 171 (dx 38, dy 21 - inside the class
+# box one tick after the PR-97 contact hit at 170); the worm STANDS in the
+# BY_TIME attack state, so the contact model next answers at 201/231;
 # A_ATAK's frames open its window at 251 (3 completed 400-unit frames,
-# ATC_ON on the 4th) and the window hit lands at 265, right after the
+# ATC_ON on the 4th) and the window hit lands at 264, right after the
 # 30-tick hurt lock of the 231 contact expires - while a window is open
 # the touch answers as the attack, not as an extra contact hit. The
 # default legs (above) are unchanged: with the flag off no arming runs.
 # PR-91 adds the reaction: the window hit raises AC_ENEMY_ATC on the LION,
 # the lion's authored A_DOSTAL (seq=hit, entry row 1, frame-1 pullback
-# impulse) fires on the very next tick (266) and ends at its own frame-
-# list wrap through A_DRAP(1)=AC_BREAK_NEXT (356, seq=idle entry row 1) -
+# impulse) fires on the very next tick (265) and ends at its own frame-
+# list wrap through A_DRAP(1)=AC_BREAK_NEXT (355, seq=idle entry row 1) -
 # all pure authored data, so this leg now runs to PPM tick 380 to see it.
-# PR-92 adds the object-side touch raise: the first contact (195 here, 175
-# in the contact leg above) also raises AC_ENEMY (bit 7) on the WORM -
+# PR-92 adds the object-side touch raise: the first contact (170 here and in
+# the contact leg above) also raises AC_ENEMY (bit 7) on the WORM -
 # the engine packet bit (0x51050 `or dh,0x80`). licha3.mov carries no
 # AC_ENEMY line, so no state here can change and every PR-90/91 pin stays
 # byte-identical; the raise IS pinned as a log line, and the consumption
@@ -803,16 +831,16 @@ ifeq ($(PX_DATA),1)
 	    exit 1; fi
 	@grep -q 'play tick 171: LICHA/licha3.mov DANGER: lion within the class' \
 	    /tmp/opencode/ly_dgr.log \
-	  && grep -q 'play tick 265: LICHA/licha3.mov ATTACKS through its window' \
+	  && grep -q 'play tick 264: LICHA/licha3.mov ATTACKS through its window' \
 	    /tmp/opencode/ly_dgr.log \
-	  && grep -q 'window: damage 15 -> lion energy 55' \
+	  && grep -q 'window: damage 15 -> lion energy 40' \
 	    /tmp/opencode/ly_dgr.log \
-	  && grep -q 'play tick 266: state A_DOSTAL seq hit frame 1' \
+	  && grep -q 'play tick 265: state A_DOSTAL seq hit frame 1' \
 	    /tmp/opencode/ly_dgr.log \
 	  && grep -q 'A_DOSTAL -> A_DRAP' /tmp/opencode/ly_dgr.log \
-	  && grep -q 'play tick 356: state A_DRAP seq idle frame 1' \
+	  && grep -q 'play tick 355: state A_DRAP seq idle frame 1' \
 	    /tmp/opencode/ly_dgr.log \
-	  && grep -q 'play tick 195: first touch raises AC_ENEMY on LICHA/licha3.mov' \
+	  && grep -q 'play tick 170: first touch raises AC_ENEMY on LICHA/licha3.mov' \
 	    /tmp/opencode/ly_dgr.log \
 	  && ! grep -q 'DANGER: lion' /tmp/opencode/ly_hit.log \
 	  && echo "play enemy attack: the DANGER/MAIN-box stand-in arms A_ATAK" \
@@ -837,7 +865,7 @@ ifeq ($(PX_DATA),1)
 	  > /tmp/opencode/ly_p40_$$S.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "play render $$S FAILED (rc=$$rc)"; \
 	    cat /tmp/opencode/ly_p40_$$S.log; exit 1; fi; done
-	@grep -q 'play tick 40: state A_STAY seq uj09 frame 1 pos 40,298' \
+	@grep -q 'play tick 40: state A_STAY seq uj09 frame 1 pos 40,286' \
 	    /tmp/opencode/ly_p40_NONE.log \
 	  && grep -q 'play tick 40: state A_WALK_FWD seq uj09' \
 	    /tmp/opencode/ly_p40_FWD.log \
@@ -871,9 +899,9 @@ ifeq ($(PX_DATA),1)
 	    cat /tmp/opencode/ly_p2_TURN.log; exit 1; fi
 	@grep -q 'play: A_STAY -> A_WALK_BKWD' /tmp/opencode/ly_p2_TURN.log \
 	  && grep -q 'play: A_WALK_BKWD -> A_STAY' /tmp/opencode/ly_p2_TURN.log \
-	  && grep -q 'play tick 2: state A_STAY seq uj09 frame 1 pos 40,298 grounded 1' \
+	  && grep -q 'play tick 2: state A_STAY seq uj09 frame 1 pos 40,286 grounded 1' \
 	      /tmp/opencode/ly_p2_TURN.log \
-	  && grep -q 'play tick 2: state A_STAY seq uj09 frame 1 pos 40,298 grounded 1' \
+	  && grep -q 'play tick 2: state A_STAY seq uj09 frame 1 pos 40,286 grounded 1' \
 	      /tmp/opencode/ly_p2_NONE.log \
 	  && python3 tools/ppm_flip_check.py /tmp/opencode/ly_p2_NONE.ppm \
 	         /tmp/opencode/ly_p2_TURN.ppm 0 110 60 220 300 \
@@ -914,10 +942,10 @@ ifeq ($(PX_DATA),1)
 	  > /tmp/opencode/ly_zidle.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "play ZARIA start/idle FAILED (rc=$$rc)"; \
 	    cat /tmp/opencode/ly_zidle.log; exit 1; fi
-	@grep -q 'play tick 1: state A_WALK seq walk frame 1 pos 50,680 grounded 1' \
+	@grep -q 'play tick 1: state A_WALK seq walk frame 1 pos 50,648 grounded 1' \
 	      /tmp/opencode/ly_zidle.log \
 	  && grep -q 'play: A_WALK -> A_DRAP' /tmp/opencode/ly_zidle.log \
-	  && grep -q 'play tick 100: state A_DRAP seq idle frame 1 pos 50,680' \
+	  && grep -q 'play tick 100: state A_DRAP seq idle frame 1 pos 50,652' \
 	      /tmp/opencode/ly_zidle.log \
 	  && echo "play start state: ZARIA.01 spawns STANDING in the declared A_WALK, the frame GEN AC_TIME chain drops him to the A_DRAP idle, and zero input never creeps (ok)" \
 	  || { echo "play ZARIA start/idle grep FAILED"; cat /tmp/opencode/ly_zidle.log; \
@@ -934,7 +962,7 @@ ifeq ($(PX_DATA),1)
 	@grep -q 'play: A_WALK -> A_DRAP' /tmp/opencode/ly_zkeys.log \
 	  && grep -q 'play: A_DRAP -> A_TURN' /tmp/opencode/ly_zkeys.log \
 	  && test "$$(grep -c '> A_TURN' /tmp/opencode/ly_zkeys.log)" -eq 1 \
-	  && grep -q 'play tick 135: state A_TURN seq turn frame -5 pos 9[0-9],680 grounded 1' \
+	  && grep -q 'play tick 135: state A_TURN seq turn frame -5 pos 9[0-9],651 grounded 1' \
 	      /tmp/opencode/ly_zkeys.log \
 	  && echo "play input edges: FWD walks ~39 px by tick 100 (T=20 px/s), releasing brakes him into the A_DRAP idle, BKWD at 130 plays A_TURN once and STAYS held (no crouch-loop while held); the held key then WALKS him left - pinned by the left-walk leg below (PR-85) (ok)" \
 	  || { echo "play ZARIA press/release grep FAILED"; cat /tmp/opencode/ly_zkeys.log; \
@@ -952,8 +980,26 @@ ifeq ($(PX_DATA),1)
 # with +-6: loose enough to ignore pose details, tight enough to catch
 # the 19 px regression this PR fixes (PR-72 measured at 10 px precision
 # on 4829 frames - 6 is the honest margin for one uncompressed frame).
+# PR-97 RE-PIN of these five windows + what they really measure: the lion's
+# SHAPE-BOX BOTTOM now stands on the .plt line (his position point sits
+# 29..34 px above it, per animation) and the camera anchors THAT line, so the
+# whole sprite moved up by that offset. The values below are what
+# tools/ppm_lion_measure.py measures in these windows with the current build;
+# the old values (top=128/137, bottom=199) are kept here as history. NOTE: a
+# colour mask in a window around his logged position also catches same-coloured
+# SCENERY (the berry cluster at x 75..115, y 122..135 is inside three of these
+# windows), so top/bottom here are regression TRIPWIRES, not a measurement of
+# the lion alone - an open item (make the window from his sprite bbox, not from
+# a colour) is recorded in this PR's NEXT_STEPS entry.
+# What IS exact is the arithmetic the model enforces: ZARIA.01's camera clamp
+# is cam_ymax 500, its .plt ground is world y 680, so that line renders at view
+# row 180 = exactly the paw line PR-84 measured on the video (175..180). A
+# grounded frame's shape bottom is now parked on that line, so it renders at
+# 180. Before PR-97 the POSITION POINT was parked there instead, which put the
+# same shape bottom at world 710 = view 210 - below the 200-row view: the
+# "leo is below grass, his legs are cut" report.
 	@python3 tools/ppm_lion_measure.py /tmp/opencode/ly_zkeys.ppm \
-	  72 122 100 200 orange top=128+-6 bottom=199+-6 \
+	  72 122 100 200 orange top=122+-6 bottom=173+-6 \
 	  || { echo "play cam-y A_TURN anchor grep FAILED"; \
 	    grep 'tick 135' /tmp/opencode/ly_zkeys.log; exit 1; }
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
@@ -964,12 +1010,12 @@ ifeq ($(PX_DATA),1)
 	  > /tmp/opencode/ly_zcam.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "play ZARIA cam-y leg FAILED (rc=$$rc)"; \
 	    cat /tmp/opencode/ly_zcam.log; exit 1; fi
-	@X=$$(grep -o 'play tick 135: state A_WALK seq walk frame [0-9-]* pos [0-9]*,680' \
+	@X=$$(grep -o 'play tick 135: state A_WALK seq walk frame [0-9-]* pos [0-9]*,648' \
 	    /tmp/opencode/ly_zcam.log | sed 's/.*pos \([0-9]*\),.*/\1/'); \
-	  grep -q 'play tick 135: state A_WALK seq walk frame .* pos 10[0-9],680 grounded 1' \
+	  grep -q 'play tick 135: state A_WALK seq walk frame .* pos 10[0-9],648 grounded 1' \
 	    /tmp/opencode/ly_zcam.log \
 	  && python3 tools/ppm_lion_measure.py /tmp/opencode/ly_zcam.ppm \
-	      $$((X-25)) $$((X+25)) 100 200 orange top=137+-6 bottom=199+-6 \
+	      $$((X-25)) $$((X+25)) 100 200 orange top=118+-6 bottom=173+-6 \
 	  && echo "play cam-y: a GROUNDED lion's drawn art sits at the measured anchor (feet ~178 of 200), == the original frame; A_TURN + walk poses both pinned (ok)" \
 	  || { echo "play ZARIA cam-y anchor check FAILED"; cat /tmp/opencode/ly_zcam.log; \
 	    exit 1; }
@@ -998,15 +1044,15 @@ ifeq ($(PX_DATA),1)
 	@test "$$(grep -c '> A_TURN' /tmp/opencode/ly_zwalk.log)" -eq 1 \
 	  && grep -q 'play: A_TURN -> A_DRAP' /tmp/opencode/ly_zwalk.log \
 	  && grep -q 'play: A_DRAP -> A_WALK' /tmp/opencode/ly_zwalk.log \
-	  && grep -q 'play tick 181: state A_WALK seq walk .* pos 7[0-9],680 grounded 1' \
+	  && grep -q 'play tick 181: state A_WALK seq walk .* pos 7[0-9],648 grounded 1' \
 	      /tmp/opencode/ly_zwalk.log \
-	  && grep -q 'play tick 205: state A_WALK seq walk .* pos 6[0-9],680 grounded 1' \
+	  && grep -q 'play tick 205: state A_WALK seq walk .* pos 6[0-9],648 grounded 1' \
 	      /tmp/opencode/ly_zwalk.log \
 	  || { echo "play ZARIA left-walk grep FAILED"; cat /tmp/opencode/ly_zwalk.log; exit 1; }
-	@X=$$(grep -o 'play tick 205: state A_WALK seq walk frame [0-9-]* pos [0-9]*,680' \
+	@X=$$(grep -o 'play tick 205: state A_WALK seq walk frame [0-9-]* pos [0-9]*,648' \
 	    /tmp/opencode/ly_zwalk.log | sed 's/.*pos \([0-9]*\),.*/\1/'); \
 	  python3 tools/ppm_lion_measure.py /tmp/opencode/ly_zwalk.ppm \
-	    $$((X-20)) $$((X+28)) 100 200 orange top=128+-6 bottom=199+-6 \
+	    $$((X-20)) $$((X+28)) 100 200 orange top=117+-6 bottom=172+-6 \
 	  && echo "play left-walk (PR-85 Model M): held BKWD turns ONCE (AC_BREAK_NEXT at the A_TURN list wrap - its own exit line), then A_WALK walks LEFT at the T=20 cap, mirrored art stays on the measured cam anchor (ok)" \
 	  || { echo "play ZARIA left-walk cam-y grep FAILED"; grep 'tick 20[05]' /tmp/opencode/ly_zwalk.log; exit 1; }
 # PR-86 jump: the (N) token decoded as the TARGET's START ROW (evidence
@@ -1015,14 +1061,19 @@ ifeq ($(PX_DATA),1)
 # state (the old forced-idle stays only as a fallback for states
 # without such a line; the JM selftest fixture covers that branch).
 # ZARIA.01 walk + one JUMP press pins the full authored flow: apex at
-# the PR-73-measured height (~24 u, view y 656; I 150,-1200 / 4 with
+# the PR-73-measured height (~24 u above the ground he takes off from; 656
+# before PR-97, 624 now, since the take-off point is the shape bottom, 32 px
+# above the .plt line; I 150,-1200 / 4 with
 # g=1650 -> -300 u/s: the model was already faithful - "jumps very low"
 # complaint NOT reproduced, see NEXT_STEPS PR-86); landing INSIDE the
 # state (ticks 125+, no A_DRAP anywhere - grep -v pins its absence);
 # recovery rows play out (A_JUMP row 6 = the 900 ms crouch); the wrap
 # at ~1975 ms arms AC_BREAK_NEXT -> A_WALK(7) = the walk cycle's ROW 7
 # re-join (frame cursor 7, NOT 1), and the drawn art sits on the PR-84
-# anchor there too (measured top=128 bottom=199, zcam window method).
+# anchor there too (measured top=119 bottom=172 after the PR-97 contact
+# re-pin, zcam window method; the ~24 u apex height above the ground is what
+# this leg measures and it is unchanged - the apex just rides the new
+# take-off point).
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=3 \
 	  LEO_PLAY_SCRIPT="1:FWD 100:JUMP 130:NONE" \
@@ -1032,7 +1083,7 @@ ifeq ($(PX_DATA),1)
 	  if [ $$rc -ne 0 ]; then echo "play ZARIA jump FAILED (rc=$$rc)"; \
 	    cat /tmp/opencode/ly_zjump.log; exit 1; fi
 	@grep -q 'play: A_WALK -> A_JUMP' /tmp/opencode/ly_zjump.log \
-	  && grep -q 'play tick 114: state A_JUMP seq jump .* pos 90,65[4-7] grounded 0' \
+	  && grep -q 'play tick 114: state A_JUMP seq jump .* pos 90,624 grounded 0' \
 	      /tmp/opencode/ly_zjump.log \
 	  && grep -q 'play tick 135: state A_JUMP seq jump .* grounded 1' \
 	      /tmp/opencode/ly_zjump.log \
@@ -1044,7 +1095,7 @@ ifeq ($(PX_DATA),1)
 	@X=$$(grep -o 'play tick 212: state A_WALK seq walk frame 7 pos [0-9]*,[0-9]*' \
 	    /tmp/opencode/ly_zjump.log | sed 's/.*pos \([0-9]*\),.*/\1/'); \
 	  python3 tools/ppm_lion_measure.py /tmp/opencode/ly_zjump.ppm \
-	      $$((X-20)) $$((X+28)) 100 200 orange top=128+-6 bottom=199+-6 \
+	      $$((X-20)) $$((X+28)) 100 200 orange top=119+-6 bottom=172+-6 \
 	  && echo "play jump (PR-86): apex ~24u on the measured model, landing INSIDE the authored jump state (no forced idle), wrap exits via its OWN A_WALK(7)=AC_BREAK_NEXT re-joining the walk cycle at row 7, art on the cam anchor (ok)" \
 	  || { echo "play ZARIA jump cam-y grep FAILED"; grep 'tick 21[02]' /tmp/opencode/ly_zjump.log; exit 1; }
 # PR-87: the fire-family keys + comma-group AND semantics on REAL data.
@@ -1053,7 +1104,9 @@ ifeq ($(PX_DATA),1)
 # ll_play.h). Pins: FIRE,F1 (script comma token, mirroring the .MOV
 # group) enters A_FIGHT from the idle hub and the punch frames play
 # (300 ms rows: frame 5 by tick 100); the drawn punch sits on the
-# PR-84 anchor (measured top=128 bottom=199, x range wider - the FC
+# PR-84 anchor (measured top=116 bottom=197 after the PR-97 contact re-pin -
+# the same tripwire caveat as the other windows: the x range is wider than the
+# lion because the FC
 # rows aim the punch right, the FC accumulator itself stays T1); and
 # FIRE alone does NOT fight (negative leg - under the old
 # OR/never-true readings this pair of pins was impossible).
@@ -1067,10 +1120,10 @@ ifeq ($(PX_DATA),1)
 	    cat /tmp/opencode/ly_zfight.log; exit 1; fi
 	@grep -q 'play: A_WALK -> A_DRAP' /tmp/opencode/ly_zfight.log \
 	  && grep -q 'play: A_DRAP -> A_FIGHT' /tmp/opencode/ly_zfight.log \
-	  && grep -q 'play tick 100: state A_FIGHT seq fight frame 5 pos 5[0-3],680 grounded 1' \
+	  && grep -q 'play tick 100: state A_FIGHT seq fight frame 5 pos 5[0-3],646 grounded 1' \
 	      /tmp/opencode/ly_zfight.log \
 	  && python3 tools/ppm_lion_measure.py /tmp/opencode/ly_zfight.ppm \
-	      30 90 100 200 orange top=128+-6 bottom=199+-6 \
+	      30 90 100 200 orange top=116+-6 bottom=197+-6 \
 	  || { echo "play ZARIA fight grep FAILED"; grep 'tick 100' /tmp/opencode/ly_zfight.log; exit 1; }
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=1 \
@@ -1128,7 +1181,7 @@ ifeq ($(PX_DATA),1)
 	    { echo "play multi-level $$L never ran a state"; exit 1; }; \
 	done
 	@grep -q 'play: ENA.PLT: 1 polyline' /tmp/opencode/ly_multi_ENA.03.log \
-	  && grep -q 'spawn feet (100,560) grounded=1' /tmp/opencode/ly_multi_ENA.03.log \
+	  && grep -q 'spawn feet (100,538) grounded=1' /tmp/opencode/ly_multi_ENA.03.log \
 	  && grep -q 'play tick 30: state A_SWIM' /tmp/opencode/ly_multi_ENA.03.log \
 	  && echo "play multi-level: 8 more levels run their OWN lion data (zero special-casing); ENA.PLT '!' separator + the ENA.03 A_SWIM state prove the extended grammar on real bytes" \
 	  || { echo "play multi-level ENA.03 grep FAILED"; cat /tmp/opencode/ly_multi_ENA.03.log; exit 1; }
@@ -1158,10 +1211,10 @@ ifeq ($(PX_DATA),1)
 	done
 	@grep -q 'play: PLATF.DES: 66 polyline' /tmp/opencode/ly_desground_TUNGA2.12.log \
 	  && grep -q 'LEW.TUN 33 state(s) on 66 polyline' /tmp/opencode/ly_desground_TUNGA2.12.log \
-	  && grep -q 'spawn feet (50,320) grounded=1' /tmp/opencode/ly_desground_TUNGA2.12.log \
+	  && grep -q 'spawn feet (50,290) grounded=1' /tmp/opencode/ly_desground_TUNGA2.12.log \
 	  && grep -q 'play: PLATF.DES: 8 polyline' /tmp/opencode/ly_desground_SADES.06.log \
 	  && grep -q 'LEW.SAD 37 state(s) on 8 polyline' /tmp/opencode/ly_desground_SADES.06.log \
-	  && grep -q 'spawn feet (20,166) grounded=1' /tmp/opencode/ly_desground_SADES.06.log \
+	  && grep -q 'spawn feet (20,138) grounded=1' /tmp/opencode/ly_desground_SADES.06.log \
 	  && echo "play ground-from-.des: platformy= has TWO real forms (a .PLT, or a sub-.des holding the same polylines) - both levels now run their own lion on their own ground" \
 	  || { echo "play ground-from-.des exact-count grep FAILED"; \
 	    cat /tmp/opencode/ly_desground_TUNGA2.12.log /tmp/opencode/ly_desground_SADES.06.log; \
@@ -1210,9 +1263,9 @@ ifeq ($(PX_DATA),1)
 	    cat /tmp/opencode/ly_tun.log; exit 1; fi
 	@grep -q 'play: art LEW.TUN/0021.SEQ: 10 element' /tmp/opencode/ly_tun.log \
 	  && grep -q 'play: TUNGA.PLT: 7 polyline' /tmp/opencode/ly_tun.log \
-	  && grep -q 'spawn feet (50,402) grounded=1 bounds -100..1570' \
+	  && grep -q 'spawn feet (50,370) grounded=1 bounds -100..1570' \
 	      /tmp/opencode/ly_tun.log \
-	  && grep -q 'play tick 30: state A_WALK seq 0003 frame 2 pos 60,402' \
+	  && grep -q 'play tick 30: state A_WALK seq 0003 frame 2 pos 60,370' \
 	      /tmp/opencode/ly_tun.log \
 	  && echo "play per-level: TUNGA.11 LEW.TUN set spawns in its declared A_WALK and walks its own .plt/bounds on FWD (no level special-casing in code)" \
 	  || { echo "play TUNGA.11 grep FAILED"; cat /tmp/opencode/ly_tun.log; exit 1; }

@@ -569,6 +569,18 @@ int ll_seq_shape_empty(const ll_seq *s, const ll_seq_elem *e)
     return marg_all_empty(s, e->ml, e->n) && marg_all_empty(s, e->mr, e->n);
 }
 
+int ll_seq_shape_contact(const ll_seq *s, const ll_seq_elem *e)
+{
+    int tw, th, rows, x, y, w, h, d;
+
+    ll_seq_shape_wh(e, &tw, &th, &rows);
+    if (rows <= 0)
+        return 0;
+    ll_seq_shape_bbox(s, e, &x, &y, &w, &h);
+    d = y + h - 2;                       /* the game's last scanned row */
+    return d > 0 ? d : 0;
+}
+
 /* the row-overlap window, identical in FUN_00042a70 (0x42b85..0x42be6) and
  * FUN_00042de0 (0x42f21..0x42f7c) - read from the machine code of the LE
  * image (build/leo/leo.elf) on 2026-11-16, because the decompiled text of

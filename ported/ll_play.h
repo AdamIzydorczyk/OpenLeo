@@ -325,7 +325,17 @@ typedef struct { int k_fwd, k_bkwd, k_up, k_down, k_jump,
 
 typedef struct {
     const ll_mov_t *mov;
-    double x, y;                /* feet position, world px (y down)       */
+    /* PR-97: x,y is the POSITION POINT the frame art is anchored from (the
+     * element's own anchor f0/f2 is measured from it), NOT the spot that
+     * touches the terrain. What touches the ground is `y + contact` below.
+     * Proof in ll_play.c's ground-logic note: every animation's frame
+     * anchors are authored so its SHAPE bottom sits at one fixed offset
+     * under the position point (ZARIA LEW.ZAR WALK.SEQ: f2=31 constant for
+     * all 12 frames, shape bottom at pos+30..+32; its END.SEQ moves f2
+     * from 5 to 54 while the shape bottom stays at exactly pos+58; the
+     * ZARIA worm WAZ.SEQ swings f0 from -2 to -22 and f2 from -9 to -16
+     * while its bottom stays at pos+46..+49). */
+    double x, y;
     double vx, vy;              /* px/s                                   */
     int sti;                    /* current state in mov                   */
     int fi; unsigned ft;        /* frame cursor within the state          */
@@ -382,10 +392,30 @@ typedef struct {
                                  * BY_X target velocity is not key-gated
                                  * (cutscene walkers: RAN A_GO_TO_BALON_*
                                  * walks on K_GEN1 with no key held)     */
-    double air_from;            /* feet y when ground was lost            */
+    double air_from;            /* position-point y when ground was lost  */
     int jumping;                /* PR-74: an impulse put the lion in the air */
     int support;                /* a solid object holds the feet up (set by
                                  * the collision pass, PR-59)              */
+    int contact;                /* PR-97: the y BELOW this position point at
+                                  * which the animation being shown is solid -
+                                  * the deepest shape-box bottom over its
+                                  * frame list: ll_seq_shape_bbox's y + h - 2
+                                  * (the game's obj+0x0e + obj+0x12 - 2) per
+                                  * element, maxed over the state's frames by
+                                  * the viewer (ll_level.c mov_state_contact:
+                                  * the per-frame value wobbles a few px over
+                                  * a cycle, which is the walk cycle's own
+                                  * art, not a place to stand).
+                                  * The terrain tests are made there: a
+                                  * grounded lion stands with his paws on the
+                                  * .plt line, not with his position point on
+                                  * it. 0 = the animation carries no shape box
+                                  * (the game's hit test and push-out skip
+                                  * those elements too), which is the old
+                                  * position-is-feet behavior. The viewer sets
+                                  * it from the state it is showing
+                                  * (ll_player_set_contact); ll_player_start
+                                  * leaves it 0. */
 } ll_player;
 
 enum {                                              /* ll_player_step ev */
@@ -394,15 +424,24 @@ enum {                                              /* ll_player_step ev */
     LL_PLAY_EV_AIR    = 4                           /* stepped/swept off  */
 };
 
-/* Start (or respawn): feet at (x, y); caller resolves the initial
+/* Start (or respawn): position point at (x, y); caller resolves the initial
  * ground (ll_plt_first_below) and passes grounded accordingly. Initial
  * state: A_STAY when the .MOV defines it (pinned standing spawn), else
  * the .MOV's declared first state (PR-83: the declared list, not the
- * block order, names the starting state - ZARIA.01), else state 0. */
+ * block order, names the starting state - ZARIA.01), else state 0.
+ * p->contact starts at 0 (ll_player_start zeroes the struct); a viewer that
+ * drives a real .SEQ must set it every tick - see ll_player_set_contact. */
 void ll_player_start(ll_player *p, const ll_mov_t *mov, double x, double y,
                      int grounded);
 
-/* One fixed dt_ms tick (CI grid: 20 ms). xmin/xmax clamp feet x
+/* PR-97: tell the sim where the animation it is showing is solid BELOW the
+ * position point (the max over its frames of each element's shape box
+ * bottom, ll_seq_shape_bbox's y + h - 2; see ll_level.c mov_state_contact).
+ * Every terrain test in ll_player_step is made at y + contact;
+ * with 0 the position point itself is the feet, as before PR-97. */
+void ll_player_set_contact(ll_player *p, int below_pos);
+
+/* One fixed dt_ms tick (CI grid: 20 ms). xmin/xmax clamp the position x
  * (lew_rect). Returns the LL_PLAY_EV_* bitmask of what happened. */
 int  ll_player_step(ll_player *p, const ll_plt *ground,
                     const ll_play_keys *keys, double xmin, double xmax,

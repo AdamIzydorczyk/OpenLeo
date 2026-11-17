@@ -4859,6 +4859,141 @@ change, no pins; the PR-89/92/94 shipped model stands)
 - No code, no pins: RE-only. make/make win untouched; full verify-all re-run
   before commit as always (docs-only tree, expected green).
 
+## PR-97 — the contact line: an animation's frame anchors keep its SHAPE-BOX
+bottom at a fixed offset below the position point, so that row is what stands
+on the `.PLT` line (the owner's report: "still same issue, leo is below grass,
+gis legs are cutted becouse it is to low", on ZARIA.01)
+
+- Symptom and first measurement: at the ZARIA.01 spawn the `.plt` main ground
+  line is y=680-684 and the port settled the lion's POSITION POINT exactly
+  there (`pos 50,680 grounded 1`). The camera is `cam_ymax = 500` there (no
+  `back_rect`, reference layer PLAN1 is 2240x700), so that line renders at
+  view row 180 - the paw line PR-84 measured on the video (paws at 175..180) -
+  and PR-84's anchor was therefore already right. What was wrong is the sprite:
+  with the position point on the line, the shape the game itself measures
+  landed at world 710 = **view 210, below the 200-row view**, which is exactly
+  "his legs are cut because he is too low".
+- DATA, measured over the `.SEQ` records of ZARIA.01 and RAN.01 (throwaway
+  probe /tmp/opencode/diag_d.c linked against ported/ll_seq.c; full dump
+  /tmp/opencode/zaria01_D.txt; `./diag_d <ANIMACJE-dir> <LEVEL> <STEM>` prints
+  each element's `D` = shape bottom below the position point): for an animated
+  element the pair of margin lists - the shape the game's own box math
+  `ll_seq_shape_bbox` = FUN_000420b0 computes - keeps its bottom row at a
+  nearly CONSTANT offset below the position point across the whole cycle,
+  while the frame anchors f0/f2 move freely:
+    * `LEW.ZAR/WALK.SEQ`, 12 frames: `f2` = 31 on every frame, D = 30..32;
+    * the same lion's `END.SEQ`, 30 frames: `f2` climbs 5 -> 54 while D stays
+      at EXACTLY 58 - the box is stable, the anchor is not;
+    * ZARIA's worm `ANIBACK/WAZ.SEQ`, 30 frames: `f0` swings -2..-22 and
+      `f2` -9..-16, D fixed at 46..49 (WAZ has no `f2` at all, which is itself
+      proof the anchors are not the contact);
+    * `LEW.RAN/UJ09.SEQ` (RAN.01's walk cycle), 12 frames: `f2` = 45 constant
+      while D is only 10..14 - **the cross-check that kills the anchor
+      reading**: an anchor-based contact would leave that lion 33 px in the air.
+- The engine's terrain-side geometry IS that shape box - it is what the hit
+  test FUN_00042a70 and the push-out FUN_00042de0 read (PR-46/PR-58/PR-89),
+  and `y + h - 2` is that code's own last scanned row (`obj+0x0e + obj+0x12 -
+  2`). INFERENCE, not read as an instruction: the engine parks an actor with
+  that row on the ground. What IS read is that the shape box is the only
+  rectangle the data keeps pinned to a constant distance from the position
+  point, and the only geometry the game's own collision code uses.
+- Code:
+  * `ported/ll_seq.c/.h` - `ll_seq_shape_contact(s, e)` = `ll_seq_shape_bbox`'s
+    `y + h - 2`; 0 for an element with no margin lists (the game gives it no
+    shape, its hit test and push-out skip those too) or a negative box (the
+    all-empty-rows degenerate case already documented in ll_seq.h). The header
+    note carries the tables above and the UJ09 cross-check.
+  * `ported/ll_play.h/.c` - `ll_player.contact` + `ll_player_set_contact()`;
+    the `x,y` doc now says plainly that it is the POSITION POINT, not the feet.
+    `ll_player_step`'s ground block (its "5) ground logic" comment carries the
+    proof) tests `y + contact` for the slope follow, the fall-away test and
+    the landing search, and parks the position point `contact` px above the
+    line it hit. With `contact` 0 (no art, no shape) the behaviour is exactly
+    the previous build's.
+  * `ported/ll_level.c` - `mov_state_contact(mov, sti, seq)` = the max of
+    `ll_seq_shape_contact` over the elements the state's frame list can show;
+    `play_contact()` resolves the animation exactly as `play_draw` does (state
+    `seq=` else the `.MOV` stem, element index) and feeds the sim through
+    `play_advance`; `play_spawn` (which now runs below `play_art`, since the
+    starting state is what `ll_player_start` picks) parks the spawn position
+    point `contact` above the surface; `follow_camy` anchors `CAM_FEET_Y` on
+    `p.y + p.contact` - the line PR-84 measured the original's paws at IS the
+    surface for a grounded actor, so the anchor is unchanged in effect and now
+    has an exact definition.
+  * `obj_contact()` + `obj_settle` apply the same rule to the `CHECK_LN`
+    ground-bound placements, using the art the object's current state selects
+    (`obj_art_of`) - the one `obj_draw` draws and `play_collide` tests. Not
+    decoration: settled actors only touch each other if their shape boxes are
+    placed by the same rule, and with only the player raised the lion's box and
+    the worm's stopped overlapping, so the PR-58/PR-70 contact legs would have
+    stopped firing. Static `PICT` images have no states and no `.MOV`, so they
+    are not settled and PR-95's placement of them stands untouched.
+- MODEL CHOICE (recorded, not read): taking the offset per ANIMATION (the max
+  over the state's frames) instead of per frame. The per-element value wobbles
+  a few px over a cycle - the walk cycle's lowest solid row is the planted paw
+  (ZARIA WALK 30..32, RAN UJ09 10..14) - and with the per-frame value two runs
+  differing only in which state they came from parked the SAME state and frame
+  2 px apart (`play facing check` proved it). Max-over-animation also means no
+  frame of a showing animation can dip below the line. The shape-bottom
+  GEOMETRY is the data-derived part; "max over the animation" is this port's
+  decision.
+- MODEL CHOICE (recorded): `play_advance` re-reads the contact AFTER
+  `ll_player_step` (which is where the state transitions happen) and, for a
+  grounded actor whose new animation has a different offset, shifts the
+  position point by exactly the difference, keeping the CONTACT LINE
+  invariant. So the surface is the invariant and the logged position depends
+  only on the state being shown: ZARIA.01's lion is at 648 while walking
+  (WALK 32), 652 while idling (IDLE 28), 651 in A_TURN (29), 646 in A_FIGHT
+  (34) - all of them standing on the same 680 line.
+- Measured after: spawn log `pos 50,648 grounded 1` (648 + 32 = 680), LICHA
+  worms settle at (120,669) on the 681 line instead of (120,681) (their start
+  state's MOVE.SEQ carries 12 there), the centaur at the top-right of the
+  ZARIA.01 render rises onto its ledge. `/tmp/opencode/pr97_final_pair.png`
+  puts the same tick side by side with the pre-PR-97 binary: legs and paws on
+  the grass instead of under it.
+- Pins: every grounded y in `verify-play` moves by its art set's own offset
+  (the target's PR-97 RE-PIN NOTE lists them) - the RAN.01 298/313 pair
+  becomes 286/299, the ZARIA.01 680 floor becomes 648/651/652/646 per state,
+  the ENA.03/TUNGA2.12/SADES.06/TUNGA.11 spawn snaps move 22/30/28/32, the
+  ZARIA contact legs shift 175 -> 170 (both actors' boxes now reach each other
+  earlier), the DANGER chain 265/266/356 -> 264/265/355, the RAN fall respawn
+  305 -> 308 (the fall starts 12 px higher) and the RAN solid leg now meets
+  `edge0039` (2 px) instead of `edge0041` (1 px) at the same tick 28, because
+  the ANIBACK edge stack is a wall of shape-only records and which one the
+  first touch hits depends on the height the actor stands at. The five
+  `tools/ppm_lion_measure.py` windows are re-measured; the note in that target
+  also records their weakness (they are colour masks in a window around the
+  logged position, so they catch same-coloured scenery - the berry cluster at
+  x 75..115 - as well as the lion: tripwires, not measurements of the lion).
+  PR-78's `obj_settle` selftest is untouched (its synthetic `.MOV` carries no
+  art, contact 0, expected 180 stays). One honest nuance in the RAN.01 pair:
+  the spawn line prints 286 because the state `ll_player_start` picks has no
+  `seq=` of its own, so the animation resolves through the `.MOV`'s fallback
+  stem (`uj11`, contact 12); the first sim tick shows `A_WALK_FWD`, whose own
+  `seq=uj09` carries 14, and the invariant rule parks him at 284 on the 298
+  line. Self-consistent (the offset always belongs to the animation being
+  shown), but it is why that pair moved 298 -> 286/284 and not by one clean
+  constant.
+- Open questions this leaves:
+  1. Whether the engine's grounded y bookkeeping is really `pos + contact` or
+     a per-class constant. The shape bottom is what the data pins to the ground
+     line and what the game's hit/push code uses, but the instruction that
+     turns it into the grounded y has not been read. OPEN, not claimed.
+  2. Elements without margin lists, and the 34 all-empty-margin ones, get
+     contact 0 (their position point on the line). No evidence either way for
+     those.
+  3. Re-grounding after a `M dx,dy` frame delta or a `P oz,px,py` position
+     write (`M`/`P` move the position point) is untested - the legs that use
+     them (PR-74/76/77) pass unchanged because those states have no `.SEQ` art
+     in the fixtures.
+  4. Only `obj_settle` follows the terrain, once at spawn; no other object is
+     re-grounded continuously (the BY_X patrol states walk flat at their
+     settled y). Whether the engine re-tests each object every tick is
+     unread (the `G=`/`CHECK_LN` pair suggests it does).
+  5. The drawn-art extent and the shape box are different rectangles; the
+     anchor windows above conflate the lion and same-coloured scenery. A
+     future leg should window the sprite from its own bbox instead of colour.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

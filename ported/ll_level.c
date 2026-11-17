@@ -1498,6 +1498,9 @@ static void obj_touch_enemy(lvl_obj *o, int verbose, int tick);
  * counts and placement are exercised). */
 static int place_grammar_selftest(void);
 
+static int obj_contact(const lvl_obj *o);   /* defined below, with the shape
+                                             * helpers it reads */
+
 /* PR-78: a placement whose START state has CHECK_LN is a ground-bound actor
  * (the lion's own spawn works the same way: authored pozycja 50,640 falls to
  * the 680 line). Its authored y is where it is DROPPED from, so it settles on
@@ -1505,6 +1508,14 @@ static int place_grammar_selftest(void);
  * `BY_X|CHECK_LN`, `G=0,100`, and ZARIA.01 places the worms at y=650 over a
  * 680 floor (they floated 30 units above the lion's ground line). The fall is
  * instant here (the G= fall itself is not simulated for scene objects).
+ * PR-97: the line it comes to rest on is its CONTACT line - the deepest
+ * shape-box bottom of its START state's animation (obj_contact ->
+ * mov_state_contact, ll_seq_shape_contact), so the actor stands with that row
+ * on the floor instead of with its position point on the floor. Same rule and
+ * same proof as ll_player.contact. Measured on ZARIA.01: the LICHA worms' own
+ * art (MOVE.SEQ, the state their start frame list shows) carries 12 there -
+ * they settle at (120,669) on the 681 line instead of (120,681) - and
+ * ANIBACK/WAZ.SEQ, the big background worm, carries 46..49.
  * Returns 1 when the object moved. */
 static int obj_settle(lvl_obj *o, const ll_plt *plt)
 {
@@ -1513,9 +1524,12 @@ static int obj_settle(lvl_obj *o, const ll_plt *plt)
     if (!(o->sc->mov->st[o->sti].ctrl & LL_CTRL_CHECK_LN))
         return 0;
     ll_xy hit;
-    if (!ll_plt_first_below(plt, o->bx, o->by, &hit) || hit.y == o->by)
+    if (!ll_plt_first_below(plt, o->bx, o->by, &hit))
         return 0;
-    o->by = o->y = hit.y;
+    int c = obj_contact(o);
+    if (hit.y - c == o->by)
+        return 0;                       /* already resting on this line */
+    o->by = o->y = hit.y - c;
     return 1;
 }
 
@@ -2419,14 +2433,6 @@ static ll_play_keys script_keys(const char *s, int tick)
     return k;
 }
 
-/* feet at the spawn point, snapped down onto the first .plt surface */
-static void play_spawn(play_ctx *pl)
-{
-    ll_xy hit;
-    int g = ll_plt_first_below(&pl->plt, (int)pl->sx, (int)pl->sy, &hit);
-    ll_player_start(&pl->p, pl->mov, pl->sx, g ? (double)hit.y : pl->sy, g);
-}
-
 static const ll_seq *play_art(const play_ctx *pl, const char *stem)
 {
     if (!stem || !stem[0])
@@ -2435,6 +2441,65 @@ static const ll_seq *play_art(const play_ctx *pl, const char *stem)
         if (ci_eq(pl->art[k].stem, stem))
             return &pl->art[k].seq;
     return NULL;
+}
+
+/* PR-97: the contact offset of a STATE's animation - the deepest shape-box
+ * bottom (ll_seq_shape_contact) among the elements its frame list can show.
+ * The per-frame value wobbles by a few px over a cycle (a walk cycle's
+ * lowest solid row is the planted paw, not the lifted one: ZARIA LEW.ZAR
+ * WALK 30..32, RAN LEW.RAN UJ09 10..14), and the frame the actor is on at
+ * one instant is not a property of where it stands: two runs that differ
+ * only in which state the actor came from would park its position point 2
+ * px apart with the SAME state and frame on screen. So the offset is taken
+ * once per animation: the position point then never depends on which frame
+ * happens to be showing, and no frame's art can dip below the line.
+ * MODEL CHOICE, not read from the machine code: the shape bottom as the
+ * contact geometry is the data-derived part (see the ll_seq.h note), the
+ * "max over the animation" part is this port's decision - the alternative
+ * (per-frame) makes the sprite bob with the walk cycle. */
+static int mov_state_contact(const ll_mov_t *mov, int sti, const ll_seq *s)
+{
+    int best = 0;
+
+    if (!mov || sti < 0 || sti >= mov->nst || !s || !s->count)
+        return 0;
+    for (int i = 0; i < mov->st[sti].nfr; i++) {
+        ll_frame_ref r = ll_mov_frame_ref(mov->st[sti].fr[i].frame);
+        int d;
+
+        if (r.blank || r.idx >= (int)s->count)
+            continue;
+        d = ll_seq_shape_contact(s, &s->els[r.idx]);
+        if (d > best)
+            best = d;
+    }
+    return best;
+}
+
+/* PR-97: the contact offset of the state the player is in (his current
+ * animation's art, resolved exactly as play_draw resolves it). */
+static int play_contact(const play_ctx *pl)
+{
+    if (!pl->have || pl->p.sti >= pl->mov->nst)
+        return 0;
+    const ll_mov_st *st = &pl->mov->st[pl->p.sti];
+    const ll_seq *s = play_art(pl, st->seqkey[0] ? st->seqkey
+                                                 : pl->mov->seqkey);
+
+    return mov_state_contact(pl->mov, pl->p.sti, s);
+}
+
+/* the surface under the spawn point is the CONTACT line: the position point
+ * is placed contact px above it (PR-97; play_contact needs the state the
+ * player starts in, which ll_player_start picks, so this runs after it) */
+static void play_spawn(play_ctx *pl)
+{
+    ll_xy hit;
+    int g = ll_plt_first_below(&pl->plt, (int)pl->sx, (int)pl->sy, &hit);
+    ll_player_start(&pl->p, pl->mov, pl->sx, g ? (double)hit.y : pl->sy, g);
+    ll_player_set_contact(&pl->p, play_contact(pl));
+    if (g && pl->p.grounded)
+        pl->p.y = (double)hit.y - (double)pl->p.contact;
 }
 
 /* PR-59: the element an object's CURRENT frame shows, shape-only tables
@@ -2462,6 +2527,24 @@ static const ll_seq_elem *obj_shape_elem(const lvl_obj *o, int *mirror,
     *mirror = obj_mirror_of(o, r.mirror);
     *seq = &a->seq;
     return &a->seq.els[r.idx];
+}
+
+/* PR-97: where this object's animation is solid below its position point:
+ * the same ll_seq_shape_contact geometry and the same per-animation rule as
+ * the player (mov_state_contact). The art is the table the object's CURRENT
+ * state selected (obj_art_of), the same one obj_draw draws and play_collide
+ * tests, so the ground line, the picture and the hit box agree. 0 when the
+ * script has no frames or its art carries no shape. */
+static int obj_contact(const lvl_obj *o)
+{
+    const obj_art *a;
+
+    if (!o->sc || !o->sc->mov)
+        return 0;
+    a = obj_art_of(o);
+    if (!a)
+        return 0;
+    return mov_state_contact(o->sc->mov, o->sti, &a->seq);
 }
 
 /* PR-70: the balloon pickup (class BAL, touch method FUN_0003d370): when
@@ -2780,8 +2863,26 @@ static void play_advance(play_ctx *pl, const ll_play_keys *keys,
                          const lvl_obj *objs, int nobj)
 {
     int was = pl->p.sti;
+    /* The terrain tests of THIS step use the contact of the state the player
+     * was in when it started (that is the animation being shown at this
+     * instant). */
     int ev = ll_player_step(&pl->p, &pl->plt, keys, pl->xmin, pl->xmax,
                             dt_ms);
+    /* PR-97: re-read the contact AFTER the step, because ll_player_step is
+     * where the state transitions happen, and keep the actor's contact LINE
+     * invariant across a state change: a grounded actor stands on the same
+     * surface, so when the new animation's shape bottom sits a different
+     * distance below the position point, the position point moves by exactly
+     * that difference. Without this the standing height would depend on
+     * which state the actor came from (two runs differing only by an
+     * A_TURN detour parked the same state and frame 2 px apart). MODEL
+     * CHOICE (the engine surely re-tests the ground every tick, the exact
+     * instruction is unread, HANDOFF 7 open item): the shape-bottom geometry
+     * itself is the data-derived part. */
+    int nc = play_contact(pl);
+    if (pl->p.grounded && nc != pl->p.contact)
+        pl->p.y += (double)(pl->p.contact - nc);
+    ll_player_set_contact(&pl->p, nc);
     play_collide(pl, objs, nobj, verbose, tick);
     if (pl->danger && pl->have) {   /* PR-90 stand-in for the engine's
                                      * per-class attack AI: see
@@ -2876,12 +2977,19 @@ static int follow_camx(play_ctx *pl, int cw, int cam_max)
 static int follow_camy(play_ctx *pl, int ch, int cam_ymax)
 {
     (void)ch;
+    /* PR-97: p->y is the position point, and CAM_FEET_Y was measured on the
+     * ORIGINAL'S PAWS (view y 175..180 of the 200-row view), which is the
+     * contact line: y + contact. While grounded the contact line IS the .plt
+     * surface the lion stands on, whatever frame he is showing, so the view
+     * does not step when the animation changes. */
+    double fy = pl->p.y + (double)pl->p.contact;
+    int feet = (int)(fy >= 0 ? fy + 0.5 : fy - 0.5);
     if (!pl->camy_set) {                   /* spawn: snap, no crawl-in */
         pl->camy_set = 1;
-        pl->camy_v = (int)pl->p.y - CAM_FEET_Y;
+        pl->camy_v = feet - CAM_FEET_Y;
     }
     if (pl->p.grounded) {
-        int target = (int)pl->p.y - CAM_FEET_Y;
+        int target = feet - CAM_FEET_Y;
         int d = target - pl->camy_v;
         pl->camy_v += d > 2 ? 2 : d < -2 ? -2 : d;
     }

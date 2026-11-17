@@ -25,7 +25,7 @@ What exists and works (all verified by `make verify-all`, section 3):
 | title menu + chapter map | drawn from data (11 chapters, titles from `LEVELnn.SEQ`, arrow colours); progress/"start" variants not done |
 | level scene | 320x200 world view shown 2x; world size from `back_rect` or the reference layer; per-layer parallax (`speed=`, `main_back=`) for PCM layers, the PCX backdrop and every object; HUD from `BELKA*.DES` |
 | objects | 827+ placements, art by each state's `seq=`, `.MOV` state machines (loop until a transition fires; `GEN K_GENn`, `AC_BREAK_NEXT`); PR-93: the 3-comma static image lines (`<LEAF>,<name>.seq,x,y` -> that CD leaf's `.SEQ`, drawn at the authored x,y behind the actors) and the 0,0 entries = attached children (joined+counted, never instantiated at the world origin) |
-| lion (play mode) | walks on the level's own ground (`.PLT`), jumps (ESTIMATED units), keys facing-relative (Model M, PR-85), camera follows (lead + grounded feet-at-178 anchor), HUD shows energy/lives |
+| lion (play mode) | walks on the level's own ground (`.PLT`) with his current ANIMATION's shape-box bottom as the contact line (PR-97: `ll_player.contact`, `ll_seq_shape_contact`, `mov_state_contact`), jumps (ESTIMATED units), keys facing-relative (Model M, PR-85), camera follows (lead + grounded contact-line-at-178 anchor), HUD shows energy/lives |
 | collision | push-out ported from the machine code (`FUN_00042de0/42cf0`), solid/semi-solid response, enemy contact damage from the placement files, the enemy's own ATC-window attack when armed (PR-90, off unless `LEO_PLAY_DANGER=1`), balloon pickup; ON by default except RAN.01 |
 
 What does NOT exist yet (the real gap to "a playable game"): combat
@@ -252,7 +252,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | `AC_TIME` | ll_level.c `obj_cond_true`, ll_play.c | obj: = end of frame list OR a raised bit; lion: raised by frame `GEN AC_TIME` (bit 9 = LL_SIG_AC_TIME) | `time=min,max` unit unknown |
 | signal bits | ll_play.h `LL_SIG_*`, `ll_sig_id()` | engine table 0x48000: AC_BLOK 0..AC_EV_MAX 68, K_GEN1 54; `GEN <name>` raises any, conditions test the object's own set | PR-88 (verified constants); pulse-vs-latch + cross-object routing OPEN |
 | lives / energy HUD | ll_level.c | 6 lives, energy frames (100-e)/10 | video start shows 6 |
-| camera | ll_level.c `follow_camx/camy` | lead 100/220, ease 6 u/tick, grounded feet-at-178 anchor (y-ease 2 u/tick invented) | video + owner frame comparison (PR-84) |
+| camera | ll_level.c `follow_camx/camy` | lead 100/220, ease 6 u/tick, grounded contact-line-at-178 anchor (PR-97: the anchor point is `p.y + p.contact`, the shape-box bottom of the animation being shown (max over its state's frames) = the paws PR-84 measured; y-ease 2 u/tick invented) | video + owner frame comparison (PR-84) |
 | contact pass default | ll_level.c | on except RAN.01 | RAN is the balloon level |
 | SEMI_SOLID | `play_collide` | only the r/5 shift | velocity add (kind 13) unit unknown |
 | SOLID push polarity | `obj_shape_elem` | shape uses the DRAW polarity incl. CH_DIR facing | consistency, not decompile-pinned (PR-81) |
@@ -403,7 +403,10 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 5. `STATUS.LEO` field meaning (shipped file is a fresh save: no progress); the
    map's progress arrows/"start" variant depend on it. Needs a paired capture.
 6. The camera's catch-up rate and dead zone (measure with a clean clip).
-   Anchor SOLVED in PR-84 (grounded feet-at-178; view holds while
+   Anchor SOLVED in PR-84 (grounded contact-line-at-178 - PR-97 makes the
+   anchor point explicit as `p.y + p.contact`, the shape-box bottom of the
+   animation being shown (max over its state's frames), which is the paw line
+   PR-84 measured; view holds while
    AIRBORNE - the airborne model choice is NOT settled: PR-73's "the
    view rose 45 u" during a ledge jump points at a slower follow; both
    readings live in the follow_camy comment).
@@ -627,10 +630,33 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      KILOF.GRP in GRAB*/ZWODOSPD leaves) stay unread - the placement
      lines that name them (`GRABG,2113,350,kilof.grp`) are counted as
      group headers, not placed.
-   - Not placement: the lion's feet sink ~20 units below the drawn
-     grass tops on ZARIA.01 once the shelves are drawn - a
-     camera/anchor follow-up for §6/PR-84's feet-at-178 anchor, not a
-     data gap in the placement work.
+   - RESOLVED in PR-97: the lion's feet sank ~30 units below the drawn grass
+     tops on ZARIA.01 because the port settled the player's POSITION POINT on
+     the .plt line. The frame anchors of an animation keep the element's
+     SHAPE-BOX BOTTOM at a fixed offset below the position point (proof in
+     ll_seq.h's ll_seq_shape_contact note) and the engine's terrain-side
+     geometry is that shape box, so the contact line is the shape bottom -
+     for the player and for ground-bound placements (obj_settle) alike. Not a
+     camera or anchor problem: PR-84's feet-at-178 anchor was right.
+
+12. PR-97 OPEN ITEMS (the contact line; each flagged in code too):
+   - The engine's grounded-y bookkeeping: the shape-box bottom is what the
+     data pins to the ground line and what the game's hit/push code uses, but
+     the instruction that turns it into the grounded y is unread. The port's
+     `pos = line - contact` is an inference (OPEN, marked in ll_seq.h).
+   - Elements with no margin lists, and the 34 all-empty-margin ones, get
+     contact 0 (their position point on the line). No evidence either way.
+   - Re-grounding after an `M dx,dy` frame delta or a `P oz,px,py` position
+     write is untested: the legs using them (PR-74/76/77) have states with no
+     `.SEQ` art in the fixtures, so contact is 0 there.
+   - Only `obj_settle` follows the terrain, once at spawn. No other object is
+     re-grounded continuously (BY_X patrols walk flat at their settled y).
+     Whether the engine re-tests every object every tick is unread; the
+     `G=`/`CHECK_LN` pair suggests it does.
+   - The five drawn-anchor legs use a colour mask in a window around the
+     logged position, which also catches same-coloured scenery (the berry
+     cluster at x 75..115 on ZARIA.01), so they are regression tripwires, not
+     measurements of the lion. Fix: window the sprite from its own bbox.
 
 ## 8. Plan: tasks, in order. One task = one or a few PRs.
 
@@ -690,8 +716,10 @@ that box), `AC_ENEMY_ATC` attack, the
 `ATC_ON/OFF` directives and the `F` motions in their scripts. Needs T1's `F`
 semantics and open question 3. Done when: ZARIA.01's LICHA/PAJAK/NOSOROG move
 and attack in a headless run (log pins), and the contact damage uses the state.
-(Partially met: they MOVE and TURN - the verify-play pin now hits a WALKING
-LICHA at tick 199, and PR-82 generalized facing to follow the travel
+(Partially met: they MOVE and TURN - the verify-play contact leg now hits a
+WALKING LICHA (the worm is in its BY_X A_RUN state at the first touch, tick
+170 since PR-97 settled both shape boxes on the ground), and PR-82 generalized
+facing to follow the travel
 direction of every CH_DIR state for objects AND the lion, so a future
 charge/push source turns the sprite with it automatically. PR-89 adds
 the missing attack MECHANICS: the ATC window is parsed for every script
@@ -716,13 +744,18 @@ packet bit (0x51050 `or dh,0x80`) - and the object's OWN A_ATAK(1)/
 A_DEAD(1)=AC_ENEMY lines react (obj_touch_enemy; a second non-solid
 shape pass outside the SOLID loop, because no consumer state carries
 SOLID; the selftest pins the shipped RBLOK/GPTAK chains, the two
-contact legs pin the raise at 175/195 with every older pin
+contact legs pin the raise at 170 in both (PR-97 re-pinned these; every
+older pin in the same legs is
 byte-identical). What remains for T3: the engine's own driver and ATACK-side test
 (open question 10), the other classes' gates, live object-side
 consumption (swimming/flight locomotion - see open question 10), and
 `scope=`'s real consumer (measurably NOT the attack box); the attack
 itself has NO authored motion - the worm stands and swings, matching
-the frames.)
+the frames. PR-97 UPDATE to those tick numbers: every grounded y in the
+play legs is now the shown animation's shape-box bottom standing ON the
+.plt line, so the ZARIA.01 chain re-pinned to first touch 170, arm 171,
+window hit 264, A_DOSTAL 265, A_DRAP 355, the kill at 183; the per-pin
+history in the Makefile carries each number and its reason.)
 
 Scene placement (M4-C line, closed further by PR-93): the user's
 ZARIA.01 report led to the audit - placement coordinates WERE already
