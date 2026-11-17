@@ -4251,6 +4251,59 @@ reaction (T3 stage 2): the raise only; everything else was already landed.
     forever - matches "A_ATAK has one exit: A_DOSTAL(1)" in data, but
     whether the engine re-arms/aborts the state from its compiled AI is
     unpinned; the WAIT directive; sample=12/20 sounds (T5).
+    (The first question is now HALF answered by the addendum below: a
+    touch raises AC_ENEMY (bit 7), not AC_ENEMY_ATC (16).)
+
+## docs addendum (no code) - the engine's signal-MERGE family and what
+the CONTACT path really raises (RE after PR-91; answers half of the
+"does a touch raise it" question and half of the DANGER-semantics lead):
+
+  - TEventSet operation family (Borland regcall, eax=self, 3 dwords):
+    0x49552 = AND-into, 0x49580 = OR-INTO ([eax..eax+8] |= [edx..]),
+    0x495b2 = "is ANY bit set", 0x495e2 = clear. Outside the GEN
+    raiser (0x48000, the ONLY name-driven raiser, reached only from
+    its parser at 0x47de5), named sets are manipulated as WHOLE masks.
+    No immediate-OR of 1<<16 exists anywhere in the text disasm -
+    AC_ENEMY_ATC's raiser stays unpinned, exactly as PR-91 said.
+  - The lion contact path (tail of the 0x50ed0 handler, 0x50fd4..
+    0x51083): builds an answer packet whose FIRST 12 bytes are a named
+    set - [esp] = the set returned by 0x55130 (lion=eax, object=edx,
+    ecx=[lion+0xee]), then 0x51050 `or dh,0x80` = raise BIT 7 =
+    AC_ENEMY, merged through 0x49580 and `rep movsd`'d (ecx=0xc) into
+    the packet. So a TOUCH raises AC_ENEMY (index 7, PR-88 table),
+    NOT AC_ENEMY_ATC (16) - the PR-91 model choice (contact does not
+    raise the attack bit) is now SUPPORTED by pinned code, not just by
+    the token name. What bit 7 does with the lion's own set is
+    unpinned - no shipped LION .MOV consumes AC_ENEMY; the 14 active
+    consumers are all object-side (below).
+  - 0x55130 itself: gated by 0x550c0 (the toucher-moving-toward test,
+    PR-90's note), damages via [touched+0xb1] through the hit method
+    vtable+0xd0, and in the branch where the [x+0xad] energy test
+    passes (0x5516a jle) it raises BIT 8 = AC_TIME into the returned
+    set instead (0x5518c `or bl,0x1` = bit 8 of dword 0... the shift
+    arithmetic lands on index 8). Exact guard meaning unpinned (0xad =
+    energy per the earlier docs finding); raised-AC_TIME-on-contact is
+    a NEW lead (the port models AC_TIME as the player's own wrap/
+    time= arm only).
+  - The DANGER branch (0x51019 `test ah,0x20` -> vtable+0xd0 with
+    ds:0xcef40[+0x54], the never-authored danger_power) raises NO
+    signal: on the engine side DANGER is a contact-HAZARD damage
+    route, not an AI arming precondition. HANDOFF item 10's DANGER
+    question: half-answered; the port's flag-as-arming-precondition
+    stays the declared stand-in.
+  - Data census (extracted .MOV texts, active lines only): AC_ENEMY
+    is consumed 14x, all OBJECT-side - "A_DEAD(1)=AC_ENEMY" x6,
+    "A_AWAY(1)=AC_ENEMY" x4, "A_SHOW(1)=AC_ENEMY" x2 (one combined
+    with AC_BREAK_NEXT), "A_ATAK(1)=AC_ENEMY" x1, plus 2 commented;
+    AC_ENEMY_ATC is consumed 262x - "A_DOSTAL(1)" 226,
+    "A_HIT(1)=AC_ENEMY_ATC" 30, "A_ESCAPE(1)=AC_ENEMY_ATC" 6 (the
+    attacked parrot). Next feature candidate: exactly those
+    object-side touch reactions - touched objects' A_DEAD(1)/A_AWAY
+    lines and the parrot's A_ESCAPE(1). The PR-89 raiser (hit object)
+    and PR-91's mirror already feed these tables; the engine's own
+    contact path feeds them AC_ENEMY (bit 7), so raising THAT bit on
+    touched objects (and the AC_TIME lead above) is the data-faithful
+    next step, not inventing a new token.
 
 ## Next — pick from the Deferred list below
 

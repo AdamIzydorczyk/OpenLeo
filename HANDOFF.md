@@ -222,7 +222,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | K_FWD/K_BKWD key model | ll_play.c `cond_true` (MODEL CHOICE note) | facing-relative: K_FWD = arrow along current face; walkdir = the literal arrow; a left-facing turn settles via the state pair or A_TURN+AC_BREAK | PR-85; forced by data (one A_WALK, no BKWD-walk state); NOT yet confirmed on video |
 | lion attack damage / object hit rule | ll_level.c `LL_LION_HIT_DAMAGE` 30, `obj_hit`, `LL_OBJ_HIT_CD` 14, `ll_play.h` `atc`/`atc_hit` | damage 30 = the 0x34103 dispatcher default; hp<0 forces A_DEAD by name; energy -1 never hit-able; countdown 14 (0x27264); window open from `ATC_ON` until `ATC_OFF`, one hit per window, cleared on state change for the 18 blocks that never close it | addresses verified; the 30 stays until the 45%-of-energy+10 template (0xcecfc) identity decodes; the window-clear rule and the corpse-deal-contact rule are model choices (PR-89) |
 | enemy attack (T3 st. 1) | ll_level.c `obj_arm_atak`, `play_collide` window block; `ll_play.h` `LL_CTRL_DANGER` | a current state carrying the authored DANGER flag arms the script's OWN A_ATAK by name when the lion is inside abs(dx) < 40 AND abs(dy) < 50 (strict); the enemy lands ONE hit through its own ATC window (authored damage=, 30-tick lion lock) before/instead of the contact block; OFF unless LEO_PLAY_DANGER=1 | the box numbers are RE-pinned FOR THE CLASS "LICHA" (class chosen from the .des token at 0x616d0; box at 0x61b6e) - the flag-as-precondition, A_ATAK-by-name entry and window-hit mirror are the port's stand-in (engine driver open, §7 item 10) (PR-90) |
-| AC_ENEMY_ATC raiser | ll_level.c `obj_hit`, `play_collide` window block | the hit raises it on the HIT object's own set (PR-88 mechanism) so its `A_DOSTAL(1)=AC_ENEMY_ATC` line fires; PR-91 mirrors the raise onto the LION for the enemy's WINDOW hit (never contact) - his authored A_DOSTAL chain then runs itself | INFERENCE (0 of 279 shipped GEN lines raise it; the combat code must be the raiser); contact NOT raising it is a model choice (token = the enemy's ATtack); still open whether the engine also raises on a plain touch (PR-89/91) |
+| AC_ENEMY_ATC raiser | ll_level.c `obj_hit`, `play_collide` window block | the hit raises it on the HIT object's own set (PR-88 mechanism) so its `A_DOSTAL(1)=AC_ENEMY_ATC` line fires; PR-91 mirrors the raise onto the LION for the enemy's WINDOW hit (never contact) - his authored A_DOSTAL chain then runs itself | INFERENCE (0 of 279 shipped GEN lines raise it; the combat code must be the raiser); contact NOT raising it is now SUPPORTED by pinned code: the engine's contact tail raises AC_ENEMY (bit 7) into the answer packet (`or dh,0x80`, 0x51050), never bit 16 (post-PR-91 RE addendum); the bit-16 raiser itself stays unpinned (PR-89/91) |
 | shape payloads for lion-vs-object tests | ll_seq.c `ll_seq_shape_push2`, ll_level.c `play_collide` | each element's margin lists read from its OWN .SEQ payload (paired form) | model choice: how the original resolved two elements into its single-payload routine is unpinned; same-payload pairings stay byte-identical (selftest-pinned, PR-89) |
 
 ## 7. Open questions (ranked by how much they block)
@@ -447,8 +447,11 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
    - Raising AC_ENEMY_ATC on the LION when he takes contact damage
      (his many `A_DOSTAL(1)=AC_ENEMY_ATC` lines) - the WINDOW hit
      raises it (PR-91 shipped the whole authored reaction); a plain
-     touch still does not (model choice: the token names the enemy's
-     ATtack). Whether the engine raises on every bump stays open.
+     touch still does not - now SUPPORTED by pinned code, the
+     engine's contact tail raises AC_ENEMY (bit 7, 0x51050) into the
+     answer packet, never bit 16 (post-PR-91 RE addendum in
+     NEXT_STEPS). What the 14 object-side AC_ENEMY consumers do
+     (A_DEAD(1)/A_AWAY/A_SHOW) is the next feature candidate.
 10. ENEMY ATTACK AI, PR-90/91 OPEN ITEMS (each flagged in code too):
    - The engine's per-class AI DRIVER: how the behavior records
      (MAIN/WALK/ATACK/TURN at [x+0x106], method tables 0xa30a8/
@@ -478,7 +481,12 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      danger_power) - is the authored control flag really an AI
      precondition or only a contact-hazard marker? The port uses it
      as the arming precondition because every shipped enemy walk
-     state carries it; MODEL.
+     state carries it; MODEL. HALF-ANSWERED by the post-PR-91 RE:
+     that branch (0x51019 -> hit method vtable+0xd0) raises NO
+     signal and only applies danger_power damage - on the engine
+     side DANGER IS a contact-hazard damage route; whether the
+     compiled AI also reads the flag for arming stays unpinned, so
+     the port's stand-in is unchanged.
    - The attack's MOTION: what the armed A_ATAK drives in the engine
      (charge? T=/F= only?). Measured on data: ZARIA LICHA3's A_ATAK
      frames carry NO motion directives - the worm STANDS and swings
