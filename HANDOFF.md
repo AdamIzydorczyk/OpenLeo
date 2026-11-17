@@ -25,7 +25,7 @@ What exists and works (all verified by `make verify-all`, section 3):
 | title menu + chapter map | drawn from data (11 chapters, titles from `LEVELnn.SEQ`, arrow colours); progress/"start" variants not done |
 | level scene | 320x200 world view shown 2x; world size from `back_rect` or the reference layer; per-layer parallax (`speed=`, `main_back=`) for PCM layers, the PCX backdrop and every object; HUD from `BELKA*.DES` |
 | objects | 827+ placements, art by each state's `seq=`, `.MOV` state machines (loop until a transition fires; `GEN K_GENn`, `AC_BREAK_NEXT`) |
-| lion (play mode) | walks on the level's own ground (`.PLT`), jumps (ESTIMATED units), camera follows (lead + 65%), HUD shows energy/lives |
+| lion (play mode) | walks on the level's own ground (`.PLT`), jumps (ESTIMATED units), camera follows (lead + grounded feet-at-178 anchor), HUD shows energy/lives |
 | collision | push-out ported from the machine code (`FUN_00042de0/42cf0`), solid/semi-solid response, enemy contact damage from the placement files, balloon pickup; ON by default except RAN.01 |
 
 What does NOT exist yet (the real gap to "a playable game"): the lion's attack
@@ -184,7 +184,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | hurt lock | ll_level.c `play_collide` | 30 ticks of 20 ms | 0x50304 constant, unit assumed |
 | `AC_TIME` | ll_level.c `obj_cond_true` | = end of frame list | `time=min,max` unit unknown |
 | lives / energy HUD | ll_level.c | 6 lives, energy frames (100-e)/10 | video start shows 6 |
-| camera | ll_level.c `follow_camx/camy` | lead 100/220, ease 6 u/tick, feet 65% | video, ease rate invented |
+| camera | ll_level.c `follow_camx/camy` | lead 100/220, ease 6 u/tick, grounded feet-at-178 anchor (y-ease 2 u/tick invented) | video + owner frame comparison (PR-84) |
 | contact pass default | ll_level.c | on except RAN.01 | RAN is the balloon level |
 | SEMI_SOLID | `play_collide` | only the r/5 shift | velocity add (kind 13) unit unknown |
 | SOLID push polarity | `obj_shape_elem` | shape uses the DRAW polarity incl. CH_DIR facing | consistency, not decompile-pinned (PR-81) |
@@ -282,8 +282,15 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 5. `STATUS.LEO` field meaning (shipped file is a fresh save: no progress); the
    map's progress arrows/"start" variant depend on it. Needs a paired capture.
 6. The camera's catch-up rate and dead zone (measure with a clean clip).
+   Anchor SOLVED in PR-84 (grounded feet-at-178; view holds while
+   AIRBORNE - the airborne model choice is NOT settled: PR-73's "the
+   view rose 45 u" during a ledge jump points at a slower follow; both
+   readings live in the follow_camy comment).
 7. Vertical `y` camera of the PCX backdrop uses the engine formula now; confirm
-   against a capture of a tall level (SADES shaft).
+   against a capture of a tall level (SADES shaft). PR-84 note:
+   for the NO-back_rect levels the camera clamp = reference-layer height - 200
+   (PR-65 rule) matches the original exactly (ZARIA.01: 700-200=500 = the
+   original's camy on the ground) - the clamp source there is settled.
 8. PLAYER MODEL details PR-83 implemented but did NOT settle (all flagged
    in code; the two user-reported bugs themselves are fixed and pinned):
    - `time=<n[,m]>` state field: sits next to AC_TIME transitions, values

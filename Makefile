@@ -765,6 +765,40 @@ ifeq ($(PX_DATA),1)
 	  && echo "play input edges: FWD walks ~39 px by tick 100 (T=20 px/s), releasing brakes him into the A_DRAP idle, BKWD at 130 plays A_TURN once and STAYS held (no crouch-loop while held) (ok)" \
 	  || { echo "play ZARIA press/release grep FAILED"; cat /tmp/opencode/ly_zkeys.log; \
 	    exit 1; }
+# PR-84 camera anchor (the owner's "the lion sits lower than the
+# original"): the ORIGINAL keeps a grounded lion's feet at ~178 of the
+# 200-row view (gp.mp4 t=205.0s frame measured by colour split: paws
+# 133..180; PR-72's 5150-frame mode 175 included the shadow). ZARIA.01
+# has NO back_rect, its reference layer PLAN1 is 2240x700 -> cam_ymax
+# 500, and the original's camy for the ground at world y=680 IS exactly
+# that clamp (feet 180). The old 65%-anchor rule put the feet at 199.
+# Pins below measure the DRAWN lion with tools/ppm_lion_measure.py in a
+# window around his logged position; top/bottom are the art's own edges
+# (pose-dependent - A_TURN's tail paints below the feet point), pinned
+# with +-6: loose enough to ignore pose details, tight enough to catch
+# the 19 px regression this PR fixes (PR-72 measured at 10 px precision
+# on 4829 frames - 6 is the honest margin for one uncompressed frame).
+	@python3 tools/ppm_lion_measure.py /tmp/opencode/ly_zkeys.ppm \
+	  72 122 100 200 orange top=128+-6 bottom=199+-6 \
+	  || { echo "play cam-y A_TURN anchor grep FAILED"; \
+	    grep 'tick 135' /tmp/opencode/ly_zkeys.log; exit 1; }
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  LEO_PLAY_SCRIPT="1:FWD" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_zcam.ppm LEO_LEVEL_PPM_TICK=135 \
+	  ./ll_level $(DATA) ZARIA.01 --play --no-audio \
+	  > /tmp/opencode/ly_zcam.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play ZARIA cam-y leg FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_zcam.log; exit 1; fi
+	@X=$$(grep -o 'play tick 135: state A_WALK seq walk frame [0-9-]* pos [0-9]*,680' \
+	    /tmp/opencode/ly_zcam.log | sed 's/.*pos \([0-9]*\),.*/\1/'); \
+	  grep -q 'play tick 135: state A_WALK seq walk frame .* pos 10[0-9],680 grounded 1' \
+	    /tmp/opencode/ly_zcam.log \
+	  && python3 tools/ppm_lion_measure.py /tmp/opencode/ly_zcam.ppm \
+	      $$((X-25)) $$((X+25)) 100 200 orange top=137+-6 bottom=199+-6 \
+	  && echo "play cam-y: a GROUNDED lion's drawn art sits at the measured anchor (feet ~178 of 200), == the original frame; A_TURN + walk poses both pinned (ok)" \
+	  || { echo "play ZARIA cam-y anchor check FAILED"; cat /tmp/opencode/ly_zcam.log; \
+	    exit 1; }
 # PR-83: the KEYUP half of the input contract. No backend ever translated
 # SDL_KEYUP, so through the REAL backend every key stuck down forever: the
 # reported "controls press themselves in a loop". The live loop (NO

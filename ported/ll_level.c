@@ -2042,20 +2042,46 @@ static int follow_camx(play_ctx *pl, int cw, int cam_max)
     return c;
 }
 
+/* PR-84 (owner compared our ZARIA.01 frame with the original): the lion
+ * sat ~19 px too LOW in the view - on the build they tested (before
+ * PR-65's reference-layer world rule: max-of-planes 600 -> cam_ymax
+ * 400 -> feet at the view bottom). Measured the anchor directly on the
+ * original (gp.mp4 t=205.0s frame, 320x200 game space, colour-split of
+ * the lion: paws' yellow n=45 at y 133..180): a grounded lion's feet
+ * sit at ~180 of 200; PR-72's 5150-frame mode was 175 (its mask
+ * included the shadow ellipse, a couple of px below the paws). The
+ * 175..180 band is NOT the world clamp: ZARIA.01's reference layer is
+ * 700 tall -> cam_ymax 500, and the original's camy for ground y=680
+ * is exactly 500 (feet 180) - today's HEAD already lands there, but
+ * only by OVER-CLAMPING the 65% anchor (680-130=550 > 500): anywhere
+ * the clamp does not bind, the 65% rule sat 40+ px too high. PR-73's
+ * single mid-level observation "feet at ~128 of 200" was taken during
+ * the camera's catch-up (it measured its own ~0.5 u/frame standing
+ * drift), not an anchor.
+ * Model: a GROUNDED lion eases the view to feet-at-CAM_FEET_Y; while
+ * AIRBORNE the view HOLDS (PR-73 measured the rise/fall of the lion on
+ * the view through the whole jump arc; anchoring through the arc would
+ * cancel it). The ease rate is not measured (2 u/tick, viewer choice,
+ * same honesty flag as the x ease). */
+#define CAM_FEET_Y 178
+
 static int follow_camy(play_ctx *pl, int ch, int cam_ymax)
 {
-    /* PR-73 correction of PR-72: the "feet at 175" mode of the video is the
-     * world's bottom clamp (ZARIA's ground is the last rows), not a rule. A
-     * lion resting mid-level sits with his feet at ~128 of 200 (64%, the old
-     * 65% rule) and the camera FOLLOWS him up and down, jumps included
-     * (episode 2, 54.2-54.6 s: the view rose ~45 units with a ledge jump). */
-    int y = (int)pl->p.y - (ch * 65) / 100;
-    (void)pl;
-    if (y < 0)
-        y = 0;
-    if (y > cam_ymax)
-        y = cam_ymax;
-    return y;
+    (void)ch;
+    if (!pl->camy_set) {                   /* spawn: snap, no crawl-in */
+        pl->camy_set = 1;
+        pl->camy_v = (int)pl->p.y - CAM_FEET_Y;
+    }
+    if (pl->p.grounded) {
+        int target = (int)pl->p.y - CAM_FEET_Y;
+        int d = target - pl->camy_v;
+        pl->camy_v += d > 2 ? 2 : d < -2 ? -2 : d;
+    }
+    if (pl->camy_v < 0)
+        pl->camy_v = 0;
+    if (pl->camy_v > cam_ymax)
+        pl->camy_v = cam_ymax;
+    return pl->camy_v;
 }
 
 static void play_draw(const play_ctx *pl, unsigned char *canvas, int cw,
@@ -3791,6 +3817,10 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
         pl.solid = (sv && *sv) ? *sv != '0' : !ci_eq(level, "RAN.01");
     }
     pl.cam_ox = CAM_LEAD_R;
+    /* PR-84: the follow-cam-y state (play_ctx camy_v/camy_set) starts
+     * empty: follow_camy snaps the view to the measured feet anchor at
+     * its first call. LEO_LEVEL_CAMY still seeds the PREVIEW camera and
+     * is overridden in play mode, where the game's own camera rule runs. */
     pl.energy = 100;                       /* 0x503ac: energy 100 at (re)start */
     pl.lives = 6;                          /* the playthrough video's start    */
     hud_t hud;
@@ -4265,7 +4295,9 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
      * follows the lion's feet (65% down the view), LEO_LEVEL_CAMY sets it
      * for CI, Up/Down pan it in the viewer. Without this the lion spawned
      * below the view on 7 of the 12 playable levels (feet y 320..1504 vs
-     * views 200..600 px tall) and was never on screen. */
+     * views 200..600 px tall) and was never on screen. Since PR-84 the
+     * play-mode camera runs the measured game rule (feet-at-178 grounded
+     * anchor, hold while airborne); LEO_LEVEL_CAMY seeds the PREVIEW only. */
     int cam_ymax = world_h > ch ? world_h - ch : 0;
     int camy = getenv("LEO_LEVEL_CAMY") ? atoi(getenv("LEO_LEVEL_CAMY")) : 0;
     if (camy < 0)
