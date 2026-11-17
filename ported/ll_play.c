@@ -461,6 +461,7 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                     if (s->ntr < LMOV_MAXTR) {
                         ll_mov_tr *tr = &s->tr[s->ntr++];
                         tr->tidx = -1;
+                        tr->entry = 0;
                         const char *eq = strchr(line, '=');
                         const char *par = strchr(line, '(');
                         size_t n = 0;
@@ -469,6 +470,15 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                              q < te && n + 1 < sizeof tr->target; q++)
                             tr->target[n++] = *q;
                         tr->target[n] = '\0';
+                        /* PR-86: the numeric (...) = START ROW (1-based)
+                         * in the target's frame list; non-numeric ("(x)")
+                         * starts from the top like an absent one. See the
+                         * ll_mov_tr.entry evidence comment. */
+                        if (par && par < eq) {
+                            const char *pe = strchr(par + 1, ')');
+                            if (pe && pe < eq)
+                                tr->entry = (int)strtol(par + 1, NULL, 10);
+                        }
                         parse_cond(tr, eq + 1);
                     } else {
                         m->drop_tr++;
@@ -616,6 +626,23 @@ static void apply_impulse(ll_player *p, const ll_mov_st *st, int fi)
     }
 }
 
+/* PR-86: does this state declare an AC_BREAK_NEXT exit of its own? The
+ * frame-list wrap arms that condition (PR-83), so such a state ENDS BY
+ * ITSELF and the landing must not force it out; a state without one
+ * (minimal fixtures) keeps the FALLBACK viewer rule below the jump. */
+static int st_has_break_next_exit(const ll_mov_st *st)
+{
+    for (int t = 0; t < st->ntr; t++) {
+        if (st->tr[t].tidx < 0)
+            continue;
+        for (int i = 0; i < st->tr[t].nc; i++)
+            if (!st->tr[t].c[i].neg &&
+                st->tr[t].c[i].cond == LL_COND_AC_BREAK_NEXT)
+                return 1;
+    }
+    return 0;
+}
+
 int ll_player_step(ll_player *p, const ll_plt *ground,
                    const ll_play_keys *keys, double xmin, double xmax,
                    unsigned dt_ms)
@@ -662,14 +689,18 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
          * list every tick (measured: the walk froze on frame 1 while the
          * lion slid along at the state's speed). So a self-target leaves
          * the state running untouched - only the facing update above
-         * applied. (Note the priority field takes non-numeric tokens
-         * too: "(x)".) */
+         * applied. (Note the (...) token takes non-numeric values too:
+         * "(x)" - PR-86 decoded the NUMERIC one as the start row, see
+         * ll_mov_tr.entry; a non-numeric token keeps entry 0 = top.) */
         if (st->tr[t].tidx >= 0 && st->tr[t].tidx != p->sti) {
             p->sti = st->tr[t].tidx;
-            p->fi = 0;
+            const ll_mov_st *nt = &p->mov->st[p->sti];
+            p->fi = st->tr[t].entry > 0 ? st->tr[t].entry - 1 : 0;
+            if (p->fi >= nt->nfr)                  /* overlong row: top   */
+                p->fi = 0;
             p->ft = 0;
             ev |= LL_PLAY_EV_STATE;
-            apply_impulse(p, &p->mov->st[p->sti], 0);
+            apply_impulse(p, nt, p->fi);
         }
         break;
     }
@@ -775,9 +806,29 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
                 p->grounded = 1;
                 p->gen[LL_COND_K_GEN2 - LL_COND_K_GEN1] = 1; /* landing   */
                 ev |= LL_PLAY_EV_GROUND;
-                if (p->jumping) {      /* viewer rule: a landing ends the jump
-                                        * state (the authored `WAIT AC_DUP`
-                                        * hold is not decoded) */
+                if (p->jumping && !st_has_break_next_exit(st)) {
+                    /* FALLBACK viewer rule ONLY when the state declares
+                     * no AC_BREAK_NEXT exit of its own (the JM-style
+                     * minimal file). PR-86: the authored jump states DO
+                     * declare one - ZARIA/TUNGA's A_JUMP ends with
+                     * A_WALK(7)=AC_BREAK_NEXT, A_JUMP_S with
+                     * A_DRAP(1)=AC_BREAK_NEXT - and PR-86 decoded the
+                     * (N) token as the target's START ROW, which makes
+                     * those lines re-join the walk cycle MID-PHASE (row
+                     * 7 of ZARIA's 12-row cycle) and the PRE_JUMP route
+                     * skip its own impulse row. The old "landing ends
+                     * the jump state, go idle" reading contradicted the
+                     * data (no authored jump exits A_STAY anywhere); it
+                     * stays only as this fallback. The jump frame-list
+                     * WRAP arms AC_BREAK_NEXT (PR-83 mechanism) a beat
+                     * after the physics landing - the long recovery rows
+                     * (A_JUMP row 6: 900 ms) then play out inside the
+                     * state, as authored. Whether the original cancels
+                     * the recovery early (the undecoded `WAIT 0ms` row +
+                     * `AC_DUP`) stays OPEN - see HANDOFF 7.8.
+                     * jumping=0 stays cleared here either way: the flag
+                     * only selects LL_PLAY_JUMP_G while airborne, and
+                     * post-landing rows must fall on the state's own G. */
                     p->jumping = 0;
                     int idle = ll_mov_find(p->mov, "A_STAY");
                     if (idle < 0)
@@ -790,6 +841,9 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
                         ev |= LL_PLAY_EV_STATE;
                         st = &p->mov->st[p->sti];   /* step 7 uses the NEW state */
                     }
+                } else if (p->jumping) {
+                    p->jumping = 0;   /* authored exit pending: clear the
+                                       * flag, keep the state running    */
                 }
             }
         }
@@ -950,8 +1004,11 @@ int ll_play_selftest(void)
     CHECK(strcmp(m.st[1].seqkey, "uj09") == 0);
     CHECK(m.st[1].ntr == 2 && m.st[1].tr[0].tidx == 0 &&
           m.st[1].tr[0].c[0].cond == LL_COND_K_FWD && m.st[1].tr[0].c[0].neg == 1);
-    /* the self-target line parses too (its priority is the non-numeric
-     * token "x" - real KADMAR2 data), and matches its own state */
+    /* the self-target line parses too (its (..) token is the non-numeric
+     * "x" - real KADMAR2 data - so entry stays 0 = top), and matches its
+     * own state */
+    CHECK(m.st[1].tr[1].entry == 0);                 /* "(x)": not numeric */
+    CHECK(m.st[0].tr[0].entry == 1);                 /* "(1)": start row   */
     CHECK(m.st[1].tr[1].tidx == 1 &&
           m.st[1].tr[1].c[0].cond == LL_COND_K_FWD &&
           m.st[1].tr[1].c[0].neg == 0);
@@ -1136,6 +1193,71 @@ int ll_play_selftest(void)
         CHECK(back > 0 && q.sti == 0 && q.y == 100 && q.vx == 0);
         ll_plt_free(&jp);
         free(jm);
+    }
+    {   /* PR-86: the (N) token = START ROW (1-based) of the TARGET's
+         * frame list, and a state that DECLARES an AC_BREAK_NEXT exit
+         * ends by itself - the landing does not cut it (that was the
+         * old fallback viewer rule). Shape copied from the real ZARIA/
+         * TUNGA jump states: A_JUMP's own list runs LONGER than the
+         * physics air (~18 ticks), the landing happens INSIDE it, and
+         * only the list wrap arms AC_BREAK_NEXT -> back to the walk
+         * state at row 3 (mid-phase re-join, exactly ZARIA's
+         * "A_WALK(7)" after its 12-row cycle).
+         * Arithmetic: rows 20+20+400+200 = 640 ms = 32 ticks; the
+         * impulse arms at ~tick 2, air ~18 ticks -> landing ~tick 20;
+         * wrap ~tick 33, transition match ~tick 34 with fi = 3-1 = 2.
+         * (The JM fixture above keeps covering the FALLBACK branch:
+         * its A_JUMP declares no exit, so its landing still goes idle.) */
+        static const char JE[] =
+            "A_WALK\nA_JUMP\n\n[A_WALK]\ncontrol=BY_TIME|CHECK_LN\n"
+            "F=600,0\nT=90,90\nG=0,0\nA_JUMP(1)=K_JUMP\n"
+            "A_WALK(3)=AC_BREAK_NEXT\nseq=a\n1,100\n2,100\n3,100\n4,100\n\n"
+            "[A_JUMP]\ncontrol=BY_TIME\nF=180,0\nT=20,1\nG=0,55\nseq=a\n"
+            "1,20\n2,20,I 120,-1200\n3,400\n4,200\n"
+            "A_WALK(3)=AC_BREAK_NEXT\n";
+        ll_mov_t *je = calloc(1, sizeof *je);
+        static const char JP2[] = "1\n1 0,100;2000,100;\n";
+        ll_plt jp2;
+        ll_player q;
+        ll_play_keys jk = { 0, 0, 0, 0, 0 };
+        double top2 = 100;
+        int air2 = 0, land = 0, held = 1, exit_t = 0, exit_fi = -1;
+
+        CHECK(je && ll_plt_parse(JP2, &jp2) == 0);
+        ll_mov_parse(JE, je);
+        CHECK(je->st[1].tr[0].tidx == 0 && je->st[1].tr[0].entry == 3);
+        ll_player_start(&q, je, 500, 100, 1);
+        CHECK(q.sti == 0);                           /* no A_STAY: the
+                                                      * declared first   */
+        jk.k_jump = 1;
+        ll_player_step(&q, &jp2, &jk, 0, 2000, 20); /* WALK -> JUMP(1)  */
+        jk.k_jump = 0;
+        CHECK(q.sti == 1);
+        CHECK(q.fi <= 1);               /* entry (1) = top; the entry tick
+                                         * itself consumes row 1 (20 ms)  */
+        for (int t = 0; t < 60; t++) {
+            ll_player_step(&q, &jp2, &jk, 0, 2000, 20);
+            if (!q.grounded)
+                air2++;
+            if (q.y < top2)
+                top2 = q.y;
+            if (q.grounded && air2 > 3 && !land)
+                land = t;
+            if (land && t >= land + 2 && t < 29 && q.sti != 1)
+                held = 0;                            /* landing must NOT */
+            if (!exit_t && q.sti == 0) {             /* first re-entry   */
+                exit_t = t;
+                exit_fi = q.fi;
+            }
+        }
+        CHECK(top2 > 100 - 26.5 && top2 < 100 - 22.5);/* same physics    */
+        CHECK(air2 >= 16 && air2 <= 20);
+        CHECK(land > 0 && held == 1);                /* stays authored   */
+        CHECK(exit_t >= 30 && exit_t <= 36);         /* wrap arms the    */
+        CHECK(exit_fi >= 2);                         /* OWN exit at row  */
+        CHECK(q.fi >= 2 && q.grounded && q.y == 100);/* cycle (mid-phase)*/
+        ll_plt_free(&jp2);
+        free(je);
     }
     {   /* PR-82: states whose DIRECTION IS AUTHORED stay out of facing.
          * The real shape is RAN LEW's A_GO_TO_BALON_L: control=BY_X with
@@ -1363,6 +1485,11 @@ int ll_play_selftest(void)
                " keeps its state (frames keep running), edge fall, K_GEN2"
                " landing pulse, PR-83: declared-name spawn, key-gated walk"
                " stops on release, GEN frame pulses, wrap/time= arm nothing,"
-               " horizontal impulse keeps the feet down, auto-walk stays (ok)\n");
+               " horizontal impulse keeps the feet down, auto-walk stays,"
+               " PR-85: facing-relative K_FWD/K_BKWD settle through the"
+               " state pair / A_TURN+AC_BREAK, PR-86: (N) = target start"
+               " row, authored AC_BREAK_NEXT ends a jump at its list wrap"
+               " (landing no longer cuts it; fallback kept only without"
+               " such a line) (ok)\n");
     return rc;
 }

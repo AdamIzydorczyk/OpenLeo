@@ -3757,6 +3757,74 @@ in a loop continuously". Both root-caused, both fixed, both pinned.
     KEYUP live, LICH, PR-82 flip (single-tap BKWD at face=+1 behaves
     identically), multi-level - all press at face=+1. verify-play 12/12.
 
+## PR-86 — jump: height verified faithful (negative result), `(N)` =
+          target START ROW, authored AC_BREAK_NEXT ends jump states
+          (DONE 2026-11-17)
+
+  - Owner complaint "jumps are very low": measured honestly, NOT
+    reproduced on the current binary - our model already matches:
+    live probes on ZARIA.01 give apex ~24 u / air 0.36 s for BOTH
+    A_JUMP (walk-jump) and A_JUMP_S (standing hop); the authored
+    arithmetic (I 150,-1200 / LL_PLAY_JUMP_DIV=4 -> -300 u/s,
+    g=1650) says ~27 u; and the full gp.mp4 feet-track scan
+    (10367 frames) shows clean jump candidates 23-30 u over 8-13
+    frames - all consistent. The game's jump IS a ~12%-of-screen hop
+    (the PR-73 vine measurement was the same scale). Likely an older
+    binary again (same pattern as the sitting-low report) - recorded
+    as an open question in HANDOFF 7.8; PR-86 PINS the height rather
+    than inflating constants.
+  - GRAMMAR DECODED (the big one): the `(N)` in `TARGET(N)=COND` is
+    the START ROW (1-based) in the target state's frame list - not a
+    "priority" (stale comments gone; ll_play.h grammar updated).
+    Evidence chain (recorded in the ll_mov_tr.entry comment):
+    * A_PRE_JUMP's OWN impulse sits at its row 3, and it exits via
+      `A_JUMP(4)` - A_JUMP's row 4 is its FIRST row after ITS impulse
+      row 3: entering at (4) skips re-applying an impulse A_PRE_JUMP
+      already gave. No double jump.
+    * `A_JUMP(9)` from A_FIGHT_UP etc re-joins mid-air.
+    * A_JUMP's `A_WALK(7)` re-joins ZARIA's 12-row walk cycle at row
+      7 (mid-phase) - a seamless landing, not a restart at row 1.
+    Non-numeric `(x)` (KADMAR2) keeps entry 0 = from the top (the
+    A_MASZERUJ KEEP-semantics measurement stays valid). The parser
+    stores the number; transitions set p->fi = entry-1 (clamped;
+    overlong row -> top) and apply_impulse at THAT row (row without
+    I = nothing; the walk-jump `(1)` entry behaves exactly as
+    before: the impulse fires when the cursor reaches the I row).
+  - LANDING RULE FIXED (data contradiction): the old viewer rule
+    "landing ends the jump state -> A_STAY/A_DRAP" contradicts the
+    data - no authored jump state exits to A_STAY; ZARIA/TUNGA
+    A_JUMP ends with `A_WALK(7)=AC_BREAK_NEXT`, A_JUMP_S with
+    `A_DRAP(1)=AC_BREAK_NEXT`. Now: a state that DECLARES an
+    AC_BREAK_NEXT exit (helper st_has_break_next_exit) ends at its
+    frame-list WRAP (PR-83's p->broke mechanism) - recovery rows
+    (A_JUMP row 6 = the 900 ms crouch) play out INSIDE the state,
+    grounded. The forced-idle stays ONLY as a fallback for states
+    with no such line (the JM selftest fixture keeps covering that
+    branch). p->jumping=0 still clears on landing (the flag only
+    selects LL_PLAY_JUMP_G while airborne - verified safe).
+  - Real-data flow pinned (new zjump verify leg, script
+    `1:FWD 100:JUMP 130:NONE`): A_WALK -> A_JUMP at 100; apex ticks
+    114-115 pos 90,656 grounded 0; landing ~125, state STILL A_JUMP
+    grounded 1 at tick 135, `A_JUMP -> A_DRAP` count 0 (negated
+    grep pin); wrap ~211 -> `play tick 212: state A_WALK seq walk
+    frame 7` - the entry-row re-join (frame cursor 7, NOT 1; the
+    tick log prints the row cursor: A_WALK's row LABELS run
+    10,11,12,1..9, the cursor is the 7th row); drawn art at the
+    PR-84 anchor (measured top=128 bottom=199, window from the
+    logged pos). Chained hops while JUMP stays held also work (the
+    re-entered A_WALK(1)=K_JUMP fires the next hop immediately).
+  - selftest: JE fixture (ZARIA-shape): entry (1) at start, landing
+    INSIDE A_JUMP (held window), wrap -> own exit to A_WALK(3) with
+    fi>=2 (mid-row re-join); entry-parsed pins added to the ST
+    parser test. Fixture arithmetic held at the 2nd build (one
+    lesson kept: the entry tick CONSUMES its own first row - fi=1
+    right after entry when the row is one tick long).
+  - RAN has NO jump states at all (it's the balloon level - zero
+    `I` impulses in its LEW.MOV), so no real-data RAN jump leg
+    exists or can exist; TUNGA's player .MOV matches ZARIA's shape
+    (its I values are -960 variants) - not separately legged.
+    verify-play 13/13 (new zjump leg).
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

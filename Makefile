@@ -840,6 +840,44 @@ ifeq ($(PX_DATA),1)
 	    $$((X-20)) $$((X+28)) 100 200 orange top=128+-6 bottom=199+-6 \
 	  && echo "play left-walk (PR-85 Model M): held BKWD turns ONCE (AC_BREAK_NEXT at the A_TURN list wrap - its own exit line), then A_WALK walks LEFT at the T=20 cap, mirrored art stays on the measured cam anchor (ok)" \
 	  || { echo "play ZARIA left-walk cam-y grep FAILED"; grep 'tick 20[05]' /tmp/opencode/ly_zwalk.log; exit 1; }
+# PR-86 jump: the (N) token decoded as the TARGET's START ROW (evidence
+# in ll_mov_tr.entry) and a state that DECLARES an AC_BREAK_NEXT exit
+# ends at its own frame-list WRAP - the landing no longer cuts the jump
+# state (the old forced-idle stays only as a fallback for states
+# without such a line; the JM selftest fixture covers that branch).
+# ZARIA.01 walk + one JUMP press pins the full authored flow: apex at
+# the PR-73-measured height (~24 u, view y 656; I 150,-1200 / 4 with
+# g=1650 -> -300 u/s: the model was already faithful - "jumps very low"
+# complaint NOT reproduced, see NEXT_STEPS PR-86); landing INSIDE the
+# state (ticks 125+, no A_DRAP anywhere - grep -v pins its absence);
+# recovery rows play out (A_JUMP row 6 = the 900 ms crouch); the wrap
+# at ~1975 ms arms AC_BREAK_NEXT -> A_WALK(7) = the walk cycle's ROW 7
+# re-join (frame cursor 7, NOT 1), and the drawn art sits on the PR-84
+# anchor there too (measured top=128 bottom=199, zcam window method).
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=3 \
+	  LEO_PLAY_SCRIPT="1:FWD 100:JUMP 130:NONE" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_zjump.ppm LEO_LEVEL_PPM_TICK=212 \
+	  ./ll_level $(DATA) ZARIA.01 --play --no-audio \
+	  > /tmp/opencode/ly_zjump.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play ZARIA jump FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_zjump.log; exit 1; fi
+	@grep -q 'play: A_WALK -> A_JUMP' /tmp/opencode/ly_zjump.log \
+	  && grep -q 'play tick 114: state A_JUMP seq jump .* pos 90,65[4-7] grounded 0' \
+	      /tmp/opencode/ly_zjump.log \
+	  && grep -q 'play tick 135: state A_JUMP seq jump .* grounded 1' \
+	      /tmp/opencode/ly_zjump.log \
+	  && ! grep -q 'A_JUMP -> A_DRAP' /tmp/opencode/ly_zjump.log \
+	  && grep -q 'play: A_JUMP -> A_WALK' /tmp/opencode/ly_zjump.log \
+	  && grep -q 'play tick 212: state A_WALK seq walk frame 7 .* grounded 1' \
+	      /tmp/opencode/ly_zjump.log \
+	  || { echo "play ZARIA jump grep FAILED"; cat /tmp/opencode/ly_zjump.log; exit 1; }
+	@X=$$(grep -o 'play tick 212: state A_WALK seq walk frame 7 pos [0-9]*,[0-9]*' \
+	    /tmp/opencode/ly_zjump.log | sed 's/.*pos \([0-9]*\),.*/\1/'); \
+	  python3 tools/ppm_lion_measure.py /tmp/opencode/ly_zjump.ppm \
+	      $$((X-20)) $$((X+28)) 100 200 orange top=128+-6 bottom=199+-6 \
+	  && echo "play jump (PR-86): apex ~24u on the measured model, landing INSIDE the authored jump state (no forced idle), wrap exits via its OWN A_WALK(7)=AC_BREAK_NEXT re-joining the walk cycle at row 7, art on the cam anchor (ok)" \
+	  || { echo "play ZARIA jump cam-y grep FAILED"; grep 'tick 21[02]' /tmp/opencode/ly_zjump.log; exit 1; }
 # PR-83: the KEYUP half of the input contract. No backend ever translated
 # SDL_KEYUP, so through the REAL backend every key stuck down forever: the
 # reported "controls press themselves in a loop". The live loop (NO

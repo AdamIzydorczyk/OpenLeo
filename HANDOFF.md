@@ -177,9 +177,10 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 
 | what | where | value / rule | evidence |
 | --- | --- | --- | --- |
-| jump impulse unit | ll_play.h `LL_PLAY_JUMP_DIV` | `I`/4 u/s | ONE measured jump (vine, ep.1 318.6 s) |
+| jump impulse unit | ll_play.h `LL_PLAY_JUMP_DIV` | `I`/4 u/s | ONE measured jump (vine, ep.1 318.6 s); PR-86 re-confirmed on ZARIA live: A_JUMP `I 150,-1200` -> apex ~24 u / 0.36 s, matching the video's jump population (gp.mp4 feet-track scan: clean candidates 23-30 u over 8-13 frames) |
 | jump gravity | `LL_PLAY_JUMP_G` | 1650 u/s^2 (= G.y 55 x 30) | same jump |
-| landing ends the jump state | ll_play.c | -> A_STAY/A_DRAP | `WAIT AC_DUP` not decoded |
+| jump-state ending | ll_play.c | a state that DECLARES an AC_BREAK_NEXT exit ends at its frame-list WRAP (the landing no longer cuts it); forced ->A_STAY/A_DRAP kept ONLY as fallback for states with no such line | PR-86: real A_JUMP/A_JUMP_S declare A_WALK(7)/A_DRAP(1)=AC_BREAK_NEXT; ZARIA.01 leg pins it |
+| `TARGET(N)=COND` entry | ll_play.c/ll_play.h `ll_mov_tr.entry` | numeric (N) = start ROW (1-based) in the target's frame list; non-numeric = top | PR-86 evidence chain in the struct comment (PRE_JUMP skips A_JUMP's impulse row; A_WALK(7) mid-cycle re-join pinned on real data) |
 | jump key | ll_level.c | Space | viewer choice |
 | hurt lock | ll_level.c `play_collide` | 30 ticks of 20 ms | 0x50304 constant, unit assumed |
 | `AC_TIME` | ll_level.c `obj_cond_true` | = end of frame list | `time=min,max` unit unknown |
@@ -331,6 +332,28 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      them in every player .MOV, but ll_play_keys/LEO_PLAY_SCRIPT carry no
      fire key yet - parsed, counted, unreachable. Port the key before
      modeling those states.
+   - "Jumps are very low" (owner report, same session as the position
+     one): NOT reproduced on the current binary. Measured honestly: our
+     A_JUMP/A_JUMP_S apex ~24 u, air 0.36 s (live probes ZARIA.01) vs
+     the original gp.mp4 feet-track (clean jump candidates 23-30 u over
+     8-13 frames) and vs the authored I/4 + g=1650 arithmetic (~27 u).
+     The game's jump IS a ~12%-of-screen hop. If the owner sees lower
+     jumps, most likely an older binary again (as with the sitting-low
+     report) - ASK/verify before touching the constants; PR-86 pinned
+     the height instead of changing it.
+   - What still ends the jump EARLY, if anything: PR-86 kept the
+     authored behavior (state runs its list, wrap exit). The undecoded
+     `WAIT 0ms` rows + `AC_DUP` self-lines (A_JUMP(11)=AC_DUP,
+     A_JUMP_S(9)=AC_DUP) are the engine's obvious "loop the tail while
+     the player waits / chain another press" mechanism, and the
+     900 ms A_JUMP recovery row plays out grounded in our model - if
+     the original cancels recovery on the next input, AC_DUP is where
+     that lives. Settling: a landing-into-immediate-walk on video, or
+     the decompile's frame-tail handler. The gp.mp4 feet-track scan
+     (10367 frames, /tmp/opencode/feet_track.pkl) has the candidates
+     for that test (clean short lifts 23-30 u, e.g. idx 6347/6376/
+     6430); several raw candidates are camera/terrain artifacts and
+     need per-window checking first. F=/FC= accumulator tails stay T1.
 
 ## 8. Plan: tasks, in order. One task = one or a few PRs.
 

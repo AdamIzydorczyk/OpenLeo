@@ -22,8 +22,10 @@
  *                 G=0,200), "TARGET(p)=COND" transitions (K_FWD/K_BKWD/
  *                 K_UP/K_DOWN/K_GEN1..3/K_ANY/K_JUMP/AC_TIME/AC_BREAK_NEXT,
  *                 "!" negates,
- *                 "|" ORs; the priority token may be non-numeric - real
- *                 KADMAR2 writes "A_MASZERUJ(x)=K_FWD" - and a transition
+ *                 "|" ORs; the (..) token is the target's START ROW
+ *                 1-based when numeric (PR-86, see ll_mov_tr.entry),
+ *                 non-numeric - real KADMAR2 writes "A_MASZERUJ(x)=K_FWD" -
+ *                 means the top; and a transition
  *                 targeting its OWN state means KEEP running, no frame
  *                 reset and no event) and per-state "seq=<stem>" art
  *                 selection. PR-85 MODEL CHOICE (recorded, see cond_true):
@@ -154,6 +156,19 @@ typedef struct { int frame; unsigned ms; int dx, dy; unsigned gen;
 typedef struct {
     char target[24];                        /* resolved at parse time      */
     int tidx;                               /* state index, -1 unresolved  */
+    int entry;               /* PR-86: the numeric (N) = START ROW (1-based)
+                              * in the TARGET state's frame list; 0 = from
+                              * the top. Evidence: A_PRE_JUMP's impulse row
+                              * precedes `A_JUMP(4)=AC_BREAK_NEXT` and
+                              * A_JUMP row 4 is its FIRST row after the
+                              * `I 150,-1200` row - entering at (4) skips
+                              * re-applying the impulse A_PRE_JUMP already
+                              * gave; A_JUMP's `A_WALK(7)=AC_BREAK_NEXT`
+                              * re-joins ZARIA's 12-row walk cycle at row
+                              * 7 (mid-phase, seamless landing); A_KILOF's
+                              * `A_JUMP(9)` re-joins the jump mid-air. The
+                              * token can be non-numeric (KADMAR2 "(x)"):
+                              * then it starts from the top. */
     struct { int cond; int neg; } c[LMOV_MAXCON];
     int nc;
 } ll_mov_tr;
