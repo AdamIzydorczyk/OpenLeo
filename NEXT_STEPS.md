@@ -3969,6 +3969,38 @@ in a loop continuously". Both root-caused, both fixed, both pinned.
     one hit method (0x238b0 / 0x544f0) for the energy<=0 -> death-state
     transition, then port: attack hit test (the A_FIGHT art's own hit
     box), damage to [obj+0xad], death, invulnerability countdown +0x102.
+  - SAME-DAY FOLLOW-UP (later the same night, still RE only):
+    (1) THE damage source for normal touch combat: the touch hit path
+        calls `FUN_00055130(eax=objA touched, edx=?, ebx=objB toucher)`:
+        reads `EBP = [B+0xad]` (B's energy), calls 0x550c0 (a gate), and
+        when it fails, `call [B.class+0xd0](eax=A, edx=B, ebx=[A+0xb1])`
+        - so **[obj+0xb1] is the object's "damage" field** (the .des
+        `damage=`, already parsed by ll_level) delivered through the hit
+        method, and `[obj+0xad]` its energy. A's own energy is then
+        compared at 0x5516a (`cmp ebp,[esi+0xad]; jle`) - energy bookkeeping.
+    (2) A template object (one of the 5 factory instances) has a hit
+        override at 0x3d0e0: `if ([obj+0x15a] != 0) call 0x50ed0` (that
+        45%+10 energy-proportional attack); which template (lion? bear?)
+        and what gates on [obj+0x15a] stays OPEN.
+    (3) The complete .MOV frame-directive token table decoded
+        (0x917c0..0x919c7, matched case-insensitively via the
+        lowercasing strcmp at 0x76a69): atc_on/atc_off, lock/lock2/
+        unlock/unlock2, ground_on/ground_off, chdir, ldir/rdir, pos,
+        goto/gotorel/goto_rel, I, F, IC, FC, M, MOVE, GEN, Wait,
+        end_level, smp/smp2/smp3/smpauto/smpauto2/smpprior/vol/
+        smp_loop/smp_unloop/smp_stop, rev, zero_v/zero/zero_t,
+        vol_music; unknown -> "Bledna komenda %s w pliku %s". The
+        A_FIGHT attack = frames 8 `ATC_ON` then 9 `FC 100,0`: the
+        attack-connect window is a FRAME FLAG (atc_on), not a signal -
+        PR-89's hit test should gate on it (its consumer in the code
+        not yet pinned; [obj+0xa5/0xa6] bit tests exist near 0x504e0/
+        0x55230 but tying them to atc_on is unconfirmed).
+    (4) ZARIA.01 authored combat numbers (zwierz1.des): LICHA x3
+        damage=15/15/10 energy=20/20/"20,50" bounds= scope=20; PAJAK
+        damage=10 energy=50; SEP energy=40/80; NOSOROG damage=10
+        energy=60 scope=40,150; RYBA damage=20. (The energy "20,50" and
+        "1000000,350" two-value forms = min,max - which one applies at
+        spawn is OPEN.)
 
 ## Next — pick from the Deferred list below
 

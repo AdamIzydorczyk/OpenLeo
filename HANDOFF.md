@@ -180,7 +180,18 @@ Engine (objects have a vtable at +8; the common slots)
 - Damage: energy -= damage (FUN_00054550); enemies hit with their own
   `damage=`; DANGER objects with the level's `danger_power`. Lion energy starts
   at 100 (0x503ac), lives = global 0xa94f0.
-- Frame tails in `.MOV`: `GEN <sig>` (any signal-table name - PR-88),
+- Frame tails in `.MOV` (the engine's directive token table at
+  0x917c0..0x919c7, matched case-insensitively - the comparison at
+  0x76a69 lowercases A-Z first, so the table's lowercase spellings match
+  the data's upper ones): `atc_on`/`atc_off`, `lock`/`lock2`/`unlock`/
+  `unlock2`, `ground_on`/`ground_off`, `chdir`, `ldir`/`rdir`,
+  `pos i,i`, `goto N`/`gotorel`/`goto_rel N`, `I i,i`, `F`, `IC`, `FC`,
+  `M i,i`, `MOVE`, `GEN` (names from the separate 0x919ec block), `Wait`,
+  `end_level i`, sound words `smp i`, `smp2 i,i`, `smp3 i,i,i,i`,
+  `smpauto`, `smpauto2`, `smpprior`, `vol`, `smp_loop`, `smp_unloop`,
+  `smp_stop`; state/other words `rev`, `zero_v`, `zero`, `zero_t`,
+  `vol_music`; an unknown token prints "Bledna komenda %s w pliku %s".
+  Old note: `GEN <sig>` (any signal-table name - PR-88),
   `I vx,vy`, `F`, `FC`, `M dx,dy`, `WAIT`,
   `lock/unlock`, `ATC_ON/OFF`, `GOTO_REL`, sound words (survey in NEXT_STEPS PR-69).
 
