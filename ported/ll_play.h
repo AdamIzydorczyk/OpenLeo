@@ -286,28 +286,38 @@ typedef struct {
                                              * v to it, never past it, x by
                                              * facing, y down-positive, after
                                              * the drag). Its steady state
-                                             * v_eq = 5*F_eff*s/T is refuted
-                                             * by the measured walks, which
-                                             * all track F/4 px/s with T
-                                             * playing no part; and at 25
-                                             * ticks per second the /100
-                                             * position scale reproduces
-                                             * PR-79's /4 and PR-74's
-                                             * LL_PLAY_JUMP_DIV exactly. The
-                                             * struct mapping is no longer
-                                             * the open part - 0x52590
-                                             * parses `F=` to +0x50/54,
-                                             * `T=` to +0x58/5c (capped at
-                                             * 130) and `G=` to +0x48/4c,
-                                             * and the header F= reaches
-                                             * only the increment - what is
-                                             * open is the MECHANISM behind
-                                             * the measured F/4 walk (the
-                                             * BY_X distance-based frame
-                                             * advance, NEXT_STEPS PR-98
-                                             * open item 2). The port keeps
-                                             * the px/s reading until that
-                                             * is read. */
+                                             * v_eq = 5*F_eff*s/T. PR-98 called
+                                             * that refuted by the measured
+                                             * walks; PR-99 corrects the
+                                             * wording. The two OBJECT samples
+                                             * (worm, rhino) share T=40, where
+                                             * this law and the port's F/4 law
+                                             * differ only by a constant, and
+                                             * the T=20 sample is the player,
+                                             * whose path through 0x54250 is
+                                             * unverified (NEXT_STEPS PR-99).
+                                             * The mode dispatch PR-99 did read
+                                             * - 0x543a1, jump table 0x54380 -
+                                             * shows a BY_X walk DOES go
+                                             * through that loop: mode 0 is
+                                             * BY_X, and it feeds the row
+                                             * distance accumulator [obj+0xa1]
+                                             * from this loop's v/100 (PR-98
+                                             * item 2 CLOSED). So the two laws
+                                             * differ only in the T dependence,
+                                             * and what decides between them is
+                                             * a BY_X object at T other than
+                                             * 40: the data has F=100 against
+                                             * 11 different T pairs, but only
+                                             * ZARIA is on video. The struct
+                                             * mapping is not the open part:
+                                             * 0x52590 parses F= to +0x50/54,
+                                             * T= to +0x58/5c (capped at 130)
+                                             * and G= to +0x48/4c, and the
+                                             * header F= reaches only the
+                                             * increment channel. The port
+                                             * keeps the px/s reading until
+                                             * that T test exists. */
     int time_ms;                            /* time=<ms?>: parsed and
                                              * counted but NOT acted on -
                                              * unit undetermined (ranges

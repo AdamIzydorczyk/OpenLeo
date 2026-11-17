@@ -5220,6 +5220,14 @@ left of (a) is how a BY_X state consumes `F=`, recorded as open item 2)
   rhino (F=180, T=40) - three samples, two actor classes, and the speed
   follows F alone (F/4 px/s), with T=20 and T=40 giving the same result.
   So as read, the chain cannot be the whole story.
+  WITHDRAWN BY PR-99: that inference does not follow from those three
+  samples. The worm and the rhino share T=40, where an F law and an
+  F/T law differ only by a constant (PR-79's /4 IS that constant), and
+  the T=20 sample is the player - open item 8 below. PR-99's
+  CORRECTION section works this same algebra with s=10 at a 20Hz tick
+  and lands on both object samples AND their per-row distances. What
+  survives of this paragraph is only what was true: the samples never
+  vary T.
 - THE OBVIOUS ESCAPE IS NOW CLOSED BY THE MAPPING. The reading that would
   have made that loop agree with the measurements was "the two channels are
   the other way round": the state's `F=` pair reaching 0x54170's target,
@@ -5253,6 +5261,11 @@ left of (a) is how a BY_X state consumes `F=`, recorded as open item 2)
   tick at 25 Hz is F/4 px/s with no T anywhere. The next step is the
   `control=` dispatch (which handler runs a BY_X / BY_TY / BY_TIME state)
   and the writer of [obj+0xa1], not another pass over 0x54250.
+  REFUTED BY PR-99, which read that dispatch: it is 0x543a1, its
+  BY_X branch adds `[obj+0xca]` into that accumulator - a value only
+  0x54250 writes (0x54365, as `v_x/100`; 0x54e56 zeroes it) - and
+  apart from a set at 0x52118 and the zeroes on state/row changes
+  there is no other writer. A BY_X walk does go through 0x54250.
 - A SHIPPED DISCREPANCY this brings into the open: the port's player walk
   speed on ZARIA is the authored cap T=20 -> 20 px/s, while the video
   measurement is 25 px/s (PR-79 closed its own record with "re-resolve
@@ -5273,6 +5286,12 @@ left of (a) is how a BY_X state consumes `F=`, recorded as open item 2)
      accumulator the row thresholds are compared against. That is where the
      measured F/4 law should be, and it is also the caller of the row
      dispatcher 0x45df4 and probably the user of `ds:0xcef40 -> +0x388`.
+     CLOSED BY PR-99: the dispatch is 0x543a1 and its five mode
+     branches (the BY_* enum at movrec+0x12 bits 0..2, jump table
+     0x54380) are the writers of [obj+0xa1]; BY_X takes `[obj+0xca]`,
+     BY_Y `[obj+0xce]`, and BY_TIME/BY_TX/BY_TY the global
+     `ds:0xcef40 -> +0x388` - which therefore IS what this item was
+     looking for, and its meaning is the new open item 11.
   3. What rec+0x4 is: the index that picks which node chain the merge sums
      (see the scope note above). Per-row is the reading used here; nothing
      read here writes it.
@@ -5307,6 +5326,15 @@ left of (a) is how a BY_X state consumes `F=`, recorded as open item 2)
      F=100,T=20: the F law predicts 37.5 vs 25 px/s, the port's
      player-side T law 40 vs 20) would pin the law harder - and gp.mp4 is
      ZARIA only, so that needs footage of another level.
+     CORRECTED BY PR-99: "T plays no part / any model whose steady
+     state goes like F/T is dead on that data" over-reads the samples.
+     The worm and the rhino are BOTH T=40, and the "same 25 px/s at
+     T=20" half is the player, whose path through the engine's
+     velocity step is unverified (item 8). The pairs that would settle
+     it are already in the data - F=(100,0) is authored against 11
+     different T pairs, F=(150,0) against 4 (`tools/re/mov_channels.py`
+     prints them) - so what is missing is only footage of a second
+     level.
   b. The row-target channel, on ZARIA's jump: A_PRE_JUMP `I 250,-1100` and
      A_JUMP `I 150,-1200` are, on the reading above, a velocity that is SET
      (not a burst that decays) and re-set every tick of that row, while the
@@ -5320,6 +5348,190 @@ left of (a) is how a BY_X state consumes `F=`, recorded as open item 2)
      with them.
   Those measurements, not this note, decide whether a PR-99 re-parameterizes
   block 2. Until then T1's RE half is closed and its units half is open.
+  CORRECTED BY PR-99, which read the `control=` dispatch this note was
+  waiting for: (i) "a walking BY_X object probably never goes through
+  0x54250" is REFUTED - the BY_X branch of that dispatch feeds the row
+  accumulator from 0x54250's own `v/100` and nothing else; (ii) "Any
+  model whose steady state goes like F/T is dead on that data" is
+  WITHDRAWN - the two object samples share T=40, where the F and F/T
+  laws coincide by construction, and the T=20 sample is the player,
+  whose path through this code is open item 8; (iii) open item 2 is
+  CLOSED. See the PR-99 record below for the arithmetic.
+
+## PR-99 — the `control=` mode enum, the frame-advance dispatcher at
+0x543a1, and a correction of PR-98's "the F/T law is refuted"
+(documentation + the census tool only: no behaviour change, no re-pins)
+
+RECIPE unchanged from PR-98: `objdump -D -b binary -m i386
+--adjust-vma=0x10000 -M intel --start-address=... --stop-address=...
+/tmp/opencode/vis/text.bin` for code, and `build/leo/leo.elf` read at
+file offset = VA - 0xf000 for strings, vtables and jump tables. text.asm
+desynchronizes at 0x543be and using it cost this PR one false finding
+(see WITHDRAWN below) - the clean sweep is the discipline, not a
+shortcut.
+
+- THE CONTROL WORD, NOW COMPLETE (FACT; the parser 0x51b0d..0x51e07).
+  PR-59 read 13 of these bits from the same function; the values match
+  bit for bit and are not re-derived here. What PR-59 did not have is
+  the mode enum and the five names it skipped. Taken from the token
+  strings the code itself compares against (0x9215a `control`, 0x92162
+  the token format, the names at 0x9216e..0x9222f), the word is 4 bytes
+  at movrec+0x12, cleared at 0x51b2e and ORed one token at a time:
+    * bits 0..2, a mutually exclusive MODE: `BY_X` sets nothing at all
+      (0x51b49 jumps straight to the done path with the word cleared),
+      `BY_Y` 0x1 (0x51b6f), `BY_TIME` 0x2 (0x51b89), `BY_TX` 0x3
+      (0x51ba3), `BY_TY` 0x4 (0x51bbd);
+    * in byte +0x12: `FRAME_REV` 0x8, `SEQ_REV_X` 0x10, `SEQ_REV_Y`
+      0x20, `CHECK_ANI` 0x40, `CHECK_ZW` 0x80;
+    * in byte +0x13: `CHECK_LN` 0x1 (0x51c59), `CHECK_LEW` 0x2,
+      `SOLID` 0x4, `CHECK_BASE_LN` 0x40, `CH_DIR` 0x8, `INV_V` 0x10,
+      `DANGER` 0x20, `CHECK_ALL_PLANE` 0x80;
+    * in byte +0x14: `ANTI_SOLID` 0x1, `ANTI_POCISK` 0x8;
+      (the +0x13/+0x14 values above are the BYTES that function ORs
+      into those bytes, i.e. PR-59's word values divided by 0x100:
+      CHECK_LN is bit 0x100 of the word, SOLID 0x400, and so on - the
+      two tables agree);
+    * three names OR a mask that spans bytes: `CHECK_ALL` 0x1c0 as a
+      WORD (0x51c73) = CHECK_ANI|CHECK_ZW|CHECK_LN; `SOLID2` 0x20400
+      and `SEMI_SOLID` 0x40400 as DWORDs (0x51d5f/0x51d79) - both
+      masks include the `SOLID` bit 0x400 plus one further bit;
+    * the token list is separated by `,` OR `|` (0x51dd8 tests 0x2c,
+      0x51ddd tests 0x7c), and anything unmatched prints "Unknown
+      control mode" (the string at 0x9223b, used at 0x51d99).
+  The mode is read by masking, never compared against a name:
+  `mov eax,[rec+0x12]; and eax,7` (0x543af) - so the low 3 bits really
+  are an enum and the other bits really are flags.
+- THE DISPATCHER (FACT; 0x543a1, which PR-98 called 0x543a0). This is
+  the routine that advances a state's frame list, and its shape is the
+  missing half of PR-79's "movement units per frame":
+      543a6: eax = [obj+0x5c]                  ; state index, x4
+      543a9: edx = [obj+0x50]                  ; state-record table
+      543ac: eax = [edx + eax*4]               ; the CURRENT state
+      543af: eax = [eax+0x12]; and eax,7; cmp eax,4; ja -> nothing
+      543be: jmp DWORD [eax*4 + 0x54380]
+  and the jump table (read out of the ELF, not disassembled) is exactly
+  the enum the parser assigns:
+      0x54380 0x543c6 BY_X     -> [obj+0xa1] += |[obj+0xca]|
+      0x54384 0x543dc BY_Y     -> [obj+0xa1] += |[obj+0xce]|
+      0x54388 0x543fb BY_TIME  -> [obj+0xa1] += [ds:0xcef40 -> +0x388]
+      0x5438c 0x543f2 BY_TX    -> the same, only if [obj+0xba] != 0
+      0x54390 0x5441b BY_TY    -> the same, only if [obj+0xbe] != 0
+  Two independent sites - the bit the parser ORs, and this table's
+  order - agree on the numbering, which is what makes the enum pinned
+  rather than fitted. `[obj+0xca]`/`[obj+0xce]` are exactly what
+  0x54250 stores at 0x54365/0x54372: `v_x/100`, `v_y/100` (0x54e56
+  zeroes them), i.e. the TRUNCATED whole-pixel delta of that tick. So
+  the BY_X walk path runs through 0x54250 by construction - PR-98's
+  inference that it does not is closed. The only other writers of
+  [obj+0xa1] are one assignment at 0x52118 (its inputs unread) and the
+  zeroes at 0x5236b/0x533b0/0x5389e on state and row changes; there is
+  no second per-tick feeder, and the row threshold is compared against
+  that accumulator exactly as PR-98 read it (0x52317..0x52338).
+- WHAT THE SHIPPED DATA DOES (FACT; `tools/re/mov_channels.py` now
+  decodes the mode with the table above, so these numbers are
+  reproducible): of 2318 states in 777 files, 2121 are BY_TIME, 172
+  BY_X, 13 BY_Y, 12 BY_TY and none BY_TX. Of the 172 BY_X, 105 name
+  `BY_X`, and 67 get it by default - 62 states carry no `control=`
+  line at all, where the parser never runs and the word is whatever the
+  allocation left (zero means BY_X: INFERENCE), 5 name a control list
+  with no mode in it. Token frequencies (states): BY_TIME 2121,
+  FRAME_REV 818, CH_DIR 556, CHECK_LEW 535, DANGER 385, CHECK_ALL 360,
+  CHECK_LN 340, CHECK_ANI 168, SOLID2 152, SOLID 141, ANTI_POCISK 121,
+  BY_X 105, SEMI_SOLID 92, ANTI_SOLID 87, CHECK_ALL_PLANE 62,
+  CHECK_ZW 47, SEQ_REV_Y 22, BY_Y 13, BY_TY 12, CHECK_BASE_LN 8,
+  SEQ_REV_X 7, INV_V 3. Not one token in the whole set falls outside
+  the parser's list, and every one of the parser's 23 names is used by
+  the data except `BY_TX`, which no state asks for (a check that
+  passes, not an assumption - the separator rule matters here, 20
+  states separate their list with commas).
+- CORRECTION, the point of this PR. PR-98 recorded "Any model whose
+  steady state goes like F/T is dead on that data" and HANDOFF §7.13
+  still says "THE ENGINE'S WALK LAW IS REFUTED BY THIS REPO'S OWN
+  MEASUREMENTS". That claim is stronger than its evidence:
+    * The two OBJECT samples (the worm F=100 T=40, the rhino F=180
+      T=40) share T, so they show only speed proportional to F at a
+      FIXED T. They cannot separate "the force sets the speed" from
+      "the force and the duration together do": at T=40 the two laws
+      differ by a constant, and PR-79's /4 absorbed that constant.
+    * The T=20 sample is the LION, i.e. the player, and PR-98's own
+      open item 8 says it is unverified that the player goes through
+      0x54250 at all. A sample from a path that may not be this one
+      cannot refute a law about this one.
+    * PR-98's algebra was right (its `v_eq = 5*F_eff*s/T` in v units,
+      `px/tick = F_eff*s/(20*T)`); what was overstated was treating it
+      as excluded. ARITHMETIC, labelled as such: with s = 10 (the
+      value PR-98 read at 0x54a57) and 20 ticks/s the worm comes out
+      at 100*10/(20*40) = 1.25 px/tick = 25 px/s (PR-79 measured 25),
+      the rhino at 180*10/800 = 2.25 px/tick = 45 px/s (PR-79
+      measured 40-50), and their row thresholds are then reached after
+      4/1.25 = 3.2 ticks - 4 px per row, against the 3.0-3.75 px per
+      displayed frame PR-79 measured for that worm - and 7/2.25 = 3.1
+      ticks, 7 px, against the 7-10 measured for the rhino. Four
+      measured numbers from one s and one tick rate is not proof, and
+      both numbers are still open items (4 and 5), but it is the
+      opposite of "dead on that data".
+    * What DOES separate the two laws is the fixture this repo does not
+      have: a BY_X OBJECT at T != 40. The authored data is full of
+      them - the tool prints, for each force, every duration it is
+      paired with: F=(100,0) with 11 different T pairs, F=(150,0) with
+      4, F=(30,0), (75,0), (85,0), (200,0) with 2 each - and the
+      prediction is sharp (the F law says those 11 states walk
+      together, the F/T law says 5x apart). gp.mp4 is ZARIA only, so
+      measuring it needs footage of another level, exactly as PR-79
+      said.
+  WITHDRAWN (this session's first pass, not PR-98): "`0x54170` also
+  sets [obj+0xba]/[obj+0xbe] to 30000000/max(T,30)". That came from
+  text.asm's desynchronized sweep: the clean sweep of 0x54170..0x541ec
+  shows only the target-setter PR-98 described, and nothing else.
+  PR-98's reading of [obj+0xba]/[obj+0xbe] (terrain scalars, written
+  at 0x54a57/0x54a82/0x54a93) stands.
+  NET: nothing about the port's two walk parameterizations changes, and
+  no pin moves. T1 stays where PR-98 left it - the channels' RE is
+  done, the mechanism is now seen in the machine code, the units half
+  is still open - and PR-98's "A SHIPPED DISCREPANCY" note (the port's
+  player walk 20 px/s vs the measured 25) is untouched by this PR and
+  is still the most visible thing left in this area.
+- A MINOR OBSERVATION, flagged not chased: the helper at 0x52540
+  zeroes +0x5c/+0x54/+0x4c and then copies the SECOND component of each
+  authored pair over the first (+0x5c -> +0x58, +0x54 -> +0x50,
+  +0x4c -> +0x48). It sits directly before the `=` parser at 0x52590
+  (which fills +0x50/+0x54 from the `F=` string, +0x58/+0x5c from
+  `T=`, +0x48/+0x4c from `G=`). Its callers are unread. If it ever
+  runs on a state's own record, the x slot ends up holding the
+  authored SECOND value - which would matter for which component of
+  `F=`/`T=` the port reads as x.
+- OPEN ITEMS, PR-98's list with one closed and three added:
+  2. CLOSED by this PR: the `control=` dispatch and the writer of
+     [obj+0xa1] are 0x543a1 and its five branches, above. The reading
+     that item was meant to support ("a BY_X handler turns F= into a
+     distance per tick with no T anywhere") is not what the code does.
+  9. NEW, and it is a real model difference: the BY_X accumulator only
+     ever sees the TRUNCATED `|v|/100` (the idiv at 0x5435d/0x54370),
+     so a walk under 1 px/tick advances the frame list by nothing, and
+     on the s=10/20Hz arithmetic above the worm contributes 1 px per
+     tick, not 1.25. The port's obj_walk instead carries a fractional
+     accumulator. That quantization is visible at low speeds and is
+     worth a test of its own.
+  10. NEW: where the full-precision velocity moves the coordinates.
+     0x54250 stores only `v/100` into +0xca/+0xce, and nothing read
+     here uses the hundredths value for the position. The position
+     writer is still unread - probably the same ground/terrain code
+     that writes [obj+0xba]/[obj+0xbe].
+  11. NEW: what `ds:0xcef40 -> +0x388` is (the increment BY_TIME
+     adds, and with the +0xba/+0xbe gates what BY_TX/BY_TY mean). 91%
+     of the shipped states are BY_TIME, so the frame pacing of almost
+     every state in the game rests on that one field. The four names
+     PR-59 could not pair are now paired but still unexplained:
+     FRAME_REV (818 states), CHECK_ANI (168), CHECK_ZW (47),
+     SEQ_REV_X/Y (7/22).
+  Unchanged: 1, 3, 4 (the cadence - the s=10 arithmetic above makes it
+  the single most valuable unread number in this area), 5, 6, 7, 8.
+- TESTS, unchanged in kind, one added:
+  d. A BY_X object at T != 40 (see CORRECTION above) - now the
+     critical T1 measurement, and the data supplies the fixture as
+     soon as there is footage beyond ZARIA.
+  a/b/c from PR-98 stand, with (a)'s "T plays no part" reading
+     downgraded to "T is not varied by these samples".
 
 ## Next — pick from the Deferred list below
 

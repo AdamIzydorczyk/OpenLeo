@@ -910,12 +910,14 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
      * So F= is a sustained force, T= is a drag, and `FC` is load-bearing:
      * ZARIA's A_FIGHT header is `F=0,0` and its rows carry `FC 100,0`,
      * `FC 90,0`..., i.e. without FC the punch has no authored motion at all.
-     * NOT APPLIED, deliberately (NEXT_STEPS PR-98 carries the detail):
-     * that loop's steady state is v_eq = 5*F_eff*s/T, so px/s =
-     * F_eff*s*fps/(20*T) - a speed that depends on T - while every walk
-     * this repo measured on the video tracks F alone: 25 px/s for the
-     * lion's A_WALK (F=100,T=20), 25 px/s for the worm's BY_X A_RUN
-     * (F=100,T=40), 40-50 px/s for the rhino (F=180,T=40). Note also that
+     * NOT APPLIED, deliberately (NEXT_STEPS PR-98 and PR-99 carry the
+     * detail): that loop's steady state is v_eq = 5*F_eff*s/T, so px/s =
+     * F_eff*s*fps/(20*T) - a speed that depends on T, on the terrain
+     * scalar s and on a tick rate this port does not run at (60 ms) -
+     * while the walks this repo measured appeared to track F alone: 25
+     * px/s for the lion's A_WALK (F=100,T=20), 25 px/s for the worm's
+     * BY_X A_RUN (F=100,T=40), 40-50 px/s for the rhino (F=180,T=40);
+     * PR-99 corrects what that proves, below. Note also that
      * the units half of the question may already be answered by this
      * file's own fitted constants: v is hundredths of a px per tick (the
      * /100 at 0x5435d), and at 25 such ticks/s an `I 150,-1200` pair is
@@ -925,11 +927,24 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
      * that parser at 130, `G=` = +0x48/+0x4c - and the merge copies
      * exactly those, so the header F= feeds ONLY the increment channel
      * (0x54170's target comes from the row-node sums, never from the
-     * header). No re-reading of F= as a velocity target can rescue the F/T
-     * law. Where the measured F/4 law most likely lives instead is the
-     * BY_X frame-advance-by-distance path, which is a position mechanism
-     * and needs no integrator (NEXT_STEPS PR-98, open item 2). This model
-     * stays until that is read, with the measured F/4 law as referee. */
+     * header). That much stands. What does NOT stand is PR-98's word
+     * "refuted" - PR-99 corrects it (NEXT_STEPS PR-99, CORRECTION): the
+     * two OBJECT samples share T=40, where this law and the F-only law
+     * differ only by the constant PR-79 fitted as /4, and the T=20
+     * sample is the lion, whose path through 0x54250 is unverified.
+     * Worked the other way (s=10, 20 ticks/s) the same algebra lands on
+     * both object samples AND their per-row distances. PR-99 also read
+     * the `control=` dispatch, PR-98's open item 2: it is 0x543a1 with
+     * the jump table at 0x54380, mode 0 is BY_X and its branch feeds
+     * the row distance accumulator [obj+0xa1] with [obj+0xca], i.e.
+     * |v_x|/100 from the loop above. There is no separate position
+     * mechanism, and PR-98's other escape (re-reading the header `F=`
+     * as 0x54170's velocity target) stays closed: that target is built
+     * only from the row-node sums. So this model stays as it is: the
+     * samples on hand do not decide between the two laws, and the
+     * measurement that would is a BY_X object at T other than 40,
+     * which the authored data supplies in quantity but ZARIA's footage
+     * does not. */
     int key_walk = p->walkdir > 0 ? keys->k_fwd : keys->k_bkwd;
     double tv = (st->ctrl & LL_CTRL_BY_X) && (key_walk || p->auto_walk)
                     ? p->walkdir * (double)(st->tx > 0 ? st->tx : 0)

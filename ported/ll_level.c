@@ -956,8 +956,20 @@ static void obj_arm_atak(lvl_obj *o, int lx, int ly, int verbose, int tick)
  * screen, pinned) the ZARIA.01 worm's walk bursts average ~20-30 px/s
  * with its authored F=100 -> |fx|/4 = 25 px/s, and its 9-frame x 4-unit
  * stride cycle = 1.44 s, matching the observed stride rhythm; T's
- * semantics stay unresolved and nothing is built on it. bounds= is the
- * authored patrol key; the flip is modelled at its edges. CH_DIR (PR-81):
+ * semantics stay unresolved and nothing is built on it. NOTE (PR-99,
+ * and it limits the /4 above): every object measured on video has
+ * T=40 (worm F=100,T=40; rhino F=180,T=40), so /4 is only measured at
+ * one T, and at a fixed T it is indistinguishable from the engine's
+ * own law, whose steady state is proportional to F/T (the velocity
+ * step at 0x54250: `v -= T*v/100` then `v += F*s/20`; s is the
+ * terrain scalar at obj+0xba). PR-98 called that law refuted by these
+ * samples; PR-99 corrects that - the samples never vary T (the one
+ * T=20 walk is the lion, whose path through that code is unverified).
+ * So this walk law is unvalidated for objects at T != 40, and the
+ * measurement that would settle it is a BY_X object there (the data
+ * has F=100 against 11 different T pairs; only ZARIA is on video).
+ * bounds= is the authored patrol key; the flip is modelled at its
+ * edges. CH_DIR (PR-81):
  * the census pairs bounds= with CH_DIR (8/8 sampled placements; 0/14
  * without; 93 of the 105 BY_X states carry it). The frame-number sign is
  * the authored BASE facing - ZARIA.01's worm art faces left (the eye

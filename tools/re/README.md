@@ -22,7 +22,7 @@ for another machine. No game data and no video frames live in git.
 
 | file | what it does |
 | --- | --- |
-| `mov_channels.py` | `mov_channels [DIR]` - per state, the header `F=`/`T=`/`G=` pairs plus the sums of the row-level `F`/`FC`/`I`/`IC` pairs, i.e. the two motion channels the engine merges (NEXT_STEPS PR-98); also counts the `T=` values over the 130 cap the engine's parser applies. Reads `/tmp/opencode/mov` by default. |
+| `mov_channels.py` | `mov_channels [DIR]` - per state, the header `F=`/`T=`/`G=` pairs plus the sums of the row-level `F`/`FC`/`I`/`IC` pairs, i.e. the two motion channels the engine merges (NEXT_STEPS PR-98); decodes every state's `control=` word into the engine's own mode+flag bits and counts the modes and tokens (NEXT_STEPS PR-99); counts the `T=` values over the 130 cap the engine's parser applies; and lists every force the BY_X states pair with more than one duration, which is the fixture that would separate an F law from an F/T one. Reads `/tmp/opencode/mov` by default. |
 
 ## Disassembly
 
