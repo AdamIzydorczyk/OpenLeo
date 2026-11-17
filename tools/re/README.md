@@ -36,6 +36,30 @@ walk 0x458e0) and which are per class (0x45d50/0x45d90/0x45dc0 answer a
 channel id; slots +0x00/+0x14 are unique to each class) - NEXT_STEPS PR-101.
 Reads `build/leo/leo.elf` (not in git; see HANDOFF.md section 3).
 
+## Indexed search over the image (`leodb.py`)
+
+`python3 tools/re/leodb.py build` once (about 1.5 s), then indexed lookups
+instead of grep-and-scan. It builds `/tmp/opencode/leo.sqlite` (51 MB, a
+derived artifact, never in git) from `build/leo/leo.img`, stamped with its
+sha256: the sweep disassembly (201k rows, indexed by mnemonic), every byte
+offset of the image as a dword indexed by VALUE with an `aligned` column,
+branch targets as xrefs, trailing immediates of instructions, the class
+tables, printable runs, and the Ghidra entry names from
+`build/decompiled/all/index.csv`. Commands: `callers`, `refs`, `callees`,
+`dis`, `func`, `slots` (class-table slot census), `tables` (who installs a
+table), `grep`, `sql`, `schema`, `find`.
+
+It is a SEARCH index, not an authority. The instruction rows come from one
+linear sweep, which drifts; overlapping rows are flagged `[SUSPECT]` and
+every listing command prints the flag, but the only authoritative
+disassembly stays `dis` (objdump over the exact bytes at the exact VA) and
+`func` body ranges are entry-list hints. Its class-table detector is
+mechanical - the `[obj+8]=T` / `[obj+0xc]=T-8` pattern read out of the
+code, the PR-106 method - and measures 158 tables where the call-site
+census measures 162, so `slots` prints counts over detected tables
+(+0x60 = 0x23b80 in 129/158, and 26 distinct non-default targets, the same
+26 PR-106 recorded). NEXT_STEPS.md, tooling addendum.
+
 ## Reference video (outside git; yt-dlp + ffmpeg + numpy + Pillow)
 
 | file | what it does |

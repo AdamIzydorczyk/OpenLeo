@@ -1319,6 +1319,15 @@ lines - add a table of contents or split.
 Reading the machine code (how every engine fact above was found):
 1. `tools/re/make_text_asm.sh`; find a string address in `leo.elf`
    (python `re.finditer`), grep the asm for `0x<addr>` to find the code using it.
+1b. For anything beyond one literal grep, build the index first:
+   `python3 tools/re/leodb.py build` then `callers`/`refs`/`slots`/`tables`/
+   `sql` (see tools/re/README.md). It indexes the disassembly, every dword of
+   the image (with an `aligned` column, so instruction bytes masquerading as a
+   pointer are visible as such), branch xrefs, instruction immediates and the
+   class tables. It is for FINDING, never for READING: the exact bytes at a VA
+   still come from objdump (`leodb.py dis`, identical to `dat.py`), and sweep
+   rows that another instruction overlaps are flagged `[SUSPECT]`. PR-106's
+   method (call graph, not grep) is what this tool automates.
 2. Class methods are virtual: find the class by its factory (0x4df10 maps the
    first field of a placement line to a vtable), read the vtable (dwords at
    the vtable address in `leo.elf`, VA - 0xf000) and the slot you need.

@@ -7330,6 +7330,63 @@ pointing at 0x4bb30" is instruction bytes (`mov esi,[eax]` at
   0x52b80 -> +0x14 chain and the pacer). No behaviour change, no
   pin moved; §1/§6 estimates untouched.
 
+## Tooling addendum (no code, no pin) - an indexed search over the image,
+and what it cross-checks from PR-106 (the method change PR-106 recorded,
+turned into a tool: `tools/re/leodb.py`)
+
+The session's other tooling (cgraph.py, path.py, dis.py, dat.py,
+slot_census.py) stays scratch under /tmp/opencode; this one is committed
+because the "one script per question" cost was the actual bottleneck.
+Built with `python3 tools/re/leodb.py build`: 1.5 s,
+/tmp/opencode/leo.sqlite (51 MB, derived, never staged), sha256-stamped
+against build/leo/leo.img (edf19a129e85efb8...).
+
+- WHAT IS INDEXED. `insn` 201,475 rows (the whole image's linear sweep,
+  indexed by (mnem,va), with `prov` for inside/outside .text); `xref`
+  27,558 direct branch targets indexed by dst; `dword` 816,845 rows -
+  EVERY byte offset of the image, indexed by value, with an `aligned`
+  column; `imm` 5,181 trailing immediates of instructions (the
+  `mov eax,0xcef30` form a dword scan cannot see); `loadimm` 3,875
+  `mov DWORD PTR [reg+disp],imm` sites; `mtable` 189 class tables;
+  `str` 4,359 printable runs; `func` 1,845 entries from
+  build/decompiled/all/index.csv (names only, as hints).
+- WHAT IT ACTUALLY BUYS. Single lookups are NOT much faster than grep
+  (measured: `callers 0x5d170` 0.020 s vs cgraph.py 0.223 s; `refs`,
+  `slots`, `find` all ~0.02 s, the same as grepping full.asm). The win
+  is composite questions in one lookup, which is what PR-106's method
+  needed: `refs 0x4bb30` returns the single pointer at 0x587d9 with
+  `aligned=0 seg=code FUN_000587d0+0x9` - the false lead PR-106 had to
+  chase by hand - next to the four real call sites 0x1e333/0x4a6b7/
+  0x4d7ab/0x4d7c5; `loadimm` turns the two-view ctor pattern into one
+  set intersection instead of vtable_scan.py + objcensus2.out;
+  `tables 0x96874` lists all 16 sites that store a class table into
+  `[obj+0x8]`, which is the "which class builds which table" question
+  PR-103/PR-104 could only answer through the 0x4df10 factory.
+- CROSS-CHECK OF PR-106 (independent method, same facts). The detector
+  proves 158 class tables from the code pattern (`ctor`) where the
+  call-site census measured 162; over its set: +0x60 = 0x23b80 in 129
+  (record: 132), +0x64 = 0x238e0 in 109 (111), +0x08 = 0x23e00 in 153
+  (157) - and 26 DISTINCT non-default +0x60 targets, exactly the 26 of
+  PR-106 open item 6. So the record's numbers are not an artefact of
+  one tool; the small differences are the table SET, and the counts are
+  reported as counts over detected tables, never as facts about the
+  game.
+- WHAT STAYS OUT OF THE INDEX. Any disassembly that is read as evidence:
+  `dis` shells out to objdump over the exact bytes at the exact VA and
+  is byte-identical to dat.py (diffed at 0x23b80), and the sweep rows
+  are marked `[SUSPECT]` where another instruction overlaps them - the
+  first such row is visible immediately in `func 0x4ba90`, whose body
+  starts one byte off. `func`/`callees` ranges come from the Ghidra
+  entry list and are labelled hints.
+- NOT DONE, on purpose: importing Ghidra's own xref database (better
+  function boundaries than the entry-list hints) and capstone as a
+  second disassembler to cross-check objdump. Say the word if either
+  starts to matter; until then the two-level rule holds - index for
+  FINDING, objdump for READING.
+- Docs: this note; tools/re/README.md (usage + caveats); HANDOFF.md §9
+  method note 1 gets the indexed step. No ported/ file, no pin, no
+  behaviour change; the generated .sqlite is not in git.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
