@@ -4467,6 +4467,185 @@ attached children (the user's ZARIA.01 "objects not in place" report)
   sink ~20 units below the drawn grass tops - camera/anchor follow-up,
   unrelated to placement.
 
+## PR-94 — the engine's contact/answer protocol, verbatim RE (documentation
+only: no behaviour change, no re-pins; the PR-92 shipped model stands)
+
+- Source: /tmp/opencode/vis/text.asm (regenerate with tools/re/make_text_asm.sh;
+  VA = file offset + 0xf000). Everything below is machine-code fact unless
+  marked OPEN. This record supersedes the pre-compaction interim notes; two of
+  them were WRONG and are corrected here (see "corrections").
+- The "hit" call convention, inside ONE class family:
+  `call [vtable+0xd0](eax=other, ebx=damage, ecx=0)` = "hit other with this
+  damage". Call sites: 0x50fce, 0x51030 (answer-A), 0x55164 (answer-C),
+  0x55255, 0x552a2 (answer-B), 0x3da2c, 0x3da7c (lion variant). The final
+  generic sink is 0x54550 = `sub [obj+0xad],ebx` (hp -= damage). hp is
+  [obj+0xad]; -1 = dead.
+- Touch method 0x50ed0 (eax=receiver, edx=other, ebx=damage, non-NULL
+  required at 0x50ef): skip if [self+0x11a] is 6 or 7, other NULL, or
+  [self+0x126]!=0; if is-enemy(self) ([self.vt+0x40]) it additionally
+  requires is-enemy(other). It records the counterpart: [other.vt+0xc] ->
+  [self+0x10a], [other.vt+0x70] -> [self+0x10e]. The engine keeps a
+  per-object CONTACT LIST [obj+0xd2] (nodes 0x5c370-allocated): 0x551f0
+  pops nodes in a loop while [self+0xd2]!=0, and when the list goes empty
+  calls [self.vt+0x3c]() and sets [obj+0x106]=1 - a "contact ended" edge
+  the port does not model (OPEN: who fills the list). Then the
+  invulnerability gate 0x502f0 ([obj+0x102] countdown, PR-92 pinned):
+  countdown != 0 -> [obj.vt+0xe4](1) (a blocked-hit notify, not modelled);
+  countdown == 0 -> 0x54550: hp -= damage. NOTE: 0x50ed0 ENDS at 0x50f79
+  (ret); 0x50f80 starts its own prologue at 0x50f80 - the two ARE
+  SEPARATE FUNCTIONS (correction: the interim "one body, two entry points"
+  reading was wrong; their fixed +0x58 spacing in 25 vtables means two
+  ADJACENT methods, full-implementation vs answer).
+- Lion-side contact dispatch 0x340b5..0x34114 (this IS the code PR-89
+  ported; it is the SECOND HALF of the 0x34020 function - see the
+  vtable survey bullet): inside it, if this object's id ([self.vt+0xc]) equals global
+  ds:0xced04 - the player lion, OPEN as identity but strongly implied -
+  and the feet land within other.top .. other.top+20 (0x340d5/0x340e5
+  getters +0x6c, and [self+0x5c]!=2): `[other+0xad] = -1` instant kill
+  (the stomp); otherwise damage 0x1e=30 at 0x34103 and the call at
+  0x3410c is 0x50ed0(eax=other, edx=lion, ebx=30) - the OBJECT is the
+  receiver and takes the 30. PR-89's shipped numbers stand; the direction
+  (receiver = object) is now pinned verbatim.
+- The ANSWER packet: 12 bytes (3 dwords of the named signal set) + a
+  FLAG byte at +0xc, built by 0x749a0(len 0xc, empty, flag 0), merged
+  through 0x49580 (OR), delivered by `rep movsd` 12 bytes + the flag byte
+  copied separately (0x51062..0x51083 = the PR-92 pinned tail; 0x551bc..
+  0x551d6; 0x3dab5..0x3dac5). Three handlers, ALL vtable-only (no direct
+  call sites anywhere in .text; dispatched through class vtables at
+  family-specific slots):
+  - answer-C 0x55130(eax=A, edx=out-buffer, ebx=C, ecx=[A+0xee]):
+    predicate 0x550c0(A,C) at 0x55146 - C.is-enemy, then 0x52d30(C) /
+    0x52d30(A) lookups, first-dword difference sign * [C.vt+0x70]
+    (OPEN: what this orders). Gate FALSE -> C.hit(A, damage=[A+0xb1])
+    through [vtable+0xd0]; compare [C+0xad] before/after: hp REDUCED ->
+    raise BIT 16 = AC_ENEMY_ATC (byte2 |= 0x1 at 0x5518c); hp NOT
+    reduced -> raise BIT 7 = AC_ENEMY (byte0 |= 0x80 at 0x551b0).
+    (Correction: the interim read called the second branch bit 17
+    AC_RECT; verbatim it is byte 2 bit 0 = bit 16 = AC_ENEMY_ATC, and
+    that gives that bit a RAISER - it was on the unmodelled list.)
+  - answer-A 0x50f80(eax=self, edx=buffer, ebx=other): gate 0x53ae0 —
+    NOW FULLY READ, this is the SOLID collision responder (see next
+    bullet); its own writes go straight into answer-A's local packet.
+    [self+0x11a]==7 -> other.hit(self, damage=[self+0xb1]); filter gate
+    [self.vt+0x9c](other); is-enemy(self) -> 0x55130(self, local,
+    other, [self+0xee]) merged into the local packet; DANGER flag
+    ([self.vt+0x44], test ah,0x20 = 0x2000) -> other.hit(level,
+    damage=[[ds:0xcef40]+0x54]); then ALWAYS merge {bit 7 AC_ENEMY}
+    (0x5104c/0x51050) and copy the 13-byte packet to the buffer arg.
+    On a gate-fail the packet stays empty - the copy at 0x51062 still
+    runs (an empty answer).
+  - The answer-A gate/responder 0x53ae0(eax=self, edx=other,
+    ebx=packet): geometry pair via 0x53030 (two outputs + a returned
+    value at [esp+0x4c]; port counterpart = the PR-46/PR-69 shape
+    push); FAILS only when the pair is (0,0) AND NOT (self has SOLID
+    0x400 and other has ANTI_SOLID 0x10000). Body: if self is
+    SEMI_SOLID (flag word ==/has 0x40400): |depth|>5 -> push other
+    via 0x52b10(kind 1), then always a 0x52b10(kind 13 velocity-add,
+    magnitude depth*30) with the depth clamped to +-4; else: raise
+    BIT 0 = AC_BLOK into the packet (0x53bc8 byte0 |= 1); if self is
+    SOLID2 (0x20400): message {0,1,depth} to other, and if the second
+    pair output != 0 raise BIT 1 = AC_BLOK_Y merged into the packet
+    (0x53c36); else message {0,1,depth}. So the answer packet a solid
+    object hands its toucher is {AC_BLOK?, AC_BLOK_Y?} + the hit bits
+    + AC_ENEMY - consistent with the shipped PR-46/69 push-out and
+    PR-89/92 combat model. AC_BLOK/AC_BLOK_Y thus get ENGINE raisers
+    (the port's own raises via shape contact stand; cross-object
+    ROUTING of these bits into the touched object's table remains the
+    same OPEN as before).
+  - answer-B 0x55232(eax=self, edx=other, ebx=buffer): ANTI_POCISK flag
+    0x80000 ([self.vt+0x44] test 0x80000) -> other.hit(self, damage 0);
+    is-enemy(self) -> 0x55130(self, local, other) merged into the CALLER
+    buffer; ELSE DANGER -> other.hit(level, danger); then ALWAYS merge
+    {AC_ENEMY} at 0x52be into the caller buffer.
+  - Lion-class variant (body 0x3d9c0..0x3dae0; entry boundary and the
+    vtable slot that reaches it: OPEN): [self+0x5c] type branches 1/2;
+    after the [self.vt+0x9c] filter it merges {bit 7 AC_ENEMY}
+    UNCONDITIONALLY (0x3d9fb - correction: the interim note called this
+    AC_RECT too); is-enemy(self) -> other.hit(self,[self+0xb1]); DANGER
+    -> other.hit(level, danger); then 0x3da85: if [self+0xb1] !=
+    0xf4240 (1,000,000 = "no damage" sentinel) -> [self+0xad] = -1: a
+    lion-class object that IS hit dies unless the damage field carries
+    the sentinel. The 0x3dae0 data-occurrence (0x95944 etc) is the
+    hit-slot entry of its family (see vtable survey).
+- danger_power CLOSED: every DANGER branch reads [[ds:0xcef40]+0x54]
+  (0x3da7c, 0x5102b, 0x5529f). ds:0xcef40 is the global current-LEVEL
+  descriptor: the shipped config parser 0x325b0 (its split patterns point
+  INTO the token/keys block: 'belka' 0x90e8f, ' %d', 'ew_rect' 0x90ed3
+  = 'lew_rect'+1 - the parser searches substrings) explicitly writes
+  [obj+0x54]=0 at 0x3266b and NO config key writes it anywhere. So every
+  shipped DANGER-route hit carries damage 0. (The +0x54 writes at
+  0x326f3/0x32700 are list-node fields of a DIFFERENT object class -
+  reached via [levelobj+0x394].) PR-90's LEO_PLAY_DANGER default-off is
+  consistent; the authored enemy damage still comes from placement
+  `damage=` (unchanged).
+- AC_RECT, the T2 question "where is AC_RECT decided", PARTIAL answer: a
+  grep over the shipped HD ANIMACJE .MOV corpus shows AC_RECT appears ONLY
+  in lion-class scripts and level flows: ZARIA.01 LEW.ZAR/LEWPL.MOV
+  A_KILOF(25)=AC_RECT,K_GEN1; SADES.06 LEW.MOV A_HOLE; LONA.05 LEW.MOV
+  A_WALKINTOIGLO (PINGWIN/LONAKULA lines commented out); TUNGA.11 and
+  TUNGA2.12 LEW.MOV A_EXIT=AC_RECT,AC_BLOK; KADMAR.07 0.MOV
+  A_LISC_FALL(1)=AC_RECT,AC_ONAIR / A_LISC_END(1)=!AC_RECT; ZOLW.MOV
+  A_JUMP. None of the contact/answer handlers above raises AC_RECT. So
+  AC_RECT is raised on the LION side at stone-push/hole/igloo/exit state
+  entry - not by object contact. The raiser code and the object-side
+  consumer stay OPEN.
+- vtable survey (data scan of /tmp/opencode/text.bin = the elf bytes
+  objdump read, VA = file offset + 0x10000; + the class factory sites
+  that install `mov DWORD PTR [reg+0x8], 0x9xxxx` in text.asm): 111
+  distinct bases. IMPORTANT address-space note: build/leo/leo.img places
+  these segments 0x1000 LOWER than the elf/objdump VAs (the same bytes
+  sit at 0x959d8 in the image but 0x969d8 in the elf); scanning pointers
+  in the IMAGE gave a wrong first census - this version is re-derived
+  against the elf bytes and is authoritative.
+  Census: answer-A 0x50f80 appears in 70 of the 111 class tables, touch
+  0x50ed0 in 48, hp-sub 0x54550 in 41, enemy-AI 0x41180 in 39, the
+  lion-class variant 0x3dae0 in 12, the id-keyed handler 0x34020 in 9.
+  A constant +0x58 (answer-A -> touch) spacing exists in 56 bases, so
+  those two ARE adjacent methods in every family that has both - as
+  corrected above. BUT their ABSOLUTE slot numbers are per family: 12
+  bases put answer-A at exactly +0x78 and 10 put 0x50ed0 at exactly
+  +0xd0 (those are the family the §5 slot list describes); others put
+  the same pair at +0x15c/+0x1b4, +0x298/+0x2f0, +0x3fc/+0x454, ...
+  Top +0xd0 slot targets across the 111: 0x54550 hp-sub (19), 0x23840
+  (19, a different 0x23xxx actor family), 0x50ed0 (10), 0x41180 (8),
+  0x23c60 (6), 0x3dae0 (5 - bases incl. 0x96874, 0x9916c, 0x9ad48,
+  0x9e740), 0x34020 (the old "0x9e204 pointer" = base 0x9e134's +0xd0
+  slot). Conclusion: the HANDOFF slot table (+0x44/+0x48/+0x78/+0x9c/
+  +0xd0...) is the layout of the CORE object family only; derived
+  classes shift or replace slots - layouts are per family.
+  Bonus finding, full reading goes to the NEXT record (T4): 0x34020 is
+  a +0xd0 contact-receiver keyed on the toucher's class id compared
+  against globals 0xced00/0xcecf0/0xcecf8; its player branch applies
+  the hp*30/100+10 damage formula through 0x50ed0 and the third id
+  sets hp=-1; its tail falls through INTO 0x340b5 - so 0x340b5 (the
+  code PR-89 ported) is the second half of this same function.
+- Class name table at 0x90f3d (the .des class tokens VERBATIM): ANITAB,
+  PLANT, GRABOBJ, DEMOTEXT, ANIBACK, MOVEPLAT, MOVERECT, RECT, DRECT,
+  DRECT2, KATPLAT, DZWIGNIA, WODOSPAD, ZWIERZ, GRUPA, PICT, POCISK,
+  IDPOCISK, GRABG, GWIAZDKI, NIESP, ZONE, KORONA, SURPRISE, BAL, DNGANI,
+  TRASA, TRASA2, LINA, TABLICA, BERLO. Every token the port's placement
+  parser accepts is there; the parse helpers 0x325b0/0x328c0 use split
+  patterns pointing INTO this block (0x90f40 'TAB' is the tail of
+  'ANITAB', 0x90f4b 'RABOBJ' of 'GRABOBJ'), i.e. the shipped .des
+  grammar and this table are the same thing. The tokens the port only
+  counts (GRUPA, BERLO, TRASA, ...) get their full reader in future
+  work; the follower strings XaXnDdOrCz etc. in the same block are the
+  per-entry format strings, meanings OPEN.
+- OPEN (recorded, not guessed): (a) the dispatch DIRECTION - which code
+  calls the answer handlers through which family slot, and which object's
+  head finally receives the answer buffer (the port currently models the
+  NET effect: the touched object's own set sees AC_ENEMY); (b) the
+  0x550c0 ordering predicate and 0x52d30; (c) the exact geometry the
+  0x53030 pair query computes (its consumer 0x53ae0 is fully read, and
+  its flag tests are the pinned SOLID/ANTI_SOLID/SEMI_SOLID/SOLID2
+  words); (d) [obj+0x5c] and
+  [obj+0x11a] type semantics (gates at 0x340ed/0x50ed7/0x50fb6); (e)
+  the 0x3d9c0 function's entry boundary; (f) who fills the contact list
+  [obj+0xd2] and what consumes [obj+0x106]=1; (g) the XaXnDdOrCz format
+  strings.
+- No code, no pins: RE-only commit. make/make win untouched; full
+  verify-all re-run before commit as always.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

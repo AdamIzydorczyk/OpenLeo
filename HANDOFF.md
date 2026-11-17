@@ -166,12 +166,39 @@ Level data
 - HUD (`BELKA`): `x,y` + `[N ]name.seq` items: energy head (10 frames), lives
   digits, tools icons (4), count digits, item frame, crown.
 
-Engine (objects have a vtable at +8; the common slots)
+Engine (objects have a vtable at +8; the common slots. PR-94 caveat:
+that slot table is the layout of the CORE 0x52000-0x55xxx object family
+only - 111 factory-installed vtable bases exist; the answer-A/touch
+pair keeps a constant +0x58 spacing in 56 of them but sits at different
+absolute slots per family, and +0xd0 resolves to different targets
+(hp-sub 0x54550 in 19, a 0x23xxx family's 0x23840 in 19, the generic
+0x50ed0 in 10, enemy-AI 0x41180 in 8, lion 0x3dae0 in 5). Full census
+in the PR-94 NEXT_STEPS record.)
 - +0x10 message handler (`{next, kind, a, b}` nodes; Lew: 0x1e130 -> 0x50d60
   jump table; kind 9 = balloon heal +32 and the sender's signal bit; 13 =
   velocity add; 1 = displace), +0x3c "is Lew", +0x40 "is enemy", +0x44 flag
   word, +0x48 shape element, +0x4c rect, +0x50 facing, +0x68 position,
   +0x78 touch, +0x9c filter, +0xd0 hit(source, ., damage).
+- Contact/answer protocol (PR-94, verbatim, all addresses in /tmp/opencode/
+  vis/text.asm): the touch method 0x50ed0(obj, other, damage) gates on
+  [obj+0x11a] type/NULL/[obj+0x126], keeps a per-object contact list at
+  [obj+0xd2] (0x551f0 pops it; empty + [vtable+0x3c] -> [obj+0x106]=1),
+  and applies damage ONLY when the [obj+0x102] invulnerability countdown is
+  0 (sink 0x54550 `sub [obj+0xad],ebx`; else [vtable+0xe4](1)). The lion's
+  contact dispatch 0x340b5 (id compare vs global 0xced04 = the player)
+  stomps: hp[other]=-1 when feet land within 0..20 above its top and
+  [lion+0x5c]!=2, else calls 0x50ed0(receiver=object, other=lion, 30).
+  The answer protocol = 13-byte packets (12-byte named set + flag byte at
+  +0xc; build 0x749a0, OR 0x49580, rep-movsd copy) from three vtable-only
+  handlers: 0x50f80/0x55232/0x55130 - answer-A first runs the SOLID
+  responder 0x53ae0 (raises AC_BLOK 0x53bc8 / AC_BLOK_Y 0x53c36, push
+  0x52b10 kind 1 + velocity kind 13 depth*30, SEMI_SOLID special), then
+  optional hit via [vtable+0xd0], then merges AC_ENEMY unconditionally;
+  answer-C raises AC_ENEMY_ATC iff the routed hit actually reduced hp;
+  answer-B handles ANTI_POCISK (hit with damage 0) and DANGER. The class
+  name table at 0x90f3d holds the .des class tokens verbatim (ANITAB..
+  BERLO) and the entry-parsing helpers 0x325b0/0x328c0 split with patterns
+  pointing INTO it.
 - Flag word (token parser 0x51b30..0x51dc3): SOLID 0x400, SOLID2 0x20400,
   SEMI_SOLID 0x40400, ANTI_SOLID 0x10000, ANTI_POCISK 0x80000, DANGER 0x2000,
   CHECK_ANI 0x40, CHECK_ZW 0x80, CHECK_LN 0x100, CHECK_LEW 0x200, CHECK_ALL 0x1c0,
@@ -233,8 +260,8 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | K_FWD/K_BKWD key model | ll_play.c `cond_true` (MODEL CHOICE note) | facing-relative: K_FWD = arrow along current face; walkdir = the literal arrow; a left-facing turn settles via the state pair or A_TURN+AC_BREAK | PR-85; forced by data (one A_WALK, no BKWD-walk state); NOT yet confirmed on video |
 | lion attack damage / object hit rule | ll_level.c `LL_LION_HIT_DAMAGE` 30, `obj_hit`, `LL_OBJ_HIT_CD` 14, `ll_play.h` `atc`/`atc_hit` | damage 30 = the 0x34103 dispatcher default; hp<0 forces A_DEAD by name; energy -1 never hit-able; countdown 14 (0x27264); window open from `ATC_ON` until `ATC_OFF`, one hit per window, cleared on state change for the 18 blocks that never close it | addresses verified; the 30 stays until the 45%-of-energy+10 template (0xcecfc) identity decodes; the window-clear rule and the corpse-deal-contact rule are model choices (PR-89) |
 | enemy attack (T3 st. 1) | ll_level.c `obj_arm_atak`, `play_collide` window block; `ll_play.h` `LL_CTRL_DANGER` | a current state carrying the authored DANGER flag arms the script's OWN A_ATAK by name when the lion is inside abs(dx) < 40 AND abs(dy) < 50 (strict); the enemy lands ONE hit through its own ATC window (authored damage=, 30-tick lion lock) before/instead of the contact block; OFF unless LEO_PLAY_DANGER=1 | the box numbers are RE-pinned FOR THE CLASS "LICHA" (class chosen from the .des token at 0x616d0; box at 0x61b6e) - the flag-as-precondition, A_ATAK-by-name entry and window-hit mirror are the port's stand-in (engine driver open, §7 item 10) (PR-90) |
-| AC_ENEMY_ATC raiser | ll_level.c `obj_hit`, `play_collide` window block | the hit raises it on the HIT object's own set (PR-88 mechanism) so its `A_DOSTAL(1)=AC_ENEMY_ATC` line fires; PR-91 mirrors the raise onto the LION for the enemy's WINDOW hit (never contact) - his authored A_DOSTAL chain then runs itself | INFERENCE (0 of 279 shipped GEN lines raise it; the combat code must be the raiser); contact NOT raising it is now SUPPORTED by pinned code: the engine's contact tail raises AC_ENEMY (bit 7) into the answer packet (`or dh,0x80`, 0x51050), never bit 16 (post-PR-91 RE addendum); the bit-16 raiser itself stays unpinned (PR-89/91) |
-| AC_ENEMY raiser (PR-92) | ll_level.c `obj_touch_enemy`, called from `play_collide` (solid loop + post-loop non-solid pass) | the lion's touch raises bit 7 on the TACHED object's own set and its OWN table reacts (raise-consume like the balloon path); gated by `hit_cd` (the [obj+0x102] countdown), default-on like contact | PINNED raise site (0x51050 `or dh,0x80` in the 0x50ed0 tail, packet to [obj+0x0..0xb]); feeding the object's own set instead of the unmodelled mailbox head is MODEL, the second non-solid pass is data-forced (no consumer state carries SOLID); a pure touch NOT setting hit_cd=14 is an open item (item 10) |
+| AC_ENEMY_ATC raiser | ll_level.c `obj_hit`, `play_collide` window block | the hit raises it on the HIT object's own set (PR-88 mechanism) so its `A_DOSTAL(1)=AC_ENEMY_ATC` line fires; PR-91 mirrors the raise onto the LION for the enemy's WINDOW hit (never contact) - his authored A_DOSTAL chain then runs itself | INFERENCE (0 of 279 shipped GEN lines raise it; the combat code must be the raiser); NOW PINNED (PR-94): answer-C 0x55130 raises bit 16 (byte2 |= 1, 0x5518c) exactly when the routed hit reduced the target's hp, and bit 7 (0x551b0) when it did not; answer-A/B merge {bit 7} unconditionally (0x51050/0x52be). The plain contact method (0x50ed0) raises NO signal - matching the port's "contact does not raise bit 16" |
+| AC_ENEMY raiser (PR-92) | ll_level.c `obj_touch_enemy`, called from `play_collide` (solid loop + post-loop non-solid pass) | the lion's touch raises bit 7 on the TACHED object's own set and its OWN table reacts (raise-consume like the balloon path); gated by `hit_cd` (the [obj+0x102] countdown), default-on like contact | PINNED raise sites (PR-94 verbatim): answer-A 0x51050 and answer-B 0x52be merge {bit 7} unconditionally into a 13-byte answer packet (12-byte set + flag byte) copied to the answer buffer ARGUMENT (0x51062..0x51083); the answer handlers 0x50f80/0x55232/0x55130 are separate functions reached only through family vtables (0x50ed0 rets at 0x50f79 and raises nothing); which object's head finally reads the buffer is OPEN, so feeding the object's own set is MODEL, the second non-solid pass is data-forced (no consumer state carries SOLID); a pure touch NOT setting hit_cd=14 is an open item (item 10) |
 | static image draw + order (PR-93) | ll_level.c `obj_static_get`, `objs_draw` (two-pass) | frame-one draw: first patch-art element of the named .SEQ at the authored x,y through the element's anchor; statics compose BEFORE animated objects | the join and positions are RE (census in the code comment); frame-one (no motion data exists) and the behind-actors order (matches the ZARIA footage) are model choices; whether the original animated any static is open (item 11) |
 | shape payloads for lion-vs-object tests | ll_seq.c `ll_seq_shape_push2`, ll_level.c `play_collide` | each element's margin lists read from its OWN .SEQ payload (paired form) | model choice: how the original resolved two elements into its single-payload routine is unpinned; same-payload pairings stay byte-identical (selftest-pinned, PR-89) |
 
@@ -357,7 +384,22 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
    latching; no shipped data discriminates yet).
 3. `AC_DUP`, `AC_ONAIR`, `AC_DRECT`, `AC_EDGE`, `AC_DRAB_CATCH`, `AC_ENEMY_ATC`,
    `AC_BLOK`: meaning (they gate jumps, falls, ladders, enemy attacks).
-4. `danger_power` default (level object +0x54 is never initialised in 0x4a5d4).
+   PR-94 found the ENGINE-side raiser of `AC_ENEMY_ATC` (bit 16):
+   answer-C 0x55130 raises it (byte2 |= 1 at 0x5518c) exactly when a
+   routed hit REDUCED the target's hp; the "no hp change" branch raises
+   AC_ENEMY instead (this complements PR-91's lion-side raise - the
+   per-hit decision rule is now pinned). The object-side consumer is
+   still unmodelled. `AC_BLOK`/`AC_BLOK_Y` (bits 0/1) got their engine
+   raisers in PR-94: the SOLID responder 0x53ae0 raises them into the
+   answer packet (0x53bc8/0x53c36) - the port's shape-contact model is
+   the same event; their condition-side use by object scripts stays
+   unmodelled.
+4. `danger_power` default: CLOSED by PR-94. The DANGER branches
+   (0x3da7c/0x5102b/0x5529f) all read [[ds:0xcef40]+0x54], and
+   0xcef40's config parser (0x325b0) WRITES it zero (0x3266b) while no
+   config key ever sets it: shipped DANGER-route hits carry damage 0.
+   (The PR-90/91/92 model is unaffected - authored enemy damage comes
+   from the placement `damage=`, not this field.)
 5. `STATUS.LEO` field meaning (shipped file is a fresh save: no progress); the
    map's progress arrows/"start" variant depend on it. Needs a paired capture.
 6. The camera's catch-up rate and dead zone (measure with a clean clip).
@@ -488,16 +530,27 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      the "toucher moving toward touched" gate (0x550c0) and the
      table-referenced attack dispatcher (0x34020 only as a pointer
      at 0x9e204) fit the hit path. The port's enemy-window hit is
-     the lion-side mirror, not the engine's pipeline.
+     the lion-side mirror, not the engine's pipeline. PR-94 read
+     0x550c0 verbatim: it is an ORDERING predicate (0x52d30 lookups,
+     first-dword difference signed by the [x.vt+0x70] getter) gating
+     answer-C 0x55130, not a movement test - what it orders stays
+     open. The 0x9e204 pointer RESOLVED: it is base 0x9e134's +0xd0
+     slot, and 0x340b5 is the second half of the 0x34020 function
+     (id-compare branch, full reading in the next record): the
+     receiver of 0x50ed0 is the OBJECT (edx=lion, ebx=30), and the
+     stomp writes [other+0xad] = -1 directly when the feet land
+     within 0..20 above its top and [lion+0x5c]!=2 (PR-89's numbers
+     stand).
    - DANGER semantics: the touch branch gated by `test ah,0x20`
      (0x5528b/0x51019) loads [level+0x54] (the never-authored
      danger_power) - is the authored control flag really an AI
      precondition or only a contact-hazard marker? The port uses it
      as the arming precondition because every shipped enemy walk
-     state carries it; MODEL. HALF-ANSWERED by the post-PR-91 RE:
+     state carries it; MODEL. CLOSED for the damage side by PR-94:
      that branch (0x51019 -> hit method vtable+0xd0) raises NO
-     signal and only applies danger_power damage - on the engine
-     side DANGER IS a contact-hazard damage route; whether the
+     signal and applies the field that the level parser forces to
+     0 - on the engine side DANGER IS a contact-hazard damage route
+     with zero shipped damage; whether the
      compiled AI also reads the flag for arming stays unpinned, so
      the port's stand-in is unchanged.
    - The attack's MOTION: what the armed A_ATAK drives in the engine
@@ -587,7 +640,16 @@ OWN .SEQ payload - the old single-payload read used wrong bytes, so the
 PR-59/PR-68 contact pins were re-pinned). MET IN PR-90/91 (T3 st. 1/2):
 the enemies' OWN attacks through their ATC windows (their A_ATAK ATC_ON
 frames vs the lion) and the lion-side AC_ENEMY_ATC raise with his
-authored A_DOSTAL reaction. Still open for T2: the 45%-template
+authored A_DOSTAL reaction. PR-94 UPDATE to the `AC_RECT` plan: the
+census over the shipped .MOV corpus shows AC_RECT is authored ONLY in
+lion-class scripts (ZARIA A_KILOF(25)=AC_RECT,K_GEN1, SADES A_HOLE,
+LONA A_WALKINTOIGLO, TUNGA/TUNGA2 A_EXIT=AC_RECT,AC_BLOK, KADMAR
+A_LISC_FALL/END, ZOLW A_JUMP) and NONE of the contact/answer handlers
+raises it - it is a lion-side state-entry signal (stone-push/hole/
+igloo/exit), not the object hit box; the raiser code and any object-
+side consumer stay open. The hit-method slot +0xd0 is family-specific
+(111 factory-installed vtable bases, no shared layout) - full protocol
+in the PR-94 NEXT_STEPS record. Still open for T2: the 45%-template
 identity - see open question 9.)
 
 **T3. Enemy behaviour.**
