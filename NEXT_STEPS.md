@@ -8683,6 +8683,50 @@ are not used here (docs + .gitignore only, no code or Makefile change)
   reads a `.md` file - so no build or verify target can be affected by a
   docs edit. PR-111's own CI, for the record: run 44175913075,
   completed / success, jobs linux, asan, windows-smoke.
+- FOLLOW-UP 2, SAME DAY - THE BAR ON THE RIGHT (owner's request, quoted):
+  "on comment in that 5+ hrs video is some bar on right site, worth to
+  note it to keep it in mind". It is in `R3` at x 1152..1279, 128 px wide,
+  and it is the uploader's decoration, not game art. PR-111's record
+  already cropped it out and measured its boundary; this follow-up
+  strengthens the claim and records the caveat. Two measurements now agree:
+  the 2 s-burst per-column temporal std (19-21 -> 2.3-2.8 at x=1152), and
+  a new one over 40 consecutive frames (0.67 s) at t=120, 7200 and 20040,
+  where the mean per-column temporal std drops from 12.3 to 0.1 at x=1152
+  and stays 0.0-0.1 to the right edge while in-game columns range 3-24 -
+  so those columns carry no motion anywhere in 5 h 39 m. It is also NOT a
+  black bar: mean luma 128.9, spatial std 65.0, identical statistics at all
+  three times, 718 of 720 rows above luma 8 - which is why a "find the
+  black columns" test misses it and a temporal-std test finds it. The
+  comment angle was checked and does not hold: this video has no comments
+  at all (`yt-dlp --write-comments` extracts 0, `comment_count` 0), and a
+  keyword scan (`pas`, `słup`, `bar`, `right`, `stron`, ...) of the 34
+  comments on ep.1 `xPiXBmPEdXg` found nothing about a bar - so the note is
+  the owner's own observation and is attributed that way. Written into
+  HANDOFF section 3 (R3, "THE BAR ON THE RIGHT") and section 9, including
+  the recipe for any future upload from this channel: find the boundary by
+  per-column temporal std over frames taken at several times in the file,
+  and require "static at every sampled time" rather than "low" (a low-but
+  moving band does exist inside the game window - at t=7200 x 544..704 sits
+  at std 3.2-4.0). Files changed by this follow-up: `HANDOFF.md`,
+  `NEXT_STEPS.md` only. No build or verify leg was run for it, per the
+  exception recorded in the bullet above: nothing under `.gitignore`,
+  `Makefile`, `tools/`, `ported/` or `.github/` is touched, and no Makefile
+  target or tool reads a `.md` file (grep evidence in that bullet).
+- CI OF THE FOLLOW-UP PUSH (recorded, not fixed here). Run 44176302862 on
+  `29da788`: `linux` success, `windows-smoke` FAILURE in the step "Run
+  them (committed fixtures only; no game-data staging)" - one check of
+  about thirty, `platform_selftest: sleep_until honors the deadline
+  (>=20ms) FAILED` (job log `/tmp/opencode/ws_fail.log`, the check is
+  `tools/platform_selftest.c:60-63`: sleep 20 ms from `t0`, then require
+  `now_ns() >= t0 + 20ms`). `asan` was still running, so a rerun of the
+  failed job had to wait for the run to finish. This is NOT a consequence
+  of a docs change: `git diff f1afa64..HEAD --stat -- ported/ tools/
+  Makefile cmake/` is empty, i.e. that leg's code is byte-identical to
+  the CI-green PR-110 and PR-111 trees. It is a timing assertion on the
+  msys2 runner, and it is a different thing from the known-flaky Wine
+  `win restart-confirm` leg named in HANDOFF section 3's pitfalls. Outcome
+  of the rerun, and whether it needs a code change (a tolerance, or
+  `plat_sleep_until` undershooting on Windows), goes in the PR-112 record.
 
 ## Next — pick from the Deferred list below
 

@@ -175,13 +175,39 @@ YouTube; it is the only long-form capture of the game the project has.
 
 GEOMETRY, measured (not taken from the uploader): the game's 320x200 view is
 x 0..1151, y 0..719 - exactly 3.6x, no letterbox - so
-`crop=1152:720:0:0,scale=320:200` puts it back at game resolution. The right
-128 px (x 1152..1279) is the uploader's static cartoon column, NOT game art:
-per-column temporal std over 2 s bursts falls from 19-21 to 2.3-2.8 at
-x=1152, and that boundary is the same at t=120, 3600, 7200, 14400 and 20040.
-3.6 is not an integer: 1 video px = 0.28 game px of position. 60 fps is the
-finest sampling the project has - 16.7 ms, finer than the 28-33 ms frame-loop
+`crop=1152:720:0:0,scale=320:200` puts it back at game resolution. 3.6 is not
+an integer: 1 video px = 0.28 game px of position. 60 fps is the finest
+sampling the project has - 16.7 ms, finer than the 28-33 ms frame-loop
 iteration of PR-109, which is what makes this file worth having.
+
+THE BAR ON THE RIGHT - KEEP IT IN MIND. The owner asked for this to be noted
+(2026-11-17, quoted): "on comment in that 5+ hrs video is some bar on right
+site, worth to note it to keep it in mind". It is real, and it is not game
+art: x 1152..1279, a 128 px column, is the uploader's decoration and must be
+cropped off before ANY measurement on this file. Measured twice over; both
+agree.
+- First pass: per-column temporal std over 2 s bursts falls from 19-21 to
+  2.3-2.8 at x=1152, the same at t=120, 3600, 7200, 14400 and 20040.
+- Stronger pass (40 consecutive frames, 0.67 s, at t=120, 7200 and 20040):
+  the mean per-column temporal std drops from 12.3 to 0.1 at x=1152 and
+  stays at 0.0-0.1 to the right edge, while columns inside the game window
+  range 3-24. So those 128 columns carry no motion anywhere in the 5 h 39 m.
+- It is opaque art, not a black bar: mean luma 128.9 and spatial std 65.0,
+  byte-for-byte the same statistics at all three times, and 718 of 720 rows
+  have luma > 8 (only the top and bottom row are dark). That is why an
+  "all-black columns" test would MISS it - test for temporal std, not for
+  blackness.
+- The comment theory does not hold up: this video has no comments at all
+  (`--write-comments` extracts 0, `comment_count` 0), and a keyword scan of
+  the 34 comments on ep.1 (`xPiXBmPEdXg`) found no mention of a bar. So the
+  note is the owner's own observation, recorded as such.
+- Practical consequence for any other upload from this channel: do not
+  assume the boundary is at 1152, find it - take ~40 frames from a few
+  times in the file, compute per-column temporal std, and crop at the last
+  column that moves. A plain per-column brightness or std scan can also
+  mislead inside the game window (at t=7200 columns x 544..704 sit at
+  std 3.2-4.0, low but clearly not a bar), so require "static at every
+  sampled time", not merely "low".
 
 WHAT IT SHOWS. The owner supplied a level-by-level time map for this
 video (2026-11-17), transcribed exactly as given, one entry per line:
@@ -1742,6 +1768,12 @@ Measuring on the reference video (episodes 1-11 of the playlist
   "ENA I / underwater journey", "KADMAR I / ancient mysteries" and the
   rest, and the owner has since supplied its level-by-level timestamps:
   those cards are the cleanest level-start markers the project has.
+- That same file has the uploader's decoration baked into the picture: a
+  static 128 px column at x 1152..1279, which the owner asked to keep in
+  mind (section 3, R3, "THE BAR ON THE RIGHT"). Always crop
+  `crop=1152:720:0:0` first; it is opaque art, so it is found by
+  per-column TEMPORAL std (0.0-0.1 there, 3-24 inside the game window), not
+  by looking for black.
 - 480p compression and a scrolling camera limit precision; prefer segments the
   owner points out ("jump in place", camera not scrolling). Scripts: tools/re.
 - The owner's timestamps so far: ep.1 5:16-5:19 (vine jump, used), ep.2
