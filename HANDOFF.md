@@ -885,6 +885,51 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      `[[0xcef40]+0x394]`+0x106 flags, why the guard is "row 0", the
      rest of the lion method bodies, the owner table of the ZARIA
      method, and the identity of class 0x97bc0.
+   - PR-105 CLOSES THE STATE-STEP CHAIN (RE only, nothing pinned). The
+     record step 0x521f0 has exactly ONE call site: 0x5240c, inside
+     0x523f0, the record-step driver (key builder [[rec+0x44]+0x08],
+     the step at +0x0c, then TWO OWNER-OBJECT slots +0xac/+0xa8, then
+     the key-out at +0x10). 0x523f0 has one call site too: 0x5371c,
+     inside 0x536f0 - so ONE CALL TO ONE VIRTUAL SLOT (0x536f0, class
+     slot +0x14, reached as [[obj+8]+0x14] or [[obj+0xc]+0xc], 37
+     sites) = one key composition + one feed update + at most one row
+     + one transition lookup and apply. PR-98/99/100/102's machinery
+     is one method. Implementations: bare 0x536f0 in 24 tables, the
+     default wrapper 0x400b0 in 45, the lion base 0x550a0 in both
+     bases, per-class wrappers (e.g. 0x27d60) - all ending in the
+     same chain; [obj+0xee] is decremented there but NEVER branched
+     on, so it is not a step gate. FEED EXCLUSIVITY: the accumulator
+     dispatcher 0x543a0 (+0xa0) has exactly ONE call site, 0x52317
+     inside 0x521f0 itself, so the accumulator grows exactly once per
+     state step and there is no other scheduler. The pump 0x4bb30
+     walks the level's four object lists at [X+0x58]x3 + [X+0x64],
+     steps every item's +0x14 and delivers messages to slot +0x10;
+     its callers are inside 0x4c8a0 (PR-100's feed-constant
+     installer) and two unreferenced functions - the steady-state
+     per-frame caller is STILL not found, so "one step per video
+     frame" stays an assumption, narrowed to "who calls the pump or
+     +0x14 during play". Measured driver instead: lion slot +0xd0 =
+     0x50ed0, gated on [obj+0x11a] not in {6,7}, [obj+0x126]==0 and
+     both [[self+8]+0x40] and [[arg+8]+0x40] non-zero, runs the
+     TARGET's +0x14 and caches its key at [obj+0x10a] - a controlled
+     object's state machine is driven by whoever holds it. FIVE COR-
+     RECTIONS TO PR-104: the death themes are the +0x08 KEY-BUILDER
+     slot of the RECORD-class sub-tables (0x97c9c+8=0x4ffb0 DEATD,
+     0x99338+8=0x26470 ENA2ED, 0x9b5f4+8=0x2c360 K2DEAD, 0x9d53c+
+     8=0x31fa0 RAN1, 0x9e254+8=0x33c60 KARADE, 0x9f460+8=0x361c0
+     lonade - exactly PR-100's key-builder census list), NOT lion
+     object methods; PR-104's object-slot attributions were range
+     artifacts, made worse by a tool bug (the objfactory.out class-
+     name regex required single spaces; the file aligns with several,
+     so class names were silently dropped - now fixed). 0x52750's
+     receiver is the record (this=rec), calling +0x2c/+0x30/+0x34 and
+     the OWNER's +0xc8 slot. The row-0 guard reads the owner's
+     current-state row, evaluated once per step. [obj+0x126]==0 gates
+     DEATD AND the +0xd0 chain AND the +0x10 message handler. And
+     PR-100's "0x1e104 record ctor" is the body of class slot +0x84
+     (0x1e0f0), which special-cases the state NAME 'A_DEAD' to give
+     per-level death states the base sub-table 0x97c9c. PR-104's
+     direct probe [[obj+8]+0xe4]=0x50300 stands (body unread).
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
      files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's
@@ -972,9 +1017,14 @@ initialises them; PR-103 open item 2), what the per-class methods do
 death-theme hook that plays a hard-coded `.MOD` through the music
 singleton when the current state's row index is 0; the themes are
 named NOWHERE in the authored data) and the rest of their bodies is
-still open - and the RATE of the step at 0x521f0
-(0x536f0 runs the whole switch and 0x550a0, its one direct caller, is
-a handler tail);
+still open - PR-105 corrected where that hook lives (the +0x08 key
+builder of the RECORD sub-tables, not a lion object slot) and closed
+the pacing chain end to end: the step 0x521f0 has ONE call site
+(0x5240c, in the record-step driver 0x523f0), which has one call
+site (0x5371c, inside 0x536f0, class slot +0x14), the feed
+dispatcher 0x543a0 has one call site inside 0x521f0 itself, so ONE
++0x14 CALL = one key composition + one feed update + at most one
+row, and no other scheduler exists;
 "100 units" of the level global's +0x388 feed is half-closed
 (PR-100: the single writer is `mov [eax+0x388],0x64` at 0x4c8b7) and
 PR-102 added its gate: that feed only runs when `[obj+0xba]` (modes
@@ -984,7 +1034,10 @@ is stored pre-scaled at parse time, `[node+0x10] = T * time_scale /
 1000` (0x51660), and 0x52320 compares that against the accumulator, so
 a threshold of 200 with the 1000 default is 2 feed steps and the same
 row under `time_scale=2000` is 4. What a row's duration is, in seconds,
-is now exactly one unread number: how often 0x521f0 runs.
+is now exactly one unread number: how often the +0x14 slot (0x536f0
+and its wrappers) is called during play - PR-105 found the pump
+(0x4bb30, which steps every object in the level's four lists at
+[X+0x58]/[X+0x64]) but only its setup-time callers, not a frame loop.
 (3) what writes
 [obj+0xba]/[obj+0xbe] (0x54a00..0x54ab0) - they are now known to be
 the gate of the time feed, but their meaning is unread - and where the

@@ -787,7 +787,11 @@ static int obj_cond_true(const lvl_obj *o, int brk, const ll_mov_tr *tr)
  * obj_transition sets o->fi = 0. So the difference is one unused
  * field, not a missing feature. Nothing is pinned from that: it is an
  * observation of the code and the data, and what it changes on screen
- * is unmeasured (NEXT_STEPS PR-102, open item 4). */
+ * is unmeasured (NEXT_STEPS PR-102, open item 4). PR-105 adds the
+ * shape around it: the whole sequence - compose the key, step the
+ * rows, look up this table, apply the match - is ONE virtual method,
+ * the object's slot +0x14 (0x536f0), called once per step from the
+ * level's message pump. */
 static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
 {
     const ll_mov_st *s = &mov->st[o->sti];
@@ -1049,7 +1053,16 @@ static void obj_arm_atak(lvl_obj *o, int lx, int ly, int verbose, int tick)
  * (the engine truncates to whole px - NEXT_STEPS PR-99 item 9 - while
  * the port carries a fraction) and the unit of the comparison value,
  * which in the engine is that feed's unit: counted px for BY_X/BY_Y,
- * not ms. */
+ * not ms. PR-105 closed what drives that gate: the step 0x521f0 has
+ * exactly ONE call site (0x5240c, in the record-step driver 0x523f0),
+ * the driver has exactly one (0x5371c, inside 0x536f0 - one virtual
+ * slot, +0x14), and the feed dispatcher 0x543a0 itself has exactly
+ * one call site (0x52317, in 0x521f0's own keyed branch). So one
+ * call to slot +0x14 = one key composition + ONE feed update + at
+ * most one row, with no other timer or scheduler anywhere; the only
+ * open number is the CALL RATE of +0x14 - the pump that steps every
+ * level object (0x4bb30) is measured, its steady-state caller is
+ * not (NEXT_STEPS PR-105). */
 static void obj_walk(lvl_obj *o, const ll_mov_st *s, unsigned dt_ms)
 {
     double dist = (double)(s->fx >= 0 ? s->fx : -s->fx) * dt_ms / 4000.0;
@@ -5879,14 +5892,20 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
          *     the top of this file - callback delivery is unreliable on
          *     SDL2+PipeWire, so the backend opens devices queue-only).
          *     Engine comparison (PR-104): the grammar names ONLY this
-         *     per-level tune.  Each level's lion CLASS additionally
-         *     carries a hard-coded death theme - LOOSER.MOD (ZARIA),
-         *     ENA2ED, KADMDEAD, K2DEAD, SADESDEA, RAN1, KARADE,
-         *     lonade, with DEATD.MOD as the default - played through
-         *     the same music object (0xcf068) when the state machine
-         *     reaches row 0 of the current state.  Those themes appear
-         *     in no authored file, so this port cannot model them
-         *     from data alone (NEXT_STEPS PR-104). */
+         *     per-level tune.  Each level additionally carries a
+         *     hard-coded death theme - LOOSER.MOD (ZARIA), ENA2ED,
+         *     KADMDEAD, K2DEAD, SADESDEA, RAN1, KARADE, lonade, with
+         *     DEATD.MOD as the default - played through the same
+         *     music object (0xcf068) when the state machine reaches
+         *     row 0 of the current state.  Those themes appear in no
+         *     authored file, so this port cannot model them from
+         *     data alone (NEXT_STEPS PR-104). PR-105 corrected WHERE
+         *     that hook lives: not a lion object method but the
+         *     +0x08 KEY-BUILDER slot of each level's RECORD-class
+         *     sub-table - the method the record-step driver 0x523f0
+         *     calls before the row step - so the themes belong to
+         *     state records, not to objects (0x97c9c+8 = the DEATD
+         *     default, 0x9e254+8 = KARADE, ...; NEXT_STEPS PR-105). */
         if (audio && !getenv("LEO_NO_MUSIC")) {
             const char *muz = des_get(kvs, nk, "muzyka");
             if (muz && *muz) {

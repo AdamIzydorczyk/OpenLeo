@@ -6919,6 +6919,215 @@ annotates which measured class-table pair and slot owns it).
   same music object - the class map, not the grammar). No behaviour
   change, no pin moved.
 
+## PR-105 — the state-step chain closed end to end: the unique driver
+of the record step, the object virtual slot that IS one state-machine
+step, the message pump that steps every object, the lion controller
+chain, and five corrections to PR-104's placement of the death-theme
+methods (RE only: no behaviour change, no pin moved)
+
+Works PR-100's still-open cadence question ("what rate does the step
+at 0x521f0 run at") and PR-104's open items 2 and 4. No behaviour
+change and no play pin moved. Method as before: objdump of
+/tmp/opencode/vis/text.bin for `.text`, dwords and strings from
+build/leo/leo.elf. Three new tools: indcall.py (census of
+`call DWORD PTR [reg+off]` sites and call-site function attribution),
+vtable_scan.py (resolves an indirect call back to the table VIEW that
+loaded the register - PR-100's two-view fact is what makes slot
+searches findable), owner_slot.py (call-site -> enclosing function ->
+which measured class-table slot owns it). One tool bug found and
+fixed: the objfactory.out class-name regex required single spaces
+between fields while the file aligns with several, so PR-104's
+objslot.py annotations silently carried NO class names and matched
+raw table ranges only - part of how PR-104's mis-attribution below
+happened.
+
+- THE CHAIN IS UNIQUE, END TO END. The record step 0x521f0 (record
+  sub-table slot +0x0c, PR-100's threshold-vs-accumulator gate) has
+  exactly ONE call site in the image: 0x5240c. It is inside 0x523f0,
+  the record-step driver: `esi=[rec+0x44]` then, with the caller's
+  key buffer kept at [esp+0x10]: `call [[rec+0x44]+0x08]` (the
+  per-class key builder), `call [[rec+0x44]+0x0c]` (the step, with
+  that key), `call [[[rec+0]+8]+0xac]` and `+0xa8]` (TWO OWNER-OBJECT
+  SLOTS - the port's hook list at ll_level.c gets their WHEN), then
+  `call [[rec+0x44]+0x10]` with ecx=0xc (the key-out method), and
+  the driver RETURNS the composed key buffer to its caller. 0x523f0
+  itself has exactly ONE call site: 0x5371c, inside 0x536f0.
+- 0x536f0 IS THE OBJECT'S STATE-STEP VIRTUAL METHOD (slot +0x14). Its
+  body, in order: `call [[obj+8]+0x8c]` (owner hook #3) and 0x49580
+  ORs its key into the object's persistent key at [obj+0x60]; load
+  the current record `[[obj+0x50]+[obj+0x5c]*4]`; call 0x523f0 on it
+  (one key-build + one row step + one key-out); OR the returned key
+  into [obj+0x60] too; `call [[obj+8]+0x54]` (owner hook #4);
+  0x53520 (PR-102's keyed transition-table walk via 0x52000) and
+  0x535a0 (PR-100's apply: switch record + row, running the OLD
+  record's +0x20 leave hook). So ONE CALL TO ONE VIRTUAL SLOT = one
+  key composition + one threshold/feed update + at most one row
+  advance + one transition lookup + one transition apply. PR-98/99/
+  100/102's machinery is one method.
+- THE SLOT AND ITS TWO VIEWS. Constructors write [obj+8]=T and
+  [obj+0xc]=T+8, so slot +0x14 is reached two ways: 6 sites call
+  `[[obj+8]+0x14]` and 31 sites call `[[obj+0xc]+0xc]` - 37 call
+  sites total, in per-level glue and in generic paths. Implementations
+  found: the bare 0x536f0 at +0x14 in 24 class tables (PR-103's
+  census, unchanged); the DEFAULT WRAPPER 0x400b0 at +0x14 in 45
+  tables (it parses the condition vector `[[rec+0x2e]]+0x4`, calls
+  the +0xcc handler, decrements [obj+0xee] if non-zero WITHOUT
+  gating anything, then tail-calls 0x550a0); the LION base 0x550a0
+  itself at +0x14 in both lion base tables 0xa2218/0x97970 (`zero
+  [obj+0xe6],[obj+0xea]; call 0x536f0`); and per-class wrappers at
+  +0x14 (e.g. 0x27d60 at the KADMAR second-base table 0x9a778+0x14)
+  ending in the same `call 0x550a0`. All ten direct callers of
+  0x550a0 are these wrapper bodies. [obj+0xee] is NOT a step gate:
+  the wrappers decrement but never branch on it; who sets it
+  non-zero stays open.
+- FEED EXCLUSIVITY (the cadence core, now a FACT). The mode-
+  accumulator dispatcher 0x543a0 (slot +0xa0) has exactly ONE call
+  site in the image: 0x52317, inside the keyed branch of 0x521f0
+  itself. Slot +0xa4 has two: 0x52341 (bare-ret hook after the row
+  advance) and 0x535db (in 0x535a0's apply path). So the [obj+0xa1]
+  accumulator grows EXACTLY once per state step, one row per step
+  (PR-100), and there is no second scheduler anywhere: engine "time"
+  for BY_TIME/BY_TY flows only when slot +0x14 runs. The port's
+  facacde `obj_walk` + `o->facc < f->ms` gate is structurally the
+  engine's gate; the only open number is the CALL RATE of +0x14.
+- THE MESSAGE PUMP. 0x4bb30 (the earlier scan mislabelled it 0x4bb2f,
+  one byte into padding) is a generic iterator-driver: for three
+  vectors at [X+0x58+0/4/8] with counts at [X+0x44], and a fourth
+  linked list at [X+0x64], it walks each item list through the
+  [item+0x34] link and per item calls `[[item+8]+0xc]` - that IS the
+  item's +0x14 state step, second view - and where the step's
+  returned value matches a filter (esi) it then calls
+  `[[item+8]+0x10]` with a stack-built message. So the level object
+  keeps its placed objects in four lists at +0x58/+0x64 and its pump
+  steps every object's state machine, then delivers messages to the
+  ones whose step answered. Callers found: 0x4d7ab and 0x4d7c5 INSIDE
+  0x4c8a0 - the huge function PR-100 knew as the feed-constant
+  installer (it writes [level+0x388]=100 as its first word after the
+  prologue; 0x24c locals; allocs; the two pumps sit at the end of
+  its SETUP part, the second gated on global 0xa9ab4==0, followed by
+  options init 0x57a00/0x4ea10 calls); 0x4a6b7 inside 0x4a4be; and
+  0x1e333 inside 0x1e30c. Functions 0x4a4be and 0x1e30c are
+  REFERENCED NOWHERE in the image (no call, no jump-table word) -
+  dead variants or reached through an unread path. The steady-state
+  per-frame call of the pump (or of any +0x14 site) is STILL NOT
+  FOUND - this series has never located the frame loop - so "one
+  step per video frame" remains the assumption it always was, now
+  narrowed to exactly one question: who calls the pump or +0x14
+  during play. What IS settled: there is no other driver, no timer,
+  and no hidden scheduler between the port's per-tick gate and the
+  engine's.
+- MESSAGES AND THE +0x10 SLOT. Slot +0x10 is the message handler:
+  the base lion's 0x50d60 (at +0x10 in 0xa2218, 0x98f34, 0x9b4d4,
+  0x9f540, 0xa0624) switches `[msg+4] - 9` over a 13-case jump table
+  at 0x50d20, calling lion slots (+0xd8, +0xfc, ...) with the
+  message's payload fields [msg+8]/[msg+0xc], or setting
+  [obj+0x116]=1; if [obj+0x126]!=0 and type==1 it takes a separate
+  path first. TLewKara overrides +0x10 (0x33e60) and chains the base.
+  ZARIA's own message handler 0x1e12f (UNREFERENCED - dead override):
+  type < 5 tail-calls `mov eax,ebx; call 0x50d60` (the lion base
+  +0x10 on the ARGUMENT object), type 5 runs a static counter
+  [0xa94f4]++, `[[0xcef40]+0x38c]` through 0x44900 and `0x52cc0`
+  with edx=9, type 0xc sets [obj+0x12a]=1. 0x52cc0 is the
+  message-posting helper: 14 direct calls from per-level code, all
+  with edx=9.
+- THE LION CONTROLLER CHAIN (the one measured runtime driver of
+  +0x14). Slot +0xd0 = 0x50ed0, present at +0xd0 in 12 lion tables
+  including both bases (0xa2218+0xd0, 0x97970+0xd0, and the ten
+  per-level classes): guards `[obj+0x11a] not in {6,7}`, argument
+  ebx != 0, `[obj+0x126] == 0`, and BOTH `[[self+8]+0x40]` and
+  `[[arg+8]+0x40]` non-zero (a per-class "am I live/enabled"
+  virtual, called on controller and target); THEN it runs the
+  ARGUMENT's full state step `[[arg+8]+0xc]` and stores the returned
+  key at [obj+0x10a], calls `[[arg+8]+0x70]` into [obj+0x10e],
+  walks the [obj+0xd2] object chain through 0x551f0, and finishes at
+  0x502f0. The controller's own +0x10 message handler (or the +0x10
+  slot itself, e.g. TLewKara 0x33e60 -> its +0xd0) reaches it. So
+  the LION object synchronously steps the TARGET's state machine and
+  caches its key - the state machine of a controlled object is
+  driven by whoever holds it. Field [obj+0x11a] is a small enum:
+  the +0xcc handler 0x50340 (which every +0x14 wrapper calls first)
+  checks `== 5` and NEGATES the first dword of the caller's
+  composed key; 6/7 suspend the +0xd0 chain; the base ctor inits 0.
+- CORRECTION 1 TO PR-104, THE BIG ONE: THE DEATH THEMES ARE NOT LION
+  OBJECT METHODS - they are the +0x08 key-builder slot of the RECORD
+  (state) class sub-tables, the very slot 0x523f0 calls before the
+  step. PR-100's census line "+0x08 the key builder: 12 different
+  functions, 0x52750 5x and 0x4ffb0/0x23f90/0x26470/0x26fd0/
+  0x2c360/0x2ded0/0x31fa0/0x33c60/0x361c0/..." IS the death-theme
+  set: 0x97c9c+8 = 0x4ffb0 (DEATD, the default sub-table), 0x99338+
+  8 = 0x26470 (ENA2ED), 0x9a85c+8 = 0x26fd0, 0x9b5f4+8 = 0x2c360
+  (K2DEAD), 0x9d53c+8 = 0x31fa0 (RAN1), 0x9e254+8 = 0x33c60
+  (KARADE), 0x9f460+8 = 0x361c0 (lonade), ... Every PR-104
+  "override at [[TLew...]+0x128/+0x1d4/+0x1f0/+0xe4/+0x20c]" was a
+  range artifact: the record sub-tables sit within +0x120 of their
+  level's object table (0x9b5f4 = 0x9b4d4+0x120), and the regex bug
+  above had stripped the class names that would have shown it. PR-
+  104's DIRECT probe stands: [[obj+8]+0xe4] = 0x50300 really is an
+  object-table slot (its body unread - open). The THEME's slot +0x08
+  belongs to the record class only.
+- CORRECTION 2: 0x52750'S RECEIVER IS THE RECORD, not the object.
+  With this=rec it calls `[[rec+0x44]+0x2c]` (0x52680, PR-98's
+  merge), `[[rec+0x44]+0x30]`, then `[[rec+0]+8]+0xc8]` - the OWNER
+  object's +0xc8 slot (the fifth owner-side hook) - then
+  `[[rec+0x44]+0x34]`, and returns the key buffer. It is the default
+  key builder (PR-100: 0x52750 5x at +0x08); the death-theme
+  builders are per-class OVERRIDES of that same slot which check the
+  guard and then tail-call it.
+- CORRECTION 3 (answers PR-104 open item 2): the guard reads
+  `[[rec+0]+0x50]+[+0x5c]*4]+4]` - [rec+0] IS the owner pointer
+  (PR-100), so it is the owner's current state's row index - and it
+  is evaluated inside the key builder, i.e. ONCE PER STATE STEP.
+  "Row 0" = the state machine is sitting on a state entered at row 0:
+  entry happens in 0x535a0, and the next +0x14 call composes with
+  row 0. Why row 0: structural answer now; whether the play methods
+  restart the module on repeat calls (0x56010 reopens the file every
+  call) is unmeasured.
+- CORRECTION 4 (partly answers PR-104 open item 1): the flag
+  [[obj]+0x126]==0 gates the DEFAULT DEATD builder, AND the +0xd0
+  lion-step guard, AND the branch at the head of the +0x10 message
+  handler 0x50d60. It is an object enable/active flag of the lion
+  family; exact authoring (what sets it) still open. The
+  [[0xcef40]+0x394]+0x106 re-arm from PR-104 now reads: slot +0xcc
+  (run by every +0x14 wrapper before the step) writes the caller's
+  three output dwords only when [obj+0x106]==0 - 1 means "keep".
+- CORRECTION 5 (refines PR-100's record-ctor note): the "0x1e104
+  record allocator" PR-100 quoted is the BODY OF A CLASS SLOT:
+  0x1e0f0 sits at +0x84 in TLewZaria 0x96960, TLewZariaB 0x97a98
+  and the ZARIA base 0x97970. Its key is a STATE NAME (edx): if it
+  equals 'A_DEAD' case-insensitively it builds the record directly
+  (`new(0x60); 0x524e0; [rec+0x44]=0x97c9c`), else delegates to
+  0x61530. So per-level A_DEAD state records get the BASE sub-table
+  0x97c9c explicitly - the A_DEAD state name is special-cased per
+  level class at record-instantiation time.
+- WHAT IS SETTLED FOR THE PORT, AND WHAT IS NOT. The port's walk/
+  time gate (ll_level.c obj_walk + `facc < f->ms`) matches the
+  engine's EXACT gate and the engine's step has no other driver: one
+  state step = one feed update = at most one row. The remaining
+  pacing unknown is single and concrete: the call rate of +0x14
+  during play. Candidates found: a steady-state call of 0x4bb30 or
+  per-object +0x14 sites from a frame loop (not yet located), the
+  lion controller chain (measured, but only for controlled objects),
+  and per-level glue. PR-105 changes no pin.
+- OPEN ITEMS (PR-105 1-7): (1) the frame loop / steady-state caller
+  of the pump; (2) [obj+0xee]: who sets it, what the wrapper counts;
+  (3) the bodies and meanings of the five owner-side hooks now
+  located (+0x54, +0x8c, +0xac, +0xa8, +0xc8) and of 0x50300
+  (object +0xe4); (4) the message vocabulary: [msg+4] type numbering
+  (who builds messages, the 0x52cc0 family, what type 9 and the
+  9..0x21 lion range mean); (5) [obj+0x126] authoring, [obj+0x11a]
+  enum values, [obj+0x10a]/[obj+0x10e] consumers; (6) the
+  unreferenced 0x4a4be/0x1e30c/0x1e12f cluster - dead code or read
+  path missing; (7) the four object lists at [level+0x58]/+0x64:
+  which placement section feeds which list.
+- Docs: this record in NEXT_STEPS.md; mirrored into HANDOFF.md §7
+  item 13 and the §8 pacing paragraph; engine-comparison comments
+  corrected/added at the row-threshold compare in ported/ll_level.c
+  (one step = one +0x14 call, feed once, frame rate still open), at
+  the `muzyka=` block (death themes are record-class key builders,
+  not lion object methods), and one line added at obj_transition (the
+  whole compose-step-lookup-apply sequence is one virtual method).
+  No behaviour change, no pin moved.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
