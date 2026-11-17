@@ -7593,6 +7593,17 @@ first thing to check and it is `eax/edx/ebx`, not the 64-bit form.
   to no data leg today - KADMAR.07's 22 are in a level the suite only
   runs as a lion - so the new selftest is the only coverage, which is why
   it is four cases plus the wrap rather than one.
+- CI: the first pass on `5238c4f` was green on `linux` and `asan` and
+  failed on `windows-smoke` at `platform_selftest: sleep_until honors the
+  deadline (>=20ms)` - the same wall-clock selftest that flaked on
+  PR-35, PR-36, PR-94 and PR-97 (the note under the PR-95 record, and
+  PR-97's own CI note). Nothing in this commit touches platform code, and
+  `verify-all`, which runs `verify-platform`, had passed locally three
+  times before the commit (twice with fixtures, once fixture-free), so the
+  tree was re-run rather than changed (`gh run rerun --failed`) and the
+  rerun completed green for all three jobs - the same outcome as those
+  four. The non-wall-clock rework of that selftest stays a low-priority
+  item.
 - Docs touched: this record; HANDOFF.md §7 item 13 (the row-start
   findings and the three model choices) and §8's class-map/pacing
   paragraph (the "the port parses it and ignores it" sentence is now
