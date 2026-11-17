@@ -25,7 +25,7 @@ What exists and works (all verified by `make verify-all`, section 3):
 | title menu + chapter map | drawn from data (11 chapters, titles from `LEVELnn.SEQ`, arrow colours); progress/"start" variants not done |
 | level scene | 320x200 world view shown 2x; world size from `back_rect` or the reference layer; per-layer parallax (`speed=`, `main_back=`) for PCM layers, the PCX backdrop and every object; HUD from `BELKA*.DES` |
 | objects | 827+ placements, art by each state's `seq=`, `.MOV` state machines (loop until a transition fires; `GEN K_GENn`, `AC_BREAK_NEXT`) |
-| lion (play mode) | walks on the level's own ground (`.PLT`), jumps (ESTIMATED units), camera follows (lead + grounded feet-at-178 anchor), HUD shows energy/lives |
+| lion (play mode) | walks on the level's own ground (`.PLT`), jumps (ESTIMATED units), keys facing-relative (Model M, PR-85), camera follows (lead + grounded feet-at-178 anchor), HUD shows energy/lives |
 | collision | push-out ported from the machine code (`FUN_00042de0/42cf0`), solid/semi-solid response, enemy contact damage from the placement files, balloon pickup; ON by default except RAN.01 |
 
 What does NOT exist yet (the real gap to "a playable game"): the lion's attack
@@ -189,6 +189,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | SEMI_SOLID | `play_collide` | only the r/5 shift | velocity add (kind 13) unit unknown |
 | SOLID push polarity | `obj_shape_elem` | shape uses the DRAW polarity incl. CH_DIR facing | consistency, not decompile-pinned (PR-81) |
 | player facing model | ll_play.c `face`, ll_level.c `play_draw/play_collide` | face follows walkdir only in CH_DIR states; draw/shape = authored XOR face, face sticks | flags real (LEW census, PR-82); the always-XOR rule for no-CH_DIR states is a model-consistency choice, NOT decompile- or video-pinned (HANDOFF Q0) |
+| K_FWD/K_BKWD key model | ll_play.c `cond_true` (MODEL CHOICE note) | facing-relative: K_FWD = arrow along current face; walkdir = the literal arrow; a left-facing turn settles via the state pair or A_TURN+AC_BREAK | PR-85; forced by data (one A_WALK, no BKWD-walk state); NOT yet confirmed on video |
 
 ## 7. Open questions (ranked by how much they block)
 
@@ -310,9 +311,17 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      A_FLY_PTAKI1 (a glider) first while its pinned spawn stands in
      A_STAY. Does the original force standing, or start at the declared
      name? Settling test: a RAN.01 level-start capture.
-   - K_FWD/K_BKWD: literal left/right (tested everywhere) or
-     facing-relative? Unproven either way. Settling: lion facing left
-     while the RIGHT key is pressed, on video.
+   - K_FWD/K_BKWD: RESOLVED AS MODEL CHOICE in PR-85 (recorded in
+     ll_play.c cond_true as MODEL CHOICE): FACING-RELATIVE (K_FWD = the
+     arrow along the current facing). Data proof: ZARIA authors ONE walk
+     state (entered only via K_FWD) and no backward-walk state - literal
+     keys make left-walking impossible, while video obviously shows the
+     player walking left (PR-72's facing-left band 200-230). The
+     AC_BREAK_NEXT exit at the A_TURN list wrap is the player's turn
+     completion (real .MOV lists only AC_BREAK_NEXT/PREV as A_TURN
+     exits); AC_BREAK_PREV stays unmodeled (false). Still UNPROVEN on
+     video: the settling test (facing-left lion + RIGHT key on a
+     capture) would CONFIRM rather than deny - keeping it listed.
    - `I ix,iy` impulses multiply by walkdir (A_TURN entered via BKWD
      slides left; probe and the verify leg agree with that). Nothing in
      the original directly confirms the mirroring.

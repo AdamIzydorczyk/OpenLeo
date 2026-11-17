@@ -549,11 +549,27 @@ static int cond_true(const ll_player *p, const ll_play_keys *k,
                      const ll_mov_tr *tr)
 {
     int any = k->k_fwd || k->k_bkwd || k->k_up || k->k_down;
+    /* PR-85 MODEL CHOICE (recorded, evidence-based): K_FWD/K_BKWD are
+     * FACING-RELATIVE - K_FWD = the arrow in the direction the lion
+     * faces, K_BKWD = the opposite arrow. DATA PROOF: ZARIA's LEW.ZAR
+     * has exactly ONE walk state (A_WALK, entered only by K_FWD from
+     * A_DRAP/A_WALK) and NO backward-walk state anywhere; under
+     * literal-key semantics its lion could never walk left at all
+     * (BKWD lines lead only into A_TURN, whose only exits are
+     * AC_BREAK_* back to the hub). On video the player obviously walks
+     * left (PR-72 measured the facing-left screen band 200-230).
+     * RAN's A_WALK_FWD/A_WALK_BKWD pair is consistent too: entered
+     * facing-relative, CH_DIR keeps face aligned, the pair is the
+     * same state written twice for a right-facing spawn. K_UP/K_DOWN
+     * stay literal (ladders/vines do not mirror). */
+    int face = p->face >= 0 ? 1 : -1;
+    int fwd_rel  = face  > 0 ? k->k_fwd : k->k_bkwd;
+    int bkwd_rel = face  > 0 ? k->k_bkwd : k->k_fwd;
     for (int i = 0; i < tr->nc; i++) {
         int v;
         switch (tr->c[i].cond) {
-        case LL_COND_K_FWD:  v = k->k_fwd;  break;
-        case LL_COND_K_BKWD: v = k->k_bkwd; break;
+        case LL_COND_K_FWD:  v = fwd_rel;  break;
+        case LL_COND_K_BKWD: v = bkwd_rel; break;
         case LL_COND_K_UP:   v = k->k_up;   break;
         case LL_COND_K_DOWN: v = k->k_down; break;
         case LL_COND_K_GEN1: v = p->gen[0]; break;
@@ -619,11 +635,17 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
         for (int i = 0; i < st->tr[t].nc; i++) {
             if (st->tr[t].c[i].neg)
                 continue;
+            /* PR-85: the conditions are facing-relative (see cond_true),
+             * so a matched K_FWD names the arrow ALONG the current face
+             * and K_BKWD the opposite one; walkdir is the literal key
+             * direction (that is what physics and impulses need), and
+             * CH_DIR below re-aligns the draw with it. */
+            int fd = p->face >= 0 ? 1 : -1;
             if (st->tr[t].c[i].cond == LL_COND_K_FWD) {
-                p->walkdir = 1;
+                p->walkdir = fd;
                 has_dir = 1;
             } else if (st->tr[t].c[i].cond == LL_COND_K_BKWD) {
-                p->walkdir = -1;
+                p->walkdir = -fd;
                 has_dir = 1;
             }
         }
@@ -1022,11 +1044,55 @@ int ll_play_selftest(void)
     ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);   /* !K_BKWD -> A_STAY    */
     CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 0);
     CHECK(p.face == -1);            /* no CH_DIR there: facing untouched    */
+    /* PR-85 (facing-relative keys, see cond_true): the bear now FACES
+     * LEFT, so the RIGHT key is his K_BKWD. A_STAY's line
+     * A_WALK_BKWD(1)=K_BKWD matches: walkdir = -face = RIGHT (walkdir is
+     * always the literal arrow), CH_DIR re-aligns face to the movement.
+     * A frame later that key's MEANING flipped with the facing, so
+     * A_WALK_BKWD's only line A_STAY(1)=!K_BKWD holds: the model
+     * flickers through A_STAY and settles into A_WALK_FWD - the state
+     * pair whose name tracks the facing, and the only one carrying the
+     * self-sustaining line. That one-tick flicker is how RAN's data
+     * turns around (it has no turn state); ZARIA authors A_TURN for it,
+     * see the ZM fixture. The physics stay clean: the arrow walks him
+     * along itself. */
     k.k_fwd = 1;
-    ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);   /* K_FWD -> walk right  */
-    CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 1);
-    CHECK(p.face == 1);             /* CH_DIR state: facing follows again   */
-    CHECK(ll_player_mirror_of(&p, 0) == 0);
+    ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);
+    CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 2);    /* A_WALK_BKWD         */
+    CHECK(p.walkdir == 1 && p.face == 1);            /* RIGHT arrow, CH_DIR */
+    ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);
+    CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 0);    /* !K_BKWD now TRUE    */
+    ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);
+    CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 1);    /* settled A_WALK_FWD  */
+    CHECK(p.walkdir == 1 && p.face == 1);
+    double x1 = p.x;
+    for (int t = 0; t < 25; t++)                     /* 0.5 s: the flicker  */
+        ll_player_step(&p, &pl, &k, 0, 2000, 20);    /* ticks brake (F=600) */
+    CHECK(p.x > x1 + 10);           /* then re-accelerate: walks RIGHT,    */
+    CHECK(p.face == 1);             /* facing RIGHT again                  */
+    CHECK(ll_player_mirror_of(&p, 0) == 0);          /* plain frame, plain draw */
+    CHECK(ll_player_mirror_of(&p, 1) == 1);          /* authored mir -> mirrored */
+    /* Release + press LEFT: the mirror-symmetric flow (A_STAY's K_BKWD
+     * line at face=+1 is now the literal LEFT key - one A_WALK_BKWD
+     * tick, back through A_STAY, settled in A_WALK_FWD walking LEFT
+     * with face=-1: the same state runs the walk either way, RAN's
+     * state NAMES bake the author's frame polarity (frames positive =
+     * art faces right) while the CH_DIR engine flag tracks the
+     * MOVEMENT, exactly as PR-82 measured. A left-moving bear in
+     * A_WALK_FWD draws left-facing: the plain frames render mirrored. */
+    k.k_fwd = 0;
+    ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);   /* !K_FWD -> A_STAY    */
+    CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 0);
+    k.k_bkwd = 1;
+    ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);
+    CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 2);    /* A_WALK_BKWD tick    */
+    ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);
+    CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 0);    /* !K_BKWD holds now   */
+    ev = ll_player_step(&p, &pl, &k, 0, 2000, 20);
+    CHECK((ev & LL_PLAY_EV_STATE) && p.sti == 1);    /* settled A_WALK_FWD  */
+    CHECK(p.walkdir == -1 && p.face == -1);          /* walking LEFT        */
+    CHECK(ll_player_mirror_of(&p, 0) == 1);          /* mirrored again      */
+    CHECK(ll_player_mirror_of(&p, 1) == 0);          /* authored mir -> plain   */
     ll_plt_free(&pl);
     {   /* PR-74: the jump impulse (hand-derived, ESTIMATED units): `I 120,-1200`
          * -> vy = -300 u/s, vx = +30 u/s; g = 1650, 20 ms ticks, gravity
@@ -1142,8 +1208,9 @@ int ll_play_selftest(void)
             "seq=a\n1,50\n2,50,GEN AC_TIME\n\n"
             "[A_DRAP]\ncontrol=BY_TIME\nF=100,0\nG=0,0\n"
             "A_TURN(1)=K_BKWD\nA_WALK(1)=K_FWD\nseq=a\n1,100\n\n"
-            "[A_TURN]\ncontrol=BY_TIME\nF=100,0\nG=0,0\n"
-            "A_WALK(1)=AC_TIME\nseq=a\n1,50,I 100,0\n2,100\n";
+            "[A_TURN]\ncontrol=BY_TIME|CH_DIR\nF=100,0\nG=0,0\n"
+            "A_DRAP(1)=AC_BREAK_NEXT\nA_DRAP(1)=AC_BREAK_PREV\n"
+            "seq=a\n1,50,I 100,0\n2,100\n3,100\n";
         static const char ZP[] = "1\n1 0,100;2000,100;\n";
         ll_mov_t *zm = calloc(1, sizeof *zm);
         ll_plt zp;
@@ -1209,24 +1276,42 @@ int ll_play_selftest(void)
         for (int t = 0; t < 5; t++)
             ll_player_step(&s, &zp, &sk, 0, 2000, 20);
         CHECK(s.x == xs);
-        /* BKWD: one A_TURN, then STAY. Its frame list WRAPS twice in
-         * 30 ticks and its AC_TIME exit never arms: wrap != AC_TIME
-         * (the removed model choice; the time= guard is the PK fixture
-         * below). The frame-0 impulse I 100,0 pushes
-         * him RIGHT and keeps the feet down (iy==0 lifts nothing - a
+        /* BKWD (the left key, the user's "turns but never walks left"):
+         * A_TURN plays, and the REAL exit is AC_BREAK_NEXT - armed by
+         * the frame-list WRAP (250 ms here) - back to the A_DRAP hub;
+         * with the key STILL held the hub's A_WALK(1)=K_FWD matches
+         * (facing-relative: LEFT is K_FWD once face=-1) and the lion
+         * WALKS LEFT. Under the old literal-key model this was a dead
+         * end: A_TURN's F=0 froze the turn slide forever - exactly the
+         * reported "slides more than he walks, and slow". The frame-0
+         * impulse I 100,0 keeps the FEET DOWN (iy==0 lifts nothing - a
          * forced airborne state made A_TURN/A_DRAP flicker while BKWD
-         * was held, the exact reported loop). */
+         * was held, the earlier reported loop); wrap still arms
+         * AC_BREAK_NEXT but NOT AC_TIME (the removed model choice; the
+         * time= guard is the PK fixture below). */
         sk.k_bkwd = 1;
         ll_player_step(&s, &zp, &sk, 0, 2000, 20);
-        CHECK(s.sti == 3);
+        CHECK(s.sti == 3);                             /* A_TURN            */
+        CHECK(s.walkdir == -1 && s.face == -1);        /* the LEFT key      */
         CHECK(s.grounded && !s.jumping && s.y == 100); /* horizontal impulse */
         /* the impulse IS applied (I/4 = 25 u/s), mirrored by walkdir as
-         * everywhere in this model: entered through K_BKWD, A_TURN slides
-         * LEFT; F=100 brakes one tick of it in the same step */
+         * everywhere in this model: A_TURN slides LEFT with it; F=100
+         * brakes one tick of it in the same step */
         CHECK(s.vx <= -20.0);
-        for (int t = 0; t < 30; t++)
+        for (int t = 1; t <= 12; t++)                  /* 250 ms: frames
+                                                         * 1,2,3 then wrap  */
             ll_player_step(&s, &zp, &sk, 0, 2000, 20);
-        CHECK(s.sti == 3 && s.grounded);               /* no re-entry flicker */
+        CHECK(s.sti == 3);                             /* no early exit:
+                                                        * wrap != AC_TIME  */
+        for (int t = 0; t < 4; t++)                    /* the wrap armed
+                                                        * AC_BREAK_NEXT    */
+            ll_player_step(&s, &zp, &sk, 0, 2000, 20);
+        CHECK(s.sti == 1);                             /* A_WALK, walking  */
+        CHECK(s.walkdir == -1 && s.face == -1);        /* LEFT, drawn LEFT */
+        double xw = s.x;
+        for (int t = 0; t < 25; t++)                   /* 0.5 s at the   */
+            ll_player_step(&s, &zp, &sk, 0, 2000, 20); /* T=20 u/s cap   */
+        CHECK(s.x < xw - 5);                           /* walks LEFT: ~10 u */
         ll_plt_free(&zp);
         free(zm);
     }

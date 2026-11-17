@@ -42,6 +42,9 @@ jumps (units estimated), collides with solids/enemies (their authored damage)
 and picks balloons. Still missing for a playable game: the lion's attack and
 other moves, enemy behaviour, pickups/inventory/signals, ladders/vines, level
 flow, RAN's balloon mode, sound effects. Play mode keys: arrows, Space = jump.
+The arrow walk model is facing-relative (MODEL CHOICE, PR-85: K_FWD = the
+arrow along the lion's current facing); ZARIA-style data with a single walk
+state only reads as left-walking under that model — see NEXT_STEPS PR-85.
 
 ## Build
 

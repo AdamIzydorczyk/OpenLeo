@@ -20,13 +20,18 @@
  *                 px/s, gravity px/s^2 - walk states F=400 T=90, grounded
  *                 states G=0 + CHECK_LN, the real fall state A_START_LAD1
  *                 G=0,200), "TARGET(p)=COND" transitions (K_FWD/K_BKWD/
- *                 K_UP/K_DOWN/K_GEN1..3/K_ANY/AC_BREAK_NEXT, "!" negates,
+ *                 K_UP/K_DOWN/K_GEN1..3/K_ANY/K_JUMP/AC_TIME/AC_BREAK_NEXT,
+ *                 "!" negates,
  *                 "|" ORs; the priority token may be non-numeric - real
  *                 KADMAR2 writes "A_MASZERUJ(x)=K_FWD" - and a transition
  *                 targeting its OWN state means KEEP running, no frame
  *                 reset and no event) and per-state "seq=<stem>" art
- *                 selection. Condition names the data uses but this
- *                 runtime does not model (K_FIRE, K_JUMP, K_ALT,
+ *                 selection. PR-85 MODEL CHOICE (recorded, see cond_true):
+ *                 K_FWD/K_BKWD are FACING-RELATIVE (K_FWD = the arrow in
+ *                 the facing direction) - the only reading under which
+ *                 ZARIA-style data (one A_WALK, no backward-walk state)
+ *                 can walk left at all. Condition names the data uses
+ *                 but this runtime does not model (K_FIRE, K_ALT,
  *                 K_F1..F12, the engine-internal AC_* signals) evaluate
  *                 FALSE - nothing is guessed.
  * Physics constants therefore come from the data; the single project-owned

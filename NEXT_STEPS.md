@@ -3707,6 +3707,56 @@ in a loop continuously". Both root-caused, both fixed, both pinned.
     level, and one full PR of back-and-forth (72 -> 73 -> 84) was a
     +/-50 px anchor argument.
 
+## PR-85 — the left key now WALKS left: K_FWD/K_BKWD are facing-relative
+          (Model M) (DONE 2026-11-17)
+
+  - Owner report: "left key turns but he never walks left - slides more
+    than it walks, and slow". ROOT CAUSE in the real data, not physics:
+    ZARIA's LEW.ZAR authors exactly ONE walk state (A_WALK, entered only
+    through K_FWD) and NO backward-walk state anywhere; A_TURN's exits
+    are ONLY `A_DRAP(1)=AC_BREAK_NEXT / AC_BREAK_PREV`. Under
+    literal-left/right key semantics its lion could not walk left AT
+    ALL: BKWD leads only into A_TURN, whose F=0 slide just froze forever
+    (the exact reported symptom). On video the player obviously walks
+    left (PR-72 measured the facing-left screen band 200-230).
+  - MODEL CHOICE (recorded in ll_play.c cond_true + ll_play.h grammar):
+    K_FWD/K_BKWD are FACING-RELATIVE - K_FWD = the arrow along the
+    CURRENT facing, K_BKWD the opposite arrow; walkdir stays the LITERAL
+    arrow (physics/impulse mirroring unchanged), CH_DIR re-aligns the
+    draw. K_UP/K_DOWN stay literal (ladders/vines don't mirror). RAN's
+    A_WALK_FWD/A_WALK_BKWD pair reads consistently too (entered
+    facing-relative; its cross-lines make the pair settle facing the
+    movement - one-tick flicker is how RAN data turns, it authors no
+    turn state). AC_BREAK_NEXT for the player = armed by the frame-list
+    WRAP (p->broke, PR-83 mechanism); AC_BREAK_PREV unmodeled (false).
+    STILL UNPROVEN on video (kept in HANDOFF 7.8): a facing-left lion
+    with the RIGHT key pressed on a capture would CONFIRM the model.
+  - Flow the user was missing (real ZARIA data, pinned by a new verify
+    leg): LEFT @ face=+1 -> A_DRAP's A_TURN(1)=K_BKWD matches (the real
+    A_TURN declares CH_DIR - verified in the .MOV) -> face flips, the
+    F=0 slide carries him left -> at the 5x200ms list WRAP AC_BREAK_NEXT
+    -> A_DRAP hub -> the STILL-HELD LEFT key is now K_FWD at face=-1 ->
+    A_WALK walks LEFT at the authored T=20 cap. Measured on the fixed
+    grid: A_TURN once (count==1), hand-off at 180/181, x 74 -> 64 by
+    205 (~20 u/s). The selftest ZM fixture was rebuilt to this real
+    shape (A_TURN with CH_DIR + AC_BREAK exits + 50/100/100 ms frames).
+  - Fixture arithmetic LESSON (again): my first Model-M fixture
+    expectations were model math done wrong (I predicted "RIGHT walks a
+    left-facing lion LEFT" and walk distances ignoring the T cap) - the
+    CODE was consistent from the first build; the FIXTURES got rewritten
+    to the tick-by-tick model (one A_WALK_BKWD tick -> A_STAY -> settled
+    A_WALK_FWD), and windows widened where a flicker tick applies the
+    F=600 brake. Pins state the arithmetic, not the guess.
+  - Pins: RAN state-machine leg re-pinned to the true real-data flow
+    (its A_WALK_FWD -> A_WALK_BKWD and cross-lines are REAL LEW.MOV
+    text - the flow only changes SHAPE: BKWD at 200 enters A_WALK_BKWD
+    one tick, settles walking left, x 39x -> 33x proved); NEW zwalk leg
+    (turn-once + hub hand-off + x decreasing + mirrored pose at the
+    PR-84 cam anchor, top=128/bottom=199 - measured, not copied from
+    the right-walk pose's 137). No other leg moved: RAN walk/stop,
+    KEYUP live, LICH, PR-82 flip (single-tap BKWD at face=+1 behaves
+    identically), multi-level - all press at face=+1. verify-play 12/12.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

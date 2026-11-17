@@ -595,10 +595,15 @@ ifeq ($(PX_DATA),1)
 	  || { echo "play wiring grep FAILED"; cat /tmp/opencode/ly_walk.log; exit 1; }
 	@grep -q 'play: A_STAY -> A_WALK_FWD' /tmp/opencode/ly_walk.log \
 	  && grep -q 'play: A_WALK_FWD -> A_WALK_BKWD' /tmp/opencode/ly_walk.log \
-	  && grep -q 'play: A_WALK_BKWD -> A_STAY' /tmp/opencode/ly_walk.log \
+	  && grep -q 'play: A_WALK_BKWD -> A_WALK_FWD' /tmp/opencode/ly_walk.log \
+	  && grep -q 'play: A_WALK_FWD -> A_STAY' /tmp/opencode/ly_walk.log \
 	  && grep -q 'play tick 10: state A_WALK_FWD seq uj09.*grounded 1' \
 	      /tmp/opencode/ly_walk.log \
-	  && echo "play state machine: real LEW.MOV K_FWD/K_BKWD/!K_FWD transitions walking the .plt (ok)" \
+	  && grep -q 'play tick 210: state A_WALK_FWD seq .* pos 39[0-9],313' \
+	      /tmp/opencode/ly_walk.log \
+	  && grep -q 'play tick 250: state A_WALK_FWD seq .* pos 3[0-4][0-9],313' \
+	      /tmp/opencode/ly_walk.log \
+	  && echo "play state machine: real LEW.MOV transitions walk the .plt; PR-85 facing-relative reading: BKWD at 200 enters A_WALK_BKWD for ONE tick (the turn), CH_DIR flips face so the pair's cross-lines settle into A_WALK_FWD walking LEFT (x 39x -> 33x proved below the flip), releasing (!K_FWD) goes to A_STAY (ok)" \
 	  || { echo "play state machine grep FAILED"; cat /tmp/opencode/ly_walk.log; exit 1; }
 # same demo taken further: walking BACK off the shelf edge drops the lion
 # into the authored .plt gap (a real one - RAN.PLT has no floor there);
@@ -762,7 +767,7 @@ ifeq ($(PX_DATA),1)
 	  && test "$$(grep -c '> A_TURN' /tmp/opencode/ly_zkeys.log)" -eq 1 \
 	  && grep -q 'play tick 135: state A_TURN seq turn frame -5 pos 9[0-9],680 grounded 1' \
 	      /tmp/opencode/ly_zkeys.log \
-	  && echo "play input edges: FWD walks ~39 px by tick 100 (T=20 px/s), releasing brakes him into the A_DRAP idle, BKWD at 130 plays A_TURN once and STAYS held (no crouch-loop while held) (ok)" \
+	  && echo "play input edges: FWD walks ~39 px by tick 100 (T=20 px/s), releasing brakes him into the A_DRAP idle, BKWD at 130 plays A_TURN once and STAYS held (no crouch-loop while held); the held key then WALKS him left - pinned by the left-walk leg below (PR-85) (ok)" \
 	  || { echo "play ZARIA press/release grep FAILED"; cat /tmp/opencode/ly_zkeys.log; \
 	    exit 1; }
 # PR-84 camera anchor (the owner's "the lion sits lower than the
@@ -799,6 +804,42 @@ ifeq ($(PX_DATA),1)
 	  && echo "play cam-y: a GROUNDED lion's drawn art sits at the measured anchor (feet ~178 of 200), == the original frame; A_TURN + walk poses both pinned (ok)" \
 	  || { echo "play ZARIA cam-y anchor check FAILED"; cat /tmp/opencode/ly_zcam.log; \
 	    exit 1; }
+# PR-85 left-walk (the owner's "the left key turns but he never walks
+# left, slides more than it walks, and slow"): Model M - K_FWD/K_BKWD
+# are FACING-RELATIVE (recorded in ll_play.c cond_true: ZARIA authors
+# ONE walk state and no backward-walk state, so literal keys could
+# never walk left at all). Held BKWD from face=+1: A_DRAP -> A_TURN
+# (the turn, its CH_DIR flips face=-1), the frame-list WRAP arms
+# AC_BREAK_NEXT - A_TURN's OWN exit line (the real .MOV lists only
+# AC_BREAK_NEXT/PREV) - back to the A_DRAP hub, and there the held
+# LEFT key IS K_FWD at face=-1: A_WALK walks LEFT. Pins: A_TURN entered
+# EXACTLY once, the hub hand-off, and x DECREASING while walking
+# (74 -> 64 in 24 ticks = the authored T=20 u/s cap - "slides more
+# than it walks" is gone: the A_TURN F=0 slide hands over into real
+# walking), plus the drawn art at the PR-84 anchor in the MIRRORED
+# walk pose (window built from the logged position, zcam method).
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  LEO_PLAY_SCRIPT="1:FWD 100:NONE 130:BKWD" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_zwalk.ppm LEO_LEVEL_PPM_TICK=205 \
+	  ./ll_level $(DATA) ZARIA.01 --play --no-audio \
+	  > /tmp/opencode/ly_zwalk.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play ZARIA left-walk FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_zwalk.log; exit 1; fi
+	@test "$$(grep -c '> A_TURN' /tmp/opencode/ly_zwalk.log)" -eq 1 \
+	  && grep -q 'play: A_TURN -> A_DRAP' /tmp/opencode/ly_zwalk.log \
+	  && grep -q 'play: A_DRAP -> A_WALK' /tmp/opencode/ly_zwalk.log \
+	  && grep -q 'play tick 181: state A_WALK seq walk .* pos 7[0-9],680 grounded 1' \
+	      /tmp/opencode/ly_zwalk.log \
+	  && grep -q 'play tick 205: state A_WALK seq walk .* pos 6[0-9],680 grounded 1' \
+	      /tmp/opencode/ly_zwalk.log \
+	  || { echo "play ZARIA left-walk grep FAILED"; cat /tmp/opencode/ly_zwalk.log; exit 1; }
+	@X=$$(grep -o 'play tick 205: state A_WALK seq walk frame [0-9-]* pos [0-9]*,680' \
+	    /tmp/opencode/ly_zwalk.log | sed 's/.*pos \([0-9]*\),.*/\1/'); \
+	  python3 tools/ppm_lion_measure.py /tmp/opencode/ly_zwalk.ppm \
+	    $$((X-20)) $$((X+28)) 100 200 orange top=128+-6 bottom=199+-6 \
+	  && echo "play left-walk (PR-85 Model M): held BKWD turns ONCE (AC_BREAK_NEXT at the A_TURN list wrap - its own exit line), then A_WALK walks LEFT at the T=20 cap, mirrored art stays on the measured cam anchor (ok)" \
+	  || { echo "play ZARIA left-walk cam-y grep FAILED"; grep 'tick 20[05]' /tmp/opencode/ly_zwalk.log; exit 1; }
 # PR-83: the KEYUP half of the input contract. No backend ever translated
 # SDL_KEYUP, so through the REAL backend every key stuck down forever: the
 # reported "controls press themselves in a loop". The live loop (NO
