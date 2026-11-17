@@ -207,7 +207,7 @@ enum {
 int ll_sig_id(const char *name);
 
 typedef struct { int frame; unsigned ms; int dx, dy;
-                 unsigned long long gsig;
+                 unsigned long long gsig; unsigned char atc;
                  int has_i, ix, iy; } ll_mov_fr;   /* has_i: `I ix,iy` impulse tail */   /* gsig: the frame's `GEN <signal>` tail(s), one bit per name
                  at its LL_SIG_* index (PR-88: any table name, not just
                  K_GENn/AC_TIME - the engine's own GEN survey raises
@@ -216,7 +216,16 @@ typedef struct { int frame; unsigned ms; int dx, dy;
                  any shipped script, so one u64 covers all raised signals;
                  such a name would be counted unmodeled, not guessed.
                  The old K_GENn bit n-1 / AC_TIME bit 4 encodings are
-                 gone: the same bits now live at their table indices. */
+                 gone: the same bits now live at their table indices.
+                 atc: this frame's `ATC_ON`/`ATC_OFF` tail (the engine's
+                 frame-directive table 0x917c0 has `atc_on`/`atc_off`):
+                 bit 0 = the frame OPENS the attack-connect window,
+                 bit 1 = the frame CLOSES it. The window decides when the
+                 state's shape can land a hit (ZARIA's A_FIGHT opens it
+                 at frame 8, right before its `FC 100,0`; the LICHA's
+                 A_ATAK opens at -4 and closes at -8). */
+#define LMOV_ATC_ON  1u
+#define LMOV_ATC_OFF 2u
 typedef struct {
     char target[24];                        /* resolved at parse time      */
     int tidx;                               /* state index, -1 unresolved  */
@@ -335,6 +344,29 @@ typedef struct {
                                  * frame lines); consumed by transitions
                                  * next tick. The state time= timer is
                                  * NOT a source yet: unit undetermined.  */
+    int atc;                    /* PR-89: the attack-connect WINDOW is    *
+                                 * open. The engine's frame-directive     *
+                                 * table (0x917c0) carries `atc_on`/      *
+                                 * `atc_off`, and the scripts pair them:  *
+                                 * measured over the extracted .MOV texts, *
+                                 * 267 state blocks open AND close the    *
+                                 * window (ZARIA's A_FIGHT: ATC_ON frame  *
+                                 * 8 - just before its `FC 100,0` lunge,  *
+                                 * ATC_OFF at 13, re-open at 17; the      *
+                                 * LICHA's A_ATAK opens at -4, closes at  *
+                                 * -8), 18 open without closing. So the   *
+                                 * window is a frame flag that STAYS open *
+                                 * until a frame closes it; for those 18  *
+                                 * it also ends when the state does: this *
+                                 * model clears it on every state change  *
+                                 * (the engine's own clearing rule is not *
+                                 * pinned; an attack that hit forever     *
+                                 * after one swipe is not what the video  *
+                                 * shows). The window is what lets the    *
+                                 * lion's shape land a hit (0x552e0: a    *
+                                 * touch runs the push-out and only then  *
+                                 * the hit effects, FUN_00055230). */
+    int atc_hit;                /* this window has already landed a hit   */
     int auto_walk;              /* PR-83: the current state was entered
                                  * WITHOUT a K_FWD/K_BKWD condition, so its
                                  * BY_X target velocity is not key-gated

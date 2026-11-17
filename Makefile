@@ -623,40 +623,77 @@ ifeq ($(PX_DATA),1)
 	  && echo "play world bounds: .plt gap fall -> lew_rect death -> pozycja respawn (ok)" \
 	  || { echo "play fall/respawn grep FAILED"; cat /tmp/opencode/ly_fall.log; exit 1; }
 # PR-59: experimental solid contact (LEO_PLAY_SOLID=1): the lion walking right
-# on RAN.01 touches the invisible EDGE0046 solid at tick 54; the contact line
-# (object, position, push, penetration) comes from ll_seq_shape_push on the
-# real shapes. Default runs (above) are unaffected: no contact lines.
+# on RAN.01 touches invisible ANIBACK solids; the contact line (object,
+# position, push, penetration) comes from the shape push on the real shapes.
+# Default runs (above) are unaffected: no contact lines.
+# (Re-pinned PR-89: the lion element's margin lists were read out of the
+# OBJECT's payload - element offsets are payload-relative and the port keeps
+# one blob per .SEQ record - so every lion-vs-object contact before PR-89
+# used wrong bytes. The old pin "EDGE0046 pushes back 3 px at tick 54" was
+# one of those; with each element read from its own payload the lion's walk
+# pose first touches edge0041 at tick 28. Same model, correct bytes.)
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SOLID=1 \
 	  LEO_PLAY_SCRIPT="1:FWD" LEO_LEVEL_PPM=/tmp/opencode/ly_solid.ppm \
 	  LEO_LEVEL_PPM_TICK=70 ./ll_level $(DATA) RAN.01 --play --no-audio \
 	  > /tmp/opencode/ly_solid.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "play solid FAILED (rc=$$rc)"; exit 1; fi
-	@grep -q 'play tick 54: solid ANIBACK/edge0046.mov SOLID at 144,233 push -3,0 (ret -3) lion 128,298' \
+	@grep -q 'play tick 28: solid ANIBACK/edge0041.mov SOLID at 102,259 push -1,0 (ret -1) lion 81,298' \
 	    /tmp/opencode/ly_solid.log \
 	  && ! grep -q ': solid ' /tmp/opencode/ly_walk.log \
-	  && echo "play solid contact: RAN.01 EDGE0046 pushes the lion back 3 px at tick 54; default run has no contacts (ok)" \
+	  && echo "play solid contact: RAN.01 edge0041 pushes the lion back 1 px at tick 28 (paired-payload read); default run has no contacts (ok)" \
 	  || { echo "play solid contact grep FAILED"; grep ': solid ' /tmp/opencode/ly_solid.log | head -3; exit 1; }
 # PR-68: enemy stats from the placement file (damage=/bounds=/scope=/energy=):
-# ZARIA.01's first LICHA (120,650, damage 15) hurts the lion at tick 181.
+# ZARIA.01's first LICHA (120,650, damage 15) hurts the lion at tick 175.
 # (Pinned history: 163 while the worms floated 30 units up -> 138 after the
 # PR-78 CHECK_LN settle -> 199 with PR-79 walking: the worm patrols its
 # bounds=100,180 range at the model speed (|F|/4 = 25 px/s) instead of
 # sitting at x=120 -> 181 with PR-83: the lion now spawns in the .MOV's
 # declared A_WALK state instead of block index 0 (A_JUMP_DOWN), so holding
 # FWD walks from tick 1 instead of after a spawn-state chain; the walk
-# lands at the authored x=120 at exactly T=20 px/s. The tick itself is a
-# model pin, not a video number.)
+# lands at the authored x=120 at exactly T=20 px/s -> 175 with PR-89: the
+# shape test reads each element's margin lists from its OWN payload (the
+# lion's offsets read out of the worm's payload widened the effective
+# silhouette, so the touch came ~6 px = 6 ticks early). The tick is a model
+# pin, not a video number.)
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SOLID=1 \
 	  LEO_PLAY_SCRIPT="1:FWD" LEO_LEVEL_PPM=/tmp/opencode/ly_hit.ppm \
 	  LEO_LEVEL_PPM_TICK=200 ./ll_level $(DATA) ZARIA.01 --play --no-audio \
 	  > /tmp/opencode/ly_hit.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "play hit FAILED (rc=$$rc)"; exit 1; fi
-	@grep -q 'play tick 181: hit by LICHA/licha3.mov: damage 15 -> energy 85' \
+	@grep -q 'play tick 175: hit by LICHA/licha3.mov: damage 15 -> energy 85' \
 	    /tmp/opencode/ly_hit.log \
-	  && echo "play enemy contact: ZARIA.01's LICHA deals its authored damage=15 (energy 100 -> 85 at tick 181, inside the walking model, ok)" \
+	  && echo "play enemy contact: ZARIA.01's LICHA deals its authored damage=15 (energy 100 -> 85 at tick 175, inside the walking model, ok)" \
 	  || { echo "play enemy contact grep FAILED"; grep 'hit by' /tmp/opencode/ly_hit.log | head -3; exit 1; }
+# PR-89: the lion's own attack. K_FIRE,K_F1 (PR-87) enters A_FIGHT; the
+# .MOV's ATC_ON/ATC_OFF frame flags open and CLOSE the attack window; the
+# first LICHA is killed inside it. The numbers are from the placement and
+# the engine's defaults, no authored lion damage exists for this class:
+#   hit damage 30   - the dispatcher default at 0x34103 (open question:
+#                     which class carries the 45%-of-energy formula)
+#   energy=20       - the .des placement value, now the object's hp
+#   death gate      - hp < 0 forces A_DEAD BY NAME (340/413 A_DEAD states
+#                     have no transition INTO them; the engine hardcodes
+#                     the string at 0x9068c)
+# The tick numbers are model pins: A_FIGHT at 75, its frame-8 ATC_ON open
+# at 160, first contact inside the window at 184 = the kill.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=4 LEO_PLAY_SOLID=1 \
+	  LEO_PLAY_SCRIPT="1:FWD 74:FIRE,F1 75:NONE" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_atk.ppm LEO_LEVEL_PPM_TICK=320 \
+	  ./ll_level $(DATA) ZARIA.01 --play --no-audio \
+	  > /tmp/opencode/ly_atk.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play attack FAILED (rc=$$rc)"; exit 1; fi
+	@grep -q 'play: A_WALK -> A_FIGHT' /tmp/opencode/ly_atk.log \
+	  && grep -q 'lion KILLS LICHA/licha3.mov: damage 30 -> hp -10 (dead)' \
+	      /tmp/opencode/ly_atk.log \
+	  && ! grep -q 'lion hits LICHA' /tmp/opencode/ly_atk.log \
+	  && echo "play lion attack: the A_FIGHT window lands exactly one hit" \
+	       "(one per opened window), the engine-forced A_DEAD gate answers" \
+	       "at hp < 0, and the killed worm stops dealing contact damage (ok)" \
+	  || { echo "play lion attack grep FAILED"; grep -E 'lion (hits|KILLS)|hit by|A_FIGHT' \
+	       /tmp/opencode/ly_atk.log | head -6; exit 1; }
 # render leg: SAME tick count, the only difference is the held key -
 # the frame delta is the lion walking (and the NONE run stays at spawn)
 	@rm -f /tmp/opencode/ly_p40_NONE.ppm /tmp/opencode/ly_p40_FWD.ppm

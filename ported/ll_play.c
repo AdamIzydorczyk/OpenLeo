@@ -422,16 +422,23 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                         mf->ms = ms > 0 ? (unsigned)ms : 100u;
                         mf->dx = mf->dy = 0;
                         mf->gsig = 0;
+                        mf->atc = 0;
                         mf->has_i = 0;
-                        /* A frame line may carry further fields. The one the
-                         * model acts on is the authored motion of THIS frame,
+                        /* A frame line may carry further fields. The ones the
+                         * model acts on are the authored motion of THIS frame,
                          * "N,ms, M dx,dy" (285 of 18617 shipped frame lines
-                         * carry it; there are no standalone "M" lines).
-                         * Everything else names game signals the scene model
-                         * has no bus for yet - GEN <signal>, ATC_ON/ATC_OFF,
-                         * WAIT <signal>, lock/unlock, smpauto/smp, GOTO_rel,
-                         * inline F= - so it is counted (measured 1568 such
-                         * lines, PLAN 8g), never dropped in silence. */
+                         * carry it; there are no standalone "M" lines), the
+                         * `GEN <signal>` tails (PR-88: the engine's own
+                         * directive table is at 0x917c0, the names it can
+                         * raise are the 0x919ec block) and ATC_ON/ATC_OFF
+                         * (PR-89, the attack-connect window).
+                         * Everything else the table names (ground_on/off,
+                         * lock/unlock, chdir, ldir/rdir, pos, goto/gotorel,
+                         * F/IC/FC, MOVE, Wait, end_level, the smp and
+                         * vol sound words, WAIT <signal>, inline F=) is
+                         * counted - measured 1568 such lines before this
+                         * PR took the GEN and ATC ones out of that count,
+                         * PLAN 8g - never dropped in silence. */
                         const char *fc = strchr(line, ',');
                         const char *rest = fc ? strchr(fc + 1, ',') : NULL;
                         if (rest) {
@@ -513,6 +520,14 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                                         q += nn;
                                         continue;
                                     }
+                                }
+                                if (strcasecmp(word, "ATC_ON") == 0) {
+                                    mf->atc |= LMOV_ATC_ON;
+                                    continue;
+                                }
+                                if (strcasecmp(word, "ATC_OFF") == 0) {
+                                    mf->atc |= LMOV_ATC_OFF;
+                                    continue;
                                 }
                                 other_directive = 1;
                             }
@@ -820,6 +835,9 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
             if (p->fi >= nt->nfr)                  /* overlong row: top   */
                 p->fi = 0;
             p->ft = 0;
+            p->atc = 0;                /* PR-89: an attack window belongs *
+                                        * to the state that opened it.    */
+            p->atc_hit = 0;
             ev |= LL_PLAY_EV_STATE;
             apply_impulse(p, nt, p->fi);
         }
@@ -1006,6 +1024,11 @@ int ll_player_step(ll_player *p, const ll_plt *ground,
                                         * directly (`GEN AC_BREAK_NEXT`);
                                         * the frame-list wrap below keeps
                                         * arming it the PR-83 way. */
+            unsigned char ac = st->fr[p->fi].atc;
+            if (ac & LMOV_ATC_ON)                  /* PR-89: the frame's */
+                p->atc = 1;                        /* `ATC_ON` opens the */
+            if (ac & LMOV_ATC_OFF)                 /* attack-connect     */
+                p->atc = 0;                        /* window. */
             if (p->fi + 1 >= st->nfr) {
                 p->fi = 0;
                 p->broke = 1;

@@ -488,6 +488,19 @@ typedef struct {                     /* one placement of a script        */
      * file (zwierzaki .des: damage= contact damage, bounds= the patrol x
      * range, scope= detection range, energy= hit points). -1 = absent. */
     int damage, b0, b1, scope, energy;
+    /* PR-89: the object's own combat state, mirroring the engine's level
+     * object fields (NEXT_STEPS "T2 RE lead" for the whole pipeline):
+     * hp = the energy counter at [obj+0xad], initialised from the
+     * placement's `energy=`; hp < 0 = not hit-able (the engine writes
+     * [obj+0xad] = -1 for its never-dying types at 0x340f5/0x54478 and
+     * tests death as `energy < 0` at 0x544a5). hit_cd = the hit
+     * countdown at [obj+0x102] (FUN_000502f0 asks "invulnerable?" by
+     * testing it non-zero; 0x27264 arms the generic default 0xe = 14).
+     * atc = the object's own attack-connect window (T3 uses it to make
+     * the ENEMY hit the lion; parsed already so the flag is visible). */
+    int hp, hit_cd;
+    unsigned char atc;
+    unsigned char dead;             /* the engine-forced death (A_DEAD) */
     unsigned long long sig;         /* PR-88: pending signal pulses at the
                                      * LL_SIG_* bit indexes of the engine's
                                      * signal table (was: K_GEN1..4 in bits
@@ -748,9 +761,92 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
         o->facc = 0.0;
         o->xa = 0.0;
         o->sig = 0;
+        o->atc = 0;                  /* PR-89: an attack window belongs to
+                                      * the state that opened it           */
         return 1;
     }
     return 0;
+}
+
+/* PR-89: the lion's attack lands on a scene object. The engine's damage
+ * pipeline (fully mapped in NEXT_STEPS "T2 RE lead"): a touch runs the
+ * push-out first (FUN_000552e0 -> 0x53ae0/0x55130) and only then the hit
+ * effects (0x55230); the victim's energy counter at [obj+0xad] is
+ * decremented by FUN_00054550 `sub [eax+0xad], ebx`, the deliverer's
+ * damage is its own [obj+0xb1] (the placement `damage=`, already parsed),
+ * and the death gate is `energy < 0` (0x544a5 `cmp [eax+0xad],0; jge`).
+ * The ATTACK dispatcher (0x34020) answers on the target's .des template
+ * TYPE: one template (factory instance 0xcecfc, identity not decoded)
+ * takes `energy*45/100+10` damage (0x34037), one gets an `energy = -1`
+ * "never dies" marker (0x3409f/0x340f5), and the fall-through default is
+ * 30 - `mov ebx,0x1e` at 0x34103, `call 0x50ed0` at 0x34108. No shipped
+ * .des authors any lion damage number, so 30 is the only value the
+ * shipped data points to; the 45%-type stays unreachable here (which
+ * template instance means which .des TYPE is an open question).
+ *
+ * Rejection: FUN_00050ed0 is gated by FUN_000502f0 "invulnerable?", which
+ * tests the countdown at [obj+0x102]; 0x27264 is the generic setter with
+ * the DEFAULT 14 (the lion's own is 30 at 0x50304, already ported as
+ * pl->lock). Objects get the same countdown here: 14.
+ *
+ * The hit reaction is an INFERENCE, flagged as such: every animal script
+ * and every lion state carries "A_DOSTAL(1)=AC_ENEMY_ATC" ("got hit" on
+ * "enemy attacked"), and no shipped .MOV line ever GENs AC_ENEMY_ATC (0
+ * of 279 uses) - the combat code must be its raiser, and the object that
+ * was hit is the one that knows. So the hit raises the bit ON THE HIT
+ * OBJECT's own set and lets its own transition table pick A_DOSTAL: no
+ * new mechanism, exactly the PR-88 one. (Raising it on the LION when the
+ * lion takes contact damage is deliberately NOT done here - it would
+ * re-pin the walking fixtures; it needs its own step.)
+ *
+ * Death enters the script's own state BY NAME because the engine forces
+ * it: 340 of the 413 scripts that have an A_DEAD state have NO
+ * transition line into it (measured over the extracted .MOV texts), and
+ * the engine hardcodes the string "A_DEAD" four times (0x9068c/0x907ab/
+ * 0x90e79/0x91008, inside per-level lion classes next to their
+ * `energy = %d` parsers). A script with no A_DEAD state keeps its state
+ * here - what the engine then does is open, so nothing is invented.
+ * The dead object stops hurting the lion (model choice: its A_DEAD art
+ * stays in place; whether the engine's corpse still deals contact
+ * damage is not pinned). */
+#define LL_LION_HIT_DAMAGE 30   /* 0x34103: the dispatcher's default hit */
+#define LL_OBJ_HIT_CD      14   /* [obj+0x102] default countdown, 0x27264 */
+
+static int obj_hit(lvl_obj *o, int damage)   /* 0 = no hit, 1 = hurt,
+                                              * 2 = hurt AND killed      */
+{
+    ll_mov_t *mov = (o->sc && o->sc->mov) ? o->sc->mov : NULL;
+
+    if (!mov || o->hp < 0 || o->hit_cd > 0)
+        return 0;              /* no script / energy = -1 is not hit-able
+                                * (the engine's own never-dying marker,
+                                * 0x340f5) / inside the hit countdown    */
+    o->hp -= damage;
+    o->hit_cd = LL_OBJ_HIT_CD;
+    if (o->hp < 0) {                        /* the engine's death gate:
+                                             * energy < 0 (0x544a5)      */
+        int d = ll_mov_find(mov, "A_DEAD");
+
+        o->dead = 1;
+        if (d >= 0 && d != o->sti) {
+            int byx = (mov->st[o->sti].ctrl & LL_CTRL_BY_X) ||
+                      (mov->st[d].ctrl & LL_CTRL_BY_X);
+            o->sti = d;
+            o->fi = 0;
+            if (!byx) {
+                o->x = o->bx;
+                o->y = o->by;
+            }
+            o->facc = 0.0;
+            o->xa = 0.0;
+            o->sig = 0;
+        }
+        return 2;
+    }
+    o->sig |= 1ull << LL_SIG_AC_ENEMY_ATC;
+    obj_transition(o, mov, 0);
+    o->sig = 0;
+    return 1;
 }
 
 /* PR-79: BY_X states WALK. The frame-list slot semantics are data-
@@ -828,6 +924,11 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         o->t += dt_ms;
         return;
     }
+    if (o->hit_cd > 0)              /* PR-89: the [obj+0x102] countdown runs
+                                     * on the same fixed step as the lion's
+                                     * pl->lock (obj_advance is called once
+                                     * per play tick) */
+        o->hit_cd--;
     ll_mov_st *start = &mov->st[o->sti];
     if ((start->ctrl & LL_CTRL_BY_X) && start->fx != 0)
         obj_walk(o, start, dt_ms);
@@ -869,6 +970,11 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         o->x += f->dx;             /* the authored "N,ms, M dx,dy" motion  */
         o->y += f->dy;             /* directive of the frame being held    */
         o->sig |= f->gsig;          /* `GEN <signal>`: raised as the frame ends */
+        if (f->atc & LMOV_ATC_ON)     /* PR-89: the object's own attack- */
+            o->atc = 1;               /* connect window (an A_ATAK opens  */
+        if (f->atc & LMOV_ATC_OFF)    /* it, an ATC_OFF frame closes it). */
+            o->atc = 0;               /* The ENEMY hitting the LION with  */
+                                      /* it is T3, not this PR.           */
         o->fi++;
         if (o->sig && obj_transition(o, mov, 0))
             continue;
@@ -1215,6 +1321,69 @@ static int seq_push_selftest(void)
             return 1;
         }
     }
+    /* PR-89 follow-up: the PAIRED payload form. The port parses one blob
+     * per .SEQ record, so a lion-art vs object-art pairing must read each
+     * element's margin lists from its OWN blob; the engine-shaped single
+     * form reads the OTHER record's bytes at those offsets (the element
+     * offsets are payload-relative). Fixture: a shape element of the SAME
+     * frame (w0=2, total_w 20, rows 4) in a second blob whose lists are
+     * [0,2,4,6] left and [4,6,1,3] right (the element's own lists are
+     * left [0,2,4,6], right all 0; a 4-row element's v-candidate is at
+     * most 4, so the horizontal results are not masked). Values measured
+     * with the python oracle (tools/shape_geom.py) on the two payloads:
+     *   A@8  vs B@0 read correctly -> hit, ret -8, push (-2, 2)
+     *   A@12 vs B@0 read correctly -> hit, ret -4, push (-1, 1)
+     *   the SAME calls single-form -> ret -12, push (-4, 2)
+     *                                    (it read A's own right list)
+     * and a same-payload pairing must be byte-identical through both. */
+    {
+        static const unsigned char blob_b[] = {
+            0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x14, 0x00, 0x04, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x02, 0x04, 0x06, 0x01, 0x03, 0x05, 0x07, 0x00, 0x00,
+        };
+        ll_seq sb;
+        int r1, r2, s1, s2, t1, t2, bad = 0;
+        if (ll_seq_parse(blob_b, (uint32_t)sizeof blob_b, &sb) != 0 ||
+            sb.count != 1 || sb.els[0].n != 4) {
+            fprintf(stderr, "push selftest: FAILED the paired synthetic"
+                            " .SEQ did not parse as built\n");
+            ll_seq_free(&sq);
+            return 1;
+        }
+        if (!ll_seq_shape_hit(&sq, &sq.els[1], 8, 0, 1,
+                              &sb.els[0], 0, 0, 1))
+            bad = 1;
+        if (ll_seq_shape_push2(&sq, &sq.els[1], 8, 0, 1,
+                               &sb, &sb.els[0], 0, 0, 1, &r1, &r2) != -8 ||
+            r1 != -2 || r2 != 2)
+            bad = 2;
+        if (!ll_seq_shape_hit(&sq, &sq.els[1], 12, 0, 1,
+                              &sb.els[0], 0, 0, 1))
+            bad = 3;
+        if (ll_seq_shape_push2(&sq, &sq.els[1], 12, 0, 1,
+                               &sb, &sb.els[0], 0, 0, 1, &r1, &r2) != -4 ||
+            r1 != -1 || r2 != 1)
+            bad = 4;
+        r1 = ll_seq_shape_push(&sq, &sq.els[1], 8, 0, 1,
+                               &sb.els[0], 0, 0, 1, &s1, &s2);
+        if (r1 != -12 || s1 != -4 || s2 != 2)
+            bad = 5;    /* the wrong-bytes single form: different answer */
+        r1 = ll_seq_shape_push(&sq, &sq.els[1], 8, 0, 1,
+                               &sq.els[1], 0, 0, 1, &s1, &s2);
+        r2 = ll_seq_shape_push2(&sq, &sq.els[1], 8, 0, 1,
+                                &sq, &sq.els[1], 0, 0, 1, &t1, &t2);
+        if (r1 != r2 || s1 != t1 || s2 != t2)
+            bad = 6;
+        if (bad) {
+            fprintf(stderr, "push selftest: FAILED the paired-payload leg"
+                            " (case %d)\n", bad);
+            ll_seq_free(&sb);
+            ll_seq_free(&sq);
+            return 1;
+        }
+        ll_seq_free(&sb);
+    }
     ll_seq_free(&sq);
     return 0;
 }
@@ -1249,6 +1418,13 @@ static int obj_settle(lvl_obj *o, const ll_plt *plt)
     return 1;
 }
 
+/* PR-69: object scripts are state machines (hand-derived, data-free).
+ * Script text: A_RUN loops frames 1,2 (100 ms each) with A_DEAD(1)=K_GEN1;
+ * A_DEAD holds frame 3 and goes back with A_RUN(1)=AC_BREAK_NEXT.
+ *   no signal: 250 ms later the state is still A_RUN (the old ring would
+ *   have walked into A_DEAD at 200 ms);
+ *   frame 2 carrying `GEN K_GEN1`: at 200 ms A_RUN -> A_DEAD (fi 0), and
+ *   100 ms later the frame list of A_DEAD ends -> A_RUN again. */
 static int obj_state_selftest(void)
 {
     static const char plain[] =
@@ -1342,6 +1518,85 @@ static int obj_state_selftest(void)
         }
         free(mn);
         free(mp);
+        if (ok)
+            goto out;
+    }
+    /* PR-89: the hit pipeline on objects. A non-lethal hit raises
+     * AC_ENEMY_ATC on the HIT object and its own transition table picks
+     * A_DOSTAL (exactly the LICHA3 wiring); the engine's death gate is
+     * energy < 0, and since no shipped script has a transition INTO
+     * A_DEAD (340 of 413), the dead object enters it BY NAME, forced;
+     * the [obj+0x102] countdown (14, 0x27264) rejects a second hit
+     * inside it and expires tick by tick; `energy = -1` is the
+     * never-hit-able marker (0x340f5). */
+    {
+        static const char hitt[] =
+            "A_RUN\nA_DOSTAL\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\n"
+            "A_DOSTAL(1)=AC_ENEMY_ATC\n1,100\n2,100\n\n[A_DOSTAL]\n"
+            "control=BY_TIME\nA_RUN(1)=AC_BREAK_NEXT\n3,100\n\n[A_DEAD]\n"
+            "control=BY_TIME\n4,100\n";
+        ll_mov_t *mh = calloc(1, sizeof *mh);
+        obj_script sh;
+        lvl_obj h, u;
+        int ok = mh != NULL, r1 = 0, r2 = 0;
+
+        memset(&sh, 0, sizeof sh);
+        memset(&h, 0, sizeof h);
+        if (ok) {
+            ll_mov_parse(hitt, mh);
+            sh.mov = mh;
+            h.sc = &sh;
+            h.bx = h.x = 200;
+            h.by = h.y = 100;
+            h.hp = 20;                       /* .des energy=20, like ZARIA */
+            r1 = obj_hit(&h, 15);
+            if (r1 != 1 || h.hp != 5 || h.hit_cd != LL_OBJ_HIT_CD ||
+                h.sti != 1)                    /* A_DOSTAL: 2nd state BLOCK */
+                fprintf(stderr, "object state selftest: FAILED the first"
+                                " hit did not hurt and enter A_DOSTAL"
+                                " (r %d hp %d cd %d state %d)\n",
+                        r1, h.hp, h.hit_cd, h.sti);
+            else if (obj_hit(&h, 5) != 0 || h.hp != 5)
+                fprintf(stderr, "object state selftest: FAILED a hit inside"
+                                " the [obj+0x102] countdown was taken\n");
+            else {
+                for (int q = 0; q < LL_OBJ_HIT_CD; q++)
+                    obj_advance(&h, 20);     /* 14 ticks: countdown runs  */
+                if (h.hit_cd != 0 || h.sti != 0)
+                    fprintf(stderr, "object state selftest: FAILED the hit"
+                                    " countdown did not run out (cd %d"
+                                    " state %d)\n", h.hit_cd, h.sti);
+                else {
+                    r2 = obj_hit(&h, 10);
+                    if (r2 != 2 || h.hp != -5 || !h.dead || h.sti != 2)
+                        fprintf(stderr, "object state selftest: FAILED a"
+                                        " lethal hit did not force A_DEAD"
+                                        " (r %d hp %d state %d)\n",
+                                r2, h.hp, h.sti);
+                    else {
+                        obj_advance(&h, 500);        /* A_DEAD has no way
+                                                      * out: it loops */
+                        if (h.sti != 2)
+                            fprintf(stderr, "object state selftest: FAILED"
+                                            " the A_DEAD state did not"
+                                            " hold (state %d)\n", h.sti);
+                        else {
+                            u = h;
+                            u.hp = -1;       /* the never-dying marker */
+                            u.dead = 0;
+                            u.sti = 0;
+                            if (obj_hit(&u, 30) != 0 || u.hp != -1)
+                                fprintf(stderr, "object state selftest:"
+                                                " FAILED an energy=-1"
+                                                " object was hit\n");
+                            else
+                                ok = 0;
+                        }
+                    }
+                }
+            }
+        }
+        free(mh);
         if (ok)
             goto out;
     }
@@ -1941,6 +2196,13 @@ static int balloon_hit(int bx, int by, int rx, int ry, int rw, int rh)
  * (dx, dy) (0x53c0e). SEMI_SOLID: kind-1 r/5 applied, the kind-13 velocity
  * impulse counted (below).
  * A push UP (dy < 0) is standing on the object: grounded, support set.
+ * The shape test uses the PAIRED form (ll_seq_shape_push2): the lion's
+ * element and the object's element live in different .SEQ payloads, and
+ * reading one from the other's bytes silently broke lion-vs-object
+ * contacts (measured 2026-11-17, ZARIA.01: no lion/worm shape contact
+ * at any distance; with the paired read the worms answer at their real
+ * margin ranges). The earlier PR-66/PR-68 pins of this path were
+ * therefore computed through wrong bytes and are re-pinned.
  * OFF unless LEO_PLAY_SOLID=1: WHICH pairs the game tests (the per-class
  * collision loops behind FUN_00053c90 and the CHECK_LEW/CHECK_ALL gating)
  * is not resolved yet, and with it on RAN.01's invisible EDGE0046 stops the
@@ -1999,7 +2261,7 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
      * the shape keeps the drawn polarity). */
     int lm = ll_player_mirror_of(&pl->p, lr.mirror);
     for (int k = 0; k < nobj; k++) {
-        const lvl_obj *o = &objs[k];
+        lvl_obj *o = (lvl_obj *)&objs[k];
         if (!o->sc || !o->sc->mov || o->sti < 0 || o->sti >= o->sc->mov->nst)
             continue;
         unsigned c = o->sc->mov->st[o->sti].ctrl;
@@ -2024,8 +2286,8 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
         int lx = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5);
         int ly = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5);
         int d1, d2, r;
-        r = ll_seq_shape_push(oseq, oe, o->x, o->y, om ? -1 : 1,
-                              le, lx, ly, lm ? -1 : 1, &d1, &d2);
+        r = ll_seq_shape_push2(oseq, oe, o->x, o->y, om ? -1 : 1,
+                               lseq, le, lx, ly, lm ? -1 : 1, &d1, &d2);
         if (d1 == 0 && d2 == 0)
             continue;
         int dx = (c & LL_CTRL_SOLID2) ? d1 : r;
@@ -2055,7 +2317,23 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                 pl->p.sig |= 1ull << LL_SIG_K_GEN2;
             }
         }
-        if (o->damage > 0 && pl->lock == 0) {
+        if (pl->p.atc && !pl->p.atc_hit && o->hp >= 0 && !o->dead) {
+            /* PR-89: the lion's attack window is open and the shapes
+             * just met (same contact as the push-out above; the engine's
+             * touch pipeline runs the push-out and then the hit effects
+             * - 0x552e0 -> 0x55230). One hit per opened window. */
+            int hh = obj_hit(o, LL_LION_HIT_DAMAGE);
+            if (hh) {
+                pl->p.atc_hit = 1;
+                if (verbose)
+                    printf("ll_level: play tick %d: lion %s %s/%s:"
+                           " damage %d -> hp %d%s\n", tick,
+                           hh == 2 ? "KILLS" : "hits", o->sc->leaf,
+                           o->sc->movname, LL_LION_HIT_DAMAGE, o->hp,
+                           hh == 2 ? " (dead)" : "");
+            }
+        }
+        if (o->damage > 0 && pl->lock == 0 && !o->dead) {
             /* FUN_00050ed0 / 00054550: a touched enemy hits with ITS OWN
              * damage (the .des `damage=` of the placement); the lion's hurt
              * lock is 30 ticks (0x50304: [+0x102] = 0x1e) */
@@ -3009,7 +3287,10 @@ static lvl_obj *obj_slot(place_ctx *pc)
     }
     lvl_obj *o = &own->objs[own->nobj++];
     memset(o, 0, sizeof *o);
-    o->damage = o->b0 = o->b1 = o->scope = o->energy = -1;
+    o->damage = o->b0 = o->b1 = o->scope = o->energy = o->hp = -1;
+    o->hit_cd = 0;
+    o->atc = 0;
+    o->dead = 0;
     return o;
 }
 
@@ -3126,8 +3407,18 @@ static void des_place_file(place_ctx *pc, const char *fname,
                         lo->b1 = v1;
                     } else if (sscanf(line, " scope = %d", &v0) == 1)
                         lo->scope = v0;
-                    else if (sscanf(line, " energy = %d", &v0) == 1)
+                    else if (sscanf(line, " energy = %d", &v0) == 1) {
                         lo->energy = v0;
+                        /* PR-89: the spawn energy of the combat counter
+                         * (engine field [obj+0xad]). The two-value
+                         * authoring ("energy=20,50" once in ZARIA.01,
+                         * "1000000,350" once in the census) is read as
+                         * the FIRST value by the same sscanf the engine
+                         * uses (" energy = %d" - its format string is at
+                         * 0x90d9b); which value the engine really keeps
+                         * at spawn stays an open question. */
+                        lo->hp = v0;
+                    }
                 }
             }
             else if (strchr(line, ';'))
@@ -3328,9 +3619,12 @@ static void des_placement(place_ctx *pc, llrs *hd_ety,
                st->shortline + st->longline);
     if (st->nscript)
         printf("ll_level: those scripts author %d state transition(s), %d"
-               " control flag(s) with no model bit, %d frame signal"
-               " directive(s) (GEN / ATC_ON / ATC_OFF / WAIT / lock /"
-               " smpauto / GOTO), %d sound-or-scale field(s); %d state(s)"
+               " control flag(s) with no model bit, %d frame"
+               " directive(s) the model does not act on (the engine's own"
+               " table 0x917c0 minus the modeled GEN (PR-88) and ATC_ON/"
+               " ATC_OFF (PR-89): WAIT / lock / ground_on / chdir / pos /"
+               " goto / F / FC / M / MOVE / Wait / end_level / smp*), %d"
+               " sound-or-scale field(s); %d state(s)"
                " name no seq= art, %d state(s) / %d frame(s) / %d"
                " transition(s) over cap - all parsed and counted, acted on"
                " only once the rest of the AC_*/K_* signal bus lands"

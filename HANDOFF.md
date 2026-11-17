@@ -218,6 +218,9 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | SOLID push polarity | `obj_shape_elem` | shape uses the DRAW polarity incl. CH_DIR facing | consistency, not decompile-pinned (PR-81) |
 | player facing model | ll_play.c `face`, ll_level.c `play_draw/play_collide` | face follows walkdir only in CH_DIR states; draw/shape = authored XOR face, face sticks | flags real (LEW census, PR-82); the always-XOR rule for no-CH_DIR states is a model-consistency choice, NOT decompile- or video-pinned (HANDOFF Q0) |
 | K_FWD/K_BKWD key model | ll_play.c `cond_true` (MODEL CHOICE note) | facing-relative: K_FWD = arrow along current face; walkdir = the literal arrow; a left-facing turn settles via the state pair or A_TURN+AC_BREAK | PR-85; forced by data (one A_WALK, no BKWD-walk state); NOT yet confirmed on video |
+| lion attack damage / object hit rule | ll_level.c `LL_LION_HIT_DAMAGE` 30, `obj_hit`, `LL_OBJ_HIT_CD` 14, `ll_play.h` `atc`/`atc_hit` | damage 30 = the 0x34103 dispatcher default; hp<0 forces A_DEAD by name; energy -1 never hit-able; countdown 14 (0x27264); window open from `ATC_ON` until `ATC_OFF`, one hit per window, cleared on state change for the 18 blocks that never close it | addresses verified; the 30 stays until the 45%-of-energy+10 template (0xcecfc) identity decodes; the window-clear rule and the corpse-deal-contact rule are model choices (PR-89) |
+| AC_ENEMY_ATC raiser | ll_level.c `obj_hit` | the hit raises it on the HIT object's own set (PR-88 mechanism) so its `A_DOSTAL(1)=AC_ENEMY_ATC` line fires | INFERENCE (0 of 279 shipped GEN lines raise it; the combat code must be the raiser); the lion-side raise deliberately NOT shipped (would re-pin walking fixtures) |
+| shape payloads for lion-vs-object tests | ll_seq.c `ll_seq_shape_push2`, ll_level.c `play_collide` | each element's margin lists read from its OWN .SEQ payload (paired form) | model choice: how the original resolved two elements into its single-payload routine is unpinned; same-payload pairings stay byte-identical (selftest-pinned, PR-89) |
 
 ## 7. Open questions (ranked by how much they block)
 
@@ -328,9 +331,14 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
    the LION's A_JUMP_PLAT(1)=AC_PLAT_OUT tests the lion's - a message or
    broadcast connects them, unresearched); (b) who raises the AC_*
    engine-internal bits (AC_ENEMY_ATC 279 conditions, AC_ONAIR 211: no
-   frame GENs them - physics/combat code must); (c) whether the set is
-   ever CLEARED (ours pulses one tick, the engine's OR is latching; no
-   shipped data discriminates yet).
+   frame GENs them - physics/combat code must) - PARTIALLY ANSWERED for
+   AC_ENEMY_ATC in PR-89: the hit code raises it on the HIT object's own
+   set so its `A_DOSTAL(1)=AC_ENEMY_ATC` line reacts (flagged INFERENCE
+   in ll_level.c; the raise on the LION when he takes contact damage is
+   deliberately not shipped - it needs its own step and would re-pin the
+   walking fixtures); AC_ONAIR and the rest stay un-raiser'd; (c) whether
+   the set is ever CLEARED (ours pulses one tick, the engine's OR is
+   latching; no shipped data discriminates yet).
 3. `AC_DUP`, `AC_ONAIR`, `AC_DRECT`, `AC_EDGE`, `AC_DRAB_CATCH`, `AC_ENEMY_ATC`,
    `AC_BLOK`: meaning (they gate jumps, falls, ladders, enemy attacks).
 4. `danger_power` default (level object +0x54 is never initialised in 0x4a5d4).
@@ -417,6 +425,25 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      for that test (clean short lifts 23-30 u, e.g. idx 6347/6376/
      6430); several raw candidates are camera/terrain artifacts and
      need per-window checking first. F=/FC= accumulator tails stay T1.
+9. PR-89 OPEN ITEMS (each flagged in code too):
+   - How the original resolved TWO .SEQ payloads into the ONE payload
+     its shape-collision routine (FUN_00042de0/42cf0) takes: one shared
+     address space at load time, or per-record blocks like the port.
+     Model choice shipped (ll_seq_shape_push2 reads each element from
+     its own record; same-record pairings stay byte-identical).
+   - The 18 .MOV state blocks that open the ATC window (ATC_ON) and
+     never close it: what clears it in the engine? The port clears on
+     state change (model choice; "attack hits forever after one swipe"
+     contradicts the video).
+   - Which factory template instance (0xcecf0/0xcecf8/0xced04) is which
+     .des TYPE - i.e. what carries the `energy*45/100+10` attack
+     (0x34037) and the `energy = -1` never-dies marker. The port ships
+     the 0x34103 dispatcher default 30 until this decodes.
+   - Does the engine's corpse (A_DEAD state) still deal contact damage?
+     The port says no (model choice).
+   - Raising AC_ENEMY_ATC on the LION when he takes contact damage
+     (his many `A_DOSTAL(1)=AC_ENEMY_ATC` lines) - deliberately not
+     shipped with PR-89, needs its own step + re-pins.
 
 ## 8. Plan: tasks, in order. One task = one or a few PRs.
 
@@ -443,7 +470,18 @@ box (`AC_RECT`) and the damage to enemies are decided (enemy hit method slot
 +0xd0, class 0x41180 / 0x3dae0), apply, play the enemy's dead state, remove
 the contact damage. Done when: a scripted run kills one LICHA and a pin shows it.
 (Partially met: the keys and the A_FIGHT entry exist since PR-87; the hit,
-the energy decrement and the death state do not.)
+the energy decrement and the death state do not. MET IN PR-89: the ATC
+window (ATC_ON/ATC_OFF frame flags), the hit through the SAME shape
+contact as the push-out, damage 30 (the 0x34103 default), the
+[obj+0x102]=14 hit countdown, the engine's hp<0 -> A_DEAD-by-name gate,
+and dead objects stop hurting the lion - ZARIA.01's first LICHA dies at
+tick 184 in a pinned scripted run. PR-89 also root-caused the
+lion-vs-object shape reads (each element's margin lists come from its
+OWN .SEQ payload - the old single-payload read used wrong bytes, so the
+PR-59/PR-68 contact pins were re-pinned). Still open for T2/T3: the
+enemies' OWN attacks through their ATC windows (their A_ATAK ATC_ON
+frames vs the lion), the lion-side AC_ENEMY_ATC raise, the 45%-template
+identity - see open question 9.)
 
 **T3. Enemy behaviour.**
 Patrol between `bounds=` (LANDED in PR-79: BY_X states walk at F/4 px/s and
@@ -456,8 +494,11 @@ and attack in a headless run (log pins), and the contact damage uses the state.
 (Partially met: they MOVE and TURN - the verify-play pin now hits a WALKING
 LICHA at tick 199, and PR-82 generalized facing to follow the travel
 direction of every CH_DIR state for objects AND the lion, so a future
-charge/push source turns the sprite with it automatically. Still open: the
-pause-in-place vs walk-burst (DANGER) state gating, `scope=`, and the
+charge/push source turns the sprite with it automatically. PR-89 adds
+the missing attack MECHANICS: the ATC window is parsed for every script
+(the LICHA's A_ATAK opens it at frame -4, closes at -8) and obj_hit is
+symmetric - wiring `o->atc` into a lion-side hit is the next step,
+together with what arms A_ATAK (DANGER + `scope=`, still open) and the
 DANGER charge's own motion, which needs T1's `F`/`I` semantics.)
 
 **T4. Signal bus, pickups, inventory.**

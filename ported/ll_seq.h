@@ -246,4 +246,15 @@ int ll_seq_shape_push(const ll_seq *s,
                       const ll_seq_elem *b, int bx, int by, int bfacing,
                       int *out1, int *out2);
 
+/* the paired form: a's margin lists are read from sa, b's from sb. Use it
+ * whenever the two elements come from different .SEQ records (the lion's
+ * art against an object's art): in the single-payload form the element
+ * offsets of the other record read the WRONG bytes. A same-record pairing
+ * behaves exactly the same through it. See the note at the definition. */
+int ll_seq_shape_push2(const ll_seq *sa,
+                       const ll_seq_elem *a, int ax, int ay, int afacing,
+                       const ll_seq *sb,
+                       const ll_seq_elem *b, int bx, int by, int bfacing,
+                       int *out1, int *out2);
+
 #endif /* LL_SEQ_H */

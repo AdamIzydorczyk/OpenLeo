@@ -670,16 +670,18 @@ int ll_seq_shape_hit(const ll_seq *s,
  * d = l2[first] - l2[last], dr = |first - last|; when d or dr is 0 the
  * result is (best, 0), else (best*dr/(|d|+dr), dr*d/(|d|+dr)) with C
  * truncating division - the push direction follows a slanted surface.
- * Returns best (0 = no overlap, both outputs 0). */
-static int push_scan(const ll_seq *s, const ll_seq_elem *ea, int la, int oa,
-                     const ll_seq_elem *eb, int lb, int ob, int xedge, int xb,
-                     int rows, int *o1, int *o2)
+ * Returns best (0 = no overlap, both outputs 0).
+ * sa/sb name the payloads the two elements' margin lists are read from:
+ * see ll_seq_shape_push2's note on the paired case. */
+static int push_scan(const ll_seq *sa, const ll_seq_elem *ea, int la, int oa,
+                     const ll_seq *sb, const ll_seq_elem *eb, int lb, int ob,
+                     int xedge, int xb, int rows, int *o1, int *o2)
 {
     int best = 0, first = 0, last = 0, i;
 
     for (i = 0; i < rows; i++) {
-        int pen = xedge - marg(s, ea, la, oa + i) -
-                  (marg(s, eb, lb, ob + i) + xb);
+        int pen = xedge - marg(sa, ea, la, oa + i) -
+                  (marg(sb, eb, lb, ob + i) + xb);
         if (pen > 0) {
             if (best == 0) {
                 best = pen;
@@ -695,7 +697,7 @@ static int push_scan(const ll_seq *s, const ll_seq_elem *ea, int la, int oa,
         return 0;
     }
     {
-        int d = marg(s, eb, lb, ob + first) - marg(s, eb, lb, ob + last);
+        int d = marg(sb, eb, lb, ob + first) - marg(sb, eb, lb, ob + last);
         int dr = first > last ? first - last : last - first;
         int ad = d < 0 ? -d : d;
 
@@ -727,15 +729,16 @@ static int push_scan(const ll_seq *s, const ll_seq_elem *ea, int la, int oa,
  * Finally the vertical candidate v = (by+bh-ay < ay+ah-by) ? -(by+bh-ay)
  * : ay+ah-by replaces the push (out1 = 0, out2 = v) when |v| is smaller
  * than both |out1| and |out2|. (Hand-checked against 0x42f21..0x43240.) */
-int ll_seq_shape_push(const ll_seq *s,
-                      const ll_seq_elem *a, int ax, int ay, int afacing,
-                      const ll_seq_elem *b, int bx, int by, int bfacing,
-                      int *out1, int *out2)
+static int shape_pushp(const ll_seq *sa,
+                       const ll_seq_elem *a, int ax, int ay, int afacing,
+                       const ll_seq *sb,
+                       const ll_seq_elem *b, int bx, int by, int bfacing,
+                       int *out1, int *out2)
 {
     int aw, ah, an, bw, bh, bn;
     int ax2, ay2, bx2, by2, al, bl;
     int oa, ob, m, r, d1, d2, v, mx, m1, m2;
-    int sa, sb;
+    int sa_, sb_;
 
     *out1 = *out2 = 0;
     ll_seq_shape_wh(a, &aw, &ah, &an);
@@ -775,22 +778,22 @@ int ll_seq_shape_push(const ll_seq *s,
         return 0;
     m1 = m / 2;
     m2 = m - 1;
-    sa = 6 * ax2 + 3 * aw;
-    sa += marg(s, a, al, oa) - marg(s, a, 1 - al, oa);
-    sa += marg(s, a, al, oa + m1) - marg(s, a, 1 - al, oa + m1);
-    sa += marg(s, a, al, oa + m2) - marg(s, a, 1 - al, oa + m2);
-    sb = 6 * bx2 + 3 * bw;
-    sb += marg(s, b, bl, ob) - marg(s, b, 1 - bl, ob);
-    sb += marg(s, b, bl, ob + m1) - marg(s, b, 1 - bl, ob + m1);
-    sb += marg(s, b, bl, ob + m2) - marg(s, b, 1 - bl, ob + m2);
+    sa_ = 6 * ax2 + 3 * aw;
+    sa_ += marg(sa, a, al, oa) - marg(sa, a, 1 - al, oa);
+    sa_ += marg(sa, a, al, oa + m1) - marg(sa, a, 1 - al, oa + m1);
+    sa_ += marg(sa, a, al, oa + m2) - marg(sa, a, 1 - al, oa + m2);
+    sb_ = 6 * bx2 + 3 * bw;
+    sb_ += marg(sb, b, bl, ob) - marg(sb, b, 1 - bl, ob);
+    sb_ += marg(sb, b, bl, ob + m1) - marg(sb, b, 1 - bl, ob + m1);
+    sb_ += marg(sb, b, bl, ob + m2) - marg(sb, b, 1 - bl, ob + m2);
     d1 = by2 + bh - ay2;
     d2 = ay2 + ah - by2;
     v = d1 < d2 ? -d1 : d2;
-    if (sb > sa) {
-        r = push_scan(s, a, 1 - al, oa, b, bl, ob, ax2 + aw, bx2, m,
+    if (sb_ > sa_) {
+        r = push_scan(sa, a, 1 - al, oa, sb, b, bl, ob, ax2 + aw, bx2, m,
                       out1, out2);
     } else {
-        r = push_scan(s, b, 1 - bl, ob, a, al, oa, bx2 + bw, ax2, m,
+        r = push_scan(sb, b, 1 - bl, ob, sa, a, al, oa, bx2 + bw, ax2, m,
                       out1, out2);
         *out1 = -*out1;
         *out2 = -*out2;
@@ -804,4 +807,38 @@ int ll_seq_shape_push(const ll_seq *s,
         *out2 = v;
     }
     return r;
+}
+
+int ll_seq_shape_push(const ll_seq *s,
+                      const ll_seq_elem *a, int ax, int ay, int afacing,
+                      const ll_seq_elem *b, int bx, int by, int bfacing,
+                      int *out1, int *out2)
+{
+    return shape_pushp(s, a, ax, ay, afacing, s, b, bx, by, bfacing,
+                       out1, out2);
+}
+
+/* The paired form: element a's margin lists are read from sa and
+ * element b's from sb. WHY this exists: the port keeps one parsed blob
+ * per .SEQ record, while the element offsets inside one blob are only
+ * meaningful in that blob. The single-payload form above (the shape the
+ * engine's own routine has) silently read WRONG bytes when the two
+ * elements came from different records - measured 2026-11-17 on
+ * ZARIA.01: with the lion's FIGHT.SEQ element 9 tested against a
+ * worm's MOVE.SEQ element through the worm's payload, the test answered
+ * "no contact" at x-offsets where the correct margins overlap (python
+ * shape_geom on both payloads: contact starts at an x-distance of
+ * ~26..31 px; the mixed read returned 0 all the way to dx = 1). How
+ * the original resolved the two payloads (one shared address space at
+ * load time, or per-record blocks like here) is not pinned - an open
+ * question (NEXT_STEPS); the per-element read is the model, and any
+ * same-payload pairing stays byte-identical through it. */
+int ll_seq_shape_push2(const ll_seq *sa,
+                       const ll_seq_elem *a, int ax, int ay, int afacing,
+                       const ll_seq *sb,
+                       const ll_seq_elem *b, int bx, int by, int bfacing,
+                       int *out1, int *out2)
+{
+    return shape_pushp(sa, a, ax, ay, afacing, sb, b, bx, by, bfacing,
+                       out1, out2);
 }

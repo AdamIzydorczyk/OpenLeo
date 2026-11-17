@@ -4002,6 +4002,76 @@ in a loop continuously". Both root-caused, both fixed, both pinned.
         "1000000,350" two-value forms = min,max - which one applies at
         spawn is OPEN.)
 
+## PR-89 — the lion's attack lands: ATC window, enemy energy, death —
+          and a root-cause fix for every lion-vs-object shape contact
+          (DONE 2026-11-17; T2's stated goal "kill the first LICHA" met)
+
+  - MEASURED (extracted .MOV texts, all 777): `ATC_ON`/`ATC_OFF` are
+    frame-tail directives (engine directive table 0x917c0, decoded in
+    adcea5f) and the scripts PAIR them: 267 state blocks open AND close
+    the window (ZARIA's A_FIGHT: ATC_ON at frame 8 - just before its
+    `FC 100,0` lunge - ATC_OFF at 13, re-open at 17; LICHA3's A_ATAK
+    opens at frame -4, closes at -8), 18 blocks open without closing.
+    Ported: `ll_mov_fr.atc` flags + `ll_player.atc`/`atc_hit`
+    (ll_play.c/h) - the window opens on an ATC_ON frame and STAYS open
+    until an ATC_OFF frame closes it; for those 18 it is also cleared
+    on every state change (MODEL CHOICE: the engine's own clearing rule
+    is unpinned; an attack hitting forever after one swipe is not what
+    the video shows). One hit per opened window (`atc_hit`).
+  - The engine pipeline (the T2 RE lead above) is what this ports:
+    a touch runs the push-out and only then the hit effects
+    (0x552e0 -> 0x55230); the port runs the attack hook between the
+    push-out and the contact-damage block in play_collide, with the
+    engine's own numbers: the dispatcher default `mov ebx,0x1e` =
+    **damage 30** (0x34103, the only value shipped data points to),
+    the `[obj+0x102]` invulnerability countdown default **14** (0x27264;
+    the lion's own 30 at 0x50304 was already ported as pl->lock),
+    `energy = -1` = never hit-able (the engine's own marker, 0x340f5),
+    the death gate `cmp [eax+0xad],0; jge` = **hp < 0** (0x544a5).
+  - Death enters the script's A_DEAD state BY NAME because the engine
+    forces it (340 of the 413 scripts with an A_DEAD state have NO
+    transition line into it; the string is hardcoded at 0x9068c et al.).
+    A script with no A_DEAD state keeps its state (what the engine does
+    there is open, so nothing is invented). INFERENCE, flagged in code:
+    the hit raises AC_ENEMY_ATC on the HIT object's own set so its own
+    `A_DOSTAL(1)=AC_ENEMY_ATC` line reacts - 0 of 279 shipped GEN lines
+    raise it, so the combat code must be the raiser (PR-88 mechanism,
+    no new machinery). Deliberately NOT raised on the lion (that would
+    re-pin the walking fixtures; its own step). Dead objects stop
+    dealing contact damage (model choice - whether the engine's corpse
+    still hurts is not pinned).
+  - ROOT-CAUSE FIX, bigger than the feature: `ll_seq_shape_push(oseq,
+    oe, ..., le, ...)` read the LION element's margin lists out of the
+    OBJECT's payload - element offsets are payload-relative and the port
+    keeps one blob per .SEQ record - so EVERY lion-vs-object shape
+    contact before PR-89 used wrong bytes (measured: FIGHT.SEQ el 9 vs
+    the worm's MOVE.SEQ el 5 through the worm's bytes said "no contact"
+    at every distance where the correct margins overlap from ~26-31 px).
+    Added the paired form `ll_seq_shape_push2(sa, a..., sb, b...)`
+    (ll_seq.c/h) and play_collide uses it. How the ORIGINAL resolved
+    two elements into the single payload its own routine takes (one
+    shared address space at load time, or per-record blocks like here)
+    is NOT pinned - open question; the per-element read is the model,
+    and any same-payload pairing stays byte-identical through it
+    (pinned in seq_push_selftest).
+  - Pins: new seq_push_selftest paired-payload leg (fixture blob_b left
+    [0,2,4,6] right [4,6,1,3]: paired hit@8, push2@8 ret -8 push
+    (-2,2), push2@12 ret -4 push (-1,1), the single-form through one
+    payload answers ret -12 push (-4,2) - different numbers, the wrong
+    bytes - and push/push2 byte-identical on a same-payload pairing;
+    values measured with tools/shape_geom.py), the obj_hit selftest
+    (countdown, -1 energy, A_DEAD-by-name at hp<0, no double hit), and
+    Makefile legs: PR-59's solid leg RE-PINNED (was EDGE0046 at tick
+    54 - a wrong-bytes artifact - now edge0041 pushes back 1 px at
+    tick 28), PR-68's enemy-contact tick RE-PINNED 181 -> 175 (the
+    wrong bytes made the worm's silhouette too wide, so the touch came
+    ~6 px = 6 ticks early), and a NEW PR-89 leg: `1:FIRE,F1 75:NONE`
+    on ZARIA.01 -> A_WALK -> A_FIGHT, one hit, `lion KILLS LICHA/
+    licha3.mov: damage 30 -> hp -10 (dead)` at tick 184 (A_FIGHT at 75,
+    its frame-8 ATC_ON open at 160 - model pins, not video numbers),
+    no `lion hits` line (exactly one hit per window) and the killed
+    worm never deals contact damage again.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
