@@ -5877,7 +5877,16 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
          *     ll_mod.h).  Same singleton as the MAPKA screen; the scene
          *     loop below pumps it (platform queue path, see the note at
          *     the top of this file - callback delivery is unreliable on
-         *     SDL2+PipeWire, so the backend opens devices queue-only). */
+         *     SDL2+PipeWire, so the backend opens devices queue-only).
+         *     Engine comparison (PR-104): the grammar names ONLY this
+         *     per-level tune.  Each level's lion CLASS additionally
+         *     carries a hard-coded death theme - LOOSER.MOD (ZARIA),
+         *     ENA2ED, KADMDEAD, K2DEAD, SADESDEA, RAN1, KARADE,
+         *     lonade, with DEATD.MOD as the default - played through
+         *     the same music object (0xcf068) when the state machine
+         *     reaches row 0 of the current state.  Those themes appear
+         *     in no authored file, so this port cannot model them
+         *     from data alone (NEXT_STEPS PR-104). */
         if (audio && !getenv("LEO_NO_MUSIC")) {
             const char *muz = des_get(kvs, nk, "muzyka");
             if (muz && *muz) {

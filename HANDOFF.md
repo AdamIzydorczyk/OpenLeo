@@ -855,6 +855,36 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      eleven placement names that match no literal (GLON, ROZGWIAA/B/C,
      STULB_D, and SEP/PARROT/SNAKE/LICHA/PAJAK/NOSOROG in an unmapped
      block at 0x9320b), and what the per-class methods actually do.
+   - PR-104 READS THE LION CLASSES (RE only, nothing pinned). All
+     thirteen TLew<level> factory cases and their class tables:
+     sizes 0x12a..0x162, two shared bases (0x500b0 -> pair 0xa2218/
+     0xa2210 for ENA2/KADMAR2/KARA/TUNGA1/JUNCTION, 0x1e0a0 ->
+     0x97970/0x97968 for both ZARIA classes), per-class fields like
+     `[obj+0xf6]` = 2000/1500 defaults carried IN the class, not in
+     the data. The headline: every level's lion has a death-theme
+     method - read `[[rec]+4]` (the CURRENT state's row index), if 0
+     and global 0xcf074 is 0, play a hard-coded .MOD through the
+     music singleton 0xcf068 (the port's own mapka.mod anchor), then
+     tail-call the base hook 0x52750. LOOSER.MOD ZARIA, ENA2ED,
+     KADMDEAD, K2DEAD, SADESDEA, RAN1, KARADE, lonade LONA, and the
+     default DEATD.MOD gated additionally by `[[obj]+0x126]==0` in
+     class 0x97bc0. Those themes exist NOWHERE in the authored files
+     - `muzyka=` names only the level tune - so no data-only port
+     can know them. The default version of the slot is 0x50300 at
+     [[obj+8]+0xe4] in every lion table measured; the overrides sit
+     at +0x128/+0x1d4/+0x1f0/+0xe4/+0x20c, confirming slot numbers
+     are per-class. Census correction: PR-103's pair scan saw only
+     `[reg+0x8]/[reg+0xc]`; lion ctors whose `this` is not the
+     object base write their pair at other offsets (TLewEna at
+     [obj+0x1c], TLewSades [obj+0x3c], TLewTunga2 [obj+0x0]), so
+     the class count is above 163 and the "0x98278 scalar [obj+0xc]"
+     exception reads better as an embedded object used as a member.
+     PR-103 open item 4 closes: the 0x4e9fe stub and its callees are
+     per-level global-state zeroing (e.g. `mov [0xcee24],0; ret`),
+     not factory chains. Still open: the `[[obj]+0x126]`/0xcf074/
+     `[[0xcef40]+0x394]`+0x106 flags, why the guard is "row 0", the
+     rest of the lion method bodies, the owner table of the ZARIA
+     method, and the identity of class 0x97bc0.
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
      files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's
@@ -938,8 +968,11 @@ than universal (0x543a0 sits at +0xa0 in 118 classes, 0x536f0 at +0x14
 in 24). What is left of that line of work is now narrower: who
 APPENDS to `[obj+0x3c]` and fills `[obj+0x50]` (the ctor chain only
 initialises them; PR-103 open item 2), what the per-class methods do
-(the natural next target is the TLew* classes and the `.mod` model
-names their literals sit next to), and the RATE of the step at 0x521f0
+- PR-104 read the first whole method of the TLew* lion classes (a
+death-theme hook that plays a hard-coded `.MOD` through the music
+singleton when the current state's row index is 0; the themes are
+named NOWHERE in the authored data) and the rest of their bodies is
+still open - and the RATE of the step at 0x521f0
 (0x536f0 runs the whole switch and 0x550a0, its one direct caller, is
 a handler tail);
 "100 units" of the level global's +0x388 feed is half-closed

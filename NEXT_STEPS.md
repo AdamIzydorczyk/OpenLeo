@@ -6735,6 +6735,190 @@ work), class_usage.txt (the authored-data cross-check).
   resolved at parse time through the case-insensitive 0x53440). No
   behaviour change, no pin moved.
 
+## PR-104 — the TLew* lion classes: all thirteen factory cases and
+their class tables, the per-level death-theme methods that play a
+hard-coded .MOD through the music singleton (the class map supplies
+music data the authored grammar never names), the base-lion ctor and
+its default state-entry hook, and a correction to PR-103's pair
+census (RE only: no behaviour change, no pin moved)
+
+Works PR-103's open item 5 ("what the per-class methods DO - TLew*
+and the `.mod` names are the natural next target"). No behaviour
+change and no play pin moved. Method as before: objdump of
+/tmp/opencode/vis/text.bin, words and strings from build/leo/leo.elf,
+authored data from the ETAPY/ANIMACJE/SOUND containers. Tools: the
+PR-103 set (objfactory.py, objfactory2.py, objcensus2.py, xref.py)
+plus objslot.py (finds every image dword equal to a code address and
+annotates which measured class-table pair and slot owns it).
+
+- THE THIRTEEN LION CLASSES, EVERY FACTORY CASE. All thirteen
+  TLew<level> literals exist in .data (0x9078b..0x91391, each in the
+  same packed block as that level's `.mod` name, its class name and
+  its A_DEAD/A_LOOKUP state names - the literals really are packed
+  back to back, which is also why `KARADE.MOD` at 0x90ff0 is the
+  tail of the string `TLewKaraDE...` and `RAN1.MOD` at 0x90e70 the
+  tail of `TLewRanPOCISK...` read from a different start). The cases
+  are at 0x1fef4 ZARIA, 0x1ff26 ZARIA B, 0x25510 ENA, 0x269a1 ENA2,
+  0x29b01 KADMAR, 0x2bfa1 KADMAR2, 0x2f0f0 SADES, 0x33501 RAN,
+  0x35201 KARA, 0x38a2f LONA, 0x3a434 TUNGA1, 0x3a466 JUNCTION,
+  0x3b14f TUNGA2 - five of them (ENA, SADES, LONA, KADMAR's tail and
+  TUNGA2) sit at a non-instruction-boundary in the objdump listing
+  and were missed by PR-103's line scan - PR-103 NAMED all thirteen
+  classes but recorded a construction site and table pair for only
+  eight of them. Sizes 0x12a..0x162; ctors
+  0x1e0a0 (both ZARIA), 0x24110 ENA, 0x500b0 (the SHARED base ctor:
+  ENA2, KADMAR2, KARA, TUNGA1, JUNCTION), 0x27030 KADMAR, 0x2df60
+  SADES, 0x31ff0 RAN, 0x36390 LONA, 0x3b180 TUNGA2.
+- THE CLASS TABLES (name = the pair the ctor or the case writes):
+  TLewZaria 0x96960/0x96958 (over the base 0x97970/0x97968 that its
+  ctor 0x1e0a0 sets), TLewZariaB 0x97a98/0x97a90, TLewEna
+  0x988ec/0x988e4 (written inside 0x24110 at `[this-0x12e]/-0x12a`,
+  size 0x14a), TLewEna2 0x98f34/0x98f2c, TLewKadmar1 0x9a54c/0x9a544
+  (inside 0x27030, with `[obj+0xf6]=0x5dc`), TLewKadmar2
+  0x9b4d4/0x9b4cc, TLewSades 0x9c958/0x9c950 (inside 0x2df60 at
+  `[this-0x1ae]/-0x1aa`, size 0x1ee), TLewRan 0x9d338/0x9d330 (the
+  ctor ALSO writes 0x9d338 twice, at 0x31ff5 and 0x3204d), TLewKara
+  0x9e134/0x9e12c, TLewLona 0x9f380/0x9f378 (also 0x9f298/0x9f290
+  through copy paths 0x39b23/0x39bad/0x73e55), TLewTunga1
+  0x9f668/0x9f660, TLewJunction 0x9f540/0x9f538, TLewTunga2
+  0xa0624/0xa061c (inside 0x3b180 at `[this-0x13a]/-0x136`, size
+  0x162).
+- THE SHARED BASE-LION CLASS. All of ENA2/KADMAR2/KARA/TUNGA1/
+  JUNCTION (and through their own ctors, ENA/SADES/TUNGA2) chain to
+  one ctor 0x500b0 = base chain 0x53ff0 + the lion fields
+  `[+0xee]=0 [+0xf2]=1 [+0xf6]=0x7d0 [+0xfa]=0 [+0xfe]=0 [+0x102]=0
+  [+0x106]=1 [+0x112]=0 [+0x11a]=0 [+0x11e]=0 [+0x10a]=0` and the
+  pair `0xa2218/0xa2210`. The ZARIA pair uses a different base
+  chain, 0x1e0a0 = 0x500b0 + `[obj+0x12a]=0` + a `dl` byte-preserving
+  store at [obj+0xb6] + `[obj+0xad]=0x1f4` + pair 0x97970/0x97968 -
+  so there are exactly two lion bases, and the per-level classes sit
+  on one of them. Field defaults note: `[obj+0xf6]` (PR-102 found a
+  row-node field set to the same 0x2710/0x5dc/0x7d0 family) is set to
+  2000 by the base, 500 (0x1f4 at [obj+0xad]) by the ZARIA base and
+  1500 (0x5dc) by TLewKadmar1 - per-level tuning numbers carried IN
+  THE CLASS, not in the data.
+- THE DEATH-THEME METHODS - THE MAIN FINDING, AND A DATA-SOURCE ONE.
+  Ten methods, all the same body: read `[[[obj+0x50]+[obj+0x5c]*4]
+  +4]` - the CURRENT STATE RECORD's row index (the same field
+  0x53410 answers and PR-102's `TARGET(N)` writes) - and if it is 0,
+  and global 0xcf074 is 0, `mov eax,0xcf068; mov edx,<"NAME.MOD">;
+  call 0x562e0` (once 0x562c0, which first copies `[obj+0x3c]`);
+  then tail-call 0x52750, the base version of the same method.
+  0x562e0/0x562c0 are the music object's play methods on the
+  singleton at 0xcf068 - the port already anchors that object (its
+  ll_level.c comment "Engine anchor: FUN_0005dec0 opens+plays
+  mapka.mod for the MAPKA screen"), and 0x56010 appends the
+  extension literal `.mod` (0x922e2) and reads the file;
+  0x56270/0x56310/0x56330 start/restart playback.
+  The method and its .MOD, per level: 0x23f96 LOOSER.MOD (ZARIA,
+  owner table unlocated - open item 4), 0x26470 ENA2ED.MOD (at
+  [[TLewEna's second base 0x9916c]+0x1d4] and [[0x99258]+0xe8]),
+  0x26fd0 KADMDEAD.MOD ([[0x9a674]+0x1f0] and [[0x9a778]+0xec]),
+  0x2c360 K2DEAD.MOD ([[TLewKadmar2 0x9b4d4]+0x128]), 0x2defe
+  SADESDEA.MOD, 0x31fa0 RAN1.MOD ([[TLewRan's second base
+  0x9d460]+0xe4]), 0x33c60 KARADE.MOD ([[TLewKara 0x9e134]+0x128]),
+  0x361e4 LONA lonade.mod (in the TLewLona pair's neighbourhood:
+  [[0x9f298]+0x1d0]/[[0x9f380]+0xe8]), 0x4ffb0 DEATD.MOD - the
+  DEFAULT version, which also requires `[[obj]+0x126] == 0`, at
+  [[0x97bc0]+0xe4] - and 0x97bc0 is NOT a lion table (108 of its
+  first 144 slots differ from the base-lion table; it is built by
+  0x22fc3/0x3ff70/0x53a30/0x1e0a0/0x3fb80/0x36390 and re-typed at
+  0x202f5/0x62e59, so its identity stays open). The .MOD names
+  themselves all exist as SOUND-container records (LOOSER.MOD,
+  ENA2ED.MOD, KADMDEAD.MOD, K2DEAD.MOD, SADESDEA.MOD, RAN1.MOD,
+  KARADE.MOD, MAPKA.MOD, LEW.MOD, PIRAMID.MOD, PODWODA.MOD,
+  RAN.MOD, KARA.MOD, LONA.MOD, KADMAR2.MOD, ENA2.MOD; the container
+  spells them upper-case, and a `strings` read of its index shows
+  one-`~`/`n`-prefixed forms like `~RAN1.MOD` and `nLONADE.MOD`).
+  WHY THIS MATTERS FOR THE PORT: the level `.des` grammar names only
+  the level tune (`muzyka=`), which the port plays; these death
+  themes appear NOWHERE in the authored files - they are hard-coded
+  in the lion classes, so the class map is the only source for them,
+  and no data-only port can find them. (The SOUND container keeps
+  them upper-case: `LOOSER.MOD`, `KARADE.MOD`, `RAN1.MOD`...) The
+  guard makes the hook a
+  "the state machine has arrived at row 0 of the current state"
+  event; the default version of the slot is 0x50300, and it sits at
+  **[[obj+8]+0xe4] in every lion table measured** (TLewZaria, Ena,
+  Ena2, Kadmar2, Sades, Tunga1, Junction, ZariaB, Tunga2 and both
+  lion bases 0xa2218 and 0x97970; TLewLona's copy answers it at
+  +0x2a4). Per-level overrides at other slots (+0x128 for Kadmar2
+  and Kara, +0x1d4/+0x1f0/+0xe4 in the second-base tables, +0x20c
+  for ZariaB/Ran/0x97970) - so, exactly as PR-103 said, the slot
+  number is a property of the class, and only the +0xe4 default is
+  common.
+- 0x52750 IS THE BASE VERSION OF THE HOOK: it brackets work with
+  three calls through the object's attribute set `[obj+0x44]`
+  (`call [[obj+0x44]+0x2c]`, `+0x30`, `+0x34`, all with a stack
+  buffer) and between them `call [[[obj]+8]+0xc8]` - the
+  [[0xcef40]-style owner/level object's own hook at +0xc8]. The
+  KADMAR and LONA versions additionally write
+  `[[0xcef40]+0x394]+0x106 = 1` - the same field the base lion ctor
+  initialises to 1, reached through a pointer the level global keeps
+  at +0x394 (its sibling +0x398 is the ANIMACJE name->index object) -
+  consistent with "re-arm the lion object"; and the generic 0x4ffb0
+  version is gated by `[[obj]+0x126] == 0` (a field in the 0xee..
+  0x12a block the base ctor initialises) - the meaning of both flags
+  is open item 1.
+- CORRECTION TO PR-103'S CENSUS METHOD (not to its findings): the
+  163-pair count came from scanning ONLY the shapes
+  `mov [reg+0x8],T; mov [reg+0xc],T`. A wider scan of every write of
+  a 0x96000..0xb0000 immediate inside .text finds 1982 sites, and the
+  lion classes above show why the narrow shape under-counts: a ctor
+  whose `this` is not the object base writes its pair at the object's
+  real offset relative to ITS register (`[eax-0x12e]` for TLewEna =
+  `[obj+0x1c]`, `[eax-0x1ae]` for TLewSades = `[obj+0x3c]`,
+  `[eax-0x13a]` for TLewTunga2 = `[obj+0x0]`). So the class count is
+  higher than 163, and PR-103's "[obj+0xc] is a scalar 0/1/0xff"
+  exception class deserves the same re-read: the same tool ALSO shows
+  0x98278 and 0x98274 written as a MEMBER at many offsets ([eax-0x4],
+  [edx+0x8], [esp+0xa8], [obj+0x4c]...), which fits PR-101's
+  0x98278-indirect call being an embedded object referenced by
+  several classes rather than a class table. (The 1982 number also
+  includes PR-101/102's known non-vptr table writes - the record
+  class at [rec+0x44], node classes at [rec+0x2e]-range slots, the
+  0x961fc/0x96200 sentinel pairs - so it is a census of table-
+  immediate writes, not of vptr pairs.)
+- PR-103 OPEN ITEM 4 IS CLOSED. The 0x4e9fe stub's three callees -
+  0x38a60, 0x29b30, 0x3a4a0 - are not factory chains: 0x3a4a0 is
+  `mov [0xcee24],0; ret`, 0x67e60 (the KADMAR case's tail call at
+  0x29b2b) is `mov [0xcf4ec],0; ret`, 0x36650 zeros 0xced10/0xced14,
+  0x37af0 zeroes a 7-dword array at 0xcedf0; 0x38a60 chains those
+  level-state zeroing helpers. No raw dword anywhere in the image
+  equals 0x4e9fe or those callees outside their own call sites, so
+  the stub is an unreferenced group of per-level global-state
+  resetters - dead or reached through an unread pointer; either way
+  it names no classes.
+- WHAT THIS DOES NOT SETTLE (PR-104's open items):
+  1. The flags: `[[obj]+0x126]` (gates the default death hook),
+     global 0xcf074 (gates all of them), `[[0xcef40]+0x394]` (the
+     lion pointer) and the re-armed `+0x106`.
+  2. The exact semantics of the hook slot: "row index == 0" is
+     measured, but WHY row 0 (state-entry? a mid-state start-row
+     suppressing the theme - PR-102 showed `TARGET(N)` can start a
+     state at row N) is inference, and 0x50300 (the default) has not
+     been read.
+  3. What any OTHER lion method does - only this one slot family has
+     been read; the lion classes' move/camera/script logic (the
+     `A_LOOKUP`/`A_LOOKDOWN` compares near those literals) is still
+     the open work.
+  4. The owner table of the ZARIA LOOSER.MOD method 0x23f96 (found
+     in no measured pair up to +0x300), and the identity of class
+     0x97bc0 (its +0xe4 is the DEATD version; it is constructed by
+     six different ctors and re-typed at 0x202f5/0x62e59).
+  5. The MI layouts: why TLewEna's pair sits at [obj+0x1c] with the
+     base subobject pointer at +0x14, and where TLewKadmar1's and
+     TLewKara's second-base tables are.
+  6. Whether the port should play these themes: that is a FEATURE
+     question (the data does not name them; only this RE does), so
+     it is recorded as an option, not pinned.
+- Docs: this record in NEXT_STEPS.md; mirrored into HANDOFF.md §7
+  item 13 and the §8 class-map paragraph; one engine-comparison
+  comment added at the `muzyka=` block in ported/ll_level.c (the
+  engine also plays hard-coded per-level death themes through the
+  same music object - the class map, not the grammar). No behaviour
+  change, no pin moved.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
