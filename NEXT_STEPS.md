@@ -8852,9 +8852,30 @@ asserted 20 times at zero tolerance instead of once
   is noise against the suite and the price of not depending on one
   sample. The diagnostic printed here:
   `early=0 unsupported=0 worst_undershoot_us=0`.
-- OPEN ITEMS. (1) The mechanism is unresolved until the new diagnostic
-  prints on a Windows run (or the handheld wakes and runs
-  `/tmp/opencode/cnsl.c`). (2) Run 101 (`44043011593`) is still red in
+- OPEN ITEMS. (1) The mechanism: SEEDED - the next run changed the
+  answer. Run 136 / 44180333781 (the follow-up push's CI, 20 s later on
+  the same runner class) prints on its `windows-smoke` leg, job
+  134382654217, log line 444:
+  `diag raw-CRT clock_nanosleep 20ms x20: early=1 unsupported=0
+  worst_undershoot_us=40` - one raw `clock_nanosleep(TIMER_ABSTIME)`
+  call returned **40 microseconds before its absolute deadline**. Two
+  Windows samples in total: run 135 `early=0`, run 136 `early=1
+  worst=40us`; the asan (glibc) legs print `early=0` in both runs. So
+  the early-wake behaviour is REAL and intermittent, and 40 us is well
+  inside the sub-millisecond class the two CI failures needed. That is
+  not proof it caused those two failures (they needed >= ~0.1 ms of
+  undershoot, and 40 us is what the next sample happened to show), but
+  the mechanism is now supported by a direct measurement instead of
+  being an open guess, and the "backward clock step" theory is no
+  longer needed to explain anything. It also retrospectively validates
+  the framing of this PR: the defect was in trusting one CRT call, and
+  the fix - re-reading our own clock - is exactly what a 40 us early
+  wake needs. The diagnostic keeps counting for free on every future
+  run; a growing `early=` count with a larger `worst_undershoot_us`
+  would quantify the residual for the record. Not proven causal for the
+  two failures (40 us is one sample; they needed >= ~0.1 ms) - the
+  evidence is that the behaviour exists, not that it was the whole of
+  those runs. (2) Run 101 (`44043011593`) is still red in
   the history - it was never rerun; nothing was done to it, and its tree
   predates PR-110/111. (3) The suite still has exactly one
   wall-clock-dependent assertion; if it ever needs a second, it should
@@ -8891,6 +8912,27 @@ asserted 20 times at zero tolerance instead of once
   backward step would hang the selftest rather than fail it. A limit was
   left out deliberately: a bounded loop that gives up would reintroduce
   exactly the silent undershoot this PR removes.
+- THE DIAGNOSTIC ANSWERS DIFFERENTLY 20 SECONDS LATER (supersedes the
+  sentence in the bullet above, quoted rather than edited there): it said
+  the diagnostic printed `early=0 ... worst_undershoot_us=0` on the
+  Windows leg and concluded the early-wake theory "did not reproduce".
+  Run 136 / 44180333781 (the push of that very sentence) prints, on its
+  `windows-smoke` leg, job 134382654217, log line 444:
+  `diag raw-CRT clock_nanosleep 20ms x20: early=1 unsupported=0
+  worst_undershoot_us=40` - one raw `clock_nanosleep(CLOCK_MONOTONIC,
+  TIMER_ABSTIME)` call came back **40 microseconds before its absolute
+  deadline**, with its three sleep_until checks still ok. Tally so far:
+  windows 135 `early=0`, windows 136 `early=1 worst=40us`, glibc (asan)
+  `early=0` in both. That is the first direct evidence of the behaviour,
+  and it has exactly the shape the two failures needed: intermittent,
+  Windows-only, sub-millisecond. Two honest limits: 40 us is one sample
+  and the failures needed >= ~0.1 ms, so this does not prove those two
+  runs undershot that far; and 2 windows + 2 asan runs is a tiny census.
+  What changed is the status of the explanation - it is no longer a
+  guess with no supporting measurement, and the "backward clock step"
+  theory is no longer needed to explain anything. Nothing in the code
+  changes: re-reading our own clock is exactly what a 40 us early wake
+  needs, which is why the fix was written to not depend on the answer.
 
 ## Next — pick from the Deferred list below
 

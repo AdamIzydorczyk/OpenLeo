@@ -321,15 +321,19 @@ Pitfalls seen:
   absolute-deadline sleep instead of re-checking its own clock (the SDL
   backend has always re-checked); the selftest now samples the contract
   20x at zero tolerance and prints the raw CRT call's undershoot as a
-  diagnostic. On this Linux box that diagnostic reads
-  `early=0 worst_undershoot_us=0` - glibc keeps the deadline, which is
-  why the defect was Windows-only. After PR-112 the same diagnostic on a
-  real Windows runner (`ci` run 135, job 134381308755) also reads
-  `early=0 worst_undershoot_us=0` for 20 samples, i.e. the
-  "the CRT wrapper wakes early" theory did NOT reproduce on demand; a
-  rare backward step of the clock is the surviving candidate and
-  neither is pinned. Treat the leg as fixed-but-watched: if it fails
-  again, the diag line in that job's log is the first thing to read.
+  diagnostic. The mechanism is now SEEDED by a direct measurement, two
+  runs after the fix: that diagnostic on a real Windows runner reads
+  `diag raw-CRT clock_nanosleep 20ms x20: early=1 unsupported=0
+  worst_undershoot_us=40` (ci run 136 / 44180333781, job
+  134382654217, log line 444) - a raw `clock_nanosleep(CLOCK_MONOTONIC,
+  TIMER_ABSTIME)` call returned 40 us BEFORE its absolute deadline. The
+  run before it (135) printed `early=0`, and every glibc leg prints
+  `early=0`, which is exactly the intermittent, Windows-only,
+  sub-millisecond shape the two failures had. Not proof they were
+  caused that way (40 us is one sample), but the old code was wrong to
+  trust that call, and the fix covers it whatever the true magnitude.
+  If the leg ever fails again, the diag line in that job's log is the
+  first thing to read.
 - peak `ll_level` RSS is ~1.1 GB (RAN.01); run one level at a time.
 
 ## 4. Architecture map
