@@ -825,6 +825,36 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      2.0x off in this port's reading. Nothing pinned; the cadence
      number (how often 0x521f0 runs) is now the only thing between this
      and a frame rate.
+   - PR-103 NAMES THE OBJECT CLASSES (RE only, nothing pinned). The
+     class map is a name factory: 0x4df10, called from exactly two
+     places (0x4aac3, 0x4dcdc), both right after a `' %[^,\r\n] , '`
+     read - the first field of the placement lines this port already
+     parses. Each candidate is a case block: case-insensitive compare
+     (0x76a69 folds A-Z), `new(size)`, base ctor, then the pair write
+     `[obj+8]=T+8; [obj+0xc]=T`. It first tries a generic 31-name
+     chain (ANIBACK ZWIERZ POCISK MOVEPLAT GRUPA BERLO ...), then
+     calls eleven per-level sub-factories: ZARIA ENA ENA2 KADMAR
+     KADMAR2 SADES RAN KARA TUNGA1 TUNGA2 LONA. Census: 394 pair
+     writes / 163 distinct class-table pairs; 107 class names captured
+     at name-tested sites; 157/163 pairs have `[obj+8] = [obj+0xc]+8`
+     exactly (one method list, two base headers 2 slots apart; the
+     exceptions include two classes where [obj+0xc] is a scalar 0/1/
+     0xff and three wide multiple-inheritance pairs). Every level
+     group ends with a TLew<level> class (TLewZaria ... TLewJunction)
+     - the engine's lion is a per-level C++ class, and the groups sit
+     next to per-level `.mod` model names and A_DEAD state names.
+     Slot meanings are per class: 0x543a0 sits at [[obj+8]+0xa0] in
+     118 classes, and PR-100's 0x536f0 at [[obj+8]+0x14] in 24 - so
+     the port's [[obj+8]+off] hook offsets belong to the measured
+     families. Also corrected from PR-102: entry+0x11 = N-1 (or -1
+     when `( N )` is absent), the TARGET name resolves at PARSE time
+     through the case-insensitive 0x53440, and 0x531f0 (a ctor in the
+     chain 0x3d8c0->0x53ff0->0x531f0->0x52860) sets [obj+0x5c]=1 -
+     state indices are 1-based. Still open: who appends to the
+     [obj+0x3c] state-name table, the upstream placement callers,
+     eleven placement names that match no literal (GLON, ROZGWIAA/B/C,
+     STULB_D, and SEP/PARROT/SNAKE/LICHA/PAJAK/NOSOROG in an unmapped
+     block at 0x9320b), and what the per-class methods actually do.
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
      files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's
@@ -896,12 +926,22 @@ the vector at `[rec+0x1a]`, and the derived record parser 0x52590 that
 reads `F=`/`T=`/`G=` and delegates every other line to 0x51910) and
 its authored form (`TARGET(N)=<key expression>` inside a state
 section), and 0x47e40's four key-match cases. This port parses that
-row number (PR-86) and ignores it. What is left of that line of work
-is the object-class map (who
-fills `[obj+0x3c]`/`[obj+0x50]` and the `[[obj+8]+0x54/+0x8c/+0x90/
-+0xac/+0xa8/+0x70/+0x04]` hooks - PR-100 item 5, now the biggest
-open item) and the RATE of the step at 0x521f0 (0x536f0 runs the
-whole switch and 0x550a0, its one direct caller, is a handler tail);
+row number (PR-86) and ignores it, and PR-103 corrects the row number
+itself: the engine stores `( N )` as N-1, or -1 when the part is
+absent, and resolves the TARGET name to a state index at PARSE time
+through the case-insensitive 0x53440. PR-103 then read the class map
+PR-100 item 5 asked for: it is a name factory at 0x4df10 keyed on the
+first field of the placement lines (case-insensitive), 163 class-table
+pairs, 107 named classes including a TLew<level> lion class per stage,
+and it shows the `[[obj+8]+off]` hook offsets to be per-class rather
+than universal (0x543a0 sits at +0xa0 in 118 classes, 0x536f0 at +0x14
+in 24). What is left of that line of work is now narrower: who
+APPENDS to `[obj+0x3c]` and fills `[obj+0x50]` (the ctor chain only
+initialises them; PR-103 open item 2), what the per-class methods do
+(the natural next target is the TLew* classes and the `.mod` model
+names their literals sit next to), and the RATE of the step at 0x521f0
+(0x536f0 runs the whole switch and 0x550a0, its one direct caller, is
+a handler tail);
 "100 units" of the level global's +0x388 feed is half-closed
 (PR-100: the single writer is `mov [eax+0x388],0x64` at 0x4c8b7) and
 PR-102 added its gate: that feed only runs when `[obj+0xba]` (modes

@@ -405,7 +405,13 @@ int ll_level_anims(const char *dir, const char *level)
 /* ---------------- scene objects (PR-45: the authored scene) ------------
  * A level's own placement data (the sub-.des files its main .des names
  * through zwierzaki= / animacje= / ani_plat=) says which object scripts
- * stand where: "<LEAF>,<class>,<script>.mov,<x>,<y>". The script is the
+ * stand where: "<LEAF>,<class>,<script>.mov,<x>,<y>". The first field
+ * does double duty: the engine reads it with `' %[^,\r\n] , '` and
+ * hands it to its object-class factory 0x4df10, a chain of
+ * case-insensitive name tests (0x76a69) that constructs one of 163
+ * class-table pairs by that name - ANIBACK, ZWIERZ, POCISK, the
+ * per-level groups, and a TLew<level> lion class for each stage
+ * (NEXT_STEPS PR-103). The script is the
  * HD ANIMACJE record of that exact name (ANIMACJE/<level>/<LEAF>/
  * <SCRIPT>.MOV), and the ART is whatever that script selects for the
  * state it is in: every [STATE] block carries "seq=<name>", naming
@@ -762,13 +768,19 @@ static int obj_cond_true(const lvl_obj *o, int brk, const ll_mov_tr *tr)
  * CONDITION half (a key/flag test gating a state change) and the
  * per-state reset of the motion accumulators. PR-102 corrects what
  * this comment first said about the row-index half: the engine's row
- * number IS authored and the engine APPLIES it. The transition line in
+ * number IS authored and the engine APPLIES it. The TARGET name is not
+ * looked up at run time either: at PARSE time 0x51e0b calls 0x53440,
+ * a case-insensitive walk of the owner's [obj+0x3c] state-name table
+ * (stride 8, 1-based result, 0 = unresolved), and the index is baked
+ * into the entry at +0xd. The transition line in
  * a .MOV state section is `TARGET(N)=<key expression>` (the base
  * record parse method 0x51910 matches `" ( %[^) ] %*[)] = "` at
  * 0x9225c - the same function that parses `control=`; the derived
  * record class's parser 0x52590 handles `F=`/`T=`/`G=` and delegates
- * everything else to it), N is stored at entry+0x11 and applied as the
- * new row, and the shipped data asks for non-zero N thousands of times
+ * everything else to it), N is stored at entry+0x11 MINUS ONE (-1 when
+ * the `( N )` part is absent - PR-103 read the subtract at 0x51e3b),
+ * is applied as the new row, and the shipped data asks for non-zero N
+ * thousands of times
  * (37 states are entered at several different rows; the numbers reach
  * 97, the documented maximum frames in one state). This port parses
  * that number into ll_mov_tr.entry (PR-86) and then ignores it:

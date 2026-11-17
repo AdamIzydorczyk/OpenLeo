@@ -6524,6 +6524,217 @@ from an objdump-confirmed entry. Cross-checked against the 777 shipped
   large row number (A_DEAD(97)), which would test whether the engine
   really starts a state mid-list.
 
+## PR-103 — the object-class map: the engine's name factory, its
+per-level class groups including the TLew* lion controllers, the exact
+two-table pair every object writes, a per-class slot census, and the
+parse-time state-name lookup (RE only: no behaviour change, no pin
+moved)
+
+Works PR-100 item 5 / PR-102 open item 1 - "the class map, still the
+biggest open item". No behaviour change and no play pin moved. Method
+as before: objdump of /tmp/opencode/vis/text.bin for `.text`, words and
+strings from build/leo/leo.elf (VA = file offset + 0xf000, and a raw
+byte search must start at file 0xf000 so .text-resident immediates are
+not missed), cross-checked against the placement data in the ETAPY/
+ANIMACJE containers. Tools left in /tmp/opencode: objfactory.py (the
+name-to-class table), objfactory2.py (which literal is compared by
+which chain), objcensus2.py (the class-table pair census), xref.py
+(fixed this PR: a `\b` before a hex literal never matches inside
+`0x...` because `x` is a word character - it now uses
+`(?<![0-9a-f])...`, and that fix is what opened up this whole line of
+work), class_usage.txt (the authored-data cross-check).
+
+- THE FACTORY IS ONE FUNCTION AND ITS KEY IS THE AUTHORED NAME STRING.
+  **0x4df10** (ends 0x4e9f1, `ret` at 0x4e9f1) has exactly two direct
+  callers: **0x4aac3** (inside 0x4aaa2) and **0x4dcdc** (inside
+  0x4dcc0). Both sites are the same shape: read one comma-delimited
+  token with the scanf-style format at 0x91d1c / 0x91f2a =
+  `' %[^,\r\n] , '` (0x57a40), and pass that token to the factory.
+  Those are the readers of the port's placement grammar (ll_level.c:
+  `"<LEAF>,<class>,<script>.mov,<x>,<y>"`) - the token is the line's
+  first field, the one the port already calls LEAF/class. Inside the
+  factory each candidate is one case block: `mov edx,<literal name>`;
+  `call 0x76a69` (a per-character comparison that folds A-Z by
+  `add 0x20` behind `cmp 0x41`/`cmp 0x5a` - case-INSENSITIVE equality,
+  0 = equal); on match `mov eax,<size>; call 0x5c320` (operator new),
+  a base ctor, then the pair write `mov [obj+8],T+8; mov [obj+0xc],T`
+  and return. Sizes run 0x40..0x1bad, most 0x44..0x132. On no match
+  the factory returns 0.
+- THE CASCADE. The factory first tries a GENERIC chain of 31 names
+  (literal block 0x91f3d..0x92018, in code order): ANITAB PLANT
+  GRABOBJ DEMOTEXT ANIBACK MOVEPLAT MOVERECT RECT DRECT DRECT2
+  KATPLAT DZWIGNIA WODOSPAD ZWIERZ GRUPA PICT POCISK IDPOCISK GRABG
+  GWIAZDKI NIESP ZONE KORONA SURPRISE BAL DNGANI TRASA TRASA2 LINA
+  TABLICA BERLO. After it fails, 0x4e971..0x4e9e7 CALL eleven
+  per-level sub-factories in sequence, returning the first non-null
+  result: 0x1f870 (ZARIA), 0x24f60 (ENA), 0x26860 (ENA2), 0x29090
+  (KADMAR), 0x2ba90 (KADMAR2), 0x2ea00 (SADES), 0x33370 (RAN),
+  0x34c20 (KARA), 0x3a250 (TUNGA1), 0x3acf0 (TUNGA2), 0x383c0 (LONA)
+  - the last call's result is returned without a test. A separate
+  stub, 0x4e9fe (no direct caller found; open item 4), chains three
+  more second segments: 0x38a60, 0x29b30, 0x3a4a0.
+- THE CLASS VOCABULARY IS ORGANISED BY LEVEL, AND EVERY LEVEL GROUP
+  ENDS WITH ITS LION. Each sub-factory's compared literals sit in one
+  contiguous .data block, and each block is interleaved with that
+  level's model file names (looser.mod, ena2ed.mod, kadmdead.mod,
+  k2dead.mod, sadesdea.mod, ran1.mod, karade.mod, lonade.mod,
+  deatd.mod) and with state names (A_DEAD, A_LOOKUP, A_LOOKDOWN)
+  compared in the same code - per-level script logic. Captured names
+  per chain (from objfactory2.py; the exact class the name builds,
+  with its object size, ctor hub and table pair, is in
+  /tmp/opencode/objfactory.out):
+  - ZARIA (0x1f86f..): SEP2 DRABINKA RYBA POKAZ STRUMIEN PIANA SPLYW
+    ZWODOSPD KAMIEN KATAPULT KILOF_PL PALMA WODA PLANT ZARROW
+    CROCODIL BRANCH TREE JBRANCH JROPE ZTABL **TLewZaria TLewZariaB**
+  - ENA (0x24f60..): PLANT PERLOPL KOLC PIRANIA RMLOT REKIN RPILA
+    RYBKA KRAB ROZGW OLEJ RBLOK KOTWICA SKALA SKALA_A GLAZ KROPLA
+    KROPLAS PILAGEN PILARYB KONIK **TLewEna**
+  - ENA2 (0x26860..): E2BOSS ECOIN EBECZKA **TLewEna2**
+  - KADMAR (0x29090..): LISC PLATF SCHODY SCHODY2 SCHODY3 SCHODY4
+    KPALMA CIUCHCIA BRECT BICZRECT WSPRECT PIASEK KOLUMNA NINJA WAZ
+    KOBRA PTAK BOSS CAMEL MALPA MALPA2 MALPA4 ZOLW POCISK2 SMIGLO
+    **TLewKadmar1**
+  - KADMAR2 (0x2ba90..): SWIATLO LEW_SWT OBJ_SWT OBRECZ GWIZADKI
+    KRZYZYK WINDA SCHODY FARAON MACH_A MACH_B OK ODBIJACZ PODMUCH
+    **TLewKadmar2**
+  - SADES (0x2ea00..): TGA_OBJ KALAMARN KONIKI KRABY MEWA MURENA
+    OSMIORNI PERLOPLA ROZ_KOLC SLIMAK STULBIA STULB_ST PURCHAWA
+    PILA ARMATA WULKAN STONE BUTLA GWIAZDKA KOREK TAB_KOT TAB_KOLO
+    BRAMA BRAMA_B BUTLA_BL BUTLA_BK SIATKA WYBUCH ROBALE
+    **TLewSades**
+  - RAN (0x33370..): GEN_RAN GPTAK_RA PIOR_RAN SEP_RAN POCISK
+    BAL_RAN **TLewRan**
+  - KARA (0x34c20..): KSOWA KZABA SZCZURK SZCZURS KSMOK KLINA
+    KMIOTLA KDRABINA KDYBY KWINDA KBLOK KGARNEK KMAG KPAJECZ KKULA
+    KTRASA KBLOKZ KBOMBA KMASKA **TLewKara**
+  - LONA (0x383c0..0x38a1f + the second segment at 0x38a60): SOPEL
+    FOKA YETI CEBRZYK PINGWIN LONAKULA IGLO GRABOBJL1 GRABOBJL2
+    WODOSPAD2 KRA KRA0 KRA1 KRA2 KRY SOUNDSOURCE SKOCZNIE SKJUMP
+    FLAGA TABLICZKALONA (+ **TLewLona**, literal at 0x912cf; its
+    comparison site was not captured by the scan)
+  - TUNGA1 (0x3a250..): TUNTRAS KLODA GUARD TMPLAT XCHG
+    **TLewTunga1**
+  - TUNGA2/JUNCTION (0x3acf0..): **TLewJunction** TGA_OBJ PTAKPLAT
+    GEJZER TWINDA PANTERA GORYL DOMEK DRAB KALUZA ZAPADNIA SPAD
+    **TLewTunga2**
+  The class names spell the authored content in Polish (ARMATA =
+  cannon, BRAMA = gate, BUTLA = bottle, KLODA = log, LINA = rope,
+  ZOLW = turtle, STRUMIEN = stream, WODOSPAD = waterfall, PANTERA,
+  CROCODIL, ...), and `lew` = lion: the TLew<level> classes - one per
+  stage plus TLewJunction - are the lion/script-controller object, and
+  the level `.des` grammar has a `lew=` key the port already parses.
+  The engine's lion is a C++ class per level, not script data; the
+  `.mod` names next to each group are the open question of what model
+  data those classes load.
+- CENSUS NUMBERS. objcensus2.py (the pair-write census over the whole
+  of .text): 394 sites write an ([obj+8], [obj+0xc]) class-table pair,
+  163 distinct pairs. objfactory.py matched 122 of those sites to a
+  preceding name test - 107 distinct class names - the other sites are
+  clone/internal paths (for example 0x1ece0, the one caller of which,
+  0x1edb0, runs only when `[obj+0x5c] == 3` and the state
+  descriptor's `[+4]` is 0 or 6, guards with a counter at [obj+0x124],
+  and builds the 0xf2 object by copy-constructing [obj+0x120] through
+  0x54030 - the same method also writes [obj+0x120] from
+  0x4dcc0(global, name-string) at 0x1ed90).
+- THE AUTHORED-DATA CROSS-CHECK (class_usage.txt): 87 of the 107
+  factory names appear in the shipped containers as ANIMACJE leaf
+  names (69) and/or as placement first-fields - the same token does
+  both jobs, which is consistent with 0x4dcc0 using the captured
+  token both as the class key and for an ANIMACJE path. Placement
+  counts agree with the game: ANIBACK 761, ZWIERZ 191, POCISK 123,
+  DNGANI 78, BAL 52, SURPRISE 50, MOVEPLAT 48... Of the 154 distinct
+  placement first-fields in ETAPY, 131 are hit by the compared
+  vocabulary (12 of them only after case-folding, e.g. `plant` vs
+  the literal `PLANT`, which the case-insensitive comparison accepts).
+  Eleven names resolve in neither place: GLON, ROZGWIAA/B/C and
+  STULB_D have no literal anywhere in the image, and SEP, PARROT,
+  SNAKE, LICHA, PAJAK, NOSOROG sit in an unmapped literal block at
+  0x9320b..0x93230 whose only compared site found is 0x616a4 (open
+  item 3).
+- THE PAIR LAYOUT, EXACTLY. 157 of the 163 pairs satisfy
+  `[obj+8] = [obj+0xc] + 8` to the byte - one method list, two entry
+  points 2 slots apart (two base-class headers over one method array),
+  which is why PR-99's `[[obj+8]+off]` offsets and the base-table
+  slot numbering differ by exactly 8 bytes. The exceptions: two pairs
+  whose `[obj+0xc]` is not a table but a scalar (0x98278 written with
+  `[obj+0xc]` = 0 at 0x4fbdd/0x52885/0x5ec2a and = 1 at 0x5327d -
+  PR-101's 0x98278 indirect call; and 0xa26c8 with `[obj+0xc]` = 0xff
+  at 0x56641/0x5667c); and three genuine multiple-inheritance cases
+  where the two tables are far apart: 0x99828/0x997fc and
+  0x9a778/0x9a74c (delta 0x2c) and 0xa0780/0xa076c (delta 0x14).
+- SLOT MEANINGS ARE PER CLASS - THAT IS WHAT THE CLASS MAP SAYS.
+  Scanning 0x543a0 (PR-99's frame-advance dispatcher) across the 163
+  pairs: it sits at `[[obj+8]+0xa0]` in 118 of them and nowhere near
+  that in the rest. And PR-100's open question - "0x536f0 has 31
+  method-table slots... the offset it is dispatched through is not one
+  of the obvious ones" - has its answer for at least 24 classes:
+  0x536f0 sits at **[[obj+8]+0x14]** in those tables (and at v8+0xcc,
+  +0xf4, +0x130... in others). The 0x9686c family that PR-99/100
+  measured through +0xa4/+0xac/+0xa8 is a different family: at
+  [obj+8] = 0x96874 its slot +0x14 is 0x3d8f0. The port's
+  `[[obj+8]+0x54/+0x8c/+0x90/+0xac/+0xa8/+0x70/+0x04]` hook offsets
+  are therefore properties of the measured classes, not of all
+  objects - the class map is exactly the table of which class answers
+  which method at which slot.
+- THE CONSTRUCTOR CHAIN AND 1-BASED STATE INDICES. The ctor hubs are
+  chained: 0x3d8c0 -> 0x53ff0 -> 0x531f0 -> 0x52860 (the last is the
+  0x44/0x48 GRUPA/GRABOBJ base). Inside 0x531f0: `[obj+0x50] = 0`
+  (the record array, PR-77) and **`[obj+0x5c] = 1`** - the current
+  state/record index starts at 1, which confirms 0x53440's 1-based
+  returns are the same index space. The same ctor chain initialises
+  the [obj+0x3c] name vector through 0x21e30, but nothing found so
+  far appends entries to it (open item 2).
+- THE STATE-NAME LOOKUP HAPPENS AT PARSE TIME, AND TWO PR-102
+  DETAILS ARE CORRECTED. Inside the transition-entry builder 0x51e07
+  there is `call 0x53440` at 0x51e0b: the authored `TARGET` name is
+  resolved to a state index against the record owner's `[obj+0x3c]`
+  table while the .MOV is parsed, and the index goes to the entry
+  ctor 0x49610 as ebx (entry+0xd). The `( N )` number: 0x51e33..
+  0x51e3e parse it, subtract 1, and yield -1 when the `( N )` part is
+  absent - so **entry+0x11 = N-1 or -1**, not N as PR-102 recorded.
+  0x53440's own body (0x53440..0x53477) walks [obj+0x3c] with stride
+  8, compares with 0x76a69 (so state names are matched
+  case-insensitively too), returns the 1-based position or 0. Its
+  siblings: 0x53410 is the current-state getter (answers `[obj+0x5c]`
+  into one out-pointer; when the other argument is -1 it answers
+  `[[obj+0x50] + [obj+0x5c]*4] + 4` - the `[rec+4]` row index of the
+  current record); 0x53480 starts with `call [[obj+8]+0x84]` and then
+  re-enters 0x53440 (partially read, open item 2); and 0x3fe10 shows
+  the cross-object form - `[obj+0x26]` reaches another object's
+  state machine, looks its state up by name, allocates a node with
+  `new(0x18)` and hands `[[other+0x50] + state*4]` to 0x3fa20.
+- WHAT THIS DOES NOT SETTLE (PR-103's open items):
+  1. Who calls the placement readers 0x4aaa2 and 0x4dcc0 upstream, and
+     which authored file each one is reading (the .des section
+     keywords, `tlo/zwierzaki/animacje/ani_plat/platformy/...`, all
+     sit in the same data block - the per-section mapping is
+     unread). 0x4dcc0 also calls `[[class table]+0x7c]` with the
+     parsed x,y after construction - that method is unread.
+  2. Who APPENDS to [obj+0x3c] (the state-name table) and who fills
+     [obj+0x50] (the record array) - the ctor chain only initialises
+     them; 0x53480 is a partial read; PR-102 item 1's original
+     question is answered only halfway (we now know which object
+     classes exist, not how their state tables get built).
+  3. The 11 unresolved placement names (GLON, ROZGWIAA/B/C, STULB_D
+     have no literal anywhere) and the unmapped 0x9320b literal block
+     compared at 0x616a4.
+  4. The 0x4e9fe stub with its three second-segment chains and no
+     direct caller, and the classes reachable only there.
+  5. What any of the per-class methods DO - the map now names 163
+     classes but the method semantics are per-class work; TLew* and
+     the `.mod` model files are the natural next target (the port's
+     per-level lion behaviour is what those classes implement).
+  6. The [obj+0xc]-is-a-scalar classes (0x98278 with 0/1, 0xa26c8
+     with 0xff) and the three wide-pair multiple-inheritance cases.
+- Docs: this record in NEXT_STEPS.md, mirrored into HANDOFF.md
+  section 7 item 13 and the section 8 open-item paragraph; the
+  engine-comparison comments corrected at the placement-grammar header
+  comment in ported/ll_level.c (the first field is the factory's
+  class key, case-insensitive) and at ported/ll_level.c
+  obj_transition (entry+0x11 is 0-based / -1; the target name is
+  resolved at parse time through the case-insensitive 0x53440). No
+  behaviour change, no pin moved.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
