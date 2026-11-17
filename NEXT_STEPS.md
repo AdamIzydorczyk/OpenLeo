@@ -4719,6 +4719,12 @@ corner (fixes the user's ZARIA.01 "something stands on nothing")
   item 11), which this PR advances but does not close.
 - make + make win warning-free; full `make -k verify-all` re-run green before
   commit. Docs: HANDOFF §7 item 11 panc sub-item marked RESOLVED.
+- CI: PR-95 (`3c2937b`) green on all jobs. Note: the immediately preceding
+  docs-only PR-94 (`c3e0547`) showed a windows-smoke FAILURE at
+  `platform_selftest: sleep_until honors the deadline (>=20ms)` - a wall-clock
+  timing selftest, unrelated to that commit (it changed no code); the same tree
+  in this run passed windows-smoke, so that run was a shared-runner timing flake
+  (the selftest itself is worth a later non-wall-clock rework - low priority).
 
 ## Next — pick from the Deferred list below
 
