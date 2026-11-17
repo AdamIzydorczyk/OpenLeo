@@ -304,7 +304,16 @@ static void ctrl_flag(const char *tok, unsigned *f, int *other)
         }
     /* Named in the ll_play.h vocabulary but without a bit (SEQ_REV_X,
      * INV_V, ...), or a name we have never seen:
-     * counted so a missing behaviour is a known gap, never a silent one. */
+     * counted so a missing behaviour is a known gap, never a silent one.
+     * PR-99/100/101 read what SEQ_REV_X (bit 4) and SEQ_REV_Y (bit 5)
+     * of the state's control word do in the engine: they are ROW-ORDER
+     * flags, not motion. Each is only in force while an owner-side
+     * guard holds ([[obj+8]+0x70]() == -1 for bit 4, [obj+0x71] == -1
+     * for bit 5) and the row handler XORs the two, together with
+     * `[obj+0x99] == -1`, to pick forward or mirrored row order
+     * (0x5214b-0x52193, and 0x52360's mirror index `[[rec+0x2e]+8] -
+     * row - 1`). Not modelled here: no shipped sample pairs them with a
+     * row list whose order a video could tell apart. */
     if (other)
         (*other)++;
 }

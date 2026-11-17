@@ -749,6 +749,20 @@ static int obj_cond_true(const lvl_obj *o, int brk, const ll_mov_tr *tr)
     return 0;
 }
 
+/* A state change. PR-101 read the engine's own: it is a TABLE, not a
+ * search. 0x52000 (the state record's sub-table slot +0x04, called from
+ * 0x53520 inside the key compositor 0x536f0) walks 21-byte entries at
+ * [rec+0x1a] - a 13-byte key, a record index at +0xd, a row index at
+ * +0x11 - calling 0x47e40 with the object's composed key for each, and
+ * 0x535a2 applies the first match as "go to record A, row B" (its
+ * same-index path is just `cmp esi,[rec+4]; mov [rec+4],edx`). So the
+ * engine's transition is a keyed lookup that also picks the starting
+ * row, and the key it looks up is the OR of the attribute-node chains
+ * of PR-101, not an authored name. What the port matches is the
+ * CONDITION half (a key/flag test gating a state change) and the
+ * per-state reset of the motion accumulators; the row-index half has no
+ * counterpart here because the port's .MOV states carry their own frame
+ * lists and start at 0. */
 static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
 {
     const ll_mov_st *s = &mov->st[o->sti];
@@ -996,7 +1010,15 @@ static void obj_arm_atak(lvl_obj *o, int lx, int ly, int verbose, int tick)
  * step, and hands the remainder to the row handler - slot +0x18 of a
  * second method table inside the record object ([rec+0x44], 0x520c0),
  * which writes that remainder straight back into [obj+0xa1] at 0x52118:
- * the carry is kept in the object, exactly as `facc` is here. So the
+ * the carry is kept in the object, exactly as `facc` is here. PR-101
+ * corrects one half of that reading and it is worth knowing here: that
+ * gate is the EMPTY-KEY branch of the step (0x52241 `sete`/`je` after
+ * 0x495b0's all-zero test), and a row whose node DOES carry a key
+ * takes the other branch - OR the object's key, look it up with
+ * 0x47e40, and if it is absent the step does nothing at all, no feed,
+ * no threshold. The port has no per-row key, so every row here is the
+ * engine's un-keyed kind; that is the assumption to revisit if a
+ * per-row condition is ever parsed. So the
  * pair obj_walk's `facc` + obj_advance's `facc < f->ms` gate is
  * structurally what the engine does; what differs is the per-step feed
  * (the engine truncates to whole px - NEXT_STEPS PR-99 item 9 - while
@@ -1069,6 +1091,21 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
             break;
         ll_mov_st *s = &mov->st[o->sti];
         if (s->nfr == 0 || o->fi >= s->nfr) {   /* end of the frame list     */
+            /* PR-101 read the engine's end of the row list: 0x520c0's
+             * sequential path wraps it - at the last row (`n =
+             * [[rec+0x2e]+8]`, the record's row count at rec+0x36) it
+             * goes back to row 0 and ORs bit 2 into a byte the caller
+             * passed in, and the reversed direction does the mirror at
+             * row 0 with bit 3 (0x5219a-0x521d7). That byte is the
+             * caller's key buffer, so "the list ended" arrives as KEY
+             * BITS, which is what the keyed rows and the transition
+             * table of PR-101 can then match. Reaching this branch
+             * without a matching transition is the same shape as the
+             * engine wrapping and re-running the row list; the port
+             * just has no key to raise (PR-95 item 1: the engine
+             * reverses rows with the SEQ_REV_X/Y control bits XOR-ed
+             * against two owner-side guards, not with any frame
+             * reverse - see NEXT_STEPS PR-99/100/101). */
             if (obj_transition(o, mov, 1))
                 continue;
             if (s->nfr == 0)

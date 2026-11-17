@@ -28,6 +28,14 @@ for another machine. No game data and no video frames live in git.
 
 `make_text_asm.sh` - objdump of the LE image's `.text`; VA = file offset + 0xf000.
 
+`node_classes.py` - `python3 tools/re/node_classes.py [LEO.ELF]` - census of
+the engine's attribute-node class tables, the 6-slot method tables the nodes
+point at through `[node+4]`: where they live in the image, which methods the
+whole family shares (the two chain getters 0x45800/0x45870, the channel-query
+walk 0x458e0) and which are per class (0x45d50/0x45d90/0x45dc0 answer a
+channel id; slots +0x00/+0x14 are unique to each class) - NEXT_STEPS PR-101.
+Reads `build/leo/leo.elf` (not in git; see HANDOFF.md section 3).
+
 ## Reference video (outside git; yt-dlp + ffmpeg + numpy + Pillow)
 
 | file | what it does |

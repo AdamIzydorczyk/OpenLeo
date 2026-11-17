@@ -721,6 +721,40 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      the same two bits 0x520c0 tests, the strongest lead yet that
      SEQ_REV_X / SEQ_REV_Y are row-order flags and not motion at all.
      What 100 units of stays open too.
+   - PR-101 READS THE ROW-NODE AND KEY LAYER (RE only, nothing pinned).
+     The row entries at `[[rec+0x2e]]` are NODES with a 6-slot class
+     table at `[node+4]`, and 31 such tables exist - `python3
+     tools/re/node_classes.py` censuses them: 30 in a stride-0x18 run
+     from 0xa0f28, plus one at 0xa2638 which is also the tail of the
+     record sub-table 0xa260c. Slot +0x10 is a CHANNEL QUERY
+     `(eax=node, ebx=outA, ecx=outB, edx=id)`: 28 classes only walk to
+     `[node+0]`, three answer - 0x45d50 matches the node's own id byte
+     at [node+0x10] and adds its pair, 0x45d90/0x45dc0 answer id 6.
+     That is how authored row directives are consumed: 0x52470 (the
+     sub-table's +0x28) asks id 4, and 0x520c0 asks id 6 with
+     outA = `&[rec+4]` - an id-6 node adds its authored number straight
+     into the row index, which replaces PR-50's "highest matching index"
+     reading of the row move. The key is the same mechanism:
+     0x45800/0x45870 walk the chain and return 13 zero bytes at its
+     end, and the two exceptions (0x45970, 0x45920) OR
+     `[node+8..0x10]` into what the chain returned, so a key is the OR
+     of the nodes on a chain and is never stored - PR-100's "what is
+     the key" is closed that way. 0x520c0's sequential path is now
+     complete: the row list WRAPS (forward at `[rec+0x36]-1`, back at
+     0) and the wrap is reported as bits 2/3 of the caller's key byte,
+     so "the list ended" arrives in the key system; the reversal is
+     `([rec+0x12]&0x10 and [[obj+8]+0x70]()==-1) ^ ([rec+0x12]&0x20
+     and [obj+0x71]==-1) ^ ([obj+0x99]==-1)`, which settles the
+     SEQ_REV_X/SEQ_REV_Y question as row order. On the caller side
+     0x52000 (the sub-table's +0x04 slot) scans a table of 21-byte
+     entries at `[rec+0x1a]` - a 13-byte key plus a RECORD index and a
+     ROW index - with 0x47e40 for each entry, so a matched key means
+     "go to record A, row B": that is the state-transition table, and
+     the `+0x1c` argument PR-100 flagged is that row index, not a key
+     pointer. One correction to PR-100's own text: it swapped the two
+     branches of 0x521f0 - the EMPTY-key row is the one that runs the
+     feed dispatcher and the threshold compare, a keyed row is the one
+     that must match 0x47e40 or nothing happens.
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
      files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's
@@ -779,13 +813,18 @@ the T dependence, and only a BY_X object at T other than 40 can say
 which one is right. Next steps, in order: (1) that video test, which
 the authored data supplies in quantity (F=100 against 11 different T
 pairs) but which needs footage of a level other than ZARIA; (2) the
-RATE of the state-record step at 0x521f0 - PR-100 found the caller
-(`call [[rec+0x44]+0xc]` at 0x5240c inside the key builder 0x523f0,
-whose only direct caller is 0x5371c, inside 0x536f0, a key compositor
-with one direct call at 0x550b4 and 31 table slots at an unknown slot),
-so the question is now what invokes 0x536f0; and what "100 units" of the
-level global's +0x388 feed means (PR-99 item 11, half-closed by
-PR-100: the single writer is `mov [eax+0x388],0x64` at 0x4c8b7);
+state-transition table PR-101 found: 0x52000 (the record sub-table's
++0x04 slot, called from 0x53520 inside the key compositor 0x536f0)
+scans 21-byte entries at `[rec+0x1a]` - a 13-byte key, a record index
+at +0xd, a row index at +0x11 - with 0x47e40, and a match means "go to
+record A, row B" through 0x535a2. That table owns every state change
+the port models in `obj_transition`, and its writer is unread; the RATE
+of the step at 0x521f0 is the same question now (0x536f0 runs the whole
+switch and 0x550a0, its one direct caller, is a handler tail - 10 direct
+call sites, all after a flag write or an expired countdown); and what
+"100 units" of the level global's +0x388 feed means (PR-99 item 11,
+half-closed by PR-100: the single writer is `mov [eax+0x388],0x64` at
+0x4c8b7);
 (3) what writes
 [obj+0xba]/[obj+0xbe] (0x54a00..0x54ab0) and where the full-precision
 velocity moves the coordinates (PR-99 item 10; only `v/100` is stored);
@@ -825,6 +864,23 @@ row-set method and writes the new index. PR-98's item 6 is closed too
 thresholds are now censused per mode by `tools/re/mov_channels.py`: 94%
 of the BY_TIME values are exact multiples of that 100 feed, the BY_X
 values are small counts of px.
+PR-101 then read the layer under the rows (RE only, no pin): the row
+entries are nodes with a 6-slot class table at `[node+4]` (31 of them,
+`python3 tools/re/node_classes.py`), slot +0x10 of that table is a
+query-by-id that every node on the chain answers by adding its own pair
+- which is how authored row directives are consumed, and an id-6 answer
+adds straight into the row index through `&[rec+4]` - and the key is
+the OR of the nodes on that chain, computed on demand and never stored.
+0x520c0's sequential half is complete now: the row list wraps and the
+wrap is published as key bits, and the reversal is the XOR of the two
+SEQ_REV control bits with their owner-side guards, which settles those
+bits as row order. Two things PR-101 corrects in PR-100's own text: the
+two branches of 0x521f0 are swapped there (the empty-key row is the one
+that runs the feed and the threshold compare), and the `+0x1c` argument
+it flagged as inconsistent is a row index after all - the index comes
+from the transition table at `[rec+0x1a]` (key, record index, row
+index), which is the engine's own version of `obj_transition` and the
+new head of this list.
 
 **T2. The lion's attack and enemy energy.**
 Goal: kill the first LICHA. Where: `LEW.MOV` states `A_FIGHT*`, `A_FG_PACKA*`

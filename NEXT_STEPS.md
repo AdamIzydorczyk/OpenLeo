@@ -5966,6 +5966,250 @@ threshold census is a new section of `tools/re/mov_channels.py` over
   are 949 such rows in the shipped data, e.g. 120 x53, 240 x49) - that
   would say whether the 100-unit feed is really the unit for those.
 
+## PR-101 — the row node and its class table, the key as an OR-lineage,
+and the two methods that move a row, read end to end (RE only: no
+behaviour change, no pin moved)
+
+Worked PR-100's open items 2 (the node-chain channel codes), 3 (the
+row-set method and its argument) and 5's tooling side, plus the
+`+0x1c` argument tension the PR-100 record flagged. Method as before:
+objdump of `/tmp/opencode/vis/text.bin` for `.text`, words and tables
+from `build/leo/leo.elf` (file offset = VA - 0xf000), always starting
+from an objdump-confirmed entry. New tool:
+`tools/re/node_classes.py`, the class-table census.
+
+- CORRECTION FIRST: PR-100 FLIPPED THE TWO BRANCHES OF THE STEP.
+  0x52241-0x5224b is `test eax,eax; sete al; and eax,0xff; je 0x522fc`
+  after `call 0x495b0` (verified: 0x495b2 returns 1 when all three key
+  dwords are zero, 0 otherwise, 0x495bc-0x495d8). So `je` is taken
+  exactly when the row node's key IS empty, and the branch at 0x522fc -
+  the one that ORs the node's second chain value into the caller's key,
+  runs the feed dispatcher `[[obj+0x8]+0xa0]` and compares
+  `[node+0x10]` with `[obj+0xa1]` - is the EMPTY-KEY branch. A row that
+  DOES carry a key takes 0x52251: OR the object's key into it, look the
+  pair up with 0x47e40, and if it is not found do nothing at all.
+  That was mislabelled the other way in PR-100's text ("an EMPTY key
+  takes the branch at 0x52251"). It matters because it puts the feed
+  accrual and the threshold test on the un-keyed rows and makes keyed
+  rows conditional on the key match, which is the shape the port models
+  as a keyed transition. The rest of PR-100's description of both
+  branch bodies stands.
+- THE ROW NODE. All four users take the current row the same way -
+  `[[rec+0x2e]]` is a pointer to an array of node pointers, `[rec+4]`
+  is the row index, `node = [array + row*4]` (0x521f0 at
+  0x52221-0x52229, 0x52470 at 0x52473-0x5247b, 0x520c0 at
+  0x520cf-0x520d7, and 0x523f0/0x52360 through the same pair). The
+  node's own fields, from the uses:
+
+      [node+0x00] the previous link of the chain this node hangs on
+      [node+0x04] its class table (6 slots, see below)
+      [node+0x08] value A
+      [node+0x0c] value B
+      [node+0x10] on a row node: the threshold, compared against the
+                  accumulator at 0x52320-0x5232b (`mov eax,[node+0x10];
+                  mov ebx,[obj+0xa1]; cmp eax,ebx`); on a chained
+                  node: its id byte (0x45d6e `movsx eax,byte
+                  [node+0x10]`, compared with the queried id)
+      [node+0x18] an int: 0 in a record's row chain, the owner object
+                  in the other chain (PR-98's 0x45270 pairs)
+
+  So one authored row line is one node: its second number is the
+  threshold the step compares, its first number is what an id-6 answer
+  adds into the row index (0x45dc0 `add [out], [node+8]`), and its
+  directives are the chain reached through [node+0x00]. READING, not a
+  pin - the field roles come from those four uses, and no node image
+  has ever been read back against the shipped `.MOV` text.
+- THE CLASS TABLES, CENSUSED (`tools/re/node_classes.py`). 31 tables,
+  6 slots each: a run of 30 at stride 0x18 from 0xa0f28 to 0xa11e0,
+  plus one at 0xa2638 - which is exactly the tail of the record-class
+  sub-table 0xa260c, the only one of PR-100's 16 sub-tables that holds
+  this method set where the other 15 hold their own per-class
+  functions. Over those 31:
+    +0x08  0x45800 x30, 0x45970 x1    the chain's first value
+    +0x0c  0x45870 x30, 0x45920 x1    the chain's second value
+    +0x10  0x458e0 x28, and 3 classes answer for themselves:
+           0x45d50, 0x45d90, 0x45dc0  the channel query
+    +0x00  and +0x14  31 DIFFERENT functions each, one per class
+  0x45800 and 0x45870 are walks: if [node+0x00] is non-null they ask
+  THAT node for the value through its own +0x08/+0x0c, and at the end
+  of a chain they return 13 zero bytes (`mov ecx,0xc; ... call 0x749a0`
+  at 0x4581d-0x45831) - the 13-byte key shape again, three dwords plus
+  a length byte at +0xc. The class at 0xa1000 shows the other slots in
+  use: its +0x00 (0x457b0) unlinks the node (`mov [node],0`,
+  `mov [node+4],0xa1000`) and calls the previous link's +0x00 with
+  edx=2; its +0x04 (0x457e0) only walks; and 0x45750, another class's
+  +0x04, writes `[node+8]` into `[ds:0xcef40 + 4]` - the level's own
+  record object of PR-100 - and then walks. Reading: +0x08/+0x0c read
+  the chain, +0x00/+0x04 write through it, +0x14 is a per-class
+  accessor. Which authored property each of the 30 classes carries is
+  open; that census is PR-102's job.
+- THE KEY IS AN OR-LINEAGE OVER THAT CHAIN. The two exceptions in the
+  +0x08/+0x0c census are the composition step: 0x45970 (the class at
+  0xa11c8, slot +0x08) and 0x45920 (0xa11e0, slot +0x0c) call the
+  chain getter 0x45870 and then do `lea edx,[node+8]; mov ecx,0xc;
+  call 0x49580` and hand that back. 0x49580 is three dwords of OR in
+  place (0x49585-0x4959a, `or edi,ebx` around a 12-byte loop), so the
+  value is "what the chain gave me, with my own [node+8], [node+0x0c]
+  and [node+0x10] OR-ed into it". Nothing stores a key: a key is the
+  OR of the three dwords of the nodes on a chain, computed on demand,
+  and 0x47e40 starts by switching on the length byte at [key+0xc]
+  (`cmp al,3; ja far`, jump table at 0x47e30) so 1..3 dwords are
+  significant. That closes PR-100's item 4: a key is a composed bit
+  mask with a significant-dword count, not a name and not an authored
+  field. The `deatd.mod` thread is off this path: 0x4ffb6 reports it
+  only when an object's [obj+0x126] is 0 and the current record's row
+  is 0 (0x4ffb4-0x4ffe7), which reads like a "nothing has run yet"
+  diagnostic, not a key producer.
+- THE CHANNEL QUERY, AND WHAT THE "MODE CODES" ARE. Slot +0x10 is
+  `f(eax=node, ebx=out A, ecx=out B, edx=id)` and the four bodies are
+  one mechanism:
+      0x458e0  walk: if [node+0x00] non-null, visit it with the SAME
+               id; this node contributes nothing
+      0x45d50  walk, then if the node's own id byte [node+0x10]
+               equals the queried id: `*A += [node+8]`,
+               `*B += [node+0x0c]`
+      0x45dc0  walk, then if the queried id is 6: `*A += [node+8]`,
+               `*B = 6`
+      0x45d90  walk, then if the queried id is 6: `*A = [node+8]`
+               (assign, not add), `*B = 6`
+  so out B is the id that answered and out A is the summed value: the
+  chain is queried BY id and every node tagged with that id adds its
+  pair. That unifies the numbers PR-98..PR-100 saw as separate mode
+  codes: 0x52470 (the record sub-table's +0x28) asks the CURRENT row's
+  node for id 4 into the caller's two words (0x5247e-0x5248b), 0x520c0
+  asks for id 6 with out A = `&[rec+4]` - the row index itself
+  (0x52124-0x5213d) - and 0x521f0/0x523f0 use the +0x08 getters for
+  the key. The id space is one thing; which authored property ids
+  1/2/3 (PR-98's merge selects), 4 and 6 name is still open, and the
+  `[node+0x10]` overload (a threshold dword on a row node, an id byte
+  on a chained node) is RE as two uses, not as one field.
+- 0x520c0 END TO END, THE ROW-ADVANCE LAW. `f(eax=rec, ebx=remainder,
+  edx=flags byte out)`; the argument registers of this convention are
+  (eax=this, ebx, ecx, edx) and the fourth one is an out param here:
+  * 0x520cf-0x520e1 takes the current row node and calls ITS +0x04
+    with edx = the record (the write-through-the-chain family);
+  * 0x520e4-0x52100 is an indirect call through a data table
+    (`mov ecx,0x98278; call [ecx+4]`, with the owner's two table views
+    in edx/ebx and 0x98278 itself pushed as an argument) - unread;
+  * 0x520f9-0x52100 calls `[[rec+0x44]+0x28]` = 0x52470, the id-4
+    query, into locals, and 0x52103-0x5210f feeds that pair to
+    `[[obj+0x8]+0x04]` - the owner object's own +0x04;
+  * 0x52112-0x52118 writes the remainder straight back: `mov
+    [obj+0xa1], <ebx from the caller>` (PR-100's carry claim,
+    confirmed);
+  * 0x52124-0x52145 is the id-6 query with `lea ebx,[esi+4]` - out A
+    IS `[rec+4]` - and `cmp [out B],6; je end`: if any node in the
+    chain answers 6, the row index has just been moved by the authored
+    value and the sequential path is skipped;
+  * otherwise the sequential move, with the reversal test PR-99/PR-100
+    saw a piece of (0x5214b-0x52193):
+        A = ([rec+0x12] & 0x10) && ([[obj+0x8]+0x70]() < 0)
+        B = ([rec+0x12] & 0x20) && ([[obj]+0x71] < 0)
+        C = ([obj+0x99] == -1)
+        if ((A ^ B ^ C) == 0) forward else reversed
+  * forward (0x521b6-0x521d7): `n = [[rec+0x2e]+8]` - the row count,
+    the field at rec+0x36 - and if `[rec+4] == n-1` then `or
+    byte [flags],4` and `[rec+4] = 0`, else `[rec+4] += 1`;
+  * reversed (0x5219a-0x521b1): if `[rec+4] == 0` then `or byte
+    [flags],8` and `[rec+4] = n-1`, else `[rec+4] -= 1`.
+  So the row list WRAPS, forward and back, and the wrap is reported to
+  the caller as bit 2 / bit 3 of the byte buffer it passed in - which
+  in 0x521f0 is the caller's 13-byte key buffer (0x52338 with edx kept
+  from [esp+0x68]), i.e. "the list ended" arrives as key bits. The row
+  count at rec+0x36 is now established from two independent places:
+  this wrap test and 0x52360's mirror formula. PR-50's SEQ_REV_X /
+  SEQ_REV_Y reading of control bits 4 and 5 is CONFIRMED as the
+  row-order flags (PR-99's and PR-100's guard pair, plus the third
+  term C here) and PR-96's correction that the bound is the record's
+  own array length is confirmed too.
+- 0x52360 END TO END, THE ROW-SET (the same law's other half).
+  `f(eax=rec, edx=row index)`: 0x52364 calls the 0x52070 helper, then
+  zeroes `[obj+0xa1]` (0x5236b) and writes 1 to `[obj+0x99]` (0x52377)
+  before checking `test edx,edx; jl ret` - a negative index means
+  "leave the row alone but still clear the accumulator". Then the same
+  A/B pair as above (0x52385-0x523b8): equal -> `[rec+4] = edx`
+  (0x523cb); different -> `[rec+4] = [[rec+0x2e]+8] - edx - 1`
+  (0x523bc-0x523c5), the mirror index, exactly the inverse of the wrap
+  above. The three direct callers are the per-class +0x1c wrappers:
+  0x4fef0 (10 classes), 0x50000 and 0x50040 - all three forward edx
+  unchanged. 0x50000 then writes `[[rec]+0xfa] = -55` (0x5000a) and
+  0x50040 `= 70` (0x5004a) into the owner; the matching leave hooks
+  0x50020/0x50060 (the `+0x20` slots of the same two classes) run
+  0x52660 and write `[[rec]+0xfa] = 0`.
+  0x4fef0 instead pokes the level record's `+0x3a0`/`+0x3a8` flags,
+  calls `+0xe4` on the object at `[[0xcef40]+0x394]`,
+  `[[owner+0x8]+0x4](edx=200)`, and 0x56380/0x56310 on the global at
+  0xcf068. What the -55/70/0 codes mean is open.
+- THE `+0x1c` ARGUMENT TENSION, DISSOLVED (the register convention,
+  not a contradiction). The calling convention here is (eax = this,
+  then ebx, ecx, edx). 0x536f0's body in order: `[[obj+0x8]+0x8c]`
+  with a 13-byte out buffer -> 0x49580-OR into `[obj+0x60]`; 0x523f0
+  (the current record's key) -> OR again; `[[obj+0x8]+0x54](ebx =
+  &[esp+0x24])`; 0x53520 (edx = &[esp+0x20], ebx = &[esp+0x24]) which
+  copies the object key and calls **0x52000**; `[[obj+0x8]+0x90]`;
+  then `0x535a0(eax=obj, edx=[esp+0x20], ebx=[esp+0x24])`, and 0x535a2
+  does `mov esi,edx` (an INDEX) and `mov edx,ebx` - so the value
+  handed to the record's `+0x20` and `+0x1c` slots is an INT, not a key
+  pointer. The key pointer `[obj+0x60]` is only ever passed to
+  `[[obj+8]+0xac]` (0x535f3-0x535f7). Where the ints come from is the
+  interesting part: 0x52000 scans a table of 21-byte entries at
+  `[rec+0x1a]` (base at [rec+0x1a], count at [rec+0x22], stride 0x15)
+  calling 0x47e40 with the object's combined key for each entry, and
+  the first match writes `[out1] = [entry+0xd]` and `[out2] =
+  [entry+0x11]` (0x5203c-0x5204d) - a (13-byte key, record index, row
+  index) table. 0x535a2 then uses out1 as the record index
+  (`[obj+0x50][out1*4]`, 0x535e1-0x535e7) and out2 as the row index:
+  its same-index path is `cmp esi,[rec+4]; je ret; mov [rec+4],edx`
+  (0x5360f-0x53616). So one matched entry means "go to record A, row
+  B" - the state-transition table - and 0x52360's edx really is a row
+  index. PR-100's flagged mismatch came from assuming ebx carried a key
+  pointer at 0x535a2; it does not.
+- 0x53520 / 0x535a2 AS A PAIR (the switch, and what it hooks). Leave
+  half (0x53520): the record's `+0x20` hook is NOT called here - that
+  is 0x535a2's job - and 0x53520 only fetches the key copy, runs the
+  transition lookup and calls `[[obj+0x8]+0x90]`, then zeroes its
+  local key copy. Switch half (0x535a2): if the index differs it calls
+  the OLD record's `[[old_rec+0x44]+0x20]` with the int, zeroes
+  `[obj+0x9d]`, sets `[obj+0x95] = 1` (0x535d1, PR-100's third
+  setter), calls `[[obj+0x8]+0xa4]`, installs the new record, calls
+  the NEW record's `+0x1c` with the same int, writes `[obj+0x5c]`,
+  then `[[obj+0x8]+0xac](obj, obj+0x60)`. Both paths end at 0x53626:
+  `[obj+0x9d] += 1`, and if the WORD at `[rec+0xc]` is non-zero and
+  `<= [obj+0x9d]`, set bit 0x2 of the byte at [obj+0x61] - bit 9 of
+  the object key's first dword. So the record carries a per-record
+  counter limit at +0xc that publishes a key bit when the switch count
+  passes it. Unread otherwise; it belongs with the transition table.
+- WHAT THIS DOES NOT SETTLE (PR-101's open items):
+   1. Which of the 30 classes in the run is which authored property,
+      and what ids 1/2/3/4/6 name. The census tool lists the tables;
+      tying a class to a `.MOV` directive needs a write: the `.MOV`
+      row directives are `F`/`FC`/`I`/`IC` (0x92281/0x9228a/0x92293
+      are the only token strings) and the parse side was never read
+      against the node image. That is the next PR's first item.
+   2. The transition table at [rec+0x1a]: who fills it, and what
+      0x47e40's four length-byte cases actually compare (subset?
+      exact?). It is the direct owner of every state change the port
+      models, so it is worth its own PR.
+   3. The `[obj+0xfa]` state ints (-55 / 70 / 0) and the
+      `[[obj+0x8]+0x54]`, `+0x90`, `+0x8c`, `+0xac`, `+0xa8`, `+0x70`,
+      `+0x04` owner hooks: all of them are slots of the object class,
+      and none of them can be resolved without the class map - PR-100's
+      item 5, unchanged and now the biggest one.
+   4. The 0x98278-indirect call inside 0x520c0 (0x520e4-0x520f6).
+   5. Whether the wrap bits (`or byte [key],4` / `8`) are the same
+      bits the port's end-of-list handling means in `obj_transition`,
+      and whether the `[rec+0xc]` limit + `[obj+0x9d]` counter is the
+      "play this state N times" rule. Unmeasured; no pin.
+   6. Unchanged from PR-100: items 1's cadence half (0x536f0's 31
+      table slots vs the 0x550a0 handler tails), 7, and from PR-98/99:
+      items 1, 3, 7, 8, 9, 10.
+- TESTS, unchanged in kind: the decisive one is still a BY_X object at
+  T != 40 outside ZARIA (PR-98's a, PR-99's d). New and cheap: any
+  level whose `.MOV` has a row with a non-zero key would confirm the
+  keyed-row branch of 0x521f0 is a real path in shipped data rather
+  than only in engine code - the census tool counts row fields, not
+  node images, so it cannot answer this; a node dump would.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
