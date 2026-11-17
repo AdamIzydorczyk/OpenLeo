@@ -590,11 +590,25 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
      Until then those scripts are joined+counted but never
      instantiated (the corner fruits are gone; their live behaviour
      is not modelled).
-   - The ZARIA.01 `PICT,panc.seq,20,29` line directly follows the
-     NOSOROG entry: placed at its authored (20,29) by the uniform
-     grammar; a PARENT-RELATIVE reading of such coordinates is
-     possible and unproven (the 84-line census has no other follower
-     of a class entry).
+   - RESOLVED (PR-95): the ZARIA.01 `PICT,panc.seq,20,29` line that
+     directly follows the NOSOROG entry is the rhino's CHILD, not a
+     top-level placement. The grammar discriminator is the property
+     block: a 3-comma static that sits inside a BOUNDED patrol actor's
+     `damage=/bounds=/scope=/energy=` block (the actor has `bounds=` ->
+     b0>=0, or `scope=`) is drawn at the parent + that offset, exactly
+     where the 5-field 0,0 children are authored. So `NOSOROG,...,1700,600
+     / bounds=1680,1950 / scope=40,150 / energy=60 / PICT,panc.seq,20,29`
+     puts the mat at (1720,629), not the world corner (20,29) - which is
+     why the rhino "stood on nothing". The gate is deliberately the
+     bounded-actor test: a static that merely follows some OTHER object's
+     property line (`XCHG ... xchg=5,2` then a standalone `TABLICA` sign
+     in TUNGA ANI2) keeps its absolute coordinates, as do the ANI*.DES
+     shelf lines and the ANI4 WODOSPAD waterfalls (siblings, no property
+     block before them). Verified by full census: only the two ZARIA rhino
+     mats attach; every other level is unchanged. Still open: whether the
+     mat then FOLLOWS the rhino as it walks (it is placed at the parent's
+     spawn position; the follow/trigger is the same open question as the
+     0,0 children above).
    - `ZAR.BLK` fields and the GRP format (WODOSPAD.GRP/KIJ.GRP/
      KILOF.GRP in GRAB*/ZWODOSPD leaves) stay unread - the placement
      lines that name them (`GRABG,2113,350,kilof.grp`) are counted as

@@ -524,6 +524,31 @@ ifeq ($(PX_DATA),1)
 	  && ! grep -q 'obj POCISK/jajo.*at (0,0)' /tmp/opencode/lv_statics.log \
 	  && echo "placement grammars: static .SEQ lines joined from the CD leaf and placed at their authored x,y, 0,0 entries joined but never instantiated (ok)" \
 	  || { echo "PR-93 statics grep FAILED"; cat /tmp/opencode/lv_statics.log; exit 1; }
+# PR-95: the rhino's pancake mat. A 3-comma static inside a bounded actor's
+# property block is that actor's child: ZARIA.01 ZWIERZ1 `NOSOROG,...,1700,600
+# ... bounds=/scope=/energy=60` then `PICT,panc.seq,20,29` is drawn attached to
+# the rhino at parent (1700,600) + offset (20,29) = (1720,629), never at the
+# literal (20,29) corner - that is why the rhino "stood on nothing". The report
+# line names it; and no other level's top-level static is pulled to a parent.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=1 \
+	  LEO_OBJ_ALL=1 \
+	  ./ll_level $(DATA) ZARIA.01 > /tmp/opencode/lv_panc.log 2>&1; \
+	  rc=$$?; if [ $$rc -ne 0 ]; then echo "PR-95 panc leg FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/lv_panc.log; exit 1; fi
+	@grep -q 'obj PICT/panc.seq\[static image\]: art PANC.SEQ, 0 state(s), bbox 92x32 at (1720,629)' \
+	    /tmp/opencode/lv_panc.log \
+	  && grep -q 'static PICT/panc.seq follows NOSOROG right after it: an image the engine draws attached to that object at the offset (20,29), placed at the parent (1700,600) + offset = (1720,629)' \
+	    /tmp/opencode/lv_panc.log \
+	  && grep -q 'authored scene ZARIA.01: 14 static image line(s).*1 authored right after an object and drawn attached to it at the offset' \
+	    /tmp/opencode/lv_panc.log \
+	  && ! grep -q 'obj PICT/panc.seq.*at (20,29)' /tmp/opencode/lv_panc.log \
+	  && env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	     LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=0.2 \
+	     ./ll_level $(DATA) TUNGA.11 2>&1 | grep -q 'authored scene TUNGA.11:.*0 authored right after an object' \
+	  && echo "attached static image: the rhino's mat joins the rhino it follows (parent + offset), a non-bounded entry's following static stays absolute (ok)" \
+	  || { echo "PR-95 panc grep FAILED"; cat /tmp/opencode/lv_panc.log; exit 1; }
+	@rm -f /tmp/opencode/lv_panc.log
 	@rm -f /tmp/opencode/lv_cam300.ppm
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \

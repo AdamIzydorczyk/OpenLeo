@@ -4646,6 +4646,80 @@ only: no behaviour change, no re-pins; the PR-92 shipped model stands)
 - No code, no pins: RE-only commit. make/make win untouched; full
   verify-all re-run before commit as always.
 
+## PR-95 — the attached static image: a 3-comma `.SEQ` line inside a bounded
+actor's property block is drawn at parent + offset, not its literal world
+corner (fixes the user's ZARIA.01 "something stands on nothing")
+
+- Source: the placement files themselves (the LEVELDES / HD ETAPY containers;
+  `/tmp/opencode/zdes_ZWIERZ1.des`, `zdes_ANI1.des`, and raw `hd_files/ETAPY`
+  reads for TUNGA ANI2/ANI4). Everything here is read from the shipped bytes;
+  the one model choice (draw attached to the spawn position, not a live follow)
+  is marked OPEN.
+- The report the user saw: ZARIA.01's rhino `NOSOROG` is placed at (1700,600)
+  but the image authored right under it `PICT,panc.seq,20,29` was placed at the
+  literal (20,29) — the top-left world corner — so the rhino "stood on nothing"
+  and a pancake mat appeared in the sky. PR-93 had placed every 3-comma static
+  at its authored x,y and had itself flagged this exact case: "a PARENT-RELATIVE
+  reading is unproven (the 84-line census has no other follower of a class
+  entry)" (HANDOFF §7 item 11).
+- The grammar proof (this IS the second follower PR-93 lacked): in ZWIERZ1.DES
+  the panc line is NOT a sibling of the entries — it sits inside the rhino's
+  property block, the same position the 5-field 0,0 children use one entry up:
+  `NOSOROG,dummy,nos.mov,1700,600` / `damage=10` / `bounds=1680,1950` /
+  `scope=40,150` / `energy=60` / `PICT,panc.seq,20,29`. The vulture one entry
+  earlier is `SEP ... energy=40` / `POCISK,jajo.ani,jajo.mov,0,0` — PR-93
+  already treats that as an attached child (spawned from the parent, never a
+  0,0 placement). The rhino's mat is the same construction with a real offset
+  instead of 0,0. `20,29` is a parent-relative offset: the mat belongs under the
+  rhino (→ 1720,629).
+- The rule (decided in code, `des_place_file`, `ported/ll_level.c`): a
+  3-comma static is a CHILD only when it is authored inside a BOUNDED patrol
+  actor's property block. Gated by a new `after_prop` flag (set by a
+  `damage=`/`bounds=`/`scope=`/`energy=` line that binds to `last_obj`, cleared
+  at every entry/static placement and at each new entry-parse) AND the parent
+  being bounded (`objs[last_obj].b0>=0` from `bounds=`, or `.scope>=0` from
+  `scope=`). The child inherits the parent's layer and is placed at
+  `parent.x+dx, parent.y+dy`. A bounded actor is the ONLY parent the data
+  supports: the looser `last_obj`-only and `after_prop`-only readings each
+  produced false positives that this gate rejects —
+  `XCHG,dummy,malpa1.mov,1150,535 / xchg=5,2` then top-level
+  `TABLICA,jajotab.seq,1082,520` (a standalone sign, absolute; the switch is
+  not a bounded actor), and the ANI4 WODOSPAD waterfalls listed as SIBLINGS
+  right after each `ANIBACK` entry (no property block between them). A static
+  that merely follows some non-bounded object's property line, or is a sibling
+  of entries (the ANI*.DES stone shelves, the waterfalls), keeps its absolute
+  authored x,y — PR-93's correct handling of those stands unchanged.
+- Blast radius (full census, all 13 level blocks): ONLY ZARIA.01 `PICT/panc.seq`
+  → (1720,629) and ZARIA.02 → (520,679) attach. TUNGA.11/TUNGA2.12/KADMAR.07/
+  LONA.05/SADES.06/ENA.03/ENA.04/KARA.07/RAN.01/JUNCTION attached=0; every
+  level's "N placed, 0 at an x outside" counts are unchanged. The two ZARIA mats
+  and nothing else move.
+- Visual proof (not committed): /tmp/opencode/rh2_cmp.png — framed on the rhino
+  at (1700,600), objects drawn. Top (pre-PR-95): the rhino on bare ground, the
+  purple pancake mat at the top-left corner (off-frame). Bottom (PR-95): the
+  flat purple pancake mat sits at the rhino's feet at (1720,629).
+- Pins: Makefile `verify-level` gained an attached-static leg — positive
+  `obj PICT/panc.seq[static image]: art PANC.SEQ, 0 state(s), bbox 92x32 at
+  (1720,629)`, the report clause `... 1 authored right after an object and drawn
+  attached to it at the offset`, the negative `! grep 'panc.seq.*at (20,29)'`,
+  and a cross-level negative (TUNGA.11 report ends `0 authored right after an
+  object`). PR-93's existing pins (plan4 70,480, gniazd 2140,270, "14 placed, 0
+  at an x outside", POCISK 0,0 not instantiated) all still pass unchanged — NO
+  data re-pin. The census report line now also prints the attached count.
+- Selftest: `place_grammar_selftest` fixture extended with a bounded-actor case
+  (`NOSOROG,...,700,600 / bounds=680,750 / scope=40 / PICT,panc.seq,20,29`)
+  asserting the child stands at parent+offset (720,629), never at the corner
+  (20,29), plus the negative `XCHG,... / xchg=5,2 / TABLICA,jajotab.seq,400,300`
+  asserting it stays absolute. Counts updated to the 8-object fixture; new
+  `static_attached==1` assertion.
+- OPEN (recorded, not guessed): the mat is placed at the parent's SPAWN position
+  and does NOT follow the actor as it walks, and the TRIGGER that spawns the
+  5-field 0,0 children (the same question PR-93 left) is still unresolved — both
+  belong to the same "attached children follow/spawn" open item (HANDOFF §7
+  item 11), which this PR advances but does not close.
+- make + make win warning-free; full `make -k verify-all` re-run green before
+  commit. Docs: HANDOFF §7 item 11 panc sub-item marked RESOLVED.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

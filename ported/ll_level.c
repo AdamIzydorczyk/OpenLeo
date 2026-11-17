@@ -2294,7 +2294,10 @@ int ll_mov_selftest(void)
            " A_DEAD, hit_cd/dead gate it, bus empty) + PR-93 placement"
            " grammars (0,0 child joined not instantiated, static .SEQ lines"
            " placed at their authored x,y, x-outside-world and non-.SEQ"
-           " 3-comma lines stay unplaced) (ok)\n");
+           " 3-comma lines stay unplaced) + PR-95 attached static image"
+           " (a .SEQ line inside a bounded actor's property block is drawn"
+           " at parent + offset, not the world corner; one after a"
+           " non-bounded entry keeps its absolute x,y) (ok)\n");
     return 0;
 }
 
@@ -3407,7 +3410,7 @@ typedef struct {                    /* counted while reading, never guessed */
      * them is a placement at the world origin. All counted here; the
      * statics are also placed and drawn, the children are not. */
     int statics, statics_placed, static_out, static_missing,
-        static_shapeonly, attached;
+        static_shapeonly, attached, static_attached;
     int ntrans, ctrl_other, directive, field_other, drop_st, drop_fr, drop_tr;
     int fr_total, fr_blank, fr_mirror, fr_oob;   /* frame numbers: the game's
                                                   * 1-based/signed grammar */
@@ -3878,6 +3881,22 @@ static void des_place_file(place_ctx *pc, const char *fname,
     int declared = -1, entries = 0;
     int last_obj = -1;                  /* the placed object the following
                                          * key=value lines belong to */
+    int after_prop = 0;                 /* PR-95: 1 while inside last_obj's
+                                          * property block (the damage=/bounds=
+                                          * lines that bind to it). A placement
+                                          * line (five-field OR three-comma
+                                          * static) that appears THERE is that
+                                          * object's CHILD: its coordinates are
+                                          * an offset from the parent. The vulture's
+                                          * POCISK/jajo.mov,0,0 egg and the rhino's
+                                          * PICT,panc.seq,20,29 mat both sit in the
+                                          * property block of the object before
+                                          * them. A top-level static (the ANI*.DES
+                                          * shelves, or a WODOSPAD waterfall listed
+                                          * as a SIBLING right after an ANIBACK
+                                          * entry) has no property block before it:
+                                          * after_prop is 0 there, so it keeps its
+                                          * absolute world coordinates. */
     while (p < end) {
         const char *eol = p;
         while (eol < end && *eol != '\n' && *eol != '\r')
@@ -3917,6 +3936,10 @@ static void des_place_file(place_ctx *pc, const char *fname,
                 st->prop++;                     /* damage= / energy= / ... */
                 if (last_obj >= 0 && last_obj < pc->own->nobj) {
                     lvl_obj *lo = &pc->own->objs[last_obj];
+                    after_prop = 1;             /* PR-95: we are inside this
+                                                  * object's property block; a
+                                                  * placement line that follows
+                                                  * is its child (see above) */
                     int v0, v1;
                     if (sscanf(line, " damage = %d", &v0) == 1)
                         lo->damage = v0;
@@ -3957,7 +3980,48 @@ static void des_place_file(place_ctx *pc, const char *fname,
                      * obj_static_get). Counted apart from the entry lines:
                      * this grammar has no script and no properties. */
                     st->statics++;
-                    if (sx < 0 || sx >= pc->world_w) {
+                    /* PR-95: a static line that directly follows a placed
+                     * entry (or one of that entry's property lines, which do
+                     * not clear last_obj) is that object's CHILD: its two
+                     * numbers are an OFFSET from the parent, not a world
+                     * position. This is the SAME child position in which the
+                     * five-field 0,0 lines are authored (ZARIA.01 ZWIERZ1:
+                     * the vulture's `POCISK,jajo.ani,jajo.mov,0,0` egg one
+                     * entry up); here it is the rhino's pancake mat
+                     * `NOSOROG,...,1700,600 ... energy=60` then
+                     * `PICT,panc.seq,20,29` - the mat belongs under the
+                     * rhino, not at the world corner (20,29), which is why
+                     * the rhino "stood on nothing" (the exact case PR-93
+                     * left open in its own record). A top-level static (last
+                     * obj cleared: the ANI*.DES shelf lines, which follow the
+                     * file's count line or another static, never an entry)
+                     * keeps its absolute authored x,y. */
+                    int px = sx, py = sy, child = 0;
+                    if (last_obj >= 0 && after_prop &&
+                        last_obj < pc->own->nobj &&
+                        (pc->own->objs[last_obj].b0 >= 0 ||
+                         pc->own->objs[last_obj].scope >= 0)) {
+                        /* PR-95: the image is authored inside a bounded
+                                          * patrol actor's property block (its
+                                          * parent has bounds= / scope= - the
+                                          * enemy-placement grammar, HANDOFF §
+                                          * "Placement files"): it is the
+                                          * actor's own attached prop, drawn
+                                          * at the parent + this offset. The
+                                          * rhino's pancake mat and the
+                                          * vulture's egg are these. A static
+                                          * that merely follows some OTHER
+                                          * object's property line with that
+                                          * object not a bounded actor (TUNGA
+                                          * `XCHG ... xchg=5,2` then a
+                                          * standalone `TABLICA` sign) is NOT
+                                          * an attached child: it keeps its
+                                          * absolute authored position. */
+                        px = pc->own->objs[last_obj].x + sx;
+                        py = pc->own->objs[last_obj].y + sy;
+                        child = 1;
+                    }
+                    if (px < 0 || px >= pc->world_w) {
                         st->static_out++;   /* same rule as an entry's
                                              * coord_bad: outside the level's
                                              * own world, not placed */
@@ -3972,14 +4036,33 @@ static void des_place_file(place_ctx *pc, const char *fname,
                     so->sc = sc2;
                     so->static_img = 1;
                     so->src = (unsigned char)pc->cur_src;
-                    so->layer = (unsigned char)pc->cur_layer;
+                    so->layer = child
+                                    ? pc->own->objs[last_obj].layer
+                                    : (unsigned char)pc->cur_layer;
                     so->sti = 0;
                     so->face = 1;
-                    so->bx = so->x = sx;
-                    so->by = so->y = sy;
-                    last_obj = -1;    /* the grammar has no properties;
-                                       * a following property line belongs
-                                       * to nothing and is only counted */
+                    so->bx = so->x = px;
+                    so->by = so->y = py;
+                    if (child) {
+                        st->static_attached++;
+                        if (st->static_attached <= 4)
+                            printf("ll_level: placement %s: static %s/%s"
+                                   " follows %s right after it: an image the"
+                                   " engine draws attached to that object at"
+                                   " the offset (%d,%d), placed at the parent"
+                                   " (%d,%d) + offset = (%d,%d), not at the"
+                                   " world corner\n", fname, sleaf, sfname,
+                                   pc->own->objs[last_obj].sc ?
+                                       pc->own->objs[last_obj].sc->leaf
+                                       : "?", sx, sy,
+                                   pc->own->objs[last_obj].x,
+                                   pc->own->objs[last_obj].y, px, py);
+                    }
+                    last_obj = -1;    /* neither a top-level static nor an
+                                       * attached one carries properties; a
+                                       * following property line binds to
+                                       * nothing and is only counted */
+                    after_prop = 0;
                     st->statics_placed++;
                 }
                 else if (strchr(line, ';'))
@@ -3991,6 +4074,8 @@ static void des_place_file(place_ctx *pc, const char *fname,
             char leaf[16], cls[24], mov[24];
             int x = 0, y = 0;
             last_obj = -1;
+            after_prop = 0;             /* a new entry line is not inside any
+                                          * object's property block */
             const char *eos = line + ll;
             const char *c1 = place_field(line, eos, leaf, sizeof leaf);
             const char *c2 = c1 ? place_field(c1, eos, cls, sizeof cls) : NULL;
@@ -4100,6 +4185,9 @@ static void des_place_file(place_ctx *pc, const char *fname,
                                         * it (285 of them game-wide). */
                 o->by = o->y = y;
                 last_obj = pc->own->nobj - 1;
+                after_prop = 0;         /* this entry is a placement, not a
+                                          * property block; a property line
+                                          * that follows re-arms after_prop */
                 st->placed++;
             }
         }
@@ -4139,7 +4227,24 @@ static int place_grammar_selftest(void)
         "PICT,nothere.seq,10,20\n"
         "PICT,outsidex.seq,9000,10\n"
         "GRABG,2113,350,kilof.grp\n"
-        "KAMIEN,dummy,kamien1.mov,160,250,1308\n";
+        "KAMIEN,dummy,kamien1.mov,160,250,1308\n"
+        /* PR-95: the rhino's mat. NOSOROG is a bounded patrol actor (its
+         * bounds= gives b0>=0), so the 3-comma static inside its property
+         * block is its child: the image is placed at the parent (700,600)
+         * plus the authored offset (20,29) = (720,629), NOT at the literal
+         * (20,29) world corner. This is the ZARIA.01 ZWIERZ1 shape. */
+        "NOSOROG,dummy,nos.mov,700,600\n"
+        "bounds=680,750\n"
+        "scope=40\n"
+        "PICT,panc.seq,20,29\n"
+        /* PR-95 negative: a static that only follows a NON-bounded entry's
+         * property line (XCHG has a switch property, no bounds/scope) is
+         * NOT a child - it keeps its absolute authored (400,300), not the
+         * parent+offset (150+400,535+300). The TUNGA ANI2 TABLICA/jajotab
+         * after XCHG shape, scaled into this 1000-px fixture world. */
+        "XCHG,dummy,malpa1.mov,150,535\n"
+        "xchg=5,2\n"
+        "TABLICA,jajotab.seq,400,300\n";
     place_ctx pc;
     scene_owner own;
     memset(&pc, 0, sizeof pc);
@@ -4158,18 +4263,22 @@ static int place_grammar_selftest(void)
     }
     int fail = 0;
     struct { const char *what; int got, want; } chk[] = {
-        { "entry lines", st->entries, 3 },        /* SEP, its child, KAMIEN */
-        { "entries placed", st->placed, 2 },      /* the child is NOT one */
+        { "entry lines", st->entries, 5 },        /* SEP, its child, KAMIEN,
+                                                   * the rhino, XCHG */
+        { "entries placed", st->placed, 4 },      /* the 0,0 child is NOT one */
         { "attached children", st->attached, 1 },
         { "class hints", st->class_hint, 1 },
-        { "property lines", st->prop, 2 },
-        { "static lines", st->statics, 3 },
-        { "statics placed", st->statics_placed, 2 },
+        { "property lines", st->prop, 5 },        /* damage/energy + the
+                                                   * rhino's bounds/scope +
+                                                   * XCHG's switch property */
+        { "static lines", st->statics, 5 },
+        { "statics placed", st->statics_placed, 4 },
         { "statics outside the world", st->static_out, 1 },
-        { "static art holes", st->static_missing, 2 },
+        { "static art holes", st->static_missing, 4 },
+        { "attached statics", st->static_attached, 1 }, /* only the rhino's mat */
         { "group lines", st->group, 1 },          /* GRABG: not a static */
-        { "objects total", own.nobj, 4 },         /* 2 entries + 2 statics */
-        { "static instances", nstatic, 2 },
+        { "objects total", own.nobj, 8 },         /* 4 entries + 4 statics */
+        { "static instances", nstatic, 4 },
         { "instances at 0,0", natzero, 0 },
         { "param-extra entries", st->param_extra, 1 },
     };
@@ -4203,6 +4312,33 @@ static int place_grammar_selftest(void)
     if (!found70) {
         fprintf(stderr, "mov selftest: FAILED placement grammar: no static"
                 " image stands at the authored (70,480)\n");
+        fail = 1;
+    }
+    /* PR-95: the rhino's mat is attached - placed at its parent (700,600)
+     * plus the authored offset (20,29), and never at the literal corner.
+     * The XCHG case is the negative: its following static keeps its
+     * absolute authored position, it is not pulled to parent+offset. */
+    int found_panc = 0, found_corner = 0, found_abs = 0;
+    for (int k = 0; k < own.nobj; k++) {
+        if (!own.objs[k].static_img)
+            continue;
+        if (own.objs[k].x == 720 && own.objs[k].y == 629)
+            found_panc = 1;
+        if (own.objs[k].x == 20 && own.objs[k].y == 29)
+            found_corner = 1;
+        if (own.objs[k].x == 400 && own.objs[k].y == 300)
+            found_abs = 1;
+    }
+    if (!found_panc || found_corner) {
+        fprintf(stderr, "mov selftest: FAILED placement grammar: the rhino's"
+                " attached static is not at parent+offset (720,629)%s\n",
+                found_corner ? " or it also stands at the (20,29) corner" : "");
+        fail = 1;
+    }
+    if (!found_abs) {
+        fprintf(stderr, "mov selftest: FAILED placement grammar: the static"
+                " after a non-bounded entry moved off its absolute (400,300)"
+                " (it is not that entry's child)\n");
         fail = 1;
     }
     scene_owner_free(&own);
@@ -4289,9 +4425,13 @@ static void des_placement(place_ctx *pc, llrs *hd_ety,
                " names its own .SEQ in that CD ANIMACJE leaf, no script)"
                " -> %d placed, %d at an x outside the level's own world,"
                " %d whose .SEQ is not on these containers (data holes"
-               " listed above), %d carry shape only (drawn as nothing)\n",
+               " listed above), %d carry shape only (drawn as nothing), %d"
+               " authored right after an object and drawn attached to it at"
+               " the offset (a mat under the object the line follows: an"
+               " offset from that object, not a world position)\n",
                pc->level, st->statics, st->statics_placed, st->static_out,
-               st->static_missing, st->static_shapeonly);
+               st->static_missing, st->static_shapeonly,
+               st->static_attached);
     if (st->prop || st->group || st->comment || st->class_hint ||
         st->poly || st->shortline || st->param_extra || st->field_space ||
         st->entry_noext || st->attached || st->longline)
