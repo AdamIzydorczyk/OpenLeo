@@ -9293,6 +9293,183 @@ it
   the legs are load-bearing; the tree was restored from
   `/tmp/opencode/mut/{ll_play,ll_level}.orig` after each and the census
   output was reproduced before committing.
+## PR-116 — the `acc == thresh` boundary read at byte level: the engine
+fires only STRICTLY past the threshold, the row handler writes the remainder
+back at 0x52118, and no row of this corpus can skip the compare
+
+- WHAT THIS PR DOES. No behaviour change, and no new fixture: it settles the
+  reading PR-110 left open, measures how many rows the question covers, and
+  prices changing the gate with four mutations. PR-110's item 2, quoted
+  verbatim (NEXT_STEPS.md:8439-8446): "(2) The boundary at exact equality:
+  13932 of the 14881 authored BY_TIME rows are exact multiples of 100 and
+  the feed is exactly 100, so whether a row fires at `acc == thresh` (the
+  port) or only above it (the literal flag direction of `39 d8` / `7d 27`
+  read AT&T-style, which also makes the `sub ebx,eax` remainder negative) is
+  a systematic +1-feed difference. PR-100's reading - threshold first,
+  "return with the debt kept" - is the coherent one and is what the port
+  implements; the two readings are not equivalent, and nothing in the repo
+  or the clip separates them." The last clause is still true and still the
+  reason the port keeps `>=`. What is NOT true is the parenthetical: the
+  bytes do not read both ways. The DB was rebuilt first (`python3
+  tools/re/leodb.py build`, over `build/leo/leo.img`, `meta.img_sha256`
+  matching the image); every byte below is quoted from `leodb.py dis`, so
+  nothing here depends on a syntax choice.
+- THE DECISION POINT, byte for byte. The record step is 0x521f0: prologue
+  `push ebx/ecx/esi/edi/ebp; sub esp,0x6c`, epilogue at 0x52354 (`83 c4 6c`
+  `add esp,0x6c`, 5 pops, `ret`). It is vtable slot +0x0c in all 16 of the
+  record classes' class tables, and the row handler 0x520c0 is slot +0x18 of
+  the SAME 16 tables - all 16 sites where 0x520c0 is stored sit at base+0x18
+  with base+0x0c = 0x521f0. Inside the step: 0x52317 `ff 92 a0 00 00 00`
+  `call [edx+0xa0]` is the mode feed (PR-99's dispatcher, 0x543a2), and it
+  runs BEFORE the compare; then 0x52320 `8b 43 10` loads the row node's
+  threshold ([node+0x10]) into eax, 0x52323 `8b 9a a1 00 00 00` loads the
+  object's accumulator ([obj+0xa1], from [ebp+0x0] at 0x5231d) into ebx,
+  0x52329 `39 d8`, 0x5232b `7d 27 jge 0x52354`, then on the fall-through
+  0x52331 `8b 75 44`, 0x52334 `29 c3 sub ebx,eax`, 0x52338 `ff 56 18`
+  `call [esi+0x18]` - the handler, with ebx = acc - thresh.
+- WHY THE "TWO READINGS" FRAME WAS WRONG. `39 d8` is `cmp eax,ebx`, and the
+  AT&T spelling of those same two bytes is `cmp %eax, %ebx`: the operands,
+  the order and the flag source (first minus second) are the same in both
+  syntaxes, so "read AT&T-style" cannot flip the direction. The flags are
+  thresh - acc; `jge` taken means thresh >= acc, i.e. the step returns
+  through 0x52354 with the accumulator kept and runs NO row when acc ==
+  thresh, and runs the row only when acc > thresh. Only swapping the
+  operands flips it, and that reading is self-contradictory: with flags from
+  acc - thresh the same `7d 27` would skip the row whenever acc >= thresh,
+  so a row would run only while its threshold had never been reached. It is
+  also where PR-110's "makes the `sub ebx,eax` remainder negative" comes
+  from - a symptom of the swap, not of the bytes. Under the bytes, at exact
+  equality nothing happens: the accumulator stays at thresh, the next feed
+  makes it thresh + 100, and the row then runs with a remainder of exactly
+  one feed. That is the systematic +1-feed difference, and the direction of
+  it is the opposite of the one in the quoted text: it is the PORT that
+  fires early, on the iteration that only reaches the threshold.
+- CORRECTION TO PR-115'S RECORD (NEXT_STEPS.md:9166-9169), quoted: "And
+  0x52334 `29 c3` (`sub ebx, eax`) computes the remainder in REGISTERS only:
+  the only writes to `[obj+0xa1]` anywhere are the feeds at 0x543d1 /
+  0x543e7 / 0x54412 / 0x5443b, so the accumulator is monotonic and there is
+  no cap and no resync in that path." Two parts of that are wrong. (1) The
+  remainder is not registers-only: the handler at 0x520c0 saves its entry
+  ebx at 0x520cb (`89 5c 24 14`), reloads it at 0x52114 (`8b 54 24 14`) and
+  stores it at 0x52118 (`89 90 a1 00 00 00`, `mov [eax+0xa1],edx`). The
+  engine does commit the subtraction, through the handler. (2) 0x54412 and
+  0x5443b are `add edi,eax` / `add ecx,eax` on a loaded copy, not stores:
+  the mode-2 body is 0x54400 `8b bb a1 00 00 00` load / 0x5440c `81 c3 a1
+  00 00 00` `add ebx,0xa1` / 0x54412 `01 c7` / 0x54414 `89 3b`
+  `mov [ebx],edi`, and mode 4's is 0x54429 load / 0x54435 `add ebx,0xa1` /
+  0x5443b `01 c1` / 0x5443d `89 0b` `mov [ebx],ecx`. Those stores carry no
+  displacement at all, which is why a text search for `0xa1]` misses them.
+  The complete set the DB finds - every instruction whose operands mention a
+  +0xa1 displacement, listed in `/tmp/opencode/pr116_write_set.txt`; 9 in
+  the 0x52000-0x54500 range and they are all this slot: WRITES 0x52118 (the
+  remainder), 0x5236b / 0x533b0 / 0x5389e (`mov ptr,0x0` - the three zeroes
+  PR-100 listed at NEXT_STEPS.md:5676-5685, in the same paragraph
+  that says "The only non-zero assignment found is the one PR-99
+  noted at 0x52118, which stores the result of an owner method"),
+  0x543d1 / 0x543e7 (`add`,
+  modes 0 and 1); stores that reach the slot through a pointer built by the
+  `add reg,0xa1` above them: 0x54414 (mode 2, no gate) and 0x5443d (mode 4,
+  gated on `[obj+0xbe] != 0` at 0x5441b); READS 0x52323 (this compare),
+  0x54400, 0x54429. So the accumulator is not monotonic: every row that
+  runs rewrites it, and three paths zero it. PR-100's record had 0x52118 and
+  the zeroes right; PR-115's sentence contradicts it and this is the
+  correction.
+- THE OTHER BRANCH, AND HOW MANY ROWS COULD TAKE IT. At 0x52235-0x5224b the
+  step tests the node's key string with 0x495b0 (the "is it empty" test).
+  Empty -> the 0x522fc path quoted above: OR [node+0x0c] into the caller's
+  key, feed, compare. Non-empty -> 0x52251: OR [obj+0x60] into the key,
+  call 0x47e40, return if it finds nothing, else `31 db` (`xor ebx,ebx`) and
+  `eb 3c` (`jmp 0x52338`) - the handler with the accumulator set to 0 and no
+  threshold compare at any point. The only directive that builds such a node
+  is `Wait`: the name is the string at 0x91989, compared at 0x46b52-0x46b59
+  inside the level-text parser 0x45df0 (the same function that holds the
+  row-split format ' , %[^,| ' at 0x91844, which tokenises on ',' '|' and
+  space), and the handler at 0x46b62 writes the node's string through
+  0x749a0 at 0x46b89 and gives it the vtable 0xa11c8. THE COMPARE IS NOT
+  CASE-SENSITIVE: the helper at 0x76a69 lower-cases BOTH sides (`83 f9 41` /
+  `7c 07`, `83 f9 5a` / `7f 02`, `04 20` / `80 c4 20`, then `38 e0`
+  `cmp al,ah`), so the `WAIT` that the .MOV text really writes reaches that
+  handler. Census, both counts: 0 tokens with the exact case the name table
+  stores, 255 standalone `WAIT` tokens, 251 of them on lines this repo's row
+  parser reads as rows - the `WAIT K_NEVER` (159), `WAIT K_GEN1` (25) and
+  `WAIT AC_DUP`/`AC_TIME` tails PR-88's table names and the port counts
+  without implementing them, plus the rest.
+  Whether each of those builds a keyed ROW node or a separate event node is
+  unread (item 3), so the tool prints the boundary population as a bracket:
+  AT MOST 15317 of 18617 rows, AT LEAST 15066. Even at the bottom of that
+  bracket the boundary is 81% of the corpus's row lines.
+- WHAT THE CENSUS MEASURES (the same tool, `tools/re/mov_byx_gate.py`, new
+  section 5; output `/tmp/opencode/pr116_census.txt`, whose sections 1-4 are
+  byte-identical to the PR-115 output apart from the new blank separator).
+  Of the 18617 row lines, counted on the thresholds the port's parser
+  STORES (the M4-C clamp plus the block's `time_scale`, applied only at and
+  after the line): 15317 are an exact positive multiple of 100, in 2012
+  states. By mode: BY_TIME 15142 of 17011 (156 of them are what an authored
+  0 became through the clamp), 1934 states whose MINIMUM stored threshold is
+  on that boundary, in 754 files; BY_X 67 of 1349, 66 states, 59 files;
+  BY_TY 108 of 108, 12 states, 7 files; BY_Y 0 of 149. Reconciled against
+  the quoted PR-110 figures over the same files: its own reading
+  (`pr110_thresholds()`, every row scaled, no clamp) gives 15164 multiples
+  of 100 of 18617 rows, so the two readings differ by 203 rows out of
+  15000+ and the same direction; its "13932 of the 14881" is that count
+  taken over its own BY_TIME subset, which is a different mode attribution
+  than the tool's (the tool counts 17011 BY_TIME rows). At any of these rows
+  a feed of 100 lands the accumulator exactly on the threshold, so the
+  engine's step returns and fires the row ONE FEED LATER, 100 iterations
+  later, with a remainder of 100 where the port fires now with a remainder
+  of 0. The quoted note called this "not hypothetical"; it is 82% of the
+  corpus's rows. With the rows whose text carries a `WAIT` token kept out,
+  as the keyed-branch candidates, the same count is 15066 at the bottom of
+  the bracket and 15317 at the top.
+- THE MUTATIONS, i.e. what the port's choice currently covers
+  (`/tmp/opencode/mut/run116.sh`, output `/tmp/opencode/mut/run116.out`;
+  each run prints the diff it applied and builds with 0 warnings; M0 is the
+  control, the same pass with no patch at all, and finds nothing anywhere).
+  G1 flips the player's gate `>=` -> `>` (ll_play.c:1286, one compare, so
+  both feeds at once): 41 play-selftest failures from 14 distinct legs,
+  including the `100u * t - closed` exact-carry loop at :2402 and :2420 and
+  the `broke`/wrap legs at :2322-2323 and :2407 - the object chain is
+  untouched (0). G2a flips only the object's time half (`: o->row_t <
+  f->thresh` -> `<=`, ll_level.c:1231): 2 legs, "the first iteration did not
+  close exactly one row (state 0 frame 0 t 100)" (ll_level.c:1761, PR-110's
+  leg) and `obj_motion`'s "cross-state return: x 105 state 1 frame 0 (want
+  105 back in A_RUN row 1: A_HIT's 100-unit row is exactly one iteration)"
+  (:2407, PR-115's). G12 (both) is the union. G2b flips only the object's
+  WALKING half (`o->facc <` -> `<=`) and NOTHING catches it: no leg of this
+  repo puts a distance-fed accumulator exactly on a threshold. That is the
+  one gap this PR found in its own fixtures, and it is item 2 below.
+- NOT CHANGED, AND WHY. The port keeps `>=` on both sides. Nothing here is
+  game data or a captured frame, and PR-110's closing clause still holds: no
+  clip in the repo separates the two rules. The difference is now measured
+  rather than guessed, and the decision has a number on it: moving to
+  strict-greater would shift 15066-15317 authored rows by one whole feed
+  of 100 iterations, and it is not a bug fix but an engine-alignment choice,
+  so it is listed as item 1. No real-Windows probe was run (ADAM-HANDHELD is
+  asleep and WOL does not answer); the T5 clip and the section-7 item-5 menu
+  capture are the ones the night prompt says to skip.
+- OPEN ITEMS (PR-116 1-5). (1) Whether to move the port's gates to the
+  engine's strict rule, now that the reading is settled: 15066-15317 rows in
+  2012 states would fire one feed later, 41 play legs plus the 2 object legs
+  above currently pin the opposite rule, and the only evidence for the
+  current rule is that it was the coherent-looking one when the flag
+  direction was thought to be ambiguous. (2) A leg that puts a
+  distance-fed accumulator exactly on a threshold: G2b is a survivor. (3) Do
+  the 251 `WAIT`-carrying row lines build keyed ROW nodes (which would skip
+  the compare entirely and be driven by 0x47e40 instead), or does 0x46b62
+  register a separate event node? The vtable it stores is 0xa11c8 and the
+  register call is 0x47d60; neither has been read. It decides whether the
+  real boundary population is 15317 or 15066, and it is the first time this
+  corpus shows a row form that does not go through the threshold. (4) What
+  the handler does with the remainder it is handed at 0x52338 - the engine
+  pays a row `acc - thresh` ticks at the moment it runs, and under the
+  strict rule that value is a whole feed at a boundary row and not 0; this
+  is the same clock question as PR-115's rows-per-step, with the boundary
+  value attached. (5) The three zeroes: 0x5236b sits in 0x52360, which is
+  vtable slot +0x1c in 4 of the 16 class tables and is also called directly
+  at 0x4ff6b and 0x50003; 0x533b0 is in 0x532c0 and 0x5389e in 0x53850.
+  Which events reset an accumulator mid-state, and whether any authored
+  level relies on it, is unread.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

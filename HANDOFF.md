@@ -546,6 +546,53 @@ loop bounds, the resync and the parse-time clamp are all caught. Census and
 arithmetic: `tools/re/mov_byx_gate.py`, NEXT_STEPS.md, PR-115 record. Whether
 the game closes one row per step or all that fit is STILL open - that needs a
 capture, not a compare.
+CORRECTION TO THE PR-115 PARAGRAPH ABOVE, added 2026-11-18 by PR-116, for
+the same reason (that paragraph still says what it said when it shipped): it
+quotes "0x52334 `29 c3` hands `acc - thresh` to the row handler in registers
+only - the only writes to [obj+0xa1] anywhere are the feeds at 0x543d1 /
+0x543e7 / 0x54412 / 0x5443b, so the accumulator is monotonic". Part of that
+is wrong. The handler writes the remainder back: it saves its entry ebx at
+0x520cb (`89 5c 24 14`), reloads it at 0x52114 (`8b 54 24 14`) and stores it
+at 0x52118 (`89 90 a1 00 00 00`, `mov [eax+0xa1],edx`). And 0x54412 /
+0x5443b are `add reg,eax` on a loaded copy, not stores: the mode-2 feed is
+0x54400 load, 0x5440c `add ebx,0xa1`, 0x54412 add, 0x54414 `89 3b`
+`mov [ebx],edi`, and mode 4's is 0x54429 load, 0x54435 `add ebx,0xa1`,
+0x5443b add, 0x5443d `89 0b` `mov [ebx],ecx`. Those stores carry no
+displacement at all, which is why a text search for `0xa1]` missed them.
+Every instruction that does mention that displacement, listed in
+`/tmp/opencode/pr116_write_set.txt`: WRITES 0x52118 (the remainder),
+0x5236b / 0x533b0 / 0x5389e (the three zeroes PR-100 already listed),
+0x543d1 / 0x543e7 (the mode-0 and mode-1 `add` feeds), plus the two
+computed-pointer stores 0x54414 (ungated) and 0x5443d (gated on
+[obj+0xbe] != 0 at 0x5441b); READS 0x52323, 0x54400, 0x54429. So the
+accumulator is NOT monotonic - every row that runs rewrites it and three
+paths zero it - and PR-115's "no cap and no resync in that path" is still
+true but was not justified by that sentence.
+
+THE OPEN HALF OF THE ROW-CLOCK ROW ("whether a row fires AT `acc == thresh`
+(13932 of 14881 authored BY_TIME thresholds are exact multiples of the 100
+feed)") is answered at the machine-code level, 2026-11-18, PR-116: it does
+not. The compare at 0x52329 `39 d8` / 0x5232b `7d 27` is threshold minus
+accumulator and jumps to the epilogue when the accumulator has only REACHED
+the threshold, so a row runs only when the accumulator is strictly past it;
+at equality the step keeps the accumulator, and the next feed runs the row
+100 iterations later with a remainder of a whole feed instead of 0. The
+reading that goes the other way needs the operands swapped and contradicts
+itself, and PR-110's "which also makes the `sub ebx,eax` remainder negative"
+belongs to that swapped reading, not to the bytes. Related wording in the row
+above: "A row stays current while `acc < thresh`" should read `acc <= thresh`
+for the engine. Measured population: 15317 of the 18617 row lines store a
+threshold that is an exact positive multiple of the 100-unit feed (BY_TIME
+15142 of 17011 rows, in 754 files), in 2012 states. `Wait`, the one
+directive whose node skips the compare, is spelled `WAIT` in this text and
+the name compare at 0x46b59 is 0x76a69, which lower-cases both sides, so
+251 row lines do reach it and the honest figure is a bracket: 15066 to
+15317. The port keeps `>=` (this PR changed no behaviour): flipping the
+gates breaks 41 play legs and the two object legs that pin the current
+rule, and no clip in the repo separates the two, so the flip stands as an
+owner decision with a number on it. PR-116 record; census section 5 of
+`tools/re/mov_byx_gate.py`.
+
 
 ## 7. Open questions (ranked by how much they block)
 
@@ -1431,6 +1478,44 @@ capture, not a compare.
      Which of the two laws the game runs is still open and needs a capture,
      not a disassembly (T5/T10); the exact-equality boundary is the next
      question in line. NEXT_STEPS.md, PR-115 record.
+   - THE EXACT-EQUALITY BOUNDARY, ANSWERED 2026-11-18 by PR-116, whose
+     bullet above named it open ("the exact-equality boundary is the next
+     question in line"). As a reading question it is closed: `39 d8` at
+     0x52329 is `cmp eax,ebx` - eax is the row's stored threshold (loaded
+     at 0x52320), ebx the accumulator (loaded at 0x52323) - and the flags
+     come from the first minus the second in EITHER syntax, so 0x5232b
+     `7d 27 jge 0x52354` returns without running the row when the
+     accumulator is exactly AT the threshold. The engine fires a row only
+     STRICTLY past its threshold: at equality nothing happens, the
+     accumulator is kept, and the next feed runs the row 100 iterations
+     later with a remainder of a whole feed, which the row handler then
+     writes back to [obj+0xa1] at 0x52118 (`89 90 a1 00 00 00`) - so the
+     subtraction is committed after all, and the accumulator is not
+     monotonic. The reading that goes the other way needs the operands
+     swapped and contradicts itself, and PR-110's "which also makes the
+     `sub ebx,eax` remainder negative" belongs to that swapped reading, not
+     to the bytes. The population, measured: 15317 of the 18617 row lines
+     store a threshold that is an exact positive multiple of the 100-unit
+     feed (BY_TIME 15142 of 17011 rows in 754 files), in 2012 states.
+     `Wait` - the one directive whose node skips the compare and matches
+     through 0x47e40 instead - is spelled `WAIT` in this text, and the
+     name compare at 0x46b59 is 0x76a69, which lower-cases BOTH sides, so
+     it is reached after all: 255 standalone `WAIT` tokens, 251 of them on
+     row lines (the `WAIT K_NEVER` / `WAIT AC_*` tails PR-88's table names,
+     which the port counts but does not implement). Whether those become
+     keyed ROW nodes or separate event nodes
+     is unread, so the honest figure is a bracket: 15066 at the bottom of
+     the boundary population, 15317 at the top - and either way most of the
+     corpus's rows. The port still runs `acc >= thresh` and this PR changed
+     no behaviour, so what is left is a decision with a number on it, not an
+     unknown: flipping the two gates moves 15066-15317 authored rows by one
+     whole feed of 100 iterations, and 41 play legs plus the two object legs
+     that pin the current rule break when it is flipped (nothing at all
+     breaks if only the object's walking half is flipped: no leg puts a
+     distance-fed accumulator exactly on a threshold, which is the fixture
+     gap PR-116 records). No clip in the repo separates the two, exactly as
+     PR-110 said. PR-116 record; `tools/re/mov_byx_gate.py` section 5,
+     output `/tmp/opencode/pr116_census.txt`.
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
      files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's

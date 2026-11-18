@@ -548,6 +548,100 @@ def main(argv):
           " ll_level.c has NO such cap - its\n   state loop is bounded by"
           " the accumulator and by the 4096-iteration guard\n   at :1188-1189,"
           " and it never resyncs the debt.")
+
+    # PR-116: which rows sit exactly on the `>=` / `>` boundary.  The
+    # engine's record step reads `0x52329: 39 d8  cmp eax,ebx` then
+    # `0x5232b: 7d 27  jge return` with eax = the stored threshold
+    # [node+0x10] and ebx = the accumulator [this+0xa1]: the row runs
+    # only when the accumulator is STRICTLY past the threshold, and
+    # `0x52334: 29 c3  sub ebx,eax` hands the row handler a POSITIVE
+    # remainder which the handler writes back at `0x52118: 89 90 a1...`.
+    # Under a feed of exactly 100 (`0x4c8b7`), the port's rule and the
+    # engine's agree everywhere except at a stored threshold that is an
+    # exact multiple of 100: the port fires on the iteration that
+    # reaches it exactly
+    # with a remainder of 0, the engine returns keeping the accumulator
+    # and fires on the NEXT iteration, 100 later, with a remainder of
+    # 100.  The port keeps `>=` (what PR-110 implemented); this measures
+    # what that covers.  `Wait` is the one directive that builds a keyed
+    # node (`0x46b52` loads the name `0x91989`, the node string is
+    # written at `0x46b89`, and a non-empty key takes the `0x52251`
+    # branch, which calls 0x47e40 and passes ebx = 0 - no threshold at
+    # all).  The name compare at 0x46b59 is 0x76a69, which lower-cases
+    # both sides, so `WAIT` in the text reaches it too: the counts below
+    # are the exact-case and any-case figures, plus how many of them sit
+    # on lines this repo reads as rows, which bounds the keyed branch.
+    print("\n== 5. PR-116: the boundary population, and the keyed-node"
+          " branch")
+    wait_cs = wait_ci = wait_rows = 0
+    for p in files:
+        for line in open(p, "r", encoding="latin-1"):
+            hit = 0
+            for tok in re.split(r"[^A-Za-z0-9_]+", line):
+                if tok == "Wait":
+                    wait_cs += 1
+                    hit = 1
+                elif tok.upper() == "WAIT":
+                    wait_ci += 1
+                    hit = 1
+            if hit and ROW_C.match(line):
+                wait_rows += 1
+    print("   `Wait` directive tokens: %d with the exact case the engine's\n"
+          "            name table stores (the string at 0x91989), %d with"
+          " any case.  The\n            compare at 0x46b59 is 0x76a69, and"
+          " those bytes lower-case\n"
+          "            BOTH sides (`83 f9 41` / `7c 07` / `04 20` twice"
+          " over, then `38 e0`\n"
+          "            `cmp al,ah`), so the second number is the one that"
+          " reaches the\n            handler.  %d of those tokens are on"
+          " lines this repo's row parser\n            reads as rows: those"
+          " are the only candidates for the keyed\n            `0x52251`"
+          " branch, which matches through 0x47e40 and never\n"
+          "            compares a threshold.  Whether each one builds a"
+          " keyed ROW node or a\n            separate event node is unread"
+          " (PR-116 item 3), so the two\n            readings of the"
+          " boundary population are printed below: at most\n"
+          "            all of it, at least all of it minus those rows."
+          % (wait_cs, wait_ci, wait_rows))
+    tot = [0, 0, 0, 0]
+    for mode in MODE_ORDER:
+        t = thr.get(mode)
+        if not t or not t["stored"]:
+            continue
+        stv = t["stored"]
+        n100 = sum(1 for v in stv if v > 0 and not v % 100)
+        authored0 = sum(1 for s in states if s["mode"] == mode
+                        for v in s["thr_c"] if v <= 0)
+        bstates = sum(1 for s in states if s["mode"] == mode and s["tmin"]
+                      and s["tmin"] > 0 and not s["tmin"] % 100)
+        f100 = {os.path.basename(s["path"]) for s in states
+                if s["mode"] == mode
+                and any(v > 0 and not v % 100
+                        for v in stored_thresholds(s))}
+        print("   %-8s %5d of %5d stored thresholds are an exact positive"
+              " multiple\n            of 100 (%d of them from an authored 0"
+              " or negative, which the M4-C\n            clamp rewrites to"
+              " 100); %4d states have their MINIMUM there, in\n"
+              "            %d files." % (mode, n100, len(stv), authored0,
+                                         bstates, len(f100)))
+        print("            At each of those rows the engine's record step"
+              " returns with the\n            accumulator kept and fires the"
+              " NEXT iteration, 100 later.")
+        tot[0] += n100
+        tot[1] += len(stv)
+        tot[2] += authored0
+        tot[3] += bstates
+    print("   the whole corpus: %d of %d stored thresholds sit on the"
+          " exact-multiple-of-100\n   boundary, in %d states; %d of those"
+          " are what an authored 0 or negative\n   became through the M4-C"
+          " clamp.  Those are the rows where the port's\n   `>=` and the"
+          " engine's `cmp/jge` disagree by one whole feed of 100\n"
+          "   iterations." % (tot[0], tot[1], tot[3], tot[2]))
+    print("   the bracket with the keyed rows kept out: AT MOST %d of the"
+          " %d row lines\n   are on that boundary, AT LEAST %d - the %d row"
+          " lines whose text carries a\n   standalone `WAIT` token are the"
+          " candidates for the keyed branch and\n   are subtracted there."
+          % (tot[0], tot[1], max(tot[0] - wait_rows, 0), wait_rows))
     return 0
 
 

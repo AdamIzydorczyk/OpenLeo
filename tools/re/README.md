@@ -56,8 +56,21 @@ the same question for the distance-fed half under both per-step feed
 estimates (`|T| * 0.028` for the player, `|F| * 0.028 / 4000` for a
 scene object, both labelled estimates), and the loops' own bounds -
 `4 * nfr` closures plus the accumulator resync in the player, nothing
-but the 4096-iteration guard in the object engine. Stdlib only,
-inventories only, no game data in git. NEXT_STEPS.md PR-114, PR-115. |
+but the 4096-iteration guard in the object engine. PR-116 adds section
+5, the boundary PR-110 item 2 asks about: rows whose threshold AS
+STORED is an exact positive multiple of the 100-unit feed (that is
+where the port's `acc >= thresh` and the engine's `cmp`/`jge` at
+0x52329/0x5232b differ by one whole feed), per mode and per state
+whose MINIMUM sits on that boundary, and the count of `Wait` directive
+lines - `Wait` (0x91989, handler 0x46b62) is the only row form whose
+node carries a key and so takes the 0x52251 branch, which matches
+through 0x47e40 and never compares a threshold. The engine's name compare
+at 0x46b59 is 0x76a69, which lower-cases BOTH sides, so the tool prints
+both counts - 0 tokens with the exact case the table stores, 255 with any
+case, 251 of them on row lines - and prints the boundary population as a
+bracket: 15066 at the bottom, 15317 at the top, in 2012 states.
+Stdlib only, inventories only, no game data in git. NEXT_STEPS.md PR-114,
+PR-115, PR-116. |
 
 ## Disassembly
 
