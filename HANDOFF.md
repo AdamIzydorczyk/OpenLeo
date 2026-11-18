@@ -744,6 +744,35 @@ shows a ctor writing a pair at `[obj+0x0]` in another one. No behaviour
 changed and no port comment touched; the coordinate half of the
 difference is not modelled and not stated anywhere in the code. PR-121
 record in NEXT_STEPS.md.
+PR-122 added 2026-11-18: where the one-shot vertical amount comes from,
+a reading, no code change. It takes PR-121's own closing words here,
+quoted:
+"the `[obj+0xea]` one-shot vertical amount and the `[obj+0xe6]` link as its
+open items",
+Those two fields are now read. 0x455a0 is 21 instructions of one
+formula: `P.y + trunc((R.x - P.x) * (Q.y - P.y) / (Q.x - P.x)) - R.y`,
+the signed vertical gap from a point R up to the line through P and Q,
+and like PR-120's divide its remainder is dropped (0x455c3 `idiv`,
+overwritten at 0x455c5). Its caller at 0x45400 builds P and Q as
+adjacent records 13 bytes apart - 0x4543c/0x45440/0x45481/0x45485 are
+four `imul ...,0xd`, and 0x4540c..0x45419 read a count byte at +0xc of
+the same table - indexes them through slot +0x6c of the second argument's
+table (0x45434/0x45439), and stores the result only past two guards
+(0x45496..0x454a0: the gap must be <= 0 and <= what is already there),
+0x454a2 `mov [edi+0xe6],esi` and 0x454a8 `mov [edi+0xea],eax` in the
+same breath. So the link and the correction are one transaction: a
+surface provider is attached, a non-positive gap to a two-point segment is
+computed against it, and PR-121's tail applies that gap to the y delta
+once and clears it. Not claimed: that the records are terrain. The shape
+fits and PR-99 item 10 guessed terrain, but 0x45380 (0x45423) and the
++0x6c provider are unread, and there is no zero-denominator guard in
+those 21 instructions. The port-side contrast is stated: it has no
+geometric y path at all - y comes from the row's authored `dy=`
+(:1238) and is reset to the base y (:831, :927, :1001, :1214) - so no
+shipped leg could detect a missing slope push. PR-122 record in
+NEXT_STEPS.md, with reading 0x45380 and the +0x6c provider as its first
+open item.
+
 
 
 
@@ -1779,6 +1808,25 @@ record in NEXT_STEPS.md.
      call, alongside the PR-116 strict-greater item. PR-121 record in
      NEXT_STEPS.md, with the `[obj+0xea]` one-shot vertical amount and
      the `[obj+0xe6]` link as its open items.
+
+   - THE ONE-SHOT VERTICAL AMOUNT IS A GAP TO A TWO-POINT SEGMENT,
+     2026-11-18, PR-122. It reads the two fields named there, quoted:
+     "the `[obj+0xea]` one-shot vertical amount and the `[obj+0xe6]` link
+     as its open items."
+     Those two fields are now read: 0x455a0 returns the signed vertical
+     gap from a point
+     to the line through two records 13 bytes apart (0x45400 builds them
+     as base+i*13 and base+(i-1)*13 at 0x45481..0x4548f), truncated at
+     the divide like every other engine quantity in this chain, and
+     0x454a2/0x454a8 store the link and the gap together only when the
+     gap is <= 0 and no larger than the stored one. Joined with PR-121's
+     tail: attach a provider, compute a one-shot correction, apply it to
+     the y delta once, clear it. Not terrain, not yet: 0x45380 and the
+     slot +0x6c provider are unread and there is no guard against a zero
+     denominator. The port models no geometric y at all (`dy=` directives
+     at :1238, base-y resets at :831/:927/:1001/:1214), so this has
+     nothing to be tested against yet; whether to model it is the owner's
+     call. No code, no comment, no behaviour changed here.
 
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64

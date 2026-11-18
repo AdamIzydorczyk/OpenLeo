@@ -10013,6 +10013,100 @@ way its row gate does
   .github/workflows change, every added line <= 79 columns.
 
 
+## PR-122 — where the one-shot vertical amount comes from: 0x455a0 is a
+signed gap to a two-point surface segment, and the block that stores it
+into `[obj+0xea]` is also the block that stores the `[obj+0xe6]` link
+
+- WHAT THIS PR IS. A reading, no code, no behaviour. It closes PR-121
+  open item 2, quoted verbatim:
+  "Read 0x45480..0x454b0 and 0x455a0: what is the amount 0x455a0 returns, what
+  the `[obj+0xe6]` link is, and whether `[obj+0xea]` is the port's missing
+  one-shot vertical push."
+  The addresses are all from `leodb.py dis` on the exact bytes; the
+  transcript is /tmp/opencode/pr122_dis.txt (source image sha256 plus the
+  full `dis` of 0x455a0, 0x45400+0x40 and 0x4543c+0x78).
+- 0x455a0 IS A LINE-VERSUS-POINT y DIFFERENCE, AND ITS REMAINDER IS
+  DROPPED LIKE PR-120's. Twenty-one instructions, read in full: args
+  `eax` = point P, `edx` = point Q, `ebx` = point R, each a pair
+  (`[p]`, `[p+4]`). 0x455a7/0x455aa compute `Q.y - P.y`, 0x455b1/0x455b3
+  `R.x - P.x`, 0x455b5 `imul`, 0x455bc/0x455c1 `Q.x - P.x`, 0x455be
+  `sar 0x1f` + 0x455c3 `idiv` - a signed divide whose remainder lands in
+  `edx` and is overwritten by 0x455c5 `mov edx,[ecx+0x4]`, exactly the
+  pattern PR-120 found at 0x5435f - then 0x455cb/0x455cd add `P.y` and
+  subtract `R.y`. So the return value is `P.y + trunc((R.x - P.x) *
+  (Q.y - P.y) / (Q.x - P.x)) - R.y`: the signed vertical distance from
+  R up to the line through P and Q, truncated. There is no guard for a
+  zero denominator in those 21 instructions, so the caller is
+  responsible for the two points differing in x - a reason 0x45380,
+  unread, has to be read before this is relied on numerically.
+- THE CALLER BUILDS P AND Q OUT OF 13-BYTE RECORDS. In 0x45400 (the
+  entry-list index calls it FUN_00045400; that is a hint, not a proof):
+  0x4540c/0x4540f/0x45412 read `BYTE [[arg1+0x4]+0xc]` masked to 0xff
+  and 0x45417/0x45419 `cmp`/`jg` branch to the epilogue when that count is
+  GREATER than `ecx` - so the index is bounded by it - and `[arg1+0x4]`
+  is a table whose records are 13 bytes apart with a count byte at +0xc -
+  which is what the four `imul ...,0xd` at 0x4543c, 0x45440, 0x45481 and
+  0x45485 scale. 0x45481..0x4548f (clean decode): `edx = ecx*13`, `dec
+  ecx`, `ecx = (ecx-1)*13`, `eax = [[esi+0x4]]`, `add edx,eax`,
+  `add eax,ecx` - so Q = base + i*13 and P = base + (i-1)*13, adjacent
+  records; 0x4548b `mov ebx,ebp` puts the third point in `ebx` (arg3,
+  saved at 0x4540a), 0x45491 `call 0x455a0`. The record index itself
+  comes from a virtual call on the second argument: 0x45434 `mov
+  ebx,[edi+0x8]`, 0x45439 `call [ebx+0x6c]`, whose `edx` return is
+  scaled the same way at 0x4543c. A first call at 0x45468 builds the
+  same pair through stack slots (0x45443..0x45464) and its third point
+  is not established by that decode.
+- THE GUARDS AND THE TWO STORES. After the 0x45468 call: 0x4546d `mov
+  edx,[esp+0x18]` - that function has exactly one stack parameter (its
+  single epilogue 0x454c0..0x454c6 is `add esp,0x8`, three pops, `ret
+  0x4`, and every reject above branches there), so 0x45477 `sub eax,edx`
+  subtracts that parameter from the first result. 0x45471 `mov
+  ebx,[edi+0xa9]`, 0x45479 `cmp esi,ebx` +
+  0x4547b `je 0x45481` - so when `arg1` IS the object's current link the
+  following test is skipped - otherwise 0x4547d/0x4547f `test`/`jl`
+  rejects a negative result. After the 0x45491 call: 0x45496/0x45498
+  `test`/`jg` rejects a positive gap, 0x4549a/0x454a0 `cmp
+  eax,[edi+0xea]`/`jg` rejects a gap larger than the stored one, and only
+  then 0x454a2 `mov [edi+0xe6],esi` and 0x454a8 `mov [edi+0xea],eax`.
+  So the link and the amount are stored together, the amount is a
+  non-positive gap that is the smallest seen, and the link is `arg1` -
+  the object that owns the record table. With PR-121's tail (0x54804
+  adds `[obj+0xea]` into the y delta, clears it, and calls the linked
+  object through its slot +0 at 0x547c2/0x547c6) the two halves now join
+  into one mechanism: a surface provider is attached, a one-shot
+  downward-or-zero correction is computed against a two-point segment, and
+  the next position update applies and clears it.
+- WHAT THIS IS NOT EVIDENCE FOR. Nothing here names terrain. The shape
+  fits a surface polyline and PR-99 item 10 guessed exactly that, quoted
+  in part:
+  "The position writer is still unread - probably the same ground/terrain code
+  that writes [obj+0xba]/[obj+0xbe]."
+  but that is a shape match, not a reading: what `[arg1+0x4]`'s table
+  is, which class answers slot +0x6c with a record index, and what
+  0x45380 (0x45423) selects are all unread, and the only caller the
+  index lists for 0x45400 is a hint (0x4536f). For the port the contrast
+  is concrete and worth recording: it has no geometric y path at all -
+  y is written from the row's authored `dy=` directive (:1238) and reset
+  to the object's base y (:831, :927, :1001, :1214) - so a
+  slope-following push has no counterpart in the port and none of the
+  shipped legs could detect one.
+- OPEN ITEMS (PR-122 1-3). (1) Read 0x45380 and the slot +0x6c provider:
+  what the 13-byte records are and which class answers with an index.
+  (2) Who calls 0x45400 with which three points, and what its one stack
+  parameter (the dword subtracted at 0x45477) is. (3) Whether `[obj+0xea]`'s
+  sign convention (gap, stored only when <= 0) matches the engine's y
+  axis as PR-121 read it, which needs the `[obj+0x0]`/`[obj+0x4]`
+  identity from PR-121 item 1 first.
+- GATES. Docs only: no `ported/`, `Makefile`, `tools/` or `.gitignore`
+  line, so the prompt's build gates do not apply and no build was run.
+  Evidence: /tmp/opencode/pr122_dis.txt (image sha256, `dis` of 0x455a0
+  in full, 0x45400+0x40, 0x4543c+0x78, and the caller lists with their
+  entry-list disclaimer). The port-side line references are from
+  `ported/ll_level.c` as shipped (the bytes of PR-119, sha256
+  c3956398b6cc51f..., unchanged since). No game data, no captured frame,
+  no .github/workflows change, every added line <= 79 columns.
+
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
