@@ -9900,6 +9900,119 @@ engine
   git changed by it. No game data and no captured frame in this commit.
 
 
+## PR-121 — the position writer, found: it adds the SAME truncated dword
+PR-120 read and then clears it, so the engine's coordinates quantise the
+way its row gate does
+
+- WHAT THIS PR IS. A reading only: no `ported/`, no `Makefile`, no
+  `tools/` line, nothing in the port moves. It closes PR-120 open item 1,
+  quoted verbatim:
+  "what consumes `[obj+0xca]`, and whether the object's own coordinates are
+  advanced by that truncated dword or by a path that keeps the hundredths."
+  and it answers PR-99 item 10, quoted verbatim:
+  "0x54250 stores only `v/100` into +0xca/+0xce, and nothing read here uses
+  the hundredths value for the position. The position writer is still unread
+  - probably the same ground/terrain code that writes [obj+0xba]/[obj+0xbe]."
+  All addresses below were read with `leodb.py dis`, which decodes the
+  exact bytes; the transcript is /tmp/opencode/pr121_dis.txt (source
+  image sha256, the `dis` of 0x547c0+0x40 and 0x54800+0x58).
+- THE WRITER. 0x54804 `mov eax,[esi+0xce]` (the y delta), 0x5480a
+  `mov ecx,[esi+0xea]` (a second y amount), 0x54810 `mov edx,[esi+0xca]`
+  (the x delta, the field PR-120 read), 0x54816/0x54818 `mov edi,[esi]`
+  and `mov ebp,[esi+0x4]` (the current pair), 0x5481b zeroes `[obj+0xea]`
+  immediately after reading it, then 0x54825 `add eax,ecx`, 0x54827
+  `add edi,edx`, 0x54829 `add ebp,eax`, and 0x5482b/0x5482d write them
+  back: `mov [esi],edi`, `mov [esi+0x4],ebp`. The delta fields are then
+  consumed in place: 0x54830 `lea eax,[esi+0xca]` + 0x54836
+  `mov edx,[esi+0xca]` + 0x5483c `sub [eax],edx`, and the y twin at
+  0x5483e/0x54844/0x5484a. So the answer to the quoted question is the
+  first branch: the coordinates ARE advanced by that truncated dword, and
+  there is no path that carries the hundredths into the move.
+- THE SAME FIELD, TWO DIFFERENT USES. The row gate's feed takes `abs()`
+  of `[obj+0xca]` (PR-120, 0x543cc..0x543cf); this writer takes it
+  SIGNED - 0x54810 loads it, 0x54827 adds it, with no `cdq`/`xor`/`sub`
+  between, which is what lets the object move left. And PR-120's scan
+  found one zero of `+0xca`, a `mov [edx+0xca],0` at 0x54e56; here it is
+  cleared by a second idiom, a self-subtract through a register offset
+  (0x54830 `lea` + 0x54836 `mov` + 0x5483c `sub [eax],edx`), which is
+  why an ops-text search for a `+0xca],0x0` store never listed it.
+- WHAT THAT SETTLES. PR-99 item 9's arithmetic, quoted in part:
+  "so a walk under 1 px/tick advances the frame list by nothing, and on the
+  s=10/20Hz arithmetic above the worm contributes 1 px per tick, not 1.25."
+  That sentence was about the row accumulator; on the coordinates it is
+  the same law. The arithmetic of the divide at 0x5435d (PR-120) makes
+  100 hundredths one pixel, so a velocity of 125 hundredths moves the
+  object exactly 1 whole pixel a tick and drops the other quarter pixel
+  every tick, with no carry - and the proof there is no carry is the
+  self-subtract at 0x5483c/0x5484a clearing the delta after the move.
+  The port's position path does the opposite: it accumulates the same
+  fraction in `xa` and takes whole pixels out of it as they arrive
+  (:1104-1106), so its steady-state speed is the exact velocity while the
+  engine's is that velocity truncated per tick. That is the largest
+  port-vs-engine difference in this area, and it is not a drift question:
+  it is a quantisation the port does not model. The code comment at
+  :1073-1077 records the feed half of it and not the coordinate half, so
+  no comment in the port currently states this.
+- NOT SETTLED: WHAT `[obj+0x0]`/`[obj+0x4]` ARE. The use here is
+  coordinate-shaped - a pair read at 0x54816/0x54818, advanced by two
+  delta fields, stored back at 0x5482b/0x5482d. One alternative IS
+  ruled out in this very function: its method table is `[obj+0x8]`, which
+  0x547eb loads and 0x547fa calls at slot +0xb8, so this class does not
+  keep a table at +0x0/+0x4. Two reasons not to over-read the rest:
+  0x547c2 `mov ebx,[eax]` + 0x547c6 `call [ebx]` treats offset 0 of the
+  LINKED object as its method table, so offset 0 is a table in some other
+  class; and NEXT_STEPS.md:6871 records a `TLewTunga2` ctor writing a
+  pair at `[obj+0x0]` while working out real field offsets, which shows
+  offset 0 is data in that class but is not a coordinate reading. The
+  pair's identity needs the draw-side confirmation, and until it exists
+  nothing here should be built on it.
+- WHERE THE ONE-SHOT Y AMOUNT COMES FROM. `[obj+0xea]` is read and
+  zeroed in the same breath (0x5480a/0x5481b) and has no x counterpart.
+  A whole-image scan of the disassembled ops names 7 sites: 0x4549a
+  `cmp eax,[edi+0xea]`, 0x454a8 `mov [edi+0xea],eax`, 0x4cee3
+  `lea eax,[ebp+0xea]`, 0x4cf15 `mov ebx,[ebp+0xea]`, and the three here
+  (0x5480a/0x5481b, plus 0x550aa `mov [eax+0xea],0`). Exactly one stores
+  a computed value: 0x454a8, whose `eax` is the return of the call at
+  0x45491 to 0x455a0, reached only past two guards (0x45496/0x45498
+  `test`/`jg` and 0x4549a/0x454a0 `cmp`/`jg`), so it stores that result
+  only when it is <= 0 and <= what is already there - a keep-the-smaller
+  rule. And the block does it in a pair: 0x454a2 `mov [edi+0xe6],esi`
+  stores a LINK there, two instructions before the amount. That is the
+  same `[obj+0xe6]` this function copies into `[obj+0xa9]` at 0x547bc and
+  then calls through (0x547c2/0x547c6, that object's slot +0, with
+  `edx` = this object), clearing `[obj+0xa9]` at 0x547f0. So the y amount
+  and the link arrive together and are consumed once. Caveat on the site
+  list: 0x4cee3 takes the field's ADDRESS, so a store through that
+  register would not name `+0xea`, and that pair of sites is a different
+  code region and unread.
+- CONTROL FLOW OF THE WRITE. The index gives four transfer targets of
+  0x54804 - 0x546b3 `jne`, 0x547cf `je`, 0x547d5 `jmp`, and the
+  fall-through after 0x54800 `or BYTE PTR [edi+0x2],0x4` - so within
+  this tail of the function the coordinate advance is unconditional; what
+  the tests choose are the flag bytes ([edi+0x1] bit 0x20 at 0x547d1,
+  [edi+0x2] bit 0x4 at 0x54800; `edi` is set earlier and not established
+  here) and whether the linked-object handoff at 0x547d7..0x547fa runs,
+  which is entered only from 0x54760 `je` (after 0x54759
+  `cmp [obj+0xe6],0`) and 0x54779 `jge`. What gates the function itself
+  is unread: the index has no function entry covering 0x54804 (its
+  nearest, 0x54560, ends by 0x545f4), and entry-list rows are hints, not
+  proofs, so no claim here depends on one.
+- OPEN ITEMS (PR-121 1-3). (1) Confirm `[obj+0x0]`/`[obj+0x4]` as world
+  coordinates from the draw side and find every other writer of that
+  pair, since this is one of possibly several. (2) Read 0x45480..0x454b0
+  and 0x455a0: what is the amount 0x455a0 returns, what the `[obj+0xe6]`
+  link is, and whether `[obj+0xea]` is the port's missing one-shot
+  vertical push. (3) What `[obj+0xe2]` selects - it is compared with 0
+  here and with 2 at 0x54766 - and which classes reach this tail.
+- GATES. Docs only: no `ported/`, `Makefile`, `tools/` or `.gitignore`
+  line is in this commit, so the prompt's build gates do not apply to it
+  and no build was run for it. The evidence is /tmp/opencode/pr121_dis.txt
+  (image sha256 + exact-byte `dis`) and the indexed scans quoted above,
+  run against /tmp/opencode/leo.sqlite, a derived index under /tmp that
+  changes nothing under git. No game data, no captured frame, no
+  .github/workflows change, every added line <= 79 columns.
+
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

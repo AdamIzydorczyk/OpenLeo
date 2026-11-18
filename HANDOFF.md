@@ -710,6 +710,41 @@ deliberate difference, is pinned by a leg. Unchanged: PR-99 item 10's
 "the position writer is still unread", now narrowed to the three unread
 readers of `[obj+0xca]` at 0x54810/0x54830/0x54836. PR-120 record in
 NEXT_STEPS.md.
+PR-121 added 2026-11-18: the position writer, found at byte
+level, no code change. It closes what PR-120 left open, in its own words,
+quoted:
+"now narrowed to the three unread readers of `[obj+0xca]` at
+0x54810/0x54830/0x54836",
+Those readers are one operation: the coordinate advance at
+0x54804..0x5484a. It reads `[obj+0x0]`/`[obj+0x4]`, adds the
+SAME truncated dwords PR-120 described (0x54827 `add edi,edx`, 0x54829
+`add ebp,eax`), stores them back (0x5482b/0x5482d), then clears the delta
+fields by self-subtract through a register offset (0x54830/0x54836/0x5483c
+and the y twin at 0x5483e/0x54844/0x5484a) - which is the proof that no
+sub-pixel remainder is carried: the engine quantises an object's POSITION
+exactly as its row gate quantises the feed. The row gate takes `abs()` of
+that dword; this writer takes it signed. So the port, which accumulates
+the fraction in `xa` and pays whole pixels out of it (:1104-1106), moves
+at the exact velocity while the engine moves at that velocity truncated
+every tick: they can only agree at a velocity that is a whole multiple of
+100 hundredths per tick, and turning that into pixels still needs the
+`.MOV` `F=` to v_x relation PR-118 item 2 holds open. New with it:
+`[obj+0xea]` is a one-shot y amount added into the y delta and zeroed in
+the same breath (0x5480a/0x5481b), and the only computed store to it in
+the image is 0x454a8, two instructions after that block links an object
+into `[obj+0xe6]` (0x454a2) - the very field this function copies to
+`[obj+0xa9]` at 0x547bc and calls through (0x547c2/0x547c6). Within that
+tail the coordinate write is unconditional (four transfer targets); the
+flag bytes and the linked-object handoff are the conditional parts. Not
+settled: what the `[obj+0x0]`/`[obj+0x4]` pair IS. The method-table
+alternative is ruled out for this class, whose table is `[obj+0x8]`
+(0x547eb then 0x547fa calls slot +0xb8 through it), but offset 0 is a
+table in the linked object's class and the note at NEXT_STEPS.md:6871
+shows a ctor writing a pair at `[obj+0x0]` in another one. No behaviour
+changed and no port comment touched; the coordinate half of the
+difference is not modelled and not stated anywhere in the code. PR-121
+record in NEXT_STEPS.md.
+
 
 
 
@@ -1725,6 +1760,25 @@ NEXT_STEPS.md.
      of the engine's feed is dropped at the divide (0x5435f), which
      bounds PR-118's reachable-threshold counts as port-side figures.
      No behaviour changed and no code was touched by this PR.
+
+   - THE ENGINE MOVES THE OBJECT BY THAT SAME TRUNCATED AMOUNT,
+     2026-11-18, PR-121. It reads PR-120's own closing words in section 6
+     as the open item and answers them, quoted verbatim:
+     "now narrowed to the three unread readers of `[obj+0xca]` at
+     0x54810/0x54830/0x54836":
+     The writer is 0x54804..0x5484a: `[obj+0x0]`/`[obj+0x4]` are read,
+     the truncated dwords are added to them (0x54827/0x54829) and stored
+     back (0x5482b/0x5482d), and the delta fields are then cleared by
+     self-subtract (0x5483c/0x5484a) - so nothing carries, and the
+     position quantises exactly like the row gate. The port's `xa`
+     (:1104-1106) does carry, so at any velocity that is not a whole
+     multiple of 100 hundredths per tick the two paths cannot agree:
+     a model difference, not drift, and the code comment at :1073-1077
+     states only the feed half. Not modelled, not tested, no code or
+     comment changed by this PR: whether to reproduce it is the owner's
+     call, alongside the PR-116 strict-greater item. PR-121 record in
+     NEXT_STEPS.md, with the `[obj+0xea]` one-shot vertical amount and
+     the `[obj+0xe6]` link as its open items.
 
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
