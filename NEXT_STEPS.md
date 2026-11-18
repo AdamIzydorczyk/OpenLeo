@@ -11706,6 +11706,216 @@ no port behaviour change)
   iteration, no separate object tick, remaining unknowns counted);
   §8 T1 (1) is restated onto the two-factor fit.
 
+## PR-134 — G-1's referee windows MEASURED: the pass rate is 15-24/s, so
+## the iteration clock is the 50 ms edge of PR-109's bracket and LL_ITER_MS
+## = 28 is refuted by two independent law objects (video measurements +
+## one new RE script; no behaviour change)
+
+- WHY. PR-133 closed the rate MECHANISM and left the two-factor fit: the
+  iteration clock x the passes a state record runs per state step. Its
+  named referees were PR-131's G-1 windows ("A t=2-13 (spawn->ladder@180,
+  landmarks fixed)" and "A t=55-62 (ZWODOSPD@992)") plus "a worm-speed
+  window from the other side" (§8 T1). This PR measures them with the
+  video tools instead of eyeball estimates, and answers G-1(a) and G-1(b).
+  G-2 (the x-camera lead) gets the method audit and the first verified
+  numbers, not the whole law; §8 T0 stays open and says so.
+
+- UNIT FRAME (PR-131's, re-verified twice here). The R3 A clip
+  (reference/video/levels/ZARIA.01.mkv, 1280x720@60, game band
+  crop=1152:720:0:0): 1 .DES unit = 1 engine px = 1 world unit = 2 px of
+  the 640x400 game frame = 3.6 px of the native band; the view is 320
+  units wide. Two independent confirmations, both this PR: (i) the
+  LICHA3 worm .des-placed at 250 with bounds=230,320 has its head eye
+  tracked at native x 826-1010, i.e. world 229-281 with the camera at 0 -
+  inside its own bounds; (ii) the lion art measures ~150 native px = 41
+  units wide, the same scale PR-131 read from the lion and worm art
+  sizes in the 640x400 frame (41 units vs the worm's ~20).
+
+- CAMERA-STATE VERIFICATION, THREE ESTIMATORS, AND WHERE EACH FAILS.
+  (1) video_stills.py (PR-125) calls 3.0-6.0 and 6.5-10.5 still
+  (|drift| <= 0.12 game px/s). (2) lead_track.py (new, this PR)
+  cross-correlates the luma column-sum DIFFERENCES of native rows
+  0..500 per sample: over 3.4-4.8 it reports +0 for every sample and a
+  cumulative -7 native px (=-2 units), but over 7.4-10.4 it reports a
+  systematic -20..-52 native per 0.1 s sample, i.e. 83-145 u/s, which no
+  law object can reach. (3) shift2d.py (new, this PR) full-2D
+  cross-power spectrum between two named frames: 4.0->4.9 gives dx=+7
+  native, dy=0, peak 0.246 (locked), 6.0->6.5 gives dx=0, dy=0, peak
+  0.542 (locked); 7.0->8.0, 8.0->9.0, 9.0->10.0, 12.0->13.0 give peaks
+  0.028-0.040 with nonsense dy (no match at all), and 2.5->3.5 /
+  3.0->4.0 fail the same way because the lion is the brightest thing in
+  the frame there. (4) Direct vision: sheet_lock_00.png (t=3.20-4.70 at
+  4 fps, band 360:280:60:340) shows the SAME rock, magenta leaf and
+  yellow-green boulder in all seven tiles - the camera is locked there,
+  confirmed by eye. READING: the two agreed-still verdicts (estimators 1
+  and 2, 3.0-6.0) plus the 2D match plus the sheet make t=3.0-6.0 a
+  VERIFIED camera lock, and that is the window every speed number below
+  comes from. The disagreement at 7.4-10.4 is NOT resolved; the leading
+  explanation is the self-animated parallax bands the .des places
+  (ZARIA.01_ANIBACK_WAZ2 / _PAJECZ are background classes with their own
+  BY_TIME motion), which is exactly the failure PR-79's re-check names
+  ("the camera-band shift method tracked parallax layers, not the
+  ground"). A camera number for 6.5-11 s needs a landmark anchor (a named
+  static .DES object read per frame), and that is the open item, not a
+  measurement.
+
+- ALSO NEW: the A clip is EDITED. The lion's screen position jumps with
+  no camera motion between t=6.35 and 7.35 (cx 480 -> 396 -> no blob ->
+  160) and again at t=11.0-11.35 (cx 413 -> 185 -> 323, with the 1-D
+  estimator jumping +194/+108/+126). So camera drift must never be
+  integrated across those two ranges, and PR-131's window list is a list
+  of separate shots, not one run.
+
+- MEASUREMENT 1, THE LION (the player, class LEWPL, spawn lock, camera
+  verified still). The orange-body mask (r>225, 95<g<165, b<70; sampled
+  (251,128,0) on the body at t=49.5) is tracked at 10 fps; positions are
+  blob centroids in native px of the 1152-wide band, and the samples
+  quoted are from /tmp/opencode/pr134/lead_a.txt:
+
+  | t range      | dx native | dx units | u/s    | what the art shows |
+  |--------------|-----------|----------|--------|--------------------|
+  | 3.300->3.900 | -157.6    | -43.8    | -73.0  | airborne leap poses |
+  | 4.200->4.400 | +54.3     | +15.1    | +75.5  | both feet on grass  |
+  | 4.200->4.900 | +96.1     | +26.7    | +38.2  | same, from a stop   |
+  | 5.000->5.600 | +17.0     | +4.7     | +7.9   | standing/edging     |
+
+  The 3.300->3.900 line runs while the walk cycle's airborne poses are
+  on screen (sheet tiles t=3.20 and 3.45), so it is not a ground-speed
+  number; the ground numbers are the 4.2-4.9 ones, and their mean is
+  low because the lion starts from a stop at 4.2. So the player's
+  ground-run speed at a held key is bracketed by [38, 76] units/s with
+  the accelerating mean at the bottom edge, in both directions (the
+  3.3-3.9 line says the same magnitude the other way).
+
+- MEASUREMENT 2, THE WORM (class LICHA3, .des bounds=230,320, authored
+  BY_X F=100 T=40). The cyan head eye (B>100, B-R>60, |G-B|<60, 8-45
+  px) is tracked at 60 fps in the same verified lock
+  (/tmp/opencode/pr134/wormeye2.txt): 826.0 at t=2.533, 967.2 at 3.667,
+  999.9 at 3.967, 1009.8 at 5.250 - the highest-rate 0.30 s window
+  (3.667->3.967) is +32.7 native = +9.1 units = 30.3 units/s, and the
+  1.58 s window 3.667->5.250 averages 7.5 units/s. The worm never leaves
+  its bounds box in t=2.5-10.4. Its rate is therefore <= 30.3 units/s,
+  and an eye blob is a head landmark (a few px), so unlike PR-79's body
+  centroid this feature does not track the pose.
+
+- MEASUREMENT 3 (NEGATIVE, but it closes a data hole). The rhino
+  referee of §8 T1 - NOSOROG, authored BY_X F=180 T=40 - IS placed in
+  ZARIA.01: /tmp/opencode/pr126/des/ZARIA.01_ZWIERZ1.DES line 51 reads
+  `NOSOROG,dummy,nos.mov,1700,600` with `bounds=1680,1950`,
+  `scope=40,150`, `energy=60`. The 290-unit bounds box makes it the
+  cleanest referee in the stage (45 u/s at 50 ms vs 80 at 28 ms), and it
+  is NOT in any sampled A-clip window (the KAMIEN shelf at 1360-1460 is
+  at t=38-44 and the waterfall at 992 at t=55-62, and 1680-1950 never
+  appears in the sampled stills) - so measuring it needs a different
+  clip, and it stays open.
+
+- G-1(b), ANSWERED FROM THE FILE. There is no A_RUN state to "raise":
+  ZARIA.01_LEW.ZAR_LEWPL.MOV's own state list is A_WALK, A_DEAD,
+  A_DRAP, A_DOSTAL, A_JUMP_S, A_JUMP, A_RZUT, A_ODLOT, A_WPAD, A_KILOF,
+  A_KAMIEN, A_JUMP_DOWN, A_FALL_DOWN, A_WSP, A_WSP_LIN, A_TURN,
+  A_BORRING, A_TO_BOR, A_BOR_END, A_LOOKUP, A_LOOKDOWN, A_FIGHT, ... -
+  no A_RUN anywhere. The player's fast gait IS A_WALK: its `[A_WALK]`
+  block is `control=BY_X|FRAME_REV|CHECK_ALL|CH_DIR`, `F=100,0`,
+  `T=20,5`, `G=30,350`, `seq=walk`, and its row list is
+  `10,6,GEN AC_TIME / 11,6 / 12,6 / 1,6 / ... / 9,6` - twelve poses,
+  every one gated by row field 2 = 6. Per PR-100 that field is the
+  distance threshold compared against the row accumulator [obj+0xa1],
+  which for BY_X is fed the travelled px: the walk cycle advances one
+  pose per 6 units travelled, and its airborne poses are the gallop art
+  the video shows. Same shape as the worm's A_RUN (9 poses x 4 units =
+  36 units per cycle), whose cycle period PR-79 measured at 1.44 s =
+  25 units/s, the same constant this PR measures. The port is right
+  that FWD drives A_WALK; what the port gets wrong is the rate, below.
+
+- THE CLOCK. Per PR-133 the law is px/iteration = (5*F*s)/(100*T) with
+  one state step and one physics pass per iteration for these families,
+  so a measured rate divides by that constant to give the iteration
+  rate:
+
+  | object (F,T)         | u/iteration | measured u/s | it/s    |
+  |----------------------|-------------|--------------|---------|
+  | worm LICHA3 (100,40) | 1.25        | <= 30.3      | <= 24.2 |
+  | lion A_WALK (100,20) | 2.50        | 38 (cold)    | >= 15.2 |
+  | lion A_WALK peak     | 2.50        | <= 75.5      | <= 30.2 |
+
+  The two families overlap at 15-24 iterations/s, and 20/s - the 50 ms
+  edge of PR-109's 22-50 ms bracket - sits inside both. The 28 ms
+  design point (35.7/s) predicts 44.6 u/s for the worm, above the
+  measured bound of 30.3, and 89 u/s for the lion's ground run, above
+  the whole [38,76] bracket; to rescue it the records would have to run
+  0.35-0.68 passes per state step, which PR-133's chain forbids (the
+  state-step chain dispatches the record once per iteration while the
+  object is on-camera, and these families pass at most once). The
+  airborne 73-110 u/s segment is a bonus data point on the same scale:
+  if it were driven by the F=180/T=20 states it would predict 90 u/s at
+  50 ms (inside 73-110) and 161 u/s at 28 ms (far outside), but the
+  state that plays it is not identified, so it is evidence, not a
+  measurement. DECISION: LL_ITER_MS's real-engine counterpart is 50 ms
+  with one pass per state step; the port's 28 ms constant is a fitted
+  stand-in that this measurement refutes, and no gate depends on it.
+  Counted ESTIMATES: (a) the lion centroid shifts with the walk pose by
+  up to ~30 native px = 8 units = 12 u/s at a 0.6 s baseline; (b) the
+  camera anchor for the lock is cam = 0 with a bounded +0..+42-unit
+  slack (the worm's own bounds box is what pins it: observed world
+  229-281 must lie inside bounds 230-320); (c) s = 10 is assumed for a
+  held keyboard direction (PR-132: 10 IS full one-axis intent); (d) the
+  worm eye is +-2 native px. None of them moves the 50-vs-28 decision:
+  the ratio to decide is 1.8x and every error above is <= 0.3x.
+
+- WHAT THE PORT DOES WITH THIS, AND THE DIFF NAMED. ported/ll_level.c
+  keeps LL_ITER_MS = 28 (line ~1138) and the PR-79 walk comment
+  ("~20-30 px/s") at ~1005-1030; PR-131's audit measured the port's own
+  player at 0.4 units/tick and called it 20 u/s, which only closes if
+  the probe's tick is 20 ms, not 28 ms - that port tick-vs-iteration
+  ambiguity is PR-131's open note and stays open. Against this PR's
+  numbers the port's player runs at 3.8-6.9x below the measured
+  ground-run speed, and the worm law constant the port reproduces
+  (PR-99's 1.25 px/tick) is right while its clock is wrong. Fixing the
+  constants is a CODE change with its own gates and its own probe
+  windows (W0 follow-up), not something this record changes silently.
+
+- G-2, WHAT IS ACTUALLY ESTABLISHED. In the verified lock the camera
+  stays pinned at world x ~0 (see the anchor note) for at least
+  t=2.3-6.5 while the lion ranges over screen x 39-140 units from the
+  camera's left edge - so the engine does NOT hold a tight lead on the
+  first screen; the port's CAM_LEAD_*=100 with a 6 u/tick ease is not
+  contradicted there (140 > 100 was never reached on screen), and it is
+  not confirmed either. No lead constant can be quoted from this PR.
+
+- OPEN ITEMS, COUNTED: 1 (G-1 follow-up) the port's player-speed and
+  iteration constants, now measurable, unfixed; 2 (G-1) the rhino at
+  1680-1950 never observed in a sampled window; 3 (G-1) the state that
+  plays the airborne leap poses at 3.2-3.7 (the F=180/T=20 states are
+  the candidates, the 73-110 u/s segment is theirs or not); 4 (G-2) the
+  camera position for 6.5-11 s - needs a landmark-anchored read, because
+  all three estimators here fail in dense repetitive foliage and the
+  self-animated ANIBACK bands; 5 (G-2) the A-clip edit cuts at
+  6.35-7.35 and 11.0-11.35 (named, to be avoided by later probes);
+  6 the stride-period cross-check (cycle length in units = poses x row
+  threshold = 72 for the lion's A_WALK, 36 for the worm's A_RUN) was
+  tried on the 10 fps mask series and is INCONCLUSIVE: the gait period
+  aliases at 10 fps, and the eye blob's area flickers with occlusion at
+  60 fps - a 60 fps pose-labelled sheet would decide it.
+
+- GATES. Docs-only class - build legs still run: `make` and `make win`
+  (rc=0, zero warning lines) and `make -k verify-all` twice (fixtures
+  DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files;
+  fixture-free DATA=/tmp/opencode/nope HD=/tmp/opencode/nope) - see
+  /tmp/opencode/pr134/gates_*.log. No data or frames in git; all the
+  evidence is under /tmp/opencode/pr134/: lead_track.py (the 10 fps
+  lion+camera series, lead_a.txt), shift2d.py (the named-pair 2D camera
+  matcher), wormeye2.py (the eye blob dump, wormeye2.txt),
+  sheet_lock_00.png (the lock+gait proof), wseq_*/w_*/w56.png (the worm
+  walk-cycle views), f8_0.png/f9_5.png (the unresolved 8-9.5 s pair),
+  ball495.png, mov3/ (the three ZARIA animal .MOV headers read with
+  tools/re/mov_channels.py).
+
+- HANDOFF UPDATED: §7 item 13 gains the PR-134 bullet (the measured
+  pass-rate band, the two law objects, the rhino placement line, the
+  no-A_RUN finding, the camera-estimator audit); §8 T1 (1) is restated
+  with the clock factor measured, and §8 T0 records what G-2 does and
+  does not establish.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

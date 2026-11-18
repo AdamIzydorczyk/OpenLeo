@@ -1196,6 +1196,19 @@ writer as its open items.
    mid-canopy - levels/ZARIA.01.mkv t=2-17), so CAM_LEAD_* is an
    even worse guess than flagged. Referee windows named in the
    PR-131 record, G-1/G-2.
+   PR-134 measured those same windows as far as they go: t=3.0-6.0 is
+   a VERIFIED camera lock (four independent checks incl. direct vision
+   on sheet_lock_00.png) and the camera holds world x ~0 there - the
+   anchor is pinned to +0..+42 units by the placed worm's own bounds
+   box - while the lion ranges over 39-140 units, so screen 1 has NO
+   tight lead. Past 6.5 s NO camera number is trustworthy: video_stills
+   says still, the column-sum estimator says 83-145 u/s, the 2D
+   matcher finds no match at all, and the self-animated ANIBACK
+   background bands are the named cause - a landmark anchor (a named
+   static .DES object read per frame) is the method that would decide
+   it, so the lead stays UNMEASURED. Also measured: the A clip is
+   edited, with cuts at 6.35-7.35 and 11.0-11.35 that no later probe
+   may integrate camera drift across.
 7. Vertical `y` camera of the PCX backdrop uses the engine formula now; confirm
    against a capture of a tall level (SADES shaft). PR-84 note:
    for the NO-back_rect levels the camera clamp = reference-layer height - 200
@@ -1662,6 +1675,32 @@ writer as its open items.
      The 0x52750 entry map is complete with every table base
      anchor named (0x26fd0 = class 0x9a778 +0xec = the ZARIA
      worm). Full record: the PR-133 section of NEXT_STEPS.md.
+   - PR-134 MEASURED THE CLOCK and picked the 50 ms edge of PR-109's
+     bracket. Inside a camera lock verified four ways (video_stills, a
+     column-sum estimator, a new named-pair 2D matcher shift2d.py, and
+     direct vision on sheet_lock_00.png), the lion's ground run at a
+     held key is 38-76 world units/s and the ZARIA worm's rate is
+     <= 30.3 units/s tracked by its head eye at 60 fps (a head
+     landmark, not a body centroid - PR-79's failure mode). Dividing
+     by the PR-129/130 law constant (2.5 u/iteration for A_WALK
+     F=100 T=20, 1.25 for the worm) gives 15-24 iterations/s from
+     both families, 20/s inside both and 35.7/s - the 28 ms design
+     point - outside both, so the engine's iteration clock is 50 ms
+     with one pass per state step. G-1(b) is answered from the data:
+     LEWPL has NO A_RUN state at all - the fast gait IS A_WALK, whose
+     seq=walk cycle is 12 poses each gated by row field 2 = 6 units
+     travelled, and whose airborne poses are the gallop art. Also
+     found: the missing rhino referee line
+     (`NOSOROG,dummy,nos.mov,1700,600`, `bounds=1680,1950` - a
+     45-vs-80 u/s discriminator, never on camera in a sampled window)
+     and that the A clip is EDITED (cuts at 6.35-7.35 and 11.0-11.35,
+     so camera drift must never be integrated across them). For G-2:
+     in that lock the camera holds world x ~0 while the lion ranges
+     39-140 units, so the first screen has no tight lead; no lead
+     constant is quoted, because past 6.5 s the three estimators
+     disagree (the self-animated ANIBACK parallax bands fool them) and
+     a landmark anchor is needed. Full record: the PR-134 section of
+     NEXT_STEPS.md.
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2455,10 +2494,10 @@ parser 0x52590 is the class's own vtable slot +0x00) and s =
 by 0x549f0 [s CLOSED IN PR-132: that "record" is a caller-built stack
 pair, every producer is read, |s| <= 10 and s = +/-10 exactly at full
 one-axis intent; no authored field can carry s]. What is open is the
-PAIR (rate, s) [RATE MECHANISM CLOSED IN PR-133, SEE BELOW]: the
-only clock read in
-this repo is the ~28 ms iteration clock (PR-109/110), while the
-published reproduces split between 20 Hz (T=40 walks, s=10) and 25
+PAIR (rate, s) [RATE CLOSED IN PR-133, CLOCK MEASURED IN PR-134]:
+the only clock read in this repo is the ~28 ms iteration clock
+(PR-109/110), while the published reproduces split between 20 Hz
+(T=40 walks, s=10) and 25
 ticks/s (the jump /100 reading), and the record default factors were
 never censused. The video referee - LONA.05's YETI (F=100 T=50, one
 instance at x=2100) - can only decide once rate AND s are fixed; an
@@ -2467,12 +2506,24 @@ first [s census DONE IN PR-132; the iteration-driver read is
 PR-133, and it CLOSED the rate side: no separate object tick -
 rate = iterations/s x passes-per-record-per-state-step, at most
 1 pass for the moving families, so "20 Hz" is the iteration
-clock at 50 ms, the top edge of PR-109's bracket]. What is left
-is a TWO-FACTOR fit: the iteration clock (the G-1/G-2 referee
-windows and a ZARIA worm-speed window decide the same constant
-from both sides; LL_ITER_MS is the knob) and the per-record
-pass count, whose mechanism is read and whose bound is 1. See
-the PR-130, PR-132 and PR-133 bullets in §7 item 13.
+clock at 50 ms, the top edge of PR-109's bracket]. The two-factor
+fit is MEASURED IN PR-134 and its clock factor is settled: inside a
+four-ways-verified camera lock the lion's ground run at a held key
+is 38-76 units/s and the ZARIA worm's rate is <= 30.3 units/s (its
+head eye tracked at 60 fps), so the pass rate comes out 15-24/s
+from both families - 20/s, the 50 ms edge at one pass per state
+step, inside both; 35.7/s, the 28 ms design point LL_ITER_MS,
+outside both (it predicts 44.6 and 89 u/s against those bounds).
+The pass factor's mechanism is read and its bound is 1. What is
+still open, all named in the PR-134 record: the port's own
+player-speed and iteration constants (the port runs 3.8-6.9x below
+the measured ground run), the rhino referee - now placed,
+`NOSOROG,dummy,nos.mov,1700,600`, bounds 1680,1950, but never on
+camera in a sampled window - the state that plays the airborne leap
+poses, and the G-2 camera position past 6.5 s (the self-animated
+ANIBACK bands fool all three estimators; a landmark anchor is
+needed). See the PR-130, PR-132, PR-133 and PR-134 bullets in
+§7 item 13.
 tools/re/des_census.py prints the whole joined census. The
 table
 itself is now read end to end:
