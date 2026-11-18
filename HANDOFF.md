@@ -1610,6 +1610,28 @@ writer as its open items.
      by 0x549f0) are authored values never censused. Both closable
      from code+data without video: an iteration-driver read and an
      s census. Full record: the PR-130 section of NEXT_STEPS.md.
+   - PR-132 CLOSED THE s SIDE, and its premise. The "record default
+     factors" are not a record: 0x549f0's edx is a caller-built
+     STACK scratch pair, and the pair's every producer is read -
+     a pursuit scaling round(10.0*dx/(|dx|+|dy|)) with the double
+     10.0 at 0x909ef/0x909f7 (0x27d60 = +0x14 of class 0x9a778,
+     its twin 0x281ab the same shape), exactly 10*facing via
+     getter +0x70 =
+     0x239f0 ([obj+0x6d]) at 0x3448d/0x400ad, zeroing when
+     [obj+0x106]==0 at the shared 0x50340 (12+ tables), and the
+     +0.cc contact recomputes, which only ever write 0xa /
+     0xfffffff6 / 0. A write census over the whole listing finds
+     NO other writer of [obj+0xba]/[obj+0xbe] (13 sites, all in
+     0x549f0; 0x54e00's pair of zeroes is a stop/reset helper).
+     0x549f0 is the +0.cc handler at ~140 method-table entries;
+     classes whose +0.cc is another function never seed the
+     factors (force 0 - the PR-125 fish as a general rule). So
+     |s| <= 10 always, s = +/-10 IS full one-axis intent, the
+     worm fit stands with s read, and no authored field can
+     carry s. One unknown left: the rate - 0x52750's entry
+     guards and the per-iteration driver (PR-133; the site map
+     is /tmp/opencode/pr131/slots.py). Full record: the PR-132
+     section of NEXT_STEPS.md.
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2400,14 +2422,18 @@ where F and T ARE the authored `F=`/`T=` clauses (0x52680 copies the
 object fields at +0x50/+0x58 into the command block verbatim; the
 parser 0x52590 is the class's own vtable slot +0x00) and s =
 [obj+0xba]/[obj+0xbe] is seeded from the record's own default factors
-by 0x549f0. What is open is the PAIR (rate, s): the only clock read in
+by 0x549f0 [s CLOSED IN PR-132: that "record" is a caller-built stack
+pair, every producer is read, |s| <= 10 and s = +/-10 exactly at full
+one-axis intent; no authored field can carry s]. What is open is the
+PAIR (rate, s) [RATE ALONE SINCE PR-132]: the only clock read in
 this repo is the ~28 ms iteration clock (PR-109/110), while the
 published reproduces split between 20 Hz (T=40 walks, s=10) and 25
 ticks/s (the jump /100 reading), and the record default factors were
 never censused. The video referee - LONA.05's YETI (F=100 T=50, one
 instance at x=2100) - can only decide once rate AND s are fixed; an
 iteration-driver read plus an s census settle it from code and data
-first. See the PR-130 bullet in §7 item 13.
+first [s census DONE IN PR-132; the iteration-driver read is PR-133].
+See the PR-130 and PR-132 bullets in §7 item 13.
 tools/re/des_census.py prints the whole joined census. The
 table
 itself is now read end to end:

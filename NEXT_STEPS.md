@@ -10829,7 +10829,10 @@ live in reference/video/zax37/ under the §3 index's own stage ids.
 - 0x549f0 END TO END (the +0xcc contact method - PR-125's gate,
   found): eax = obj, edx = a contact record. It seeds
   [obj+0xba] = [rec+0x0] and [obj+0xbe] = [rec+0x4] (record default
-  factors), then if [obj+0xd2] (the object's CONTACT LIST head) is
+  factors [CORRECTED IN PR-132: that edx is a CALLER-BUILT STACK
+  scratch record, not a persistent one, and every read producer of
+  its words computes the pair; there is no authored default]),
+  then if [obj+0xd2] (the object's CONTACT LIST head) is
   null it keeps those defaults. With a contact it re-computes both
   factors from the contact's fields and the object's own position,
   read through class slot +0x68 - whose standard implementation
@@ -11050,7 +11053,11 @@ live in reference/video/zax37/ under the §3 index's own stage ids.
   the record default factors plus the iteration-driver read close
   it from data and code without video. The LONA.05 YETI video
   referee (PR-126/128) only discriminates once rate AND s are
-  fixed.
+  fixed. [CLOSED ON THE s SIDE IN PR-132: the "record default
+  factors" are the caller's scratch pair, every producer is read,
+  |s| <= 10 with s = +/-10 exactly at full one-axis intent, and
+  no authored field can carry s. What remains open is the rate
+  alone.]
 - WHAT WOULD BREAK THE PORT: nothing today. The port's numbers were
   fitted from video and stay; the record keeps §8 T1 (1)'s test
   honest by re-deriving what the test can decide.
@@ -11287,6 +11294,169 @@ live in reference/video/zax37/ under the §3 index's own stage ids.
   evidence paths; §8 T1 gains the canopy-bypass warning for the
   first-chasm reading, T5 the worm-block probe note, T6 the
   no-PTAK-leaf census finding.
+
+## PR-132 — the s side of the (rate, s) pair is CLOSED: 0x549f0's
+"record" is a caller-built stack scratch, every producer of its two
+words is read at the byte level, |s| <= 10 with s = +/-10 exactly at
+full one-axis intent, and no authored data can carry an s. The open
+scale question reduces to the iteration rate alone. (engine read;
+no port behaviour change)
+
+- WHY. PR-130 left the motion scale as "one equation with two
+  unread unknowns: px/s = (5*F*s/T)/100 * rate" and proposed a
+  census of "the record default factors [rec+0]/[rec+4]" (PR-129's
+  wording for what 0x549f0 seeds [obj+0xba]/[obj+0xbe] from). The
+  census was run - and the first thing it found is that its own
+  premise was wrong: there is no persistent record those two words
+  live in. This PR is the proof, from the whole call surface and
+  the whole write set of those two fields.
+
+- WRITE CENSUS (grep over ALL of /tmp/opencode/vis/text.asm).
+  Writes to [obj+0xba] exist at 8 places and to [obj+0xbe] at 5:
+  0x549f9/0x54a08 (the seed), the kind-1 x-band literals 0xa /
+  0xfffffff6 / 0x0 (0x54a57/0x54a82/0x54a93), the kind-4 x-band
+  same three (0x54ac3/0x54ae7/0x54af3), the kind-4 y-band three
+  (0x54b16/0x54b3b/0x54b47) - all inside 0x549f0 - plus 0x54e2e/
+  0x54e38, which belong to 0x54e00, a stop/reset helper (called
+  at 0x50392 right after the caller copied [obj+0]/[obj+4] to
+  [obj+0x14]/[obj+0x18]) that zeroes [obj+0xe2], [obj+0xa5],
+  [obj+0xba], [obj+0xbe], [obj+0xc2], [obj+0xc6]: intent factors
+  and velocities out, together, in one place. No constructor
+  writes them; nothing outside those two functions ever does.
+  PR-129's note "probably the same ground/terrain code that
+  writes [obj+0xba]/[obj+0xbe]" is therefore CLOSED the honest
+  way: there is no second writer.
+
+- CALL SURFACE (also exhaustive). Exactly 8 entries: one direct
+  call (0x50369, inside method 0x50340, which sits at the same
+  slot offset in at least 12 method tables - data refs 0x96a2c,
+  0x97a3c, 0x97b64, 0x989b8, 0x99000, 0x9a618, 0x9b5a0, 0x9ca24,
+  0x9d404, 0x9e200, 0x9f23c, 0x9f60c) and 7 indirect
+  `call DWORD PTR [reg+0xcc]` sites (0x27e1d, 0x282a1, 0x344c8,
+  0x4010e, 0x4110c, 0x41c01, 0x4aeca; grep shows no other form
+  that could dispatch slot +0xcc). 0x549f0 appears 140 times in
+  the RW method-table region - it is the COMMON +0.cc handler -
+  and +0xcc was verified as the slot at the three independently
+  located table bases 0x9a778, 0x99258, 0x9f380. Slot +0xcc is
+  polymorphic: the 15 tables carrying PR-129's (0x52680, *,
+  0x52790) unit hold 0x54250, 0x55020 x3, 0x23840, 0x2b370,
+  0x2b3d0, 0x2c0b0, 0x33310, 0x34160, 0x23b40, 0x617d0 at +0xcc
+  instead (the scan's 15th hit, 0xa2dbc, is a false positive: its
+  "slots" hold data bytes, 0x6188000/0x06000) - and none of
+  those is among the 13 writer addresses above, so a class whose
+  +0.cc is not 0x549f0 never seeds the factors: they sit at 0
+  (force 0) for such a class, the PR-125 fish case as a general
+  rule.
+
+- THE ARGUMENT RECORD, PRODUCER BY PRODUCER (edx = a stack block
+  in every case, built at the call site or one frame up):
+  1. 0x27d60 (slot +0x14 of class 0x9a778; site 0x27e1d) and its
+     twin 0x281ab (site 0x282a1): dx = [obj+0x126] - pos.x,
+     dy = [obj+0x12a] - pos.y with pos read through getter slot
+     +0x68 (0x23900 = `add eax,0xd6; ret`); computed when
+     dx > 0 or dy < 0 (0x27da0-0x27da4), else the pair is 0.
+     The values are round(10.0*dx/(|dx|+|dy|)) and
+     round(10.0*dy/(|dx|+|dy|)) - FPU `fild/fmul/fdivrp/fistp`
+     against the double 10.0 stored at 0x909ef and 0x909f7
+     (bytes 00 00 00 00 00 00 24 40, read from the ELF): an
+     L1-normalised pursuit direction scaled by 10.
+  2. 0x3448d (site 0x344c8): record = {10 * facing, 0, 0} -
+     facing read through getter slot +0x70 (0x239f0 =
+     `mov eax,[obj+0x6d]; ret`), the 10 made by `lea eax,[eax*4]
+     + add eax,edx` then `add eax,eax` (5x then doubled at
+     0x400e7-0x400f0 in the twin), and +4/+8 zeroed on the spot.
+     Full force, one axis, along the facing.
+  3. 0x400ad (site 0x4010e): the same {10 * facing, 0, 0}, plus
+     a call through [[obj+0x106] -> [0] -> class]+0x4 with
+     edx = the record first (0x400f5-0x40104) - the interest
+     target's own class gets a chance to edit the pair before
+     +0.cc sees it.
+  4. 0x410ee and 0x41b8f (sites 0x4110c, 0x41c01): the record
+     is first handed to [[cls]+0xd8] - for 0x9a778 that slot is
+     0x27ef0 = `mov eax,1; ret`, a constant-1 tag (found at
+     0x9a850 = 0x9a778+0xd8; the bytes at 0x27ef0 mis-disassemble
+     inside the objdump linear sweep, so they were re-read from
+     the ELF bytes) - and then to +0.cc. Which word of the stack
+     record other classes' +0xd8 methods fill is class-specific
+     and stays unread beyond 0x9a778.
+  5. 0x4ae82: the only site whose receiver is NOT self -
+     the object-scanner loop passes a record at [esp+0x1e4] to
+     [[ds:0xcef40]+0x394]'s class, i.e. the PLAYER's +0.cc, from
+     outside the player (the record's producer sits in the
+     scanner's earlier block - not read this PR; it is PR-133
+     territory, since the scanner is one of the per-frame
+     iteration paths).
+  6. 0x50340 (the direct-call method, 12+ tables): if
+     [obj+0x106] == 0 it zeroes the record's +0/+4/+8 first (no
+     interest target -> zero factors); if [obj+0x11a] == 5 it
+     negates +0 (reverse-pursuit flag); then calls 0x549f0
+     directly. Which slot the callers use, and who supplies the
+     record there, is unread - same PR-133 boundary.
+  7. 0x549f0 itself then does its contact work on its OWN terms:
+     the kind dispatch reads [edx+4] AFTER edx was reloaded from
+     [obj+0xd2] (0x54a02-0x54a1b), so the kind comes from the
+     object's contact-list node, not from the argument - the
+     argument's +4 only seeds [obj+0xbe] - and the recomputes
+     write only 0xa/0xfffffff6/0x0.
+
+- THE BOUND AND WHAT IT DOES TO THE LAW. Every read producer and
+  every overwrite emits values with |factor| <= 10: 0, exactly
+  +/-10 (facing-driven walk/gallop full force, or a contact past
+  the 5/8 px band), or the pursuit scaling
+  round(10*d/delta_manhattan) which is strictly smaller on a
+  diagonal. So s is not free: s = 10 IS full one-axis intent, and
+  PR-99's worm fit (F=100, T=40, s=10 -> 1.25 px/tick) is
+  structurally confirmed - the worm walks full force along the
+  facing. The PR-125/PR-129 reading of an in-place animator
+  survives unchanged (no target -> the caller zeroes the pair ->
+  force exactly 0), and the motion scale is now ONE unknown:
+  px/s = F/(2T) * rate at full intent, with only the iteration
+  rate unread. The PR-129 machine-checked set (YETI 20 px/s at
+  20 Hz, BOSS 37.5, worm 25) stands with s = 10 read, not assumed.
+
+- WHY NO DATA CENSUS WAS NEEDED. The claim "no authored field can
+  carry s" does not rest on the 777 .MOV files: the write census
+  above is exhaustive over the code (PR-130 showed the .MOV
+  parser 0x52590 writes only the six live fields [obj+0x48..
+  0x5c]), no constructor seeds +0xba/+0xbe, and nothing outside
+  0x549f0/0x54e00 writes them. A field the engine never reads
+  from memory cannot be authored.
+
+- WHAT STAYS OPEN (named). The rate: the 10 entry sites of
+  0x52750 (containing functions 0x23f96, 0x26476, 0x26fd6,
+  0x2c35e, 0x2ded0, 0x31fa0, 0x33c66, 0x361c0, 0x4ffb6, 0x61206
+  - three referenced from data at 0x9cee4, 0x9d544, 0x9f468),
+  their guards, and how often they run per frame-loop iteration;
+  the record producers behind 0x4ae82 (the scanner) and behind
+  0x50340's callers. That is PR-133, and /tmp/opencode/pr131/
+  slots.py already maps the sites and the class-table slots.
+  Nothing in this PR changes a port number: the port's motion
+  constants stay.
+
+- EVIDENCE IN /TMP. Reads from /tmp/opencode/vis/text.asm; the
+  constants and mis-disassembled bytes re-read from
+  build/leo/leo.elf bytes (flat map VA = file + 0xf000, the same
+  one slots.py uses; the RW region ends at 0xd76d0). The
+  table/slot scan is a python one-off (struct.unpack over the
+  ELF, same shape as /tmp/opencode/pr131/slots.py, kept under
+  /tmp). No new committed tool.
+
+- GATES. Docs-only: no C, no Makefile, no tool, no
+  `.github/workflows` line. Build legs run anyway: `make` and
+  `make win` silent (rc=0, zero warning lines), `make -k
+  verify-all` twice (fixtures `DATA=/tmp/opencode/iso_stage/LEO
+  HD=/tmp/opencode/hd_files` and fixture-free
+  `DATA=/tmp/opencode/nope HD=/tmp/opencode/nope`) - both "ALL
+  TESTS PASSED (linux + windows + llrs)", rc=0
+  (/tmp/opencode/pr132/gates_*.log). Added prose lines all
+  <= 79 columns; no data in git.
+
+- HANDOFF UPDATED: §7 item 13 gains the PR-132 bullet (s closed,
+  rate alone open, the +0.cc map); §8 T1 (1) is restated for the
+  single-unknown rate. In the PR-129 record the "record default
+  factors" phrase is marked [CORRECTED IN PR-132] in place, and
+  the PR-130 "open pair" paragraph is marked closed on the s
+  side, per the house pattern.
 
 ## Next — pick from the Deferred list below
 
