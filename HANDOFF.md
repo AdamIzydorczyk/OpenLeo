@@ -301,10 +301,19 @@ agree word for word - R3 "LONA / land of penguins" is ep.5 "Kraina
 Pingwinow" (= Kraina Pingwinow), "SADES / deep down" is ep.6 "Segajac
 Dna" (= Siegajac Dna), "KADMAR II / egyptian dark" is ep.8 "Egipskie
 Ciemnosci", "ENA II / pirate treasure" is ep.4 "Pirackie Skarby", and
-ep.2's own card was read at t=49 s of `ep02_ti6IYfhh1bI.mkv`:
+ep.2's own card was read at t=49 s of what is now
+`reference/video/zax37/ZARIA.02.mkv`:
 "ZARIA II / zar tropikow" (= zar tropikow). (This file drops the Polish
 diacritics to keep the columns narrow; the `.info.json` files beside
 the videos keep the upstream titles exactly as upstream has them.)
+
+The Zax37 chapter files themselves now sit in a folder of the same
+names: `reference/video/zax37/`, named by the stage ids above (owner's
+request, PR-127 - they used to be `epNN_<id>`), `.mkv` or `.mp4`;
+each file's original YouTube id lives on in its paired `.info.json`.
+They are edited and cover more than one level each - see the episode
+notes below the R3 ranges; they are references for behaviour, never
+for a level's length.
 
 RANGES IN R3 (`OvbbJTmp79I.mkv`). Times are seconds in the file; at
 60 fps a frame number is seconds x 60. All of them are +-2 s, because
@@ -402,8 +411,9 @@ wording):
   frame numbers: this file is 60 fps, so those cards are at frames
   141180, 162780 and 433980. The paragraph's own conclusions are
   unaffected.
-- R1's footage is also on disk as `reference/video/ep01_xPiXBmPEdXg.mkv`
-  (it came down with the playlist). Same container size 41 034 044 B,
+- R1's footage is also on disk as `reference/video/zax37/ZARIA.01.mkv`
+  (it came down with the playlist; PR-127 renamed it from
+  `ep01_xPiXBmPEdXg`). Same container size 41 034 044 B,
   different container sha256, and the h264 elementary streams are BYTE-
   IDENTICAL: both 34 046 474 B, sha256
   4fbab8d52dc75cc14f49e9b45a9bf8a29403cd66de33c3cc4a52456f0a3399e3.
@@ -417,25 +427,47 @@ wording):
   with the words "here only zaria" (2026-11-18), so PR-109's climb at
   46.6-48.3 s is in a ZARIA level. It is still unfit for position
   claims (1.8x, 30 fps), so nothing measured on it changes.
-- The 11 playlist episodes are all on disk, kept whole and named
-  `epNN_<id>.<ext>` (owner's decision), 546 468 452 B in total: 8 are
-  `.mkv` and 3 are `.mp4` (ep.6, ep.7, ep.8), all h264 640x480 at 25
-  fps, so they belong to R1's geometry class, not R3's, and R1's
-  `crop=640:400:0:40` warning about measuring the band per segment kind
-  applies to each of them. Their `.info.json` files are named
-  `<basename-without-extension>.info.json`, NOT `<file>.info.json` with
-  the extension, and yt-dlp also wrote two playlist-level metadata
-  files (`ep00_PL6B7604DEF5B643F9.*`, `ep11_PL6B7604DEF5B643F9.info.
-  json`). To refill the whole set:
+- The 11 playlist episodes are all on disk, kept whole and named by
+  the level each one's title names - the stage ids of the index above
+  (owner's request; PR-127 renamed them from `epNN_<id>`), as
+  `reference/video/zax37/`: ZARIA.01, ZARIA.02, ENA.03, ENA2,
+  LONA.05, SADES.06, KADMAR.07, KADMAR2, RAN.01, KARA.07,
+  TUNGA2.12. 546 468 452 B in total, byte-identical to the count
+  PR-124 took: 8 are `.mkv` and 3 are `.mp4` (SADES.06, KADMAR.07,
+  KADMAR2), all h264 640x480 at 25 fps, so they belong to R1's
+  geometry class, not R3's, and R1's `crop=640:400:0:40` warning
+  about measuring the band per segment kind applies to each of them.
+  Their `.info.json` files keep yt-dlp's pairing rule
+  (`<basename-without-extension>.info.json`, NOT `<file>.info.json`
+  with the extension - that is why a first extraction printed "?" for
+  every field), and each id and upstream title lives on INSIDE its
+  `.info.json`, so the rename loses nothing. The two playlist-level
+  metadata files are kept as `playlist_PL6B7604DEF5B643F9.info.json`
+  and `.description`. To refill the whole set: PR-124's download line
+  (whole episodes, playlist order), then the rename table:
 
     ~/.local/bin/yt-dlp --ignore-errors --write-info-json \
       --write-description -f "bv*[height<=480]+ba/b[height<=480]" \
       -o "ep%(autonumber)02d_%(id)s.%(ext)s" \
       "https://www.youtube.com/watch?v=xPiXBmPEdXg&list=PL6B7604DEF5B643F9"
 
-  Which level each episode is about comes from its title: the titles are
-  the game's own card subtitles (proved by reading ep.2's card, and
-  cross-checked against R3's English cards for ep.4, ep.5, ep.6, ep.8).
+    ep01_xPiXBmPEdXg -> zax37/ZARIA.01    (same extension; rename
+    ep02_ti6IYfhh1bI -> zax37/ZARIA.02     the .info.json and
+    ep03_uSZ9HekkBiw -> zax37/ENA.03       .description sidecars
+    ep04_HJLaOqiLeys -> zax37/ENA2         to the same base name,
+    ep05_fxJrvBwtL-g -> zax37/LONA.05      or yt-dlp stops seeing
+    ep06_v2LElzvk_pQ -> zax37/SADES.06     them; the ep00_/ep11_
+    ep07_v-cJ0HcyHfg -> zax37/KADMAR.07    playlist metadata goes
+    ep08_af0puAqzcMA -> zax37/KADMAR2      to playlist_PL...*)
+    ep09_HGmAqEa5FpQ -> zax37/RAN.01
+    ep10_O6-GbC1ZVmk -> zax37/KARA.07
+    ep11_p8TWx_PXanM -> zax37/TUNGA2.12
+
+  Which level each episode is about comes from its title: the titles
+  are the game's own card subtitles (proved by reading ep.2's card -
+  `zax37/ZARIA.02.mkv` - and cross-checked against R3's English
+  cards for ep.4, ep.5, ep.6, ep.8; "ep.N" below means the Nth
+  line of that table, upstream playlist order).
   Reading the cards inside the rest is still open: the shape test found
   candidates at 181/203 s of ep.1, 114/193 s of ep.4, 106/396 s of
   ep.5, 62-282 s of ep.6, 67/265/294 s of ep.8, 146-420 s of ep.9,

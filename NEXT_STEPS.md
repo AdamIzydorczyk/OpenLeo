@@ -10578,6 +10578,66 @@ scene. (one new python tool; no C change)
   quoted above (--max 8 --min 8, 26 runs; sweep_460.txt is the
   --min 10 form).
 
+## PR-127 — the Zax37 playlist renamed to level names on disk: the
+11 episodes are complete (re-verified against YouTube today) and now
+live in reference/video/zax37/ under the §3 index's own stage ids.
+(NO CODE CHANGE; gitignored files renamed, docs updated)
+
+- WHAT THE OWNER ASKED, quoted: "that playlist should be downloaded
+  and placed in videos folder with proper names (it is in order of
+  levels) i dont know why there is only one kadmar file". The
+  download half of that was already done by PR-124; the naming half
+  is what changed here, and the kadmar question has a clean answer:
+  there is no missing file - the game has TWO Kadmar stages, and
+  both are on disk twice over: `levels/KADMAR.07.mkv` + `zax37/
+  KADMAR.07.mp4` (KADMAR I / ancient mysteries = "Starożytne
+  Tajemnice" = ep.7) and `levels/KADMAR2.mkv` + `zax37/KADMAR2.mp4`
+  (KADMAR II / egyptian dark = "Egipskie Ciemności" = ep.8). What
+  does NOT exist is a `KADMAR*_b`: the `_b` files mark a SECOND
+  visit in one sitting, and in the 5 h recording each Kadmar card
+  fires exactly once (7 230 s and 8 629 s).
+- THE PLAYLIST ITSELF WAS RE-VERIFIED LIVE: `yt-dlp -J
+  --flat-playlist PL6B7604DEF5B643F9` returns 11 entries, the same
+  ids PR-124 recorded, in the same order. Nothing was missing and
+  nothing needed downloading.
+- THE NAMES ARE THE INDEX'S OWN NAMES. Every episode's title is the
+  game's own card subtitle (proved for ep.2 by reading its card, and
+  cross-checked against the game's shipped POL/ENG tables for every
+  chapter - PR-124). So the rename maps chapter-subtitle -> stage id
+  with zero interpretation: ep01..ep11 -> `zax37/ZARIA.01 ZARIA.02
+  ENA.03 ENA2 LONA.05 SADES.06 KADMAR.07 KADMAR2 RAN.01 KARA.07
+  TUNGA2.12`, extensions kept (8 `.mkv`, 3 `.mp4`). The old name is
+  the join key, not information to lose: each `.info.json` carries
+  the original id and upstream title INSIDE it, and the rename kept
+  the yt-dlp sidecar pairing (`<basename>.info.json` /
+  `<basename>.description`), so a re-download + the table now in §3
+  reproduces the folder exactly. The two playlist-level metadata
+  files became `playlist_PL6B7604DEF5B643F9.info.json/.description`
+  so no `ep00_`-style name is left anywhere.
+- NO BYTES MOVED, MEASURED: after the rename the video payloads sum
+  to 546 468 452 B - the exact number PR-124 recorded for the same
+  11 files - and every renamed file's `.info.json` id+title was
+  checked against its new stage name (11/11 match; the check printed
+  id, title tail and duration per file, all matching PR-124's list).
+- HANDOFF §3 UPDATED, not a new reading: the level index now points
+  at `zax37/<stage>` beside the R3 ranges; the episode paragraph
+  carries the rename table and the note that "ep.N" means the Nth
+  line of that table; the R1 entry notes its duplicate's new name
+  (`zax37/ZARIA.01.mkv`, same bytes, the duplicate is still kept);
+  the §9 id list and every id-based reference stay valid untouched.
+  Shipped PR records (NEXT_STEPS) are history and keep the old
+  names.
+- GATES. No `ported/`, `Makefile`, `tools/`, `.gitignore` or
+  `.github/workflows` line changed: this unit renames gitignored
+  files and edits HANDOFF §3 plus this record. No build leg applies
+  to a docs-and-files unit (the C tree is byte-for-byte the PR-126
+  one, whose four legs ran green: PR-126 record), and no fixture is
+  named by these paths. `git status` shows only `HANDOFF.md` and
+  `NEXT_STEPS.md`: `reference/video/` is gitignored at
+  `.gitignore:78`, so the renamed videos, sidecars and the new
+  `zax37/` folder never enter the commit. Added doc prose lines all
+  <= 79 columns (`git diff -U0` over added lines: zero above 79).
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
