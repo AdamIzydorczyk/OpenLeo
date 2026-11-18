@@ -2814,6 +2814,104 @@ static int obj_motion_selftest(void)
         }
         free(mw);
     }
+    /* 9. PR-119 (PR-118 open item 1): the port's distance accumulator
+     * DRIFTS off a landing its own feed law says is exact, and this leg
+     * pins where. PR-118's census (section 6 of tools/re/mov_byx_gate.py,
+     * output /tmp/opencode/pr118_census.txt) found the two states in this
+     * corpus where exact arithmetic and repeated double addition
+     * disagree: both in LONA.05_LEW.LON_LEW.MOV, F=30, on the 20 ms grid
+     * the play and PPM legs call obj_advance with (ll_level.c:6425).
+     * Rebuilt here with no game data: `control=BY_X`, `F=30,0`, one row
+     * `1,3`, three units.
+     *     obj_walk's feed is `dist = |fx| * dt_ms / 4000.0` (:1101), so
+     * one 20 ms call feeds 30*20/4000 = 0.15 units and a 3-unit row
+     * needs k = 20 calls. 20 * 0.15 IS 3 exactly, and PR-118's law
+     * (k * |F| * dt / 4000 == t) puts the row on call 20. The port never
+     * holds an exact value: it adds the rounded double twenty times, and
+     * the sum falls short - facc is 2.9999999999999991 after 20 adds,
+     * the gate at :1230 still breaks, and the row runs one call LATE, on
+     * call 21, and the subtract at :1233 is left a remainder of
+     * 0.14999999999999902 where an exact feed would have left 0.15.
+     * Verified in compiled C too: /tmp/opencode/pr118/acc.c mirrors both
+     * lines, output acc.out.
+     *     Not the engine's bug to fix: its accumulator is an integer
+     * dword (0x543d1 `add [obj+0xa1], eax`) and cannot drift, and what
+     * the engine adds per frame is [obj+0xca], still unread (PR-118 open
+     * item 2), so whether the engine reaches 3 units here at all is
+     * unknown. What is known is that the port is one call late against
+     * ITS OWN documented law, and nothing tested it - the selftests run
+     * LL_ITER_MS = 28, the one grid PR-118 measured as reaching no
+     * distance-fed threshold anywhere in the corpus.
+     *     MUTATIONS (/tmp/opencode/mut/run119.sh, output pr119_mut.txt;
+     * the patches are prog/norem.py, prog/exactf.py, and g2b.py as the
+     * control): carrying no remainder at :1233
+     * (`o->facc = 0.0`) fails the SECOND check; feeding exact thousandth
+     * steps instead, an engine-like integer accumulator, lands 3.0 on
+     * call 20 and fails the FIRST one. The g2b flip of :1230 from
+     * PR-116/117 is the control that says this leg is not a second copy
+     * of leg 8: adding equality to the break condition changes nothing
+     * when the accumulator is already under the threshold, and on call 20
+     * this one is, so g2b still fails ONLY leg 8 and leg 9 stays clean. */
+    {
+        static const char driftrow[] =
+            "A_RUN\n\n[A_RUN]\ncontrol=BY_X\nF=30,0\n1,3\n";
+        ll_mov_t *md = calloc(1, sizeof *md);
+        obj_script sd;
+        lvl_obj e;
+        memset(&sd, 0, sizeof sd);
+        sd.mov = md;
+        if (!md || ll_mov_parse(driftrow, md) != 1 ||
+            md->st[0].nfr != 1 || md->st[0].fx != 30 ||
+            md->st[0].fr[0].thresh != 3u) {
+            fprintf(stderr, "motion selftest: FAILED the drift fixture did"
+                            " not parse as authored (F=30,0 and one 3-unit"
+                            " row)\n");
+            free(md);
+            goto out;
+        }
+        memset(&e, 0, sizeof e);
+        e.sc = &sd;
+        e.x = 20;
+        for (int i = 0; i < 20; i++)
+            obj_advance(&e, 20);
+        /* e.x is 23 here: THREE px of walk already paid for, while the
+         * row that needs three units has not run. obj_walk adds the same
+         * dist to both accumulators (:1103-1104), but only xa has its
+         * whole part taken away, and that subtraction re-draws the
+         * rounding at every pixel boundary. On this very call the
+         * position residual reached 1.0000000000000002 and paid out its
+         * third whole px (xa is left at 2.2204460492503131e-16) in the
+         * same step where facc came out at 2.9999999999999991: one feed,
+         * two variables, opposite sides of a whole unit, one call apart.
+         * Mirrored in compiled C at /tmp/opencode/pr119/xa.c, output
+         * xa.out, which prints both accumulators at every call. */
+        if (e.fi != 0 || !(e.facc > 2.99 && e.facc < 3.0) || e.x != 23 ||
+            e.row_t != 0u) {
+            fprintf(stderr, "motion selftest: FAILED after 20 calls of"
+                            " dt=20: fi %d facc %.17g x %d row_t %u (want"
+                            " NO row yet: 20 feeds of 0.15 leave the double"
+                            " short of 3.0, at 2.9999999999999991 while the"
+                            " pixel path has already paid its 3 px, and the"
+                            " gate holds that row back)\n",
+                    e.fi, e.facc, e.x, e.row_t);
+            free(md);
+            goto out;
+        }
+        obj_advance(&e, 20);
+        if (e.fi != 0 || !(e.facc > 0.14 && e.facc < 0.15) || e.x != 23 ||
+            e.row_t != 0u) {
+            fprintf(stderr, "motion selftest: FAILED on call 21: fi %d"
+                            " facc %.17g x %d row_t %u (want that row to"
+                            " close LATE, on the 21st feed, carrying its"
+                            " drift into the next row as a remainder of"
+                            " 0.14999999999999902 - strictly under one"
+                            " feed of 0.15, never 0.15 and never 0)\n",
+                    e.fi, e.facc, e.x, e.row_t);
+            free(md);
+            goto out;
+        }
+        free(md);
+    }
     rc = 0;
 out:
     free(m1);
@@ -3022,7 +3120,14 @@ int ll_mov_selftest(void)
            " anchor snap because the state is a walking one, and the"
            " wall clock never ran; the engine at that instant would keep"
            " the accumulator and fire one feed later, which stays PR-116"
-           " open item 1, not this test's claim) (ok)\n");
+           " open item 1, not this test's claim) + PR-119 the same"
+           " accumulator DRIFTS, and the row lands one call late for it:"
+           " F=30 on the 20 ms grid feeds 0.15 a call, so a 3-unit row"
+           " needs 20 calls and 20 * 0.15 is 3 exactly, yet after 20 adds"
+           " facc is 2.9999999999999991, the row closes on the 21st feed"
+           " and carries 0.14999999999999902, under one whole feed and"
+           " never 0.15 nor 0, while the walk's own pixel path had"
+           " already paid its 3 px on call 20 (ok)\n");
     return 0;
 }
 

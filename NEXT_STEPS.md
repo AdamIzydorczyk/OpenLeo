@@ -9678,6 +9678,122 @@ and section 6 of the census tool says what does
   nothing behaviour-bearing changed (the same call PR-116 made for its own
   census section).
 
+## PR-119 — the accumulator drift PR-118 found is now tested: leg 9 of
+`obj_motion_selftest` pins a distance-fed row landing ONE CALL LATE, with
+the drift carried forward as its remainder
+
+- WHAT THIS PR IS. One test-only leg, number 9, in `obj_motion_selftest`
+  (`ported/ll_level.c`), plus the summary clause that names it. No
+  behaviour change: not one logic line of the port is touched. It closes
+  PR-118 open item 1, quoted verbatim (NEXT_STEPS.md:9648):
+  "A leg that pins the drift case: a walking fixture at an |F| whose dt=20
+  feed is NOT dyadic (30 -> 0.15) against a 3-unit row, asserting the
+  port's actual 21-call landing and the non-zero remainder."
+- THE FIXTURE, no game data and no window: `A_RUN`, `[A_RUN]` with
+  `control=BY_X` and `F=30,0`, one row line `1,3`. Then 20 calls of
+  `obj_advance(&e, 20)` and a 21st. The numbers are the ones PR-118
+  measured in the corpus: the walk feed at :1101 is `|fx| * dt_ms /
+  4000.0`, so a 20 ms call at F=30 feeds exactly 0.15 units and a 3-unit
+  row needs exactly 20 calls - and 0.15 is not dyadic, which is what
+  makes the accumulator drift at all. `dt=20` is not invented: it is the
+  grid the play and PPM legs call `obj_advance` with (:6425).
+- WHAT IS NOW PINNED, as the leg asserts it. After 20 calls the row has
+  NOT run (`fi == 0`) and `facc` is 2.9999999999999991 - the leg checks
+  `2.99 < facc < 3.0`, so an accumulator that held exact steps fails
+  right there. The row closes on call 21, and the subtract at :1233 is
+  left a remainder of 0.14999999999999902, which the leg checks as
+  `0.14 < facc < 0.15`: never the 0.15 an exact feed would carry, never
+  the 0.0 of a loop that drops the remainder. Those two values are the
+  ones PR-118 derived by hand and confirmed in compiled C
+  (`/tmp/opencode/pr118/acc.c`); the leg reproduces them exactly, so
+  what was arithmetic in a census is now tested behaviour.
+- A SECOND MECHANISM, FOUND BY WRITING THE LEG: by call 20 the object has
+  already MOVED the whole three units (`x` 20 -> 23) while the row that
+  needs three units has not run. `obj_walk` adds the same `dist` to two
+  accumulators (:1103-1104), and only `xa` has its whole part taken away
+  (:1105-1107) - and that subtraction re-draws the rounding at every
+  pixel boundary. On that very call the position residual reached
+  1.0000000000000002 and paid out its third whole pixel (leaving
+  2.2204460492503131e-16 in `xa`) in the same step where `facc` came out
+  at 2.9999999999999991: the same value added to two variables, landing
+  on opposite sides of a whole unit. The leg asserts `x == 23` at both
+  checks, so the divergence is pinned and not just described, and it is
+  mirrored outside the test as well: `/tmp/opencode/pr119/xa.c` reproduces
+  obj_walk's two lines with the same build flags and prints both
+  accumulators at every call (`/tmp/opencode/pr119/xa.out`) - at call 19
+  `x` is 22 with `xa` at 0.8500000000000002 and `facc` at
+  2.8499999999999992, at call 20 `xa` reaches 1.0000000000000002, pays
+  its third whole pixel and leaves 2.2204460492503131e-16 while `facc`
+  comes out at 2.9999999999999991.
+- MUTATIONS (/tmp/opencode/mut/run119.sh, transcript
+  /tmp/opencode/pr119b_mut.txt): H0, the tree with no patch, clean. NOREM
+  (carrying no remainder, `o->facc = 0.0` at :1233) fails ONLY leg 9's
+  second check. EXACTF (the feed quantised to exact thousandths, an
+  engine-like integer accumulator) lands on 3.0 at call 20 and fails ONLY
+  leg 9's FIRST check. G2B (:1230 `<` -> `<=`, the PR-116/117 flip)
+  fails only leg 8 and leaves leg 9 clean, which is the control that
+  shows this leg is not a second copy of the PR-117 one: adding equality
+  to the break condition changes nothing when the accumulator is already
+  under the threshold, and at call 20 it is. `--play-selftest` reported
+  0 failures under every one of those patches.
+- WHAT THIS DOES NOT SETTLE. Whether the ENGINE lands that row at call 20
+  or 21 is still unknown: its accumulator is an integer dword (0x543d1
+  `add [obj+0xa1], eax`) and cannot drift, but what it adds per frame is
+  `[obj+0xca]`, still unread, so this leg pins the port against its own
+  documented feed law and makes no claim about the engine. PR-118 open
+  item 2 (a varying frame dt at :6618, and that unread `[obj+0xca]`) is
+  unchanged by this PR, and PR-116 item 1, the strict-greater flip, stays
+  the owner's decision. A new open item follows from the second
+  mechanism above: nothing states which of the two accumulators the
+  engine keeps for a walking state, so a case that would separate them
+  (a state whose row threshold is not a whole number of pixels) is
+  recorded as PR-119 item 1.
+- OPEN ITEMS (PR-119 1-2). (1) Which of the two accumulators the ENGINE
+  keeps for a walking state. The port has two (`facc` for the row gate,
+  `xa` for whole pixels) and leg 9 shows they can disagree by a call at
+  the same threshold; the engine's `[obj+0xa1]` is the one its row gate
+  reads (0x52323) and PR-116 saw it added at 0x543d1, but whether that
+  dword is the pixel counter's own accumulator or a separate one is not
+  established - so no leg can yet separate "the engine lands that row at
+  call 20" from "the engine lands it at call 21 too". What would
+  establish it is a reading job at 0x543a0/0x543d1, not a capture:
+  whether the dword that `add` feeds is the same field the engine's pixel
+  advance truncates whole pixels out of, or a second one. The port's
+  two-variable shape (one value, two accumulators, one of them truncated
+  at every unit boundary) is the part with no source-side answer.
+  (2) Carried from PR-118 item 2, unchanged by this PR: the measured
+  boundary figures are for identical repeated calls, while
+  `ll_level.c:6618` passes a real frame `dt`, and the value the engine
+  adds per frame in `[obj+0xca]` is still unread.
+- GATES. `ported/` is touched, so the full set was run on the exact bytes
+  of this commit; transcript `/tmp/opencode/pr119b_gates.txt`, which
+  opens with the source hash (`ported/ll_level.c` sha256
+  `c3956398b6cc51f...`). The four mutation runs come FIRST in that
+  transcript and it closes with `sha256 -c` OK, printing
+  `SOURCE_INTACT_AFTER_MUTATIONS`, which is how we know the harness
+  restored the unpatched
+  file before the build legs. Then: `make` rc=0 with 0 warnings;
+  `make win` rc=0 with 0 warnings; `make ll_level` rc=0 with 0 warnings;
+  `./ll_level --play-selftest` rc=0 with 0 failures
+  (`/tmp/opencode/pr119b_play.txt`); `./ll_level --mov-selftest` rc=0
+  with 0 failures (`/tmp/opencode/pr119b_movf.txt`) - and the summary
+  line naming PR-119 is present in that output, which is how the run
+  shows the chain reaches leg 9; `make -k verify-all
+  DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files` EXIT=0
+  "ALL TESTS PASSED (linux + windows + llrs)"
+  (`/tmp/opencode/pr119b_verify_all.txt`) and the fixture-free
+  `DATA=/tmp/opencode/nope HD=/tmp/opencode/nope` EXIT=0 with the same
+  line (`/tmp/opencode/pr119b_verify_none.txt`), whose 23 named SKIP
+  lines are set-identical to the PR-110/111/112/114/115/116/117/118
+  baseline `/tmp/opencode/va_nope.log` (diff of the sorted SKIP lines:
+  empty). One earlier pass of the same set, with the same results, was
+  run before two comment-only corrections in this commit; the transcript
+  cited here is the one whose hash matches the shipped bytes. The
+  mutation outcomes are in `/tmp/opencode/pr119b_mut.txt`: H0 clean,
+  NOREM failing only leg 9's second check, EXACTF failing only its
+  first, G2B failing only leg 8. `ported/ll_level.c` keeps its 45
+  pre-existing over-79-column lines and adds none.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

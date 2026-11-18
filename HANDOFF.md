@@ -653,6 +653,35 @@ behaviour changed and no code changed: `tools/re/mov_byx_gate.py` section
 6 only, output `/tmp/opencode/pr118_census.txt`, whose sections 1-5 are
 byte-identical to `/tmp/opencode/pr116_census.txt`. PR-118 record in
 NEXT_STEPS.md.
+PR-119 added 2026-11-18, and it closes the last sentence of the paragraph
+above, quoted verbatim: "untested anywhere, since no selftest runs a
+distance-fed row at a grid that reaches a threshold." Leg 9 of
+`obj_motion_selftest` is that fixture: `control=BY_X`, `F=30,0`, one row
+`1,3`, then 20 calls of `obj_advance(&e, 20)` and a 21st - the same
+(|F|, dt, threshold) the census found in `LONA.05_LEW`, on the real 20 ms
+grid (:6425) rather than a 28 ms one. What it pins is what the port
+already does: the row is held back at call 20 with `facc` at
+2.9999999999999991 and closes on call 21, and the subtract at :1233
+carries 0.14999999999999902 into the next row - checked as a band
+(`2.99 < facc < 3.0`, then `0.14 < facc < 0.15`), so both an exact
+accumulator and one that drops the remainder fail it. Two mutations catch
+it and one control does not (transcript /tmp/opencode/pr119_mut.txt):
+`o->facc = 0.0` at :1233 and quantising the feed to exact thousandths
+each fail one check of leg 9 alone, while the g2b flip of :1230 still
+fails only leg 8. Writing the leg exposed a second mechanism, now asserted
+too: by call 20 the object has already moved the full three units
+(`x` 20 -> 23) while the three-unit row has not run, because `obj_walk`
+adds the same `dist` to `facc` and to `xa` (:1103-1104) and only `xa` has
+its whole part taken away (:1105-1107), and that subtraction re-draws the
+rounding at every pixel boundary - on call 20 the position residual hit
+1.0000000000000002 and paid its third whole pixel (leaving
+2.2204460492503131e-16) in the step where `facc` came out at
+2.9999999999999991. Which of those two accumulators the engine keeps for
+a walking state is unread, so this is recorded as PR-119 open item 1 and
+the leg makes no engine claim. No behaviour changed: the leg and the
+summary clause that names it are the only lines added under ported/.
+PR-119 record in NEXT_STEPS.md.
+
 
 
 
@@ -1627,6 +1656,26 @@ NEXT_STEPS.md.
      call 20); nothing in either selftest reaches that case, PR-118 open
      item 1. No behaviour changed: the only file touched is the census
      script, which no build or test leg runs.
+
+   - THE CASE THAT SUB-BULLET CALLED UNREACHED, TESTED 2026-11-18 BY
+     PR-119. Its closing clause, quoted verbatim:
+     "nothing in either selftest reaches that case, PR-118 open item 1."
+     is no longer true. Leg 9 of
+     `obj_motion_selftest` is the fixture it named: F=30,0, one 3-unit
+     row, 20 calls of dt=20 and a 21st, and it asserts the landing the
+     census predicted (row held back at call 20 with facc 2.9999999999999991,
+     row closing on call 21, remainder 0.14999999999999902 carried into
+     the next row), as a band, so an exact accumulator fails the first
+     check and a loop that drops the remainder fails the second.
+     Mutations: /tmp/opencode/mut/run119.sh with prog/norem.py and
+     prog/exactf.py each break ONLY that leg, and g2b.py still breaks
+     only leg 8 - the control that the new leg is not a copy of it. The
+     leg also surfaced a second accumulator story (obj_walk's `xa` pays
+     its whole pixels early and re-draws the rounding at each boundary,
+     so the object has moved 3 px by call 20 while facc says 2.99...),
+     which is pinned by the same leg and recorded as PR-119 item 1,
+     because which accumulator the engine keeps for a walking state is
+     still unread. No behaviour changed: test-only.
 
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
