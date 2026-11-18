@@ -57,8 +57,12 @@ WHAT IT PRINTS
    those are exactly the ones where "the engine admits one row per record
    step" (0x52329 `cmp eax,ebx; jge 0x52354`) and "the port's loop takes
    all that fit" differ. Plus the distance-fed half as an ESTIMATE from
-   each state's own `T=`, and the two loops' bounds as written in the
-   port (`4 * nfr` + a resync in the player; no cap in the object loop).
+   each state's own `T=`, and the two loops' bounds AS THE PORT HAD THEM
+   when this section was written (a `4 * nfr` cap and a resync in the
+   player, no cap in the object loop). PR-135 closed that difference in
+   code: both engines now admit at most one row per iteration and neither
+   caps nor resyncs, so the counts below record what the two sides USED
+   to differ on, not what they differ on now.
 
 Nothing is written; output only. Pure stdlib, no game data in git.
 """
@@ -542,12 +546,14 @@ def main(argv):
               % (os.path.basename(s["path"])[:34], s["name"][:16], s["rows"],
                  s["tmin"], max(abs(v) for v in s["hdr"].get("T", (0, 0))),
                  s["T_est"]))
-    print("   the loop's own bound, for the record: ll_play.c:1288 caps a"
-          " step at\n   `4 * nfr` row closures and :1318-1319 then zeroes"
-          " the accumulator\n   (`guard hit (data safety): resync`);"
-          " ll_level.c has NO such cap - its\n   state loop is bounded by"
-          " the accumulator and by the 4096-iteration guard\n   at :1188-1189,"
-          " and it never resyncs the debt.")
+    print("   the loop's own bound, as of PR-135: neither engine caps or"
+          " resyncs any\n   more. ll_play.c:1368-1424 and ll_level.c:1194+ both"
+          " run ONE record\n   step per iteration of LL_ITER_MS - one feed, at"
+          " most one row admit -\n   so the count above is the population where"
+          " the OLD port loop (a\n   `4 * nfr` cap plus a resync in the player,"
+          " no cap and a 4096-step\n   guard in the object loop) differed from"
+          " the engine at 0x5232b, and\n   that difference is gone: those rows"
+          " now simply take one iteration each.")
 
     # PR-116: which rows sit exactly on the `>=` / `>` boundary.  The
     # engine's record step reads `0x52329: 39 d8  cmp eax,ebx` then

@@ -443,27 +443,75 @@ int ll_mov_row_start(const ll_mov_st *s, int entry);
 typedef struct { int k_fwd, k_bkwd, k_up, k_down, k_jump,
                  k_fire, k_f1, k_f2, k_f3, k_f4, k_alt; } ll_play_keys;
 
-/* PR-110: the port's model of ONE FRAME-LOOP ITERATION, in ms. The
- * engine advances its row accumulator by exactly 100 once per iteration
- * of the level frame loop (0x4c8b7's constant, read at 0x543f2/
- * 0x54406/0x5442f), and its pacer holds one iteration to TWO DISPLAY
- * FRAMES: the wait 0x4a120 spins until the clock has advanced by the
- * setpoint, and 0x4a190 measured that setpoint at startup as 2 retrace
- * intervals - 1 (the 27 fallback = 2*14-1, the author's assumed 14 ms
- * retrace), against a clock that runs at a 1 ms step during play
- * (0x5d195 calls the set-period method 0x5b9e0 with edx=1). So one
- * iteration is two retraces, and 27 ms is the value the author's own
- * fallback encoded. PR-109 measured the authored rows of [A_WSP] on the
- * owner's footage: 66-100 ms of screen time for thresholds of 200/300,
- * i.e. an iteration period of 28-33 ms (a 60 Hz display; 28.6 ms at
- * mode 13h's 70.08 Hz). 28 is the smallest value consistent with BOTH:
- * it is just inside the measured bracket and within 1 ms of the
- * engine's own fallback, so it is the honest choice; anything smaller
- * contradicts the footage, anything larger contradicts no data but is
- * unmeasured. The real value on a given machine is display-rate
- * dependent (the setpoint is measured at runtime) - that is open item
- * PR-109.3; this constant says which rate the port reproduces. */
-#define LL_ITER_MS 28u
+/* PR-110/135: the port's model of ONE FRAME-LOOP ITERATION, in ms.
+ * The engine advances its row accumulator by exactly 100 once per
+ * iteration of the level frame loop (0x4c8b7's constant, read at
+ * 0x543f2/0x54406/0x5442f), and PR-133 closed the rate MECHANISM:
+ * one state step per iteration, one physics pass per state step for
+ * the BY_X and time-mode families. PR-109 first bracketed the period at
+ * 22-50 ms (its [A_WSP] rows 200/300 ran 66-100 ms of screen time),
+ * and PR-134 measured the rate itself on two independent law objects
+ * inside one four-ways-verified camera lock: the ZARIA.01 worm
+ * (F=100,T=40 -> 1.25 px/iteration) ran <= 30.3 units/s, i.e.
+ * <= 24.2 iterations/s, and the lion's ground run (A_WALK F=100,T=20
+ * -> 2.5 px/iteration) measured [38,76] units/s, i.e. >= 15.2
+ * iterations/s. The two families overlap at 15-24 iterations/s and
+ * 50 ms (20/s, the far edge of PR-109's bracket) sits inside both;
+ * 28 ms (35.7/s) predicts 44.6 u/s for the worm - above its measured
+ * bound - and 89 u/s for the lion - above the whole bracket. So 28
+ * is REFUTED and 50 ms is the port's clock. The author's own startup
+ * fallback (0x4a190, 2 retrace intervals, 27 ms at his assumed 14 ms
+ * retrace) measured on real hardware is exactly what PR-134's band
+ * refutes at that retrace rate - the fallback only says the engine
+ * paces on retraces, not how long one was.
+ * THE SINGLE GRID (PR-135, closing PR-131's probe ambiguity): every
+ * fixed grid in the port - the PPM probe, the play selftest legs, the
+ * live loop's substeps - runs at exactly this constant, one
+ * ll_player_step/play_advance/obj_advance call per iteration when the
+ * caller passes dt == LL_ITER_MS; other dts are consumed as whole
+ * iterations with a Bresenham remainder (grid-independent by design,
+ * exercised by the 2x50+16 and 10x50 legs). The real value on a
+ * given machine was display-rate dependent (the setpoint was measured
+ * at runtime) - open item PR-109.3 stays; this constant says which
+ * rate the port reproduces. --play-selftest asserts this number. */
+#define LL_ITER_MS 50u
+
+/* PR-135: the two constants the engine law of PR-133/134 is written
+ * with, in port units. This port keeps velocities in units/s; the
+ * engine's own velocity register is hundredths of a px per iteration.
+ *   drag   v -= v*T/100 per iteration  (0x5427c..0x542a7; the divisor
+ *                                      is LL_PLAY_DRAG_DEN and T is the
+ *                                      authored drag percent word)
+ *   force  v += F*s/100 per iteration  (0x5434f adds F*s/20 in the
+ *                                      engine's units, which at the
+ *                                      50 ms iteration is F*s/100 in
+ *                                      units/s)
+ *   steady v = F*s/T units/s           (PR-134's table closes on real
+ *                                      video: the ZARIA worm
+ *                                      100*10/40 = 25 u/s against a
+ *                                      measured bound of 30.3, and the
+ *                                      real LEW.MOV ground run
+ *                                      400*10/90 = 44.4 u/s inside the
+ *                                      measured [38,76])
+ * s is the engine's intent register ([obj+0xba], read live as 10 by
+ * PR-99, and PR-132 closed "10 IS full one-axis intent"). Only the one
+ * value has ever been measured, so the port uses it for a held
+ * direction key or an auto_walk state and 0 otherwise; partial intents
+ * are counted as an open item, not modeled. */
+#define LL_PLAY_DRAG_DEN 100
+#define LL_PLAY_INTENT_FULL 10
+/* PR-135: one unit of the engine's velocity register. That register is
+ * an INTEGER in hundredths of a px per iteration (PR-98 read the /100
+ * at 0x5435d and the sub-pixel scale of `I 150,-1200` = 1.5 px per
+ * iteration), so its smallest non-zero magnitude is 0.01 px per
+ * iteration = 0.01 * 1000/LL_ITER_MS = 0.2 units/s at this clock. The
+ * port carries velocities in a double, so a drag tail like
+ * 44.4 -> 4.4 -> 0.44 -> 0.04 never reaches the 0 an integer register
+ * would hold. What IS read at byte level is only the sign-flip rule
+ * (0x5426x zeroes the component); the sub-unit case is MODEL CHOICE,
+ * counted as an open item: the port zeroes what is below one register
+ * unit, because nothing below it can exist there. */
+#define LL_PLAY_V_EPS 0.2
 
 /* Project constant, see header note; used only when airborne with a
  * CHECK_LN state that carries no authored fall route. */
@@ -497,19 +545,22 @@ typedef struct {
     double vx, vy;              /* px/s                                   */
     int sti;                    /* current state in mov                   */
     int fi; unsigned row_t, row_rem;
-                                /* PR-110: the row clock. row_t counts
-                                 * 1/100 units of the engine's row
+                                /* PR-110/135: the row clock. row_t
+                                 * counts 1/100 units of the engine's row
                                  * accumulator (fed 100 per iteration,
                                  * ll_mov_fr.thresh is compared against
-                                 * it); row_rem carries the ms that did
-                                 * not complete an iteration between
-                                 * steps (Bresenham, ll_player_step
-                                 * section 7). Replaces the old `ft`
-                                 * wall-ms clock, PR-108's leg pinned
-                                 * that one. Only the TIME modes feed
-                                 * it: the dispatcher 0x543a0's mode-0
-                                 * (BY_X) branch feeds the same engine
-                                 * accumulator from the distance
+                                 * it); row_rem is the ITERATION
+                                 * remainder: ll_player_step feeds dt_ms
+                                 * here and runs exactly one state step
+                                 * and one physics pass per completed
+                                 * iteration of LL_ITER_MS (PR-133's
+                                 * chain; Bresenham carry, so the port
+                                 * is grid-independent). Replaces the
+                                 * old `ft` wall-ms clock, PR-108's leg
+                                 * pinned that one. Only the TIME modes
+                                 * feed row_t: the dispatcher 0x543a0's
+                                 * mode-0 (BY_X) branch feeds the same
+                                 * engine accumulator from the distance
                                  * travelled, which is `facc` below. */
     double facc;                /* PR-110: the OTHER feed of the same
                                  * accumulator. The engine's dispatcher

@@ -11916,6 +11916,342 @@ no port behaviour change)
   with the clock factor measured, and §8 T0 records what G-2 does and
   does not establish.
 
+## PR-135 — the 50 ms iteration and the engine's own velocity law APPLIED ON
+## THE PORT SIDE: LL_ITER_MS 28 -> 50, `v -= T*v/100` then `v += F*s/100`
+## per iteration replacing the fitted target-velocity model, AT MOST ONE row
+## admit per iteration for both actors, every play and scene pin re-derived
+## as closed-form arithmetic, and the object's hurt cooldown counting
+## iterations (behaviour change; 14 one-line mutation controls, 13 caught,
+## 1 named survivor)
+
+- WHY. PR-134 MEASURED the clock and stopped at the measurement: its own
+  record ends with "WHAT THE PORT DOES WITH THIS, AND THE DIFF NAMED", and
+  HANDOFF §8 T1's next step is to apply the law instead of fitting it. The
+  port was running PR-79's model - a TARGET velocity of +/-T with an accel
+  limit - on a 20 ms internal grid whose nominal constant (`LL_ITER_MS` =
+  28) nothing in the code used, a row loop that admitted as many rows as the
+  feed allowed, and a `4 * nfr` cap plus a "resync" as a safety net. Every
+  one of those is now the engine's own record step, for the lion and for
+  every scene object.
+
+- WHAT SHIPPED. ported/ll_play.h - LL_ITER_MS 28 -> 50 with the assert in
+  the selftest, plus LL_PLAY_DRAG_DEN / LL_PLAY_INTENT_FULL / LL_PLAY_V_EPS
+  naming the three numbers the law uses; ported/ll_play.c - the velocity
+  register (sections 4-5), the row clock reduced to one feed and one admit
+  per iteration (sections 6-7), the `vy >= 0` guard on the ground snap, and
+  the re-derived hermetic legs; ported/ll_level.c - obj_row_tick() +
+  obj_advance() as one record step per iteration, `brk_arm` as the
+  list-end bit, the per-iteration hurt countdown and its rate check, and
+  the object legs re-derived; the Makefile - every verify-play and
+  verify-level position pin replaced by the value its own closed form
+  gives, with a RE-PIN NOTE (Makefile:673) stating what is derived from
+  what; HANDOFF.md, this record and tools/re/mov_byx_gate.py's stale prose.
+  7 files, +2411/-1178. NO new make target, so HANDOFF §3 is unchanged;
+  .github/workflows/* untouched; no game data or frames in git (all cut
+  material under /tmp/opencode/pr135/ and the gate logs).
+
+- THE UNIT FRAME, restated once because the arithmetic depends on it.
+  `p->vx`/`p->vy` stay units/s in this port (the integration at
+  ll_play.c:1179-1200 multiplies by dt). The engine's register is hundredths
+  of a px per ITERATION (the /100 at 0x5435d), so at LL_ITER_MS = 50 its
+  per-iteration `v -= T*v/100; v += F*s/20` is, in port units,
+  `v -= v*clamp(T,.,130)/100` then `v += F*s/100` - the same steady state,
+  F*s/T units/s, written in the units the file already uses.
+  LL_PLAY_DRAG_DEN = 100 and LL_PLAY_INTENT_FULL = 10 name those two
+  divisors instead of leaving them inline.
+
+- THE LAW, AS IMPLEMENTED (ll_play.c:1085-1165). ONE physics pass and ONE
+  state step per iteration of LL_ITER_MS: player_iterate()
+  (ll_play.c:913-1449) is that single pass, and ll_player_step()
+  (:1451-1464) only turns a wall-clock call into whole iterations and
+  carries the remainder:
+    1. s = +/-LL_PLAY_INTENT_FULL while the facing-relative direction key is
+       held in a BY_X state, or for an auto_walk state; s = 0 otherwise.
+       With s = 0 the DRAG is the brake - the engine has no authored hard
+       brake for A_WALK, which is why ZARIA's lion glides and A_STAY's T=90
+       does not. PR-83's user report ("kept walking forever") is now the
+       law's own behaviour rather than a special case.
+    2. td = st->tx, capped at 130 exactly as the parser does (0x52590). NO
+       lower clamp is modelled - the engine's raise to >= 20 is conditional
+       and which objects carry the +0xbc guard is still open - so an
+       authored `T=0` stays drag-free here. Counted, item 2.
+    3. d = vx*td/100. A sign flip across the drag, or a remainder smaller
+       than one register unit, sets that component to 0 (0x5426x zeroes the
+       component the same way). The epsilon itself, LL_PLAY_V_EPS = 0.2
+       u/s, is a MODEL CHOICE - counted, item 4.
+    4. vx += fx*s/100. The row-node `F I` velocity-TARGET channel (0x54170)
+       and the `FC`/`IC` sums stay unmodelled, exactly as before this PR:
+       0x54170's target is built only from the row nodes (PR-98/99), so
+       there is nothing to add without them. Counted, item 7.
+    5. the runaway guard at +/-20000 u/s stays; it bounds authored runaway
+       F/T, no data needs it.
+  PR-79's target-velocity model is DELETED, not kept beside it. T is a drag
+  percent, not a speed cap - that was PR-132/133's reading; this is where it
+  lands.
+
+- THE CLOSED FORMS every position pin is now checked against (written beside
+  each leg in the Makefile, and derived by arithmetic, not read off a run):
+    * ZARIA [A_WALK] F=100 T=20 s=+10: v_n = 50*(1 - 0.8^n) u/s and
+      x_n = x_0 + 2.5n - 10*(1 - 0.8^n) px, so the FIRST 6-unit row of the
+      rotated walk list closes on iteration 3 and a full 14-row cycle needs
+      14 admits;
+    * RAN.01 LEW.RAN [A_WALK] F=400 T=90: v_n = 44.44*(1 - 0.1^n),
+      x_n = 40 + 2.2222n - 0.2469*(1 - 0.1^n) px from the pozycja snap at
+      (40,286);
+    * the worm's BY_X [A_RUN] F=100 T=40: 1.25 px per iteration, 25 u/s
+      steady - PR-134's video bound for that same animal was <= 30.3;
+    * any non-BY_X state: the accumulator is fed EXACTLY 100 per iteration
+      and admits at most one row, so a 300-unit row is 3 iterations and a
+      500-unit row is 5, and the ENTRY iteration takes the first row (the
+      transition runs before the row clock).
+
+- THE ROW CLOCK IS THE ENGINE'S, ONE ADMIT PER ITERATION (ll_play.c
+  section 7, :1343-1449). One accumulator, two feeds chosen by the state's
+  mode, exactly as
+  the dispatcher 0x543a0 does it: a BY_X state with a non-zero `F=` is fed
+  the TRAVELLED distance (`|dxv|` of that iteration, PR-98's law), every
+  other mode is fed 0x4c8b7's constant 100. The compare is after the feed,
+  the threshold is SUBTRACTED, the remainder carries into the next row, and
+  AT MOST ONE row is admitted per iteration (0x521f0 runs one key
+  composition + one feed + one admit; 0x5232b is the compare). The `4 * nfr`
+  cap and the "resync" that followed it are GONE - they were a guard
+  against the multi-admit loop, and the loop is what the engine does not
+  have. `--play-selftest` now ASSERTS LL_ITER_MS == 50, so the constant
+  cannot drift away from the legs derived against it.
+
+- THE OBJECT ENGINE RUNS THE SAME RECORD STEP (ll_level.c:1107-1321).
+  obj_row_tick() turns a call into whole iterations and carries the
+  remainder; obj_advance() runs ONE record step per iteration - one key
+  composition, one feed, one admit, the same two feeds chosen by mode. The
+  list-end signal is the engine's bit, not a side effect of a loop:
+  `brk_arm` (0x521d7) is armed by the step whose row list wrapped and
+  tested by the NEXT step's key composition, which is PR-133's reading and
+  now the port's shape. The [obj+0x102] hurt cooldown counts ITERATIONS,
+  like the lion's pl->lock, and the obj_state leg now pins its RATE too -
+  seven of the fourteen steps must still be running, and a hit at that
+  point must still be refused. That check exists because `hit_cd -= 2`
+  passed every leg in the repo until it was written (M13 below). The walk
+  rate is
+  that same law read in px per iteration -
+  |F|*LL_PLAY_INTENT_FULL*LL_ITER_MS/(1000*clamp(T,.,130)), i.e. F/(2T) at
+  50 ms, which is PR-79's F/4 exactly where the shipped data sits (T=40: 25
+  px/s, PR-134's measured worm). Objects get NO velocity register of their
+  own: they step straight to the steady rate, because every measured object
+  speed in this record is a mid-walk number and nothing separates the two.
+  MODEL CHOICE, counted, item 5.
+
+- WHAT A USER SEES DIFFERENT. The lion walks at the authored F/T of each
+  level's own [A_WALK] (ZARIA 50 u/s, RAN 44.4 u/s) instead of PR-79's 20;
+  a released key coasts out over the state's own drag (25 iterations at
+  A_WALK's T=20) instead of stopping on the tick; a scene object's rows
+  advance one per iteration, so the animated platform's 500-unit rows step
+  every 5 ticks and its 300-unit rows every 3; the lion's walk cycle draws
+  6-unit poses every 2.4 iterations and the worm's 4-unit poses every 3.2 -
+  the two gaits PR-134 measured from the video come out of the authored F/T
+  and row pitch, they are not fitted.
+
+- THE VERTICAL IS DELIBERATELY NOT RE-FITTED, AND THE LEG SAYS SO.
+  LL_PLAY_JUMP_DIV = 4 and LL_PLAY_JUMP_G = 1650 are per-second constants
+  from ONE measured jump (PR-73/74/86). Applied per 50 ms iteration they
+  peak 20 px above the take-off line (min y 628 against the 648/649 walk
+  line) - 4 px below what the old 20 ms grid produced, and within 4% of the
+  21 px of the single jump PR-74 actually measured. Re-fitting four
+  constants against one measured frame is not a claim this project makes, so
+  the constants stay and the 20 px is counted, item 1. The zjump leg's
+  proof line and the hermetic jump leg's comment both state it.
+
+- THE HERMETIC LEGS RE-DERIVED THEMSELVES. `--play-selftest` and
+  `--mov-selftest` are data-free, and each row/velocity leg now prints its
+  own derivation: the 116 ms = 2-iteration / 70-unit-remainder fixture, the
+  1706 ms = 34-admit BOUND fixture whose alternating authored `M` deltas
+  make the count readable, the OBJM fixture whose 500 ms call must run TEN
+  record steps whose ten admits read as ten authored deltas, the jump arc's
+  per-iteration velocity table (+82.5 u/s per iteration), and the climb
+  leg's BY_TY list re-derived as 17 iterations - a 200-unit row is 2 of
+  them, a 300-unit row 3, and the wrap lands on the 17th feed.
+
+- THE MUTATION CONTROLS, RUN AND EXTENDED. FOURTEEN one-line patches; the
+  harness is /tmp/opencode/pr135_mut2.py (it re-uses the patch table of
+  /tmp/opencode/pr135_mut.py), and each mutant's FULL selftest output is
+  kept in /tmp/opencode/pr135/mut2/. Counts are `failing_checks` in each
+  data-free selftest: `--mov-selftest` stops at its first failing leg, so a
+  `mov` count is a floor, and any leg named below as "would also break" is
+  DERIVED from the fixture, not observed. The two patches whose rate or
+  guard behaviour the DATA legs could also expose - M12 and M13 - were
+  additionally run against them (`make -k verify-play verify-level`, with
+  the fixtures). THIRTEEN OF FOURTEEN CAUGHT. NAMED RESULTS:
+    * M1, the player admits TWO rows per iteration (the old loop). CAUGHT,
+      play 8 checks - the PR-115 MULTI/BOUND leg's counts (`fi 2`, row_t
+      70 and 140 with the 16 ms carry, x 230 and 260) plus two frame-index
+      CHECKs in the K_GEN-baked-state leg above it, because the extra
+      admits move the frame cursor.
+    * M2, the player zeroes its accumulator instead of carrying it (the old
+      "resync"). CAUGHT, play 15 checks - the jump-state exit timing
+      (`first_exit == 22 && exit_t == 24`), the walk-law and key-release
+      glide legs, the left-walk and auto-walk legs, and the MULTI/BOUND
+      remainders.
+    * M3, the player subtracts nothing at the row boundary. CAUGHT, play 64
+      checks.
+    * M4, the player's row clock fed per millisecond instead of per
+      iteration. CAUGHT, play 77 checks - the widest failure of the set.
+    * M5, an object admits TWO rows per record step. CAUGHT, mov - the
+      OBJM leg's call 1 reads "fi 0 row_t 40 rem 16 brk 1 at (5,9)" where
+      two steps and two admits owe (40,30) with no wrap.
+    * M6, an object zeroes its accumulator instead of carrying it - this is
+      run119.sh's `norem` control. CAUGHT at the same call 1, "fi 2 row_t
+      0" against the 70-unit remainder it owes. The drift leg's own
+      0.33333333333333304 check is downstream and was not reached; it is
+      still covered by PR-119's own run.
+    * M7, an object's row clock fed per millisecond. CAUGHT at the
+      object-state leg: "the first iteration did not close exactly one row
+      (state 0 frame 0 t 50)".
+    * M8, the old `4 * nfr` cap copied into the object loop. CAUGHT - "no
+      cap here: row_t 0 rem 0 fi 0 brk 1 at (80,30)", x 80 where TEN
+      record steps owe 140.
+    * M9, equality at the walk/row gate (PR-116's g2b flip, which PR-116
+      and PR-119 both recorded as a SURVIVOR). NOW CAUGHT at the
+      object-state leg: "the first iteration did not close exactly one row
+      (state 0 frame 0 t 100)". What changed is the row clock, not the
+      patch - once a non-BY_X state is fed exactly 100 per iteration the
+      object side has an exact equality to hit. Its PLAY side still passes
+      (rc=0): the player's distance-fed `facc` has no equality case, which
+      is open item 14.
+    * M10, LL_PLAY_DRAG_DEN 100 -> 130, the parser's cap used as the drag
+      denominator. CAUGHT, play 16 checks - the walk-law leg (both signs),
+      the key-release glide, the auto-walk leg and the PR-114 BY_X/F=0,0
+      A_COAST leg's distance sums.
+    * M11, LL_PLAY_INTENT_FULL 10 -> 20, an intent above the engine's
+      bound. CAUGHT, mov 1 (the object BY_X walk moves 20 px where 10 are
+      owed) + play 41 checks.
+    * M12, drop the `p->vy >= 0.0` guard on the ground snap. THE ONLY
+      SURVIVOR - green on both selftests AND on verify-play and
+      verify-level in full (M12_play_no_vy_guard.legs.log, rc=0). The
+      reason is structural, not a missing pin: apply_impulse clears
+      `grounded` as an upward `I` is applied, and a body in the air never
+      reaches this branch, so `grounded && vy < 0` is not a state this
+      model can currently produce. The fixture that would pin it - a
+      CHECK_LN state walked off a step edge while a row's `I` points up -
+      is counted as open item 12, together with the `p->support` guard next
+      to it, which no mutation touched either.
+    * M13, the object's hurt countdown draining two per iteration
+      (`hit_cd -= 2`). CAUGHT TWICE: by the rate check added for it
+      ("the hit countdown ran out faster than one per engine iteration (7
+      steps, cd 0)") and again in the data legs, where verify-level stops
+      with that same line (`make: *** [Makefile:431: verify-level] Error
+      1`). The leg as PR-89 shipped it only asked that the counter be gone
+      after 14 steps, which a countdown at twice the rate also satisfies -
+      that is how it survived PR-89's own controls.
+    * M14, the parser keeps an authored 0 threshold as 0, as the engine
+      stores it. CAUGHT, mov 1 ("zero/negative duration not clamped") +
+      play 6 checks - among them the 30/30-unit rows of the MULTI fixture,
+      which the parser must raise to 100 first.
+  PR-119's `exactf.py` control (an exact integer accumulator in place of
+  the double) is NOT a one-line patch, so it was not re-run here; it stays
+  credited to PR-119 and ll_level.c leg 9's comment says so. The final
+  section of every summary is the RESTORED build: mov rc=0, play rc=0,
+  which is how the tree is left.
+
+- OPEN ITEMS, COUNTED: 14.
+    1. The vertical half of the law is not re-fitted: the authored jump
+       peaks 20 px above take-off against the ~24 px PR-73/86 fitted (within
+       4% of PR-74's 21 px). Stated in the zjump leg, the hermetic jump leg
+       and HANDOFF §6.
+    2. The engine's conditional raise of `T` to >= 20 (PR-109's item) - no
+       lower clamp is modelled, so an authored `T=0` is drag-free.
+    3. The partial-intent values of s between 0 and +/-10 (PR-132 bounded
+       |s| <= 10 but never censused what the key handler puts below 10).
+    4. LL_PLAY_V_EPS = 0.2 u/s - the sub-one-register-unit zero is MODEL
+       CHOICE in port units.
+    5. No velocity register on the object side; a register would carry
+       creatures through their `bounds=` flip.
+    6. Whether a state change consumes its step's feed: the object's
+       transition does NOT feed the new state's rows while the player's
+       DOES. Both shapes are pinned by legs; neither is derived from bytes.
+    7. The row-node `F I` velocity target (0x54170) and the `FC`/`IC` sums
+       stay unmodelled, so the force/gate-fed row lists inside A_JUMP and
+       A_DOSTAL play at this run's pacing, not a derived one.
+    8. The velocity carried across a state change - this model keeps it, and
+       the zwalk leg's 42 px in 19 iterations against 37.5 px from rest is
+       that carry-in term.
+    9. PR-83's pending-AC_TIME flag lifetime (a release at iteration 10
+       reaches A_DRAP, at 40 it does not).
+   10. The object-side `nfr == 0` guard: an empty list now admits nothing at
+       all. Behaviour change, no shipped fixture has an empty list.
+   11. One terrain point tested per iteration vs the engine's shape-box
+       geometry (FUN_00042a70 / FUN_00042de0): that is why RAN.01's first
+       ungrounded x moved from 314 walking BACK to 303 walking RIGHT, and
+       which .plt segment each model's point landed on is not re-derived.
+   12. The ground snap's `vy >= 0` guard is unobservable in this repo (M12),
+       and the `p->support` guard next to it was never mutated at all.
+   13. The iteration length itself: the port now runs 50 ms, inside
+       PR-109's 28-33 ms bracket for the engine's own loop the port does
+       NOT reach - PR-134 chose the 50 ms edge from the video, not from the
+       code.
+   14. `>=` vs `>` at exact accumulator equality (PR-116 item 1): 0x5232b's
+       `jge` returns with the accumulator KEPT and the row runs on the next
+       feed; the port fires on the feed that reaches it. Both sides now
+       catch a flip of that compare (M9), which is not the same as knowing
+       which is right.
+
+- GATES. `make` rc=0 and `make win` rc=0, both with ZERO warning lines
+  (/tmp/opencode/pr135_gate_make.log, /tmp/opencode/pr135_gate_win.log).
+  `make -k verify-all DATA=/tmp/opencode/iso_stage/LEO
+  HD=/tmp/opencode/hd_files` -> rc=0, "ALL TESTS PASSED (linux + windows +
+  llrs)", 53 `(ok)` proofs and no FAILED line anywhere
+  (/tmp/opencode/pr135_all_full.log). The same suite fixture-free,
+  `make -k verify-all DATA=/tmp/opencode/nope HD=/tmp/opencode/nope` ->
+  rc=0 with 21 named `verify-*: SKIP` lines plus `verify: SKIP`, while
+  `--mov-selftest`, `--play-selftest` and the T-01 structure leg still ran
+  in that configuration - which is the point of that gate
+  (/tmp/opencode/pr135_all_nofix.log). Both mutation passes ended with the
+  restored tree: `make -B ll_level` rc=0, mov rc=0, play rc=0.
+
+- HANDOFF UPDATED. §1's lion and object rows now describe the engine's
+  velocity register and one admit per iteration instead of the fitted
+  target-velocity model; §6 gains a row for the register itself
+  (LL_PLAY_DRAG_DEN / LL_PLAY_INTENT_FULL / LL_PLAY_V_EPS / the missing
+  lower clamp on `T` / the absent object register, each with what would
+  decide it), its jump-constant rows carry the PR-135 20 px note, its
+  hurt-lock and `hit_cd` rows now say ITERATIONS (30 and 14 of the engine
+  clock, with the countdown's rate pinned at the half-way point), and its
+  row-clock row says LL_ITER_MS = 50, one admit per iteration on both
+  sides, and which PR-110 items PR-135 closed; §5's PR-115
+  paragraph gains a CORRECTION ("whether the game closes one row per step
+  or all that fit" IS settled from the machine code, and the port now
+  matches it - what a capture would still decide is the equality half and
+  the engine's own iteration length); §7 item 13 gains the PR-135 bullet
+  with the open-items list above; §8 T1 states that the clock and the port
+  constants are APPLIED here and re-lists what is still open, T1's F/T
+  paragraph no longer says the two laws "differ in the T dependence" in
+  code, and T3 restates the patrol rate as F*s*LL_ITER_MS/(1000*T) per
+  iteration. The census tool tools/re/mov_byx_gate.py is not run by any
+  Makefile leg, but its section-5 text and its printed loop-bound note are
+  corrected the same way (those counts describe what the two sides USED to
+  differ on).
+
+- EVIDENCE. No game data or frames in git; everything below is under
+  /tmp/opencode/. Gate logs: pr135_gate_make.log, pr135_gate_win.log,
+  pr135_all_full.log (the fixture run) and pr135_all_nofix.log (the
+  fixture-free run, whose named SKIPs are the point of that gate).
+  Mutation harnesses /tmp/opencode/pr135_mut.py (pass 1,
+  /tmp/opencode/pr135/mut/) and /tmp/opencode/pr135_mut2.py (pass 2, the
+  one this record quotes: /tmp/opencode/pr135/mut2/ keeps every mutant's
+  full selftest output and, for M12 and M13, the full verify-play +
+  verify-level output; summary.txt holds the counts above). The two passes
+  were run against different sources - pass 1 before the countdown rate
+  check existed, pass 2 after - and their counts agree except for M13,
+  which is exactly the change the rate check was written for. The
+  closed-form arithmetic is in the Makefile's PR-135 re-pin note
+  (verify-play, Makefile:673) and in the individual leg comments
+  (zidle, zwalk, zjump, solid contact, DANGER/enemy-contact, input edges);
+  the same derivations are restated in the two selftests, which print them.
+  Restaging recipe for the fixtures: `bsdtar -xf LL.iso -C
+  /tmp/opencode/iso_stage LEO`, `bsdtar -xf LL.iso -C /tmp/opencode
+  LEO_HDD` then move `LEO_HDD/*` into /tmp/opencode/hd_files, plus
+  `cp STATUS.LEO LONGSOFT.CFG /tmp/opencode/hd_files/` and one
+  `python3 tools/is_decode.py frames $DATA/INTRO_P.IS /tmp/opencode/py_last
+  --ppm --only 1520` for verify-win's reference frame.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

@@ -488,6 +488,12 @@ typedef struct {                     /* one placement of a script        */
     unsigned row_t, row_rem;     /* PR-110: the row clock, 1/100-iteration
                                   * units + the iteration carry (mirrors
                                   * [obj+0xa1] and ll_player.row_t) */
+    unsigned brk_arm;            /* PR-135: the "row list ended" bit of the
+                                  * engine's key buffer (0x521d7): raised by
+                                  * the step that wraps the list, consumed by
+                                  * the NEXT step's key composition - never
+                                  * matched by the step that armed it.
+                                  * ll_player.broke is the lion's copy. */
     unsigned char src;               /* which .des key placed it: 0 zwierzaki,
                                       * 1 animacje, 2 ani_plat (PR-60)    */
     unsigned char layer;             /* entry index inside that key's comma
@@ -1092,14 +1098,45 @@ static void obj_arm_atak(lvl_obj *o, int lx, int ly, int verbose, int tick)
  * 0x4a120, 0x1dba0) against a startup-measured two-frame setpoint
  * (0x4a190). PR-109 measured that setpoint on the owner's footage: two
  * display frames, 28-33 ms per iteration, and the row thresholds are
- * counted in those iterations (see obj_advance). The 20 ms tick below is
- * a modelling choice, not a measurement (NEXT_STEPS PR-106, PR-109);
- * whether to reproduce the engine's iteration period is PR-110's
- * decision, not this function's. */
-static void obj_walk(lvl_obj *o, const ll_mov_st *s, unsigned dt_ms)
+ * counted in those iterations (see obj_advance). The length of the
+ * iteration this port runs those steps at is LL_ITER_MS = 50 ms: PR-135
+ * made that choice, because PR-133/134's measured velocity law is a law
+ * per iteration and has no meaning per millisecond (NEXT_STEPS PR-106,
+ * PR-109, PR-135). 50 ms is above the 28-33 ms PR-109 measured; how far
+ * that gap moves an object's rows is counted open in HANDOFF 7. */
+/* PR-135: the rate is the engine's own velocity law (PR-133/134, the
+ * same one ll_play.c now runs for the lion), read in px per ITERATION
+ * instead of units/s: each iteration the drag takes T/100 of the speed
+ * and the force adds F*s/100 with s the intent, so the steady state is
+ * F*s/T velocity units = F*s*LL_ITER_MS/(1000*T) px per iteration =
+ * F/(2T) at LL_ITER_MS = 50 and s = LL_PLAY_INTENT_FULL = 10. An
+ * object's walk is at the full intent while its state runs (a scene
+ * object has no keys; PR-98's obj_walk always walked), which is why s
+ * is not gated here. This reproduces PR-134's table exactly: the worm
+ * (F=100,T=40) is 1.25 px per iteration, the pitch PR-79 measured,
+ * and for the T=40 objects in this port the number is what the old
+ * `|F| * dt / 4000` estimate already gave on that grid - which is why
+ * the totals of those legs do not move.
+ * NOT modelled, and counted as an open item (HANDOFF 7): the object's
+ * own velocity REGISTER. This steps straight to the steady rate, with
+ * none of the ~5-iteration start-up ramp the lion's side now runs,
+ * because every object speed in the measured record is a mid-walk
+ * measurement (PR-79's worm, PR-81's flips at the bounds) and a
+ * register that keeps momentum would carry a creature through its
+ * `bounds=` edge, which the video does not show. A state with no T=
+ * word has no drag term, so the law has no steady state to solve for;
+ * those keep PR-98's /4000 estimate, unchanged and still counted. */
+static void obj_walk(lvl_obj *o, const ll_mov_st *s)
 {
-    double dist = (double)(s->fx >= 0 ? s->fx : -s->fx) * dt_ms / 4000.0;
+    double dist = (double)(s->fx >= 0 ? s->fx : -s->fx);
 
+    if (s->tx > 0) {
+        int td = s->tx > 130 ? 130 : s->tx;   /* 0x52590 caps T at parse */
+        dist = dist * LL_PLAY_INTENT_FULL * (double)LL_ITER_MS /
+               (1000.0 * (double)td);
+    } else {
+        dist = dist * (double)LL_ITER_MS / 4000.0;
+    }
     o->facc += dist;                          /* units toward the next frame */
     o->xa += dist;
     int px = (int)o->xa;
@@ -1142,13 +1179,16 @@ static void obj_walk(lvl_obj *o, const ll_mov_st *s, unsigned dt_ms)
  * distance law). The scriptless-container branch below keeps ticking
  * it: those objects have no walk feed at all, and the engine's
  * accumulator runs for them too. */
-static void obj_row_tick(lvl_obj *o, unsigned dt_ms)
+static unsigned obj_row_tick(lvl_obj *o, unsigned dt_ms)
 {
+    unsigned n = 0;
+
     o->row_rem += dt_ms;
     while (o->row_rem >= LL_ITER_MS) {
         o->row_rem -= LL_ITER_MS;
-        o->row_t += 100;
-    }
+        n++;                                  /* each of these is one   */
+    }                                         /* record step, fed 100   */
+    return n;
 }
 
 static void obj_advance(lvl_obj *o, unsigned dt_ms)
@@ -1160,35 +1200,58 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         obj_row_tick(o, dt_ms);
         return;
     }
-    if (o->hit_cd > 0)              /* PR-89: the [obj+0x102] countdown runs
-                                     * on the same fixed step as the lion's
-                                     * pl->lock (obj_advance is called once
-                                     * per play tick) */
+    unsigned its = obj_row_tick(o, dt_ms);
+    for (unsigned step = 0; step < its; step++) {
+    /* PR-135: ONE engine record step per iteration - PR-105's reading
+     * of 0x523f0 (one key composition + ONE feed + at most one row),
+     * the same shape player_iterate now runs on the lion's side. The
+     * loop this replaces admitted as many rows as one feed covered,
+     * and the player's copy capped that at `4 * nfr` and resynced the
+     * rest to zero; the record step at 0x521f0/0x5232b does neither,
+     * and PR-115's own reading of those bytes is what ends it here.
+     * The millisecond carry stays in row_rem, so a 116 ms call is two
+     * steps and a 20 ms substep is none until the 50 ms add up. */
+    if (o->hit_cd > 0)          /* PR-89: the [obj+0x102] countdown runs on
+                                 * the engine's iteration, the same fixed
+                                 * step as the lion's pl->lock */
         o->hit_cd--;
+    /* The key composition comes FIRST, as it does in the driver: the
+     * bits the PREVIOUS step armed - the row list ending (brk_arm, the
+     * bit the engine ORs into the caller's key buffer at 0x521d7) and
+     * whatever a frame's `GEN` tail raised - are what this step's
+     * transitions test, and they are cleared here rather than by the
+     * step that raised them. */
+    int brk1 = (int)o->brk_arm;         /* the bit the PREVIOUS step armed */
+    int hit1 = (o->sig || brk1) && obj_transition(o, mov, brk1);
+
+    o->sig = 0;
+    o->brk_arm = 0;
+    if (hit1)
+        continue;   /* a step that CHANGES state does not also feed the
+                     * new state's rows - MODEL CHOICE, counted open:
+                     * 0x523f0 composes keys before the record step, and
+                     * whether a state change lands in the composition or
+                     * in the step's own tail is not settled by the bytes
+                     * read so far. obj_state_selftest pins this shape. */
     ll_mov_st *start = &mov->st[o->sti];
     int walk0 = (start->ctrl & LL_CTRL_BY_X) && start->fx != 0;
-    if (!walk0)                 /* PR-110: one accumulator, fed BY MODE
+    if (walk0)                  /* PR-110: one accumulator, fed BY MODE
                                  * (0x543a0): the time modes add 100 per
                                  * iteration, a walking state's rows are
-                                 * fed by obj_walk's distance below and
+                                 * fed by obj_walk's distance above and
                                  * its wall clock never runs */
-        obj_row_tick(o, dt_ms);
-    if (walk0)
-        obj_walk(o, start, dt_ms);
+        obj_walk(o, start);
     else {
+        o->row_t += 100;        /* one iteration = the engine's constant
+                                 * feed of 100 (0x4c8b7) */
         o->facc = 0.0;
         o->xa = 0.0;
     }
-    unsigned guard = 0;
-    for (;;) {
-        /* FIX-13 (X-11): a corrupt .MOV with all-zero frame durations would
-         * cycle forever; one full pass without consuming time = stop
-         * (ll_mov_parse clamps non-positive ms to 100; 4096 is far beyond
-         * any legitimate pass). */
-        if (++guard > 4096)
-            break;
+    {
         ll_mov_st *s = &mov->st[o->sti];
-        if (s->nfr == 0 || o->fi >= s->nfr) {   /* end of the frame list     */
+        if (s->nfr == 0)                        /* an empty list: nothing */
+            continue;                           /* to admit at all        */
+        if (o->fi >= s->nfr) {                  /* past the last row     */
             /* PR-101 read the engine's end of the row list: 0x520c0's
              * sequential path wraps it - at the last row (`n =
              * [[rec+0x2e]+8]`, the record's row count at rec+0x36) it
@@ -1204,16 +1267,13 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
              * reverses rows with the SEQ_REV_X/Y control bits XOR-ed
              * against two owner-side guards, not with any frame
              * reverse - see NEXT_STEPS PR-99/100/101). */
-            if (obj_transition(o, mov, 1))
-                continue;
-            if (s->nfr == 0)
-                break;
             o->fi = 0;                          /* no way out: loop the state */
             if (!(s->ctrl & LL_CTRL_BY_X)) {    /* walking keeps its position */
                 o->x = o->bx;
                 o->y = o->by;
             }
-            o->sig = 0;
+            o->brk_arm = 1;                     /* the bit, tested by the NEXT
+                                                 * step's key composition */
         }
         ll_mov_fr *f = &s->fr[o->fi];
         int walk = (s->ctrl & LL_CTRL_BY_X) && s->fx != 0;
@@ -1229,7 +1289,9 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
          * no wall clock at all: one accumulator, one source. */
         if (walk ? o->facc < (double)f->thresh   /* units, not ms: the same  */
                  : o->row_t < f->thresh)        /* one clock, two feeds  */
-            break;
+            continue;                           /* this step admits no row;
+                                                 * the NEXT iteration's step
+                                                 * carries the accumulator  */
         if (walk)
             o->facc -= (double)f->thresh;
         else
@@ -1243,9 +1305,18 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
             o->atc = 0;               /* The ENEMY hitting the LION with  */
                                       /* it is T3, not this PR.           */
         o->fi++;
-        if (o->sig && obj_transition(o, mov, 0))
-            continue;
-        o->sig = 0;
+        if (o->fi >= s->nfr) {      /* the admit just ran past the last row:
+                                     * that WAS this step's one row, the list
+                                     * wraps, and the bit is tested by the
+                                     * next step, not by this one */
+            o->fi = 0;
+            o->brk_arm = 1;
+            if (!(s->ctrl & LL_CTRL_BY_X)) {
+                o->x = o->bx;
+                o->y = o->by;
+            }
+        }
+    }
     }
 }
 
@@ -1714,14 +1785,25 @@ static int obj_settle(lvl_obj *o, const ll_plt *plt)
  *   have walked into A_DEAD at 200 ms);
  *   frame 2 carrying `GEN K_GEN1`: the state change is the frame's OWN
  *   signal, so the count is in ITERATIONS, not ms (PR-110): a row of 100
- *   is one iteration, and at the port's LL_ITER_MS = 28 ms step one call
- *   feeds exactly 100. So the 2nd call (56 ms) closes the K_GEN1 frame
- *   and enters A_DEAD at its row 1, and ONE more call (28 ms) closes
- *   A_DEAD's single row, ends its list and comes back to A_RUN. The old
- *   numbers were 200 ms and 300 ms; on the ms clock a 200 ms call now
- *   feeds 700 units and runs three and a half cycles in one go, which is
- *   why this leg drives the exact grid (the 20 ms-grid effect of the same
- *   law is the play-side PR-108/PR-91 legs). */
+ *   is one iteration, and at the port's LL_ITER_MS one call feeds exactly
+ *   100. PR-135 RE-DERIVED THE CALL COUNT for the record-step shape: a
+ *   step raises a signal or wraps its list, and the NEXT step's key
+ *   composition is what matches a transition (0x523f0 composes keys, then
+ *   calls the step - PR-105). So:
+ *     call 1 closes row 1 (100 units);
+ *     call 2 closes the K_GEN1 row, which runs past the end of the list,
+ *       so it wraps to row 1 and arms the bit: the signal and brk_arm are
+ *       both set, and NOTHING has matched yet;
+ *     call 3 matches A_DEAD(1) in its key composition and enters A_DEAD at
+ *       its authored row 1; a step that changes state does NOT also feed
+ *       the new state's rows (MODEL CHOICE, counted open - see the note
+ *       in obj_advance), so A_DEAD's row starts this step at 0 units;
+ *     call 4 closes A_DEAD's single row, wrapping ITS list and arming the
+ *       bit again;
+ *     call 5 matches A_RUN(1)=AC_BREAK_NEXT and is back in A_RUN.
+ *   Five iterations = 250 ms, where the same script took 3 calls before
+ *   PR-135 and 200/300 ms on the old ms clock. Nothing here is tuned:
+ *   the numbers follow from one feed + one admit + match-at-the-head. */
 static int obj_state_selftest(void)
 {
     static const char plain[] =
@@ -1762,16 +1844,39 @@ static int obj_state_selftest(void)
                         " t %u)\n", b.sti, b.fi, b.row_t);
         goto out;
     }
-    obj_advance(&b, LL_ITER_MS);          /* iteration 2: the GEN K_GEN1 row */
-    if (b.sti != 1 || b.fi != 0) {
-        fprintf(stderr, "object state selftest: FAILED K_GEN1 did not enter"
-                        " A_DEAD (state %d frame %d)\n", b.sti, b.fi);
+    obj_advance(&b, LL_ITER_MS);          /* step 2: the K_GEN1 row ends and */
+    if (b.sti != 0 || b.fi != 0 || b.brk_arm != 1u ||                    /* the list wraps with it */
+        !((b.sig >> LL_SIG_K_GEN1) & 1u)) {
+        fprintf(stderr, "object state selftest: FAILED the K_GEN1 step did"
+                        " not arm signal+bit (state %d frame %d brk %u"
+                        " sig %llu)\n", b.sti, b.fi, b.brk_arm,
+                (unsigned long long)b.sig);
         goto out;
     }
-    obj_advance(&b, LL_ITER_MS);          /* iteration 3: A_DEAD's list ends */
-    if (b.sti != 0) {
+    obj_advance(&b, LL_ITER_MS);          /* step 3: THIS step's key */
+    if (b.sti != 1 || b.fi != 0 || b.row_t != 0u) {                       /* composition matches it */
+        fprintf(stderr, "object state selftest: FAILED K_GEN1 did not enter"
+                        " A_DEAD on the next step (state %d frame %d"
+                        " t %u)\n", b.sti, b.fi, b.row_t);
+        goto out;
+    }
+    obj_advance(&b, LL_ITER_MS);          /* step 4: A_DEAD's list ends */
+    if (b.sti != 1 || b.fi != 0 || b.brk_arm != 1u) {
+        fprintf(stderr, "object state selftest: FAILED A_DEAD did not arm"
+                        " the list-end bit (state %d frame %d brk %u)\n",
+                b.sti, b.fi, b.brk_arm);
+        goto out;
+    }
+    obj_advance(&b, LL_ITER_MS);          /* step 5: AC_BREAK_NEXT, and the */
+    if (b.sti != 0) {                                                        /* bus is empty again */
         fprintf(stderr, "object state selftest: FAILED AC_BREAK_NEXT did not"
                         " return to A_RUN (state %d)\n", b.sti);
+        goto out;
+    }
+    if (b.sig != 0ull || b.brk_arm != 0u) {
+        fprintf(stderr, "object state selftest: FAILED the transition left a"
+                        " signal or the bit armed (sig %llu brk %u)\n",
+                (unsigned long long)b.sig, b.brk_arm);
         goto out;
     }
     /* PR-88: the named-signal bus on objects. A frame raising a table
@@ -1864,9 +1969,37 @@ static int obj_state_selftest(void)
                 fprintf(stderr, "object state selftest: FAILED a hit inside"
                                 " the [obj+0x102] countdown was taken\n");
             else {
-                for (int q = 0; q < LL_OBJ_HIT_CD; q++)
-                    obj_advance(&h, 20);     /* 14 ticks: countdown runs  */
-                if (h.hit_cd != 0 || h.sti != 0)
+                /* PR-135 pins the RATE of the countdown, not only its
+                 * end: half of it (7 of the 14 steps) must still be
+                 * running. Before this the leg only asked that the
+                 * counter be gone after LL_OBJ_HIT_CD steps, which a
+                 * countdown running TWICE as fast also satisfies -
+                 * PR-135's mutation run proved it (hit_cd -= 2 passed
+                 * every leg in the repo). 14 steps at the exact 50 ms
+                 * grid = 700 ms; A_DOSTAL's one 100-unit row closes
+                 * and wraps on step 1 and its own AC_BREAK_NEXT exit
+                 * takes step 2, so the state is back in A_RUN long
+                 * before the countdown is over, and the half-way hit
+                 * below is refused by the countdown, not by the state. */
+                int half = LL_OBJ_HIT_CD / 2, bad = 0;
+                for (int q = 0; q < half; q++)
+                    obj_advance(&h, LL_ITER_MS);
+                if (h.hit_cd <= 0) {
+                    fprintf(stderr, "object state selftest: FAILED the hit"
+                                    " countdown ran out faster than one per"
+                                    " engine iteration (%d steps, cd %d)\n",
+                            half, h.hit_cd);
+                    bad = 1;
+                } else if (obj_hit(&h, 5) != 0 || h.hp != 5) {
+                    fprintf(stderr, "object state selftest: FAILED a hit"
+                                    " inside the half-way countdown was"
+                                    " taken\n");
+                    bad = 1;
+                }
+                for (int q = 0; q < LL_OBJ_HIT_CD - half; q++)
+                    obj_advance(&h, LL_ITER_MS);
+                if (bad) { }                      /* already reported     */
+                else if (h.hit_cd != 0 || h.sti != 0)
                     fprintf(stderr, "object state selftest: FAILED the hit"
                                     " countdown did not run out (cd %d"
                                     " state %d)\n", h.hit_cd, h.sti);
@@ -1907,20 +2040,27 @@ static int obj_state_selftest(void)
     /* PR-107: the `( N ) ` START ROW of a transition, on a scene object
      * (the lion's side has honoured it since PR-86; the object side
      * parsed it and threw it away). Hand-derived, no game data. A_RUN has
-     * two 100-unit rows and its second raises K_GEN1; PR-110's clock makes
-     * each of them exactly ONE iteration (100 units fed per LL_ITER_MS),
-     * so this leg drives the exact 28 ms grid: after 2 calls (56 ms) the
-     * K_GEN1 row has ended and `A_DEAD(3)=K_GEN1` must have entered
-     * A_DEAD at its THIRD row - N is 1-based, so index 2, the last row of
-     * the three - and not at the top: fi 2 is what no earlier version of
-     * this code could produce. The rows that are left after the start -
-     * (3 - start) iterations - then end that row list, the wrap publishes
-     * AC_BREAK_NEXT (PR-101's key bit 2) and `A_RUN(1)=AC_BREAK_NEXT`
-     * goes back to A_RUN at row 1 = index 0: the wrap is reached from a
-     * mid-list start and from the top alike. On the old ms clock those
-     * same claims needed 200 ms and 100/300 ms; the same 100-unit rows
-     * now run 3.6x faster, which is exactly the behaviour change PR-110
-     * is for. The three boundary cases are the same script with a
+     * two 100-unit rows and its second raises K_GEN1; PR-110's clock
+     * makes each of them exactly ONE iteration (100 units fed per
+     * LL_ITER_MS), and PR-135's record-step shape puts the transition
+     * match at the HEAD of the step AFTER the one that raised the
+     * signal, so the leg drives three exact-grid calls: call 1 closes
+     * row 1, call 2 closes the K_GEN1 row - which runs past the end of
+     * A_RUN's two-row list, so it wraps and arms the list-end bit as
+     * well - and call 3's key composition is what enters A_DEAD at its
+     * row N. N is 1-based, so token `3` means index 2, the last row of
+     * the three, and not the top: fi 2 is what no earlier version of
+     * this code could produce.
+     * The rows left after the start then end that list, and PR-135
+     * re-derived the call count for that too: entering costs a full
+     * step (the composition step feeds nothing), each further
+     * 100-unit row takes one feed, the admit that passes the last row
+     * wraps the list and arms the bit, and ONE more call - the next
+     * key composition - is where `A_RUN(1)=AC_BREAK_NEXT` matches and
+     * goes back to row 1 = index 0. So a start at row 3 (adv 2) and a
+     * start at the top (adv 4): the wrap is reached from a mid-list
+     * start and from the top alike, one step later than the row that
+     * armed it in both. The three boundary cases are the same script with a
      * different token: `(9)` is past A_DEAD's 3 rows and the port clamps
      * it to the top (the engine bounds nothing at 0x523cb); the
      * non-numeric `(x)` also starts at the top, and that token form is
@@ -1936,10 +2076,12 @@ static int obj_state_selftest(void)
             "A_RUN(1)=AC_BREAK_NEXT\n5,100\n6,100\n7,100\n";
         static const struct { const char *tok; int fi; int adv;
                              const char *what; } cases[] = {
-            { "3", 2, 1, "the third row of a 3-row target" },
-            { "1", 0, 3, "row 1 = the top, the shipped common case" },
-            { "9", 0, 3, "a row past the target's list clamps to the top" },
-            { "x", 0, 3, "a non-numeric token starts from the top" },
+            { "3", 2, 2, "the third row of a 3-row target: one feed" },
+            { "1", 0, 4, "row 1 = the top, the shipped common case:" },
+            { "9", 0, 4, "a row past the target's list clamps to the top" },
+            { "x", 0, 4, "a non-numeric token starts from the top" },  /* three rows, then the
+                                                                          * wrap step, then the
+                                                                          * match step        */
         };
         int bad = 0;
 
@@ -1959,8 +2101,11 @@ static int obj_state_selftest(void)
             ll_mov_parse(txt, mr);
             sr.mov = mr;
             r.sc = &sr;
-            obj_advance(&r, LL_ITER_MS);        /* row 1 of A_RUN ends     */
-            obj_advance(&r, LL_ITER_MS);        /* the K_GEN1 row ends     */
+            obj_advance(&r, LL_ITER_MS);        /* step 1: row 1 of A_RUN ends */
+            obj_advance(&r, LL_ITER_MS);        /* step 2: the K_GEN1 row ends,
+                                                 * past the end of the list    */
+            obj_advance(&r, LL_ITER_MS);        /* step 3: its key composition
+                                                 * is where the match happens  */
             if (r.sti != 1 || r.fi != cases[q].fi) {
                 fprintf(stderr, "object state selftest: FAILED A_DEAD(%s)"
                                 " entered at state %d frame %d, expected"
@@ -2276,8 +2421,16 @@ static int obj_motion_selftest(void)
                         m1->st[0].fr[0].thresh);
         goto out;
     }
-    /* 1. speed: 4 ticks x 100 ms at F=100 = 25 px/s = exactly 10 px
-     * (an F-as-px/s mutation moves 40). PR-110 pinned the SECOND HALF
+    /* 1. speed: 4 calls x 100 ms = EIGHT engine iterations at the
+     * PR-133/134 law's steady walk rate F/(2T) = 100/80 = 1.25 units
+     * per iteration = exactly 10 units (an F-as-px/s mutation moves
+     * 40). PR-135 re-derived the count, not the total: the old
+     * |F| * dt / 4000 estimate summed to the same 10 over the same
+     * 400 ms, because at T=40 it hit the law's steady rate on that
+     * grid; what changes is the granularity - the distance is paid
+     * per 50 ms iteration, never per call, and a call that is not a
+     * whole number of iterations leaves the remainder in row_rem.
+     * PR-110 pinned the SECOND HALF
      * of this expectation down rather than changing it: the old model
      * left the time accumulator untouched for walking states ("time is
      * never consumed"), and PR-100's reading of the engine's dispatcher
@@ -2288,10 +2441,12 @@ static int obj_motion_selftest(void)
      * 0 (a port that fed both clocks would read 1400 here, 14
      * iterations). What the BY_X law really claims
      * - and what stays pinned here - is that the ROWS advance on
-     * distance only: 10.0 px of distance completes both
-     * 4-unit rows with 2.0 carried: x 10, back at index 0. A gate that
-     * read the clock instead of the distance would be somewhere else
-     * entirely. */
+     * distance only: 10.0 units of distance completes both
+     * 4-unit rows with 2.0 carried, ONE row per iteration admitted
+     * (the first closes on iteration 4, the second on iteration 8,
+     * whose admit passes the end of the list and wraps it back to
+     * index 0): x 10. A gate that read the clock instead of the
+     * distance would be somewhere else entirely. */
     a.bx = a.x = 0;
     a.b0 = a.b1 = -1;
     for (int i = 0; i < 4; i++)
@@ -2304,18 +2459,20 @@ static int obj_motion_selftest(void)
                 a.x, a.fi, a.row_t);
         goto out;
     }
-    /* 4 ticks x 50 ms = 5 px at 25 px/s (an F-as-px/s mutation moves
-     * 20). Frames advance on UNITS: hand-derived, the fixture's rows
-     * are `1,4` and `2,4` - four 50 ms steps accumulate exactly 5.0
-     * distance units, so the FIRST row (4 units) completes at 5 px and
-     * the row gate then holds the second row at facc 1.0 < 4: x 105,
-     * fi 1. (Under the old model this pin read fi=1 for a different
-     * reason - the time accumulator was frozen at 0 and an early break
-     * skipped the walk gate; PR-110's re-derivation says the same
-     * numbers come from the distance law alone, which is the claim
-     * this leg was always meant to test.) Then 4 more ticks: the
-     * second frame completes at 8 px, the state list ends and loops -
-     * a state loop that snapped to the anchor lands back on 100
+    /* Four iterations of the row clock = 5 units at 1.25 units per
+     * iteration (an F-as-px/s mutation moves 20). Frames advance on
+     * UNITS: hand-derived, the fixture's rows are `1,4` and `2,4` -
+     * four iterations accumulate exactly 5.0 distance units, so the
+     * FIRST row (4 units) closes on the fourth, and the row gate then
+     * holds the second row at facc 1.0 < 4: x 105, fi 1. (Under the
+     * old model this pin read fi=1 for a different reason - the time
+     * accumulator was frozen at 0 and an early break skipped the walk
+     * gate; PR-110's re-derivation says the same numbers come from
+     * the distance law alone, which is the claim this leg was always
+     * meant to test.) Then 4 more iterations: facc passes 4.0 on the
+     * eighth, the second row's admit goes past the end of the list
+     * and wraps it, arming the list-end bit no line here reads - a
+     * state loop that snapped to the anchor lands back on 100
      * instead of 110 */
     memset(&a, 0, sizeof a);
     a.sc = &s1;
@@ -2341,10 +2498,16 @@ static int obj_motion_selftest(void)
         goto out;
     }
     /* 2. bounds= flip: patrol 10..26 starting at x=20 walking right
-     * (dir 0 = the initial estimate); 50 steps x 40 ms = 50 px of travel
-     * hits the right edge at step 6, the left edge at 22, the right edge
-     * again at 38, and stops at x=14 walking left. The anchor (20) is
-     * never re-occupied: a state loop must not snap a walker back. */
+     * (dir 0 = the initial estimate). PR-135 RE-DERIVED THE GRID: 50
+     * calls x 40 ms are not 50 steps of anything - row_rem accrues
+     * 40 per call and completes an iteration only when the 50 add up,
+     * so this is floor(40*50/50) = 40 walk iterations of 1.25 units
+     * = 50 units of travel, the same total the old 1 px/tick model
+     * walked. The stride comes out through the xa carry as 1 or 2 px
+     * per iteration (1,1,1,2 on the 1.25 phase), the flip lands on
+     * iterations 5 (x 26), 18 (x 10) and 31 (x 26), and it stops at
+     * x=14 walking left. The anchor (20) is never re-occupied: a
+     * state loop must not snap a walker. */
     memset(&a, 0, sizeof a);
     a.sc = &s1;
     a.bx = 20;
@@ -2372,21 +2535,33 @@ static int obj_motion_selftest(void)
         goto out;
     }
     /* 4. a walker keeps its position ACROSS states: it GENs into a
-     * BY_TIME state and AC_BREAK_NEXTs back. PR-110 makes the timing
-     * of that round trip exactly derivable, so this leg now pins the
-     * whole trace. Walking 5 px (four 50 ms steps at 1.25 units each)
-     * closes A_RUN's 4-unit first row at tick 4; its `GEN K_GEN1`
-     * matches the transition in the SAME step, so A_HIT is entered at
-     * x=105 - no snap to the 100 anchor - holding its row 1. A_HIT is a
-     * time mode and the walk state fed its accumulator nothing, so its
-     * row of 100 units = one iteration starts from 0 and lands in
-     * tick 5 (50 ms carries one feed of 28 with 22 over), which ends
-     * A_HIT's one-row list, the wrap arms AC_BREAK_NEXT and
-     * `A_RUN(1)=AC_BREAK_NEXT` returns to A_RUN at x=105. Ticks 6-8
-     * walk on at 1 px per tick: x=108, frame index 0 again (facc was
-     * reset by the transition and 3.75 units is below 4). An
-     * always-snap mutation lands at 103, and a wall-clock-fed walk
-     * would have come back in tick 4 itself. */
+     * BY_TIME state and AC_BREAK_NEXTs back. PR-135 re-derived the
+     * whole trace for the one-record-step shape: the pulse and the
+     * list-end bit are tested by the NEXT step's key composition, so
+     * every state change costs one step more. Walking 5 units (four
+     * iterations at 1.25) closes A_RUN's 4-unit first row on
+     * iteration 4, and that admit raises `GEN K_GEN1` - the
+     * transition does NOT fire in that step, which is what the first
+     * check below reads. Call 5 is the step whose key composition
+     * matches, and A_HIT is entered at x=105 - no snap, because the
+     * CURRENT state is a walking one - holding its row 1. A_HIT is a
+     * time mode and the walk state fed its accumulator nothing, so
+     * its row of 100 units = one iteration: call 6 closes it, passes
+     * the end of the one-row list and wraps it, and THAT wrap snaps
+     * the position - the CURRENT state A_HIT is not BY_X, so its
+     * re-entry owns its anchor, x 100; the old code matched
+     * AC_BREAK_NEXT inside the wrap before the snap could run, and
+     * PR-135's ordering lets the snap run first and hands the bit to
+     * the next composition, which is the same rule leg 6's BY_TIME
+     * control pins on its own anchor. Call 7 matches
+     * `A_RUN(1)=AC_BREAK_NEXT` and returns to A_RUN without a snap
+     * there (the TARGET is the walking state), x stays 100. Calls
+     * 8-10 walk on: three iterations, x=103, frame index 0 again
+     * (facc was reset by the transition and 3.75 units is below 4).
+     * Mutations: an always-snap one also snaps call 5 and fails the
+     * x 105 entry; a never-snap one fails call 6, which wants A_HIT
+     * back on its 100 anchor; a wall-clock-fed walk comes back
+     * inside the 4 walking calls. */
     ll_mov_parse(hit, m2);
     memset(&b, 0, sizeof b);
     b.sc = &s2;
@@ -2394,27 +2569,53 @@ static int obj_motion_selftest(void)
     b.x = 100;
     b.b0 = b.b1 = -1;
     for (int i = 0; i < 4; i++)
-        obj_advance(&b, 50);
+        obj_advance(&b, LL_ITER_MS);      /* four walk iterations      */
+    if (b.x != 105 || b.sti != 0 || b.fi != 1 ||
+        !((b.sig >> LL_SIG_K_GEN1) & 1u)) {
+        fprintf(stderr, "motion selftest: FAILED cross-state pulse: x %d"
+                        " state %d frame %d sig %llu (want 105 still in"
+                        " A_RUN row 2 with K_GEN1 just raised: the admit"
+                        " arms the pulse, the NEXT step's key composition"
+                        " is the one that matches it)\n",
+                b.x, b.sti, b.fi, (unsigned long long)b.sig);
+        goto out;
+    }
+    obj_advance(&b, LL_ITER_MS);          /* call 5: the step that matches */
     if (b.x != 105 || b.sti != 1 || b.fi != 0) {
         fprintf(stderr, "motion selftest: FAILED cross-state entry: x %d"
                         " state %d frame %d (want 105 in A_HIT row 1: the"
-                        " GEN frame's own transition, no position snap)\n",
+                        " pulse's own transition, no position snap while"
+                        " the CURRENT state is a walking one)\n",
                 b.x, b.sti, b.fi);
         goto out;
     }
-    obj_advance(&b, 50);                  /* one iteration = 100 units */
-    if (b.x != 105 || b.sti != 0 || b.fi != 0) {
+    obj_advance(&b, LL_ITER_MS);          /* call 6: A_HIT's row = one feed */
+    if (b.x != 100 || b.sti != 1 || b.fi != 0 || b.brk_arm != 1u) {
+        fprintf(stderr, "motion selftest: FAILED cross-state wrap: x %d"
+                        " state %d frame %d brk %u (want 100: A_HIT's"
+                        " 100-unit row is exactly one iteration, its admit"
+                        " wraps the one-row list, the wrap snaps the"
+                        " non-walking state back to its 100 anchor, and"
+                        " the bit is left for the next composition)\n",
+                b.x, b.sti, b.fi, b.brk_arm);
+        goto out;
+    }
+    obj_advance(&b, LL_ITER_MS);          /* call 7: AC_BREAK_NEXT, no snap */
+    if (b.x != 100 || b.sti != 0 || b.fi != 0 || b.brk_arm != 0u) {
         fprintf(stderr, "motion selftest: FAILED cross-state return: x %d"
-                        " state %d frame %d (want 105 back in A_RUN row 1:"
-                        " A_HIT's 100-unit row is exactly one iteration)\n",
-                b.x, b.sti, b.fi);
+                        " state %d frame %d brk %u (want 100 back in"
+                        " A_RUN row 1: the target is a walking state, so"
+                        " the transition keeps the instance position as"
+                        " the wrap left it, and the bit it matched is"
+                        " consumed here)\n",
+                b.x, b.sti, b.fi, b.brk_arm);
         goto out;
     }
     for (int i = 0; i < 3; i++)
-        obj_advance(&b, 50);
-    if (b.x != 108 || b.sti != 0 || b.fi != 0) {
+        obj_advance(&b, LL_ITER_MS);      /* calls 8-10: walk on at 1.25  */
+    if (b.x != 103 || b.sti != 0 || b.fi != 0) {
         fprintf(stderr, "motion selftest: FAILED cross-state carry: x %d"
-                        " state %d frame %d (want 108 back in A_RUN: a"
+                        " state %d frame %d (want 103 back in A_RUN: a"
                         " transition keeps a walker's position and resets"
                         " its frame accumulator)\n",
                 b.x, b.sti, b.fi);
@@ -2431,10 +2632,19 @@ static int obj_motion_selftest(void)
      * t=204.4/211.2/212.4 while it moves right, head-left at
      * t=206.9/208.0/213.2 while it moves left, both at x~330 one second
      * apart = one instance turned around).
-     * 1 px per 40 ms tick at F=100: from x=20 in 10..26, 40 ticks reach
-     * the right edge (x=26) at tick 6, the left edge (x=10) at tick 22,
-     * the right edge again at tick 38, ending at x=24 facing left; 20
-     * more ticks: the left edge at tick 14, ending at x=16 facing right.
+     * PR-135 RE-DERIVED THE GRID: 40 calls x 40 ms = 32 walk
+     * iterations of 1.25 units = 40 units of travel (the same total
+     * as 40 ticks of 1 px). From x=20 in 10..26 the flips land on
+     * iterations 5 (x=26), 18 (x=10) and 31 (x=26), ending at x=24
+     * facing left - the same endpoint the old model had.
+     * 20 more calls = 16 more iterations = 20 units, and here the
+     * new stride shows: the position is paid out 1 or 2 whole px per
+     * iteration through the xa carry, so the walk CROSSES the left
+     * bound between pixels - x goes 11 to 9, past 10, and the flip
+     * (the same `x <= b0` test) fires there - ending at x=14 facing
+     * right, where the 1 px/tick walk ended at 16. That difference
+     * is granularity, not law: the same 20 units of travel, reflected
+     * one pixel inside the bound.
      * Mutations: no facing update on the flip (face stays 1) or one that
      * ignores the CH_DIR gate both fail here. */
     ll_mov_parse(chd, m2);
@@ -2461,9 +2671,11 @@ static int obj_motion_selftest(void)
     }
     for (int i = 0; i < 20; i++)
         obj_advance(&b, 40);
-    if (b.x != 16 || b.face != 1) {
+    if (b.x != 14 || b.face != 1) {
         fprintf(stderr, "motion selftest: FAILED CH_DIR facing back: x %d"
-                        " face %d (want 16 facing right)\n", b.x, b.face);
+                        " face %d (want 14 facing right: the 1.25-unit"
+                        " stride crossed the b0=10 bound at x=9, one px"
+                        " inside it)\n", b.x, b.face);
         goto out;
     }
     /* the draw mirror: authored sign preserved while facing right, XORed
@@ -2574,71 +2786,78 @@ static int obj_motion_selftest(void)
                         " NOT snapped)\n", a.fi, a.x, a.y);
         goto out;
     }
-    /* 7. PR-115 (PR-110 open items 1 and 8): how many rows ONE step may
-     * close. The player's row loop caps the closures at `4 * nfr`
-     * (ll_play.c:1288) and then resyncs the leftover to 0 (:1318-1319,
-     * "guard hit (data safety): resync"). This loop has NEITHER: its
-     * only bound is the accumulator itself and the FIX-13 4096-iteration
-     * guard at :1188-1189, and it never drops a debt. The engine has
-     * no cap either, and no resync - 0x52329 `39 d8` (cmp threshold,
-     * accumulator) `7d 27` (jge -> the epilogue) admits EXACTLY one
-     * row per record step and 0x52334 `29 c3` hands `acc - thr` to the
-     * row handler in registers only, so the accumulator at [obj+0xa1]
-     * is monotonic (the only writes to it are the feeds at 0x543d1 /
-     * 0x543e7 / 0x54412 / 0x5443b). And the port's parse-time clamp at
-     * ll_play.c:481 (`ms > 0 ? ms : 100u`) has no counterpart in the
-     * engine's row-node reader: 0x51667/0x51679 read the authored value
-     * with `%hi` into [node+0x10] and 0x51680-0x5168f only scale it by
-     * the block's `time_scale`, so an authored `1,0` really is a
-     * threshold of 0 there - it closes on every fed step - and the port
-     * turns it into 100. So PR-110 item 1's "170 of 18617 authored rows
-     * have threshold 0 (73 files)" measures the clamp difference, not a
-     * rows-per-step difference; the rows-per-step set, per
-     * the tool's PR-110 items 1 and 8 block, is 108 time-fed states in
-     * 77 files whose stored minimum threshold is <= 50. Hand-derived, no
-     * game data; the fixture's first row IS the authored `1,0` shape.
-     * OBJM at dt = 116 = 4 x LL_ITER_MS + 4: row_rem 4, feed 400.
-     * row_t 400 closes index 0 (-> 300), index 1 (-> 270) and index 2
-     * (-> 240); the next test takes the end-of-list branch, no
-     * transition, so fi = 0 and the anchor snap (BY_TIME, :1212) lands
-     * it back at (5,9) - then index 0 (-> 140) and index 1 (-> 110)
-     * close, index 2 closes (-> 80) and wraps a SECOND time, and 80 <
-     * 100 finally stops it. SIX closures and two wraps in ONE call; the
-     * loop's 7th iteration, guard 7 of 4096, is the one that finds 80 <
-     * 100 and stops. Call 2 at dt = LL_ITER_MS: row_rem 4 + 28 = 32, one
-     * more feed, 180: index 0 (-> 80), index 1 (-> 50), index 2 (->
-     * 20), wrapped again. That leftover 20 is never dropped - the port
-     * keeps the debt exactly as the engine's untouched accumulator
-     * does, so a feed of 100 can never land the accumulator on 0 once
-     * a threshold is not a divisor of 100. ONE is the cap made visible
-     * by its absence: one 100-unit row, dt = 500 = 17 x 28 + 24, feed
-     * 1700, and 17 rows close in the ONE call, to exactly 0 (guard 18 of
-     * 4096: 17 closures plus the check that finds the accumulator
-     * empty), with row_rem 24 left over. The engine would spend 17 record steps on
-     * those rows and never reach 0 in one. The player's cap and resync
-     * are pinned in its own leg (ll_play.c, PR-115): there a 6000-unit
-     * feed closes EIGHT - the cap is 4 x nfr - and the resync drops
-     * the 5200 left over, so this object leg (1700 closes SEVENTEEN,
-     * nothing dropped) and that one together pin the only two places
-     * in the port where a step can stop closing rows early.
-     * MUTATION RUNS (/tmp/opencode/mut/run115.sh, logs m4.* m5.*, and
-     * a second pass with obj_state_selftest skipped, .mov2): copying
-     * the player's resync into THIS loop (M5) is caught by this leg
-     * first - "rows per step: call 1 fi 1 row_t 0", because the
-     * resync fires after the first closure and 80 never re-forms.
-     * Bounding this loop at one closure per call (M4) is caught, but
-     * not here: the chain dies earlier, at the PR-110 object-state leg
-     * ("the first iteration did not close exactly one row") and, with
-     * that leg skipped, at the PR-110 unit-driven-frames walk leg.
-     * Both are the honest record: on the object side the older legs
-     * already pin one-row-per-feed nowhere, so M4 is a chain failure
-     * rather than a leg-7 failure, and no claim is made that it is
-     * not. */
+    /* 7. PR-115 (PR-110 open items 1 and 8), RE-DERIVED BY PR-135 for
+     * the engine's own step: how many ROWS ONE step may close. Exactly
+     * one. 0x52329 `39 d8` / 0x5232b `7d 27` (jge -> the epilogue)
+     * admits at most one row per record step and 0x52334 `29 c3` hands
+     * `acc - thr` to the row handler in registers only, so the
+     * accumulator at [obj+0xa1] is monotonic (the only writes to it
+     * are the feeds at 0x543d1 / 0x543e7 / 0x54412 / 0x5443b) and the
+     * remainder of one step is the head start of the next. The port's
+     * object loop used to admit as many rows as ONE call's feed
+     * covered, and its player twin capped that at `4 * nfr` and
+     * resynced the rest to 0; PR-135 replaced both with the record
+     * step - one iteration, one feed of 100, at most one row, carry
+     * kept in row_rem - so this leg now pins THAT, and the number of
+     * record steps a call runs is made visible by the authored M
+     * deltas. The parser's clamp of an authored `1,0` to 100
+     * (ll_play.c, "the M4-C rule") stays and this fixture's first row
+     * IS that authored shape: the engine's row-node reader
+     * (0x51667/0x51679, `%hi` into [node+0x10], scaled only by the
+     * block's `time_scale` at 0x51680-0x5168f) really does store a 0
+     * there, so PR-110 item 1's "170 of 18617 authored rows have
+     * threshold 0 (73 files)" measures the clamp difference, not a
+     * rows-per-step difference (the rows-per-step set, per the tool's
+     * PR-110 items 1 and 8 block, is 108 time-fed states in 77 files
+     * with a stored minimum threshold <= 50). Hand-derived, no game
+     * data.
+     * OBJM (100/30/30 - the clamp applied) at dt = 116 = 2 x 50 + 16:
+     * TWO record steps, so exactly TWO admits - index 0 exactly, then
+     * index 1 leaving 70 owed - with the 16 ms carried; no wrap, so no
+     * snap and the object stands at 40,30 (the old shape closed SIX
+     * rows and wrapped twice in that one call, ending snapped on its
+     * 5,9 anchor: the two shapes are furthest apart right here).
+     * Call 2, one iteration: 70 + 100 covers the last row, its admit
+     * WRAPS the list, snaps the BY_TIME anchor, and arms the list-end
+     * bit; 140 and the 16 stay as the debt. Call 3: the head key
+     * composition consumes the bit (no line reads it) and the step
+     * pays the debt forward - 140 + 100 closes index 0 and owes 140
+     * again. A feed of 100 can never land the accumulator on 0 once a
+     * threshold is not a divisor of 100.
+     * ONE is the CAP made visible: BY_X so no wrap can snap it away,
+     * F=0 so the mode branch feeds the wall clock (leg 6's finding),
+     * and its single row carries `M 10,0`, so every admit moves x by
+     * a readable 10. dt = 500 runs TEN record steps in one call: ten
+     * one-row admits, ten wraps, x 40 -> 140, and nothing capped at
+     * 4 * nfr or resynced the way ll_play.c used to. The M delta is
+     * what makes the count readable: rows whose thresholds divide the
+     * feed drain to 0 either way, and a list without position deltas
+     * hides wraps under the anchor snap - which is why the previous
+     * version of this half used a 500 ms / 17-row count that the
+     * snap made invisible.
+     * MUTATIONS, RUN IN PR-135 (the harness is
+     * /tmp/opencode/pr135_mut2.py; each mutant's full selftest output is
+     * in /tmp/opencode/pr135/mut2/). Three of these four are caught
+     * HERE; the fourth is caught earlier, because obj_state_selftest runs
+     * before this selftest and the chain stops at the first failure.
+     * Admitting TWO rows per record step fails call 1: the three-row
+     * list wraps inside two steps - fi 0, row_t 40, brk 1, x/y 5,9
+     * against the 40,30 that two admits and no wrap should leave -
+     * M5_obj_two_admits.mov.log. Zeroing the accumulator instead of
+     * carrying it fails that same call 1, "fi 2 row_t 0" against the
+     * 70-unit remainder it owes - M6_obj_zero_carry.mov.log. The old
+     * `4 * nfr` cap, copied into this loop, stops ONE at four admits,
+     * x 80 against 140 - M8_obj_4nfr_cap.mov.log. Feeding the row clock
+     * per millisecond instead of per iteration never gets here: the
+     * object-state leg fails first, "the first iteration did not close
+     * exactly one row (state 0 frame 0 t 50)" -
+     * M7_obj_per_ms_feed.mov.log. */
     {
         static const char objm[] =
             "A_RUN\n\n[A_RUN]\ncontrol=BY_TIME\n1,0\n2,30\n3,30\n";
         static const char one[] =
-            "A_RUN\n\n[A_RUN]\ncontrol=BY_TIME\n1,100\n";
+            "A_RUN\n\n[A_RUN]\ncontrol=BY_X\nF=0,0\nT=40,0\n"
+            "1,100, M 10,0\n";
         ll_mov_t *mo = calloc(1, sizeof *mo), *on = calloc(1, sizeof *on);
         obj_script so;
         lvl_obj c;
@@ -2662,34 +2881,54 @@ static int obj_motion_selftest(void)
         c.y = 30;
         c.b0 = c.b1 = -1;
         obj_advance(&c, 116);
-        if (c.fi != 0 || c.sti != 0 || c.row_t != 80u || c.row_rem != 4u ||
-            c.facc != 0.0 || c.xa != 0.0 || c.x != 5 || c.y != 9) {
+        if (c.fi != 2 || c.sti != 0 || c.row_t != 70u || c.row_rem != 16u ||
+            c.brk_arm != 0u || c.facc != 0.0 || c.xa != 0.0 || c.x != 40 ||
+            c.y != 30) {
             fprintf(stderr, "motion selftest: FAILED rows per step: call 1"
-                            " fi %d row_t %u rem %u at (%d,%d) (want SIX"
-                            " closures and two wraps from one 400 feed: 400"
-                            " - 100 - 30 - 30 - 100 - 30 - 30 = 80, and the"
-                            " wrap snapping a BY_TIME object to its 5,9"
-                            " anchor)\n", c.fi, c.row_t, c.row_rem, c.x,
-                    c.y);
+                            " fi %d row_t %u rem %u brk %u at (%d,%d)"
+                            " (want TWO record steps and TWO admits only:"
+                            " 116 = 2 x 50 + 16 keeps the 16; the first"
+                            " feed of 100 closes index 0 exactly, the"
+                            " second closes index 1 and owes 70; no wrap"
+                            " so no snap - still at 40,30)\n", c.fi,
+                    c.row_t, c.row_rem, c.brk_arm, c.x, c.y);
             free(mo);
             free(on);
             goto out;
         }
         obj_advance(&c, LL_ITER_MS);
-        if (c.fi != 0 || c.row_t != 20u || c.row_rem != 4u || c.x != 5 ||
-            c.y != 9) {
+        if (c.fi != 0 || c.row_t != 140u || c.row_rem != 16u ||
+            c.brk_arm != 1u || c.x != 5 || c.y != 9) {
             fprintf(stderr, "motion selftest: FAILED rows per step: call 2"
-                            " fi %d row_t %u rem %u (want 80 + 100 closing"
-                            " 100, 30 and 30 = 20 kept as a debt, the"
-                            " millisecond carry 4 kept too)\n", c.fi,
-                    c.row_t, c.row_rem);
+                            " fi %d row_t %u rem %u brk %u at (%d,%d)"
+                            " (want 70 + 100 covering the last 30-unit row,"
+                            " the admit WRAPPING the list, snapping the"
+                            " BY_TIME anchor to 5,9 and arming the bit,"
+                            " and 140 + the 16 ms carry kept as the debt"
+                            " the next step inherits)\n", c.fi, c.row_t,
+                    c.row_rem, c.brk_arm, c.x, c.y);
+            free(mo);
+            free(on);
+            goto out;
+        }
+        obj_advance(&c, LL_ITER_MS);
+        if (c.fi != 1 || c.row_t != 140u || c.row_rem != 16u ||
+            c.brk_arm != 0u) {
+            fprintf(stderr, "motion selftest: FAILED rows per step: call 3"
+                            " fi %d row_t %u rem %u brk %u (the head key"
+                            " composition consumes the bit - no line here"
+                            " reads it - and the step pays the debt"
+                            " forward: 140 + 100 closes index 0 and owes"
+                            " 140 again)\n", c.fi, c.row_t, c.row_rem,
+                    c.brk_arm);
             free(mo);
             free(on);
             goto out;
         }
         memset(&so, 0, sizeof so);
         so.mov = on;
-        if (ll_mov_parse(one, on) != 1 || on->st[0].nfr != 1) {
+        if (ll_mov_parse(one, on) != 1 || on->st[0].nfr != 1 ||
+            on->st[0].fr[0].dx != 10) {
             fprintf(stderr, "motion selftest: FAILED the one-row fixture"
                             " did not parse\n");
             free(mo);
@@ -2703,15 +2942,17 @@ static int obj_motion_selftest(void)
         c.x = 40;
         c.y = 30;
         c.b0 = c.b1 = -1;
-        obj_advance(&c, 500);
-        if (c.fi != 0 || c.row_t != 0u || c.row_rem != 24u || c.x != 5 ||
-            c.y != 9) {
+        obj_advance(&c, 500);              /* TEN record steps in one call */
+        if (c.fi != 0 || c.row_t != 0u || c.row_rem != 0u || c.x != 140 ||
+            c.y != 30 || c.brk_arm != 1u) {
             fprintf(stderr, "motion selftest: FAILED no cap here: row_t %u"
-                            " rem %u fi %d at (%d,%d) (want all 17 rows of"
-                            " a 1700 feed closed in ONE call - this loop's"
-                            " only bound is the 4096 guard, and nothing"
-                            " resyncs the debt the way ll_play.c:1318 does)"
-                            "\n", c.row_t, c.row_rem, c.fi, c.x, c.y);
+                            " rem %u fi %d brk %u at (%d,%d) (want all TEN"
+                            " record steps of a 500 ms call run, each with"
+                            " its one row and its authored M delta: +10 ten"
+                            " times, x 40 -> 140, the one-row list wrapped"
+                            " ten times, nothing capped at 4 * nfr and"
+                            " nothing resynced)\n", c.row_t, c.row_rem,
+                    c.fi, c.brk_arm, c.x, c.y);
             free(mo);
             free(on);
             goto out;
@@ -2726,23 +2967,28 @@ static int obj_motion_selftest(void)
      * `walk ? o->facc < (double)f->thresh` at :1230, to `<=` - broke
      * nothing anywhere: no leg of this repo put a distance-fed
      * accumulator exactly on a threshold, so the rule at equality was
-     * unpinned on that half. The accumulator is `facc`, a double fed by
-     * obj_walk with |fx| * dt_ms / 4000 units (:1101-1103), which is
-     * the engine's mode-0 feed of |obj+0xca| into [obj+0xa1] (0x543d1)
-     * under PR-98's distance law. Hand-derived, no game data: F=100 is
-     * 100 units per 4000 ms, so dt=2000 is exactly half a row and ONE
-     * row of 100 units is the whole threshold.
-     *   call 1, dt = 2000: dist = 100 * 2000 / 4000 = 50.0. facc 50.0
-     *     < 100, so NO row closes: fi 0, and the walk moved the object
-     *     50 px, x 20 -> 70.
-     *   call 2, dt = 2000: facc is EXACTLY 100.0, the threshold. That
-     *     is the boundary. The port's rule (the >= side of the same
-     *     compare, PR-110) closes the row: facc 100.0 - 100.0 = 0.0,
-     *     and the end-of-list branch wraps fi back to 0 without
-     *     snapping the anchor, because :1212 skips the snap for a
-     *     walking state - x 70 + 50 = 120. 100 * 2000 and / 4000 are
-     *     both exact in binary64, so this is a real equality and not a
-     *     near miss.
+     * unpinned on that half. The accumulator is `facc`, fed by obj_walk
+     * per ITERATION; this fixture names no T= word, so the law has no
+     * steady state to solve and PR-98's estimate stands in its
+     * per-iteration form - |F| * LL_ITER_MS / 4000 = 1.25 units per
+     * iteration (the open item HANDOFF 7 carries; the engine's
+     * mode-0 feed of |obj+0xca| into [obj+0xa1], 0x543d1, is still
+     * the model). Hand-derived, no game data: one row of 100 units is
+     * the whole threshold and dt = 2000 ms completes exactly 40 of
+     * those iterations, half of it.
+     *   call 1, dt = 2000 = 40 iterations of 1.25: facc 50.0 < 100,
+     *     so NO row closes: fi 0, and the walk moved the object 50
+     *     px, x 20 -> 70 (the xa carry pays 1 or 2 whole px per
+     *     iteration; 40 * 1.25 is 50.0 exactly, so xa ends at 0.0).
+     *   call 2, 40 more iterations: the 40th feed lands facc EXACTLY
+     *     on 100.0, the threshold. That is the boundary. The port's
+     *     rule (the >= side of the same compare, PR-110) closes the
+     *     row: facc 100.0 - 100.0 = 0.0, the admit runs past the end
+     *     of the one-row list, wraps fi back to 0 and arms the
+     *     list-end bit - without snapping the anchor, because the
+     *     wrap branch skips the snap for a walking state - x 70 + 50
+     *     = 120. 1.25 is exact in binary64 (5/4) and 40 of them sum
+     *     exactly, so this is a real equality and not a near miss.
      * The engine at that instant does NOT fire: 0x52329 `39 d8` /
      * 0x5232b `7d 27` (PR-116) returns through 0x52354 with the
      * accumulator kept, and the row runs on the NEXT feed with a
@@ -2750,23 +2996,30 @@ static int obj_motion_selftest(void)
      * (PR-116 item 1); this leg's job is to pin which side the port is
      * on, and to make the equality a tested case instead of a gap. The
      * fixture also pins the "one accumulator, one source" rule at
-     * :1169-1181: a walking state never calls obj_row_tick, so row_t
-     * and row_rem are still 0 after 4000 ms of wall time.
-     * MUTATION (the PR-116 survivor, re-run): flipping that half to
-     * `<=` (/tmp/opencode/mut/prog/g2b.py) now fails HERE, at call 2,
-     * because 100.0 <= 100.0 stops the loop instead of closing the row:
-     * facc is left at 100.0 and no row ever closes, while x still
-     * reaches 120 because obj_walk moves the object independently of
-     * this gate. Nothing else in this chain changes: the play selftest
-     * and every earlier leg are clean under the same patch. The
-     * player's distance-fed `facc` (ll_play.c:1119) is fed the same
+     * a walking state is never fed the 100 at all, so row_t and
+     * row_rem are still 0 after 4000 ms of wall time.
+     * MUTATION (PR-116's survivor, RE-RUN IN PR-135): flipping that half
+     * to `<=` (/tmp/opencode/mut/prog/g2b.py) breaks exactly the rule
+     * this leg exists for - at call 2 the compare reads 100.0 <= 100.0,
+     * the loop stops instead of closing the row, facc is left at 100.0
+     * and no row ever closes, while x still reaches 120 because obj_walk
+     * moves the object independently of this gate. PR-135's run adds the
+     * honest detail: the flip is now caught BEFORE this leg -
+     * obj_state_selftest fails its first iteration, "the first iteration
+     * did not close exactly one row (state 0 frame 0 t 100)"
+     * (/tmp/opencode/pr135/mut2/M9_obj_gate_equality.mov.log) - and the
+     * motion selftest is never reached, so this leg's own call-2 break
+     * is DERIVED from the fixture rather than observed in that run. The
+     * play selftest stays clean under the same patch (that run's play
+     * rc=0), and what that asymmetry rests on is the next paragraph:
+     * the player's distance-fed `facc` (ll_play.c:1119) is fed the same
      * way but its gate is ONE compare for both feeds (:1286), which
      * PR-116's G1 already breaks 41 ways - and none of those 41 comes
      * from a distance-fed leg: the only play leg whose distance feed
-     * runs at all is the A_PUSH one (:2518), against a 1000-unit row,
-     * where facc tops out at 1.904 and never reaches a threshold, so
-     * the player side has no equality case to pin. PR-117 open item
-     * 1 records why it stays that way. */
+     * runs at all is the A_PUSH one (ll_play.c, PR-114), against a
+     * 1000-unit row, where facc reaches 13.0 and never a threshold,
+     * so the player side has no equality case to pin. PR-117 open
+     * item 1 records why it stays that way. */
     {
         static const char walkrow[] =
             "A_RUN\n\n[A_RUN]\ncontrol=BY_X\nF=100,0\n1,100\n";
@@ -2814,104 +3067,155 @@ static int obj_motion_selftest(void)
         }
         free(mw);
     }
-    /* 9. PR-119 (PR-118 open item 1): the port's distance accumulator
-     * DRIFTS off a landing its own feed law says is exact, and this leg
-     * pins where. PR-118's census (section 6 of tools/re/mov_byx_gate.py,
-     * output /tmp/opencode/pr118_census.txt) found the two states in this
-     * corpus where exact arithmetic and repeated double addition
-     * disagree: both in LONA.05_LEW.LON_LEW.MOV, F=30, on the 20 ms grid
-     * the play and PPM legs call obj_advance with (ll_level.c:6425).
-     * Rebuilt here with no game data: `control=BY_X`, `F=30,0`, one row
-     * `1,3`, three units.
-     *     obj_walk's feed is `dist = |fx| * dt_ms / 4000.0` (:1101), so
-     * one 20 ms call feeds 30*20/4000 = 0.15 units and a 3-unit row
-     * needs k = 20 calls. 20 * 0.15 IS 3 exactly, and PR-118's law
-     * (k * |F| * dt / 4000 == t) puts the row on call 20. The port never
-     * holds an exact value: it adds the rounded double twenty times, and
-     * the sum falls short - facc is 2.9999999999999991 after 20 adds,
-     * the gate at :1230 still breaks, and the row runs one call LATE, on
-     * call 21, and the subtract at :1233 is left a remainder of
-     * 0.14999999999999902 where an exact feed would have left 0.15.
-     * Verified in compiled C too: /tmp/opencode/pr118/acc.c mirrors both
-     * lines, output acc.out.
+    /* 9. PR-119 (PR-118 open item 1), RE-DERIVED BY PR-135: the
+     * port's distance accumulator DRIFTS off a landing its own law
+     * says is exact, and this leg pins where - and where it no longer
+     * does. PR-118's census (section 6 of tools/re/mov_byx_gate.py,
+     * output /tmp/opencode/pr118_census.txt) found two corpus states
+     * where exact arithmetic and repeated double addition disagreed:
+     * both LONA.05, F=30, on the 20 ms grid. A state with no T= word
+     * keeps PR-98's estimate under the new law, in per-iteration
+     * form, and 30 * LL_ITER_MS / 4000 = 0.375 = exactly 3/8 - that
+     * pair no longer drifts at all, and its old half-feed artifact
+     * (0.15 per 20 ms call, a sum 20 calls could not land exactly)
+     * was a property of a feed proportional to the CALL, not of the
+     * accumulator. The drift cases moved to the states the law
+     * divides: F/(2T) is rarely a binary fraction. Rebuilt here with
+     * no game data: `control=BY_X`, `F=20,0`, `T=30,0` ->
+     * 20/(2*30) = 1/3 units per iteration, one row `1,2`, two units.
+     *     The law's exact arithmetic closes that row at k = 6
+     * iterations; the port adds the rounded double 0.3333333333333333
+     * six times and lands on 1.9999999999999998, ONE ULP SHORT, so
+     * the gate holds the row back and it closes a full iteration
+     * LATE, on the seventh. Meanwhile the position side has already
+     * paid: the same feed runs into `xa` too and its whole part is
+     * taken away at every pixel boundary, and at the sixth iteration
+     * x has moved the full 2 px (20 -> 22, xa exactly 0.0) in the
+     * very step whose facc is still short - one feed, two variables,
+     * opposite sides of a whole unit. The remainder the late close
+     * leaves, 1.9999999999999998 + 0.3333333333333333 - 2 =
+     * 0.33333333333333304, is strictly under one feed and is NOT
+     * the feed: the drift carries into the next row. Verified in
+     * compiled C too (the sums above were reproduced with the exact
+     * obj_walk expressions; /tmp/opencode/pr118/acc.c is the
+     * original dt-proportional mirror).
      *     Not the engine's bug to fix: its accumulator is an integer
-     * dword (0x543d1 `add [obj+0xa1], eax`) and cannot drift, and what
-     * the engine adds per frame is [obj+0xca], still unread (PR-118 open
-     * item 2), so whether the engine reaches 3 units here at all is
-     * unknown. What is known is that the port is one call late against
-     * ITS OWN documented law, and nothing tested it - the selftests run
-     * LL_ITER_MS = 28, the one grid PR-118 measured as reaching no
-     * distance-fed threshold anywhere in the corpus.
-     *     MUTATIONS (/tmp/opencode/mut/run119.sh, output pr119_mut.txt;
-     * the patches are prog/norem.py, prog/exactf.py, and g2b.py as the
-     * control): carrying no remainder at :1233
-     * (`o->facc = 0.0`) fails the SECOND check; feeding exact thousandth
-     * steps instead, an engine-like integer accumulator, lands 3.0 on
-     * call 20 and fails the FIRST one. The g2b flip of :1230 from
-     * PR-116/117 is the control that says this leg is not a second copy
-     * of leg 8: adding equality to the break condition changes nothing
-     * when the accumulator is already under the threshold, and on call 20
-     * this one is, so g2b still fails ONLY leg 8 and leg 9 stays clean. */
+     * dword (0x543d1 `add [obj+0xa1], eax`) fed from [obj+0xca],
+     * still unread (PR-118 open item 2), so whether the engine has
+     * any drift here is unknown. What is known is that the port is
+     * one iteration late against ITS OWN documented law, and nothing
+     * tested it.
+     *     The contrast half is the old F=30 shape: no T= word,
+     * 0.375 per iteration, and a 3-unit row. Eight feeds land
+     * EXACTLY on 3.0, the row closes ON TIME, and the subtract
+     * leaves exactly 0.0, 3 px paid, xa 0.0. Exact feed -> exact
+     * landing; inexact feed -> one iteration late. That pair, on one
+     * fixture each, is the whole claim of this leg.
+     *     MUTATIONS, AS RE-RUN IN PR-135 (the harness is
+     * /tmp/opencode/pr135_mut2.py, and the full selftest output of every
+     * mutant is kept in /tmp/opencode/pr135/mut2/): carrying no remainder
+     * at the subtract (`o->facc = 0.0`, run119.sh's prog/norem.py again)
+     * IS caught - but the run stops at its first failing leg, the
+     * object-state one, whose call 1 then reads "fi 2 row_t 0" against
+     * the 70-unit remainder it expects (M6_obj_zero_carry.mov.log). This
+     * leg's own second check, the one that requires 0.33333333333333304,
+     * is downstream of that and was not reached in the run. PR-119's
+     * `exactf.py` control (an exact integer accumulator in place of this
+     * double) is NOT a one-line patch, so PR-135 did not re-run it: it
+     * stays PR-119's. g2b - adding equality to the walk/row gate, the
+     * PR-116/117 flip - is caught at that same first leg: "the first
+     * iteration did not close exactly one row (state 0 frame 0 t 100)"
+     * (M9_obj_gate_equality.mov.log). This leg and leg 8 are what that
+     * flip breaks NEXT, both by construction - each puts an accumulator
+     * exactly on a threshold - but the motion selftest never reaches them
+     * once the object-state leg has failed, so the OBSERVED g2b failure
+     * is that earlier one. What stays unique to this leg is its drift
+     * half: the g2b flip leaves those checks clean, because the
+     * accumulator is UNDER the threshold at the sixth feed either way. */
     {
         static const char driftrow[] =
+            "A_RUN\n\n[A_RUN]\ncontrol=BY_X\nF=20,0\nT=30,0\n1,2\n";
+        static const char exactrow[] =
             "A_RUN\n\n[A_RUN]\ncontrol=BY_X\nF=30,0\n1,3\n";
-        ll_mov_t *md = calloc(1, sizeof *md);
-        obj_script sd;
+        ll_mov_t *md = calloc(1, sizeof *md), *mx = calloc(1, sizeof *mx);
+        obj_script sd, sx;
         lvl_obj e;
         memset(&sd, 0, sizeof sd);
+        memset(&sx, 0, sizeof sx);
         sd.mov = md;
-        if (!md || ll_mov_parse(driftrow, md) != 1 ||
-            md->st[0].nfr != 1 || md->st[0].fx != 30 ||
-            md->st[0].fr[0].thresh != 3u) {
+        sx.mov = mx;
+        if (!md || !mx || ll_mov_parse(driftrow, md) != 1 ||
+            md->st[0].nfr != 1 || md->st[0].fx != 20 ||
+            md->st[0].tx != 30 || md->st[0].fr[0].thresh != 2u) {
             fprintf(stderr, "motion selftest: FAILED the drift fixture did"
-                            " not parse as authored (F=30,0 and one 3-unit"
-                            " row)\n");
+                            " not parse as authored (F=20,0 T=30,0 and a"
+                            " 2-unit row)\n");
             free(md);
+            free(mx);
             goto out;
         }
         memset(&e, 0, sizeof e);
         e.sc = &sd;
         e.x = 20;
-        for (int i = 0; i < 20; i++)
-            obj_advance(&e, 20);
-        /* e.x is 23 here: THREE px of walk already paid for, while the
-         * row that needs three units has not run. obj_walk adds the same
-         * dist to both accumulators (:1103-1104), but only xa has its
-         * whole part taken away, and that subtraction re-draws the
-         * rounding at every pixel boundary. On this very call the
-         * position residual reached 1.0000000000000002 and paid out its
-         * third whole px (xa is left at 2.2204460492503131e-16) in the
-         * same step where facc came out at 2.9999999999999991: one feed,
-         * two variables, opposite sides of a whole unit, one call apart.
-         * Mirrored in compiled C at /tmp/opencode/pr119/xa.c, output
-         * xa.out, which prints both accumulators at every call. */
-        if (e.fi != 0 || !(e.facc > 2.99 && e.facc < 3.0) || e.x != 23 ||
-            e.row_t != 0u) {
-            fprintf(stderr, "motion selftest: FAILED after 20 calls of"
-                            " dt=20: fi %d facc %.17g x %d row_t %u (want"
-                            " NO row yet: 20 feeds of 0.15 leave the double"
-                            " short of 3.0, at 2.9999999999999991 while the"
-                            " pixel path has already paid its 3 px, and the"
-                            " gate holds that row back)\n",
-                    e.fi, e.facc, e.x, e.row_t);
+        obj_advance(&e, 300);               /* exactly six iterations     */
+        if (e.fi != 0 || !(e.facc > 1.99 && e.facc < 2.0) || e.x != 22 ||
+            e.xa != 0.0 || e.row_t != 0u || e.row_rem != 0u) {
+            fprintf(stderr, "motion selftest: FAILED at six iterations of"
+                            " F=20,T=30: fi %d facc %.17g x %d xa %.17g"
+                            " row_t %u (want NO row yet: the law says 2"
+                            " units at k = 6, six feeds of the rounded"
+                            " double land on 1.9999999999999998, one ulp"
+                            " short, while the pixel path has already"
+                            " paid its 2 px and xa is exactly 0.0)\n",
+                    e.fi, e.facc, e.x, e.xa, e.row_t);
             free(md);
+            free(mx);
             goto out;
         }
-        obj_advance(&e, 20);
-        if (e.fi != 0 || !(e.facc > 0.14 && e.facc < 0.15) || e.x != 23 ||
-            e.row_t != 0u) {
-            fprintf(stderr, "motion selftest: FAILED on call 21: fi %d"
-                            " facc %.17g x %d row_t %u (want that row to"
-                            " close LATE, on the 21st feed, carrying its"
-                            " drift into the next row as a remainder of"
-                            " 0.14999999999999902 - strictly under one"
-                            " feed of 0.15, never 0.15 and never 0)\n",
-                    e.fi, e.facc, e.x, e.row_t);
+        obj_advance(&e, LL_ITER_MS);        /* the 7th: the row closes LATE */
+        if (e.fi != 0 || !(e.facc > 0.33 && e.facc < 0.3333333333333333) ||
+            e.x != 22 || e.row_t != 0u || e.brk_arm != 1u) {
+            fprintf(stderr, "motion selftest: FAILED on the 7th iteration:"
+                            " fi %d facc %.17g x %d row_t %u brk %u (want"
+                            " that row to close LATE, one iteration behind"
+                            " the law, carrying its drift into the next"
+                            " row as a remainder of 0.33333333333333304 -"
+                            " strictly under one feed, never the feed and"
+                            " never 0 - and the admit wrapping the one-row"
+                            " list and arming the bit)\n",
+                    e.fi, e.facc, e.x, e.row_t, e.brk_arm);
             free(md);
+            free(mx);
             goto out;
         }
         free(md);
+        if (ll_mov_parse(exactrow, mx) != 1 || mx->st[0].nfr != 1 ||
+            mx->st[0].fx != 30 || mx->st[0].tx != 0 ||
+            mx->st[0].fr[0].thresh != 3u) {
+            fprintf(stderr, "motion selftest: FAILED the exact-feed"
+                            " contrast fixture did not parse as authored"
+                            " (F=30,0, no T=, a 3-unit row)\n");
+            free(mx);
+            goto out;
+        }
+        memset(&e, 0, sizeof e);
+        e.sc = &sx;
+        e.x = 20;
+        obj_advance(&e, 400);               /* exactly eight iterations   */
+        if (e.fi != 0 || e.facc != 0.0 || e.x != 23 || e.xa != 0.0 ||
+            e.row_t != 0u || e.row_rem != 0u) {
+            fprintf(stderr, "motion selftest: FAILED the exact-feed"
+                            " contrast: fi %d facc %.17g x %d xa %.17g"
+                            " (want the 3/8 feed to land EXACTLY where"
+                            " the law says: eight feeds = 3.0, row on"
+                            " time, subtract leaves exactly 0.0, 3 px"
+                            " paid, xa 0.0)\n", e.fi, e.facc, e.x, e.xa);
+            free(mx);
+            goto out;
+        }
+        free(mx);
     }
+
     rc = 0;
 out:
     free(m1);
@@ -2930,9 +3234,12 @@ static int obj_layer_selftest(void);
  *      so a regression HANGS (caught) instead of passing silently.
  * The chain this entry point also runs (PR-49..79) covers the frame
  * grammar, anchored draw, shape geometry, push-out, object layers, the
- * object state machine and the PR-79 walking model (obj_motion_selftest:
- * speed F/4 px/s, unit-driven frame advance, bounds= flip, and no anchor
- * snap at state loops or state transitions). */
+ * object state machine and the walking model - PR-79's law re-derived
+ * by PR-133/134/135 as F/(2T) units per engine iteration of
+ * LL_ITER_MS (obj_motion_selftest: rate, unit-driven frame advance,
+ * bounds= flip, one record step per iteration with the list-end bit
+ * tested one step later, anchor snap only for non-walking states and
+ * only at a wrap). */
 int ll_mov_selftest(void)
 {
     ll_mov_t *m = calloc(1, sizeof *m);
@@ -3106,28 +3413,40 @@ int ll_mov_selftest(void)
            " distance feed does not run at all so facc/xa stay 0 and the"
            " object does not move, and its state-loop wrap does NOT snap"
            " the anchor - line 1212 asks for the mode bit, not for a"
-           " non-zero F=; the BY_TIME control does snap) + PR-115 this"
-           " loop has NO cap and NO resync (a 400-unit call closes SIX"
-           " rows of a 100/30/30 list and wraps twice, keeping the"
-           " leftover 20 and the millisecond carry as a debt the next"
-           " call inherits; a 1700-unit call on a one-row list closes"
-           " ALL 17 rows in that one call) - the player's own row loop"
-           " is the one that stops at 4 * nfr closures and drops what"
-           " its cap leaves over + PR-117 a distance-fed accumulator"
-           " landing EXACTLY on a row's threshold closes it (two dt=2000"
-           " calls at F=100 put facc on 100.0 against a 100-unit row:"
-           " the row fires, facc lands on 0.0, the list wraps without an"
-           " anchor snap because the state is a walking one, and the"
-           " wall clock never ran; the engine at that instant would keep"
-           " the accumulator and fire one feed later, which stays PR-116"
-           " open item 1, not this test's claim) + PR-119 the same"
-           " accumulator DRIFTS, and the row lands one call late for it:"
-           " F=30 on the 20 ms grid feeds 0.15 a call, so a 3-unit row"
-           " needs 20 calls and 20 * 0.15 is 3 exactly, yet after 20 adds"
-           " facc is 2.9999999999999991, the row closes on the 21st feed"
-           " and carries 0.14999999999999902, under one whole feed and"
-           " never 0.15 nor 0, while the walk's own pixel path had"
-           " already paid its 3 px on call 20 (ok)\n");
+           " non-zero F=; the BY_TIME control does snap) + PR-135 the"
+           " object loop now runs the engine's OWN record step: one key"
+           " composition, one feed of 100, at most ONE row per"
+           " iteration of LL_ITER_MS - a 116 ms call is TWO steps and"
+           " closes exactly TWO rows of a 100/30/30 list, the wrap of"
+           " the third comes one step later because the list-end bit"
+           " is tested by the NEXT step's key composition, the 140-"
+           "unit debt and the 16 ms carry are kept as its inheritance,"
+           " and a 500 ms call on a one-row list runs TEN record"
+           " steps whose ten admits read as ten authored M deltas -"
+           " no cap, no resync, no multi-row feed; the walk rate is"
+           " the measured law F/(2T) px per iteration, with PR-98's"
+           " estimate standing only where no T= is authored, and a"
+           " BY_TIME state that wraps its list re-occupies its anchor"
+           " one step BEFORE the exit matches it) + PR-117 a"
+           " distance-fed accumulator landing EXACTLY on a row's"
+           " threshold closes it (two dt=2000 calls at F=100 put facc"
+           " on 100.0 against a 100-unit row: the row fires, facc"
+           " lands on 0.0, the list wraps without an anchor snap"
+           " because the state is a walking one, and the wall clock"
+           " never ran; the engine at that instant would keep the"
+           " accumulator and fire one feed later, which stays PR-116"
+           " open item 1, not this test's claim) + PR-119 that same"
+           " accumulator DRIFTS off an exact landing when the law"
+           " gives an inexact feed, and does not when the feed is a"
+           " binary fraction: F=20 T=30 feeds 1/3 of a unit per"
+           " iteration, six of them sum to 1.9999999999999998 - one"
+           " ulp under a 2-unit row the law says is DUE - so the row"
+           " closes a full iteration late and carries"
+           " 0.33333333333333304, under one feed and never the feed,"
+           " while the position path had already paid its 2 px on the"
+           " sixth iteration; the old F=30 shape, 0.375 = 3/8 exact,"
+           " lands exactly on 3.0 on time and leaves exactly 0.0"
+           " (ok)\n");
     return 0;
 }
 
@@ -3165,7 +3484,8 @@ static const llrs_slot *rec_find(const llrs_slot *recs, unsigned n,
  * combinable per entry e.g. "100:FIRE,F1" (PR-87, mirrors the .MOV's
  * AND-groups); whitespace separated; the
  * last entry at or before the current tick is held until the next one),
- * on the fixed 20 ms grid of the LEO_LEVEL_PPM leg - deterministic. */
+ * on the fixed grid of the LEO_LEVEL_PPM leg - one engine iteration per
+ * tick, LL_ITER_MS (PR-135) - deterministic. */
 typedef struct {
     int have;                               /* fully wired = play mode on */
     ll_plt plt;
@@ -3740,7 +4060,10 @@ static void play_advance(play_ctx *pl, const ll_play_keys *keys,
  * his facing direction); vertically the lion rests with his feet near 64% of
  * the view and the camera follows him (jumps included), see follow_camy.
  * The rates of the camera's catch-up are NOT measured: the x offset eases
- * toward its target at 6 units per 20 ms tick (a viewer choice).
+ * toward its target at 6 units per engine iteration (a viewer choice;
+ * PR-135 moved the grid this runs on to LL_ITER_MS, so the wall-clock
+ * rate of that ease moved with it - a further reason for PR-136 to
+ * measure it rather than keep a number here).
  * Walking speed from the same video: lion-locked camera shifts have a
  * median 75 units/s (3..5 per video frame at 25 fps) - consistent with the
  * .MOV's T=90 cap. */
@@ -5602,7 +5925,10 @@ static void help_pages(const llrs *hd, const llrs_slot *hdrecs, unsigned nhdrec,
     uint64_t t_end = plat_now_ns() +
                      (uint64_t)((auto_close ? lim : 0.0) * 1e9);
     int page = 0, quit = 0;
-    uint64_t t_tick = plat_now_ns();   /* FIX-07: fixed 20 ms grid here too */
+    uint64_t t_tick = plat_now_ns();   /* FIX-07: the same fixed grid as
+                                        * the level loop and the CI legs:
+                                        * one LL_ITER_MS iteration per
+                                        * frame (PR-135) */
     while (!quit && (!auto_close || plat_now_ns() < t_end)) {
         ll_event e;
         while (plat_poll(&e)) {               /* F11/Alt+Enter are consumed
@@ -5649,7 +5975,7 @@ static void help_pages(const llrs *hd, const llrs_slot *hdrecs, unsigned nhdrec,
             }
             scene_ppm(hppm, w, h, canvas, pal);
         }
-        t_tick += 20000000ull;               /* FIX-07: fixed 50 Hz grid */
+        t_tick += (uint64_t)LL_ITER_MS * 1000000ull;  /* FIX-07: fixed grid */
         {
             uint64_t n = plat_now_ns();
             if (n > t_tick + 100000000ull)   /* >100 ms behind: resync, */
@@ -6516,7 +6842,8 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                         ? atoi(getenv("LEO_LEVEL_PPM_TICK"))
                         : 0;
         if (pl.have) {
-            /* play leg (PR-43): fixed 20 ms grid, LEO_PLAY_SCRIPT keys
+            /* play leg (PR-43): one engine iteration per tick, i.e.
+             * LL_ITER_MS = 50 ms (PR-135); LEO_PLAY_SCRIPT keys
              * (default "1:FWD": walk-right demo); camera stays 0 so the
              * frames are byte-deterministic for the PPM comparison legs.
              * Scene objects advance on the same grid. */
@@ -6525,16 +6852,16 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 scr = "1:FWD";
             for (int tk = 1; tk <= ticks; tk++) {
                 ll_play_keys keys = script_keys(scr, tk);
-                play_advance(&pl, &keys, 20, 1, tk, objs, nobj);
+                play_advance(&pl, &keys, LL_ITER_MS, 1, tk, objs, nobj);
                 for (int k = 0; k < nobj; k++)
-                    obj_advance(&objs[k], 20);
+                    obj_advance(&objs[k], LL_ITER_MS);
             }
             camy = follow_camy(&pl, ch, cam_ymax);
         } else {
             int shown = 0;
             for (int k = 0; k < nobj; k++) { /* advance fixed-step then redraw */
                 for (int m = 0; m < ticks; m++)
-                    obj_advance(&objs[k], 40);
+                    obj_advance(&objs[k], LL_ITER_MS);
                 /* PR-93: static images are advanced (inert: no script) but
                  * never take one of the 12 proof slots: a static has no
                  * state or frame to prove; the proof belongs to the
@@ -6723,9 +7050,11 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 obj_advance(&objs[k], dt);
             if (pl.have) {
                 unsigned used = 0;
-                while (used < dt) {          /* same fixed 20 ms grid the
-                                                CI legs run on */
-                    unsigned st2 = dt - used > 20u ? 20u : dt - used;
+                while (used < dt) {          /* the same fixed grid the
+                                               CI legs run on: one engine
+                                               iteration per substep */
+                    unsigned st2 = dt - used > LL_ITER_MS ? LL_ITER_MS
+                                                         : dt - used;
                     play_advance(&pl, &pl.keys, st2, 0, 0, objs, nobj);
                     used += st2;
                 }
@@ -6744,7 +7073,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 hud_draw(&hud, canvas, cw, ch, pl.energy, pl.lives);
             paint2x(canvas, lut, cw, ch);
             ll_music_pump();
-            t_tick += 20000000ull;               /* FIX-07: fixed 50 Hz grid */
+            t_tick += (uint64_t)LL_ITER_MS * 1000000ull;  /* FIX-07: grid */
             {
                 uint64_t n = plat_now_ns();
                 if (n > t_tick + 100000000ull)   /* >100 ms behind: resync, */

@@ -25,7 +25,7 @@ What exists and works (all verified by `make verify-all`, section 3):
 | title menu + chapter map | drawn from data (11 chapters, titles from `LEVELnn.SEQ`, arrow colours); progress/"start" variants not done |
 | level scene | 320x200 world view shown 2x; world size from `back_rect` or the reference layer; per-layer parallax (`speed=`, `main_back=`) for PCM layers, the PCX backdrop and every object; HUD from `BELKA*.DES` |
 | objects | 827+ placements, art by each state's `seq=`, `.MOV` state machines (loop until a transition fires; `GEN K_GENn`, `AC_BREAK_NEXT`); PR-93: the 3-comma static image lines (`<LEAF>,<name>.seq,x,y` -> that CD leaf's `.SEQ`, drawn at the authored x,y behind the actors) and the 0,0 entries = attached children (joined+counted, never instantiated at the world origin); PR-107: a `TARGET(N)=<cond>` line carries an authored START ROW and the target state is entered at that row (same rule for the lion and scene objects) |
-| lion (play mode) | walks on the level's own ground (`.PLT`) with his current ANIMATION's shape-box bottom as the contact line (PR-97: `ll_player.contact`, `ll_seq_shape_contact`, `mov_state_contact`), jumps (ESTIMATED units), keys facing-relative (Model M, PR-85), camera follows (lead + grounded contact-line-at-178 anchor), HUD shows energy/lives |
+| lion (play mode) | walks on the level's own ground (`.PLT`) with his current ANIMATION's shape-box bottom as the contact line (PR-97: `ll_player.contact`, `ll_seq_shape_contact`, `mov_state_contact`), runs the engine's OWN velocity law once per 50 ms iteration - `v -= T*v/100` then `v += F*s/100` with the key intent `s` = ±10 (PR-135, replacing the fitted target-velocity model) - and his row list admits AT MOST ONE row per iteration, fed by travelled distance in a BY_X state and by the engine's constant 100 otherwise; jumps (ESTIMATED units), keys facing-relative (Model M, PR-85), camera follows (lead + grounded contact-line-at-178 anchor), HUD shows energy/lives |
 | collision | push-out ported from the machine code (`FUN_00042de0/42cf0`), solid/semi-solid response, enemy contact damage from the placement files, the enemy's own ATC-window attack when armed (PR-90, off unless `LEO_PLAY_DANGER=1`), balloon pickup; ON by default except RAN.01 |
 
 What does NOT exist yet (the real gap to "a playable game"): combat
@@ -689,15 +689,16 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 
 | what | where | value / rule | evidence |
 | --- | --- | --- | --- |
-| jump impulse unit | ll_play.h `LL_PLAY_JUMP_DIV` | `I`/4 u/s | ONE measured jump (vine, ep.1 318.6 s); PR-86 re-confirmed on ZARIA live: A_JUMP `I 150,-1200` -> apex ~24 u / 0.36 s, matching the video's jump population (gp.mp4 feet-track scan: clean candidates 23-30 u over 8-13 frames) |
-| jump gravity | `LL_PLAY_JUMP_G` | 1650 u/s^2 (= G.y 55 x 30) | same jump |
+| jump impulse unit | ll_play.h `LL_PLAY_JUMP_DIV` | `I`/4 u/s | ONE measured jump (vine, ep.1 318.6 s); PR-86 re-confirmed on ZARIA live: A_JUMP `I 150,-1200` -> apex ~24 u / 0.36 s, matching the video's jump population (gp.mp4 feet-track scan: clean candidates 23-30 u over 8-13 frames). PR-135 note, counted open: this pair is per-second arithmetic and the vertical half of the law was NOT re-fitted to the 50 ms iteration grid, so the peak the port reaches is now 20 px above take-off (min y 628 vs the 648/649 walk line) - 4 px below the ~24 u PR-73/86 fitted against, though within 4% of the 21 u single jump PR-74 measured (the hermetic jump leg's own comment). The constants are unchanged on purpose: one measured frame cannot fit four constants |
+| jump gravity | `LL_PLAY_JUMP_G` | 1650 u/s^2 (= G.y 55 x 30) | same jump; same PR-135 note as the row above |
 | jump-state ending | ll_play.c | a state that DECLARES an AC_BREAK_NEXT exit ends at its frame-list WRAP (the landing no longer cuts it); forced ->A_STAY/A_DRAP kept ONLY as fallback for states with no such line | PR-86: real A_JUMP/A_JUMP_S declare A_WALK(7)/A_DRAP(1)=AC_BREAK_NEXT; ZARIA.01 leg pins it |
 | `TARGET(N)=COND` entry | ll_play.c `ll_mov_row_start` (used by BOTH the player path and ll_level.c `obj_transition`) | numeric (N) = start ROW (1-based) in the target's frame list; non-numeric = top; an N past the end clamps to the top | PR-86 evidence chain in the struct comment (PRE_JUMP skips A_JUMP's impulse row; A_WALK(7) mid-cycle re-join pinned on real data); PR-107 read the store (`entry-1` at 0x51e3b..0x51e49) and the use: the state record's live row field `rec+0x4`, written raw at 0x523cb by the row-setter, which is the record's own vtable slot +0x1c in the table every record stores at rec+0x44 (0xa25d4, from its constructors 0x524cf/0x52508), and which the transition step 0x535a2 calls on the new state (0x535ea). Two MODEL CHOICES, recorded in the helper's comment: the engine writes the value RAW there, so clamping an over-long row is ours; and "absent / non-numeric" is -1 = "leave the row alone" (0x51e3e, 0x52381), which only COINCIDES with the top because a row list wraps. One row counter per object (`o->fi`) vs the engine's one per state record is also ours |
-| The unit of the row clock, and the BY_* mode feed (0 BY_X / 1 BY_Y / 2 BY_TIME / 3 BY_TX / 4 BY_TY) | ll_play.c `ll_player_step` sections 4 and 7 + `LL_ITER_MS` (ll_play.h), ll_level.c `obj_row_tick` / `obj_advance` | MODELLED since PR-110, as ONE accumulator per moving thing fed BY MODE, mirroring the dispatcher 0x543a2: a BY_X state with a non-zero state `F=` adds travelled distance (`|vx| * dt`) and its time accumulator stays at 0; every time mode adds 100 per ITERATION and never any distance, an iteration being `LL_ITER_MS` = 28 ms of wall time, fed through a whole-millisecond carry (`row_rem`) so no step size drifts; the engine gates mode 3 on `[obj+0xba] != 0` and mode 4 on `[obj+0xbe] != 0` (0x543f2 / 0x5441b, PR-108) and the port does NOT model that guard, nor any vertical force — a BY_TY state is simply time-fed, and the climb's vertical DISTANCE law stays open (T5). A row stays current while `acc < thresh`; the compare is AFTER the feed and the threshold is SUBTRACTED on a hit, so the remainder carries into the next row. `time_scale=` is a parse-time scale on the stored thresholds (`thresh * time_scale / 1000`, default 1000, rows before the line unscaled), NOT a duration | The dispatcher and its mode jump table are PR-99's (NEXT_STEPS.md:5439-5447); the feed constant 100 has exactly one writer, 0x4c8b7 (PR-100), and the row comparison at 0x52320-0x5232b hands `acc - thresh` to the row handler rather than zeroing the accumulator (PR-100). PR-108 read the mode-3/4 guards above and that `[obj+0xbe]` is also v_y's force register (0x542cd). PR-109 decided the unit from the owner's clip (the `[A_WSP]` rows of 200/300 measure 66-100 ms on screen, the pacer 0x4b0e0 -> 0x4a120/0x1dba0 holds one iteration to two display frames, the engine's own fallback setpoint is 27) and corrected PR-106's "55-unit steps" and "sound driver's 70.0 Hz PIT" (that write is 7.00 Hz; during play the counter is a real 1 ms clock, 0x5b9e0 set-period called at 0x5d195); PR-110 takes 28 ms, the low end of that bracket, and implements the mode split. OPEN, all recorded in the PR-110 record: whether a row fires AT `acc == thresh` (13932 of 14881 authored BY_TIME thresholds are exact multiples of the 100 feed); the engine admits ONE row per record step, the port loops; the engine's mode-0 feed is the TRUNCATED `v_x/100` of the tick while the port feeds `|vx| * dt`; the `fx != 0` half of the walk gate (30 shipped BY_X blocks with `F=0,0`, no leg covers one); the AC_TIME pending-flag lifetime; the climb's vertical DISTANCE law. PINNED by: the RC fixture walked on two grids with the exact carry identity and `facc` read at every step (0 in a BY_TIME state), the `time_scale=2000` leg plus its control, the ZM leg reading both accumulators at both ends of the mode gate (no key in a BY_X state: everything stays 0; key held: the time accumulator stays 0 while the list runs on distance), 7 mutations caught, plus one recorded survivor (`mut_nogate4`, section 4's feed-site condition removed: `facc` is only read through the walk gate, so no leg can see it), and every verify leg re-derived by hand (the derivation is written beside each leg in the Makefile) |
+| The unit of the row clock, and the BY_* mode feed (0 BY_X / 1 BY_Y / 2 BY_TIME / 3 BY_TX / 4 BY_TY) | ll_play.c `ll_player_step` sections 4 and 7 + `LL_ITER_MS` (ll_play.h), ll_level.c `obj_row_tick` / `obj_advance` | MODELLED since PR-110, as ONE accumulator per moving thing fed BY MODE, mirroring the dispatcher 0x543a2: a BY_X state with a non-zero state `F=` adds travelled distance (`|vx| * dt`) and its time accumulator stays at 0; every time mode adds 100 per ITERATION and never any distance, an iteration being `LL_ITER_MS` = 50 ms of wall time (PR-134 measured that edge, PR-135 set it), fed through a whole-millisecond carry (`row_rem`) so no step size drifts, and AT MOST ONE row admitted per iteration on BOTH sides (0x521f0 / 0x5232b / 0x523f0) - PR-135 removed the port's multi-admit loop and the `4 * nfr` cap; the engine gates mode 3 on `[obj+0xba] != 0` and mode 4 on `[obj+0xbe] != 0` (0x543f2 / 0x5441b, PR-108) and the port does NOT model that guard, nor any vertical force — a BY_TY state is simply time-fed, and the climb's vertical DISTANCE law stays open (T5). A row stays current while `acc < thresh`; the compare is AFTER the feed and the threshold is SUBTRACTED on a hit, so the remainder carries into the next row. `time_scale=` is a parse-time scale on the stored thresholds (`thresh * time_scale / 1000`, default 1000, rows before the line unscaled), NOT a duration | The dispatcher and its mode jump table are PR-99's (NEXT_STEPS.md:5439-5447); the feed constant 100 has exactly one writer, 0x4c8b7 (PR-100), and the row comparison at 0x52320-0x5232b hands `acc - thresh` to the row handler rather than zeroing the accumulator (PR-100). PR-108 read the mode-3/4 guards above and that `[obj+0xbe]` is also v_y's force register (0x542cd). PR-109 decided the unit from the owner's clip (the `[A_WSP]` rows of 200/300 measure 66-100 ms on screen, the pacer 0x4b0e0 -> 0x4a120/0x1dba0 holds one iteration to two display frames, the engine's own fallback setpoint is 27) and corrected PR-106's "55-unit steps" and "sound driver's 70.0 Hz PIT" (that write is 7.00 Hz; during play the counter is a real 1 ms clock, 0x5b9e0 set-period called at 0x5d195); PR-110 takes 28 ms, the low end of that bracket, and implements the mode split. OPEN, from the PR-110 record except where marked: whether a row fires AT `acc == thresh` (13932 of 14881 authored BY_TIME thresholds are exact multiples of the 100 feed) - PR-117 pinned the object side at exact equality and PR-135 keeps `>=` after the feed on both sides; the engine's mode-0 feed is the TRUNCATED `v_x/100` of the tick while the port feeds the travelled distance (PR-135 CLOSED the multi-admit loop and the cap, the truncation stays open); the `fx != 0` half of the walk gate (30 shipped BY_X blocks with `F=0,0`, no leg covers one); the AC_TIME pending-flag lifetime; the climb's vertical DISTANCE law. PINNED by: the RC fixture walked on two grids with the exact carry identity and `facc` read at every step (0 in a BY_TIME state), the `time_scale=2000` leg plus its control, the ZM leg reading both accumulators at both ends of the mode gate (no key in a BY_X state: everything stays 0; key held: the time accumulator stays 0 while the list runs on distance), 7 mutations caught, plus one recorded survivor (`mut_nogate4`, section 4's feed-site condition removed: `facc` is only read through the walk gate, so no leg can see it), and every verify leg re-derived by hand (the derivation is written beside each leg in the Makefile) |
+| The player's OWN velocity register, and the three numbers in it that bytes do not give | ll_play.h `LL_PLAY_DRAG_DEN` 100, `LL_PLAY_INTENT_FULL` 10, `LL_PLAY_V_EPS` 0.2, `LL_ITER_MS` 50; ll_play.c sections 2 and 7; ll_level.c `obj_walk` | per iteration `v -= clamp(T,.,130)*v/100` (sign flip or a remainder under one register unit -> 0), then `v += F*s/100` with s = +/-10 only while a facing-relative direction key is held in a BY_X state, or for an auto_walk state; NO lower clamp on `T`; NO register on the object side, which steps straight to the steady rate | PR-129/130 read the chain, PR-133 the passes and PR-134 the clock; the steady state F*s/T units/s reproduces PR-134's measured lion (50 u/s at ZARIA's F=100 T=20) and worm (25 u/s at F=100 T=40) inside those brackets; the epsilon, the partial-intent values of s, the engine's raise of T to >= 20, the object register and 50 ms as PR-134's video-chosen edge of PR-109's 28-33 ms code bracket are all named in the PR-135 record |
 | jump key | ll_level.c | Space | viewer choice |
 | fire keys | ll_level.c `play loop` + platform_sdl `map_key` | Ctrl=K_FIRE, F1..F4=K_F1..4 (weapon selectors), Alt=K_ALT; script tokens FIRE/F1..F4/ALT comma-combinable | PR-87; names from the walkthrough, the .MOV conditions are the contract |
 | `,` in transition COND = AND | ll_play.c `parse_cond`/`cond_true` (groups) | `|` ORs groups, `,` ANDs tokens within one; OTHER poisons only its group | PR-87 MODEL CHOICE (evidence in ll_play.h: AC_ONAIR/AC_DRECT pairs, every K_FIRE,K_Fn attack line); A_FIGHT entry pinned real |
-| hurt lock | ll_level.c `play_collide` | 30 ticks of 20 ms | 0x50304 constant, unit assumed |
+| hurt lock | ll_level.c `play_collide` | 30 ITERATIONS of the engine clock (PR-135: that function runs once per iteration of `LL_ITER_MS` = 50 ms, and `hit_cd` counts the same way) | 0x50304 `[+0x102]=0x1e` constant, unit read in PR-133/135 |
 | `AC_TIME` | ll_level.c `obj_cond_true`, ll_play.c | obj: = end of frame list OR a raised bit; lion: raised by frame `GEN AC_TIME` (bit 9 = LL_SIG_AC_TIME) | `time=min,max` unit unknown |
 | signal bits | ll_play.h `LL_SIG_*`, `ll_sig_id()` | engine table 0x48000: AC_BLOK 0..AC_EV_MAX 68, K_GEN1 54; `GEN <name>` raises any, conditions test the object's own set | PR-88 (verified constants); pulse-vs-latch + cross-object routing OPEN |
 | lives / energy HUD | ll_level.c | 6 lives, energy frames (100-e)/10 | video start shows 6 |
@@ -707,7 +708,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | SOLID push polarity | `obj_shape_elem` | shape uses the DRAW polarity incl. CH_DIR facing | consistency, not decompile-pinned (PR-81) |
 | player facing model | ll_play.c `face`, ll_level.c `play_draw/play_collide` | face follows walkdir only in CH_DIR states; draw/shape = authored XOR face, face sticks | flags real (LEW census, PR-82); the always-XOR rule for no-CH_DIR states is a model-consistency choice, NOT decompile- or video-pinned (HANDOFF Q0) |
 | K_FWD/K_BKWD key model | ll_play.c `cond_true` (MODEL CHOICE note) | facing-relative: K_FWD = arrow along current face; walkdir = the literal arrow; a left-facing turn settles via the state pair or A_TURN+AC_BREAK | PR-85; forced by data (one A_WALK, no BKWD-walk state); NOT yet confirmed on video |
-| lion attack damage / object hit rule | ll_level.c `LL_LION_HIT_DAMAGE` 30, `obj_hit`, `LL_OBJ_HIT_CD` 14, `ll_play.h` `atc`/`atc_hit` | damage 30 = the 0x34103 dispatcher default; hp<0 forces A_DEAD by name; energy -1 never hit-able; countdown 14 (0x27264); window open from `ATC_ON` until `ATC_OFF`, one hit per window, cleared on state change for the 18 blocks that never close it | addresses verified; the 30 stays until the factory-template id array (0x44350 -> ds:0xcecf0..0xced04; the proportional hit at 0x34037 is energy*30/100+10, NOT *45 — see PR-96) maps to a .des type; the window-clear rule and the corpse-deal-contact rule are model choices (PR-89) |
+| lion attack damage / object hit rule | ll_level.c `LL_LION_HIT_DAMAGE` 30, `obj_hit`, `LL_OBJ_HIT_CD` 14, `ll_play.h` `atc`/`atc_hit` | damage 30 = the 0x34103 dispatcher default; hp<0 forces A_DEAD by name; energy -1 never hit-able; countdown 14 (0x27264), ITERATIONS not ms, and PR-135 pins its RATE too (7 of the 14 still running at step 7, and a hit there still refused); window open from `ATC_ON` until `ATC_OFF`, one hit per window, cleared on state change for the 18 blocks that never close it | addresses verified; the 30 stays until the factory-template id array (0x44350 -> ds:0xcecf0..0xced04; the proportional hit at 0x34037 is energy*30/100+10, NOT *45 — see PR-96) maps to a .des type; the window-clear rule and the corpse-deal-contact rule are model choices (PR-89) |
 | enemy attack (T3 st. 1) | ll_level.c `obj_arm_atak`, `play_collide` window block; `ll_play.h` `LL_CTRL_DANGER` | a current state carrying the authored DANGER flag arms the script's OWN A_ATAK by name when the lion is inside abs(dx) < 40 AND abs(dy) < 50 (strict); the enemy lands ONE hit through its own ATC window (authored damage=, 30-tick lion lock) before/instead of the contact block; OFF unless LEO_PLAY_DANGER=1 | the box numbers are RE-pinned FOR THE CLASS "LICHA" (class chosen from the .des token at 0x616d0; box at 0x61b6e) - the flag-as-precondition, A_ATAK-by-name entry and window-hit mirror are the port's stand-in (engine driver open, §7 item 10) (PR-90) |
 | AC_ENEMY_ATC raiser | ll_level.c `obj_hit`, `play_collide` window block | the hit raises it on the HIT object's own set (PR-88 mechanism) so its `A_DOSTAL(1)=AC_ENEMY_ATC` line fires; PR-91 mirrors the raise onto the LION for the enemy's WINDOW hit (never contact) - his authored A_DOSTAL chain then runs itself | INFERENCE (0 of 279 shipped GEN lines raise it; the combat code must be the raiser); NOW PINNED (PR-94): answer-C 0x55130 raises bit 16 (byte2 |= 1, 0x5518c) exactly when the routed hit reduced the target's hp, and bit 7 (0x551b0) when it did not; answer-A/B merge {bit 7} unconditionally (0x51050/0x52be). The plain contact method (0x50ed0) raises NO signal - matching the port's "contact does not raise bit 16" |
 | AC_ENEMY raiser (PR-92) | ll_level.c `obj_touch_enemy`, called from `play_collide` (solid loop + post-loop non-solid pass) | the lion's touch raises bit 7 on the TACHED object's own set and its OWN table reacts (raise-consume like the balloon path); gated by `hit_cd` (the [obj+0x102] countdown), default-on like contact | PINNED raise sites (PR-94 verbatim): answer-A 0x51050 and answer-B 0x52be merge {bit 7} unconditionally into a 13-byte answer packet (12-byte set + flag byte) copied to the answer buffer ARGUMENT (0x51062..0x51083); the answer handlers 0x50f80/0x55232/0x55130 are separate functions reached only through family vtables (0x50ed0 rets at 0x50f79 and raises nothing); which object's head finally reads the buffer is OPEN, so feeding the object's own set is MODEL, the second non-solid pass is data-forced (no consumer state carries SOLID); a pure touch NOT setting hit_cd=14 is an open item (item 10) |
@@ -764,6 +765,20 @@ loop bounds, the resync and the parse-time clamp are all caught. Census and
 arithmetic: `tools/re/mov_byx_gate.py`, NEXT_STEPS.md, PR-115 record. Whether
 the game closes one row per step or all that fit is STILL open - that needs a
 capture, not a compare.
+CORRECTION, added 2026-11-18 by PR-135, for the last sentence above: that
+question IS settled from the machine code, and the port now matches it.
+PR-105 read the record-step driver (0x521f0 has ONE call site, 0x5240c,
+inside the driver 0x523f0, which itself has one call site at 0x5371c): one
+key composition + one feed + at most ONE row admit per step, and PR-133
+confirmed no other scheduler exists. PR-135 REMOVED the port's multi-admit
+loop, its `4 * nfr` cap and its `resync` on the player side, and the
+multi-admit loop and the 4096-iteration guard on the object side, and
+re-derived the `MULTI`/`BOUND` legs and `obj_motion` leg 7 for that shape
+(one 1706 ms call is 34 iterations, 34 admits, each moved by its authored
+`M` delta). What a capture would still decide is the SECOND half of the
+same paragraph: whether a row fires AT `acc == thresh`, and what the
+engine's own iteration length is inside a running game (PR-109's bracket,
+28-33 ms, against the port's 50).
 CORRECTION TO THE PR-115 PARAGRAPH ABOVE, added 2026-11-18 by PR-116, for
 the same reason (that paragraph still says what it said when it shipped): it
 quotes "0x52334 `29 c3` hands `acc - thresh` to the row handler in registers
@@ -1701,6 +1716,47 @@ writer as its open items.
      disagree (the self-animated ANIBACK parallax bands fool them) and
      a landmark anchor is needed. Full record: the PR-134 section of
      NEXT_STEPS.md.
+   - PR-135 APPLIED THAT LAW ON THE PORT SIDE, both actors. The player
+     and every scene object now run the engine's own record step: one
+     key composition, one feed, AT MOST ONE row admit per iteration of
+     LL_ITER_MS = 50 (0x521f0 / 0x5232b / 0x523f0), the velocity
+     register stepped once per iteration (`v -= clamp(T,.,130)*v/100`
+     with the engine's sign-flip-to-zero and its one-unit register
+     floor, then `v += F*s/100` at the key intent s = ±10), and ONE
+     row accumulator fed by TRAVELLED DISTANCE in a BY_X state or by
+     0x4c8b7's constant 100 otherwise; the object's [obj+0x102] hurt
+     cooldown counts iterations, not ms. Every play and scene position
+     pin in verify-play / verify-level is now that arithmetic (the
+     closed forms are in the Makefile's PR-135 re-pin note and in the
+     leg comments). What this PR deliberately did NOT model, counted
+     here: the vertical constants are NOT re-fitted, so the apex the
+     authored jump reaches is now 20 px against the ~24 px PR-73/86
+     fitted against (within 4% of the 21 px single jump PR-74
+     measured) - a REGRESSION against what the old 20 ms grid
+     produced, which the zjump leg comment states instead of hiding;
+     the engine's conditional raise of T to >= 20; the partial-intent
+     values of `s` between 0 and ±10; the object's own velocity
+     register (objects step straight to the steady rate, because every
+     measured object speed is a mid-walk number); whether a state
+     change consumes its step's feed (the object side skips the new
+     state's rows, the player side feeds them); the force/gate-fed row
+     lists inside A_JUMP and A_DOSTAL, whose frame pacing is this
+     run's and not a derivation; the velocity carried across a state
+     change; PR-83's pending-AC_TIME lifetime (a key release at
+     iteration 10 reaches A_DRAP, at 40 it does not); the object-side
+     `nfr == 0` guard, which admits nothing at all; and the
+     one-point-per-iteration terrain test against the engine's
+     shape-box geometry (FUN_00042a70 / FUN_00042de0) - that is why
+     RAN.01's first ungrounded x moved from 314 walking BACK to 303
+     walking RIGHT; the one-register-unit floor of the velocity register
+     (LL_PLAY_V_EPS = 0.2 u/s, a MODEL CHOICE in port units); the ground
+     snap's new `vy >= 0` guard, which NO leg in this repo distinguishes
+     (PR-135's mutation run proved that, and says why - an upward `I`
+     clears `grounded` as it is applied, so `grounded && vy < 0` is not a
+     state the model can reach today); and the fact that the 50 ms
+     iteration is PR-134's video-chosen edge of PR-109's 28-33 ms code
+     bracket, not a read of the engine's own loop. Full record: the
+     PR-135 section of NEXT_STEPS.md.
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2450,9 +2506,10 @@ item 13). The header-`F`-as-velocity escape stays closed: 0x54170's
 target comes only from the row nodes. The units by contrast look close
 to pinned: v is hundredths of a px per tick and 25 ticks/s reproduces
 this port's own two fitted /4 constants. What is left of (a) is now
-narrow and explicit: the engine's law and the port's law differ only in
-the T dependence, and only a BY_X object at T other than 40 can say
-which one is right. Next steps, in order: (1) that video test, which
+narrow and explicit: PR-135 REPLACED the port's fitted target-velocity
+law with the engine's own F/T register, so the two sides no longer
+disagree in code - the open question is purely which T dependence the
+video shows, and only a BY_X object at T other than 40 can say. Next steps, in order: (1) that video test, which
 the authored data supplies in quantity (F=100 against 11 different T
 pairs); PR-125 ran the first two probes on R3 footage and both referee
 objects (RYBKA A_RUN F=100 T=20, PINGWIN A_RUN F=75 T=50) animated
@@ -2514,15 +2571,27 @@ head eye tracked at 60 fps), so the pass rate comes out 15-24/s
 from both families - 20/s, the 50 ms edge at one pass per state
 step, inside both; 35.7/s, the 28 ms design point LL_ITER_MS,
 outside both (it predicts 44.6 and 89 u/s against those bounds).
-The pass factor's mechanism is read and its bound is 1. What is
-still open, all named in the PR-134 record: the port's own
-player-speed and iteration constants (the port runs 3.8-6.9x below
-the measured ground run), the rhino referee - now placed,
+The pass factor's mechanism is read and its bound is 1. The clock and
+the port's own speed constants are APPLIED IN PR-135: LL_ITER_MS = 50,
+and the port's lion and objects now step the engine's own velocity
+register once per iteration (`v -= clamp(T,.,130)*v/100`, then
+`v += F*s/100` at the key intent s = ±10) with AT MOST ONE row admit
+per iteration, so the port's ground run is that arithmetic rather than
+a fitted target velocity. What is still open, all named in the PR-135
+record: the vertical constants are not re-fitted (the authored jump
+apex is now 20 px against the ~24 px measured), the engine's
+conditional raise of T to >= 20, the partial-intent values of s below
+±10, the object's own velocity register, whether a state change
+consumes its step's feed, the force/gate-fed row lists inside A_JUMP
+and A_DOSTAL, the velocity carried across a state change, PR-83's
+pending-AC_TIME lifetime, the object `nfr == 0` guard, and the one-
+point-per-iteration terrain test. Also still open: the rhino
+referee - now placed,
 `NOSOROG,dummy,nos.mov,1700,600`, bounds 1680,1950, but never on
 camera in a sampled window - the state that plays the airborne leap
 poses, and the G-2 camera position past 6.5 s (the self-animated
 ANIBACK bands fool all three estimators; a landmark anchor is
-needed). See the PR-130, PR-132, PR-133 and PR-134 bullets in
+needed). See the PR-130, PR-132, PR-133, PR-134 and PR-135 bullets in
 §7 item 13.
 tools/re/des_census.py prints the whole joined census. The
 table
@@ -2739,7 +2808,10 @@ template identity (the energy*30/100+10 id array, PR-96) - see open question 9.)
 
 **T3. Enemy behaviour.**
 Patrol between `bounds=` (LANDED in PR-79: BY_X states walk at F/4 px/s and
-flip at the bounds range; CH_DIR landed in PR-81 as the facing flip - the
+flip at the bounds range; PR-135 restates that rate as the engine's own law -
+`F*s*LL_ITER_MS/(1000*T)` px per iteration at s = ±10, the SAME number at
+T=40, which is where every shipped patrol sits, and 25% slower at T=50);
+CH_DIR landed in PR-81 as the facing flip - the
 census pairs bounds= with CH_DIR and the video's winning art polarity flips
 with the travel direction), detect via the class AI's compiled box
 (PR-90 pinned LICHA's; `scope=`'s consumer still open - measurably NOT
