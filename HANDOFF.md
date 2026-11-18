@@ -335,6 +335,12 @@ player entered that level twice in one sitting.
   SADES.06    "SADES / deep down"          4937-5012, 5792-7170
   KADMAR.07   "KADMAR I / ancient mysteries" 7170-8619. The card is
             re-shown at 7637: a second attempt at the same level.
+            Censused end to end by PR-126 and PR-128: the placed stage-1
+            BOSS object is on screen in NO window of this file. The boss
+            FIGURE that repeats here (283-293, 358-369, 411-419, 565-576,
+            762-774, 790-802, 1162-1172, 1334-1344 s) stands in a black
+            room between two white-outlined wardrobe doors with no HUD
+            drawn - a scripted scene, not that placed object.
   KADMAR2     "KADMAR II / egyptian dark"  8619-15363
   RAN.01      "RAN / two weeks in a baloon" 15363-15764 - "baloon" is
             the game's own spelling. A still picture of a pink balloon
@@ -375,6 +381,17 @@ player entered that level twice in one sitting.
             Screen dx equals world dx only inside a window
             like those; `tools/re/video_lane_shift.py` then measures
             the band translation. Numbers in the PR-125 record.
+            PR-128 adds the other half of the same question, whole-file:
+            tools/re/video_blob_scan.py labels every sampled frame "HUD
+            drawn" or "picture" (on KADMAR.07 the two classes separate
+            with a 34x margin, no ambiguous frame) and lists where one
+            chosen RGB appears, so a named class can be searched across
+            24 minutes in a 23 s pass. On that file the 93 still windows
+            split 78 gameplay + 15 picture windows, one per no-HUD
+            segment, and the class its .des places is in none of them. A
+            colour names a CANDIDATE only: one palette value serves the
+            boss robe, the HUD lion portrait, the jungle decor and the
+            player's own robe costume.
 
 HOW THE BOUNDARIES WERE FOUND. `/tmp/opencode/stillscan.py` samples one
 cropped 320x200 grayscale frame per second and reports runs of 3 or
@@ -1477,13 +1494,24 @@ writer as its open items.
       BOSS A_RUNA/A_RUNB (BY_X, F=75 T=20: A 18.8 vs B 37.5),
       ONE instance (`BOSS,xxx,boss.mov,1328,243` in ZWIERZ1.DES,
       energy=200) - the biggest gap left; backup LONA.05's YETI
-      (F=100 T=50, bounds 2000-2350). But no BOSS run is on film
-      yet: the KADMAR.07 still windows PR-125 measured hold the
-      ZOLW march and a scripted door scene in a black room (the
-      boss stands there animating, x=315-322, zero translation
-      793.7-798.9 s - and a near-black room is a pseudo-still
-      window, a caveat now in video_stills.py). Full record: the
-      PR-125 and PR-126 sections of NEXT_STEPS.md.
+      (F=100 T=50, bounds 2000-2350).
+      The KADMAR.07 line is now CLOSED as a source. PR-128 swept the
+      whole 1451.7 s cut at the widest detector setting - 93
+      camera-still windows, 3.0-17.5 s long - and looked at a frame from
+      the middle of every one. The file is also split by HUD presence
+      with tools/re/video_blob_scan.py, and on this file that test is
+      clean by a 34x margin (the WEAKER of the two fixed corner boxes
+      never exceeds 126 non-black px in a picture frame, never falls
+      below 4 337 in a gameplay one); joining it with the window list is
+      exact: 15 windows sit inside the file's 15 no-HUD segments, the
+      other 78 are gameplay. What PR-126 measured at 793.7-798.9 s (a
+      boss standing and animating, zero translation) is one of those
+      fifteen: the scene is a black room between two white-outlined
+      wardrobe doors, HUD absent. No camera-still window with the HUD
+      drawn holds a boss-sized blob, in either attempt, so this capture
+      CANNOT decide the law - the referee is LONA.05's YETI or the code
+      path. Full record: the PR-125, PR-126 and PR-128 sections of
+      NEXT_STEPS.md.
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2228,15 +2256,21 @@ for one clip; PR-109 measured it and the answer is the ITERATION model:
 an authored threshold T is displayed for T/100 frame-loop iterations, not
 T milliseconds, so the port's row clock is 3.0-3.5x too slow and PR-110
 is the behaviour change, with its plan named in the PR-109 record. Item
-(1) above is now TWO negative probes and three facts, recorded in §7
+(1) above is now THREE negative probes and three facts, recorded in §7
 item 13's PR-125 bullet, and PR-126's join: the fixture named
 there, KADMAR.07's NINJA1-6, is WITHDRAWN - no `.des` places it
 and no `.LVM` or `.MOV` references it - and the named referee is
 now the KADMAR.07 BOSS A_RUNA/A_RUNB (BY_X, F=75 T=20: A 18.8
-vs B 37.5), one instance at x=1328; its gameplay encounter is
-not on the recording yet (the measured 763-810 s windows are a
-ZOLW march and a scripted door scene in a pseudo-still black
-room). tools/re/des_census.py prints the whole joined census. The
+vs B 37.5), one instance at x=1328. PR-128 closes THIS file as a source:
+its whole 1451.7 s is swept at the widest setting (93 camera-still
+windows, 3.0-17.5 s) and a frame from the middle of every one has been
+looked at - no window with the HUD drawn contains the boss, and the boss
+figure that repeats through the cut is a scripted no-HUD scene (a black
+room between two white-outlined wardrobe doors), which is also what the
+763-810 s windows PR-125 and PR-126 measured are. So the referee to ask
+the owner for is LONA.05's YETI (F=100 T=50: A 25 vs B 20 px/s, one
+instance at x=2100), or a code path that decides without footage.
+tools/re/des_census.py prints the whole joined census. The
 table
 itself is now read end to end:
 PR-102 found its writer (the base record parse method 0x51910 ->

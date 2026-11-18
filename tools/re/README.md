@@ -134,6 +134,7 @@ census measures 162, so `slots` prints counts over detected tables
 | `video_shorts.py`, `video_feet.py` | the same measurements without the camera (`START DURATION`). |
 | `video_stills.py` | camera-still windows of an R3 capture, drift in game px/s (PR-125). |
 | `video_lane_shift.py` | band x-shift inside a still window -> game px/s (PR-125). |
+| `video_blob_scan.py` | whole-file HUD/no-HUD split (the two fixed corner boxes) + largest colour blob per frame as a candidate finder, NOT an identifier: one palette value serves the boss robe, the player's robe costume and the HUD portrait (PR-128). |
 
 The game picture is cropped from the 640x480 video as `crop=640:400:0:40`
 (black bars 40 px top and bottom) and is the 320x200 world view shown 2x.

@@ -10638,6 +10638,103 @@ live in reference/video/zax37/ under the §3 index's own stage ids.
   `zax37/` folder never enter the commit. Added doc prose lines all
   <= 79 columns (`git diff -U0` over added lines: zero above 79).
 
+## PR-128 — the whole Kadmar cut, frame-checked: there is NO
+## camera-still window containing the stage-1 boss. (one new python
+## probe; no C change)
+
+- WHY. HANDOFF §7 item 13 and §8 T1 (1) still need a measurement to
+  split law A (port, v=|F|/4 px/s) from law B (engine, v=10*F/T px/s).
+  PR-126's join says the only placed law-discriminating boss is
+  KADMAR.07's `BOSS,xxx,boss.mov,1328,243` (A_RUNA/A_RUNB, F=75
+  T=20: 18.8 vs 37.5 px/s), and PR-126 measured one third of that
+  level's cut - the third its first sweep happened to cover. This unit
+  finishes the census over all 1451.7 s of
+  `reference/video/levels/KADMAR.07.mkv`, keeps the detector at its
+  widest setting, and looks at a frame from the middle of EVERY window
+  the detector reports.
+- THE WINDOWS, as measured: `tools/re/video_stills.py --max 8 --min 6`
+  over 0-460 s gives 24 windows and over 950-1451.7 s gives 48;
+  joined with PR-126's 21 windows over 460-960 s that is 93
+  camera-still windows across the whole cut, 3.0-17.5 s long, 21 of
+  them >= 10 s. The three lists do not overlap (sweep 1 ends at
+  467.0, PR-126's first window starts at 472.5; PR-126's last ends at
+  942.5, sweep 2's first starts at 953.0), so the join is a sum and
+  not a merge: `/tmp/opencode/pr128/{sweep_0_460,sweep_950_1451}.txt`
+  + `/tmp/opencode/pr126/sweep_460.txt`.
+- EVERY WINDOW WAS LOOKED AT. One frame from the middle of each of
+  the 93 (`/tmp/opencode/pr128/mid/`, 93 files at 640x400 game px)
+  and eleven labelled 3x3 contact sheets (`lab/`, `L_00..L_07`,
+  `M_00..M_02`). A window is only counted for what its own frame
+  shows; the 21 windows >= 10 s are not special any more, all 93 are.
+- NEW PROBE `tools/re/video_blob_scan.py`: one decode pass over a
+  whole R3 file (1152x720 -> 640x400, 1 px = 1 game px) at a chosen
+  sample rate, printing per sample the HUD class and the largest
+  4-connected blob of a chosen RGB, then the no-HUD segments and the
+  blob runs. Over this file at 2 fps it takes 23 s for 2 903 samples:
+  2 621 samples have the HUD drawn, 282 do not. The class split is a
+  measurement with a 34x margin - in no-HUD samples the WEAKER of the
+  two fixed corner boxes never exceeds 126 non-black px, in gameplay
+  samples never falls below 4 337 (threshold default 1 500) - so no
+  sample in this file is ambiguous. The no-HUD samples form exactly 15
+  segments, all >= 3.5 s: 5.0, 60.5, 213.0, 283.5, 358.0, 411.0,
+  442.0, 464.0, 565.0, 762.5, 790.5, 1013.5, 1162.5, 1179.0, 1334.0
+  (full table: `/tmp/opencode/pr128/hudscan_kadmar.txt`).
+- THE CROSS-CHECK that settles the question
+  (`/tmp/opencode/pr128/census.py`, joins the window list with the
+  scan): 15 of the 93 windows fall inside those 15 segments - exactly
+  one per segment - and the other 78 windows are gameplay. Eight of
+  the fifteen carry a robe-coloured blob of 16 324-23 776 px spanning
+  x 174-587 (PR-126's boss-robe value (86,30,152), --tol 12).
+- WHAT THE FRAMES ACTUALLY SHOW. All eight are the SAME scripted
+  scene: a black room, two white-outlined wardrobe doors (one brown on
+  the inside), and the boss standing in the other opening -
+  `hi_291.0.png`, `hi_448.5.png`, `hi_573.5.png`; once with the text
+  prompt "CHCES GRAC? 0 1 / TAK NIE / PUSH ON BUTTON" at 415.2 s and
+  once as a hut interior at 1339.0 s. The other seven no-HUD segments
+  are the intro (5.0, 60.5), the re-shown level card (464.0) and
+  black rooms with no figure at all (213.0, 442.0, 1013.5, 1179.0).
+  So: the boss exists in this file only inside the no-HUD segments,
+  and no camera-still window with the HUD drawn contains it, in either
+  attempt. The A-side of T1 (1) is not obtainable from this capture.
+- THE COLOUR LESSON, since it changes how a future probe must be
+  built: (86,30,152) is ONE palette entry used by several unrelated
+  pieces of art - the boss's robe, the game's own HUD lion portrait
+  (excluded by the fixed corner boxes), the level-1 jungle decor
+  (702-712 s, 8 193 px) and the player's own purple-robe costume. The
+  "robed figure" inside HUD-drawn windows is always the last two: at
+  341.5 s it is the LION in a robe and a pointed hat on a wall ledge,
+  and its blob hops across x 364-478 in 5 s sampled at 4 fps; at
+  205-212 s, in the igloo stretch, it is a small NPC with its arms
+  raised. Both are about 50 px tall; the boss picture is about 200.
+  Colour finds candidates, frames name actors - said in the tool's own
+  docstring, so the next probe starts from the shape and the state
+  name, not from a mask.
+- NOT A REFEREE, RECORDED ANYWAY: the igloo window at 204.0-216.0 s
+  is a genuine gameplay still window (drift 0.2-0.5 px/s) with the
+  HUD drawn and a robed figure standing inside x 402-425 while the
+  lion is airborne next to it - the first "object standing beside the
+  player" this line has produced, and it is a ~50 px NPC, not the
+  400 px `boss.mov` class, so no `.des` row can be joined to it.
+- GATES. New python under `tools/re/`, no C, no Makefile, no
+  `.github/workflows` line: `make` and `make win` are both silent and
+  rc=0 (the C tree is the PR-127 one, unchanged), and `make -k
+  verify-all` ran twice: with the fixtures
+  (`DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files`) and
+  fixture-free (`DATA=/tmp/opencode/nope HD=/tmp/opencode/nope`).
+  Both printed `ALL TESTS PASSED (linux + windows + llrs)` with rc=0;
+  the fixture-free leg printed its named SKIPs (verify-level,
+  -play, -help, -menu, -sel, -quit, -save, -music, -utf8, -fuzz,
+  -platform, -userdir, -golden) - `/tmp/opencode/pr128/gates.txt`.
+  Only `tools/re/video_blob_scan.py` (new), `tools/re/README.md`,
+  `HANDOFF.md` and this record are touched; no video byte enters the
+  commit (`reference/video/` is gitignored). Added doc prose lines all
+  <= 79 columns.
+- HANDOFF UPDATED: §3's KADMAR.07 index entry now carries the 15
+  no-HUD segments and what is in them; §7 item 13 gains the census and
+  the shared-palette fact; §8 T1 (1) now names the LONA.05 YETI clip
+  (A 25 vs B 20 px/s) as the referee to ask the owner for, because
+  this file cannot answer it.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
