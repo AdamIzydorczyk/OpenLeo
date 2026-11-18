@@ -136,6 +136,19 @@ census measures 162, so `slots` prints counts over detected tables
 | `video_lane_shift.py` | band x-shift inside a still window -> game px/s (PR-125). |
 | `video_blob_scan.py` | whole-file HUD/no-HUD split (the two fixed corner boxes) + largest colour blob per frame as a candidate finder, NOT an identifier: one palette value serves the boss robe, the player's robe costume and the HUD portrait (PR-128). |
 | `video_sheets.py` | labeled contact sheets of any window (`--t0/--t1/--fps/--band`); every tile carries its true t and frame index so readings can cite frames (PR-131). |
+| `level_landmarks.py` | `level_landmarks.py [LEVEL] [OUTDIR]` - cut a match template for every static image the level itself places, from the port's own renders (composited vs `LEO_LEVEL_NO_OBJ`, then other placements, background-blending pixels and camera-y-moving pixels cut out), each anchored to its authored world point. Writes `atlas.json` + `tpl_NN.npz`. |
+| `video_camera_read.py` | `video_camera_read.py --video FILE [--level N] [--atlas D] [--t0/--t1/--stride] [--raw]` - one camera `(x, y)` value per frame by matching those templates: each match proposes a camera, and the camera whose visible landmarks agree most wins, ties broken toward the previous frame and flagged `ambiguous`. Same pass tracks the lion (body colour, the never-moving HUD box masked out) and his paws colour class - the feature the port's `CAM_FEET_Y` is defined on. JSON per frame with `tier` (how many distinct placements support the read), `margin` (how peaked the match is) and both blobs. |
+| `camera_law.py` | `camera_law.py READ.jsonl [T0] [T1]` (`LEVEL`/`ATLAS` name the level's own camera range and coverage; `PLT=file` adds the ground cross-check) - camera shots (gaps and >20-unit jumps are boundaries, not motion), camera x/y ranges and rates over a contiguous window split into tracking vs catch-up, the lead the game HELD frame-for-frame (the port's `cam_ox`) by direction, the grounded feet-row (= the port's `CAM_FEET_Y`) on frames where his world y is constant, whether the view holds through a jump arc, and coverage split into "the level has no anchor there" vs "the clip's camera was never there". |
 
-The game picture is cropped from the 640x480 video as `crop=640:400:0:40`
-(black bars 40 px top and bottom) and is the 320x200 world view shown 2x.
+The A clips are 1280x720; the game picture is the band `crop=1152:720:0:0`
+(the 640x400 frame scaled 1.8x), and `scale=320:200:flags=area` puts that
+band back at the view size, so **1 px of the resampled frame = 1 world unit**
+- which is what makes `level_landmarks.py` + `video_camera_read.py` an
+absolute camera read rather than a relative shift. The older helpers above crop
+a 640x480 capture as `crop=640:400:0:40` (black bars 40 px top and bottom).
+
+`level_landmarks.py` needs the level's data (it runs `./ll_level`), and it
+needs `LEO_OBJ_ALL=1`, which it sets itself: without it the port's proof
+listing is bounded and placements are invisible to the tool. Nothing here puts
+game data or video frames in git: the atlas and the reads live under
+`/tmp/opencode/`.

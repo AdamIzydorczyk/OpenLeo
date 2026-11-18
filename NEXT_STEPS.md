@@ -12252,6 +12252,171 @@ no port behaviour change)
   `python3 tools/is_decode.py frames $DATA/INTRO_P.IS /tmp/opencode/py_last
   --ppm --only 1520` for verify-win's reference frame.
 
+## PR-136 — G-2 MEASURED IN ABSOLUTE WORLD UNITS: the level's OWN static
+## images are camera anchors, so a video frame gives camera (x, y) rather than
+## a relative shift; the method is validated against cameras the port itself
+## set; what the clip then shows is the lead the game holds (95-108 while he
+## walks right), a grounded vertical anchor of row ~128 and not 178, a view
+## that does not hold rigidly through a jump, and a first screen whose walking
+## surfaces are 7-51 units above the .PLT the port stands him on (three tools
+## promoted to git; NO behaviour change)
+
+- WHY. PR-134 ended G-2 with an audit of three estimators and the sentence
+  "a landmark anchor is needed": phase correlation drifts, the named-pair
+  matcher only works where the backdrop is flat, and the lion-locked case is
+  circular - it cannot say what the lead is because it assumes a camera. The
+  level itself carries the anchors: its placement files name static images
+  ("<LEAF>,<name>.seq,<x>,<y>", the grammar PR-93 found) that the port draws
+  at the authored point with no shape record, and the band of the A clip is
+  the 320x200 view scaled 1.8x, so one px of the downsampled frame is one
+  world unit. That makes the camera position readable as data.
+
+- WHAT SHIPPED. Three tools, promoted into git because the repo's convention
+  is that the video/RE helpers live in tools/re/: `level_landmarks.py` (cut a
+  match template for every static image the level places, from the port's own
+  renders), `video_camera_read.py` (per-frame camera (x, y) plus the lion's
+  body and paws blobs), `camera_law.py` (turn the read into shots, leads,
+  rates, the vertical anchor, coverage and the .PLT cross-check), plus their
+  rows in tools/re/README.md. No C file changed; no Makefile target, so
+  HANDOFF section 3 is unchanged; .github/workflows/* untouched; no game data
+  and no video frames in git (atlas, reads and logs are under /tmp/opencode/).
+
+- THE METHOD, and the two traps it had to be built around. Each template is
+  cut from the port's own pixels: the level rendered at a camera that puts the
+  placement in the view, composited and with `LEO_LEVEL_NO_OBJ`; the
+  difference inside that placement's box IS its pixels and its alpha. Three
+  cuts make the patch usable: other placements' boxes, pixels that change when
+  the camera moves 8 units sideways (they blend with the backdrop) and pixels
+  that move when it moves 4 units down. ZARIA.01 gives 62 placements, 14 of
+  them static images, 12 templates after two draw nothing or lie outside the
+  world; the probe camera must be the RENDERER's clamped one - an earlier
+  /tmp atlas left the probe above CAM_YMAX and every anchor came out 7-9
+  units off. Matching is masked normalised cross-correlation over every offset
+  the game could show a placement at, per landmark on the FFT of the frame.
+  That alone is NOT a camera measurement, for two reasons this design is built
+  on: several placements share one .SEQ art (ZARIA.01 places LISC0, LISC1 and
+  PLAN3 twice), so one match is ambiguous by the copy spacing; and the level's
+  own backdrop and animated objects reuse the look of a static placement, so a
+  match can be plain wrong. So every match only PROPOSES a camera, and a
+  proposal is judged by what every OTHER placement whose box lies in the view
+  at that camera scores at exactly that offset - a table lookup on the same
+  correlation surface, no extra cost. Ties break toward the previous frame's
+  camera (continuity) and are flagged `ambiguous`.
+  Trap three: a camera value outside 0..world-view cannot be a camera, so the
+  level's own geometry filters the read - and it is the filter that catches
+  the false matches, not any threshold.
+
+- THE METHOD IS CHECKED AGAINST KNOWN ANSWERS, twice. `selfcheck`: 16 frames
+  the port rendered itself at cameras that were SET - 14 read exactly, error
+  (0,0), at (0,500) (0,470) (12,500) (12,496) (61,437) (158,350) (358,420)
+  (400,430) (687,500) (1242,500) (1647,500) (1757,500) (1920,184)
+  (1920,188); the other two, (1000,400) and (1900,300), have no placement in
+  view and say so. `resample`: 13 frames pushed through the capture path the
+  clip went through (nearest up to 1152x720, area filter back down) - all 12
+  with any placement visible read exactly, 1 coverage hole. So the read is
+  unbiased at the unit level when an anchor is in the frame; that is the
+  error bar, not the `margin` field, which measures how peaked a match is and
+  says nothing about error (its median is 0.011 even on frames read exactly).
+
+- WHAT THE CLIP SHOWS (ZARIA.01, 27601 frames, 460.02 s, constant rate; the
+  numbers are in /tmp/opencode/pr136/law_v3.txt). 5319 frames have no
+  placement in view; 21205 give a camera, of which 20116 rest on ONE
+  uncontested placement and 1089 on two different ones; 328 are ambiguous;
+  1077 fall outside the camera range the level's own geometry allows and are
+  dropped, 1070 of them by more than 8 units. Coverage by camera_x: dense at
+  0-300 (18.7k frames), a trickle at 300-800, nothing at 800-1200, 47 frames
+  at 1300, none at 1400, 124/267/41 at 1500/1600/1700, none at 1800, 1244 at
+  1900. The lead: the values the game HELD frame for frame while the lion
+  walked right are 95-108 in 57 of 76 window-frames (modes 95-108) - the
+  port's CAM_LEAD_R=100 is confirmed by the measurement it was guessed from.
+  The other 19 held windows read 59-86; 15 of those are inside the clip's
+  first 7.4 s with the camera pinned at the world's left edge (camx <= 14),
+  where no lead can be held, and 4 are single frames near camera_x 100.
+  While he walked left, 19 held windows give 199-251, so CAM_LEAD_L=220 sits
+  inside the band but on 19 frames, and the plain scatter is bimodal. The
+  catch-up ease, with the lion standing still, is p50 5 u/s, p95 60, max 230
+  - the port's 6 units per iteration is 120 u/s, faster than everything but
+  the tail. Vertically: on 3990 frames where his world y is constant across a
+  13-frame window, the paws row - the same colour class PR-84 measured, and
+  the feature CAM_FEET_Y is defined on - sits at 125-134, mode 128 (708
+  frames), and 128 on the subset where the camera is NOT at the world clamp.
+  Row 180 appears in 97 frames, all of them the clamp case: with the anchor
+  at 128 and the level's own camy clamp at 500, a lion on the y~681 ground
+  lands at 181 by itself. One constant plus the clamp that is already there
+  reproduces both, and PR-84's own note ("anywhere the clamp does not bind,
+  the 65% rule sat 40+ px too high") is what this measures. Through 139 jump
+  arcs the view does not hold rigidly: camera_y change p50 0 but p05 -26 and
+  p95 +12.
+
+- AND ONE THING THAT IS NOT ABOUT THE CAMERA. The same frames say what the
+  lion stands on. At the ground line the read matches the level's own data
+  exactly: 108 frames at measured surface y 681, x 38-67, against
+  ZARIA_A.PLT's first polyline "-50,680!408,684" - delta 0 in 108 of 108.
+  On the first screen's platforms, 3990 frames put him on surfaces at y
+  466-508 for x 128-392, where the nearest authored polyline at that x is
+  7-51 units LOWER; of all 3990, 566 coincide within 2 units, 201 more
+  within 5, and not one frame has a world x where the level has no ground
+  polyline.
+  The placed platform images have their top edges at exactly those heights
+  (plan4.seq at 70,480 size 136x60; plan6.seq at 287,430 size 62x41). The
+  port uses the .PLT and would stand him 7-51 units lower there.
+
+- OPEN ITEMS, COUNTED: 1 coverage: at camera_x 900-1100 and 1400-1500 the
+  level's OWN placements cannot fill the hole (no static image there could be
+  on view), and 800-900, 1100-1400, 1500-1900 have one or two anchors and
+  the clip gave 0 reads in most of them; filling it means anchoring the
+  .MOV placements, whose draw offset is their .SEQ shape margin (f0/f2, which
+  the port knows) - but their art changes per frame, so one template per
+  placement is not valid; counted, not done. 2 The 1070 far-outside reads are
+  false matches the level's own reused art causes; a rule demanding two
+  placements co-match would keep only 1089 frames. Both choices are open.
+  3 328 ambiguous frames are dropped rather than resolved. 4 The paws row is
+  a colour mask, present in 18097 of 20392 body-blob frames; it is a proxy
+  for the contact line, not the port's `p.y + contact` from the shape box
+  (PR-97). 5 CAM_LEAD_L rests on 19 held-window frames. 6 Jump arcs are
+  under-sampled: the paws series fails in 40% of the 31-frame windows, the
+  apex population this found (p50 10) is far below PR-86's 23-30 u, and the
+  "view holds" answer is therefore weak. 7 NEW GAP, named G-13: the ground
+  source in the first screen, as measured above - the port's .PLT ground and
+  the clip's surfaces differ by 7-51 units there and agree exactly at the
+  ground line. 8 The camera's measured rates and anchor are NOT applied to
+  the port in this PR; that is the follow-up PR with its own gates and
+  mutation controls. 9 Tie-breaking by continuity is a MODEL CHOICE, visible
+  through the `ambiguous` flag. 10 The 1501 shot boundaries under the
+  20-unit/30-frame rule conflate the clip's cuts (PR-134's census) with lost
+  matches; they are not a cut census.
+
+- GATES. Docs-and-tools class: no behaviour changes, but the build legs
+  still ran. `make` rc=0 and `make win` rc=0, both with ZERO warning
+  lines (/tmp/opencode/pr136_gate_make.log, /tmp/opencode/pr136_gate_
+  win.log). `make -k verify-all DATA=/tmp/opencode/iso_stage/LEO
+  HD=/tmp/opencode/hd_files` -> rc=0, "ALL TESTS PASSED (linux +
+  windows + llrs)", 53 `(ok)` proofs and no FAILED line anywhere
+  (/tmp/opencode/pr136_all_full.log). The same suite fixture-free,
+  `DATA=/tmp/opencode/nope HD=/tmp/opencode/nope` -> rc=0 with 23
+  named `verify-*: SKIP` lines - the same set PR-135's gate run
+  produced - while `--mov-selftest`, `--play-selftest`, the decoder
+  selftests and the T-01 structure leg still ran in that cold
+  environment (/tmp/opencode/pr136_all_nofix.log).
+
+- HANDOFF UPDATED. Section 6's two camera rows (CAM_LEAD_R/CAM_LEAD_L and
+  CAM_FEET_Y) now carry what the measurement says next to what the port
+  ships, section 1's lion row points at that; section 7 item 13 gains the
+  PR-136 bullet with the open-items list above and names G-13; section 8 T0
+  says the camera law is measured in world units and what is still not
+  applied.
+
+- EVIDENCE. All under /tmp/opencode/. pr136/selfcheck.py and selfcheck.txt
+  (the 16 known-camera frames), pr136/resample.py and resample.txt (the
+  capture-path check), pr136/hudbox.py (the never-moving orange block: rows
+  166..196, cols 6..29 of the view = the lives head of belka.des, masked by
+  the reader), landmarks/ZARIA.01/atlas.json plus tpl_NN.npz (the 12
+  anchored templates), pr136/cam_v3.jsonl (the full read), pr136/law_v3.txt
+  (every number quoted above), pr136/zaria_a.plt.txt (ZARIA_A.PLT dumped
+  with tools/re/llrs_cat1 from the level block), pr136/cam_full60.jsonl and
+  pr136/law.txt (the earlier pass, superseded: an unclamped probe camera put
+  its anchors 7-9 units off and plan6.seq matched 17659 frames of backdrop).
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

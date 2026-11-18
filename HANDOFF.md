@@ -25,7 +25,7 @@ What exists and works (all verified by `make verify-all`, section 3):
 | title menu + chapter map | drawn from data (11 chapters, titles from `LEVELnn.SEQ`, arrow colours); progress/"start" variants not done |
 | level scene | 320x200 world view shown 2x; world size from `back_rect` or the reference layer; per-layer parallax (`speed=`, `main_back=`) for PCM layers, the PCX backdrop and every object; HUD from `BELKA*.DES` |
 | objects | 827+ placements, art by each state's `seq=`, `.MOV` state machines (loop until a transition fires; `GEN K_GENn`, `AC_BREAK_NEXT`); PR-93: the 3-comma static image lines (`<LEAF>,<name>.seq,x,y` -> that CD leaf's `.SEQ`, drawn at the authored x,y behind the actors) and the 0,0 entries = attached children (joined+counted, never instantiated at the world origin); PR-107: a `TARGET(N)=<cond>` line carries an authored START ROW and the target state is entered at that row (same rule for the lion and scene objects) |
-| lion (play mode) | walks on the level's own ground (`.PLT`) with his current ANIMATION's shape-box bottom as the contact line (PR-97: `ll_player.contact`, `ll_seq_shape_contact`, `mov_state_contact`), runs the engine's OWN velocity law once per 50 ms iteration - `v -= T*v/100` then `v += F*s/100` with the key intent `s` = ±10 (PR-135, replacing the fitted target-velocity model) - and his row list admits AT MOST ONE row per iteration, fed by travelled distance in a BY_X state and by the engine's constant 100 otherwise; jumps (ESTIMATED units), keys facing-relative (Model M, PR-85), camera follows (lead + grounded contact-line-at-178 anchor), HUD shows energy/lives |
+| lion (play mode) | walks on the level's own ground (`.PLT`) with his current ANIMATION's shape-box bottom as the contact line (PR-97: `ll_player.contact`, `ll_seq_shape_contact`, `mov_state_contact`), runs the engine's OWN velocity law once per 50 ms iteration - `v -= T*v/100` then `v += F*s/100` with the key intent `s` = ±10 (PR-135, replacing the fitted target-velocity model) - and his row list admits AT MOST ONE row per iteration, fed by travelled distance in a BY_X state and by the engine's constant 100 otherwise; jumps (ESTIMATED units), keys facing-relative (Model M, PR-85), camera follows (lead 100/220 - PR-136's absolute camera read CONFIRMS the right lead at 95-108 and puts the grounded anchor at ~128 + the world clamp, not 178, not yet applied), HUD shows energy/lives |
 | collision | push-out ported from the machine code (`FUN_00042de0/42cf0`), solid/semi-solid response, enemy contact damage from the placement files, the enemy's own ATC-window attack when armed (PR-90, off unless `LEO_PLAY_DANGER=1`), balloon pickup; ON by default except RAN.01 |
 
 What does NOT exist yet (the real gap to "a playable game"): combat
@@ -702,7 +702,8 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | `AC_TIME` | ll_level.c `obj_cond_true`, ll_play.c | obj: = end of frame list OR a raised bit; lion: raised by frame `GEN AC_TIME` (bit 9 = LL_SIG_AC_TIME) | `time=min,max` unit unknown |
 | signal bits | ll_play.h `LL_SIG_*`, `ll_sig_id()` | engine table 0x48000: AC_BLOK 0..AC_EV_MAX 68, K_GEN1 54; `GEN <name>` raises any, conditions test the object's own set | PR-88 (verified constants); pulse-vs-latch + cross-object routing OPEN |
 | lives / energy HUD | ll_level.c | 6 lives, energy frames (100-e)/10 | video start shows 6 |
-| camera | ll_level.c `follow_camx/camy` | lead 100/220, ease 6 u/tick, grounded contact-line-at-178 anchor (PR-97: the anchor point is `p.y + p.contact`, the shape-box bottom of the animation being shown (max over its state's frames) = the paws PR-84 measured; y-ease 2 u/tick invented) | video + owner frame comparison (PR-84) |
+| camera | ll_level.c `follow_camx/camy` | lead 100/220, ease 6 u/tick, grounded contact-line-at-178 anchor (PR-97: the anchor point is `p.y + p.contact`, the shape-box bottom of the animation being shown (max over its state's frames) = the paws PR-84 measured; y-ease 2 u/tick invented). PR-136 MEASURED the camera in world units from the level's own static placements: leads HELD frame-for-frame 95-108 right (n=57, CAM_LEAD_R=100 confirmed) and 199-251 left (n=19, CAM_LEAD_L=220 inside the band, weak); catch-up rate p50 5 / p95 60 / max 230 u/s vs the port's 6 u/iteration = 120 u/s; the grounded paws row sits at 128 (mode, n=3990 surface frames; 128 unclamped) and 180 only where camy is at the world clamp - one constant 128 plus the existing clamp reproduces both; the view does NOT hold rigidly through jump arcs (camy change p05 -26 / p50 0 / p95 +12, n=139). NOT applied to the code: that is the follow-up PR | PR-136 record (tools/re/level_landmarks.py + video_camera_read.py + camera_law.py, /tmp/opencode/pr136/law_v3.txt) |
+| ground source on the first screens (G-13) | ll_level.c `platformy=` -> `ZARIA_A.PLT` | the port stands the lion on the authored .PLT lines; the clip shows him on surfaces 7-51 units ABOVE them at x 128-392 (y 466-508), while at the ground line the two agree exactly (108/108 frames, y 681 vs polyline "-50,680!408,684"). The placed platform images (plan4.seq@70,480 136x60, plan6.seq@287,430 62x41) have their top edges at those heights, so either the objects are solid floors the .PLT does not name, or the .PLT is only one of two ground sources. NOT decided | PR-136, G-13 |
 | contact pass default | ll_level.c | on except RAN.01 | RAN is the balloon level |
 | SEMI_SOLID | `play_collide` | only the r/5 shift | velocity add (kind 13) unit unknown |
 | SOLID push polarity | `obj_shape_elem` | shape uses the DRAW polarity incl. CH_DIR facing | consistency, not decompile-pinned (PR-81) |
@@ -1757,6 +1758,43 @@ writer as its open items.
      iteration is PR-134's video-chosen edge of PR-109's 28-33 ms code
      bracket, not a read of the engine's own loop. Full record: the
      PR-135 section of NEXT_STEPS.md.
+    - PR-136 MEASURED G-2 IN ABSOLUTE WORLD UNITS. The level's OWN static
+      .SEQ placements are camera anchors: tools/re/level_landmarks.py cuts
+      a template for each from the port's own renders (anchored to its
+      authored world point), tools/re/video_camera_read.py reads one
+      camera (x, y) per frame by matching them (each match only PROPOSES
+      a camera; the proposal is judged by what every other visible
+      landmark scores at that exact offset; ties break toward the previous
+      frame and are flagged ambiguous), and tools/re/camera_law.py turns
+      the read into law numbers. Validated twice against cameras that were
+      SET: 14 of 16 port-rendered frames read with error (0,0), the other
+      two have no anchor in view and say so; 12/12 frames with coverage
+      read exact through the capture path. The level's own geometry (the
+      camera cannot leave 0..world-view) is what filters the false
+      matches: the level reuses its static art for animated objects and
+      its backdrop. ZARIA.01's 460 s clip: 21205 frames give a camera;
+      1070 reads are off the level's camera range by >8 units and are
+      dropped. The lead the game HELD frame-for-frame: 95-108 walking
+      right (57 of 76 held-window frames; the other 19 are mostly at the
+      world's left edge where no lead can hold) - CAM_LEAD_R=100
+      CONFIRMED; 199-251 left (n=19) - CAM_LEAD_L=220 sits inside a weak
+      band. Catch-up rate p50 5 / p95 60 / max 230 u/s, slower than the
+      port's 120 u/s except in the tail. The grounded vertical anchor
+      (the paws row, the feature CAM_FEET_Y is defined on) is 128 in
+      mode, never a rigid 178: row 180 occurs only where camy is at the
+      world clamp, and one constant 128 plus that existing clamp
+      reproduces both. The view does NOT hold rigidly through jump arcs
+      (camy change p05 -26 / p50 0 / p95 +12). AND G-13, a NEW gap this
+      found: the first screen's walking surfaces sit 7-51 units ABOVE the
+      ZARIA_A.PLT lines the port stands the lion on, while at the ground
+      line the read matches the polyline "-50,680!408,684" in 108 of 108
+      frames - the placed platform images (plan4.seq@70,480,
+      plan6.seq@287,430) have their top edges at exactly those heights.
+      Coverage holes at camera_x 900-1100 and 1400-1500 are the level
+      offering no static anchor there, not the clip never going there.
+      None of the measured numbers is applied to the code yet - that is
+      the follow-up PR. Ten open items are counted in the record. Full
+      record: the PR-136 section of NEXT_STEPS.md.
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2457,7 +2495,9 @@ writer as its open items.
     answer it. Frame: `/tmp/opencode/refcap/ep1_120.png` (never in git).
 15. ZARIA.01 STAGE AUDIT GAPS (PR-131; the full G-1..G-12 list with
     cited frames and port logs is the PR-131 section of
-    NEXT_STEPS.md). The ones no other item owns: the KAMIEN sixth
+    NEXT_STEPS.md; PR-136 added G-13 and closed G-2's method - the
+    landmark anchor now reads an absolute camera (x, y) per frame). The
+    ones no other item owns: the KAMIEN sixth
     field (1308/1218/1115 decreasing toward the ZAR.BLK corridor
     1299..1620 - read ZAR.BLK like a .PLT) and what it and the
     corridor DO (stone puzzle, G-3); the water surface as a floor
@@ -2472,7 +2512,14 @@ writer as its open items.
     clips start at "5", the port prints a hard-coded 6 - map the
     STATUS.LEO fields instead (G-8); contact-damage reality vs the
     port's SEMI-push + 15/30-tick model, which kills a walking
-    lion before x=180 (G-5); SURPRISE "?" firing (G-12).
+    lion before x=180 (G-5); SURPRISE "?" firing (G-12); and the
+    ground SOURCE of the first screens (G-13, PR-136): the absolute
+    camera read puts the lion on surfaces at y 466-508 for x 128-392,
+    7-51 units above the ZARIA_A.PLT lines the port stands him on,
+    while at the ground line (y 681) read and .PLT agree in 108/108
+    frames; the placed platform images' top edges sit at those
+    heights - either those objects are floors, or the .PLT is not the
+    only ground source. Decide which, then re-pin the scene legs.
 
 ## 8. Plan: tasks, in order. One task = one or a few PRs.
 
@@ -2589,10 +2636,17 @@ point-per-iteration terrain test. Also still open: the rhino
 referee - now placed,
 `NOSOROG,dummy,nos.mov,1700,600`, bounds 1680,1950, but never on
 camera in a sampled window - the state that plays the airborne leap
-poses, and the G-2 camera position past 6.5 s (the self-animated
-ANIBACK bands fool all three estimators; a landmark anchor is
-needed). See the PR-130, PR-132, PR-133, PR-134 and PR-135 bullets in
-§7 item 13.
+poses. The G-2 camera position IS MEASURED IN PR-136 - the landmark
+anchor PR-134 asked for is built from the level's own static .SEQ
+placements, and the whole 460 s clip now reads a camera (x, y) in world
+units: the right-facing lead 95-108 confirms CAM_LEAD_R=100, the
+grounded vertical anchor is ~128 plus the existing world clamp (not
+178), the catch-up ease is slower than the port's, and the view does
+not hold rigidly through jumps; none of it is applied to the code yet.
+PR-136 also opened G-13: the first screen's walking surfaces sit 7-51
+units above the .PLT lines the port uses, while at the ground line the
+two agree exactly. See the PR-130, PR-132, PR-133, PR-134, PR-135 and
+PR-136 bullets in §7 item 13.
 tools/re/des_census.py prints the whole joined census. The
 table
 itself is now read end to end:
