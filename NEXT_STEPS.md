@@ -9794,6 +9794,112 @@ the drift carried forward as its remainder
   first, G2B failing only leg 8. `ported/ll_level.c` keeps its 45
   pre-existing over-79-column lines and adds none.
 
+## PR-120 — the row gate's accumulator, read at byte level: it is its OWN
+field, fed a value whose sub-pixel part is dropped at the divide, and the
+port's fractional feed is now the one thing that separates it from the
+engine
+
+- WHAT THIS PR IS. A reading, with one mutation run against the shipped
+  bytes as evidence. No code, no `Makefile`, no `tools/` change: nothing
+  in the port moves. It answers PR-119 open item 1, quoted verbatim
+  (NEXT_STEPS.md:9751):
+  What would establish it is a reading job at 0x543a0/0x543d1, not a
+  capture: whether the dword that `add` feeds is the same field the
+  engine's pixel advance truncates whole pixels out of, or a second one.
+- THE ANSWER: A THIRD FIELD, AND THE ROW GATE IS ITS ONLY CONSUMER. An
+  indexed scan of the disassembled image over the object-code range
+  0x52000..0x54fff lists every site naming `+0xa1` (transcript
+  /tmp/opencode/pr120_dis.txt, every row `suspect=0`, and the ones that
+  matter re-read with `leodb.py dis`, which disassembles the exact bytes
+  and never trusts the index): the four feed sites 0x543d1 / 0x543e7 /
+  0x54412 / 0x5443b that PR-116 listed, the set at 0x52118, the zeroes
+  at 0x5236b / 0x533b0 / 0x5389e, the two loads the mode-2 and mode-3
+  branches make at 0x54400 / 0x54429, and ONE read outside the feed
+  branches: 0x52323, the load behind the compare PR-116 read at 0x52329
+  (`39 d8 cmp eax,ebx`). So the answer to the
+  quoted question is NEITHER of its two options: `[obj+0xa1]` is not a
+  pixel counter and not the same field read twice - it is a counter whose
+  only consumer anywhere is the row gate. Two notes on the method,
+  worth keeping:
+  the mode-2/3 branches write it through a register offset
+  (`0x5440c: add ebx,0xa1` then `0x54414: mov [ebx],edi`, and the twin
+  at 0x54435/0x5443d), which a scan for the literal text `+0xa1]` does
+  not find; and the byte-level scan finds nothing in the position code,
+  so PR-99 item 10's finding stands, quoted verbatim: "The position
+  writer is still unread". What this reading adds is the site list:
+  `[obj+0xca]` is READ at 0x5412c, 0x543c6, 0x54810 and 0x54836, its
+  address is taken at 0x54830 (`lea`), and it is zeroed at 0x54e56; the
+  0x54810/0x54830/0x54836 group is unread and is where to look next.
+- WHAT THE FEED ACTUALLY ADDS, AND WHERE THE RESIDUE GOES. 0x543a0 is
+  the mode dispatcher (0x543a6..0x543be reads `[obj+0x5c]`, the state
+  list at `[obj+0x50]`, and `[state+0x12] & 7`, five-way jump table at
+  0x54380). Mode 0, 0x543c6..0x543d1: `mov eax,[ebx+0xca]`, then
+  `99` / `31 d0` / `29 d0` - cdq, xor, sub, the branchless absolute
+  value - then `01 83 a1 00 00 00 add [ebx+0xa1],eax`; mode 1 the same
+  shape on `[obj+0xce]` at 0x543dc..0x543e7. The value it adds is made
+  a few instructions earlier in the same function that updates the
+  velocity: 0x5434d `mov edx,[ecx+0xc2]`, 0x54353 `mov ebx,0x64`,
+  0x54358/0x5435a/0x5435d the signed `idiv` by 100, 0x54365
+  `mov [ecx+0xca],eax`, with the y twin at 0x5436b..0x54372. NEW, and
+  it is the part nobody had written down: **the remainder is thrown away
+  at the divide** - 0x5435f `mov edx,[ecx+0xc6]` overwrites `edx`
+  before the x remainder could be stored, and the y remainder dies at
+  the epilogue (0x54378 `pop ebp`). So the engine's accumulator is a
+  SUM OF TRUNCATED STEPS, which is at most the distance travelled, not a
+  truncated total of it - a difference that only shows up across a
+  multi-row walk, and one that no port-side leg can see because the port
+  never truncates.
+- WHAT THAT BOUNDS, QUOTING PR-118'S OWN WORDING. Its section 6 derives
+  the port's boundary law and its reachability claim, quoted verbatim
+  (NEXT_STEPS.md:9595):
+  "needs `k * 7|F| = 1000t`: the reachable t are exactly the multiples
+  of `7|F| / gcd(7|F|, 1000)`"
+  That law is the PORT'S feed, which is fractional. On the engine's
+  feed the per-step amount is an integer q = trunc(|v_x|/100), so the
+  thresholds reachable there are the multiples of q - and q = 0 is the
+  case PR-99 item 9 already recorded ("a walk under 1 px/tick advances
+  the frame list by nothing"). So the 713-at-dt=20 and 689-at-dt=40
+  figures count the PORT's boundaries; turning them into engine figures
+  needs q for each authored state, i.e. the `.MOV` `F=` to v_x
+  relation, which is the half PR-118 left open, in its own words:
+  the value the engine adds per frame in `[obj+0xca]` is still unread.
+- PR-99 ITEM 9'S TEST, WHICH NOW EXISTS. Its closing sentence, quoted
+  verbatim:
+  That quantization is visible at low speeds and is worth a test of its
+  own.
+  It does now, as a mutation run against the shipped bytes:
+  `prog/quant.py` replaces the walk feed with `o->facc +=
+  (double)(int)dist`, which is the engine's `trunc(|v_x|/100)` shape at
+  0x5434d..0x54365. Against `ported/ll_level.c` at sha256
+  c3956398b6cc51f... (the bytes of PR-119), transcript
+  /tmp/opencode/pr120_quant.txt: build rc=0 with 0 warnings,
+  `--play-selftest` 0 failures, `--mov-selftest` exactly ONE failure -
+  leg 9's first check, `facc 0` instead of 2.9999999999999991, because
+  the 0.15 that fixture feeds per call truncates to 0 and the row never
+  closes. Leg 8 passes under it: its fixture's step is `100*2000/4000` =
+  50, a whole number, so truncation cannot touch it. So the port's
+  fractional feed - the difference the code comment at :1073-1077 calls
+  deliberate - is pinned by a leg, and no other leg in either chain
+  notices the difference.
+- OPEN ITEMS (PR-120 1-2). (1) The position writer, which PR-99 item 10
+  named and this record narrows to 0x54810/0x54830/0x54836: what consumes
+  `[obj+0xca]`, and whether the object's own coordinates are advanced by
+  that truncated dword or by a path that keeps the hundredths. (2) The
+  `.MOV` `F=` to v_x relation, needed to compute q per authored state
+  and therefore to give any engine-side count of distance-fed boundary
+  rows; carried from PR-118 item 2, unchanged by this reading.
+- GATES. No code, no `Makefile`, no `tools/` or `.gitignore` line is in
+  this commit, so the prompt's build gates do not apply and no build was
+  run for it. What was run: the QUANT mutation above, against the bytes
+  PR-119 shipped (`c3956398b6cc51f...`), after which `git status`
+  reports `ported/` clean - the source is back byte-for-byte. The
+  disassembly evidence is in /tmp/opencode/pr120_dis.txt: the source
+  image's sha256, the indexed scan with its `suspect` flags, and the
+  exact-byte `dis` of 0x543a0+0xa0 and 0x5434d+0x30. `leo.sqlite` is
+  the derived index under /tmp, rebuilt in that session; nothing under
+  git changed by it. No game data and no captured frame in this commit.
+
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

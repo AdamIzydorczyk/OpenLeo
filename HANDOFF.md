@@ -681,6 +681,36 @@ a walking state is unread, so this is recorded as PR-119 open item 1 and
 the leg makes no engine claim. No behaviour changed: the leg and the
 summary clause that names it are the only lines added under ported/.
 PR-119 record in NEXT_STEPS.md.
+PR-120 added 2026-11-18: a byte-level reading of the engine's own row
+feed, no code change. It answers PR-119 open item 1 (whether the dword
+the row gate's accumulator consumes is the pixel counter or a second
+one): NEITHER. `[obj+0xa1]` is a field whose only consumer anywhere in
+the object code is the row gate at 0x52323, the load behind the compare
+at 0x52329; its writer set is the four feed sites PR-116 listed, the set
+at 0x52118 and the three zeroes, and the mode-2/mode-3 branches write it
+through a register offset (`0x5440c/0x54414`, 0x54435/0x5443d), which a
+scan for the text `+0xa1]` misses. What the feed adds is `abs()` of
+`[obj+0xca]` (`cdq`/`xor`/`sub` at 0x543cc..0x543cf), and that dword is
+made by an `idiv` by 100 a few instructions earlier (0x5434d..0x54365,
+y twin 0x5436b..0x54372) - NEW here is that the remainder is dropped AT
+THE DIVIDE (0x5435f overwrites `edx`; the y remainder dies at the
+epilogue), so the engine counts a sum of truncated steps, never a
+truncated total. Two consequences recorded in the PR-120 record: the
+engine-side set of reachable distance-fed thresholds is the multiples of
+that per-step integer (so PR-118's 713/689 figures are the PORT's
+boundary count, and its own law is quoted there), and the `F=` to v_x
+relation stays the missing input for any engine-side count. PR-99 item 9
+said the same quantization "is worth a test of its own": it has one now,
+as the QUANT mutation (`o->facc += (double)(int)dist`, transcript
+/tmp/opencode/pr120_quant.txt) - it breaks exactly one leg in either
+chain, PR-119's leg 9, at its first check, because 0.15 a call truncates
+to 0; leg 8 passes it because that fixture's step is a whole 50. So the
+port's fractional feed, which the code comment at :1073-1077 calls a
+deliberate difference, is pinned by a leg. Unchanged: PR-99 item 10's
+"the position writer is still unread", now narrowed to the three unread
+readers of `[obj+0xca]` at 0x54810/0x54830/0x54836. PR-120 record in
+NEXT_STEPS.md.
+
 
 
 
@@ -1676,6 +1706,25 @@ PR-119 record in NEXT_STEPS.md.
      which is pinned by the same leg and recorded as PR-119 item 1,
      because which accumulator the engine keeps for a walking state is
      still unread. No behaviour changed: test-only.
+
+   - THE QUANTISATION PR-99 ITEM 9 CALLED "WORTH A TEST OF ITS OWN" HAS
+     THAT TEST NOW, 2026-11-18, PR-120. Its words, quoted verbatim:
+     "That quantization is visible at low speeds and is worth a test of
+     its own."
+     It is a mutation, not new code: `prog/quant.py` feeds
+     `o->facc += (double)(int)dist`, the engine's whole-pixel-per-step
+     shape, and against the shipped bytes it fails exactly one leg in
+     either chain - PR-119's leg 9, first check, `facc 0` where the
+     drift value belongs - with `--play-selftest` clean
+     (/tmp/opencode/pr120_quant.txt). Leg 8 passes it: that fixture's
+     per-step feed is a whole 50, so truncation cannot reach it. The
+     reading that came with it: the row accumulator `[obj+0xa1]` is a
+     field whose only consumer is the row gate (0x52323), so there is no
+     engine-side twin of the port's `facc`/`xa` pair - the second
+     mechanism PR-119 pinned is port-internal - and the sub-pixel part
+     of the engine's feed is dropped at the divide (0x5435f), which
+     bounds PR-118's reachable-threshold counts as port-side figures.
+     No behaviour changed and no code was touched by this PR.
 
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
