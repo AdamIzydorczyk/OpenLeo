@@ -592,6 +592,32 @@ gates breaks 41 play legs and the two object legs that pin the current
 rule, and no clip in the repo separates the two, so the flip stands as an
 owner decision with a number on it. PR-116 record; census section 5 of
 `tools/re/mov_byx_gate.py`.
+PR-117 added 2026-11-18, and it closes a gap PR-116 named about its own
+fixtures, quoted above: "nothing at all breaks if only the object's
+walking half is flipped: no leg puts a distance-fed accumulator exactly
+on a threshold, which is the fixture gap PR-116 records" That sentence is
+no longer current. A leg 8 of `obj_motion_selftest` (ported/ll_level.c,
+before the `rc = 0;` of that function) puts a distance-fed accumulator
+exactly on a threshold: fixture
+`[A_RUN] control=BY_X / F=100,0` with one 100-unit row, and `obj_walk`'s
+feed is `|F| * dt_ms / 4000.0` (ll_level.c:1101-1104), so two dt=2000
+calls give 50.0 and then exactly 100.0 - both products are exact in
+binary64, so it is a real equality. The first call closes nothing, moves
+x 20 -> 70 and leaves `row_t`/`row_rem` at 0, because a walking state
+never runs `obj_row_tick` (:1169-1181); the second is the boundary, and
+the port's rule closes that one row, lands `facc` on 0.0, wraps the row
+list without an anchor snap (:1212 skips it for a walking state) and ends
+at x 120. PR-116's mutation program (g2b, `<` -> `<=` at :1230) now fails
+exactly that leg and nothing else, with a clean control run first; the
+mutant leaves `facc` at 100.0 while x still reaches 120, because the walk
+moves the object independently of this gate. No behaviour changed - not
+one logic line of ported/ was touched. The play half of the same question
+is still open and was measured, not assumed: a probe at the player's row
+loop (ll_play.c:1286) printed 0 equalities over the whole play selftest,
+and that feed is `p->vx * (dt_ms / 1000.0)` (:913, :1100, :1119), which
+cannot hand an integer threshold exactly at the shipped 28 ms step.
+PR-117 record in NEXT_STEPS.md.
+
 
 
 ## 7. Open questions (ranked by how much they block)
@@ -1516,6 +1542,25 @@ owner decision with a number on it. PR-116 record; census section 5 of
      gap PR-116 records). No clip in the repo separates the two, exactly as
      PR-110 said. PR-116 record; `tools/re/mov_byx_gate.py` section 5,
      output `/tmp/opencode/pr116_census.txt`.
+   - THE FIXTURE GAP IN THAT BULLET, CLOSED 2026-11-18 BY PR-117. Its
+     parenthetical - that flipping only the object's WALKING half of the
+     row gate breaks nothing, because no leg puts a distance-fed
+     accumulator exactly on a threshold - is no longer true. Leg 8 of
+     `obj_motion_selftest` puts `facc` exactly on a 100-unit row's
+     threshold (fixture `control=BY_X` `F=100,0`, one row `1,100`, two
+     dt=2000 calls; the walk feed `|F| * dt_ms / 4000.0` is exact in
+     binary64, so 50.0 then exactly 100.0), and the same g2b mutation -
+     `<` -> `<=` at ll_level.c:1230 - now fails exactly that leg and
+     nothing else, with a clean control run before it. The section-6
+     paragraph above quotes the wording it supersedes and gives the
+     arithmetic. What is still open is the PLAY side of the same
+     boundary: a probe at the player's row loop (ll_play.c:1286) printed
+     0 equalities over the whole play selftest, and that feed is
+     `p->vx * (dt_ms / 1000.0)` (:913, :1100, :1119), which cannot hand
+     an integer threshold exactly at the shipped 28 ms step - PR-117 open
+     item 1. No behaviour changed: not one logic line of ported/ was
+     touched.
+
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64
      files are above it (the lion's TUNGA A_WSP_LIN `T=160,50`, LONA.05's

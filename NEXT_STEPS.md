@@ -9470,6 +9470,87 @@ back at 0x52118, and no row of this corpus can skip the compare
   Which events reset an accumulator mid-state, and whether any authored
   level relies on it, is unread.
 
+## PR-117 — a distance-fed accumulator EXACTLY on a threshold is now a
+tested case: leg 8 of `obj_motion_selftest` closes PR-116's open item 2 and
+its G2b mutation is caught
+
+- WHAT THIS PR DOES. One test-only leg (leg 8 of `obj_motion_selftest`)
+  plus its summary string. No behaviour change: not one logic line of
+  ported/ was touched, only a test and comments. It closes PR-116's open
+  item 2, quoted verbatim (NEXT_STEPS.md:9455-9456): "(2) A leg that
+  puts a distance-fed accumulator exactly on a threshold: G2b is a
+  survivor." PR-116 had found that gap by mutation, not by
+  inspection, and this PR is the fixture it asked for.
+- THE LEG AND ITS ARITHMETIC. Fixture `[A_RUN] control=BY_X / F=100,0`
+  with ONE row `1,100` - a walking state whose rows are fed by travelled
+  distance, and a threshold of exactly one row's worth of units.
+  `obj_walk` feeds `dist = |fx| * dt_ms / 4000.0` into `facc` and `xa`
+  (ll_level.c:1101-1104), so:
+  - call 1, dt = 2000: `dist` = 100 * 2000 / 4000 = 50.0. `facc` 50.0 is
+    below the 100 threshold, so no row closes; the walk moves the object
+    50 px (x 20 -> 70); and `row_t` / `row_rem` stay exactly 0, because
+    `walk0` at :1169-1181 keeps a walking state away from
+    `obj_row_tick` - the "one accumulator, one source" rule, now pinned
+    from the other side.
+  - call 2, dt = 2000: `facc` is EXACTLY 100.0, the stored threshold -
+    `100 * 2000` and `/ 4000.0` are both exact in binary64, so this is a
+    real equality and not a near miss. The port's rule closes the row,
+    `facc` lands on 0.0, the end-of-list branch wraps `fi` back to 0 and
+    skips the anchor snap (:1212 asks for the mode bit and the state is a
+    walking one), so x reaches 120. Hand-derived, no game data, no frame.
+- THE MUTATION, BEFORE AND AFTER (/tmp/opencode/mut/run117.sh, output
+  /tmp/opencode/mut/run117.out). H0 is the control - the new tree with no
+  patch: 0 build warnings, play rc=0 with 0 failures, mov rc=0 with 0
+  failures. Then G2b, the same program PR-116 used
+  (/tmp/opencode/mut/prog/g2b.py), which turns ll_level.c:1230
+  `walk ? o->facc < (double)f->thresh` into `<=`. PR-116 recorded that
+  this broke nothing anywhere; it now fails exactly one leg, the new one:
+  "motion selftest: FAILED at exact equality: fi 0 facc 100 x 120 row_t
+  0". The printed values are the mutant's and they say what the flip
+  does: the row never closes, so `facc` is left sitting at 100.0, while
+  x still reaches 120 because `obj_walk` moves the object independently of
+  this gate. Nothing else changes - play rc=0 with 0 failures and every
+  earlier object leg still passes.
+- THE PLAYER SIDE, MEASURED NOT ASSUMED. /tmp/opencode/mut/prog/eq_player
+  .py inserts one print at the loop-entry boundary of the player's row
+  loop (ll_play.c:1286) that fires on `walk && p->facc == (double)thresh`.
+  Built with 0 warnings; `./ll_level --play-selftest` rc=0, 0 failures,
+  and 0 EQDIAG lines - no play leg of this repo lands a distance-fed
+  accumulator on a threshold either. The obstacle is arithmetic, not
+  fixture design: that feed is `p->vx * dt` with `dt = (double)dt_ms /
+  1000.0` (ll_play.c:913, :1100, :1119), and 0.028 is not representable
+  in binary64, so the shipped iteration step cannot hand an integer
+  threshold exactly. A `dt_ms` of 1000 makes `dt` exactly 1.0, and then
+  F=100 feeds exactly 100.0 in one step - that is arithmetic on the
+  port's own code, not a test, and it is item 1.
+- WHAT THIS PR DOES NOT CLAIM. That the engine fires at `facc == thresh`
+  on a distance feed is not new evidence. PR-116 read the compare at
+  0x52320-0x5232b, and that is the same code for every row whatever fed
+  the accumulator: the feed is chosen by mode at the dispatcher 0x543a0,
+  mode 0 writing [obj+0xa1] at 0x543d1. So the engine would keep the
+  accumulator at this boundary and run the row one feed later - an
+  inference from two verified readings, labelled as one, and still the
+  owner's decision (PR-116 item 1). What a test can do is pin which side
+  the PORT is on, and now the distance-fed side of it is pinned too.
+- GATES (the same set as any ported/ change, since a test is code):
+  `make` and `make win` rc=0, `make ll_level` 0 warnings,
+  `./ll_level --play-selftest` and `--mov-selftest` rc=0 with 0 failures -
+  the mov chain reaches leg 8, `obj_motion_selftest` is in it at :2981 -
+  and both `make -k verify-all` passes, with the fixtures and
+  fixture-free, EXIT=0 with the 23 named SKIP lines unchanged. The record
+  of the runs is in the commit message and /tmp/opencode/pr117_gates.txt.
+- OPEN ITEMS (PR-117 1-2). (1) A player-side leg for the same boundary.
+  The probe says the case is untested there; its feed's arithmetic is why
+  it is unreachable on the shipped 28 ms step; a leg would need a dyadic
+  `dt_ms` (1000 is enough) and the play rig, and since that gate is ONE
+  compare for both feeds any flip of it is already caught 41 ways by
+  PR-116's G1 - so the value is in pinning the distance path itself, not
+  the compare. (2) PR-116's items 1, 3, 4 and 5 are untouched and still
+  stand: the strict-greater flip is an owner decision with a number on it
+  (15066-15317 rows), the 251 `WAIT`-carrying row lines' node type is
+  unread, what the row handler does with the remainder it is handed is
+  unread, and which events run the three accumulator zeroes is unread.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

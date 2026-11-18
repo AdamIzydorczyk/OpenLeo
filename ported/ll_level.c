@@ -2719,6 +2719,101 @@ static int obj_motion_selftest(void)
         free(mo);
         free(on);
     }
+    /* 8. PR-117 (PR-116 open item 2): a DISTANCE-fed accumulator sitting
+     * EXACTLY on a threshold. Leg 7 above closes rows on a TIME feed,
+     * and PR-116's mutation run (/tmp/opencode/mut/run116.sh) found
+     * that flipping ONLY the walking half of the object's row gate -
+     * `walk ? o->facc < (double)f->thresh` at :1230, to `<=` - broke
+     * nothing anywhere: no leg of this repo put a distance-fed
+     * accumulator exactly on a threshold, so the rule at equality was
+     * unpinned on that half. The accumulator is `facc`, a double fed by
+     * obj_walk with |fx| * dt_ms / 4000 units (:1101-1103), which is
+     * the engine's mode-0 feed of |obj+0xca| into [obj+0xa1] (0x543d1)
+     * under PR-98's distance law. Hand-derived, no game data: F=100 is
+     * 100 units per 4000 ms, so dt=2000 is exactly half a row and ONE
+     * row of 100 units is the whole threshold.
+     *   call 1, dt = 2000: dist = 100 * 2000 / 4000 = 50.0. facc 50.0
+     *     < 100, so NO row closes: fi 0, and the walk moved the object
+     *     50 px, x 20 -> 70.
+     *   call 2, dt = 2000: facc is EXACTLY 100.0, the threshold. That
+     *     is the boundary. The port's rule (the >= side of the same
+     *     compare, PR-110) closes the row: facc 100.0 - 100.0 = 0.0,
+     *     and the end-of-list branch wraps fi back to 0 without
+     *     snapping the anchor, because :1212 skips the snap for a
+     *     walking state - x 70 + 50 = 120. 100 * 2000 and / 4000 are
+     *     both exact in binary64, so this is a real equality and not a
+     *     near miss.
+     * The engine at that instant does NOT fire: 0x52329 `39 d8` /
+     * 0x5232b `7d 27` (PR-116) returns through 0x52354 with the
+     * accumulator kept, and the row runs on the NEXT feed with a
+     * remainder of a whole feed. That half stays the owner's decision
+     * (PR-116 item 1); this leg's job is to pin which side the port is
+     * on, and to make the equality a tested case instead of a gap. The
+     * fixture also pins the "one accumulator, one source" rule at
+     * :1169-1181: a walking state never calls obj_row_tick, so row_t
+     * and row_rem are still 0 after 4000 ms of wall time.
+     * MUTATION (the PR-116 survivor, re-run): flipping that half to
+     * `<=` (/tmp/opencode/mut/prog/g2b.py) now fails HERE, at call 2,
+     * because 100.0 <= 100.0 stops the loop instead of closing the row:
+     * facc is left at 100.0 and no row ever closes, while x still
+     * reaches 120 because obj_walk moves the object independently of
+     * this gate. Nothing else in this chain changes: the play selftest
+     * and every earlier leg are clean under the same patch. The
+     * player's distance-fed `facc` (ll_play.c:1119) is fed the same
+     * way but its gate is ONE compare for both feeds (:1286), which
+     * PR-116's G1 already breaks 41 ways - and none of those 41 comes
+     * from a distance-fed leg: the only play leg whose distance feed
+     * runs at all is the A_PUSH one (:2518), against a 1000-unit row,
+     * where facc tops out at 1.904 and never reaches a threshold, so
+     * the player side has no equality case to pin. PR-117 open item
+     * 1 records why it stays that way. */
+    {
+        static const char walkrow[] =
+            "A_RUN\n\n[A_RUN]\ncontrol=BY_X\nF=100,0\n1,100\n";
+        ll_mov_t *mw = calloc(1, sizeof *mw);
+        obj_script sw;
+        lvl_obj d;
+        memset(&sw, 0, sizeof sw);
+        sw.mov = mw;
+        if (!mw || ll_mov_parse(walkrow, mw) != 1 ||
+            mw->st[0].nfr != 1 || mw->st[0].fx != 100 ||
+            mw->st[0].fr[0].thresh != 100u) {
+            fprintf(stderr, "motion selftest: FAILED the walking-row"
+                            " fixture did not parse as authored (F=100 and"
+                            " one 100-unit row)\n");
+            free(mw);
+            goto out;
+        }
+        memset(&d, 0, sizeof d);
+        d.sc = &sw;
+        d.x = 20;
+        obj_advance(&d, 2000);
+        if (d.fi != 0 || d.facc != 50.0 || d.xa != 0.0 || d.x != 70 ||
+            d.row_t != 0u || d.row_rem != 0u) {
+            fprintf(stderr, "motion selftest: FAILED half feed: fi %d facc"
+                            " %g x %d row_t %u rem %u (want NO row from"
+                            " half a row's distance: facc 50.0 < 100, the"
+                            " walk moving x 20 -> 70, and no wall clock on"
+                            " a walking state at all)\n", d.fi, d.facc,
+                    d.x, d.row_t, d.row_rem);
+            free(mw);
+            goto out;
+        }
+        obj_advance(&d, 2000);
+        if (d.fi != 0 || d.facc != 0.0 || d.xa != 0.0 || d.x != 120 ||
+            d.row_t != 0u || d.row_rem != 0u) {
+            fprintf(stderr, "motion selftest: FAILED at exact equality:"
+                            " fi %d facc %g x %d row_t %u (want facc"
+                            " EXACTLY on the 100-unit threshold to close"
+                            " that one row and land on 0.0, the list"
+                            " wrapping without an anchor snap for a"
+                            " walking state, x 70 -> 120)\n", d.fi,
+                    d.facc, d.x, d.row_t);
+            free(mw);
+            goto out;
+        }
+        free(mw);
+    }
     rc = 0;
 out:
     free(m1);
@@ -2920,7 +3015,14 @@ int ll_mov_selftest(void)
            " call inherits; a 1700-unit call on a one-row list closes"
            " ALL 17 rows in that one call) - the player's own row loop"
            " is the one that stops at 4 * nfr closures and drops what"
-           " its cap leaves over (ok)\n");
+           " its cap leaves over + PR-117 a distance-fed accumulator"
+           " landing EXACTLY on a row's threshold closes it (two dt=2000"
+           " calls at F=100 put facc on 100.0 against a 100-unit row:"
+           " the row fires, facc lands on 0.0, the list wraps without an"
+           " anchor snap because the state is a walking one, and the"
+           " wall clock never ran; the engine at that instant would keep"
+           " the accumulator and fire one feed later, which stays PR-116"
+           " open item 1, not this test's claim) (ok)\n");
     return 0;
 }
 
