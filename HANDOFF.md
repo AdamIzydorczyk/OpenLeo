@@ -275,6 +275,162 @@ covers part of the frame (above); and it was captured through an
 emulator, so anything about real hardware timing (the PIT, the display
 rate) is out of scope, as it was for the other two.
 
+THE LEVEL INDEX - WHERE EACH LEVEL CAN BE WATCHED (2026-11-18, at the
+owner's request: "should be references to levels", "on videos",
+"names"). The 13 names are the `ETAPY` stage ids, and the stage-to-
+chapter correspondence is not a guess: every LEVELDES record carries a
+`dir=` key giving its stage, and the port already reads that key
+(`ported/ll_level.c:5724`, `:5758`, `:6023`). All 13 pairs, from the
+extracted records in `/tmp/opencode/lvdes`:
+
+    ZARIA1.DES   dir=zaria.01    ZARIA2.DES   dir=zaria.02
+    ENA1.DES     dir=ena.03      ENA2.DES     dir=ena2
+    KADMAR1.DES  dir=kadmar.07   KADMAR2.DES  dir=kadmar2
+    KARA.DES     dir=kara.07     LONA.DES     dir=lona.05
+    RAN.DES      dir=ran.01      SADES.DES    dir=sades.06
+    TUNGA1.DES   dir=tunga.11    TUNGA2.DES   dir=tunga2.12
+    JUNCTION.DES dir=junction
+
+Each level's own title card was READ frame by frame at the times below.
+The card's first line is the chapter name the LEVELDES record is named
+after. Its second line is a subtitle, and R3's cards are drawn in
+ENGLISH while the Zax37 episodes' are in POLISH: the game ships ENG,
+GER and POL tables next to the LEVELDES records (`/tmp/opencode/lvdes/
+ENG`, `GER`, `POL`, `POL.ORG`), which is why both appear. The two
+agree word for word - R3 "LONA / land of penguins" is ep.5 "Kraina
+Pingwinow" (= Kraina Pingwinow), "SADES / deep down" is ep.6 "Segajac
+Dna" (= Siegajac Dna), "KADMAR II / egyptian dark" is ep.8 "Egipskie
+Ciemnosci", "ENA II / pirate treasure" is ep.4 "Pirackie Skarby", and
+ep.2's own card was read at t=49 s of `ep02_ti6IYfhh1bI.mkv`:
+"ZARIA II / zar tropikow" (= zar tropikow). (This file drops the Polish
+diacritics to keep the columns narrow; the `.info.json` files beside
+the videos keep the upstream titles exactly as upstream has them.)
+
+RANGES IN R3 (`OvbbJTmp79I.mkv`). Times are seconds in the file; at
+60 fps a frame number is seconds x 60. All of them are +-2 s, because
+the detector samples once a second and an accurate-seek extraction lands
+up to 2 s away. The split files are `reference/video/levels/<stage
+id>.mkv`, made from R3 with `-c copy` at exactly these boundaries (each
+starts about 2 s before its card); the 4.77 GB master is KEPT and stays
+the source of record for any measurement. A range listed twice means the
+player entered that level twice in one sitting.
+
+  ZARIA.01    "ZARIA I / first steps"      0-458, 1924-2344. The 0-458
+            range rests on the owner's map alone: no card was detected
+            there. The card at 1931 was read.
+  ZARIA.02    "ZARIA II"                   458-786, 2344-2699. 2353 was
+            read by PR-111; at 462 there is only a black hold.
+  ENA.03      "ENA I / underwater journey" 786-1577, 2699-3229
+  ENA2        "ENA II / pirate treasure"   1577-1899, 3229-4455
+  LONA.05     "LONA / land of penguins"   4455-4937, 5062-5792
+  SADES.06    "SADES / deep down"          4937-5012, 5792-7170
+  KADMAR.07   "KADMAR I / ancient mysteries" 7170-8619. The card is
+            re-shown at 7637: a second attempt at the same level.
+  KADMAR2     "KADMAR II / egyptian dark"  8619-15363
+  RAN.01      "RAN / two weeks in a baloon" 15363-15764 - "baloon" is
+            the game's own spelling. A still picture of a pink balloon
+            over a night desert at 15651 is in-level art, not a card.
+  KARA.07     "KARA / magic castle"        15764-16280
+  TUNGA.11    "TUNGA I / so close"         16280-16944
+  TUNGA2.12   "TUNGA II / the last battle" 16944-20263. The two TUNGA
+            cards re-appear at 16933, 17111, 17718, 17759, 17795,
+            17907, 18889, 19284: repeated attempts, not new levels, and
+            none of them is in the owner's map.
+  JUNCTION    NOT IN THIS CAPTURE - no card and no candidate anywhere
+            in the 5 h 39 m; the owner's map has no entry for it
+            either. Recorded as absent from this file, not as absent
+            from the game.
+  not a level: 1899-1924 and 5012-5062 are menus (the map's `31:43`
+            and `1:23:36` MENU marks), 20263-20389 is the ending and
+            the end screens.
+  The 24 files, named exactly as listed here: the stage id for the
+            first visit, `<stage id>_b` for the second visit in the
+            same sitting, `TUNGA_replay` and `TUNGA2_replay` for the
+            stretches where a TUNGA card is re-shown but no new level
+            starts, `UNRESOLVED_19282_20265` for the stretch after the
+            last identified card, and `MENU_intro`, `MENU_2`, `ENDING`.
+            Cut with `-ss <start> -i OvbbJTmp79I.mkv -t <length>
+            -c copy`, so each starts at the keyframe at or before its
+            start second; 4.5 GB total, master kept, nothing staged
+            (`reference/video/` is gitignored).
+
+HOW THE BOUNDARIES WERE FOUND. `/tmp/opencode/stillscan.py` samples one
+cropped 320x200 grayscale frame per second and reports runs of 3 or
+more BYTE-IDENTICAL samples. A title card is a 3-5 s pure-black hold
+(black fraction 1.0000, bright pixels 0) followed by 4-8 s of static
+text (black 0.90-0.94, bright 1100-1830, text band at rows 50..146 of
+the cropped window); gameplay is never identical for 3 s, because the
+lion idles even when nobody moves. Over the whole file that gives 63
+runs, of which about 25 are cards; requiring at least 200 bright pixels
+in the band is what separates cards from fades. Two cards are missed by
+it, "ZARIA I" at 1931 and "ZARIA II" near 2353, because those cards are
+not static - both were read anyway, so a negative from this detector is
+not evidence of absence. The same pass finds NOTHING on the 480p
+episodes, because YouTube's re-encode makes a still card differ by
+0.4-0.6 mean luma every second; for those files the usable test is
+`/tmp/opencode/cardshape.py` (black fraction plus a compact bright
+band), and its hits include the uploader's own "LEW LEON" intro, which
+appears at 9-13 s of EVERY episode - it was read, it is not a game
+card. Neither detector is a verdict: every name above came from reading
+the frame.
+
+THE MAP IS NOW CONFIRMED, including the two entries PR-111 flagged as
+bad. Every mark in the time map above is within a few seconds of a
+detected card except `43:59 ENA 2`, which stays wrong exactly as
+PR-111 read it. And `7:77` reads as 7 min 77 s = 477 s: there is a
+black hold at 462, consistent with a level change there. That is an
+inference about a malformed mark, not a read card, and it is the only
+remaining doubt about the map.
+
+ADDITIONS TO THE THREE ENTRIES ABOVE (new records, not edits of shipped
+wording):
+- `frame 2353`, `frame 2713` and `frame 7233` in the "WHAT WAS CHECKED
+  AGAINST THE FILE" paragraph are SECONDS (39:13, 45:13, 2:00:33), not
+  frame numbers: this file is 60 fps, so those cards are at frames
+  141180, 162780 and 433980. The paragraph's own conclusions are
+  unaffected.
+- R1's footage is also on disk as `reference/video/ep01_xPiXBmPEdXg.mkv`
+  (it came down with the playlist). Same container size 41 034 044 B,
+  different container sha256, and the h264 elementary streams are BYTE-
+  IDENTICAL: both 34 046 474 B, sha256
+  4fbab8d52dc75cc14f49e9b45a9bf8a29403cd66de33c3cc4a52456f0a3399e3.
+  The audio streams differ (6 917 407 B each, sha256 6895526a04b46836
+  against 1eac4609fbcf3c6a). So they are the same encode of the same
+  video and every measurement in this file applies to either. R1's path
+  stays the name of record, because the entry above cites it; the
+  duplicate is kept, not deleted.
+- R2 (`ladder-DomCTOtx2rg`) is inside the ZARIA chapter. The owner
+  supplied the mark `https://www.youtube.com/watch?v=DomCTOtx2rg&t=50s`
+  with the words "here only zaria" (2026-11-18), so PR-109's climb at
+  46.6-48.3 s is in a ZARIA level. It is still unfit for position
+  claims (1.8x, 30 fps), so nothing measured on it changes.
+- The 11 playlist episodes are all on disk, kept whole and named
+  `epNN_<id>.<ext>` (owner's decision), 546 468 452 B in total: 8 are
+  `.mkv` and 3 are `.mp4` (ep.6, ep.7, ep.8), all h264 640x480 at 25
+  fps, so they belong to R1's geometry class, not R3's, and R1's
+  `crop=640:400:0:40` warning about measuring the band per segment kind
+  applies to each of them. Their `.info.json` files are named
+  `<basename-without-extension>.info.json`, NOT `<file>.info.json` with
+  the extension, and yt-dlp also wrote two playlist-level metadata
+  files (`ep00_PL6B7604DEF5B643F9.*`, `ep11_PL6B7604DEF5B643F9.info.
+  json`). To refill the whole set:
+
+    ~/.local/bin/yt-dlp --ignore-errors --write-info-json \
+      --write-description -f "bv*[height<=480]+ba/b[height<=480]" \
+      -o "ep%(autonumber)02d_%(id)s.%(ext)s" \
+      "https://www.youtube.com/watch?v=xPiXBmPEdXg&list=PL6B7604DEF5B643F9"
+
+  Which level each episode is about comes from its title: the titles are
+  the game's own card subtitles (proved by reading ep.2's card, and
+  cross-checked against R3's English cards for ep.4, ep.5, ep.6, ep.8).
+  Reading the cards inside the rest is still open: the shape test found
+  candidates at 181/203 s of ep.1, 114/193 s of ep.4, 106/396 s of
+  ep.5, 62-282 s of ep.6, 67/265/294 s of ep.8, 146-420 s of ep.9,
+  54/300 s of ep.10 and 124/298/506 s of ep.11, and it finds NO card
+  in ep.3 or ep.7 at all. Episodes cover more than one level and are
+  edited, so they are references for behaviour, never for a level's
+  length.
+
 `/tmp` is a tmpfs: after a reboot restage the data (recipe in NEXT_STEPS.md,
 "restaging"). The reference captures are NOT in /tmp any more - they live
 in `reference/video/` on disk; if they are ever lost, the `yt-dlp` lines

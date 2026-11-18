@@ -10240,6 +10240,112 @@ index, and the port already asks the same question of its .PLT ground
   <= 79 columns.
 
 
+## PR-124 — the reference-capture catalog: every level in the 5 h
+recording is now indexed by its own title card, R3 is split into
+level-named files, the playlist is complete on disk, and R1's footage is
+proved byte-identical to one of its episodes (DOCS ONLY, no code)
+
+- WHAT THE OWNER ASKED, quoted: "in that catalog should be downloaded
+  all movies, that 5h material should be splited, every file should be
+  named correctly by level name", and then the shape of the document:
+  "information about episodes is pointless, should be references to
+  levels" / "on videos" / "names". So HANDOFF §3 gained a LEVEL INDEX
+  keyed by the engine's own names, each level pointing at a file and a
+  time range, instead of a catalogue of episode metadata.
+- THE NAME EVIDENCE IS DATA, NOT VIEWING. Every LEVELDES record carries
+  a `dir=` key naming its stage, and the port already reads that key
+  (`ported/ll_level.c:5724`, `:5758`, `:6023`): ZARIA1.DES -> zaria.01,
+  ZARIA2.DES -> zaria.02, ENA1.DES -> ena.03, ENA2.DES -> ena2,
+  KADMAR1.DES -> kadmar.07, KADMAR2.DES -> kadmar2, KARA.DES ->
+  kara.07, LONA.DES -> lona.05, RAN.DES -> ran.01, SADES.DES ->
+  sades.06, TUNGA1.DES -> tunga.11, TUNGA2.DES -> tunga2.12,
+  JUNCTION.DES -> junction. So the chapter name the card draws and the
+  stage id the census uses are tied by the game's own key, not by my
+  reading of a video.
+- EACH CARD WAS THEN READ. "ZARIA I / first steps" at 1931 s, "ENA I /
+  underwater journey" at 2711 s, "KADMAR I / ancient mysteries" at
+  7230 s, "ENA II / pirate treasure" at 1587 s, "LONA / land of
+  penguins" at 4465 s, "SADES / deep down" at 4947 s, "KADMAR II /
+  egyptian dark" at 8629 s, "RAN / two weeks in a baloon" at 15372 s
+  (the game's own spelling), "KARA / magic castle" at 15808 s, "TUNGA I
+  / so close" at 17718 and 18889 s, "TUNGA II / the last battle" at
+  16948 s, and inside the 480p set "ZARIA II / zar tropikow" at 49 s of
+  `ep02_ti6IYfhh1bI.mkv`. ZARIA II, ENA I and KADMAR I were already
+  read by PR-111 at 2353/2713/7233 - here they are re-found by the
+  detector at 2348/2711/7230, which agrees with PR-111 within 3 s and
+  confirms those marks are SECONDS, not frame numbers (see the §3
+  addition: at 60 fps the cards are frames 141180/162780/433980).
+- A SECOND, INDEPENDENT LOCALIZATION AGREES WORD FOR WORD. R3's cards
+  are drawn in English, Zax37's in Polish, and the game ships ENG, GER
+  and POL tables next to the LEVELDES records (`/tmp/opencode/lvdes/
+  ENG`, `GER`, `POL`, `POL.ORG`). R3 "LONA / land of penguins" is
+  ep.5 "Kraina Pingwinow", "SADES / deep down" is ep.6 "Segajac Dna",
+  "KADMAR II / egyptian dark" is ep.8 "Egipskie Ciemnosci", "ENA II /
+  pirate treasure" is ep.4 "Pirackie Skarby", and ep.2's title is
+  literally the card text I read at 49 s. The owner's level map is
+  therefore corroborated by the game's own text in two languages at
+  every point I could check, and `7:77` is best read as 7 min 77 s =
+  477 s, next to a detected transition at 462 - flagged as an
+  inference. `43:59 ENA 2` stays wrong exactly as PR-111 read it.
+  JUNCTION has no card and no candidate anywhere in 20 389 s: recorded
+  as absent from THIS capture, not from the game.
+- THE DETECTOR THAT WORKS, and the two that do not. A title card in a
+  60 fps capture is 3-5 s of pure black (black fraction 1.0000, bright
+  0) then 4-8 s of BYTE-IDENTICAL frames with text (black 0.90-0.94,
+  bright 1100-1830, band rows 50..146 of `crop=1152:720:0:0,
+  scale=320:200`). /tmp/opencode/stillscan.py reports runs of >= 3
+  identical samples; over the whole file that is 63 runs, ~25 cards,
+  and requiring >= 200 bright pixels in the band separates cards from
+  fades. A blackness test alone is worthless (the 1 fps sweep in
+  /tmp/opencode/r3_black.csv, 20 389 samples: 8 204 hits, 229 runs) and
+  a byte-exact test finds nothing at 480p, where a still card differs
+  by 0.4-0.6 mean luma per second - there /tmp/opencode/cardshape.py
+  (black fraction + a compact bright band) works, and its hits include
+  the uploader's own "LEW LEON" intro at 9-13 s of every episode, which
+  was read and is not a game card. Two R3 cards (ZARIA I, ZARIA II) are
+  NOT static and are missed: read anyway, so a negative is not evidence
+  of absence. Boundary numbers carry +-2 s.
+- ON DISK NOW, none of it staged (`reference/video/` is gitignored at
+  `.gitignore:78`). The playlist is complete: 11 episodes, `epNN_<id>`,
+  546 468 452 B, 8 `.mkv` + 3 `.mp4` (ep.6/7/8), all h264 640x480 at
+  25 fps. Their `.info.json` files are named
+  `<basename-without-extension>.info.json`, not `<file>.info.json`,
+  which is why a first extraction printed "?" for every field. R3 is
+  split into `reference/video/levels/`, 24 files, 4.5 GB, `-c copy` at
+  the boundaries in the §3 index, master kept: the 13 stage ids, `_b`
+  for a second visit in the same sitting, `TUNGA_replay`/
+  `TUNGA2_replay` where a TUNGA card is re-shown and no level starts,
+  `MENU_intro`/`MENU_2`/`ENDING`, and `UNRESOLVED_19282_20265` for the
+  stretch after the last identified card.
+- R1'S FOOTAGE AND ep.1 ARE THE SAME ENCODE, proved at the byte level:
+  both containers 41 034 044 B with different sha256, and the h264
+  elementary streams are identical - 34 046 474 B each, sha256
+  4fbab8d52dc75cc14f49e9b45a9bf8a29403cd66de33c3cc4a52456f0a3399e3 -
+  with 75 frames at t=300 md5-identical; only the audio streams differ
+  (6 917 407 B, sha256 6895526a04b46836 vs 1eac4609fbcf3c6a). R1's
+  path stays the name of record, since the shipped §3 entry cites it.
+- NEW FACT FROM THE OWNER for R2: the mark
+  `https://www.youtube.com/watch?v=DomCTOtx2rg&t=50s` with "here only
+  zaria" puts PR-109's climb (46.6-48.3 s) inside the ZARIA chapter.
+  R2 remains unfit for position claims (1.8x, 30 fps).
+- STILL OPEN. The cards INSIDE the episodes are not read (candidates
+  listed in §3; ep.3 and ep.7 yield none at all), so an episode is a
+  reference for behaviour and never for a level's length. 19282-20265 is
+  unresolved. The 0-458 range rests on the owner's map alone. Which of
+  the repeated TUNGA stretches belongs to which stage is not pinned.
+- GATES. Docs only: no `ported/`, `Makefile`, `tools/` or `.gitignore`
+  line changed, so the prompt's build legs do not apply and no build
+  was run; this unit moves no code and no fixture. The videos, their
+  `.info.json` and `.description` and the new `levels/` cut are all
+  gitignored and none is staged - verified with `git status` before the
+  commit, which shows only `HANDOFF.md` and `NEXT_STEPS.md`. No
+  `.github/workflows` file touched. Every added line is <= 79 columns
+  (`git diff -U0` over the added lines: zero above 79). Evidence lives
+  in /tmp: `r3_still.csv` (20 389 rows) + `r3_still.log` (63 runs),
+  `r3_black.csv`, `shape_ep*.csv`, `cut.log` (one line per cut file
+  with its range and rc), the three detectors, and 49 card crops in
+  `r3cards/` including the tile sheets that were read.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
