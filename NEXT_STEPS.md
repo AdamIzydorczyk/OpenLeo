@@ -11074,6 +11074,220 @@ live in reference/video/zax37/ under the §3 index's own stage ids.
   published reproduction ... 20 Hz (PR-99)" clause is marked
   [CORRECTED IN PR-130] in place, per the house pattern.
 
+## PR-131 — the WV footage audit of ZARIA.01: a ground-truth sheet read from
+## the three captures at native resolution with cited frames, port mirror
+## renders/probes at the matching states, per-subject verdicts, and the
+## numbered gap list G-1..G-12 that steers W0-W8. (audit + one new RE tool;
+## no behaviour change)
+
+- WHY. ZARIA.01 is the stage the checklist drives to COMPLETE (the
+  "ZARIA I / first steps" stage, NEW GAME). Before more model work the
+  plan's first workstream (WV) asks: for every behaviour the footage
+  shows in this stage, what does the port currently do at the same state
+  - MATCH, DIFF, or NOT-FILMABLE - and what are the numbered gaps. The
+  output is the fact sheet the later workstreams (W0 motion law, W1
+  scene data, W2 camera, W3 player, W4 actors, W5 climb, W6 goal chain,
+  W7 level end, W8 master leg) must answer. Evidence dir:
+  /tmp/opencode/pr131 (frames/sheets/logs, never in git).
+
+- METHOD. Contact sheets at 10 s sampling of all three ZARIA.01 captures
+  (levels/ZARIA.01.mkv = R3 clip A, internal time = R3 time;
+  levels/ZARIA.01_b.mkv = R3 clip B, internal t = R3-1924;
+  zax37/ZARIA.01.mkv cropped 640x400:0:40) located the events; each
+  event window was then re-extracted at native resolution
+  (crop=1152:720:0:0 for R3, 2-4 fps sheets + named full frames) and
+  read with direct vision. The unit frame is the port's: the video
+  640x400 game frame shows a 320x200 window of the world at 2.0x, so
+  1 .DES/.PLT unit = 2 video px (the port's "view 320x200 world units,
+  shown 2x" line; re-confirmed by the lion's art size and by
+  follow_camy's ground line at (680-camy_v)*2 ~= the video's 350-360 px
+  band). The port side: LEO_LEVEL_PPM/LEO_LEVEL_PPM_TICK mirror renders
+  (t=0/20/60 ticks after spawn, port_t000/t020/t060.ppm) and three
+  script-driven probes (walk-into-the-chasm, walk-to-the-ladder twice)
+  with full logs. A general contact-sheet builder joined the repo:
+  tools/re/video_sheets.py (labels every tile with its true t and file
+  index; the one-off trackers stayed under /tmp).
+
+- WHAT THE FOOTAGE SHOWS (the ground-truth sheet; t is the file's own
+  time unless prefixed; B: = levels/ZARIA.01_b.mkv internal, X: =
+  zax37). Placements seen at their authored coords (1 unit = 2 px):
+  DRABINKA@180 ridden DOWN (A t=13.3-15.7: lion on the rungs, view
+  scrolled to cam ~100) and stood under (B: t=19-21); the lew on the
+  ladder mid-climb (B: t=200.0-200.7, then off on the ground);
+  ZWODOSPD@992 waterfall column (A t=55.7 first at the right edge,
+  60.5-62 fully in view); stepped rocks above the pool bed (.PLT
+  688/715/782 lines; A t=44.5-50); pool bed + WODA water surface with
+  the lion WALKING ON THE WATER at pool level (X: t=305-307, ripples
+  drawn, a SEP ball floating in it); KAMIEN boulders on the shelf near
+  the red temple wall (A t=38-44); SEP red balls on the ground (A
+  t=49.5, X: t=295-306); POCISK red fruits at the spawn row (A
+  t=2.3-7 - three of them at world x ~100-185 right of spawn); the
+  lew's leaping gallop (A_RUN art) is his default fast gait (A
+  t=2.3-13, X: t=290-298); a fight burst red-splatter on contact and a
+  white puff where the ball dies (X: t=299.5, 301.5); "?" SURPRISE
+  bubbles over objects (A t=45.0-46.0 - both ANI1 SURPRISEs are
+  placed); the level-end scene: a purple-robed NPC and the grey-blue
+  bird with purple wings on the ground, ball tosses and interaction,
+  then the ZARIA.02 cut at t=458 (A t=440.3-457.3); the same bird
+  swooping the lion on the canopy branch repeatedly (X: t=306-315,
+  404-411.7 - the "ride" frames at X: t=385-413 read on close view as
+  swoop-and-dodge sequences, not a sustained ride).
+  HUD (BELKA layout, items [0]-[5]): the energy head + lives digits
+  show "5" at the start of BOTH R3 clips (A t=2.0; B: t=14.0 zoomed
+  - unambiguous single digit 5); the item box shows the empty frame
+  (red dot, blue frame) at A t=2, later the selected TOOL icon (blue
+  blade from A t=30 on, pickaxe at t=250) - the tool change moment was
+  NOT located (a video cut sits near A t=44.3, backgrounds are not
+  continuous across it). The zax37 demo shows 6 lives - a different
+  save, still behaviour-only evidence. Video-artifact caveats used
+  throughout: "Pentalion just subscribed!" banner at A t=15-17, black
+  box at A t~410, the hard cut at A t=44.3, and 60 fps capture of a
+  25 Hz game (judder).
+
+- WHAT THE PORT DOES AT THE MATCHING STATES (logs: port_walk300.log,
+  port_gapfall.log, port_ladder.log, port_ladder2.log). The spawn
+  mirror (port_t000.ppm, tick 0, cam 0) draws the same first screen the
+  video shows - ladder, LINA chain, tables, fruits, waterfall objects
+  all placed; the lion art matches including the green fruit he carries
+  in his hands from spawn (A t=2.7 zoom vs the port render) and the
+  empty item box with red dot. Walk = A_WALK only, 0.4 u/tick = 20
+  u/s (probe log ticks 440-450: x 125->129), and A_RUN never enters
+  from any script key. The walk-into-the-chasm probe (FWD from tick 1,
+  JUMP at 640): the lion is hit by LICHA contact damage 15 at ticks
+  186/216/247/277/307/470 (the Makefile pins the first hit), dies
+  "energy gone -> respawn, 5 live(s) left" around tick 500-700 - it
+  never reaches x=408; the ladder probe died the same way. The worm is
+  also SEMI-solid to the lion: "solid LICHA ... SEMI at 153,669 push
+  -1,0" walks the lion back off x=153 (port_ladder2.log ticks
+  495-500). HUD: the port prints the lives digit "6" at start
+  (hard-coded "the 6 lives the playthrough video starts with" -
+  the zax37 number; the R3 clips both start at 5). Nothing in the port
+  reacts to WODA/water surfaces in play mode; the level-end scene is
+  not modelled.
+
+- VERDICTS.
+  D1 scene data/placement: MATCH for every placement the footage shows
+  at the cited frames (list above), with the port's own honest SKIPs
+  still open as G-3/G-4; KAMIEN placed but its sixth field inert,
+  ZAR.BLK unread, the two POCISK/jajo children not instantiated,
+  SEP2's script a data hole.
+  D2 player motion: DIFF - gait (the video gallops, the port only
+  A_WALKs), speed (port 20 u/s vs the video walk estimate 10-25 u/s -
+  both numbers ESTIMATE, see G-1), and the 216-unit first chasm
+  (ZARIA_A.PLT x=408..624): the port cannot cross it and the crossing
+  mechanism is STILL NOT OBSERVED in any sampled window - A t=13-28
+  (ladder up, canopy route east, down the big tree at t=25-28) is the
+  candidate explanation: the player bypassed the gap above the water,
+  not over it.
+  D3 camera: the y anchor (feet-at-178, PR-84) and the world-bottom
+  clamp match the R3 start geometry (re-checked: the port settles the
+  lion onto the .PLT surface y=680, runs the view to the cam_ymax=500
+  clamp, and the ground then sits at (680-500)*2 = 360 video px - the
+  observed 350-360 band; the p.y=648 in play logs is the position
+  point, its shape contact ~32 is the paw line). The x lead /
+  dead zone is UNVERIFIED - the video keeps the lion between ~50 and
+  ~280 units from the left edge depending on phase (G-2).
+  D4 actors: placements MATCH; behaviour partial - G-5 (SEMI worm
+  block + 30-tick contact damage kills a walking lion in <10 s; the
+  video's player crosses the same zone galloping, still 5 lives at
+  t=13), G-6 (SEP burst/kill not reproduced), G-7 (water-surface
+  walking not modelled), G-12 (SURPRISE "?" trigger unverified).
+  D5 climb chain: the mechanism exists (A_WSP/CLIMB art loads, PR-109)
+  but the ZARIA traverse at 180 is UNVERIFIED - the probe was blocked
+  by the worm at x~153 (G-9).
+  D6 goal/level end: NOT IMPLEMENTED and now filmable in detail: the
+  NPC+bird end scene (A t=440-457) and the HUD state at its end; the
+  port has nothing (G-8..G-11).
+
+- THE NUMBERED GAP LIST (what the workstreams must answer; G-k owns
+  W-k in the plan's order):
+  G-1 (W0) motion law + gait: (a) the rate-pair close stays open
+      (§7 item 13); the NEW video windows to referee are A t=2-13
+      (spawn->ladder@180, landmarks fixed) and A t=55-62
+      (ZWODOSPD@992) - measure with video_camera_shift.py /
+      video_lane_shift.py, NOT with my eyeball ESTIMATE 10-25 u/s;
+      (b) find in the .MOV rows what raises A_RUN: the video's fast
+      gait is the gallop, and the port has FWD->A_WALK only; (c) the
+      first-chasm crossing: re-watch A t=13-30 for the canopy-bypass
+      reading (lion up the ladder at 13.3, mid-canopy east t=16-24,
+      down at 25-28 to ground x ~700) before treating any running
+      jump as the reference; T1's zax37 ~315 s jump is a SEPARATE
+      jump, not that crossing.
+  G-2 (W2) x-camera dead zone/lead: measure the video's lion-x minus
+      cam-x through a scripted walk; the port's CAM_LEAD_*=100 and
+      6 u/tick ease are unmeasured guesses.
+  G-3 (W1) the KAMIEN sixth field (1308/1218/1115 on the three
+      stones) + ZAR.BLK's six records: the numbers DECREASE like
+      target x's (1360->1308, 1420->1218, 1460->1115) and ZAR.BLK
+      describes a corridor 1299..1620 - the stone puzzle is almost
+      certainly those two files talking; read ZAR.BLK like .PLT.
+  G-4 (W1) the jajo child-spawn trigger and SEP2's missing script
+      (both already logged by the port; still open).
+  G-5 (W4) contact physics vs the galloping player: SEMI push-back
+      from LICHA + 15-damage/30-tick contact killed the port's lion
+      before x=180; the video player crosses that zone with no flinch
+      frames and no life change - re-derive what contact actually does
+      (the damage= property vs knockback vs i-frames).
+  G-6 (W4) SEP life cycle: fight burst (X: t=299.5 red splatter,
+      t=301.5 white puff at the spot) - model the kill, the puff, and
+      whether the balls respawn.
+  G-7 (W4) water: the lion walks the WODA surface at pool level (X:
+      t=305-307) - what makes the surface a floor (the WODA .ANI
+      "WATER" line? the pool bed's .PLT line?); PIANA/SPLYW roles.
+  G-8 (W6) HUD lives source: both R3 clips start at "5", the port
+      hard-codes 6; map the STATUS.LEO lives/energy fields (the
+      shipped file is a fresh save - value check needed) and print
+      those, not constants.
+  G-9 (W5) verify the ZARIA.01 ladder ride at 180 end to end (climb
+      down and up, camera holds) - rerun the probe with the worm
+      zone handled (fight it, or start east of x=160 via a longer
+      script after G-5).
+  G-10 (W7) the level-end scene: purple-robed NPC + bird + ball
+      tosses (A t=440.3-457.3) precede the level transition; no
+      placement line names them and the ZARIA.01 ANIMACJE tree holds
+      no PTAK leaf (census of ANIMACJE ZARIA.01: 24 leaves, none is
+      a bird; PTAK.MOV exists only under KADMAR.07/PTAK,
+      TUNGA2.12/PTAKPLAT, RAN.01/GPTAK_RA) - so the scene is a
+      scripted chain reusing another level's leaves, or engine code;
+      find which.
+  G-11 (W7/W6) the mid-level bird interactions (X: t=306-315,
+      385-413): same provenance question as G-10; §8 T6 already names
+      the vulture ride - confirm from these windows whether any frame
+      shows the lion actually carried (I did not find one at 3x).
+  G-12 (W4) SURPRISE: the "?" bubble fires as the lion passes (A
+      t=45-46); the port places both and never fires - find the
+      trigger (proximity? timer?).
+- NOT-FILMABLE / no-gap notes (checked, honest): the green fruit in
+  the lion's hands is LEW.ZAR art and the port draws it (MATCH);
+  the empty item box frame matches at t=0; KATAPULT/PALMA props were
+  NOT individually located in the sampled windows (no claim made);
+  zax37 episode timings stay behaviour-only.
+
+- TOOL. tools/re/video_sheets.py: labeled contact sheets straight from
+  an mkv (frames extracted at a chosen fps and t0, tile labels carry
+  the true file time and frame index) - the sheet builder this audit
+  used, generalized from /tmp/opencode/pr131/sheet2.py. README's
+  tools/re list updated.
+
+- GATES. No C, no Makefile change, no `.github/workflows` line: a
+  tool (.py) + docs PR. `make` and `make win` ran and are silent
+  (rc=0, zero warning/error lines; /tmp/opencode/pr131/gate_make.log,
+  gate_win.log), and `make -k verify-all` ran BOTH ways anyway:
+  fixtures `DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files`
+  and fixture-free `DATA=/tmp/opencode/nope HD=/tmp/opencode/nope` -
+  both "ALL TESTS PASSED (linux + windows + llrs)", rc=0
+  (/tmp/opencode/pr131/gates_withdata.log, gates_nodata.log). Added
+  prose lines all <= 79 columns (the one longer added line is a table
+  row in tools/re/README.md, matching that table's existing style);
+  no frames/data in git.
+
+- HANDOFF UPDATED: §7 item 6 gains the PR-131 window note; §7 item 13
+  gains a PR-131 bullet (the two referee windows + the gait finding);
+  a new §7 item 15 records the stage-audit gaps G-3..G-12 with their
+  evidence paths; §8 T1 gains the canopy-bypass warning for the
+  first-chasm reading, T5 the worm-block probe note, T6 the
+  no-PTAK-leaf census finding.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

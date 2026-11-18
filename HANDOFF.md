@@ -1189,6 +1189,13 @@ writer as its open items.
    AIRBORNE - the airborne model choice is NOT settled: PR-73's "the
    view rose 45 u" during a ledge jump points at a slower follow; both
    readings live in the follow_camy comment).
+   PR-131 (ZARIA.01 audit): the y anchor re-confirmed at R3 spawn
+   (ground band at 350-360 video px = camy 470-500 exactly as the
+   port computes); the x lead/dead zone stays UNMEASURED and the
+   video's lead is NOT constant (~50 units at the walk start, ~280
+   mid-canopy - levels/ZARIA.01.mkv t=2-17), so CAM_LEAD_* is an
+   even worse guess than flagged. Referee windows named in the
+   PR-131 record, G-1/G-2.
 7. Vertical `y` camera of the PCX backdrop uses the engine formula now; confirm
    against a capture of a tall level (SADES shaft). PR-84 note:
    for the NO-back_rect levels the camera clamp = reference-layer height - 200
@@ -2280,6 +2287,16 @@ writer as its open items.
    - `ds:0xcef40 -> +0x388` is added into the frame-advance distance
      accumulator when the terrain scalar is non-zero (0x543f2..0x5443d): a
      global time/tick scalar, meaning unread.
+   - PR-131 (ZARIA.01 footage audit) adds the two referee windows a
+     rate measurement needs in this stage: levels/ZARIA.01.mkv
+     t=2-13 (a straight walk from spawn x=50 to the ladder x=180,
+     both fixed landmarks) and t=55-62 (ZWODOSPD@992 column in
+     view). Also: the video's fast gait is the LEW.ZAR gallop
+     (A_RUN art) and the port's FWD produces only A_WALK - the
+     A_WALK->A_RUN entry condition is an .MOV row question, answer
+     it from data, not from the video. Eyeball walk numbers
+     (10-25 u/s there vs the port's 20) stay ESTIMATE until
+     video_camera_shift.py / video_lane_shift.py say otherwise.
 14. THE `.IS` CUTSCENES' FRAMING IN THE VIDEO, not pinned by any record
     (found while measuring for PR-111). In ep.1 (`R1` in section 3) the
     gameplay picture is the full 640 px width at rows 40..439, exactly
@@ -2291,6 +2308,24 @@ writer as its open items.
     copy of it decides what "the same picture" means for every movie
     comparison, and PR-55/56's decoder plus PR-19/21's capture rig could
     answer it. Frame: `/tmp/opencode/refcap/ep1_120.png` (never in git).
+15. ZARIA.01 STAGE AUDIT GAPS (PR-131; the full G-1..G-12 list with
+    cited frames and port logs is the PR-131 section of
+    NEXT_STEPS.md). The ones no other item owns: the KAMIEN sixth
+    field (1308/1218/1115 decreasing toward the ZAR.BLK corridor
+    1299..1620 - read ZAR.BLK like a .PLT) and what it and the
+    corridor DO (stone puzzle, G-3); the water surface as a floor
+    (lion walks WODA at pool level, zax37 t=305-307, G-7); the
+    level-end scene (purple-robed NPC + bird + ball tosses,
+    levels/ZARIA.01.mkv t=440-457) and the mid-level bird
+    sequences (zax37 t=306-315, 385-413): no placement line names
+    them and the ZARIA.01 ANIMACJE tree has NO bird leaf (census:
+    PTAK.MOV exists only under KADMAR.07/PTAK, TUNGA2.12/PTAKPLAT,
+    RAN.01/GPTAK_RA) - scripted chain reusing other levels' leaves,
+    or engine code; find which (G-10/G-11); HUD lives: both R3
+    clips start at "5", the port prints a hard-coded 6 - map the
+    STATUS.LEO fields instead (G-8); contact-damage reality vs the
+    port's SEMI-push + 15/30-tick model, which kills a walking
+    lion before x=180 (G-5); SURPRISE "?" firing (G-12).
 
 ## 8. Plan: tasks, in order. One task = one or a few PRs.
 
@@ -2540,6 +2575,17 @@ tables; the lion family overrides it at 0x50340), `[obj+0xbe]` is the
 contact record's vertical force (kind 4 at 0x54aa2, built from the
 authored array at `[obj+0x136]`, 0x24681-0x24688), and BY_TIME is NOT
 gated at all - 0x543fb is entered straight from the jump table.
+STATUS after PR-131 (footage audit of THIS stage): the first-chasm
+crossing is STILL not observed in any sampled window, and the
+leading reading changed - the player most likely BYPASSED the gap
+above the water (up the ladder at x=180, along the canopy, down at
+t=25-28 of levels/ZARIA.01.mkv), so do not treat a running jump at
+that chasm as the reference until re-watched; T1's zax37 ~315 s
+running jump is a separate jump (and the zax37 player does walk the
+water surface at 305-307). The measurement windows are named in
+§7 item 13's PR-131 bullet. The port's own probe walks die to LICHA
+contact damage long before x=408 (G-5) - fix the contact model or
+start the probe east of the worms.
 
 **T2. The lion's attack and enemy energy.**
 Goal: kill the first LICHA. Where: `LEW.MOV` states `A_FIGHT*`, `A_FG_PACKA*`
@@ -2691,12 +2737,28 @@ answered question 2 shows continuous climbing, so it could not answer
 that one, and it could not be tied to a level (the `[A_WSP]` block is
 identical in ZARIA.01/ZARIA.02/TUNGA.11, so the timing conclusion does
 not depend on which). Full wording in the PR-109 record.
+STATUS after PR-131: the ZARIA.01 ladder AT 180 is now confirmed
+usable in the original (ridden down at levels/ZARIA.01.mkv t=13.3-15.7
+and mid-climb at ZARIA.01_b.mkv t=200.0-200.7), and the port's own
+probe never reaches it - the lion dies/turns back at the LICHA worms
+around x~153 (G-5); re-run the climb probe once that is fixed or the
+script starts east of the worms (G-9).
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
 (`AC_XCHG_LEVEL`), lives/energy persistence, game over. STATUS.LEO progress is
 blocked by open question 5 - ask the owner for a paired capture (menu before
 and after finishing a level) or leave progress unimplemented and say so.
+STATUS after PR-131: the ZARIA I end is now filmed in detail (the
+level-end interaction scene with a purple-robed NPC + the grey-blue
+bird, ball tosses included, levels/ZARIA.01.mkv t=440.3-457.3, the
+ZARIA.02 cut at 458) and the vulture's mid-level sequences are
+(zax37 t=306-315 and 385-413, on close view swoop-and-dodge, no
+frame clearly shows the lion carried). Neither the NPC nor the bird
+has a placement line, and the ZARIA.01 ANIMACJE tree carries NO bird
+leaf (PTAK.MOV exists only in KADMAR.07/PTAK, TUNGA2.12/PTAKPLAT,
+RAN.01/GPTAK_RA): the scenes are a scripted chain reaching into
+other levels' leaves, or engine code - find which (G-10/G-11).
 
 **T7. RAN's balloon mode.** Episode 9 of the video shows it (you fly right,
 birds attack the canopy, vulture boss throws bombs). Lion states with scripted
