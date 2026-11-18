@@ -4054,19 +4054,24 @@ static void play_advance(play_ctx *pl, const ll_play_keys *keys,
  * bbox origin = (-f0,-f2) relative to the feet point (ll_seq.h; verified
  * on UJ09.SEQ f0=35 f2=68, the walk cycle whose feet ARE the ground
  * line), so the draw origin is (x - cam - (short)f0, y - (short)f2). */
-/* Camera follow, measured on a playthrough video (5150 frames tracked by
- * the lion's colour, outside git): the lion's x on the 320-wide view sits at
- * ~95 while he walks right and ~215 while he faces left (so the view leads in
- * his facing direction); vertically the lion rests with his feet near 64% of
- * the view and the camera follows him (jumps included), see follow_camy.
- * The rates of the camera's catch-up are NOT measured: the x offset eases
- * toward its target at 6 units per engine iteration (a viewer choice;
- * PR-135 moved the grid this runs on to LL_ITER_MS, so the wall-clock
- * rate of that ease moved with it - a further reason for PR-136 to
- * measure it rather than keep a number here).
- * Walking speed from the same video: lion-locked camera shifts have a
- * median 75 units/s (3..5 per video frame at 25 fps) - consistent with the
- * .MOV's T=90 cap. */
+/* Camera follow. PR-136 MEASURED this law from the level's OWN static
+ * placements (tools/re/level_landmarks.py + video_camera_read.py give an
+ * absolute camera (x, y) per video frame, and camera_law.py turns it into
+ * the numbers below; PR-136 record). The lead is the lion's x on the
+ * 320-unit view - exactly this file's cam_ox - and the values that HELD
+ * frame for frame while he walked are 95..108 walking right (57 of 76
+ * held-window frames; the rest sit at the world's left edge, where no
+ * lead can hold) and 199..251 walking left (19 frames, a weak band that
+ * CAM_LEAD_L sits inside). So CAM_LEAD_R=100, the PR-72 guess, is
+ * confirmed, and CAM_LEAD_L=220 stays unremarked-by-better-evidence.
+ * What was NOT measured is the catch-up RATE: with the lion standing, the
+ * camera's own rate over a 13-frame window is p50 0.25, p95 1.2, max
+ * 11.5 units per engine iteration - the eases below (6 x, 2 y per
+ * iteration) sit above p95 and below max, and the "ease" shape itself is
+ * a model: the game may track at the lion's speed and correct slowly by
+ * some other law. Counted open in the PR-136 record; the eases are kept
+ * as PR-135 left them. Tracking (lion walking, lead held) is the camera
+ * moving AT the lion's speed, which both models do identically. */
 #define CAM_LEAD_R 100
 #define CAM_LEAD_L 220
 
@@ -4085,37 +4090,38 @@ static int follow_camx(play_ctx *pl, int cw, int cam_max)
     return c;
 }
 
-/* PR-84 (owner compared our ZARIA.01 frame with the original): the lion
- * sat ~19 px too LOW in the view - on the build they tested (before
- * PR-65's reference-layer world rule: max-of-planes 600 -> cam_ymax
- * 400 -> feet at the view bottom). Measured the anchor directly on the
- * original (gp.mp4 t=205.0s frame, 320x200 game space, colour-split of
- * the lion: paws' yellow n=45 at y 133..180): a grounded lion's feet
- * sit at ~180 of 200; PR-72's 5150-frame mode was 175 (its mask
- * included the shadow ellipse, a couple of px below the paws). The
- * 175..180 band is NOT the world clamp: ZARIA.01's reference layer is
- * 700 tall -> cam_ymax 500, and the original's camy for ground y=680
- * is exactly 500 (feet 180) - today's HEAD already lands there, but
- * only by OVER-CLAMPING the 65% anchor (680-130=550 > 500): anywhere
- * the clamp does not bind, the 65% rule sat 40+ px too high. PR-73's
- * single mid-level observation "feet at ~128 of 200" was taken during
- * the camera's catch-up (it measured its own ~0.5 u/frame standing
- * drift), not an anchor.
+/* The vertical anchor. PR-84 read one original frame (gp.mp4 t=205.0,
+ * colour split: paws' yellow at y 133..180) and took the 175..180 band
+ * as "a grounded lion's feet sit at ~180 of 200". PR-136's absolute
+ * read, on 3990 frames where the lion's world y is CONSTANT (standing or
+ * walking on a surface), says the paws row is 125..134 with mode 128 -
+ * and 128 again on the subset where the camera is NOT at the world
+ * clamp. The 175..180 band appears ONLY in the clamp case: ZARIA's
+ * ground sits at world y ~681, its cam_ymax is 500, so any anchor at or
+ * below 181 lands on the clamp and the row comes out of the clamp, not
+ * out of the constant. One anchor of 128 plus the clamp that has always
+ * been there reproduces BOTH observed populations (row 128 mid-level,
+ * row ~181 at the ground line). PR-73's single mid-level "feet at ~128"
+ * observation - which PR-84 set aside as a catch-up artifact - is what
+ * the full clip now measures.
  * Model: a GROUNDED lion eases the view to feet-at-CAM_FEET_Y; while
- * AIRBORNE the view HOLDS (PR-73 measured the rise/fall of the lion on
- * the view through the whole jump arc; anchoring through the arc would
- * cancel it). The ease rate is not measured (2 u/tick, viewer choice,
- * same honesty flag as the x ease). */
-#define CAM_FEET_Y 178
+ * AIRBORNE the view HOLDS. PR-136 checked that too, weakly: across 139
+ * jump arcs the camera's y change is p50 0 but p05 -26 / p95 +12, so
+ * "holds rigidly" is the model's simplification, not the game's law -
+ * counted open (the paws colour series fails in 40% of those windows).
+ * The ease rate stays invented (2 u/tick) for the same reason: see the
+ * follow_camx comment for what is and is not measured. */
+#define CAM_FEET_Y 128
 
 static int follow_camy(play_ctx *pl, int ch, int cam_ymax)
 {
     (void)ch;
-    /* PR-97: p->y is the position point, and CAM_FEET_Y was measured on the
-     * ORIGINAL'S PAWS (view y 175..180 of the 200-row view), which is the
-     * contact line: y + contact. While grounded the contact line IS the .plt
-     * surface the lion stands on, whatever frame he is showing, so the view
-     * does not step when the animation changes. */
+    /* PR-97: p->y is the position point, and the anchor is defined on
+     * the PAWS line - the contact point, y + contact (PR-136 measured
+     * that feature directly: the paws colour class, the same one PR-84
+     * split). While grounded the contact line IS the surface the lion
+     * stands on, whatever frame he is showing, so the view does not step
+     * when the animation changes. */
     double fy = pl->p.y + (double)pl->p.contact;
     int feet = (int)(fy >= 0 ? fy + 0.5 : fy - 0.5);
     if (!pl->camy_set) {                   /* spawn: snap, no crawl-in */
@@ -4132,6 +4138,132 @@ static int follow_camy(play_ctx *pl, int ch, int cam_ymax)
     if (pl->camy_v > cam_ymax)
         pl->camy_v = cam_ymax;
     return pl->camy_v;
+}
+
+/* PR-137: the viewer's OWN camera law, pinned hermetically - no game
+ * data; every expected number is derived by hand from the constants
+ * named in the two functions above and from the PR-136 measurements:
+ *   anchor CAM_FEET_Y = 128 (the paws row measured on 3990
+ *     constant-world-y frames: mode 128, and 128 again where the clamp
+ *     does not bind);
+ *   the world clamp cam_ymax reproduces the OTHER observed row
+ *     population by itself: with ZARIA's ground at world y ~681 and
+ *     cam_ymax 500 the paws row comes out 681-500 = 181, inside the
+ *     175..180 band PR-84 read from one frame - the clamp sets that
+ *     row, not the constant, so ONE constant gives both populations;
+ *   the leads CAM_LEAD_R/L, the invented eases (6 x, 2 y per call =
+ *     one engine iteration), the spawn snap (no crawl-in);
+ *   AIRBORNE the view holds.
+ * A ZARIA-shaped world: view 320x200, world 2240x700, cam_max 1920,
+ * cam_ymax 500. */
+int ll_follow_selftest(void)
+{
+#define FEET_FAIL(...) \
+    do { fprintf(stderr, "follow selftest: FAILED " __VA_ARGS__); \
+         return 1; } while (0)
+    play_ctx pl;
+    memset(&pl, 0, sizeof pl);
+    pl.p.contact = 28;                      /* an art set's shape bottom  */
+
+    /* 1. ground line, spawn snap, clamp case: feet 653+28 = 681 ->
+     *    681-128 = 553 > 500 -> the clamp; the drawn paws row is then
+     *    681-500 = 181, inside the band PR-84 measured. That band is
+     *    the clamp, NOT the anchor. */
+    pl.p.y = 653; pl.p.grounded = 1; pl.camy_set = 0;
+    if (follow_camy(&pl, 200, 500) != 500 || pl.camy_v != 500)
+        FEET_FAIL("ground spawn did not land on the world clamp "
+                  "(camy_v=%d)\n", pl.camy_v);
+
+    /* 2. mid-level surface, clamp NOT binding: feet 442+28 = 470 ->
+     *    camy 470-128 = 342, paws row 470-342 = 128 = the measured
+     *    anchor. (With the old 178 constant this returned 292 and put
+     *    the paws at row 178 - the "40+ px too high" PR-84 itself
+     *    noted for unclamped frames.) */
+    memset(&pl, 0, sizeof pl);
+    pl.p.contact = 28;
+    pl.p.y = 442; pl.p.grounded = 1;
+    if (follow_camy(&pl, 200, 500) != 342)
+        FEET_FAIL("unclamped anchor is not CAM_FEET_Y (got %d)\n",
+                  pl.camy_v);
+
+    /* 3. the y ease is 2 units per call and lands EXACTLY on target:
+     *    342-300 = 42 -> +2 per call; from 340 the difference is 2,
+     *    the exact branch, not a step. PR-136 measured the game's own
+     *    catch-up at p50 0.25 / p95 1.2 / max 11.5 units per
+     *    iteration, so THIS rate is a model - the test pins that model
+     *    so it cannot drift unmentioned. */
+    pl.camy_v = 300;
+    if (follow_camy(&pl, 200, 500) != 302 ||
+        follow_camy(&pl, 200, 500) != 304)
+        FEET_FAIL("the y ease is not 2/call (camy_v=%d)\n", pl.camy_v);
+    pl.camy_v = 340;
+    if (follow_camy(&pl, 200, 500) != 342)
+        FEET_FAIL("the y ease does not land exactly on target\n");
+
+    /* 4. the floor clamp: feet 100 -> target -28 -> view pinned at 0,
+     *    never a negative camy. */
+    memset(&pl, 0, sizeof pl);
+    pl.p.y = 100; pl.p.grounded = 1;
+    if (follow_camy(&pl, 200, 500) != 0)
+        FEET_FAIL("camy went below the world's top edge\n");
+
+    /* 5. AIRBORNE: the view HOLDS - the model PR-73 argued from the
+     *    lion rising within the view through the arc (PR-136 counted
+     *    that the game itself does not hold rigidly; open item). */
+    memset(&pl, 0, sizeof pl);
+    pl.camy_set = 1; pl.camy_v = 342; pl.p.y = 300; pl.p.grounded = 0;
+    if (follow_camy(&pl, 200, 500) != 342 || pl.camy_v != 342)
+        FEET_FAIL("the view moved while the lion was airborne\n");
+
+    /* 6. the x lead at rest: walkdir 1 -> CAM_LEAD_R; a held lead
+     *    means the camera is exactly p.x - 100 and the offset does not
+     *    move. PR-136 confirmed the held right lead at 95..108. */
+    memset(&pl, 0, sizeof pl);
+    pl.cam_ox = CAM_LEAD_R;
+    pl.p.x = 1000; pl.p.walkdir = 1;
+    if (follow_camx(&pl, 320, 1920) != 900 || pl.cam_ox != CAM_LEAD_R)
+        FEET_FAIL("held right lead is not CAM_LEAD_R\n");
+
+    /* 7. a turn: the lead eases CAM_LEAD_R -> CAM_LEAD_L at 6 per
+     *    call; the 120-unit difference takes exactly 20 calls, and the
+     *    21st call still sits 220 behind, at 1000-220 = 780. (The
+     *    held left-lead band on video is 199..251, n=19: CAM_LEAD_L
+     *    is a weak middle. This test pins which constant the port
+     *    commits to, and the 6/call ease model.) */
+    pl.p.walkdir = -1;
+    int c = 0;
+    for (int i = 0; i < 10; i++)
+        c = follow_camx(&pl, 320, 1920);
+    if (pl.cam_ox != CAM_LEAD_R + 60 || c != 1000 - (CAM_LEAD_R + 60))
+        FEET_FAIL("the x ease is not 6/call (ox=%d c=%d)\n",
+                  pl.cam_ox, c);
+    for (int i = 0; i < 11; i++)
+        c = follow_camx(&pl, 320, 1920);
+    if (pl.cam_ox != CAM_LEAD_L || c != 780)
+        FEET_FAIL("the lead did not settle to CAM_LEAD_L in 20 calls "
+                  "(ox=%d c=%d)\n", pl.cam_ox, c);
+
+    /* 8. the world-edge clamps: the camera never leaves 0..world-view,
+     *    whatever the lead would ask for. */
+    memset(&pl, 0, sizeof pl);
+    pl.cam_ox = CAM_LEAD_R; pl.p.x = 50; pl.p.walkdir = 1;
+    if (follow_camx(&pl, 320, 1920) != 0)
+        FEET_FAIL("camera went left of the world edge\n");
+    pl.p.x = 2100;
+    if (follow_camx(&pl, 320, 1920) != 1920)
+        FEET_FAIL("camera went past the world's right edge\n");
+
+    printf("follow selftest: the viewer's camera law as the model "
+           "documents it - grounded anchor CAM_FEET_Y=%d on the contact "
+           "line, the WORLD CLAMP (not a second constant) producing the "
+           "175..180 ground-line row band PR-84 measured, spawn snap, "
+           "y-ease 2/call with an exact final step, floor and ceiling "
+           "clamps, view held while airborne; leads CAM_LEAD_R=%d/"
+           "CAM_LEAD_L=%d with a 6/call ease settling in exactly 20 "
+           "calls, and 0..world-view clamps on camx (ok)\n",
+           CAM_FEET_Y, CAM_LEAD_R, CAM_LEAD_L);
+    return 0;
+#undef FEET_FAIL
 }
 
 static void play_draw(const play_ctx *pl, unsigned char *canvas, int cw,

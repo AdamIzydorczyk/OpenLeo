@@ -12417,6 +12417,135 @@ no port behaviour change)
   pr136/law.txt (the earlier pass, superseded: an unclamped probe camera put
   its anchors 7-9 units off and plan6.seq matched 17659 frames of backdrop).
 
+## PR-137 — THE CAMERA CONSTANTS PR-136 MEASURED, APPLIED: the grounded
+## vertical anchor is 128 on the contact line, and the world clamp (not a
+## second constant) is what produces the ground-line 175..180 row band;
+## the leads stay 100/220 - the right one now confirmed - and the viewer
+## camera law gets its own hermetic leg, 9 mutation controls all caught
+
+- WHY. PR-136 measured the camera law in absolute world units and
+  deliberately shipped nothing: "applying the corrected camera constants
+  is a later PR with its own gates" (PR-136 open item 8). The one number
+  that was clear beyond argument was the vertical anchor: on 3990 frames
+  where the lion's world y is constant, the paws row - the same colour
+  class CAM_FEET_Y is defined on - sits at 125..134 with mode 128, and
+  at 128 on the subset where the camera is NOT at the level's world
+  clamp, while row 180 appears ONLY in clamp frames. One constant plus
+  the clamp that has been in the port since PR-72 reproduces both
+  populations.
+
+- WHAT SHIPPED (behaviour). (1) `CAM_FEET_Y` 178 -> 128 (ll_level.c).
+  The old comment claimed the 175..180 band "is NOT the world clamp";
+  the 21k-frame absolute read says it is: ZARIA's ground sits at world y
+  ~681 and its cam_ymax is 500, so any anchor at or below 181 lands on
+  the clamp and the row comes out of the clamp. PR-84's single frame
+  (n=45 paws pixels spanning y 133..180) read that clamp artifact as
+  the anchor, and set aside PR-73's mid-level "~128" as a catch-up
+  drift; the full clip vindicates the 128. Effect on the port: nothing
+  at the ground line (clamped before and after: 681-178=503 -> 500 and
+  681-128=553 -> 500 - which is why not one existing pixel pin moved),
+  and +50 units of view on every surface high enough that the clamp did
+  not bind - the lion sits at row 128 there, as the game shows him,
+  instead of 178. (2) The camera functions now have a hermetic leg:
+  `./ll_level --follow-selftest` (ll_level.c `ll_follow_selftest`, the
+  flag in tools/ll_level.c, wired into verify-play next to
+  --play-selftest). Before this PR NOTHING in the repo tested
+  follow_camx/follow_camy at all - PR-135's mutation run could only
+  speak about ll_play. (3) Comments rewritten where the old numbers were
+  justified (follow_camx lead block, follow_camy anchor block, the
+  verify-play cam-y leg's header): CAM_LEAD_R=100 is CONFIRMED by
+  held-frame leads 95..108; CAM_LEAD_L=220 sits inside the measured
+  199..251 but on 19 frames; the eases (6 x, 2 y per iteration) are
+  named as models with the measured band beside them (game catch-up
+  p50 0.25 / p95 1.2 / max 11.5 units per iteration). No Makefile
+  targets beyond the one new leg line; .github/workflows/* untouched; no
+  game data or frames in git.
+
+- WHY THE LEADS AND EASES DID NOT MOVE. The measurement does not pin
+  them. The held right lead is 95..108 - 100 is inside it, and moving
+  it would be fitting to noise; the held left lead is one 19-frame band
+  (open item 5 of PR-136 counted exactly this). For the eases, the
+  port's model ("the offset eases toward its target at K per
+  iteration") is not even the shape the data supports: with the lion
+  standing the game's camera moves p50 0.25 u/iteration, and what the
+  port cannot see is whether the game tracks at lion speed and corrects
+  by a different law. Keeping a model and pinning it in a test is more
+  honest than replacing one unmeasured number with another.
+
+- THE TEST (data-free, every value by hand, in the leg comment): a
+  ZARIA-shaped world (320x200 view, 2240x700 world, cam_max 1920,
+  cam_ymax 500, contact 28). Ground spawn snap: feet 653+28 = 681 ->
+  681-128 = 553 -> the clamp gives 500, and the drawn paws row 681-500
+  = 181 is inside the band PR-84 measured - that IS the clamp case,
+  asserted as such. Mid-level: feet 470 -> camy 342, paws row 128 - the
+  measured anchor; with the old 178 this returns 292. Ease model: 2 per
+  call, exact final step from a 2-unit remainder. Floor clamp: feet 100
+  -> target -28 -> 0. Airborne: view holds at 342. Leads: a held right
+  lead means cam = p.x - 100 exactly; a turn eases 6 per call -
+  asserted mid-flight at call 10 (ox 160) as well as at the end (220,
+  cam 780) - then the world-edge clamps (p.x 50 -> cam 0; p.x 2100 ->
+  1920).
+
+- MUTATION CONTROLS: 9 mutants, ALL CAUGHT (/tmp/opencode/pr137_mut/
+  mutate.py). m1 anchor back to 178 (case 2, got 292); m2 top clamp
+  removed (case 1, 553); m3 floor clamp removed (case 4); m4
+  `grounded` guard dropped - the view follows through jumps (case 5);
+  m5 y-ease 2->6 (case 3, 306); m6 x-ease 6->7 (case 7 mid-flight, ox
+  170); m6b x-ease 6->5 (ox 150); m7 leads swapped (case 6); m8 spawn
+  snap removed (case 1, 2). The honest sequence: the FIRST run had 7
+  mutants and caught 6 - m6 (x-ease 6->7) SURVIVED, because case 7
+  only asserted the settled end state, which any ease rate < 120/20
+  reaches; the case then gained the mid-flight assertion (call 10 ->
+  ox 160), and that near-miss is recorded rather than hidden. The 9/9
+  transcript is /tmp/opencode/pr137_mut/run_final.txt; the pre-
+  strengthening survivor was re-confirmed afterwards by re-running the
+  original 7-mutant set against the pre-strengthening case 7
+  (run_initial_repro.txt, 6/7, m6 passes) - reproduced, not just
+  remembered.
+
+- OPEN ITEMS, COUNTED: 1 the eases stay invented numbers, now tested
+  AS models; the measured p50/p95/max are in the code comment but not
+  applied, because the shape of the law is unknown. 2 CAM_LEAD_L is
+  pinned to 220 by a test, not by evidence (n=19). 3 the airborne hold
+  stays a model the data doubts (p05 -26 / p95 +12 over 139 arcs); the
+  test pins the model. 4 this PR fixes the ANCHOR, not the GROUND -
+  G-13 stands: at the first screen the port still stands the lion on
+  .PLT lines 7-51 units below the surfaces the clip shows, so the
+  absolute on-screen position there is still wrong; with 128 the view
+  is 50 units lower than before on those surfaces, which matches the
+  clip's camera values (measured camy 330..349 while the lion stood at
+  y 466..477) - a coincidence that will become right or wrong once
+  G-13 decides what the ground source is. 5 the selftest uses contact
+  28 as a synthetic shape bottom; no real art is involved (it is a
+  unit of arithmetic, not data). 6 no Windows-side leg runs
+  --follow-selftest (same arrangement as --play-selftest; CI linux +
+  the local suite cover it).
+
+- GATES. `make` rc=0 and `make win` rc=0, both with ZERO warning lines,
+  taken with the final code (/tmp/opencode/pr137_gate_make.log,
+  /tmp/opencode/pr137_gate_win.log). `verify-play verify-level` with
+  fixtures: rc=0, 24 `(ok)`, no FAILED - not one existing pixel or
+  position pin moved, exactly as the clamp analysis predicts
+  (/tmp/opencode/pr137_play_level.log). `make -k verify-all
+  DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files` -> rc=0,
+  "ALL TESTS PASSED (linux + windows + llrs)", 54 `(ok)` proofs and no
+  FAILED line anywhere - exactly one more than PR-136's 53, and the
+  extra is the new follow-selftest line (/tmp/opencode/pr137_all_full
+  .log). The same suite fixture-free, `DATA=/tmp/opencode/nope
+  HD=/tmp/opencode/nope` -> rc=0 with 23 named `verify-*: SKIP` lines -
+  the same set PR-135 and PR-136 produced - while `--mov-selftest`,
+  `--play-selftest`, the NEW `--follow-selftest`, the decoder
+  selftests and the T-01 structure leg all ran in that cold
+  environment (/tmp/opencode/pr137_all_nofix.log).
+- HANDOFF UPDATED. Section 1's lion row and section 6's camera row now
+  carry 128-applied/confirmed; the G-13 row says the anchor landed but
+  the ground did not; section 7 item 13 gains the PR-137 bullet;
+  section 8 T1's status names what is applied now.
+
+- EVIDENCE. /tmp/opencode/pr137_mut/ (the mutation driver, both run
+  transcripts); the numbers beside the constants are PR-136's, in
+  /tmp/opencode/pr136/law_v3.txt.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

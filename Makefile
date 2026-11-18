@@ -669,6 +669,11 @@ verify-play: ll_level
 # placements move the same way.
 # data-free leg: parser + physics + transition selftest (always runs)
 	@timeout 30 ./ll_level --play-selftest
+# data-free leg (PR-137): the viewer's OWN camera law - the PR-136
+# grounded anchor and the clamp that fakes it at the ground line, the
+# spawn snap, the invented eases, the airborne hold, both leads, the
+# world-edge clamps. Every value hand-derived; no game data.
+	@timeout 30 ./ll_level --follow-selftest
 ifeq ($(PX_DATA),1)
 # PR-135 RE-PIN NOTE (applies to every "play tick N" and every
 # LEO_PLAY_SCRIPT / LEO_LEVEL_PPM_TICK value in this target): LEO_LEVEL_PPM
@@ -1187,12 +1192,16 @@ ifeq ($(PX_DATA),1)
 	  || { echo "play ZARIA press/release grep FAILED"; cat /tmp/opencode/ly_zkeys.log; \
 	    exit 1; }
 # PR-84 camera anchor (the owner's "the lion sits lower than the
-# original"): the ORIGINAL keeps a grounded lion's feet at ~178 of the
-# 200-row view (gp.mp4 t=205.0s frame measured by colour split: paws
-# 133..180; PR-72's 5150-frame mode 175 included the shadow). ZARIA.01
-# has NO back_rect, its reference layer PLAN1 is 2240x700 -> cam_ymax
-# 500, and the original's camy for the ground at world y=680 IS exactly
-# that clamp (feet 180). The old 65%-anchor rule put the feet at 199.
+# original"): the ORIGINAL shows a grounded lion's paws at ~175..180 of
+# the 200-row view (gp.mp4 t=205.0s frame measured by colour split:
+# paws 133..180; PR-72's 5150-frame mode 175 included the shadow).
+# PR-136 read the whole clip absolutely and found that band is the
+# CLAMP case, not the anchor: ZARIA.01 has NO back_rect, its reference
+# layer PLAN1 is 2240x700 -> cam_ymax 500, its ground line is world y
+# ~681, and any anchor at or below 181 lands on the clamp and shows row
+# 681-500 = 181. The true anchor is 128 (see follow_camy); this leg
+# still pins the clamp case because that is what the original frame at
+# this position shows. The old 65%-anchor rule put the feet at 199.
 # Pins below measure the DRAWN lion with tools/ppm_lion_measure.py in a
 # window around his logged position; top/bottom are the art's own edges
 # (pose-dependent - A_TURN's tail paints below the feet point), pinned

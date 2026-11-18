@@ -25,7 +25,7 @@ What exists and works (all verified by `make verify-all`, section 3):
 | title menu + chapter map | drawn from data (11 chapters, titles from `LEVELnn.SEQ`, arrow colours); progress/"start" variants not done |
 | level scene | 320x200 world view shown 2x; world size from `back_rect` or the reference layer; per-layer parallax (`speed=`, `main_back=`) for PCM layers, the PCX backdrop and every object; HUD from `BELKA*.DES` |
 | objects | 827+ placements, art by each state's `seq=`, `.MOV` state machines (loop until a transition fires; `GEN K_GENn`, `AC_BREAK_NEXT`); PR-93: the 3-comma static image lines (`<LEAF>,<name>.seq,x,y` -> that CD leaf's `.SEQ`, drawn at the authored x,y behind the actors) and the 0,0 entries = attached children (joined+counted, never instantiated at the world origin); PR-107: a `TARGET(N)=<cond>` line carries an authored START ROW and the target state is entered at that row (same rule for the lion and scene objects) |
-| lion (play mode) | walks on the level's own ground (`.PLT`) with his current ANIMATION's shape-box bottom as the contact line (PR-97: `ll_player.contact`, `ll_seq_shape_contact`, `mov_state_contact`), runs the engine's OWN velocity law once per 50 ms iteration - `v -= T*v/100` then `v += F*s/100` with the key intent `s` = ±10 (PR-135, replacing the fitted target-velocity model) - and his row list admits AT MOST ONE row per iteration, fed by travelled distance in a BY_X state and by the engine's constant 100 otherwise; jumps (ESTIMATED units), keys facing-relative (Model M, PR-85), camera follows (lead 100/220 - PR-136's absolute camera read CONFIRMS the right lead at 95-108 and puts the grounded anchor at ~128 + the world clamp, not 178, not yet applied), HUD shows energy/lives |
+| lion (play mode) | walks on the level's own ground (`.PLT`) with his current ANIMATION's shape-box bottom as the contact line (PR-97: `ll_player.contact`, `ll_seq_shape_contact`, `mov_state_contact`), runs the engine's OWN velocity law once per 50 ms iteration - `v -= T*v/100` then `v += F*s/100` with the key intent `s` = ±10 (PR-135, replacing the fitted target-velocity model) - and his row list admits AT MOST ONE row per iteration, fed by travelled distance in a BY_X state and by the engine's constant 100 otherwise; jumps (ESTIMATED units), keys facing-relative (Model M, PR-85), camera follows (lead 100/220 - PR-136's absolute camera read CONFIRMS the right lead at 95-108; PR-137 APPLIED the grounded anchor at 128 + the world clamp (the 175..180 band was the clamp, not the anchor), pinned hermetically by `ll_level --follow-selftest`), HUD shows energy/lives |
 | collision | push-out ported from the machine code (`FUN_00042de0/42cf0`), solid/semi-solid response, enemy contact damage from the placement files, the enemy's own ATC-window attack when armed (PR-90, off unless `LEO_PLAY_DANGER=1`), balloon pickup; ON by default except RAN.01 |
 
 What does NOT exist yet (the real gap to "a playable game"): combat
@@ -702,7 +702,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | `AC_TIME` | ll_level.c `obj_cond_true`, ll_play.c | obj: = end of frame list OR a raised bit; lion: raised by frame `GEN AC_TIME` (bit 9 = LL_SIG_AC_TIME) | `time=min,max` unit unknown |
 | signal bits | ll_play.h `LL_SIG_*`, `ll_sig_id()` | engine table 0x48000: AC_BLOK 0..AC_EV_MAX 68, K_GEN1 54; `GEN <name>` raises any, conditions test the object's own set | PR-88 (verified constants); pulse-vs-latch + cross-object routing OPEN |
 | lives / energy HUD | ll_level.c | 6 lives, energy frames (100-e)/10 | video start shows 6 |
-| camera | ll_level.c `follow_camx/camy` | lead 100/220, ease 6 u/tick, grounded contact-line-at-178 anchor (PR-97: the anchor point is `p.y + p.contact`, the shape-box bottom of the animation being shown (max over its state's frames) = the paws PR-84 measured; y-ease 2 u/tick invented). PR-136 MEASURED the camera in world units from the level's own static placements: leads HELD frame-for-frame 95-108 right (n=57, CAM_LEAD_R=100 confirmed) and 199-251 left (n=19, CAM_LEAD_L=220 inside the band, weak); catch-up rate p50 5 / p95 60 / max 230 u/s vs the port's 6 u/iteration = 120 u/s; the grounded paws row sits at 128 (mode, n=3990 surface frames; 128 unclamped) and 180 only where camy is at the world clamp - one constant 128 plus the existing clamp reproduces both; the view does NOT hold rigidly through jump arcs (camy change p05 -26 / p50 0 / p95 +12, n=139). NOT applied to the code: that is the follow-up PR | PR-136 record (tools/re/level_landmarks.py + video_camera_read.py + camera_law.py, /tmp/opencode/pr136/law_v3.txt) |
+| camera | ll_level.c `follow_camx/camy` | lead 100/220, ease 6 u/tick, grounded contact-line-at-128 anchor since PR-137 (178 before it; PR-97: the anchor point is `p.y + p.contact`, the shape-box bottom of the animation being shown (max over its state's frames) = the paws PR-84 measured; y-ease 2 u/tick invented). PR-136 MEASURED the camera in world units from the level's own static placements: leads HELD frame-for-frame 95-108 right (n=57, CAM_LEAD_R=100 confirmed) and 199-251 left (n=19, CAM_LEAD_L=220 inside the band, weak); catch-up rate p50 5 / p95 60 / max 230 u/s vs the port's 6 u/iteration = 120 u/s; the grounded paws row sits at 128 (mode, n=3990 surface frames; 128 unclamped) and 180 only where camy is at the world clamp - one constant 128 plus the existing clamp reproduces both; the view does NOT hold rigidly through jump arcs (camy change p05 -26 / p50 0 / p95 +12, n=139). PR-137 APPLIED the anchor: `CAM_FEET_Y` 178 -> 128, and the old comment's claim that the 175..180 band "is NOT the world clamp" was WRONG - it is, at 681-500 = 181; one constant plus the clamp reproduces both observed rows. No pixel pin moved (the ground-line case clamps either way); every unclamped surface now shows the lion at row 128 as the game does. The leads stay 100/220 (right CONFIRMED, left a weak n=19 band); the eases (6 x / 2 y per iteration) stay models with the measured band beside them, and `./ll_level --follow-selftest` now pins the whole law hermetically - 9 mutation controls, all caught | PR-136 record (tools/re/level_landmarks.py + video_camera_read.py + camera_law.py, /tmp/opencode/pr136/law_v3.txt); PR-137 record |
 | ground source on the first screens (G-13) | ll_level.c `platformy=` -> `ZARIA_A.PLT` | the port stands the lion on the authored .PLT lines; the clip shows him on surfaces 7-51 units ABOVE them at x 128-392 (y 466-508), while at the ground line the two agree exactly (108/108 frames, y 681 vs polyline "-50,680!408,684"). The placed platform images (plan4.seq@70,480 136x60, plan6.seq@287,430 62x41) have their top edges at those heights, so either the objects are solid floors the .PLT does not name, or the .PLT is only one of two ground sources. NOT decided | PR-136, G-13 |
 | contact pass default | ll_level.c | on except RAN.01 | RAN is the balloon level |
 | SEMI_SOLID | `play_collide` | only the r/5 shift | velocity add (kind 13) unit unknown |
@@ -1795,6 +1795,29 @@ writer as its open items.
       None of the measured numbers is applied to the code yet - that is
       the follow-up PR. Ten open items are counted in the record. Full
       record: the PR-136 section of NEXT_STEPS.md.
+    - PR-137 APPLIED WHAT PR-136 MEASURED, only where the measurement
+      was clear: `CAM_FEET_Y` 178 -> 128. The port's own comment had
+      argued the 175..180 band "is NOT the world clamp" - at 21k frames
+      it demonstrably is (ground 681, cam_ymax 500 -> row 181), and the
+      anchor under it is 128; one constant plus the existing clamp now
+      reproduces BOTH observed row populations, which is why not one
+      existing pixel pin moved (the ground-line case clamps either way)
+      while every previously unclamped surface now shows the lion at row
+      128 as the clip does. The leads stay 100/220 - CAM_LEAD_R is
+      CONFIRMED by held-frame leads 95..108, CAM_LEAD_L sits inside a
+      19-frame band - and the eases (6 x, 2 y per iteration) stay named
+      models with the measured band (p50 0.25 / p95 1.2 / max 11.5
+      u/iteration) written beside them: replacing one unmeasured number
+      with another would be less honest than testing the model. NEW
+      HERMETIC LEG `./ll_level --follow-selftest` (verify-play):
+      follow_camx/follow_camy had NO test before this PR. 9 mutation
+      controls, all caught - and the honest note: the x-ease mutant
+      (6->7) SURVIVED the first run until the turn case gained a
+      mid-flight assertion at call 10; that near-miss is in the record.
+      Six open items counted (eases still invented; CAM_LEAD_L pinned by
+      test not evidence; the airborne hold is a model the data doubts;
+      G-13 still stands - this fixed the ANCHOR, not the GROUND). Full
+      record: the PR-137 section of NEXT_STEPS.md.
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2641,12 +2664,14 @@ anchor PR-134 asked for is built from the level's own static .SEQ
 placements, and the whole 460 s clip now reads a camera (x, y) in world
 units: the right-facing lead 95-108 confirms CAM_LEAD_R=100, the
 grounded vertical anchor is ~128 plus the existing world clamp (not
-178), the catch-up ease is slower than the port's, and the view does
-not hold rigidly through jumps; none of it is applied to the code yet.
-PR-136 also opened G-13: the first screen's walking surfaces sit 7-51
-units above the .PLT lines the port uses, while at the ground line the
-two agree exactly. See the PR-130, PR-132, PR-133, PR-134, PR-135 and
-PR-136 bullets in §7 item 13.
+178) - AND IT IS APPLIED IN PR-137, with the whole camera law pinned
+hermetically by --follow-selftest; the catch-up ease stays a model
+slower than the port's in the data, and the view does not hold rigidly
+through jumps (both counted open). PR-136 also opened G-13: the first
+screen's walking surfaces sit 7-51 units above the .PLT lines the port
+uses, while at the ground line the two agree exactly. See the PR-130,
+PR-132, PR-133, PR-134, PR-135, PR-136 and PR-137 bullets in §7 item
+13.
 tools/re/des_census.py prints the whole joined census. The
 table
 itself is now read end to end:

@@ -27,10 +27,14 @@ int main(int argc, char **argv)
     /* PR-43 (M4-B): .plt/.MOV-extension/player-sim selftest, hermetic */
     if (argc == 2 && strcmp(argv[1], "--play-selftest") == 0)
         return ll_play_selftest() ? 1 : 0;
+    /* PR-137: viewer camera-law selftest, hermetic */
+    if (argc == 2 && strcmp(argv[1], "--follow-selftest") == 0)
+        return ll_follow_selftest() ? 1 : 0;
     if (argc < 3) {
         fprintf(stderr,
                 "usage: %s DATA_DIR LEVEL [-t SECONDS] [--no-audio] "
-                "[--list] [--mov-selftest] [--play-selftest] [--play]\n",
+                "[--list] [--mov-selftest] [--play-selftest] "
+                "[--follow-selftest] [--play]\n",
                 argv[0]);
         return 2;
     }

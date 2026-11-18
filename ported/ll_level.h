@@ -33,6 +33,15 @@ int ll_level_anims(const char *data_dir, const char *level);
  * 0 = ok, 1 = failed (prints why to stderr). */
 int ll_mov_selftest(void);
 
+/* PR-137 viewer camera-law selftest - TEST-ONLY, for tools/ll_level.c
+ * --follow-selftest. Hermetic: no game data. Pins the follow law exactly
+ * as follow_camx/follow_camy implement it: the PR-136-measured grounded
+ * anchor (CAM_FEET_Y on the contact line), the world clamp reproducing
+ * the ground-line row band by itself, spawn snap, the invented eases
+ * (2 y / 6 x per iteration) with exact final steps, airborne hold, both
+ * leads, and the 0..world-view clamps. 0 = ok, 1 = FAILED (on stderr). */
+int ll_follow_selftest(void);
+
 /* Standalone music (singleton), used by the MAPKA level-select screen:
  * the engine plays "mapka.mod" from the SOUND container on entering the
  * map (FUN_0005dec0) and stops it on every exit (FUN_0005df20).
