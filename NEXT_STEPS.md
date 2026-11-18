@@ -10917,7 +10917,11 @@ live in reference/video/zax37/ under the §3 index's own stage ids.
   port's law A is the special case T=40 that every fitted sample sat
   at. What remains genuinely open is (a) the object-tick rate that
   turns px/tick into px/s - every published reproduction in §7
-  assumes 20 Hz (PR-99), which is not yet a read fact; (b) which
+  assumes 20 Hz (PR-99), which is not yet a read fact [CORRECTED
+  IN PR-130: the published reproduces do NOT all sit at 20 Hz - the
+  jump reading implies 25 ticks/s and the only clock §7 has READ is
+  PR-109/110's ~28 ms iteration clock; see the PR-130 record]; (b)
+  which
   block word carries the authored F - the writer of the fields
   [obj+0x48..0x5c] that 0x52680 copies is unread; (c) the two
   law-discriminating rows still want the L
@@ -10946,6 +10950,129 @@ live in reference/video/zax37/ under the §3 index's own stage ids.
   slot reachability and the 137-vs-15 census); §8 T1 (1) is reworded
   to what is still open (tick rate, F's block word, the YETI video
   row) since the code reading itself is now complete.
+
+## PR-130 — the authored F reaches the integrator, byte for byte:
+## 0x52680 read in full (its field-copy map is exactly PR-99's F=/
+## T=/G= layout), the parser 0x52590 shown to be slot +0x00 of the
+## object's own [obj+0x44] method block, and the F/T/G lifecycle
+## found; PR-129's clock wording corrected. (pure RE; no C, no tool)
+
+- WHY. PR-129 closed the law and the gate but left "(b) which block
+  word carries the authored F - the writer of [obj+0x48..0x5c] that
+  0x52680 copies is unread" as the named next question (§7 item 13,
+  §8 T1 (1)). It is the last link between the placement files and
+  the motion, and PR-99 had already read the parser end - what was
+  missing was the middle. Read from build/leo/leo.elf via
+  /tmp/opencode/vis/text.asm; scripts under /tmp/opencode/pr130/.
+- 0x52680 END TO END (eax = obj, edx = the stack command block; it
+  is slot +0x2c of every [obj+0x44] block, the FIRST call 0x52750
+  makes): a pure field copy, `mov` pair after `mov` pair -
+  block+0x8 = [obj+0x58], block+0xc = [obj+0x5c], block+0x0 =
+  [obj+0x50], block+0x4 = [obj+0x54], block+0x10 = [obj+0x48],
+  block+0x14 = [obj+0x4c]. THEN it takes the current state record
+  `rec = [[obj+0x2e] + [obj+4]*4]` (the indexed record table; its
+  evaluator is at [rec+0x4] slot +0x10) and calls that evaluator
+  with edx = 1 (registers ecx = block+0x4, ebx = block on entry),
+  then 0x45900: zeroes block+0x18 and block+0x1c and calls the
+  SAME evaluator with edx = 0, handing it those two addresses in
+  ebx/ecx; if [[obj+0x0]+0x95] is non-zero it calls it twice more,
+  edx = 3 and edx = 2, against block+0x1c / block+0x18. So the
+  force/drag/const words are ONLY copies of the object's own six
+  fields, and the limit/target words block+0x18/+0x1c (0x54170's
+  soft-pull targets, PR-129 step 5) are written by the row-node
+  evaluator - which is exactly PR-99's conclusion that "the header
+  F= feeds ONLY the increment channel, 0x54170's target comes from
+  the row F/I nodes alone", now from this function's own bytes.
+- THE SIX FIELDS' LIFECYCLE (the question PR-129 left):
+  1. THE PARSER IS IN THE CLASS'S OWN METHOD BLOCK. 0x52590 - the
+     `F=`/`T=`/`G=` clause parser PR-99 read and mapped (`F=` =
+     +0x50/+0x54, `T=` = +0x58/+0x5c, `G=` = +0x48/+0x4c, T capped
+     at 130) - is a literal in exactly the 15 [obj+0x44] vtables,
+     at their slot +0x00 (0x97c9c, 0x99338, ... - all 15). Its
+     bytes confirm the mapping from the strings: compares the node
+     text against "F"/"T"/"G" (0x92281, 0x9228a, 0x92293) with
+     " %i,%i" (0x92283, 0x9228c, 0x92295) parsed by 0x49920 into
+     receiver+0x50/+0x54, +0x58/+0x5c, +0x48/+0x4c, and the cap is
+     there: `cmp edx,0x82` then `mov [ecx+0x58],0x82` and the same
+     for +0x5c (0x525f5..0x52610) - 0x82 = 130, PR-99's number. So
+     the authored text reaches the object fields THROUGH the
+     object's own vtable, not through some external interpreter.
+  2. SPAWN ZEROS IT: 0x524a0 writes 0 into all six fields and THEN
+     stores the vtable (`mov [eax+0x44],0xa25d4`); 14 direct call
+     sites (0x23110 sits immediately before its `[obj+0x44]` store,
+     also 0x26420, 0x2b3c0, 0x2b420, 0x2b480, 0x31f00, 0x36140,
+     ...). So a fresh object starts with force 0 / drag 0 / const 0
+     until the state text runs the parser; 0x52500 (called once,
+     referenced at 0x96425 next to 0x524a0's) instead copies all six
+     fields off a template object - spawn-by-cloning carries F/T/G.
+- THEREFORE: the authored F= pair IS block+0x0/+0x4 (the force
+  words the integrator multiplies by [obj+0xba]/[obj+0xbe] and
+  divides by 20), the authored T= pair IS block+0x8/+0xc (the
+  percent-drag words; capped at 130 AT PARSE and raised to >= 20
+  at runtime only when the +0.bc guard fires, PR-129 step 1), and
+  the authored G= pair IS block+0x10/+0x14 (added every tick,
+  scaled by [obj+0x6d]). PR-129's open (b) is CLOSED at the byte
+  level, and PR-99's reading of which word is F is CONFIRMED - the
+  only link NOT read is which caller feeds the node text to the
+  vtable +0x00 call (the port already parses the same `F= f1,f2`
+  key textually in ll_level since PR-77/99, so this does not
+  change any port number).
+- PR-129's CLOCK WORDING, CORRECTED (the house pattern: PR-100
+  corrected PR-99's 0x543a1). PR-129 wrote "(a) ... every published
+  reproduction in §7 assumes 20 Hz (PR-99)". That is not what §7
+  contains, and the distinction now matters:
+  1. The only clock this repo has READ is the ITERATION clock
+     (PR-109's bracket 22-50 ms; pacer 0x4b0e0 -> 0x4a120/0x1dba0
+     holds one iteration to two display frames; the engine's own
+     fallback setpoint is 27; PR-110 chose LL_ITER_MS = 28 ms), and
+     §7's live text already says the row clock IS that iteration
+     clock.
+  2. PR-99's published jump reproduction implies 25 ticks/s
+     (`v` hundredths of a px/tick, "I 150,-1200" -> (1.5,-12)
+     px/tick -> (37.5,-300) px/s = the port's /4 constants), while
+     its walk numbers fit 20 Hz only at T=40 with s = 10. The two
+     reproduces do NOT sit at one rate.
+  3. No read link yet ties the motion pipeline to one call per
+     iteration: 0x52750's 10 call sites are per-class entry points
+     (e.g. 0x4ffb6: it calls the pipeline on EVERY path, but first
+     tests [[obj+0x0]+0x126], [[obj+0x0]+0x50] + [[obj+0x0]+0x5c]
+     *4 +0x4 and the global ds:0xcf074, and when all three are zero
+     it runs a message branch (string 0x920f3 = "deatd.mod", a
+     global buffer at 0xcf068, 0x562c0) - those reads are all
+     unread territory).
+  What is actually open is therefore the PAIR (iteration rate, s):
+  px/s = (5*F*s/T)/100 * rate, with s = [obj+0xba]/[obj+0xbe]
+  seeded by 0x549f0 from the RECORD's own default factors [rec+0]/
+  [rec+4] - authored values, never censused. (F=100, T=40,
+  s=10, 20 Hz) and (F=100, T=50, s=10, 25 Hz) both give 25 px/s;
+  (F=100, T=40, s=5.6, 28 ms) also does. The law is settled; the
+  scale is one equation with two unread unknowns, and a census of
+  the record default factors plus the iteration-driver read close
+  it from data and code without video. The LONA.05 YETI video
+  referee (PR-126/128) only discriminates once rate AND s are
+  fixed.
+- WHAT WOULD BREAK THE PORT: nothing today. The port's numbers were
+  fitted from video and stay; the record keeps §8 T1 (1)'s test
+  honest by re-deriving what the test can decide.
+- EVIDENCE IN /TMP (under /tmp/opencode/pr130/): life.py (the
+  0x48..0x5c writer/reader/literal census that found 0x524a0 and
+  0x52500), strs.py (the F/T/G + " %i,%i" string dump), and the
+  disassembly reads of 0x52680/0x52470/0x524a0/0x52500/0x52590/
+  0x45900 from /tmp/opencode/vis/text.asm. No new committed tool.
+- GATES. No C, no Makefile, no tool, no `.github/workflows` line;
+  docs-only class - build legs still run anyway: `make` and
+  `make win` silent, `make -k verify-all` twice (fixtures
+  `DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files`;
+  fixture-free `DATA=/tmp/opencode/nope HD=/tmp/opencode/nope`
+  with named SKIPs) - both `ALL TESTS PASSED (linux + windows +
+  llrs)`, rc=0 (/tmp/opencode/pr130/gates.txt). Added doc prose
+  lines all <= 79 columns.
+- HANDOFF UPDATED: §7 item 13 gains the PR-130 bullet and the
+  PR-129 bullet's clock phrase is corrected to what the repo has
+  actually read; §8 T1 (1) restated as the (rate, s) pair plus the
+  YETI video row. In the PR-129 NEXT_STEPS record the false "every
+  published reproduction ... 20 Hz (PR-99)" clause is marked
+  [CORRECTED IN PR-130] in place, per the house pattern.
 
 ## Next — pick from the Deferred list below
 

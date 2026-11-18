@@ -1564,12 +1564,45 @@ writer as its open items.
      [obj+0x9d] == 1 - the merger only for the +0xe0-delta classes,
      other table content for the shifted ones (OPEN). OPEN after
      this: naming the 15 classes (the constructor sites are the
-     way); WHO WRITES [obj+0x48..0x5c] - the state-token
-     interpreter feeding the authored F (PR-130's question, now
-     sharply posed); the object tick rate (20 Hz reproduces every
-     published number but is not yet a read fact);
-     [obj+0x6d]/[obj+0x9d]/[obj+0x126]. Full record: the PR-129
-     section of NEXT_STEPS.md.
+     way); WHO WRITES [obj+0x48..0x5c] - ANSWERED by the next
+     bullet (0x52590 IS the class's own vtable slot +0x00); the
+     object tick rate - narrowed by that bullet to the (rate, s)
+     pair; [obj+0x6d]/[obj+0x9d]/[obj+0x126]. Full record: the
+     PR-129 section of NEXT_STEPS.md.
+   - PR-130 CLOSED PR-129's open item (b) AT THE BYTE LEVEL and
+     corrected its clock wording. 0x52680 (the block builder,
+     vtable slot +0x2c) is a pure field copy: block+0x8/[+0xc] =
+     [obj+0x58]/[obj+0x5c], block+0x0/[+0x4] =
+     [obj+0x50]/[obj+0x54], block+0x10/[+0x14] =
+     [obj+0x48]/[obj+0x4c] - exactly PR-99's `T=`/`F=`/`G=`
+     layout; then it runs the state record's evaluator
+     ([[obj+0x2e]+[obj+4]*4]'s [rec+0x4] slot +0x10, modes
+     edx=0/1/2/3) against block+0x18/+0x1c, the values 0x54170
+     soft-pulls toward - confirming PR-99's "the header F= feeds
+     only the increment channel, 0x54170's target comes from the
+     row F/I nodes". The six fields' lifecycle: 0x524a0 zeroes all
+     six and then stores the [obj+0x44] vtable (14 direct sites -
+     fresh objects start force 0 / drag 0 / const 0); 0x52500
+     copies all six off a template; and 0x52590 - the F=/T=/G=
+     parser PR-99 read (" %i,%i", T capped at 130 AT PARSE) - is
+     slot +0x00 of every one of the 15 [obj+0x44] method blocks.
+     So the authored F= pair IS the force word, T= IS the
+     percent-drag word (130 cap at parse, >=20 runtime raise), G=
+     the every-tick constant. THE CLOCK CORRECTION: PR-129 wrote
+     that the published reproduces "assume 20 Hz (PR-99)" - they
+     do not: the jump reproduction implies 25 ticks/s, the walk
+     numbers fit 20 Hz only at T=40 with s=10, and the only READ
+     clock is the iteration clock (PR-109 bracket 22-50 ms,
+     PR-110's LL_ITER_MS=28). What is open is now one equation,
+     px/s = (5*F*s/T)/100 x rate, two unread unknowns: no read
+     link ties the pipeline to one call per iteration (0x52750's
+     10 sites are per-class entries, e.g. 0x4ffb6, whose guards
+     [[obj+0x0]+0x126] / [[obj+0x0]+0x50]+[[obj+0x0]+0x5c]*4+0x4
+     / ds:0xcf074 are unread), and s = the record's OWN default
+     factors [rec+0]/[rec+4] (seeded into [obj+0xba]/[obj+0xbe]
+     by 0x549f0) are authored values never censused. Both closable
+     from code+data without video: an iteration-driver read and an
+     s census. Full record: the PR-130 section of NEXT_STEPS.md.
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2325,15 +2358,21 @@ windows, 3.0-17.5 s) and a frame from the middle of every one has been
 looked at - no window with the HUD drawn contains the boss, and the boss
 figure that repeats through the cut is a scripted no-HUD scene (a black
 room between two white-outlined wardrobe doors), which is also what the
-763-810 s windows PR-125 and PR-126 measured are. The video referee
-stays LONA.05's YETI (F=100 T=50: A 25 vs B 20 px/s, one instance at
-x=2100), but the code path has now been read (PR-129) and it does not
-toss a coin: the integrator at 0x54250 - the standard class-table slot
-+0xc8 in 137 class tables - settles at F/(2T) px/tick with the +/-10
-proximity gate of 0x549f0, which is law B (10F/T px/s) at a 20 Hz object
-tick and exactly law A at T=40; the video half is now a test of the tick
-rate and the authored-F feeding, both named open in §7 item 13's PR-129
-bullet.
+763-810 s windows PR-125 and PR-126 measured are. The code side is now
+read end to end (PR-129/PR-130): the integrator at 0x54250 - the
+standard class-table slot +0xc8 - settles at (5*F*s/T)/100 px/tick,
+where F and T ARE the authored `F=`/`T=` clauses (0x52680 copies the
+object fields at +0x50/+0x58 into the command block verbatim; the
+parser 0x52590 is the class's own vtable slot +0x00) and s =
+[obj+0xba]/[obj+0xbe] is seeded from the record's own default factors
+by 0x549f0. What is open is the PAIR (rate, s): the only clock read in
+this repo is the ~28 ms iteration clock (PR-109/110), while the
+published reproduces split between 20 Hz (T=40 walks, s=10) and 25
+ticks/s (the jump /100 reading), and the record default factors were
+never censused. The video referee - LONA.05's YETI (F=100 T=50, one
+instance at x=2100) - can only decide once rate AND s are fixed; an
+iteration-driver read plus an s census settle it from code and data
+first. See the PR-130 bullet in §7 item 13.
 tools/re/des_census.py prints the whole joined census. The
 table
 itself is now read end to end:
