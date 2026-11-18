@@ -703,7 +703,7 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | signal bits | ll_play.h `LL_SIG_*`, `ll_sig_id()` | engine table 0x48000: AC_BLOK 0..AC_EV_MAX 68, K_GEN1 54; `GEN <name>` raises any, conditions test the object's own set | PR-88 (verified constants); pulse-vs-latch + cross-object routing OPEN |
 | lives / energy HUD | ll_level.c | 6 lives, energy frames (100-e)/10 | video start shows 6 |
 | camera | ll_level.c `follow_camx/camy` | lead 100/220, ease 6 u/tick, grounded contact-line-at-128 anchor since PR-137 (178 before it; PR-97: the anchor point is `p.y + p.contact`, the shape-box bottom of the animation being shown (max over its state's frames) = the paws PR-84 measured; y-ease 2 u/tick invented). PR-136 MEASURED the camera in world units from the level's own static placements: leads HELD frame-for-frame 95-108 right (n=57, CAM_LEAD_R=100 confirmed) and 199-251 left (n=19, CAM_LEAD_L=220 inside the band, weak); catch-up rate p50 5 / p95 60 / max 230 u/s vs the port's 6 u/iteration = 120 u/s; the grounded paws row sits at 128 (mode, n=3990 surface frames; 128 unclamped) and 180 only where camy is at the world clamp - one constant 128 plus the existing clamp reproduces both; the view does NOT hold rigidly through jump arcs (camy change p05 -26 / p50 0 / p95 +12, n=139). PR-137 APPLIED the anchor: `CAM_FEET_Y` 178 -> 128, and the old comment's claim that the 175..180 band "is NOT the world clamp" was WRONG - it is, at 681-500 = 181; one constant plus the clamp reproduces both observed rows. No pixel pin moved (the ground-line case clamps either way); every unclamped surface now shows the lion at row 128 as the game does. The leads stay 100/220 (right CONFIRMED, left a weak n=19 band); the eases (6 x / 2 y per iteration) stay models with the measured band beside them, and `./ll_level --follow-selftest` now pins the whole law hermetically - 9 mutation controls, all caught | PR-136 record (tools/re/level_landmarks.py + video_camera_read.py + camera_law.py, /tmp/opencode/pr136/law_v3.txt); PR-137 record |
-| ground source on the first screens (G-13) | ll_level.c `platformy=` -> `ZARIA_A.PLT` | the port stands the lion on the authored .PLT lines; the clip shows him on surfaces 7-51 units ABOVE them at x 128-392 (y 466-508), while at the ground line the two agree exactly (108/108 frames, y 681 vs polyline "-50,680!408,684"). The placed platform images (plan4.seq@70,480 136x60, plan6.seq@287,430 62x41) have their top edges at those heights, so either the objects are solid floors the .PLT does not name, or the .PLT is only one of two ground sources. NOT decided | PR-136, G-13 |
+| ground source on the first screens (G-13) | ll_level.c `platformy=` -> `ZARIA_A.PLT` | DECIDED PR-138: the engine's ground records ARE the authored `.PLT` text - the loader makes one object per polyline line and the line parses itself into the 13-byte records the segment lookup (0x45380) then searches; class 0xa0c78 has exactly one builder in the image, no second ground-record builder exists. PR-136's "surfaces 7-51 units ABOVE at x 128-392" is RETRACTED: those were screen-x values from false-matched single-landmark (tier-2) cameras - frame 4370 proves it (the authored balloon at (1270,460) cannot be on view at the reader's camx 173; the port's own render matches at cam ~(1100,335), where the paws sit on line "1 1171,506;1305,503" within the estimate). Every VERIFIED (tier-1) frame - and they exist only for camera x 1..122 - stands the lion on a .PLT line at d+0 (125 samples, y 681). The remaining ground item is a NAMED PORT gap: the port places ani_plat= objects but never parses their local ground lines (ANIPL2.DES KATAPULT/PALMA entries; engine entity-record tables 0x34850 [obj+0x48]/+0x4c and the MOVEPLAT provider chain unread) | PR-136, PR-138 |
 | contact pass default | ll_level.c | on except RAN.01 | RAN is the balloon level |
 | SEMI_SOLID | `play_collide` | only the r/5 shift | velocity add (kind 13) unit unknown |
 | SOLID push polarity | `obj_shape_elem` | shape uses the DRAW polarity incl. CH_DIR facing | consistency, not decompile-pinned (PR-81) |
@@ -1818,6 +1818,53 @@ writer as its open items.
       test not evidence; the airborne hold is a model the data doubts;
       G-13 still stands - this fixed the ANCHOR, not the GROUND). Full
       record: the PR-137 section of NEXT_STEPS.md.
+    - PR-138 CLOSED G-13 AS A READING RECORD AND RETRACTED ITS HEADLINE
+      NUMBER. Engine side (transcript /tmp/opencode/pr138/engine_read.txt
+      - the leodb image index now rebuilds in one command): the
+      platformy= loader (0x4dc00) makes ONE OBJECT PER POLYLINE LINE of
+      the .plt text and the line PARSES ITSELF (method +0x20, 0x45120:
+      leading `%d` = extra-vertex count -> [obj+8], then (cnt+1)
+      13-byte records at [obj+4]: `%d,%d` -> rec x,y, and a ` %c` peek
+      sets rec+0xc (';' -> 1, '#' -> 2)) - that closes PR-123's
+      "records do not match .PLT text": the segment lookup 0x45380
+      indexes exactly that array. Class 0xa0c78 is referenced ONLY by
+      that loader: no second ground-record builder exists in the
+      image. Entity twin 0x34850 holds its own 13-byte table at
+      [obj+0x48]/+0x4c and asks a global provider (level +0x394)
+      built in the subsystem chain that names MOVEPLAT/MOVERECT
+      (0x91f42) - who fills that table is the open hole, and it is
+      the path by which the ANIPL objects' LOCAL ground lines
+      (ANIPL2.DES: KATAPULT@300,588 "1 7,45;40,45 -6300,-1350",
+      PALMA tops at world 475/380/320) become queryable relative to
+      the object (the 0x45320 base adds [this+0xca]/[this+0xce]).
+      Data side: the full 60 fps re-read with the reader's own
+      confidence tiers found 951 unambiguous tier-1 (two distinct
+      landmarks agreeing) lion frames, ALL at camera x 1..122 - the
+      first screen only. On them the ground match is now d+0 EXACTLY
+      (125 samples, y 681 vs "-50,680!408,684"), and the "7-51
+      above" populations are TIER-2 ONLY: all 19 clusters sit in one
+      world-x band 133..391 - the signature of screen-x wearing
+      world-x clothes after a false single-landmark match. Frame
+      4370 proves the false matches: the reader said cam (173,320),
+      but ANI2.DES's balloon at (1270,460) measures view-centre
+      (177,118) in the frame - on view only for camx ~1105 - and
+      the port's own render at (1079,335) matches the frame; with
+      THAT camera the paws land on authored line "1 1171,506;1305,503"
+      within +-20. The one other tier-1 "surface" (y 580, frames
+      466..475) is a JUMP APEX my constant-y filter accepted -
+      settled by viewing frames 460/466/472. Net: the clip asks for
+      no ground source beyond the authored .PLT where it can be
+      verified, and mid-level camera is UNVERIFIABLE by landmarks
+      (no two statics co-visible beyond x ~122) - every mid-level
+      claim must now say tier-2. NEW PORT GAP, named: the port
+      places ani_plat= objects but never parses their local ground
+      lines (ll_level.c loads ground from platformy= only). Tool
+      promoted: tools/re/ground_surfaces.py (world-coord,
+      tier-filtered clusters vs the .PLT and the atlas). 8 open
+      items counted, including the jump-apex LIMIT of the filter and
+      the fact that every artefact was REGENERATED after /tmp was
+      wiped mid-session. Full record: the PR-138 section of
+      NEXT_STEPS.md.
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2536,13 +2583,18 @@ writer as its open items.
     STATUS.LEO fields instead (G-8); contact-damage reality vs the
     port's SEMI-push + 15/30-tick model, which kills a walking
     lion before x=180 (G-5); SURPRISE "?" firing (G-12); and the
-    ground SOURCE of the first screens (G-13, PR-136): the absolute
-    camera read puts the lion on surfaces at y 466-508 for x 128-392,
-    7-51 units above the ZARIA_A.PLT lines the port stands him on,
-    while at the ground line (y 681) read and .PLT agree in 108/108
-    frames; the placed platform images' top edges sit at those
-    heights - either those objects are floors, or the .PLT is not the
-    only ground source. Decide which, then re-pin the scene legs.
+    ground SOURCE of the first screens (G-13, PR-136) IS DECIDED IN
+    PR-138: the engine's ground records ARE the authored .PLT text,
+    and the 7-51 offset was screen-x from false-matched
+    single-landmark cameras - every verified frame stands the lion on
+    a .PLT line at d+0, and no second ground-record builder exists
+    in the image. The open remainder is named there: the port never
+    parses the ani_plat= LOCAL ground lines (ANIPL2: KATAPULT/PALMA
+    entries), and engine-side the entity record table (0x34850,
+    [obj+0x48]/+0x4c) and its MOVEPLAT-chain provider are unread.
+    Read that chain first, then parse the local lines behind a
+    test-and-mutation pair; no scene re-pin is needed at the ground
+    line.
 
 ## 8. Plan: tasks, in order. One task = one or a few PRs.
 
@@ -2667,11 +2719,15 @@ grounded vertical anchor is ~128 plus the existing world clamp (not
 178) - AND IT IS APPLIED IN PR-137, with the whole camera law pinned
 hermetically by --follow-selftest; the catch-up ease stays a model
 slower than the port's in the data, and the view does not hold rigidly
-through jumps (both counted open). PR-136 also opened G-13: the first
-screen's walking surfaces sit 7-51 units above the .PLT lines the port
-uses, while at the ground line the two agree exactly. See the PR-130,
-PR-132, PR-133, PR-134, PR-135, PR-136 and PR-137 bullets in §7 item
-13.
+through jumps (both counted open). PR-136 opened G-13 and PR-138
+CLOSED it: the "7-51 above" offset was a measurement artifact
+(screen-x from false-matched single-landmark cameras); the engine's
+ground records ARE the authored .PLT text, and every verified frame
+stands the lion on a .PLT line at d+0. What remains ground-side is
+the ANIPL item named in the PR-138 record (ani_plat= local lines
+never parsed; the entity-table registration chain unread). See the
+PR-130, PR-132, PR-133, PR-134, PR-135, PR-136, PR-137 and PR-138
+bullets in §7 item 13.
 tools/re/des_census.py prints the whole joined census. The
 table
 itself is now read end to end:

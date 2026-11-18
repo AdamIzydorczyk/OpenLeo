@@ -12546,7 +12546,245 @@ no port behaviour change)
   transcripts); the numbers beside the constants are PR-136's, in
   /tmp/opencode/pr136/law_v3.txt.
 
+## PR-138 — G-13 CLOSED AS A READING RECORD: the engine's ground records
+
+## ARE the authored .PLT text - the platformy= loader makes one object
+## per polyline line and each line parses ITSELF into the 13-byte
+## records the player's segment lookup then searches (PR-123's
+## unmatched records, closed) - while PR-136's "surfaces 7-51 units
+## above the .PLT" is RETRACTED: those numbers were screen-x from
+## false-matched single-landmark cameras, every VERIFIED frame in the
+## clip stands the lion on a .PLT line at d+0, and the ground work
+## that actually remains is a named port gap: the ani_plat= local
+## ground lines (ANIPL2, the engine's MOVEPLAT chain) are never read
+
+- WHY. Two questions were open on G-13. Engine side, PR-123 had
+  recorded the ground lookup's 13-byte records but "could not match
+  them to .PLT text" - so it could not say whether the .PLT file the
+  port parses is what the engine actually queries, or one of two
+  sources. Data side, PR-136 had measured "the first screen's
+  walking surfaces sit 7-51 units ABOVE the ZARIA_A.PLT lines" (and
+  PR-137 open item 4 kept that alive). The interim measurements of
+  2026-11-18 are superseded by this record: both sides conclude, and
+  the answer changes what G-13 means.
+
+- WHAT SHIPPED. One tool promoted into git by PR-136's convention
+  (video/RE helpers live in tools/re/): `ground_surfaces.py` -
+  tier-filtered, world-coordinate standing clusters, each
+  cross-checked against every .PLT segment at its centre x and
+  against every static-image top edge of the landmark atlas. The
+  defects of this session's first pass - mixing screen-x with
+  world-y, and clustering tier-2 frames at all - are exactly what it
+  is built to prevent; the README row says so. Plus this record and
+  the HANDOFF updates. No C file changed, no Makefile target, no
+  .github/workflows/* touched, no game data or frames in git. No
+  test accompanies it because nothing behavioural changed; the
+  test-and-mutation rule applies to the ANIPL item below, where
+  behaviour does change.
+
+- THE ENGINE READ, POLYLINE SIDE (closes PR-123's identity question;
+  every address cited in /tmp/opencode/pr138/engine_read.txt). The
+  level loader opens the platformy= file at 0x4d424-0x4d472 and
+  0x4dc00 allocates an array of class 0xa0c78 objects at
+  [level+0x74] with count at [level+0x80] - ONE OBJECT PER POLYLINE
+  LINE of the .plt text - and calls [obj+0x20] on each with that
+  line's text. That method, 0x45120, is why PR-123 could not match
+  the records to the text: THE LINE PARSES ITSELF. `%d` (0x9182d)
+  reads the line's leading number - the count of EXTRA vertices
+  beyond the first point, the same quantity the port's ll_plt_parse
+  reads - into [obj+0x8], and (cnt+1)*13+4 bytes become the record
+  array at [obj+0x4]: cnt+1 thirteen-byte records. 0x4a0b0 parses
+  each `%d,%d` pair (0x91d0f) into rec+0 x and rec+4 y, skipping
+  " , " between lines (0x91d15); ` %c` (0x91830) peeks the
+  separator and sets rec+0xc: a ';' follows -> 1, '#' -> 2,
+  otherwise 0 - the segment-kind flags the .plt text writes. The
+  instance vtable 0xa0cc0 (set at 0x44fb0) holds 0x45320 at +0x18
+  - the method PR-138's interim pass called the "shared base" of
+  ~38 class vtables; it is the polyline ground base, and it adds
+  [this+0xca]/[this+0xce] (the object's own position) to the query
+  point, which is how a placed object can own LOCAL ground lines -
+  0x45400 at +0x1c, and the parser at +0x20. The segment search
+  0x45380 reads the count at [owner+0x8] and indexes records at
+  [owner+0x4] - the exact array 0x45120 filled: the .plt polyline
+  object IS the table the lookup searches, which closes PR-123 open
+  item 1. 0x45200 translates every record of a polyline by (dx,dy)
+  - the move-a-floor method. Class 0xa0c78 is referenced only at
+  0x4dc69 (that loader) and 0x44f9d (a class check), so in this
+  image the player-queried polyline records have exactly one
+  builder: .plt text. No second ground-record builder was found.
+
+- THE ENGINE READ, ENTITY SIDE (names the real remaining ground
+  item). The twin method 0x34850 (entry found by its prologue - the
+  linear sweep aligned it at 0x34852; exactly one vtable pointer, at
+  0x9dc80, inside the class table at 0x9daf8) holds an array of its
+  OWN 13-byte-stride records at [obj+0x48] with count at [obj+0x4c]
+  (indexed with the same stride at 0x3487b/0x3489a), and FIRST asks
+  the global provider at 0xcef40+0x394 (provider vptr at +8, method
+  slot +0x4c), merging the four-dword answer with the local table.
+  The provider is written at 0x4de2d-0x4dea4 in a loader chain that
+  names the subsystems ANITAB / PLANT / GRABOBJ / DEMOTEXT /
+  ANIBACK / MOVEPLAT / MOVERECT (strings at 0x91f42, next to the
+  PR-103 name factory's formats): entities that carry their own
+  ground records are the platform subsystem's objects - the
+  ani_plat= chain, read through the same 0x45320 offset-by-object
+  base. What fills the entity table, and what the provider answers,
+  stayed unread (open items 1 and 4).
+
+- THE DATA SIDE, RE-MEASURED AT FULL RATE with the confidence tiers
+  the reader already prints (tier 1: two DISTINCT placed static
+  images agree on one camera - only such frames may be called
+  verified; tier 2: a single uncontested landmark). The whole clip
+  re-read at 60 fps (27,601 frames; 18,376 with a lion blob and a
+  7-value paws read inside the level's camera range): 951
+  unambiguous tier-1 frames with a lion blob - 722 of them also
+  with the full paws read - and EVERY ONE at camera x 1..122, the
+  first screen only; 17,375 tier-2 frames carry every other claim.
+  (1) At the ground line the agreement is now stronger
+  than PR-136's 108/108: on tier-1 standing frames, 125 samples at
+  world x 40..142 put the paws row at 681 against polyline "1
+  -50,680!408,684" at d+0 - exactly zero, not within tolerance.
+  (2) The disputed mid-level populations are tier-2 ONLY: all 19 of
+  the earlier clusters (y 318..557) sit inside world-x band 133..391
+  - and 19 different surfaces in a 260-unit x window of a 2240-wide
+  level is the signature of a mislabelled coordinate, not of
+  geography: when the camera is a single-landmark false match,
+  paws_x + camx is the SCREEN x, not world x. PR-136's "x 128-392"
+  band IS that band. THE 7-51 MEASUREMENT IS THEREFORE RETRACTED -
+  it compared screen-x clusters against world-x .PLT segments, and
+  the "platform image top edges at exactly those heights" argument
+  (plan4@70,480 top 481, plan6@287,430) fell with it: re-run in
+  true world coordinates no verified frame puts the lion anywhere
+  near those edges. No verified frame places the lion on ANY
+  surface the .PLT does not name.
+  (3) The probe that proves the false matches, frame 4370: the
+  reader returned camera (173,320) at frames 4362/4368/4374 (tier-2,
+  one landmark). But the frame shows the mid-level balloon scene:
+  ANI2.DES places `BAL,balonik.ani,balonik.mov,1270,460` (of six
+  balloons authored in that file), and its red envelope measures
+  view-centre (177,118) in the frame - that point projects there
+  only for camx ~1105; with the reader's camx 173 the balloon
+  cannot be brought on screen at all (nor can any of the other
+  five). The port's own render at cam (1079,335) matches the frame
+  (/tmp/opencode/pr138/frames/port_1079.png vs f4370.png). Scene
+  alignment says the true camera is ~(1100,335) ± 20, and with THAT
+  camera the paws land at world (1237,488) ± 20 while the authored
+  line "1 1171,506;1305,503" runs at y 504 there - d -16, inside
+  the uncertainty of the same estimate: the lion stands on a .PLT
+  line as well as the read can show. ZARIA's real mid-level authored
+  shelf is exactly those lines: "1 922,509;968,508", "1
+  993,506;1141,507", "1 1171,506;1305,503" span x 922-1305 at y
+  503-509.
+  (4) The one other tier-1 "surface" the tool found - 10 standing
+  samples at y 580, world x 118..130, frames 466..475 - is my own
+  filter's artifact, settled by looking at frames 460/466/472: at
+  460 he is on the ground in the tree shot the port renders at
+  (173,320), and at 466-475 he is mid-jump. A window that only
+  requires "world y constant over +-0.1 s" also matches a jump
+  APEX, and the walking-motion split does not separate them because
+  a jump travels horizontally. (The earlier read's walk/stand
+  classifier called it standing while walking; it was wrong.)
+  CONCLUSION: for the first screens the data asks for no ground
+  source beyond the authored .PLT, and the engine builds no records
+  the .PLT text does not write - G-13 as PR-136 framed it is
+  dissolved, and with it PR-137 open item 4. The ground-related gap
+  that REMAINS is a port gap with a name: ani_plat= files are never
+  parsed for ground at all. ANIPL2.DES (ZARIA.01) carries four
+  entries, each followed by a .plt-style LOCAL line: KATAPULT@300,
+  588 "1 7,45;40,45" with a trailing "-6300,-1350", and
+  PALMA@820,435 "1 18,40;80,40", @965,335 and @1010,275
+  "1 -80,45;-18,45" - world tops 475/380/320. The engine's entity
+  twin above is plausibly their reader (0x45320's add-the-object-
+  position is exactly what local lines need); the port's ground
+  load (ported/ll_level.c 6721-6756) parses platformy= only, plus
+  the .des-as-.plt fallback, and drops ani_plat entirely
+  (ll_level.c 4703-4766 count the references). Reading the
+  0x34850/MOVEPLAT chain and parsing those local lines, with a test
+  and mutation controls, is the successor item - call it G-13's
+  remainder.
+
+- OPEN ITEMS, COUNTED: 1 nobody was FOUND that fills the entity-side
+  [obj+0x48]/+0x4c table or registers .plt lines into it - the
+  polyline-to-entity registration path is the exact open hole in the
+  engine read, and without it the entity twin is not yet proven to
+  be the ANIPL reader. 2 the port parses no ani_plat local ground
+  lines, and KATAPULT's trailing "-6300,-1350" is unread on both
+  sides (a 13-byte record? a second vertex pair? an offscreen
+  marker? not guessed). 3 the mid-level camera is UNVERIFIABLE by
+  landmarks - no two static placements are co-visible beyond x ~122
+  - so this PR does not "confirm" the .PLT mid-level either; it
+  stops DISconfirming it. Any future mid-level claim must say
+  tier-2. 4 the provider chain at 0x4ddf0 is unread: which files
+  the group calls (0x57a70/0x57a00/0x57ae0) open, what 0x1fef0/
+  0x25510/... return, and the provider's four-dword answer format
+  were only read from the merge code. 5 callers of 0x45200 (the
+  translate method) are not listed; no ZARIA polyline is shown
+  moving. 6 the rec+0xc flag is SET at parse (';' -> 1, '#' -> 2)
+  but never followed into what the segment queries do with it.
+  7 the standing-window filter counts jump apexes as standing
+  (proved, items above); ground_surfaces.py documents the
+  limitation rather than fixing it - with zero verified frames
+  outside the first screen there is no data to validate a fix
+  against. 8 this session's evidence was REGENERATED, not reused:
+  /tmp was wiped mid-work; fixtures were restaged by the PR-135
+  recipe, the atlas rebuilt (the same 12 templates), the .plt and
+  .des dumps are byte-identical, the leo.img image hash unchanged
+  (edf19a12...), and the PR-137 mutation transcripts were re-run
+  and reproduce the shipped record (9/9 caught; the pre-
+  strengthening repro 6/7 with m6 surviving). Every number quoted
+  here comes from the regenerated artefacts.
+
+- GATES. No C file changed; the full gates were run anyway.
+  `make` rc=0 with ZERO warning lines and `make win` rc=0 with ZERO
+  warning lines (/tmp/opencode/pr138/gate_make.log,
+  /tmp/opencode/pr138/gate_win.log). `make -k verify-all
+  DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files`
+  rc=0, "ALL TESTS PASSED (linux + windows + llrs)", 54 `(ok)`
+  proofs, no FAILED anywhere - the same 54 as PR-137, no leg
+  changed. The same suite fixture-free, `DATA=/tmp/opencode/nope
+  HD=/tmp/opencode/nope`, rc=0 with every data leg naming its
+  SKIP - 21 `verify-*: SKIP` lines plus the umbrella `verify:
+  SKIP`, the same named set as PR-135/136/137 - while
+  `--mov-selftest`, `--play-selftest`, `--follow-selftest`, the
+  decoder selftests and the T-01 structure leg ran in that cold
+  environment, as before. (/tmp/opencode/pr138/gate_all_full.log,
+  gate_all_nofix.log.)
+
+- HANDOFF UPDATED. Section 6's G-13 row now reads DECIDED on the
+  engine side with the retraction named; section 7 item 13 gains a
+  PR-138 bullet and the paragraph that carried the 7-51 claim now
+  names the ANIPL remainder instead; section 8 T1's status is
+  re-marked the same way.
+
+- EVIDENCE. /tmp/opencode/pr138/engine_read.txt (544 lines: every
+  leodb disassembly/SQL this record cites, with the leo.img sha256
+  stamped at the top); /tmp/opencode/pr138/cam_v4.jsonl (the full
+  60 fps read, 27,601 frames) and surf_v2_out.txt (the cluster
+  table, reproduced by tools/re/ground_surfaces.py); the dumped
+  authored data zaria_a.plt.txt and anipl2.des.txt; frames/
+  (f4370.png, port_1079.png, the w460/466/472/478 jump-apex
+  series); the PR-126 .des dump rebuilt for the ANI2.DES balloon
+  lines; and the regenerated pr137_mut transcripts.
+
 ## Next — pick from the Deferred list below
+
+- G-13 CLOSED BY THE PR-138 RECORD (read it first if this line
+  pulls you back): the engine's ground records ARE the authored .PLT
+  text - one object per polyline, parsing itself into the 13-byte
+  records the segment lookup searches - and PR-136's "surfaces 7-51
+  units above the .PLT" is retracted as screen-x from false-matched
+  single-landmark cameras; every verified frame stands the lion on a
+  .PLT line at d+0. The ground work that remains is now a NAMED
+  port gap, not a mystery: the port places ani_plat= objects but
+  never parses their LOCAL ground lines (ANIPL2.DES: KATAPULT@300,
+  588 "1 7,45;40,45 -6300,-1350", three PALMA entries with world
+  tops 475/380/320), and engine-side nobody was found that fills
+  the entity record tables (0x34850, [obj+0x48]/+0x4c) or what the
+  global +0x394 provider answers (the 0x4ddf0 chain naming
+  MOVEPLAT/MOVERECT at 0x91f42). The PR that pursues G-13's
+  remainder reads that chain FIRST, then parses the ani_plat local
+  lines behind a hand-derived test with mutation controls. If that
+  is not next, pick from the PR-131 gap list G-3..G-12 - the
+  current text of every item is HANDOFF.md §7 item 13.
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
 first item and PR-45 its second (the authored scene), PR-46 its third
