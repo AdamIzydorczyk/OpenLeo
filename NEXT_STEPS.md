@@ -10818,8 +10818,11 @@ live in reference/video/zax37/ under the §3 index's own stage ids.
   D = (block+0x0*[obj+0xba])/20 + [obj+0x6d]*block+0x10. With
   PR-99's reading ([obj+0xba] = s = 10): px/tick = F/(2T) - the same
   5*F*s/T in the register's 100x units, so PR-99's algebra is CONFIRMED
-  line by line. At a 20 Hz object tick that is 10*F/T px/s = law B;
-  T=40 gives F/80 px/tick = F/4 px/s = law A, which is why all 29
+  line by line. At a 20 Hz object tick [CORRECTED IN PR-133: there
+  is no separate object tick; the object tick IS the iteration
+  clock, so "20 Hz" = the 50 ms edge of PR-109's bracket] that is
+  10*F/T px/s = law B; T=40 gives F/80 px/tick = F/4 px/s = law A,
+  which is why all 29
   T=40 placed rows (PR-126) cannot separate them and why PR-79's /4
   fit worked. Machine-checked: F=100 T=50 (LONA.05 YETI) -> 1.0
   px/tick = 20 px/s at 20 Hz (law A would say 25); F=75 T=20
@@ -11057,7 +11060,9 @@ live in reference/video/zax37/ under the §3 index's own stage ids.
   factors" are the caller's scratch pair, every producer is read,
   |s| <= 10 with s = +/-10 exactly at full one-axis intent, and
   no authored field can carry s. What remains open is the rate
-  alone.]
+  alone. [CLOSED IN PR-133: there is no separate object tick - the
+  rate is the iteration clock x the passes a record runs per state
+  step, at most 1 for the moving families; see the PR-133 record.]]
 - WHAT WOULD BREAK THE PORT: nothing today. The port's numbers were
   fitted from video and stay; the record keeps §8 T1 (1)'s test
   honest by re-deriving what the test can decide.
@@ -11385,7 +11390,11 @@ no port behaviour change)
      outside the player (the record's producer sits in the
      scanner's earlier block - not read this PR; it is PR-133
      territory, since the scanner is one of the per-frame
-     iteration paths).
+     iteration paths). [NARROWED IN PR-133: the record IS the
+     12-byte stack copy the frame loop makes at 0x4ae82-0x4aeaa
+     (0x4ab50, [esp+0x1f0] -> [esp+0x1e4]); the fields it
+     zeroes at 0x4abe0-0x4abee are filled by the modal blocks
+     between - the producer chain is the loop itself.]
   6. 0x50340 (the direct-call method, 12+ tables): if
      [obj+0x106] == 0 it zeroes the record's +0/+4/+8 first (no
      interest target -> zero factors); if [obj+0x11a] == 5 it
@@ -11457,6 +11466,245 @@ no port behaviour change)
   factors" phrase is marked [CORRECTED IN PR-132] in place, and
   the PR-130 "open pair" paragraph is marked closed on the s
   side, per the house pattern.
+
+## PR-133 — W0's rate side closed at byte level: the physics-pipeline
+## entries are state-record members, a record run IS a state step, and
+## a state step IS one frame-loop iteration (PR-106) - there is no
+## separate object tick; + the exhaustive slot-dispatcher census, the
+## 0x52750 entry map with every table base alignment named, the record
+## tables found in the image with their bound physics sets, and the
+## [obj+0x9d] gate on the single +0x114 dispatch. (pure RE; no C, no
+## tool change)
+
+- WHY. PR-130/132 left exactly one unread quantity in the motion
+  scale: the rate, "how often does 0x52750 / the +0xc8 integrator run
+  for a class family" (§7 item 13, §8 T1 (1)). PR-129's
+  machine-checked set is px/tick facts (1.0 YETI, 1.875 BOSS, 1.25
+  worm) converted to px/s at an ASSUMED 20 Hz; PR-106 measured a
+  ~28 ms iteration clock; the two do not multiply out. This unit
+  reads the iteration-driver structure end to end and answers it.
+  Method notes: every VA was read from raw image bytes with
+  /tmp/opencode/dat.py (text.asm's linear sweep is misaligned in
+  places - at 0x50970 it starts at 0x5096f, and its output at that
+  base hides real dispatches like 0x50bae from any grep). So the
+  slot-dispatcher census below is a BYTE census: every `FF /modrm
+  80-9F/ disp32` call form in .text. It is exhaustive for the slots
+  here: offsets >= 0x90 cannot encode a disp8, so only the disp32
+  form exists. And every slot cited names its table-base anchor:
+  a base here means the dword where +0x68 = 0x23900 (position
+  getter) and +0x70 = 0x239f0 (facing getter), except where marked
+  "pair anchor" (+0xc8 = 0x54250 with +0xcc = 0x549f0). The 4-byte-
+  shifted slot families PR-105/132 hit are why this rule exists.
+
+- THE BYTE CENSUS OF SLOT DISPATCHERS (complete, .text = file
+  0x1000..0x80000, pattern `FF modrm disp32`):
+  +0x90: 2 sites - 0x3edaf (inside 0x3ed70, itself a value in 5
+    tables 0x9dc10/0x9e2a8/0x9f7c8/0xa1fa4/0xa2068; setup shape,
+    unread) and 0x5357d (inside 0x53520, the state-step chain).
+  +0xa0: 1 site - 0x52317 (inside a contact walk; +0xa0 = 0x543a0
+    is the BY_* odometer, PR-129/ll_play.h vocabulary).
+  +0xc8: 1 site - 0x52774 (inside 0x52750; PR-129's claim CONFIRMED
+    exhaustively now, not just by grep of one reg class).
+  +0xcc: 7 sites - 0x27e1d, 0x282a1, 0x344c8, 0x4010e, 0x4110c,
+    0x41c01, 0x4aeca - PR-132's list, now byte-verified complete.
+    0x4010e is inside 0x400b0 = +0x14 of the 0x9f380 family: that
+    state step runs its own object's +0xcc once per step before
+    tailing 0x550a0 (0x40129). 0x4aeca is the frame loop's player
+    +0xcc (PR-106/125); its record is the 12-byte copy the loop
+    makes at 0x4ae82-0x4aeaa (`0x4ab50`, [esp+0x1f0] -> [esp+0x1e4]),
+    the fields the loop zeroed at 0x4abe0-0x4abee - PR-132's open
+    item 5 is narrowed to "filled by the modal blocks in between".
+  +0xe0: 13 sites - 0x276bc, 0x2775e, 0x277cb, 0x27a2a, 0x27fc0,
+    0x28523, 0x302e7, 0x30453, 0x3b8ca, 0x3d7a1, 0x4156f, 0x4d711,
+    0x50cea.
+  +0xe4: 6 sites - 0x379d0, 0x37d6f, 0x3d624, 0x4159f, 0x4ff08,
+    0x50f67 (not chased this PR; counted).
+  +0xe8: 5 sites - 0x378d4, 0x37a04, 0x41a5d, 0x4aba8 (inside
+    0x4ab80), 0x4ac1b (frame-loop setup before the head at
+    0x4ac3b, runs once per level not per iteration). (PR-131's
+    cgraph listing showed 0x37cad as a sixth; the byte form there is
+    not +0xe8 - a sweep artifact, corrected by this census.)
+  +0xec: 4 sites - 0x3d7b3, 0x415cd, and the two player paths
+    0x4ab97/0x4ac0a (0x4ab97 is inside 0x4ab80, which the frame
+    loop calls EVERY iteration at 0x4aedb when [level+0x3a8] == 0:
+    0x4ab97 dispatches the player class's +0xec, 0x4aba8 its
+    +0xe8; 0x4ac0a is the once-per-level copy).
+  +0xf4: 6 sites (0x2838d, 0x2856e, 0x3d833, 0x3d84e, 0x3e52d,
+    0x41b06). +0x100: 2 (0x41b6a, 0x50c2a). +0x104: 4 (0x41a7e,
+    0x50b34, 0x50b57, 0x50b8d). +0x108: 2 (0x41711, 0x50bbc).
+    +0x10c: 1 (0x50c1b). +0x110: 1 (0x50c0c). +0x114: 1 (0x50bae).
+    +0x11c: 1 (0x50b49). +0x120: 0.
+
+- THE STATE-STEP CHAIN, CLOSED. PR-106 established: while an object
+  is on-camera ([obj+0x2c] flag, written by the draw pass), one
+  frame-loop iteration = exactly one pump 0x52b80 = exactly one
+  `[[obj+8]+0x14]`. Closed now: the cited +0x14 bodies END in the
+  same tail - the worm 0x27d60 at 0x27e25 and 0x400b0 at 0x40129
+  both call 0x550a0 (0x550b4), 0x550a0 zeroes [obj+0xe6]/[obj+0xea]
+  and calls 0x536f0; 0x536f0 runs [cls+0x8c], 0x49580 twice with
+  0x523f0, [cls+0x54], then 0x53520 (0x5373c), and 0x53520
+  dispatches `[[obj+8]+0x90]` at 0x5357d. So a class's +0x90 method
+  runs exactly once per state step. For the 4 classes holding
+  +0x90 = 0x50970 (bases 0x98f34, 0x9d338, 0x9f540, 0xa2218 -
+  getter-anchored) that method IS the physics-method sequence:
+  0x50970 spans 0x50970..0x50c4c and at 0x50b8d calls +0x104 (early
+  exit 0x50c30), gates `cmp [obj+0x9d],1 / jne` at 0x50b9b before
+  the only +0x114 call (0x50bae), then +0x108 (0x50bbc) with its
+  result compared against [obj+0x9d] and the state index (0x50bc8-
+  0x50bda: it indexes the record array [obj+0x50] + [obj+0x5c]*4
+  itself), then +0x110 (0x50c0c), +0x10c (0x50c1b), +0x100 (0x50c2a)
+  and calls 0x54450 directly (0x50c38). Every other family's +0x90
+  is 0x54450 - the record guard (PR-129) - so those run their record
+  machinery per state step instead.
+
+- THE RECORDS ARE IN THE IMAGE AND BIND THEIR OWN PHYSICS SETS. The
+  record array is exactly what 0x50bda indexes: rec = [[obj+0x50] +
+  [obj+0x5c]*4]; 0x53410 (0x54450's tail) hands back [rec+4]
+  (PR-132). Found layout, identical in every record surveyed:
+  rec+0x00 = a condition stub; rec+0x04 = 0x546a0 (shared, all
+  records); and rec+0x18.. holds the physics default set at
+  rec+0x1c/+0x20/+0x24 = 0x55020/0x54250/0x549f0 - the SAME triplet
+  class tables hold at +0xa0/+0xc8/+0xcc, re-bound per record - plus
+  small getters at +0x28.. and class-bound members from +0x2c on.
+  Specimen 0x9a820: the record right after the worm class table
+  0x9a778; its +0x2c binds 0x27ef0 - which is 0x9a778's own +0xd8
+  value, a self-linking pair; its +0x30/+0x34/+0x38 =
+  0x3df50/0x3df90 (the PR-129/131 physics-record methods) and
+  0x52590 (the F=/T=/G= parser, PR-130). Immediately next,
+  0x9a85c = an [obj+0x44] physics-parameter block (PR-130 shape):
+  0x52470/0x52680/0x4ff80/0x52790 at +0x28..+0x34, and its +0x8 =
+  0x26fd0 = the 0x9a778 +0xec pipeline entry. The condition stubs
+  write the record's own bytes: 0x3e060 tests rec+0x7 bit 0x8 into
+  [obj+0x116] and calls 0x54860; the worm state-0 stub 0x27e40
+  reads the player's position ([0xcef40]+0x394, +0x68 getter), sets
+  rec+0x7 |= 0x40 when the player is near and that dword < 0x514,
+  and sets rec+0x5 |= 0x1 by sign rules on the [obj+0x126]/
+  [obj+0x12a] target deltas. The control-mode machinery
+  ([rec+0x12] & 7, jump table 0x54380 - the ll_play.h BY_*
+  vocabulary) consumes those bits.
+
+- HOW RECORDS RUN THE PIPELINE. The record-bound members ARE the
+  containers of the 13 +0xe0 sites: heads at exact prologues
+  (cgraph's heads were padding-after-ret artifacts), and 10 of the
+  13 are found as record/class values:
+  0x27680 in record 0x997c4's block at +0x2c (form: `call
+  [edx+0x3c]` predicate, test, `je`; else dispatch [class+0xe0] at
+  0x276bc); 0x27720 (record 0x99bf8 +0x30), 0x27770 (0x99d08
+  +0x30), 0x27fa0 (0x998d0 +0x30), 0x28470 (two: 0x9a420 +0x30
+  region), 0x30270 (0x9c688 +0x28 region), 0x30410 (0x9c5cc +0x30
+  region of the 0x9f380-variant family), 0x3b860 (0xa0520 region),
+  0x50c50 (+0x30 of 10 record blocks 0x96a60/0x97a70/0x97b98/
+  0x99034/0x9a64c/0x9b5d4/...); the other 3 (the 0x277e0 head,
+  and the areas at 0x3d7a1 and 0x4d711) appear nowhere as values -
+  named open below. And 3 of the 5 +0xe8 sites sit 14-46 bytes
+  after a `call 0x3e060` IN THE SAME stub (0x378b6->0x378d4,
+  0x37a04, 0x41a5d): condition evaluation then pipeline run inside
+  one record member. The worm's own bound physics members
+  (0x3df50/0x3df90) are not 0x52750 callers - they are the
+  0x52790-shape block builders (12-dword memset via 0x749a0,
+  flag bits, 0x49580 merges from engine subsystems 0x4bd30/0x4b890)
+  that the record then integrates through the bound +0x20 = 0x54250.
+
+- THE 0x52750 ENTRY MAP (complete; the 10 entries of PR-129's
+  caller scan, heads now exact - cgraph's heads were 2-6 bytes late,
+  the true values in the tables were found by +-12-byte scans):
+  0x23f90 = table 0x98da4 +0xe0 | 0x26470 = 0x99258 +0xe8 |
+  0x26fd0 = 0x9a778 +0xec (the ZARIA worm class) |
+  0x2c360 = 0x9b3dc +0x220 | 0x2ded0 = 0x9ce04 +0xe0 |
+  0x31fa0 = 0x9d088 +0x4bc (pair anchor only - getter anchor not
+  verified for that table, flagged) | 0x33c60 = 0x9e048 +0x214 |
+  0x361c0 = 0x9f380 +0xe8 | 0x4ffb0 = 0x97bc0 +0xe4 |
+  0x61200 = 0x9fb24 +0xe0. All bases getter-anchored except
+  0x9ce04/0x9f380 (pair-anchored, PR-129/132) and the flagged
+  0x9d088. The slots land in four shifted families (+0xe0, +0xe4,
+  +0xe8, +0xec) - one more instance of the 4-byte view families;
+  the record/census method above is what makes them line up.
+
+- THE RATE ANSWER. There is NO object tick separate from the frame
+  loop. The only paths by which the integrator can run are:
+  (a) a record-bound +0xe0/+0xe8/+0xec member called during a state
+  step - i.e. at most one pipeline pass per iteration while
+  on-camera (PR-106's cadence), gated by the record's own authored
+  condition bits; (b) the 0x50970 classes' physics-method sequence,
+  once per state step, with the +0x114 leg gated on [obj+0x9d] == 1
+  (0x50b9b); (c) the per-iteration player paths of 0x4ab80 (+0xec
+  then +0xe8) and the frame loop's player +0xcc (0x4aeca) - the
+  LION base 0x96874 holds 0x50340 at +0xec, so the lion's
+  input-apply wrapper runs every iteration (0x50340 -> 0x549f0 at
+  0x50369, PR-132); and (d) the three direct 0x54250 callers
+  (PR-129). So rate = (iterations/s) x (passes per record per
+  state step). The first factor is the measured iteration clock
+  (PR-109's bracket 22-50 ms; PR-106's two-retrace design point;
+  PR-110's LL_ITER_MS = 28). The second is authored, per record -
+  and it is AT MOST 1 for the classes whose record chain runs one
+  +0xe0-style member per step. Therefore the "20 Hz" is not a
+  second clock: it is the iteration clock at 50 ms, the top edge of
+  PR-109's bracket. At 50 ms: YETI F=100/T=50 -> 1.0 px/iter =
+  20 px/s and the ZARIA worm F=100/T=40 -> 1.25 px/iter = 25 px/s,
+  both matching the published reproduces; at the 28 ms design point
+  they would be 35.7 and 44.6 px/s, which the videos refute for the
+  worm. The scale equation now has NO unread constant: F and T are
+  read (PR-130), s is read and bounded (PR-132), the clock is the
+  port's own pacing knob, and the passes-per-state-step count is a
+  per-record integer with read mechanism. Marked ESTIMATE: "the
+  worm's record runs one pipeline member per state step" - the flag
+  semantics ([obj+0x116], [obj+0x9d], the record condition bytes)
+  are unread (open item 3 below); the upper bound and the mechanism
+  are byte-fact.
+
+- IN-PLACE CORRECTIONS TO EARLIER RECORDS (house pattern):
+  PR-129's "At a 20 Hz object tick" is corrected there (no object
+  tick; the object tick IS the iteration clock). PR-130's closing
+  bracket "What remains open is the rate alone" is closed there.
+  PR-132's open item 5 (the 0x4aeca record's producer) is narrowed
+  there to the frame loop's 0x4ab50 copy chain. Nothing said about
+  0x50340's slot by PR-125/132 was wrong: at the getter-anchored
+  base 0x96960 (TLewZaria) it IS +0xcc; at 0x96874 it is +0xec
+  (and +0xcc there is 0x549f0) - both now stated with anchors.
+
+- OPEN ITEMS, COUNTED AND NAMED (4): (1) who calls rec+0x0 stubs
+  directly - the record-step dispatcher; candidate `call [reg]`
+  sites in the 0x1e15f/0x1ea2c region and 0x526e9/0x5272a/0x5273d
+  (PR-130's [block+0x10] calls) cover the physics-block evaluator
+  path only; (2) 3 of the 13 +0xe0 containers' heads (0x277e0, and
+  the areas at 0x3d7a1/0x4d711) are not values anywhere in the
+  static image - presumed members of records built at load time;
+  (3) the semantics of [obj+0x9d], [obj+0x116] and the record
+  condition bytes - which decide the passes-per-state-step count;
+  (4) the guards on the entries (the 0x4ff80 family's [obj+0x126]
+  branch; 0x2ded0's [rec+4] + ds:0xcf074 branch) and the six
+  +0xe4 dispatch sites. The six 0x3ed70 tables' slot and role are
+  setup-side and counted with (1).
+
+- WHAT THIS CHANGES FOR THE PORT: no number moves today. The
+  F/T/s constants stand; T1's scale test reduces to a two-factor
+  fit - the iteration clock (G-1/G-2 referee windows A t=2-13 /
+  A t=55-62 decide it, and one ZARIA worm-speed window decides
+  the same clock from the other side) and the passes-per-step
+  count, which is bounded by 1 for the families that move.
+  ll_level.c's LL_ITER_MS (28) is the knob; 50 ms is testable by
+  changing that constant alone.
+
+- EVIDENCE IN /TMP (under /tmp/opencode/pr133/): cens.py (the
+  byte-level slot-dispatcher census), entrymap.py (head search +
+  anchored slot classification), heads.py (exact prologue heads of
+  the 13 +0xe0 containers), recscan.py (record layout/sentinel
+  scans), plus the dat.py reads cited inline. No new committed tool.
+
+- GATES. No C, no Makefile, no tool, no `.github/workflows` line;
+  docs-only class - build legs still run anyway: `make` and
+  `make win` silent (rc=0, zero warning lines), `make -k
+  verify-all` twice (fixtures `DATA=/tmp/opencode/iso_stage/LEO
+  HD=/tmp/opencode/hd_files`; fixture-free
+  `DATA=/tmp/opencode/nope HD=/tmp/opencode/nope`) - both "ALL
+  TESTS PASSED (linux + windows + llrs)", rc=0
+  (/tmp/opencode/pr133/gates_*.log). Added doc prose lines all
+  <= 79 columns; no data in git.
+
+- HANDOFF UPDATED: §7 item 13 gains the PR-133 bullet (rate side
+  closed: record-bound pipeline members, one state step per
+  iteration, no separate object tick, remaining unknowns counted);
+  §8 T1 (1) is restated onto the two-factor fit.
 
 ## Next — pick from the Deferred list below
 

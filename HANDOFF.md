@@ -1632,6 +1632,36 @@ writer as its open items.
      guards and the per-iteration driver (PR-133; the site map
      is /tmp/opencode/pr131/slots.py). Full record: the PR-132
      section of NEXT_STEPS.md.
+   - PR-133 CLOSED THE RATE SIDE, and the premise behind it. There
+     is NO object tick separate from the frame loop. The byte
+     census of every `FF modrm disp32` call form in .text is
+     exhaustive for slots >= 0x90 (a disp8 cannot encode them) and
+     shows the state-step chain: a class's +0x14 bodies tail
+     0x550a0 -> 0x536f0 -> 0x53520, which dispatches [cls+0x90]
+     at 0x5357d - once per iteration while on-camera (PR-106's
+     cadence). The pipeline entries are STATE-RECORD members: the
+     record tables are in the image (rec = [[obj+0x50]+[obj+0x5c]
+     *4, indexed at 0x50bda), each re-binds the physics triplet
+     0x55020/0x54250/0x549f0 at rec+0x1c..+0x24 and binds its
+     own pipeline members from +0x2c; 10 of the 13 +0xe0 dispatch
+     containers are found as record values, 3 of the 5 +0xe8
+     sites sit inside a condition stub right after `call 0x3e060`
+     (the stubs set the record condition bytes, e.g. 0x27e40 sets
+     rec+07 |= 0x40 when the player is near). The 4 classes with
+     +0x90 = 0x50970 run the physics-method sequence instead
+     (+0x104/+0x114/+0x108/+0x110/+0x10c/+0x100 + a direct
+     0x54450 call), the +0x114 leg gated on [obj+0x9d] == 1.
+     So rate = iterations/s x passes-per-record-per-state-step,
+     at most 1 pass for the moving families: the "20 Hz" IS the
+     iteration clock at 50 ms, the top edge of PR-109's bracket
+     (the 28 ms design point would put the worm at 44.6 px/s,
+     which the video refutes; at 50 ms YETI 20 px/s and worm
+     25 px/s both match). T1's scale test is now a two-factor
+     fit: the iteration clock (G-1/G-2 windows, and a worm-speed
+     window from the other side) and the per-record pass count.
+     The 0x52750 entry map is complete with every table base
+     anchor named (0x26fd0 = class 0x9a778 +0xec = the ZARIA
+     worm). Full record: the PR-133 section of NEXT_STEPS.md.
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2425,15 +2455,24 @@ parser 0x52590 is the class's own vtable slot +0x00) and s =
 by 0x549f0 [s CLOSED IN PR-132: that "record" is a caller-built stack
 pair, every producer is read, |s| <= 10 and s = +/-10 exactly at full
 one-axis intent; no authored field can carry s]. What is open is the
-PAIR (rate, s) [RATE ALONE SINCE PR-132]: the only clock read in
+PAIR (rate, s) [RATE MECHANISM CLOSED IN PR-133, SEE BELOW]: the
+only clock read in
 this repo is the ~28 ms iteration clock (PR-109/110), while the
 published reproduces split between 20 Hz (T=40 walks, s=10) and 25
 ticks/s (the jump /100 reading), and the record default factors were
 never censused. The video referee - LONA.05's YETI (F=100 T=50, one
 instance at x=2100) - can only decide once rate AND s are fixed; an
 iteration-driver read plus an s census settle it from code and data
-first [s census DONE IN PR-132; the iteration-driver read is PR-133].
-See the PR-130 and PR-132 bullets in §7 item 13.
+first [s census DONE IN PR-132; the iteration-driver read is
+PR-133, and it CLOSED the rate side: no separate object tick -
+rate = iterations/s x passes-per-record-per-state-step, at most
+1 pass for the moving families, so "20 Hz" is the iteration
+clock at 50 ms, the top edge of PR-109's bracket]. What is left
+is a TWO-FACTOR fit: the iteration clock (the G-1/G-2 referee
+windows and a ZARIA worm-speed window decide the same constant
+from both sides; LL_ITER_MS is the knob) and the per-record
+pass count, whose mechanism is read and whose bound is 1. See
+the PR-130, PR-132 and PR-133 bullets in §7 item 13.
 tools/re/des_census.py prints the whole joined census. The
 table
 itself is now read end to end:
