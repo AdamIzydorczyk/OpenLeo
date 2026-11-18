@@ -1512,6 +1512,64 @@ writer as its open items.
       CANNOT decide the law - the referee is LONA.05's YETI or the code
       path. Full record: the PR-125, PR-126 and PR-128 sections of
       NEXT_STEPS.md.
+   - PR-129 READ THE MOTION CODE END TO END and closed three open
+     ends of this thread. (1) 0x54250 (velocity method) and 0x549f0
+     (contact method) are the STANDARD pair at class-table slots
+     +0xc8/+0xcc in 137 class method tables - the engine's default
+     law, not one class's trick; 13 further tables point at the same
+     pair from shifted slots, and only ONE table replaces it with a
+     wrapper thunk (0x24700: adds 60/30 to the command block when
+     [obj+0x0] > 1600 and [obj+0x5c] in {1,3,4,0x10}). The
+     integrator, worked out: velocity is 100x fixed point at
+     [obj+0xc2]/[obj+0xc6]; force step v +=
+     (block+0x0*[obj+0xba])/20 + [obj+0x6d]*block+0x10 (y:
+     block+0x4*[obj+0xbe]/20 + block+0x14); drag step v -=
+     v_before*block+0x8/100 - the authored T IS the percent drag per
+     tick (block+0xc for y) - and a drag that crosses zero zeros the
+     axis; 0x54170 pulls a velocity toward the limits
+     block+0x18*[obj+0x6d] / block+0x1c but never reduces one past
+     them; the integer px/tick is v/100 at [obj+0xca]/[obj+0xce].
+     Steady state px/tick = F/(2T) for [obj+0xba] = +/-10: PR-99's
+     5*F*s/T in register units, CONFIRMED line by line; 10F/T px/s
+     at a 20 Hz tick = law B, and F/4 px/s at T=40 = law A - so all
+     29 T=40 rows agreed with BOTH laws for that reason and PR-79's
+     /4 fit is now explained from code. (2) 0x549f0 IS the PR-125
+     "lion near" gate: it seeds [obj+0xba]/[obj+0xbe] from the
+     record's own default factors, keeps them while the object's
+     contact list [obj+0xd2] is empty, and otherwise rewrites them
+     to +/-10/0 from whether the contact sits past 5 px (kind 1;
+     kind 4: 8 px, and it writes the y factor too), popping the
+     contact through 0x551f0 when it comes inside. A record whose
+     default is 0 - the reading the video forced - gives force
+     exactly 0 and steady speed exactly 0: the sitting fish, and the
+     sign of a flee comes from which side of the band was crossed.
+     (3) THE MOTION PIPELINE: all 15 literals of 0x52790 sit at
+     slot +0x34 of vtables constructors store into [obj+0x44], and
+     [obj+0x44] is an INTERIOR POINTER INTO the object's own method
+     table (measured [class]+0xe0 for two classes, whose class
+     tables hold the same triplet at +0x110/+0x114; +0xdc for one
+     other; the delta varies per class). 0x52750 (10 direct call
+     sites) is the pipeline through that table: slot +0x2c = 0x52680
+     builds a command block from the object's live fields
+     [obj+0x48..0x5c] and its indexed record table, slot +0x30 =
+     the provider adjusts it (0x4ff80 x10 writes force 60/60 and
+     drag 7/7 behind a [[obj+0x0]+0x126] test; 0x2b4d0 x3, 0x61250
+     x2), [[obj+0x0]+8]+0xc8 runs the integrator on the stack
+     block, and slot +0x34 = 0x52790 is the tail: it merges three
+     spatial candidate lists (0x4bd30/0x4b890/0x4b870) gated on the
+     wire bits the port names (PR-60): [obj+0x13] bit 2 = 0x200 =
+     CHECK_LEW, [obj+0x12] 0x40 = CHECK_ANI, 0x80 = CHECK_ZW. A
+     second, blunter path: the dispatcher 0x50970 calls
+     [class+0x114] when [class+0x104] returns non-zero AND
+     [obj+0x9d] == 1 - the merger only for the +0xe0-delta classes,
+     other table content for the shifted ones (OPEN). OPEN after
+     this: naming the 15 classes (the constructor sites are the
+     way); WHO WRITES [obj+0x48..0x5c] - the state-token
+     interpreter feeding the authored F (PR-130's question, now
+     sharply posed); the object tick rate (20 Hz reproduces every
+     published number but is not yet a read fact);
+     [obj+0x6d]/[obj+0x9d]/[obj+0x126]. Full record: the PR-129
+     section of NEXT_STEPS.md.
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2267,9 +2325,15 @@ windows, 3.0-17.5 s) and a frame from the middle of every one has been
 looked at - no window with the HUD drawn contains the boss, and the boss
 figure that repeats through the cut is a scripted no-HUD scene (a black
 room between two white-outlined wardrobe doors), which is also what the
-763-810 s windows PR-125 and PR-126 measured are. So the referee to ask
-the owner for is LONA.05's YETI (F=100 T=50: A 25 vs B 20 px/s, one
-instance at x=2100), or a code path that decides without footage.
+763-810 s windows PR-125 and PR-126 measured are. The video referee
+stays LONA.05's YETI (F=100 T=50: A 25 vs B 20 px/s, one instance at
+x=2100), but the code path has now been read (PR-129) and it does not
+toss a coin: the integrator at 0x54250 - the standard class-table slot
++0xc8 in 137 class tables - settles at F/(2T) px/tick with the +/-10
+proximity gate of 0x549f0, which is law B (10F/T px/s) at a 20 Hz object
+tick and exactly law A at T=40; the video half is now a test of the tick
+rate and the authored-F feeding, both named open in §7 item 13's PR-129
+bullet.
 tools/re/des_census.py prints the whole joined census. The
 table
 itself is now read end to end:

@@ -10735,6 +10735,218 @@ live in reference/video/zax37/ under the §3 index's own stage ids.
   (A 25 vs B 20 px/s) as the referee to ask the owner for, because
   this file cannot answer it.
 
+## PR-129 — the engine's motion law, byte for byte: 0x54250 read
+## end to end (it IS the F/T law, PR-99's algebra confirmed), 0x549f0
+## shown to be the "lion near" gate PR-125 inferred, and 0x52790's
+## reachability resolved (class method-table slot, one call site).
+## (pure RE; no C, no tool change)
+
+- WHY. §7 item 13 and §8 T1 (1) have carried the law question since
+  PR-98: PR-99 wrote "the engine loop's steady state is v_eq =
+  5*F_eff*s/T" from an earlier partial read, PR-125 inferred a per-
+  object "lion near" gate from video alone (the sitting fish/penguins),
+  and nobody had read the integrator or its contact method start to
+  finish, nor found which object classes can even reach them. That is
+  the part of this line that is NEVER blocked on footage, so this unit
+  reads the code and answers all three questions from the image bytes
+  (`build/leo/leo.elf`, VA = file offset + 0xf000; listing
+  `/tmp/opencode/vis/text.asm`, scripts under `/tmp/opencode/pr129/`).
+- WHO CALLS THE INTEGRATOR (census2.py, literal-dword scan):
+  0x54250 is named by 150 dwords in the data area. 137 of them sit in
+  the same shape: 0x543a0 0x28 bytes earlier and 0x549f0 immediately
+  after - the standard class method-table slots +0xa0 (control dispatch,
+  PR-102/108), +0xc8 (velocity method), +0xcc (contact method). So
+  this IS the engine's default motion law, shared by ~137 class
+  tables, with 13 more tables (exactly the classes carrying 0x52790,
+  see below) referencing the same pair from shifted slots, and exactly
+  ONE table replacing +0xc8 with a wrapper thunk: 0x24700 - if
+  [obj+0x0] > 1600 and [obj+0x5c] in {1,3,4,0x10} it adds 60 to the
+  command block's +0x0 and 30 to its +0x4, then calls 0x54250. The
+  only indexed call to the slot is 0x52774 (`call [ecx+0xc8]`,
+  ecx = [[obj+0x0]+8]) inside 0x52750; the only indexed call to
+  +0xcc are 7 plain sites (0x27e1d, 0x282a1, 0x344c8, 0x4010e,
+  0x4110c, 0x41c01, 0x4aeca), each with `edx` = a stack block.
+  Only three sites call the integrator by direct address: 0x24731
+  (inside the 0x24700 thunk), 0x321fe, 0x33348. The function that
+  ends at 0x33348 (starts 0x33310) first adjusts block +0x10 by
+  5*[obj+0xf2] when [obj+0x5c] is 3 or 5 (swim / float modes), and
+  its address sits in exactly one table right before a 0x549f0 - a
+  real per-class velocity method. The function ending at 0x321fe
+  scales the object's first dword by /640 and %10 and folds both
+  into block +0x10/+0x14 first (640 = the game's screen width, so a
+  screen-index effect; interpretation OPEN); its address was not
+  found in any table.
+- THE COMMAND BLOCK (edx, 0x20+ bytes). One builder is a per-class
+  entry that 10 tables hold at (0x52790 - 4): 0x4ff80 - when
+  [[obj+0x0]+0x126] is non-zero it writes force words 60,60 into
+  block +0x0,+0x4 and drag words 7,7 into +0x8,+0xc ([obj+0x126] is
+  the same flag 0x4ffb6 asserts on and 0x50970 branches on, meaning
+  unread). 0x52750 instead runs the class's OWN builder through the
+  [obj+0x44] vtable: slot +0x2c = 0x52680 fills a stack block from
+  the object's live fields [obj+0x48..0x5c] and its indexed record
+  table, slot +0x30 adjusts it. Who WRITES [obj+0x48..0x5c] - the
+  state-token interpreter - is still unread (PR-130). The block's
+  meaning below comes from the integrator's own use of it; which
+  authored number lands in which word (F vs direction vs cap) stays
+  OPEN until that interpreter is read. PR-99's reading (F at +0x0,
+  s = [obj+0xba])
+  is kept and marked as such.
+- 0x54250 END TO END (all numbers are the code's constants):
+  1. Guard: calls class slot +0xbc; if it returns non-zero and the
+     block's +0x8 < 20 and [obj+0xb6] bit 2 is clear, raise +0x8 to
+     20. So a small authored T (like 0x4ff80's 7) is only honoured
+     when that hook says no or the bit is set.
+  2. Velocity is kept 100x fixed-point: [obj+0xc2] x, [obj+0xc6] y.
+     Drag terms are computed from the PREVIOUS velocity first:
+     edi = [obj+0xc2]*T_x/100, esi = [obj+0xc6]*T_y/100 with
+     T_x = block+0x8, T_y = block+0xc.
+  3. Force step: [obj+0xc2] += (block+0x0*[obj+0xba])/20 +
+     [obj+0x6d]*block+0x10; [obj+0xc6] += (block+0x4*[obj+0xbe])/20
+     + block+0x14. Integer division by 20 (idiv).
+  4. Drag apply: v -= the step-2 term. Then overshoot clamps: if
+     v_before_force * v_after_drag < 0, v_x = 0; if
+     block+0x14 * v_y_after < 0, v_y = 0. (Drag crossing zero kills
+     the axis instead of oscillating it.)
+  5. Cap: calls 0x54170 with edx = block+0x18*[obj+0x6d],
+     ebx = block+0x1c. 0x54170 is a soft pull-toward-limit: it only
+     moves a velocity that is BELOW the limit toward it, in limit-
+     size steps, clamped exactly to the limit; a velocity already
+     past it is never reduced. So the block carries speed limits too.
+  6. Output: [obj+0xca] = [obj+0xc2]/100, [obj+0xce] = [obj+0xc6]/
+     100 - the integer px/tick used by the mover.
+  Steady state of 2-4 (force = drag): px/tick = D/T with
+  D = (block+0x0*[obj+0xba])/20 + [obj+0x6d]*block+0x10. With
+  PR-99's reading ([obj+0xba] = s = 10): px/tick = F/(2T) - the same
+  5*F*s/T in the register's 100x units, so PR-99's algebra is CONFIRMED
+  line by line. At a 20 Hz object tick that is 10*F/T px/s = law B;
+  T=40 gives F/80 px/tick = F/4 px/s = law A, which is why all 29
+  T=40 placed rows (PR-126) cannot separate them and why PR-79's /4
+  fit worked. Machine-checked: F=100 T=50 (LONA.05 YETI) -> 1.0
+  px/tick = 20 px/s at 20 Hz (law A would say 25); F=75 T=20
+  (KADMAR.07 BOSS) -> 1.875 px/tick = 37.5 px/s (law A 18.75);
+  F=100 T=40 (ZARIA worm) -> 1.25 px/tick = 25 px/s = PR-99's
+  reproduction, exactly.
+- 0x549f0 END TO END (the +0xcc contact method - PR-125's gate,
+  found): eax = obj, edx = a contact record. It seeds
+  [obj+0xba] = [rec+0x0] and [obj+0xbe] = [rec+0x4] (record default
+  factors), then if [obj+0xd2] (the object's CONTACT LIST head) is
+  null it keeps those defaults. With a contact it re-computes both
+  factors from the contact's fields and the object's own position,
+  read through class slot +0x68 - whose standard implementation
+  (0x23900, in every table checked) is `add eax,0xd6; ret`, i.e. it
+  returns obj+0xd6 as the {x,y} block and never touches edx, which
+  is how the flag below survives. For kind 1: flag =
+  ([contact+0xc] != [obj+0x6d]), and the contact's x (+0x8) is
+  offset by 15 when it is set. The factor is +10 if the contact is
+  more than 5 px to the +x side,
+  -10 if more than 5 px to the -x side, 0 (and 0x551f0 pops the
+  contact - it replaces [obj+0xd2] with [contact+0x0], the list next,
+  then runs a "lost contact" hook: [class+0x3c]; non-zero ->
+  [obj+0x106] = 1) within the 5 px band. Kind 4 does the same on x
+  with an 8 px band and on y ([contact+0x1d]) into [obj+0xbe].
+  Kind 2, when x positions match exactly, copies a 16-byte block
+  (contact+0x10 -> obj+0x60, 0x49580) and pops the contact. Tail:
+  [obj+0xbe] < 0 sets facing [obj+0x71] = +1, > 0 sets -1;
+  [obj+0xba]*[obj+0x6d] < 0 sets [obj+0xb6] bit 4 and calls 0x53670;
+  [obj+0xa5] gets [rec_arg+0x8].
+- THE CONFIRMED MECHANISM behind PR-125's "the sitting fish IS in
+  its A_RUN state": the integrator multiplies the state's force word
+  by [obj+0xba], and 0x549f0 holds that factor at its record-seeded
+  default while [obj+0xd2] is empty or the contact sits inside the
+  5/8 px band. A record whose default is 0 (the reading the video
+  forced PR-125 to infer) gives force exactly 0 and, with drag,
+  steady speed exactly 0 - the object animates in place. The factor
+  becomes +/-10 (never any other magnitude) once a contact crosses
+  the band, and 10 is exactly the s PR-99's formula needed. This is
+  a CODE confirmation: the gate is per-object (the object's own
+  contact list), on the force side, and magnitude-gated, exactly as
+  inferred.
+- HOW 0x52790 IS REACHED, which has blocked every previous attempt
+  ("zero call 0x52790 in .text" is true and no longer puzzling): it
+  is a CLASS METHOD TABLE entry, slot +0x114, in 15 tables; all 15
+  hold it as a fixed unit - (0x52680, provider, 0x52790) - the
+  provider being 0x4ff80 x10, 0x2b4d0 x3, 0x61250 x2, and 0x52680
+  itself being a command-block-from-the-object's-own-fields builder
+  ([obj+0x48..+0x5c]) that runs record-evaluator slot +0x10 on the
+  class's indexed record table ([obj+0x2e] + [obj+0x4]*4). ALL 15
+  literals sit at slot +0x34 of a vtable a constructor stores into
+  [obj+0x44] (assignment sites include 0x1e119, 0x23115, 0x240f6,
+  0x26425, 0x264e6, 0x26ef5, 0x2b3c5, 0x2c01d - naming those 15
+  classes through their constructors is tractable but not done
+  here). And [obj+0x44] is an INTERIOR POINTER INTO the object's
+  own method table: measured exactly [class table]+0xe0 for two
+  classes (0x99258, 0x9f380 - their class tables hold the same
+  triplet at +0x110/+0x114, which is why the literal census saw
+  both readings as one), +0xdc for another (class 0x97bc0); the
+  delta varies per class. That is the reachability, fully: 0x52750
+  (eax = obj, edx = out record; 10 direct call sites 0x23fc8,
+  0x264a8, 0x2701d, 0x2c3ad, 0x2df08, 0x31fd8, 0x33c98, 0x3620d,
+  0x4fff1, 0x61238) is a MOTION PIPELINE through that very table:
+  [ecx+0x2c] = 0x52680 builds the block, [ecx+0x30] = the provider
+  adjusts it, [[obj+0x0]+8]+0xc8 = the integrator runs on it,
+  [ecx+0x34] = 0x52790 is called with the caller's ORIGINAL edx -
+  builder, provider, integrator and merger are ONE pipeline the
+  class runs. A second, blunter path exists: 0x50970 (eax = obj,
+  edx/ebx = two out-pointers; 7 direct call sites 0x246ed, 0x27245,
+  0x2c324, 0x2e6c9, 0x3400d, 0x364c5, 0x61695, plus 4 table slots)
+  calls [class+0x104] with the mode word [obj+0x5c] first, and only
+  when that returns non-zero AND [obj+0x9d] == 1 does it call
+  [class+0x114] with edx = *out1 - that is this merger only for the
+  +0xe0-delta classes; in the shifted ones that slot holds other
+  content (meaning OPEN). 0x52790 itself: builds an empty
+  12-byte candidate list (0x749a0), and merges up to three spatial
+  candidate lists into it (0x4bd30 / 0x4b890 / 0x4b870, each called
+  on the global engine object ds:0xcef40 with the object's leading
+  dword [obj+0x0] and the sign flag [obj+0x12]&0x8000) - gated per
+  list on the STATE-TOKEN WIRE BITS the port already names (PR-60's
+  comment at ported/ll_play.h +0x12 selectors): [obj+0x13] bit 2 ==
+  wire 0x200 == CHECK_LEW -> 0x4bd30 (against Lew); [obj+0x12] bit
+  0x40 == CHECK_ANI -> 0x4b890 (the animacje list); [obj+0x12] bit
+  0x80 == CHECK_ZW -> 0x4b870 (the zwierzaki list). Note the port's
+  numeric names are offsets into the OBJECT RECORD here, not the
+  state's - 0x52790 reads [obj+0x12]/[obj+0x13] directly. Then it
+  copies the merged list to the out
+  record. So: per-class CANDIDATE MERGER, the pipeline tail. Which
+  classes those 15 are stays OPEN (the tables carry no names, cls.py
+  found none; the constructor sites above are the way to name them)
+  - it is the next question, and PR-103's "per-class
+  rather than universal" caution is now measured: the MOTION pair is
+  universal, the CONTACT merger is not.
+- WHAT THIS DOES AND DOES NOT DECIDE. It completes the code side of
+  §8 T1 (1): the engine law is the F/T integrator (law B), and the
+  port's law A is the special case T=40 that every fitted sample sat
+  at. What remains genuinely open is (a) the object-tick rate that
+  turns px/tick into px/s - every published reproduction in §7
+  assumes 20 Hz (PR-99), which is not yet a read fact; (b) which
+  block word carries the authored F - the writer of the fields
+  [obj+0x48..0x5c] that 0x52680 copies is unread; (c) the two
+  law-discriminating rows still want the L
+  video half (LONA.05 YETI, A 25 vs B 20). With this record's
+  arithmetic a future probe has a falsifiable prediction per placed
+  row: px/tick = F/(2T), sign from the contact band side.
+- EVIDENCE IN /TMP (all under /tmp/opencode/pr129/): tab.py, slot.py
+  (the first slot-shape dumps), shapes.py (the 15-table shape test),
+  cls.py (class-table neighbourhoods), scan52790.py (the pointer-run
+  walk around every 0x52790 literal), census2.py (the final counts:
+  150 integrator literals / 137 standard triplets / 15 merger units
+  with providers). Disassembly read via /tmp/opencode/vis/text.asm
+  from build/leo/leo.elf; no new committed tool this PR.
+- GATES. No C, no Makefile, no tool, no `.github/workflows` line:
+  this is the docs-only class, so per the standing rule the build
+  legs would be no-ops - still run anyway: `make` and `make win`
+  silent (C tree unchanged from PR-128), and `make -k verify-all`
+  twice (fixtures `DATA=/tmp/opencode/iso_stage/LEO
+  HD=/tmp/opencode/hd_files`; fixture-free `DATA=/tmp/opencode/nope
+  HD=/tmp/opencode/nope` with named SKIPs) - both
+  `ALL TESTS PASSED (linux + windows + llrs)`, rc=0
+  (/tmp/opencode/pr129/gates.txt). Only HANDOFF.md and this record
+  change. Added doc prose lines all <= 79 columns.
+- HANDOFF UPDATED: §7 item 13 gains the PR-129 bullet (law confirmed
+  byte for byte; the PR-125 gate CONFIRMED in 0x549f0; 0x52790's
+  slot reachability and the 137-vs-15 census); §8 T1 (1) is reworded
+  to what is still open (tick rate, F's block word, the YETI video
+  row) since the code reading itself is now complete.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
