@@ -1434,12 +1434,24 @@ writer as its open items.
       A_RUN is BY_TIME and KADMAR.07_0_0.MOV is a lion variant, so
       neither is a candidate; the lion's own T!=40 A_WALK rows stay
       rejected (item 8: the player's path through 0x54250 is
-      unverified). The named referee is now KADMAR.07's NINJA1-6
-      A_RUN/A_START2 (BY_X, F=100 T=30: A 25 vs B 33.3 px/s), with
-      measured still windows 712.5-728.5 / 763.0-774.0 / 791.0-802.0
-      in reference/video/levels/KADMAR.07.mkv, and LONA.05's YETI
-      (F=100 T=50, bounds 2000-2350) as backup. Full record: the
-      PR-125 section of NEXT_STEPS.md.
+      unverified). The referee PR-125 named (KADMAR.07's NINJA1-6
+      A_RUN/A_START2) is WITHDRAWN by PR-126: no `.des` of any
+      level places that class, and no `.LVM` script or other
+      `.MOV` references it - complete data that nothing
+      instantiates can never reach the screen. The join is now a
+      tool (tools/re/des_census.py): of the 34 placed BY_X F!=0
+      rows, 29 have T=40 and the whole remaining law surface is 5
+      rows over 4 classes. The named referee becomes KADMAR.07's
+      BOSS A_RUNA/A_RUNB (BY_X, F=75 T=20: A 18.8 vs B 37.5),
+      ONE instance (`BOSS,xxx,boss.mov,1328,243` in ZWIERZ1.DES,
+      energy=200) - the biggest gap left; backup LONA.05's YETI
+      (F=100 T=50, bounds 2000-2350). But no BOSS run is on film
+      yet: the KADMAR.07 still windows PR-125 measured hold the
+      ZOLW march and a scripted door scene in a black room (the
+      boss stands there animating, x=315-322, zero translation
+      793.7-798.9 s - and a near-black room is a pseudo-still
+      window, a caveat now in video_stills.py). Full record: the
+      PR-125 and PR-126 sections of NEXT_STEPS.md.
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2185,8 +2197,14 @@ an authored threshold T is displayed for T/100 frame-loop iterations, not
 T milliseconds, so the port's row clock is 3.0-3.5x too slow and PR-110
 is the behaviour change, with its plan named in the PR-109 record. Item
 (1) above is now TWO negative probes and three facts, recorded in §7
-item 13's PR-125 bullet; the named next fixture is KADMAR.07's
-NINJA1-6 A_RUN (BY_X, F=100 T=30) with measured still windows. The
+item 13's PR-125 bullet, and PR-126's join: the fixture named
+there, KADMAR.07's NINJA1-6, is WITHDRAWN - no `.des` places it
+and no `.LVM` or `.MOV` references it - and the named referee is
+now the KADMAR.07 BOSS A_RUNA/A_RUNB (BY_X, F=75 T=20: A 18.8
+vs B 37.5), one instance at x=1328; its gameplay encounter is
+not on the recording yet (the measured 763-810 s windows are a
+ZOLW march and a scripted door scene in a pseudo-still black
+room). tools/re/des_census.py prints the whole joined census. The
 table
 itself is now read end to end:
 PR-102 found its writer (the base record parse method 0x51910 ->

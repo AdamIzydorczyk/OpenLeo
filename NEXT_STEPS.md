@@ -10477,6 +10477,107 @@ added to tools/re)
   that located the ninja runs), lona_zw.des / ena_zw3.des /
   kad_zw*.des placement dumps.
 
+## PR-126 — the placement join: the complete T!=40 surface, the NINJA
+fixture WITHDRAWN, and the KADMAR.07 windows shown to be a scripted
+scene. (one new python tool; no C change)
+
+- WHY. Both law probes so far picked their fixture from the `.MOV`
+  side alone. A class only reaches the screen if a level `.des`
+  instantiates it, and nobody had counted that half. The join is now
+  a tool, so the census is a tool output and not a claim:
+  tools/re/des_census.py reads every ETAPY level's `.des` text (all
+  103 dumped with `llrs_cat1`, named `<LEVEL>_<NAME>.DES`) and joins
+  it by level+class against the `/tmp/opencode/mov` corpus.
+- THE CENSUS, as printed by the tool: 103 `.des`, 777 `.MOV`, 75
+  BY_X states with F!=0; 34 UNIQUE (level, class, state) rows are
+  actually placed. 29 of the 34 have T=40, where the two laws give
+  the same speed, and the complete law-discriminating surface of the
+  shipped game is the remaining 5 rows across 4 classes: ENA.03
+  RYBKA F=100 T=20 (16 placement lines - the r1-r6 fish in two
+  clusters at x=340-490 and x=940-1090; the six `.mov` names match
+  the six `.MOV` instances, which is why PR-125 read R1-R6),
+  KADMAR.07 BOSS A_RUNA + A_RUNB F=75 T=20 (ONE instance:
+  `BOSS,xxx,boss.mov,1328,243` in ZWIERZ1.DES, attached keys
+  damage=30, bounds=1128,1440, scope=50,180, energy=200), LONA.05
+  PINGWIN F=75 T=50 (4 positions), LONA.05 YETI F=100 T=50 (ONE
+  instance at x=2100). Both PR-125 fixtures are on that list;
+  nothing else is.
+- NINJA IS AN ORPHAN - PR-125's NAMED REFEREE IS WITHDRAWN. No
+  `.des` of any level places NINJA1-6, neither level `.LVM` script
+  references them (0 hits in KADMAR1/KADMAR2), and no other `.MOV`
+  text does (0 hits over the corpus): complete ANIMACJE data
+  (seqs UJ01-UJ06, six instances) that NOTHING instantiates, so it
+  can never be on any recording. The tool's true-orphan list has
+  exactly two entries; the other is the dummy class `0` whose
+  `.MOV` is the lion variant (PR-125 fact (3)). Their UJ01-UJ06
+  seq names are the same art ZOLW/KOBRA/WAZ/PTAK use, so a class
+  renamed with its old data left behind is the likely story (an
+  inference, not measured).
+- THE KADMAR.07 WINDOWS ARE A SCRIPTED SCENE, and the frame dump
+  settles what is in them. Re-measured with the file's real name
+  (`reference/video/levels/KADMAR.07.mkv` - there is no `_b` of
+  it; 1280x720@60): the still windows reproduce exactly,
+  763.0-774.0 and 791.0-802.0 among them. Frames inside:
+  763-778 is ZOLW marching through the arches (BY_TIME - already
+  dismissed); 791-802 is a PURE-BLACK room with a white-door arch
+  (ANIBACK_DRZWI) and the BOSS figure in the middle of it - a
+  lion-faced king, headdress, striped collar, purple robe:
+  boss_track's mask centroid sits at x=315-322 with ZERO
+  translation from 793.7 to 798.9 s (per-second span <= 7 px,
+  0 px at 797) while the mask AREA oscillates 1700-3600 px -
+  animating in place, the RYBKA/PINGWIN pattern, third object
+  class - but with no lion in frame and no HUD, and 799.2-800.9
+  the figure translates right x=316->589 at ~150 px/s while its
+  hat/crown blob detaches and flies: neither law's T=20 speed
+  (18.8/37.5), and an in-level scene driven by SEQ patch moves,
+  NOT an A_RUNA/B run (inference from the no-HUD frame, named as
+  such). 725 s inside the 712.5-728.5 window IS gameplay (HUD
+  drawn): three stationary brown legged blobs - the camels
+  (CAMEL, placed at x=1200, BY_TIME) - and no ninja anywhere.
+  video_stills.py now carries the caveat in its docstring: a
+  near-black room is a PSEUDO-still window (flat decor = flat
+  column sums = shift 0 whatever the camera does); dump a frame
+  from the middle of a window before spending a measurement on it.
+- NO BOSS RUN IS ON FILM YET. 460-960 s of KADMAR.07.mkv were
+  swept: 26 still windows in that range, the three quoted above
+  included (605-687 repeats 5.5 s runs at
+  0.0-0.64 px/s; 701.5-711.0; 859-874; 898.5-909; content
+  unviewed except 725), none in the boss room. The rest of the
+  file (0-460, 960-1455) was not swept - a pass is 26 min of
+  decode and it is not budgeted here. The named referee therefore
+  stays the BOSS - the biggest remaining law gap (A 18.8 vs B
+  37.5, 100%), one instance, x=1328 - with the sweep of the rest
+  of this file as the way to find its gameplay encounter; YETI
+  (A 25 vs B 20) is the first A-BEYOND-B candidate and the
+  backup; PINGWIN stays probed and inconclusive (the observed
+  ~55-65 px/s flee matches neither 18.8 nor 15 - it is probably
+  another class's run, an ESTIMATE PR-126 leaves open).
+- GATES. No `ported/`, `Makefile`, `.gitignore` or
+  `.github/workflows` line changed: only this record, HANDOFF §7
+  item 13 and §8 T1 (both NINJA picks corrected),
+  tools/re/README.md (new row), and one new standalone python
+  tool. All four legs run on THIS tree: `make` rc=0, `make win`
+  rc=0 (C tree unchanged since PR-124 - "up to date" is the
+  honest form), `make -k verify-all` full twice: with fixtures
+  (DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files)
+  rc=0 0 FAIL, and fixture-free (DATA=/tmp/opencode/nope
+  HD=/tmp/opencode/nope) rc=0. Logs: pr126_make.txt,
+  pr126_makewin.txt, pr126_vfix.txt, pr126_vnofix.txt. No game
+  data or video staged; `git status` before the commit shows only
+  HANDOFF.md, NEXT_STEPS.md, tools/re/README.md,
+  tools/re/video_stills.py and tools/re/des_census.py. Added doc
+  prose lines all <= 79 columns; the README row follows that
+  file's existing table style.
+- EVIDENCE IN /tmp: under pr126/ - des/ (the 103 `.des` dumps),
+  census.txt/census2.txt (join outputs, superseded by the tool),
+  boss_track.py + boss_790.txt (683 masked-centroid rows, 60
+  fps, 640x400 game px), room_795b.png / room_797.0.png /
+  room_799.8.png / room_800.6.png (the black room, brightened
+  where noted), jungle_725.png / win_866.png / win_904.png /
+  jungle_815.png (gameplay with HUD), and the still-window sweeps
+  quoted above (--max 8 --min 8, 26 runs; sweep_460.txt is the
+  --min 10 form).
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

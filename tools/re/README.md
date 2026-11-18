@@ -86,6 +86,7 @@ section-5 multiple-of-100 count is the boundary for the TIME-fed rows
 only while the distance-fed rows have a boundary of their own at a
 multiple of their own per-call distance. Stdlib only, inventories only,
 no game data in git. NEXT_STEPS.md PR-114, PR-115, PR-116, PR-118. |
+| `des_census.py` | `des_census [DESDIR] [MOVDIR]` - joins the two halves of the walk-law question: the `.MOV` side `mov_channels.py` censused (BY_X states with `F!=0`, and the law speeds A = |F|/4 and B = 10F/T, which coincide exactly at T=40) and the side nobody had counted - the level `.des` placement files, the ONLY thing that instantiates a class on screen. Prints the placed (level, class, state) rows and the complete law-discriminating surface with T!=40 folded away, each with the verbatim `.des` line that places it; and the never-placed classes, split into the engine-spawned lion variants and true orphans (measured: 34 placed rows, 5 with T!=40 across 4 classes; 2 true orphans, the dummy class `0` and KADMAR.07's NINJA1-6, complete ANIMACJE data referenced by no `.des`, no `.LVM` script and no other `.MOV` - an orphan cannot be filmed, so PR-125's NINJA fixture pick is void and the named referee is now KADMAR.07's BOSS A_RUNA/A_RUNB, F=75 T=20, A 18.8 vs B 37.5 px/s). Reads the `.DES` text dumped by `llrs_cat1` from every ETAPY level block and `/tmp/opencode/mov` by default. Stdlib only, inventories only, no game data in git. NEXT_STEPS.md PR-126. |
 
 ## Disassembly
 

@@ -25,7 +25,14 @@ reports total drift -10.7 half-resolution px over the 22 s, about
 video_track_lion.py this is an ESTIMATOR, not ground truth: a scene
 with little vertical decor contrast (sand banks) can report drift it
 does not have - hand-pick the window and eyeball it before trusting
-a number.
+a number. PR-126 adds the symmetric failure: a near-BLACK room (the
+KADMAR.07 boss room, 763-802 s) has so little column contrast that
+the estimator calls it dead still (0.2-0.4 px/s) whatever the camera
+does there - flat decor means flat column sums, and flat column sums
+match at shift 0. A "still" window is only usable after a frame from
+the middle of it has been looked at; dump one with
+  ffmpeg -v error -ss 795 -i FILE -frames:v 1 out.png
+before spending a lane-shift measurement on it.
 """
 import argparse
 import subprocess
