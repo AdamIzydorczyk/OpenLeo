@@ -617,6 +617,43 @@ loop (ll_play.c:1286) printed 0 equalities over the whole play selftest,
 and that feed is `p->vx * (dt_ms / 1000.0)` (:913, :1100, :1119), which
 cannot hand an integer threshold exactly at the shipped 28 ms step.
 PR-117 record in NEXT_STEPS.md.
+PR-118 added 2026-11-18, and it qualifies the sentence above, quoted
+verbatim: "Measured population: 15317 of the 18617 row lines store a
+threshold that is an exact positive multiple of the 100-unit feed (BY_TIME
+15142 of 17011 rows, in 754 files), in 2012 states." That count is right
+and its arithmetic is unchanged - but "the 100-unit feed" is the feed of a
+TIME-fed state only, and the sentence as written covers every mode. The
+port distance-feeds a state when it carries the `BY_X` token AND a
+non-zero first `F=` (the `walk` expression, ll_level.c:1169); measured
+with that rule, the corpus has 75 such states, 992 rows, in 57 files, and
+their stored thresholds are 2, 3, 4, 5, 6, 7, 9 or 10 units - so the
+multiple-of-100 test selects NONE of them (0 of 992), and the 67 rows the
+census's BY_X line counts are all time-fed ones. A distance-fed row does
+have the same `cmp`/`jge` boundary, at a multiple of its OWN per-call
+distance, which is `|F| * dt / 4000` (obj_walk, ll_level.c:1101-1104):
+measured per grid this port really calls `obj_advance` with, it is reached
+for 0 of 992 rows at dt=28 (`LL_ITER_MS`, the selftest grid: the feed is
+`7|F|/1000` and the reachable thresholds are the multiples of
+`7|F|/gcd(7|F|,1000)`, which never coincide with any (|F|, threshold)
+pair this corpus authors), 713 of 992 at dt=20 (the play/PPM grid,
+:6425: there |F|=100 feeds exactly 1.0, so every integer threshold is a
+whole number of calls), 689 at dt=40, and 0 at the dt=2000 PR-117's leg
+had to invent. So "flipping the two gates moves 15066-15317 authored rows
+by one whole feed of 100 iterations" is the cost for the time-fed rows; a
+complete figure would add a distance-fed population that depends on the
+caller's dt, and PR-116's headline stands only as the time-fed count.
+New in the same section 6: at 2 states the port's double accumulator
+drifts OFF a landing its own feed law says is exact (`LONA.05_LEW`,
+|F|=30 at dt=20 feeds 0.15, a 3-unit row needs 20 calls, and repeated
+addition reaches 2.9999999999999991 at call 20 and crosses only on call
+21), while the engine's accumulator is an integer dword (0x543d1 `add
+[obj+0xa1], eax`) and cannot drift - untested anywhere, since no
+selftest runs a distance-fed row at a grid that reaches a threshold. No
+behaviour changed and no code changed: `tools/re/mov_byx_gate.py` section
+6 only, output `/tmp/opencode/pr118_census.txt`, whose sections 1-5 are
+byte-identical to `/tmp/opencode/pr116_census.txt`. PR-118 record in
+NEXT_STEPS.md.
+
 
 
 
@@ -1560,6 +1597,36 @@ PR-117 record in NEXT_STEPS.md.
      an integer threshold exactly at the shipped 28 ms step - PR-117 open
      item 1. No behaviour changed: not one logic line of ported/ was
      touched.
+
+   - THE DIVISOR IN THAT BULLET'S NUMBER, QUALIFIED 2026-11-18 BY PR-118.
+     The phrase - "flipping the two gates moves 15066-15317 authored rows
+     by one whole feed of 100 iterations" - is the cost for the TIME-fed
+     rows only, though it is stated for the whole population. A
+     distance-fed row's feed is its own per-call distance, `|F| * dt /
+     4000` (obj_walk, ll_level.c:1101-1104), never that 100. Measured
+     with the port's own `walk` rule (:1169), the corpus has 75 walking
+     states, 992 rows in 57 files, and their stored thresholds are 2..10
+     units, so the multiple-of-100 test the census uses selects not one
+     of them (0 of 992) - the BY_X line's 67 rows are all time-fed. The
+     same `cmp`/`jge` boundary does exist for those rows, at a multiple of
+     their own feed: 0 of 992 on the 28 ms grid every selftest uses (the
+     feed is `7|F|/1000`; reachable thresholds are the multiples of
+     `7|F|/gcd(7|F|,1000)`, and no (|F|, threshold) pair here matches -
+     |F|=100 could land a 7-unit row in 10 calls, but no such row is
+     written), 713 of 992 on the 20 ms play/PPM grid (:6425), 689 at
+     dt=40, 0 at the dt=2000 PR-117's leg invented. Section 6 of
+     `tools/re/mov_byx_gate.py` prints all of it
+     (`/tmp/opencode/pr118_census.txt`; sections 1-5 byte-identical to
+     `/tmp/opencode/pr116_census.txt`), and the section-6 paragraph above
+     quotes the wording this supersedes. It also found two states where
+     the port's double accumulator drifts off a landing its own feed law
+     says is exact (`LONA.05_LEW`, |F|=30 at dt=20: 20 additions of 0.15
+     reach 2.9999999999999991, so the row runs on call 21 with a
+     remainder, where exact arithmetic and the engine's integer dword
+     accumulator - 0x543d1 `add [obj+0xa1], eax` - would land on 3.0 at
+     call 20); nothing in either selftest reaches that case, PR-118 open
+     item 1. No behaviour changed: the only file touched is the census
+     script, which no build or test leg runs.
 
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64

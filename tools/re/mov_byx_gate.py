@@ -642,6 +642,166 @@ def main(argv):
           " lines whose text carries a\n   standalone `WAIT` token are the"
           " candidates for the keyed branch and\n   are subtracted there."
           % (tot[0], tot[1], max(tot[0] - wait_rows, 0), wait_rows))
+    # PR-118: PR-117's leg 8 builds an exact equality between a
+    # distance-fed accumulator and a row threshold (F=100, one 100-unit
+    # row, two dt=2000 calls: 50.0 then exactly 100.0).  Is that
+    # reachable for a real authored row, on a grid this port really uses?
+    # Outside a selftest obj_advance is called with three dt values only:
+    # 20 ms (ll_level.c:6425, the play/PPM legs), 40 ms (:6432, the
+    # element-only leg) and a measured frame dt (:6618, on screen);
+    # LL_ITER_MS = 28 is the grid every selftest uses.  The feed is
+    # obj_walk's `dist = |fx| * dt_ms / 4000.0` (ll_level.c:1101-1104),
+    # so the per-call feed is |F| * dt / 4000 and nothing in that story
+    # involves the number 100.  Section 5 counted the boundary population
+    # as "stored threshold is an exact positive multiple of 100", which is
+    # the right test for a state whose feed IS the level's 100-per-
+    # iteration constant, and the wrong one for a walking state.  Measured
+    # here per state with the port's own rule (the `walk` expression,
+    # `(BY_X token) and F[0] != 0`, the same one main() uses for the
+    # feed column above).  Two answers per walking state and grid:
+    # whether ANY whole number of identical calls lands a stored threshold
+    # exactly in EXACT arithmetic (Fraction: k * |F| * dt / 4000 == t),
+    # and whether the port's own double accumulator reaches it, adding
+    # dt's rounded feed step by step - they can disagree, because the
+    # port's accumulator is a double while the engine's is an integer
+    # dword (0x543d1 `add [obj+0xa1], eax`), which cannot drift at all.
+    print("\n== 6. PR-118: is that exact-equality landing reachable for a"
+          " DISTANCE-fed\n   row, on the grids this port actually calls"
+          " obj_advance with?")
+    from collections import Counter
+    from fractions import Fraction
+    from math import gcd
+    walking = [s for s in states if s["feed"] == "distance"]
+    wrows = [t for s in walking for t in stored_thresholds(s)]
+    print("   walking states (the port's own rule, `walk` at"
+          " ll_level.c:1169 = a\n   BY_X token with a non-zero first"
+          " `F=`): %d states, %d rows.\n   Their stored thresholds run"
+          " %d..%d units; how many are an exact positive\n   multiple of"
+          " 100, the test section 5 uses:"
+          % (len(walking), len(wrows),
+             min(wrows) if wrows else 0, max(wrows) if wrows else 0))
+    w100 = sum(1 for t in wrows if t > 0 and not t % 100)
+    wfiles = {os.path.basename(s["path"]) for s in walking}
+    print("   %d of %d rows, in %d files.  The multiple-of-100 test does"
+          " not select a\n   single distance-fed row in this corpus: for"
+          " those states the divisor is\n   their own per-call distance,"
+          " not the level's 100."
+          % (w100, len(wrows), len(wfiles)))
+    GRIDS = ((20, "the play/PPM grid, ll_level.c:6425"),
+             (40, "the element-only grid, :6432"),
+             (28, "LL_ITER_MS, the grid every selftest uses"),
+             (2000, "the dt PR-117's leg 8 had to invent"))
+    r20 = (0, 0, 0)
+    for dt, note in GRIDS:
+        ex_rows = ex_st = fl_st = fl_rows = drift = skip = 0
+        dfiles = set()
+        drows = 0
+        for s in walking:
+            fx = abs(s["hdr"].get("F", (0, 0))[0])
+            thr = [t for t in stored_thresholds(s) if t > 0]
+            if not fx or not thr:
+                continue
+            feed = Fraction(fx * dt, 4000)
+            hits = [t for t in thr if (Fraction(t) / feed).denominator == 1]
+            d = float(fx) * dt / 4000.0
+            want, top = set(thr), max(thr)
+            hit_f = False
+            if d > 0:
+                acc, steps, cap = 0.0, 0, 200000
+                while acc < top and steps < cap:
+                    acc += d
+                    steps += 1
+                    if acc in want:
+                        hit_f = True
+                        break
+                if steps >= cap:
+                    skip += 1
+            if hits:
+                ex_st += 1
+                ex_rows += len(hits)
+                dfiles.add(os.path.basename(s["path"]))
+            if hit_f:
+                fl_st += 1
+                fl_rows += 1
+            if bool(hits) != hit_f:
+                drift += 1
+                drows += len(hits)
+        if dt == 20:
+            r20 = (ex_st, ex_rows, drift)
+        print("   dt=%-5d (%s):\n            exact arithmetic"
+              " %3d of %d states / %4d of %d rows reachable;\n"
+              "            this port's own double accumulator %3d states;"
+              " %d states (%d rows)"
+              "\n            where the two answers DISAGREE; %d not probed"
+              " past 200000 steps."
+              % (dt, note, ex_st, len(walking), ex_rows, len(wrows), fl_st,
+                 drift, drows, skip))
+    print("   why the 28 ms grid lands on nothing: the per-call feed"
+          " there is\n   `|F| * 28 / 4000 = 7|F| / 1000`, and landing an"
+          " integer threshold t in\n   k identical calls needs `k * 7|F|"
+          " = 1000t`, so the t reachable for a state"
+          "\n   are exactly the multiples of `7|F| / gcd(7|F|, 1000)`."
+          "  Not one (|F|, t) pair\n   this corpus authors satisfies"
+          " that - and it is close, not far: a state at\n   |F|=100"
+          " WOULD land a 7-unit row in exactly 10 calls, but no |F|=100"
+          "\n   state here writes one.  The two columns below are the"
+          " whole argument:")
+    fx_seen = sorted({abs(s["hdr"].get("F", (0, 0))[0]) for s in walking})
+    hist = {}
+    for s in walking:
+        h = hist.setdefault(abs(s["hdr"].get("F", (0, 0))[0]),
+                            Counter())
+        h.update(t for t in stored_thresholds(s) if t > 0)
+    print("   |F| values among those %d states: %s."
+          % (len(walking), ", ".join(str(v) for v in fx_seen)))
+    print("            |F|   states  rows   a 28 ms call sequence can"
+          " ONLY land on        the thresholds this\n"
+          "                                                      |F|"
+          " actually authors")
+    for fx in fx_seen:
+        grp = [s for s in walking
+               if abs(s["hdr"].get("F", (0, 0))[0]) == fx]
+        g = 7 * fx
+        d0 = g // gcd(g, 1000)
+        print("            %-4d %6d %5d   first reachable %d units"
+              % (fx, len(grp), sum(hist[fx].values()), d0))
+        print("                                     the rows are at: %s"
+              % " ".join("%d x%d" % (v, c) for v, c in
+                         sorted(hist[fx].items())))
+    print("   why the 20 ms grid lands on 713 of the 992: the feed there"
+          " is `|F|/200`,\n   and |F|=100 - the largest group, 48 states"
+          " and 562 rows - feeds exactly\n   1.0 per call, so EVERY"
+          " integer threshold is a whole number of calls.\n   That is the"
+          " grid the play and PPM legs run on (ll_level.c:6425).")
+    print("   and the reverse case, where the PORT drifts off a landing"
+          " exact\n   arithmetic says it has: at dt=20 the feed is"
+          " |F|/200, so |F|=30 feeds\n   0.15 and a 3-unit row needs"
+          " k = 20 calls.  20 * 0.15 is 3 exactly;\n"
+          "   the port's accumulator reaches 2.999999999999999 after 20"
+          " additions\n   and only crosses the threshold on call 21,"
+          " handing itself a remainder\n   of 0.149999999999999 rather"
+          " than 0.  The engine's accumulator is an\n   integer dword"
+          " (0x543d1 `add [obj+0xa1], eax`), so it has no such\n"
+          "   drift.  The states affected are printed above as the"
+          " DISAGREE column.")
+    print("   WHAT THIS DOES TO THE SECTION-5 NUMBERS.  Nothing that"
+          " section 5\n   counted is wrong: its per-mode buckets are the"
+          " ENGINE's modes (`word & 7`),\n   and a bucket's rows are"
+          " distance-fed only when the port's own rule\n"
+          "   says so, which is the BY_X token with a non-zero `F=` -"
+          " %d of the\n   %d states whose control word reads mode 0."
+          "  Its boundary count is rows\n   whose threshold is a multiple"
+          " of 100, and no distance-fed row here\n   is one (%d of %d),"
+          " so the 15066-15317 figure is the boundary for\n   the"
+          " TIME-fed rows only.  The distance-fed rows have a boundary of"
+          " their\n   own, at a multiple of their own per-call distance:"
+          " on the 20 ms grid\n   %d of them sit on it (%d of %d states)"
+          " and section 5's count includes\n   none of them.  Both numbers"
+          " describe the same `cmp`/`jge` boundary\n   PR-116 read at"
+          " 0x52329-0x52334; neither changes what the port does"
+          " today."
+          % (len(walking), len([s for s in states if s["mode"] == "BY_X"]),
+             w100, len(wrows), r20[1], r20[0], len(walking)))
     return 0
 
 

@@ -9551,6 +9551,133 @@ its G2b mutation is caught
   unread, what the row handler does with the remainder it is handed is
   unread, and which events run the three accumulator zeroes is unread.
 
+## PR-118 — the boundary population re-measured for the DISTANCE-fed half:
+the 100-unit divisor in the PR-116 census does not apply to a walking state,
+and section 6 of the census tool says what does
+
+- WHAT THIS PR IS. One new section (6) in `tools/re/mov_byx_gate.py`, plus
+  this record and the two correction bullets in HANDOFF.md. No behaviour
+  change: nothing under ported/ and no Makefile line is touched, and the
+  only code in the commit is the census script, which no build or test
+  leg runs. It came out of PR-117: that leg had to INVENT an `F=100,0` /
+  `1,100` / `dt=2000` fixture to put a distance-fed accumulator exactly on a
+  threshold, which raises the obvious question of whether any real authored
+  row can land there, and on which of the grids this port really uses. The
+  answer is measured now, and it corrects how PR-116's boundary figure
+  should be read - so it goes in as a new record with the old wording
+  quoted, exactly as PR-116 and PR-117 did it.
+- WHAT IT MEASURES. `tools/re/mov_byx_gate.py` section 6, output
+  `/tmp/opencode/pr118_census.txt` (275 lines; its sections 1-5 are
+  BYTE-IDENTICAL to `/tmp/opencode/pr116_census.txt`, verified by diff).
+  The walking states are selected by the port's own rule, the `walk`
+  expression at ll_level.c:1169 (a `BY_X` token AND a non-zero first `F=`),
+  not by the engine's mode word: 75 states, 992 rows, 57 files. Their
+  stored thresholds are 2, 3, 4, 5, 6, 7, 9 and 10 units. How many of them
+  are an exact positive multiple of 100, the test section 5 uses:
+  "0 of 992 rows, in 57 files".
+- THE FEED, PER GRID. `obj_walk` feeds `dist = |fx| * dt_ms / 4000.0`
+  (ll_level.c:1101-1104), and outside a selftest `obj_advance` is called
+  with three dt values only: 20 ms (:6425, the play/PPM legs), 40 ms
+  (:6432) and a measured frame dt (:6618); `LL_ITER_MS` = 28 is the grid
+  every selftest uses. Section 6 asks, per walking state and grid, whether
+  ANY whole number of identical calls lands a stored threshold exactly, in
+  exact arithmetic (`fractions.Fraction`, k * |F| * dt / 4000 == t), and
+  separately whether the port's own double accumulator reaches it by adding
+  dt's rounded feed step by step. The measured result, as printed:
+  - dt=20: 713 of 992 rows in 60 of 75 states reachable; the port's
+    accumulator reaches it in 58 states, and in 2 states the two answers
+    DISAGREE.
+  - dt=40: 689 rows / 58 states; 56 states; the same 2 states disagree.
+  - dt=28: 0 rows / 0 states, and no disagreement.
+  - dt=2000 (PR-117's invented dt): 0 rows / 0 states.
+- WHY 28 ms LANDS ON NOTHING, exactly. The per-call feed is
+  `7|F| / 1000`, so landing an integer threshold t in k identical calls
+  needs `k * 7|F| = 1000t`: the reachable t are exactly the multiples of
+  `7|F| / gcd(7|F|, 1000)`. Section 6 prints that first-reachable value
+  next to each group's actual threshold histogram, and the two never
+  coincide: for the 48 states at |F|=100 (562 rows) only multiples of 7 are
+  reachable, and those states author 2, 4, 6, 9 and 10 - never 7 or 14.
+  Note that this is a coincidence failure, not an impossibility: a state at
+  |F|=100 WOULD land a 7-unit row in exactly 10 calls. No such row is
+  written anywhere in this corpus, so the column is zero.
+- WHY 20 ms LANDS ON 713 OF THEM. At dt=20 the feed is `|F| / 200`, and
+  |F|=100 - the largest group, 48 states and 562 rows - feeds exactly 1.0
+  per call, so every integer threshold is a whole number of calls. That is
+  the grid the play and PPM legs run on. So the distance-fed rows are not
+  outside PR-116's boundary question; they have one, at a different divisor,
+  and section 5's multiple-of-100 count does not include a single one of
+  them.
+- THE ACCUMULATOR ITSELF DRIFTS, in 2 states. Both are in
+  `LONA.05_LEW.LON_LEW.MOV`: |F|=30 at dt=20 feeds 0.15 and a 3-unit row
+  needs k = 20 calls. `20 * 0.15` is 3 exactly, but the port adds the
+  rounded feed repeatedly: its accumulator holds 2.9999999999999991 after
+  20 additions and crosses the threshold only on call 21, then hands
+  itself a remainder of 0.14999999999999902 instead of 0. Verified in
+  compiled C, not only in python: `/tmp/opencode/pr118/acc.c` mirrors
+  obj_walk's feed line and the walking half of the row gate with the same
+  expressions, built `-O2 -std=gnu11 -Wall -Wextra`, output
+  `/tmp/opencode/pr118/acc.out`. The engine's accumulator is an integer
+  dword (0x543d1 `add [obj+0xa1], eax`), so it cannot drift at all; what
+  it drifts against here is not the engine but exact arithmetic - at that
+  row the port fires one call LATER than its own documented feed law
+  says. Nothing in either selftest chain tests it (the selftests run the
+  28 ms grid, where no distance-fed row reaches a threshold at all), so
+  it is a tested-behaviour gap, recorded as open item 1, and this PR did
+  not add the leg.
+- WHAT THIS DOES TO THE PR-116 FIGURES, stated precisely. Their arithmetic
+  is right and their buckets are the ENGINE's modes (`word & 7`). The BY_X
+  line, quoted verbatim (NEXT_STEPS.md:9409):
+  "BY_X 67 of 1349, 66 states, 59 files"
+  counts states whose control word reads mode 0, and the port
+  distance-feeds only 75 of the 172 states in that bucket. The 67 rows
+  that line counts are time-fed ones, so a feed of 100 does land them
+  exactly and the sentence holds for them. What the wording does not
+  support is reading the figure as the whole boundary
+  population: the same record, at NEXT_STEPS.md:9445, states that a
+  "strict-greater would shift 15066-15317 authored rows by one whole feed
+  of 100 iterations" - that holds for the time-fed rows, whose feed IS the
+  level's 100 per iteration. A distance-fed row's feed is its
+  own per-call distance, never that 100. On the 20 ms grid 713 of the
+  992 distance-fed rows sit on
+  the same `cmp`/`jge` boundary PR-116 read at 0x52329-0x52334 - so the
+  honest count of what a strict-greater flip would move is the 15066-15317
+  figure PLUS a distance-fed population that depends on the caller's dt,
+  not that figure alone. PR-116's own numbers are unchanged by this and no
+  shipped record is edited; HANDOFF section 6 and its section-7 item-13
+  bullet carry the qualification with the old wording quoted.
+- OPEN ITEMS (PR-118 1-2). (1) A leg that pins the drift case: a walking
+  fixture at an |F| whose dt=20 feed is NOT dyadic (30 -> 0.15) against a
+  3-unit row, asserting the port's actual 21-call landing and the non-zero
+  remainder. It would be the first leg to distinguish "the port follows its
+  own feed law exactly" from "the port's accumulator drifts", and the
+  existing `obj_motion_selftest` rig has everything it needs. (2) The
+  measured 20 ms figure is for identical repeated calls. `ll_level.c:6618`
+  passes a real frame dt, which varies; what a varying dt does to the same
+  boundary (how often a landing is hit at all) is not measured, and the
+  engine's own per-frame feed value in [obj+0xca] is still unread - so the
+  engine-side count of distance-fed boundary rows cannot be given yet.
+- GATES. `tools/` is touched, so the full set was run, transcript
+  `/tmp/opencode/pr118_gates.txt`: `make` rc=0 with 0 warnings; `make win`
+  rc=0 with 0 warnings; `make ll_level` rc=0 with 0 warnings;
+  `./ll_level --play-selftest` rc=0 with 0 failures
+  (`/tmp/opencode/pr118_play.txt`); `./ll_level --mov-selftest` rc=0 with
+  0 failures (`/tmp/opencode/pr118_mov.txt`); `make -k verify-all
+  DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files` EXIT=0
+  "ALL TESTS PASSED (linux + windows + llrs)"
+  (`/tmp/opencode/pr118_verify_all.txt`) and the fixture-free
+  `DATA=/tmp/opencode/nope HD=/tmp/opencode/nope` EXIT=0 with the same
+  line (`/tmp/opencode/pr118_verify_none.txt`), whose 23 named SKIP lines
+  are set-identical to the PR-110/111/112/114/115/116/117 baseline
+  `/tmp/opencode/va_nope.log` (diff of the sorted SKIP lines: empty). The
+  builds necessarily did not change between the PR-117 tree and this one
+  - no `ported/` file was touched - and both were run anyway. The census
+  itself: `python3 -m py_compile` clean, and re-running the tool from the
+  final tree reproduced `/tmp/opencode/pr118_census.txt` byte-for-byte
+  (`cmp` with the run before the docs edits), with sections 1-5 still
+  byte-identical to `/tmp/opencode/pr116_census.txt`. No mutation runs:
+  nothing behaviour-bearing changed (the same call PR-116 made for its own
+  census section).
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

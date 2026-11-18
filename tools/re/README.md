@@ -69,8 +69,23 @@ at 0x46b59 is 0x76a69, which lower-cases BOTH sides, so the tool prints
 both counts - 0 tokens with the exact case the table stores, 255 with any
 case, 251 of them on row lines - and prints the boundary population as a
 bracket: 15066 at the bottom, 15317 at the top, in 2012 states.
-Stdlib only, inventories only, no game data in git. NEXT_STEPS.md PR-114,
-PR-115, PR-116. |
+PR-118 adds section 6, which asks that boundary question for the
+it measures the walking states by the port's own rule (the `walk`
+expression at `ll_level.c:1169`), prints their stored thresholds and how
+many of them are an exact multiple of 100 (none: those rows are 2..10
+units, and a multiple-of-100 test never selects one), then per dt value
+this port really calls `obj_advance` with (20 ms, 40 ms, 28 ms =
+`LL_ITER_MS`, and the 2000 ms PR-117's test had to invent) reports
+whether any whole number of identical calls lands a threshold exactly in
+exact arithmetic versus the port's own double accumulator, prints the
+divisibility law behind the answer (`k * 7|F| = 1000t` on the 28 ms grid,
+so the smallest reachable threshold is above every authored row here),
+shows the one case where the port's float accumulator drifts off a
+landing exact arithmetic says it has, and states plainly that the
+section-5 multiple-of-100 count is the boundary for the TIME-fed rows
+only while the distance-fed rows have a boundary of their own at a
+multiple of their own per-call distance. Stdlib only, inventories only,
+no game data in git. NEXT_STEPS.md PR-114, PR-115, PR-116, PR-118. |
 
 ## Disassembly
 
