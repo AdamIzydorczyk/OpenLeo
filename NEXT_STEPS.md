@@ -10346,6 +10346,137 @@ proved byte-identical to one of its episodes (DOCS ONLY, no code)
   with its range and rc), the three detectors, and 49 card crops in
   `r3cards/` including the tile sheets that were read.
 
+## PR-125 — the F/T-law video probe, round one. Both T != 40 fixtures
+the data offered (ENA.03 RYBKA, LONA.05 PINGWIN) animate in place but
+do NOT TRANSLATE until the lion is adjacent; the R3 camera holds dead
+still for 20-30 s
+windows and jumps discretely between them; the next-best fixture is
+named with measured still windows. (no C change; two python probes
+added to tools/re)
+
+- THE QUESTION IS EXACTLY HANDOFF §7 item 13's, quoted there: law A
+  (the port, v = |F|/4 px/s, PR-79's walk law) and law B (the engine
+  loop, v = 10*F/T px/s once v's hundredths-of-a-px-per-tick units and
+  25 ticks/s are applied) "differ only by a constant" at T=40 - and
+  every object measured so far (worm F=100, rhino F=180) is T=40.
+  "What separates the laws is a BY_X OBJECT at T other than 40."
+- THE CENSUS FIRST. All 777 .MOV texts in /tmp/opencode/mov re-scanned
+  (/tmp/opencode/pr125_byx.py): of 2318 states, 75 are BY_X with F!=0.
+  Ranked by what a video could actually referee, against an R3 file on
+  disk: RYBKA R1-R6 A_RUN = BY_X|FRAME_REV|CHECK_LEW|CH_DIR|DANGER
+  F=100,0 T=20,0 in all six files (A 25 vs B 50 px/s, a factor 2);
+  NINJA1-6 A_RUN/A_START2 F=100,0 T=30,3 (A 25 vs B 33.3, +33%) in
+  KADMAR.07; PINGWIN A_RUN = BY_X|FRAME_REV|CHECK_ANI|CHECK_LN|
+  CHECK_LEW|CH_DIR|DANGER F=75,0 T=50,10 (A 18.75 vs B 15) and YETI
+  F=100 T=50 (A 25 vs B 20) in LONA.05. The lion's own A_WALK states
+  carry T=20 and T=30 in several levels and were REJECTED as referee:
+  the lion is the player, and the player's path through 0x54250 is
+  unverified (item 8). KADMAR.07's ZOLW soldier A_RUN is BY_TIME, and
+  KADMAR.07_0_0.MOV is a player-lion variant - neither discriminates.
+- TWO PROBES JOIN tools/re. `video_stills.py` finds camera-STILL
+  windows (decor-only column-shift; pixels that changed are objects
+  and are excluded; drift is reported in game px/s). `video_lane_shift.py`
+  measures net band translation inside such a window. The two
+  estimators agree on ENA.03: `video_stills.py --max 8` flags
+  20.5-50.0 s, and the independent per-frame masked-SAD estimator
+  (/tmp/opencode/pr125/joint.py, 1318 consecutive-frame samples over
+  the hand-picked 27.7-49.7 s window, saved as joint_val27.npz) sums
+  to -10.7 half-resolution px over those 22 s - about -0.5 game px/s,
+  i.e. the lock holds to well under 1 px/s. Both remain ESTIMATORS:
+  hand-pick a window and eyeball it before trusting a number (a flat
+  sand bank can fake drift).
+- A CAMERA FACT ABOUT R3 ITSELF. The camera does not scroll smoothly.
+  It holds dead still for long windows (ENA.03 20.5-50.0 s at mean
+  drift 0.54 px/s; LONA.05_b 480.0-504.5 s at 0.35 px/s), then jumps
+  at speeds that saturate the search. The whole-cut distribution is
+  BIMODAL, not noisy: over ENA.03 5-785 s, 1547 guarded samples
+  (/tmp/opencode/pr125/p50.py), drift runs at 0 for minutes at a
+  stretch and saturates the search range (+/-12 shifts in the 160
+  space = +/-96 px/s) at the jumps; p50 16, p90 p99 max 96. That p50
+  is NOT a camera speed: between the locks the moving schools and
+  bubbles contaminate the estimator - which is exactly why windows
+  must be hand-picked, never averaged. CONSEQUENCE: any world-frame
+  speed from video MUST be taken inside a still window; outside one,
+  screen dx is not world dx.
+- ENA.03, THE FIRST PROBE: NEGATIVE FOR THE LAW, NOT FOR THE MACHINE.
+  Inside the lock the RYBKA schools sit at their .des rows (ena_zw3:
+  340,100 / 380,130 / 440,160 ... 490,270) with ZERO translation:
+  `video_lane_shift.py --band 90 300 0 400 --lag 40` over 28-49 s,
+  304 frame pairs, best shift 0 px (sad 3.16, next best 5.07). And
+  R1.MOV declares ONLY two states - A_RUN (BY_X, line 5) and
+  A_ESCAPE (BY_TIME, F=0) - so a sitting fish IS in its A_RUN state;
+  it simply does not translate there. They also MATERIALIZE on screen
+  when the lion approaches - the water is empty before, and the first
+  authored fish is at world x=340. So A_RUN's BY_X motion channel
+  contributes 0 while the lion is far. The active stretch at 95-165 s
+  is spawn/escape events with heavy occlusion - no clean A_RUN run
+  anywhere in the file.
+- LONA.05, THE SECOND PROBE: SAME SHAPE. .des (extracted with
+  `llrs_cat1 /tmp/opencode/hd_files/ETAPY` - the iso_stage ETAPY has
+  no level dirs) places four PINGWIN at x=326/606/682/715,
+  bounds=270,370, scope=40. Inside the 480.0-504.5 s lock a black-blob
+  track holds one penguin's x within +/-3 px over 44 frames, and
+  `video_lane_shift.py --band 200 340 60 200 --lag 90` (277 pairs)
+  gives best shift 0 (sad 9.38, next best 15.83): they WAVE in place.
+  Only when the lion is adjacent (494-502 s) do they flee - apparent
+  ~55-65 px/s, an ESTIMATE from thumbnail steps with multiplicative
+  error, and A_RUN is PINGWIN's state 0 while the file declares no
+  escape state (its full state list: A_RUN, A_DEAD, A_WALKINTO/
+  OUTIGLO, A_WSP_LIN_*, A_ATAK, A_TURN), so whether that motion is
+  A_RUN translation or the level's SURPRISE objects (LONASUR1/2.MOV)
+  is untested - and 55-65 cannot referee 18.75 vs 15 anyway.
+- THE STATE-MACHINE FACT BOTH PROBES TEACH. The two BY_X states are
+  not idle states: RYBKA A_RUN (R1-R6 line 5: BY_X|FRAME_REV|
+  CHECK_LEW|CH_DIR|DANGER), PINGWIN A_RUN (line 13: +CHECK_LN|
+  CHECK_ANI), NINJA A_START2/A_RUN (NINJA1.MOV lines 51/72: BY_X|
+  FRAME_REV|CHECK_LN|CHECK_LEW|CH_DIR) - all carry CHECK_LEW, and in
+  the locked windows both objects ANIMATE (the penguin's in-place
+  wave advances its animation rows over 44 tracked frames) while
+  translating exactly zero; both flee or run only when the lion
+  closes in. ZARIA's worms DID patrol while the player crossed their
+  bounds (PR-79), so the proximity gate is per-object, not global.
+  INFERENCE, stated as such: CHECK_LEW is a per-object "lion near"
+  gate evaluated on the feed side, and while it is not satisfied the
+  BY_X velocity contribution to [obj+0xa1] is held at 0; where the
+  engine evaluates it is unread (cf. item 12's "whether the engine
+  re-tests every object every tick is unread").
+- THE FIXTURE PR-126 WILL USE. KADMAR.07 NINJA1-6, A_RUN/A_START2 =
+  BY_X|FRAME_REV|CHECK_LN|CHECK_LEW|CH_DIR, F=100 T=30: A predicts
+  25 px/s, B 33.3 - 33% apart, and ninjas are engine-spawned in the
+  boss zone with visible runs. Its A_START2/A_RUN carry CHECK_LEW
+  too, so PR-126 must measure runs with the lion ALREADY adjacent
+  (PR-125's own state-machine finding is the method warning here).
+  `video_stills.py --t0 700 --t1 820` on
+  reference/video/levels/KADMAR.07.mkv measured the still windows:
+  712.5-728.5 (16.0 s), 763.0-774.0 (11.0 s), 791.0-802.0 (11.0 s),
+  and nine shorter runs. The blue-shield marching soldiers visible at
+  ~766-778 are ZOLW and are dismissed (BY_TIME); YETI (T=50, bounds
+  2000-2350, 20% delta) is the named backup.
+- GATES. No `ported/`, `Makefile`, `.gitignore` or `.github/workflows`
+  line changed: only this record, HANDOFF §3 (R3 note) + §7 item 13 +
+  §8 T1, tools/re/README.md, and two new standalone python probes that
+  no make target reads. All four legs were run on THIS tree: `make`
+  rc=0 and `make win` rc=0 - the C tree is unchanged since PR-124,
+  where the full clean warning-free build was made, so both legs say
+  "up to date", which is the honest form of that statement here - and
+  `make -k verify-all` ran full twice: with fixtures
+  (DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files) rc=0,
+  0 FAIL, fixture-free (DATA=/tmp/opencode/nope HD=/tmp/opencode/nope)
+  rc=0. Logs: pr125_make.txt, pr125_makewin.txt, pr125_vfix2.txt,
+  pr125_vnofix2.txt (the earlier clean legs at the PR-124 tree are
+  pr125_vfix.txt, pr125_vnofix.txt). No game data or video staged
+  (reference/video is gitignored, nothing under /tmp staged); `git
+  status` before the commit shows only HANDOFF.md, NEXT_STEPS.md,
+  tools/re/README.md and the two .py files. Added doc prose lines are
+  all <= 79 columns; the two tools/re/README.md table rows follow that
+  file's existing table style (its committed rows run to 994 columns).
+- EVIDENCE IN /tmp, as ever: pr125_byx.py (the census), and under
+  pr125/ the probe history - bgmotion.py, lane_sad.py, penguin.py,
+  joint.py (the calibration), the ENA frame sweeps, penguin tracks,
+  kad_*.png and kk30_sheet.png (the 30 s contact sheet of KADMAR.07
+  that located the ninja runs), lona_zw.des / ena_zw3.des /
+  kad_zw*.des placement dumps.
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its

@@ -353,6 +353,19 @@ player entered that level twice in one sitting.
             -c copy`, so each starts at the keyframe at or before its
             start second; 4.5 GB total, master kept, nothing staged
             (`reference/video/` is gitignored).
+   BEHAVIOUR MEASUREMENT INSIDE THESE FILES NEEDS A STILL WINDOW. The
+            game camera does NOT scroll smoothly in R3: it holds dead
+            still for 20-30 s stretches and jumps discretely between
+            them (PR-125, tools/re/video_stills.py: ENA.03 20.5-50.0 s
+            at mean drift 0.54 px/s, LONA.05_b 480.0-504.5 s at 0.35,
+            KADMAR.07 still runs at 712.5-728.5 / 763.0-774.0 /
+            791.0-802.0; drift is game px/s of the 640x400 frame, and
+            across a whole cut its distribution is BIMODAL - runs at
+            0, then jumps saturating the search window, a p50 that is
+            contamination from moving decor, not a camera speed).
+            Screen dx equals world dx only inside a window
+            like those; `tools/re/video_lane_shift.py` then measures
+            the band translation. Numbers in the PR-125 record.
 
 HOW THE BOUNDARIES WERE FOUND. `/tmp/opencode/stillscan.py` samples one
 cropped 320x200 grayscale frame per second and reports runs of 3 or
@@ -1393,6 +1406,40 @@ writer as its open items.
      re-pinned: what separates the laws is a BY_X OBJECT at T other
      than 40, and the data is full of them (F=100 with 11 different T
      pairs, per `tools/re/mov_channels.py`) while gp.mp4 is ZARIA only.
+    - PR-125 RAN THE FIRST TWO VIDEO PROBES AND NEITHER COULD REFEREE,
+      with three facts found on the way. (1) The referee objects chosen
+      from the BY_X census (75 states with F!=0 among 2318, per
+      /tmp/opencode/pr125_byx.py) - RYBKA R1-R6 A_RUN (BY_X, F=100
+      T=20 in all six files) and PINGWIN A_RUN (BY_X, F=75 T=50) -
+      ANIMATE BUT DO NOT TRANSLATE until the lion is adjacent: inside
+      camera-locked windows (tools/re/video_stills.py: ENA.03
+      20.5-50.0 s, LONA.05_b 480.0-504.5 s at <1 px/s drift)
+      the fish bands and penguin bands score best lane shift 0
+      (tools/re/video_lane_shift.py: 304 pairs sad 3.16 at 0 vs 5.07
+      at 1 px; 277 pairs sad 9.38 vs 15.83), the schools materialize
+      on screen as the lion approaches, and the penguins' only motion
+      is an in-place wave; when the lion closes in, penguins flee at
+      ~55-65 px/s (ESTIMATE, multiplicative error - whether that is
+      A_RUN translation or the LONASUR surprise objects is untested).
+      Both A_RUN control lines carry CHECK_LEW (RYBKA R1.MOV line 5,
+      PINGWIN.MOV line 13), and RYBKA declares ONLY A_RUN and
+      A_ESCAPE, so the sitting fish IS in its A_RUN state: the
+      inference (named as such) is a per-object "lion near" gate on
+      the feed side holding the BY_X velocity contribution at 0.
+      (2) R3's camera holds dead still for 20-30 s and then JUMPS:
+      whole-cut drift is bimodal (ENA.03 5-785 s: runs at 0, then
+      jumps saturating the search at +/-96 px/s, p50 16 - a
+      contaminated median, not a speed): world speeds are only
+      measurable inside a still window. (3) ZOLW's
+      A_RUN is BY_TIME and KADMAR.07_0_0.MOV is a lion variant, so
+      neither is a candidate; the lion's own T!=40 A_WALK rows stay
+      rejected (item 8: the player's path through 0x54250 is
+      unverified). The named referee is now KADMAR.07's NINJA1-6
+      A_RUN/A_START2 (BY_X, F=100 T=30: A 25 vs B 33.3 px/s), with
+      measured still windows 712.5-728.5 / 763.0-774.0 / 791.0-802.0
+      in reference/video/levels/KADMAR.07.mkv, and LONA.05's YETI
+      (F=100 T=50, bounds 2000-2350) as backup. Full record: the
+      PR-125 section of NEXT_STEPS.md.
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2118,8 +2165,11 @@ narrow and explicit: the engine's law and the port's law differ only in
 the T dependence, and only a BY_X object at T other than 40 can say
 which one is right. Next steps, in order: (1) that video test, which
 the authored data supplies in quantity (F=100 against 11 different T
-pairs) but which needs footage of a level other than ZARIA; (2) the
-two cheap tests PR-102 points at: the first is DONE (PR-107 applies the
+pairs); PR-125 ran the first two probes on R3 footage and both referee
+objects (RYBKA A_RUN F=100 T=20, PINGWIN A_RUN F=75 T=50) animated
+without translating until the lion was adjacent - §7 item 13's
+PR-125 bullet names the next fixture; (2)
+the two cheap tests PR-102 points at: the first is DONE (PR-107 applies the
 authored start row on both sides; measured through the port's own parser,
 of 2572 numeric transition lines 2299 ask for row 0 and 273 do not, 172
 of them cross-state and only 25 in a scene-object script), and what the
@@ -2134,7 +2184,10 @@ for one clip; PR-109 measured it and the answer is the ITERATION model:
 an authored threshold T is displayed for T/100 frame-loop iterations, not
 T milliseconds, so the port's row clock is 3.0-3.5x too slow and PR-110
 is the behaviour change, with its plan named in the PR-109 record. Item
-(1) above still needs footage of a level other than ZARIA. The table
+(1) above is now TWO negative probes and three facts, recorded in §7
+item 13's PR-125 bullet; the named next fixture is KADMAR.07's
+NINJA1-6 A_RUN (BY_X, F=100 T=30) with measured still windows. The
+table
 itself is now read end to end:
 PR-102 found its writer (the base record parse method 0x51910 ->
 0x51e07, entries of {key, target state index, start row} pushed into

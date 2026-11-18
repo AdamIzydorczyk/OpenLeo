@@ -131,6 +131,8 @@ census measures 162, so `slots` prints counts over detected tables
 | `video_camera_shift.py` | per-frame global background shift by phase correlation (`cam.npy`). Drifts over long runs. |
 | `video_jump_cam.py` | camera path + lion shorts/feet in world units for a short window: `video_jump_cam.py FILE.mp4 START_S DURATION_S`. |
 | `video_shorts.py`, `video_feet.py` | the same measurements without the camera (`START DURATION`). |
+| `video_stills.py` | camera-still windows of an R3 capture, drift in game px/s (PR-125). |
+| `video_lane_shift.py` | band x-shift inside a still window -> game px/s (PR-125). |
 
 The game picture is cropped from the 640x480 video as `crop=640:400:0:40`
 (black bars 40 px top and bottom) and is the 320x200 world view shown 2x.
