@@ -772,6 +772,49 @@ geometric y path at all - y comes from the row's authored `dy=`
 shipped leg could detect a missing slope push. PR-122 record in
 NEXT_STEPS.md, with reading 0x45380 and the +0x6c provider as its first
 open item.
+PR-123 added 2026-11-18: the segment lookup that goes with PR-122's gap
+function, and the port's own copy of the same query. It takes PR-122's
+closing words here, quoted:
+"with reading 0x45380 and the +0x6c provider as its first open item."
+It answers the first half. 0x45380 is a 43-byte lookup over the table
+PR-122 described: `eax` = the owner (its base pointer at +0x4, its record
+count as a DWORD at +0x8, 13 bytes each), `edx` = a pointer to the x to
+find. It returns 0 from three bail-outs - an empty table (0x45388), x
+below `[base]` (0x45393/0x45395), x above the dword at `base + count*13`
+(0x4539f/0x453a1) - and otherwise scans the records in order
+(0x453a3..0x453bb, `cmp x,[base + k*13]`/`jg`) and returns the index of
+the first record whose x is >= x. So the answer is always in 1..count-1
+and index 0 is the not-found value, which is how both listed callers
+treat it (0x4542c/0x4542e and 0x453db/0x453dd) and why 0x45400's pair
+`i` and `i-1` is always two real records. The bounds only make sense if
+the table is x-sorted, and they do not exclude two records sharing an x,
+which would make 0x455a0's divide by zero: assumed ordering, unproven
+either way. Sixteen bytes later 0x453d0 is a sibling client of the same
+table - lookup, bail to `mov eax,0x7fffffff` at 0x453f5, else build
+base+i*13 and base+(i-1)*13 (0x453df..0x453eb), `call 0x455a0` and hand
+the gap back to its caller; the index labels that region as still inside
+FUN_00045380, which is a hint. 21 sites in 0x40000..0x46000 scale an
+index by 13 (first 0x45012), so this lookup is module-wide. The port
+already asks the same question, in the open: `seg_y_at` (`ll_play.c:123`)
+is 0x455a0's first term in C, its divide truncating towards zero the same
+way and its vertical-segment case at :126 existing precisely because a
+zero denominator is not allowed; `ll_plt_surface_at` (:140) and
+`ll_plt_first_below` (:164) scan every polyline for a covering segment
+and report not-found with `best = 0x7fffffff` - the sibling's sentinel.
+The `.PLT` ground they read is documented as x right, y DOWN, feet on top
+(`ll_play.h:54`) and parsed from the HD ETAPY block (`ll_play.h:10`).
+Who gets the answer: the player, every step (`ll_player_step` :905, the
+slope-following call at :1149, the fall check at :1173); a scene object
+once, at placement (`obj_settle`, `ll_level.c:1693`, snap at :1700/
+:1705), after which its y is only `dy=` (:1238) and base-y resets. So
+what PR-122 wrote here - that the port "models no geometric y at all" -
+holds only of the per-tick object path, and that correction is recorded
+in PR-123 rather than in an edited record. Still unproven: that these
+records are `.PLT` ground data, which class answers slot +0x6c with an
+index, and what writes a 13-byte record. Shape agreed, identity not.
+PR-123 record in NEXT_STEPS.md, with the +0x6c provider and the record
+writer as its open items.
+
 
 
 
@@ -1827,6 +1870,29 @@ open item.
      at :1238, base-y resets at :831/:927/:1001/:1214), so this has
      nothing to be tested against yet; whether to model it is the owner's
      call. No code, no comment, no behaviour changed here.
+
+   - THE ENGINE HAS AN INDEX LOOKUP FOR THAT GAP AND THE PORT HAS ITS
+     OWN COPY OF THE QUERY, 2026-11-18, PR-123. It reads the open item
+     named there, quoted:
+     "with reading 0x45380 and the +0x6c provider as its first open item",
+     and answers its first half: 0x45380 is a linear search over the
+     x-sorted 13-byte records that returns the segment index, never 0 -
+     index 0 is its not-found value, which is why 0x45400's `i`/`i-1`
+     pair is always two real records; three bail-outs return it (empty
+     table, x below the first record, x above the dword at
+     `base + count*13`). A sibling at 0x453d0 does the same lookup,
+     bails to INT_MAX, else builds the pair and calls 0x455a0 and
+     returns the gap to its caller. The port side is the same query in
+     the open: `seg_y_at` (`ll_play.c:123`, truncating, with a zero
+     denominator handled at :126), `ll_plt_surface_at` (:140) and
+     `ll_plt_first_below` (:164), both reporting not-found through
+     `best = 0x7fffffff`. The player is stepped against that ground every
+     tick (`ll_player_step` :905, :1149, :1173), an object only at
+     placement (`obj_settle`, `ll_level.c:1693`), so PR-122's words here
+     about no geometric y in the port are true only of the per-tick
+     object path - recorded as a correction in PR-123, no shipped record
+     edited. What the 13-byte records are, and who writes them, stays
+     unread: no code, no comment, no behaviour changed here.
 
    - A CAP THE PORT DOES NOT MODEL: the engine's .MOV parser clamps the
      `T=` pair to 130 (0x525f8/0x52610) and 172 authored components in 64

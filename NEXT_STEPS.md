@@ -10107,6 +10107,139 @@ into `[obj+0xea]` is also the block that stores the `[obj+0xe6]` link
   no .github/workflows change, every added line <= 79 columns.
 
 
+## PR-123 — the segment lookup behind PR-122's gap function: 0x45380 is a
+linear x-search over an x-sorted record table that returns the segment
+index, and the port already asks the same question of its .PLT ground
+
+- WHAT THIS PR IS. A reading, no code, no behaviour. It takes PR-122 open
+  item 1, quoted verbatim:
+  "Read 0x45380 and the slot +0x6c provider: what the 13-byte records are and
+  which class answers with an index."
+  and closes its first half. 0x45380 is read in full here; the slot +0x6c
+  provider is still unread, so this item is PARTLY closed. A second half
+  of the question - what the records ARE - gains evidence rather than an
+  answer: the same query already exists in the port, in `ll_play.c`, for
+  the `.PLT` ground polylines, and the shapes match point for point.
+  Everything is `leodb.py dis` on the exact bytes (transcript
+  /tmp/opencode/pr123_dis.txt, with the image sha256, `dis` of 0x45380,
+  0x453d0+0x30 and 0x453ed+0x24) plus `grep -n` against the shipped
+  `ported/ll_play.c`/`ll_play.h`/`ll_level.c`.
+- 0x45380 IS THE INDEX LOOKUP, AND ITS FAILURE VALUE IS 0. Seven pushes
+  in, 43 bytes: `eax` = the table owner, saved to `ecx` at 0x45384;
+  `edx` = the x to find, saved to `esi` at 0x45386 and re-read from that
+  pointer at 0x45391, 0x4539d and 0x453b6 (a pointer to x, not x). Three
+  bail-outs go to the epilogue at 0x453c4, which returns `eax` = 0:
+  0x45388 `cmp DWORD PTR [owner+0x8],0x0` (an empty table), 0x45393/
+  0x45395 `cmp`/`jl` when x is BELOW `[base]`, and 0x4539f/0x453a1 `cmp`
+  /`jg` when x is ABOVE the dword at `base + count*13` - which is NOT
+  inside the records, so the table keeps a further dword at that address.
+  Between them: 0x4538e `mov eax,[owner+0x4]` is the base and 0x45397
+  `imul edx,DWORD PTR [ecx+0x8],0xd` scales a DWORD record count by 13,
+  confirming the 13-byte stride PR-122 inferred from four `imul ...,0xd`;
+  the x of a record is at +0, and the byte at +0xc of a record is used
+  elsewhere (0x4540f reads one as a count, 0x4504f/0x45053/0x451be
+  move them) so +0xc is a per-record byte, not padding.
+- THE SCAN, AND WHY THE ANSWER IS NEVER 0. 0x453a3..0x453bb walk the
+  records in stride-13 order (`mov edx,0x1` and `mov eax,0xd` at
+  0x453a3/0x453a8, `add eax,0xd` + `inc edx` at 0x453af/0x453b2, and at
+  0x453b8 `cmp x, [base + k*13]` with `jg 0x453af`): the loop stops at
+  the FIRST record whose x is >= x, and 0x453bd returns that 1-based
+  index. So the return value satisfies 1 <= i <= count-1, and index 0 is
+  not a record but the "not found" answer - which is exactly how both of
+  the callers that the index lists treat it (0x4542c/0x4542e `test`/`je`
+  in 0x45400, and 0x453db/0x453dd the same shape below). That is also
+  what makes the pair PR-122 read safe: `i` and `i-1` are always both
+  real records, so the two points of the segment exist.
+- WHAT THE BOUNDS DO, AND DO NOT, GUARANTEE. Reading the dword at
+  `base + count*13` as the upper bound only makes sense if the table's
+  records are ordered by x - that is consistent with the scan, which
+  stops at the first record at or above x, and with an upper sentinel;
+  nothing here proves the ordering, only that the code assumes it. And no
+  zero-denominator guard exists anywhere in this chain: the bounds say
+  x(record i-1) < x(record i) is NOT excluded, so records sharing an x
+  would make 0x455a0's divide by zero. Not observed, not excluded.
+- THE SIBLING, SIXTEEN BYTES DOWN, RETURNS THE GAP DIRECTLY.
+  0x453d0/0x453d1/0x453d2 `push ebx`, `push ecx`, `mov ecx,eax` (the
+  table owner again), 0x453d4 `mov ebx,edx` (the point), then 0x453d6
+  `call 0x45380` - the same unit the index labels FUN_00045380+0x56 (the
+  entry list ends that body at 0x453c4, a hint, so describe the region
+  by its bytes). 0x453db/0x453dd `test`/`je 0x453f5`, and 0x453f5 returns
+  `eax` = 0x7fffffff for no match; otherwise 0x453df/0x453e3 `imul ...,0xd`
+  build base+i*13 and base+(i-1)*13 in `edx` and `eax`, 0x453e6 `mov
+  ecx,[ecx+0x4]` re-reads the base, 0x453e9/0x453eb add it, and 0x453ed
+  `call 0x455a0`, whose return value is passed straight back (0x453f2/
+  0x453f3/0x453f4 two pops, `ret`). So two near-identical clients of one
+  table: this one computes the gap and hands it to its caller, 0x45400
+  stores it into `[obj+0xea]` beside the `[obj+0xe6]` link. The INT_MAX
+  the no-match path returns is the same shape as the port's own
+  `best = 0x7fffffff` initialiser in `ll_plt_surface_at` (:143) and
+  `ll_plt_first_below` (:167) - a similarity, not a reading.
+- THIS IS A MODULE, NOT ONE FUNCTION. A scan of the disassembled ops in
+  0x40000..0x46000 finds 21 sites that scale an index by 13, the first
+  at 0x45012 (`imul eax,edx,0xd`) and including 0x45293
+  `imul esi,DWORD PTR [esi+0x8],0xd` - the owner-count idiom again - and
+  0x452e0/0x452e3. Byte reads of the record +0xc slot cluster in the
+  same range. So the x-sorted 13-byte record table is used across that
+  region, and 0x45380 is its shared lookup.
+- THE PORT ASKS THE SAME QUESTION, AND ONLY THE PLAYER GETS THE ANSWER.
+  In `ported/ll_play.c` as shipped (sha256 e1a390ddea926a02...,
+  `ll_play.h` 71b0fedbd73a3088...): `ll_plt_parse` (:34) reads `.PLT`
+  polylines, which the header documents as world-coordinate ground lines
+  with x right and y DOWN, feet on top (`ll_play.h:54`), parsed from the
+  HD install's ETAPY block (`ll_play.h:10`); `seg_y_at` (:123) is the
+  same interpolation as 0x455a0's first term - `pl->p[k].y + dy * (x -
+  x1) / (x2 - x1)` in C, which truncates toward zero like the engine's
+  `idiv`, and it gives vertical segments their own special case at :126
+  because a zero denominator is not allowed - and `ll_plt_surface_at`
+  (:140) and `ll_plt_first_below` (:164) both scan every polyline for a
+  covering segment and return found/not-found with `best = 0x7fffffff` as
+  their not-found marker. That is the same query as 0x45380 (x to
+  segment) plus 0x455a0 (y gap to that segment) with the search written
+  as a scan instead of an indexed lookup. Who consumes it: the player,
+  every step, inside `ll_player_step` (:905) which takes the ground as a
+  parameter and calls those two queries at :1149 and :1173; a scene
+  object only at placement, in `obj_settle` (`ll_level.c:1693`), which
+  snaps a `CHECK_LN` object's base y to the first line below it
+  (:1700, :1705). After placement, nothing: the per-tick y of an object
+  is the authored `dy=` (:1238) and base-y resets (:831, :927, :1001,
+  :1214). So the port has this geometry for its player and a one-time
+  snap for its objects, while the engine's block PR-122 read re-derives
+  the gap for an object and hands a one-shot correction to its position
+  writer.
+- WHAT THIS IS STILL NOT EVIDENCE FOR. The record table has not been
+  matched to a `.PLT` file, and nothing here says it is one. The shapes
+  agree (x-sorted polyline, y from a truncated linear interpolation, a
+  found/not-found query with a large-value sentinel); the identities do
+  not: 13-byte binary records with a dword count at `[owner+0x8]` and a
+  byte at record +0xc is not the port's `.PLT` in-memory form
+  (`ll_xy *p; int n`, per-polyline pointer + count), the engine reaches
+  its table through a virtual call on another object (0x45434/0x45439
+  `call [ebx+0x6c]`, unread), and the port's `.PLT` is text parsed from
+  the HD tree. Also: PR-122's line saying the port "models no geometric y
+  at all" is true only of the per-tick object path - the player path and
+  the placement snap do use the ground polylines, as above. Both wording
+  corrections live in this record; no shipped record was edited.
+- OPEN ITEMS (PR-123 1-3). (1) Which class answers slot +0x6c with a
+  record index, and what its table is - that is the unread half of
+  PR-122 item 1, and it is the shortest remaining path to naming these
+  records. (2) Whether any 13-byte record table in the image is built
+  from ground lines: look for the code that WRITES such records (a store
+  to `[base + k*13]` plus `[base + k*13 + 4]`, and the +0xc byte) and
+  what feeds it. (3) Who calls the 0x453d0 sibling, and what its caller
+  does with an INT_MAX answer - that would say whether "no segment here"
+  is an everyday case.
+- GATES. Docs only: no `ported/`, `Makefile`, `tools/` or `.gitignore`
+  line is in this commit, so the prompt's build gates do not apply and no
+  build was run. Evidence: /tmp/opencode/pr123_dis.txt (image sha256, the
+  full `dis` of 0x45380, `dis` of 0x453d0+0x30 and 0x453ed+0x24, the
+  caller lists with their entry-list disclaimer, the sha256 of the two
+  `ll_play` files, and the `grep -n` line numbers quoted from them); the
+  scans of 13-scaling sites and record-+0xc byte reads are queries
+  against /tmp/opencode/leo.sqlite, a derived index under /tmp. No game
+  data, no captured frame, no .github/workflows change, every added line
+  <= 79 columns.
+
+
 ## Next — pick from the Deferred list below
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
