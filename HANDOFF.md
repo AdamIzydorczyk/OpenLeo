@@ -100,6 +100,27 @@ Section 8 lists them as tasks.
      verdict sets; the Windows/wine half stays serial); `ci.yml` (now
      `linux` + `asan` only) stays green. This rule supersedes the
      `make win` and Windows-leg halves of rule 4 for day-to-day work.
+   - NOT deferred, and this bit is load-bearing for CI: Windows
+     BUILDING wherever a Linux leg's prerequisite chain asks for it.
+     The Makefile names .exe targets as prerequisites of the MIXED
+     legs - `verify-menu: ll_cutscene ll_cutscene.exe` (Makefile:1744;
+     the same shape in verify-skip/-music/-pcm/-help/-cmake) - so a
+     Linux-only CI job still cross-compiles Windows binaries and still
+     needs the pinned vendor SDL2 (`ci.yml`'s "Provision SDL2" step,
+     3 s). Measured: dropping that step failed the LINUX gate with
+     `fatal error: SDL2/SDL.h` at ported/ll_audio.h:38 and
+     ported/ll_view.h:41, then `make: *** [Makefile:78:
+     ll_cutscene.exe] Error 1` (run 44536198608; reproduced locally
+     over all 18 TUs of $(SRC) with SDL_WIN=/nonexistent, and 0 errors
+     with the pinned tarball). Rule 8 changes what is TESTED per push,
+     not what make is allowed to build.
+
+   Measured effect of this rule, for the record (2026-11-19, runs
+   44523679146 before / 44536707174 after): the per-push `linux` job
+   went 304s -> 59s, because the 247s `Install toolchain` step is now
+   a 25-30s image pull; `asan` 46s -> 48s; and the end-of-implementation
+   gate `ci-windows.yml` is proven green when dispatched (run
+   44536359825: cross 54s, native MSYS2 smoke 75s).
 
    Measured reason (2026-11-19, fixtures staged, every leg timed, all
    EXIT=0 except as noted): the local suite is 307 s and `verify-win`

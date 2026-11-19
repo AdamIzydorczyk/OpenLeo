@@ -22005,6 +22005,96 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   columns; nothing under ported/ changed, so no frame can move.
 
 
+## OWNER (2026-11-19) — THE CI CHANGE LANDS AND IS GREEN: four CI bugs that
+## only RUNNING it could find, plus the measured effect of the image and
+## the Linux-only gate (no port code, no leg body touched)
+
+- Pushed and green. The commits: 63c0827 (the split: pre-baked image,
+  Linux-only per-push path, `-j` suite, ci-windows.yml), 08a596a and
+  bc14cfc (ci-image fixes), a851eff (registry credentials +
+  packages:read), 14e6439 (the pinned SDL2 provisioning put back).
+- MEASURED RESULT, run 44536707174 (push, HEAD 14e6439): `linux` 59s
+  EXIT=0 with 51 `(ok)` lines and `ALL TESTS PASSED (linux half...`;
+  `asan` 48s. Reference, run 44523679146 (last green BEFORE any of
+  this): linux 304s of which `Install toolchain` 247s, asan 46s, and
+  the Windows jobs lived inside ci.yml. So the per-push linux job went
+  304s -> 59s (-81%) and the 247s package install became a 25-30s
+  image pull. The suite step itself is 15s on a runner because it is
+  the hermetic half (named SKIPs); the fixture-backed legs run at home.
+- The image bootstrap, once (run 44535350968): build 151s, push 8s,
+  confirm 3s; published ghcr.io/adamizydorczyk/open-leo-ci:ci plus a
+  full-sha rollback tag. Verified from here too, not just from the
+  job's log: pulled with an authenticated token, rc=0 in 31.8s, and it
+  reports Ubuntu 26.04.1 LTS, cmake 4.2.3, gcc 15.2.0,
+  x86_64-w64-mingw32-gcc 13-win32, windres 2.45.90, Python 3.14.4 -
+  i.e. the same cmake/mingw the previous green runs resolved, so no
+  pinned leg sees version drift. Parity of the package set was
+  CHECKED, not assumed: the image's apt list is a superset of both old
+  runner lists (it adds ca-certificates/curl/git for the download leg)
+  and, like them, has NO wine - the 19 `ifeq ($(PX_DATA),1)` guards
+  mean no wine half ever runs on a machine without the fixtures.
+  Python is 3.14 there and this machine already runs 3.14.10 (the
+  93-verdict suite passed on it), and no tool imports a stdlib module
+  removed in 3.13/3.14 - checked by grep.
+- The DEFERRED Windows gate proved end to end for the first time:
+  ci-windows.yml run 44536359825 GREEN - cross 54s (pull 17s, the
+  SDL2 sha-pin 2s, cross-build of the .exe set 6s, verify-win +
+  verify-mod 19s printing their NAMED SKIPs, artifact upload 1s) and
+  native windows-smoke 75s. Honest limit restated: fixtures are
+  gitignored, so on a runner those legs prove the build path and the
+  SKIP contract only; the byte-exact frame proofs under wine run at
+  home, which is exactly what HANDOFF s3 stages.
+- FOUR BUGS, all mine, all found by running it, each with its
+  measured signature (the lesson is in the last one):
+  1. buildx with a registry cache on a FRESH GHCR package:
+     `importing cache manifest from ...:buildcache` -> `failed to
+     fetch anonymous token: 403 Forbidden`. A new package is private,
+     and the cache ref cannot exist on its first run. Fixed by
+     dropping buildx and the cache for plain `docker build`/`push`
+     (auth through the daemon), plus `concurrency: ci-image` after
+     the push trigger and a manual dispatch raced on the same tag.
+  2. a plain YAML scalar: `run: echo ... docker login ... \` folded
+     to a literal backslash-argument -> `docker: 'docker login'
+     requires at most 1 argument`. Every run in those files is a
+     block scalar now; grepped for the pattern - no other hits.
+  3. `permissions: contents: read` with no `packages: read`, and
+     `container:` with no credentials: a private GHCR pull that the
+     token cannot see answers **404 `... :ci: not found`, not 403**,
+     so the text pointed at a missing image and I debugged the
+     builder twice while it was fine. Both files now carry
+     packages:read + explicit credentials (github.actor /
+     secrets.GITHUB_TOKEN), with a comment saying so.
+  4. THE REAL ONE: taking `Provision SDL2 for the Windows target` out
+     of ci.yml broke the LINUX gate, because the mixed legs declare
+     .exe targets as MAKE PREREQUISITES - Makefile:1744 is
+     `verify-menu: ll_cutscene ll_cutscene.exe`, and
+     verify-skip/-music/-pcm/-help/-cmake name 1-7 .exe each; only
+     verify-win's set was purely its own. So make cross-builds a
+     Windows binary whether or not the leg then prints its SKIP. The
+     ruling defers Windows TESTING, not Windows BUILDING wherever a
+     prerequisite asks for it. Failure text (run 44536198608):
+     `ported/ll_audio.h:38: fatal error: SDL2/SDL.h: No such file or
+     directory`, same at `ported/ll_view.h:41`, then
+     `make: *** [Makefile:78: ll_cutscene.exe] Error 1`.
+     Reproduced LOCALLY before pushing the fix this time: all 18 TUs
+     of $(SRC) (read out of make's own database) with the same flags
+     -> SDL_WIN=/nonexistent gives those two fatal errors verbatim;
+     with the pinned tarball, 0 errors and 0 warnings.
+- Gates: each CI commit's YAML parsed with yaml.safe_load (and one of
+  them caught my own mistake - the commit that added the COMMENT
+  about packages:read without the key); `make -pn` target lists
+  unchanged; added lines <= 79 columns; nothing under ported/ or
+  tools/ changed, so no frame can move and no RE count changes. This
+  record is a docs-only commit under rule 4's 2026-11-17 exception -
+  no leg can read a .md file - so the suite was not re-run for it;
+  the CI result is quoted above as usual (44536707174 success).
+- Still OPEN, unchanged by this round: the runtime identifiers - the
+  `openleo` data-dir search path in ported/main.c and `openleo.ini`
+  - which need a migration decision plus a test, not a sed; and the
+  untracked `PRAGMA table_info(session_v2);` file in the repo root,
+  which is not mine and was left alone.
+
+
 ## Deferred big items (deliberately out of scope so far)
 
 - **WINDOWS TESTING DEFERRED** (owner ruling, 2026-11-19 - full text in
