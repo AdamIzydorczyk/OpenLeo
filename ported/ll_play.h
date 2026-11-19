@@ -215,7 +215,13 @@ enum {
 /* PR-88: the engine's signal bit table. The object's signal bitset at
  * [obj+0x60] is a TEventSet (error string "TEventSet::match" at 0x919cd);
  * the name->bit function at 0x48000 compares a condition/GEN token against
- * the name block at 0x919ec..0x91c40 and sets an EXPLICIT bit constant per
+ * the name block at 0x919ec..0x91c68 (PR-173: the block is 73
+ * NUL names - AC_K_ANY/K_ANY/AC_K_NEVER/K_NEVER FIRST (the
+ * node-op specials, NOT bits), then EXACTLY the 68 signals of
+ * THIS enum, in this order, then the 'AC_EV_MAX' sentinel;
+ * bit N = block index N+4, and the whole table plus this
+ * port's token->enum table are verified 68/68 complete) and
+ * sets an EXPLICIT bit constant per
  * name (verified constants: AC_BLOK mov al,0x0; AC_BLOK_Y 0x1;
  * AC_BREAK_NEXT 0x2; AC_ENEMY mov dl,0x7; AC_ONAIR mov dl,0x12;
  * K_GEN1 mov al,0x36 = 54; K_GEN2 0x37 - PR-70's "bit 54 = K_GEN1"

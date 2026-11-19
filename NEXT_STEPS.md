@@ -3879,7 +3879,17 @@ in a loop continuously". Both root-caused, both fixed, both pinned.
   - RE (the big one): the engine's signal names and bit numbers came
     straight off the code. The name block is 0x919ec..0x91c40 (NOT the
     0x92180 range open question 2 guessed - that one is the control=
-    flags); the name->bit function is 0x48000 (not 0x51b30) and ORs an
+    flags) [BOUNDS + SCOPE CORRECTED BY PR-173 F1: the block
+    runs to 0x91c68 - 73 NUL names: AC_K_ANY/K_ANY/AC_K_NEVER/
+    K_NEVER first (the four node-op specials, IN the block -
+    the engine's own confirmation of this record's parser
+    reading), then EXACTLY 68 signals AC_BLOK..AC_DISAPPEAR,
+    then the literal string 'AC_EV_MAX' as the end sentinel;
+    bit N = block index N+4. PR-173 machine-checked all 68
+    against the port enum AND the port's token->enum table
+    (both complete, zero mismatches) - the sampled constants
+    below stand, now verified total.]; the name->bit function
+    is 0x48000 (not 0x51b30) and ORs an
     EXPLICIT constant per name into the set at [obj+0x60] (TEventSet,
     error string at 0x919cd): AC_BLOK 0 ... AC_BREAK_NEXT 2 ... AC_ENEMY
     7, AC_TIME 9, AC_ENEMY_ATC 16, AC_ONAIR 18 ... K_FWD 36, K_FIRE 39,
@@ -15739,49 +15749,51 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-173 IS THE KEY-LITERAL RE-DERIVATION (carried from PR-
-  171's Next, unchanged in scope): PR-171 F5 proved the
-  0x600000/0x800000 CHECK_LN/BASE_LN "constants" do not exist
-  in code - re-derive PR-161's key law against the REAL bit
-  map (PR-171 F1: [obj+0xa5] flag bits -> key+4|0x80/key+
-  5|0x01/key+6|0x20; motion-param status -> key+4|0x08/0x10;
-  param sign -> key+4|0x20/0x40 only when [obj+0xba]==0) and
-  the authored row data; the labeled hypothesis (0x60/0x80 =
-  key+4 BYTES in a hex-dump reading) gets tested first. The
-  port's 15-byte key model (ll_level.c) is audited against
-  this map in the same pass; any divergence = labeled item or
-  a code PR (PR-172 shows the audit-then-fix path works).
-- THEN the SAME-STATE ROW SEEK code PR (PR-172 F2/updated
-  item): the engine's match arm writes the authored start row
-  into the CURRENT state's row counter inline (0x53616) on
-  EVERY same-state match; the port's object arm counts the
-  match (PR-163) but never re-seeks, and its player side
-  deliberately keeps running (PR-86). Census first: how many
-  of the 101 shipped self-target lines carry a row token, and
-  which rows (the /tmp/opencode/mov scratch answers it);
-  then the fix + a hand-derived test + mutation battery if
-  shipped rows can reach it.
-- THEN the BY_TY FEED READ (PR-172 new item): 4 shipped
-  ZARIA.01 states use control=BY_TY (rows gated 200/300);
-  the port runs them as plain time states. Read the feed
-  dispatcher 0x543a0's mode arm for that token (PR-166's
-  slot table +0x14 is the map) and its relation to the
-  parameter pair [obj+0xba]/[obj+0xbe]; a labeled model note
-  or a feed implementation follows.
-- THEN the FAMILY-B KEY PRODUCER + MESSAGE-ID MAP (PR-171
-  items 1-2): the 99 classes whose +0x78 CONSUMES the key
-  have NO statically-referenced builder (0x54912: zero table
-  slots/calls/branches) - hunt the reachability (runtime table
-  patching? computed call?) and read the +0x10 minority bodies
-  (0x3dcb0 x27, 0x3d8f0, 0x50d60) + the unread message arms
-  (0x5460e 0x1b, 0x5463a default). This likely carries the
-  CHAIN-STORE answer (pools start EMPTY at load; heads alloc'
-  ed+zeroed at slot assignment, [c+0x40] is a slot counter;
-  runtime insert only). Also: the [obj+0x102] 30-tick clear/
-  reader, the [obj+0xa5] producer contract remainder.
-- THEN the pool-name decode (carried, PR-166 item 2, nega-
-  tives banked) and the name-keyed path (0x4dcc0/0x4df10,
-  PR-166 item 3).
+- PR-174 IS THE SAME-STATE ROW SEEK code PR (carried from PR-
+  172's Next, spec unchanged): the engine's match arm writes
+  the authored start row into the CURRENT state's row counter
+  inline (0x53616) on EVERY same-state match; the port's
+  object arm counts the match (PR-163) but never re-seeks,
+  and its player side deliberately keeps running (PR-86).
+  Census FIRST: how many of the 101 shipped self-target lines
+  carry a row token and which rows (the /tmp/opencode/mov
+  scratch answers it); then the fix + a hand-derived test +
+  mutation battery if shipped rows can reach it.
+- THEN the KEY-FOLLOW-UP items opened by PR-173 (pull in one
+  pass where they interlock): (a) the +0x8c TWO contracts —
+  which families' objects actually run 0x536f0's pump merge
+  (PR-153's "every LION tick" vs the 99-family boolean
+  0x23870; the default wrapper 0x400b0 is a position path, so
+  per-family state-step attribution is OPEN); (b) [obj+0xa9]
+  and [obj+0xad] readers (the boolean and the ordinal-pair
+  field in 0x55130/0x550c0); (c) the ~76 per-class +0x78
+  singleton providers as a family (0x28af0 = PR-155's bit-54
+  raiser, +0x78 install noted; reading it whole is the named
+  lead for the K_GEN1 platform key half); (d) [obj+0x75], the
+  second 13-byte TEventSet next to the live set: producers
+  and readers; (e) 0x504e0/0x551f0 whole; (f) 0x9c05c/9c054
+  identity (updated: its slots are +0x78 0x552e0, +0x8c
+  0x54910, +0x9c const-true 0x23a40, +0xd0 0x54550 = PR-
+  170's timed registration, +0xd8 0x31ba0 — a pool-joining
+  motion-synth class installed by the 0x300d7 creation
+  path).
+- THEN the BY_TY FEED READ (PR-172 item): 4 shipped ZARIA.01
+  states use control=BY_TY (rows gated 200/300); the port runs
+  them as plain time states. Read the feed dispatcher 0x543a0's
+  mode arm for that token (PR-166's +0x14 map) and its
+  relation to the [obj+0xba]/[obj+0xbe] pair; a labeled model
+  note or a feed implementation follows.
+- THEN the KADMAR camel reachability item (PR-173 F5): the
+  K_*-keyed OBJECT rows (KADMAR.07_CAMEL_CAMEL.MOV,
+  KADMAR.07_0_0.MOV) — at that stage, decide whether the
+  engine raises those bits via synthesis (0x54910-shape
+  getters) or via the kind-0x10 arbitrary-bit law (PR-155);
+  only then is a port-side synthesizer justified. ZARIA.01 is
+  proven NOT to reach any of it (F5) — no port change now.
+- THEN the msg-id map + pool-name decode (carried unchanged):
+  0x5460e/0x5463a arms, the id-to-meaning table; the pool
+  names (PR-166 item 2 negatives banked) and the name-keyed
+  path 0x4dcc0/0x4df10.
 - THEN carried reads (unchanged): the +0x60 conditional mi-
   nority (PR-169 item 3); the vtable+0-word OR 4/8 row-end
   CONSUMER (PR-164 item 1); [obj+0x99] reader semantics (PR-
@@ -15791,17 +15803,15 @@ no port behaviour change)
   vs-24 +0x14-slot delta; record verbs +0x2c/+0x30 bodies +
   the second-view slots 0x559c0/0x45800; the +0x9c per-class
   gate variants (PR-168 item 4); the walk return-value encod-
-  ing (PR-161 item 1); 0x9c05c identity; 0x524xx rest; 0x446de;
-  0x57d30 modes; FLAG +0x4c getter. The 0x4fef0 side-effect
-  SEMANTICS ([pool+0x3a0]/[0x3a8], ds:0xcf068) stay open as
-  PR-170 item (4) (its ROLE is now named - the record ENTER
-  wrapper, PR-172 F1).
+  ing (PR-161 item 1); 0x524xx rest; 0x446de; 0x57d30 modes;
+  FLAG +0x4c getter; the 0x4fef0 side-effect SEMANTICS
+  ([pool+0x3a0]/[0x3a8], ds:0xcf068) as PR-170 item (4).
 - LEDGER RULE (PR-158 F1): every Next-swap re-splices recent
   records from the LAST revision that carried them. Census
   recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
   `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD 2872f45 carries all twenty-two (PR-
-  150..PR-171); HEAD is the last carrier.
+  pass's census: HEAD af3e3ff carries all twenty-three (PR-
+  150..PR-172); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -20592,7 +20602,17 @@ open with a corrected lead)
 - FINDING 1, THE MAIN KEY BUILDER IS AT 0x54912 AND ITS BIT
   MAP IS NOW COMPLETE. Entry head 0x54912 (`push ebx/ecx/
   esi/edi; sub esp,0x14` - PR-168's "0x54900" was interior
-  again: NINTH member of the one-byte listing-trap class).
+  again: NINTH member of the one-byte listing-trap class)
+  [ENTRY VALUE CORRECTED + REACHABILITY CLOSED BY PR-173
+  F4: the real head, and the value every class table
+  actually stores, is 0x54910 - the bytes at 0x54910-0x54913
+  are 53 51 56 57, the prologue quoted above; objdump split
+  the padding at 0x5490f and the listing drifted 2 bytes
+  (eleventh member of the class; lesson: TABLE VALUES ARE THE
+  ENTRY GROUND TRUTH). The reachability census searched the
+  mis-parsed value: 0x54910 IS installed - at class-verb slot
+  +0x8c, x115 tables in the +0x60=0x23b80 anchor census: it
+  is the pump's self key getter (see the PR-173 record).]
   Body: clear a 12-byte local + count byte (0x749a0), then
   (a) `test BYTE [obj+0xa5],0x1 -> or BYTE [key+4],0x80`;
   bit 0x10 -> `[key+5],0x01`; bit 0x20 -> `[key+6],0x20` -
@@ -20612,7 +20632,14 @@ open with a corrected lead)
   THESIS, LABELED]: PR-161's "0x600000"/"0x800000" match
   KEY-BYTE sequences (key+4 = 0x60 or 0x80 followed by zeros
   in a hex-dump reading), not code constants - F5 shows the
-  latter do not exist.
+  latter do not exist. [SUPERSEDED BY PR-173 F6: the two
+  literals have NO recorded derivation anywhere in the ledger
+  - they enter at PR-166's Next, unattributed - so no
+  byte-level rescue was ever needed. The real flag->key
+  bridge is NAMED in PR-173: pool queries keyed by
+  CHECK_LEW/ANI/ZW (the base getter 0x52750) and
+  ANTI_POCISK/DANGER flag tests in the 0x55230 relation
+  builder.]
 - FINDING 2, 0x54860 IS NOT A KEY-PROVIDER: IT IS A KEY-
   CONSUMING COUNTER-DECAY VERB. The 99-table +0x78 value:
   reads the CALLER'S buffer (edx): `test BYTE [key+2],0x4`
@@ -20628,7 +20655,16 @@ open with a corrected lead)
   F2b's premise ("+0x78 = key provider family") holds only
   for the 0x552e0 family (78 tables); for the 99-table
   family +0x78 CONSUMES the key. Who builds keys for those
-  classes: open (new item).
+  classes: open (new item) [RESOLVED IN PART BY PR-173 F3/F4:
+  producers ARE statically installed - the pump 0x536f0 calls
+  class verb +0x8c, the self key getter (0x54910 x115, the
+  base 0x52750 = PR-165's CHECK_LEW/ANI/ZW pool-query merge,
+  0x23a60/0x23a20/0x504e0 variants); the 99-table pairing
+  0x54860/+0x9c=0x549f0 CONFIRMED EXACTLY 99/99 - and those
+  99 carry the BOOLEAN 0x23870 ([obj+0xa9] != 0) at +0x8c:
+  the slot has TWO contracts, and which families' objects run
+  the pump merge is PR-173's new counted item (the producer
+  hunt itself CLOSED).].
 - FINDING 3, VERB +0x10 IS A CONTROL-MESSAGE DISPATCHER -
   NOT A CHAIN INSERT. Slot census over the 155 game-class
   tables: 0x54560 (87), 0x3dcb0 (27), base 0xa2550 = 0x52bb0
@@ -20682,7 +20718,16 @@ open with a corrected lead)
   "constants" therefore were never code constants - they
   need RE-DERIVATION from authored row data + F1's bit map
   (the 0x60 = both sign bits, 0x80 = the [obj+0xa5] bit-0
-  mirror: F1's hypothesis).
+  mirror: F1's hypothesis) [ATTRIBUTION CORRECTED + ITEM
+  CLOSED BY PR-173 F6: git-proven, the values NEVER occur in
+  PR-161 (zero hits in its record blob and its commit
+  message); the first ledger appearance is PR-166's Next,
+  unattributed and with no derivation recorded - every later
+  mention descends from that coinage. The hunt is CLOSED as
+  a ledger artifact: CHECK_LN/CHECK_BASE_LN exist only as
+  control= flag bits (PR-162's word map; the old PR-59
+  numbers are exactly those bits) and in NO key path read to
+  date.]
 - FINDING 6, THE LOAD-TIME POOL PATH IS READ TO ITS END -
   AND ENDS EMPTY (chain store still open, third re-point).
   The container-load continuation 0x4ce52-0x4ceb5: a loop
@@ -20940,6 +20985,252 @@ ride item CLOSED; the PR-107 self-target row item UPDATED)
   Ledger rule applied: census first - HEAD 2872f45 carries
   PR-150..PR-171 (last carrier); records re-spliced from it;
   5 brackets.
+
+## PR-173 — THE KEY IS THE SIGNAL SET: THE 0x919ec NAME BLOCK
+## PINS THE WHOLE BIT NUMBERING (73 ENTRIES: 4 NON-BIT NODE-OP
+## SPECIALS, THEN EXACTLY 68 SIGNALS IN THE PORT ENUM'S ORDER,
+## THEN THE AC_EV_MAX SENTINEL; BIT N = BLOCK INDEX N+4, AND
+## THE PORT'S 68-PAIR TOKEN TABLE IS VERIFIED COMPLETE AND
+## ERROR-FREE), THE PUMP'S KEY GETTER IS CLASS VERB +0x8c
+## (MERGED INTO THE LIVE SET AT 0x536f0), THE MOTION-TO-KEY
+## SYNTHESISER IS REACHED THROUGH IT (ENTRY 0x54910 — PR-171'S
+## 0x54912 WAS THE LISTING TRAP AGAIN), ITS BITS DECODE TO
+## K_BKWD/K_FWD/K_UP/K_DOWN/K_FIRE/K_ALT/K_JUMP — THE ENGINE
+## SPEAKS ITS OWN INPUT VOCABULARY BACK TO ITSELF FROM MOTION
+## STATE — AND THE 0x600000/0x800000 "CHECK_LN CONSTANTS" ARE
+## CLOSED AS LEDGER ARTIFACTS (GIT-PROVEN: THEY ENTER FIRST
+## AT PR-166's NEXT, NEVER AT PR-161)
+(READING + LEDGER CORRECTION + ONE CODE COMMENT FIX; no
+behaviour change — the PR-138..172 precedent; PR-171's
+family-B top lead CLOSED IN PART (re-scoped), its literal-
+constants item CLOSED; PR-88's block bounds CORRECTED, its
+table now verified 68/68)
+
+- WHY. The Next entry specced the KEY-LITERAL re-derivation:
+  PR-171 proved 0x600000/0x800000 do not exist as code or data
+  and labeled a hex-dump thesis; PR-171 also left "who builds
+  keys for the 99 family-B classes: open (new item)" with the
+  "0x54912 has zero table slots" triple negative. Method:
+  raw-block dump of 0x919ec; a machine bijection against the
+  port enum and its token table (tools in the scratch dir);
+  the pump 0x536f0 verbatim; slot censuses anchored on the
+  PR-167 class-table marker (+0x60 = 0x23b80, 178 tables);
+  full reads of 0x552e0/0x55230; a strict token census of the
+  authored .MOV condition lines; git -S provenance of the two
+  literals over every blob.
+
+- FINDING 1, THE NAME BLOCK PINS EVERYTHING (AND PR-88'S
+  BOUNDS WERE SHORT). The block is 0x919ec..0x91c68, NOT
+  ..0x91c40: 73 NUL-separated entries — AC_K_ANY, K_ANY,
+  AC_K_NEVER, K_NEVER FIRST (the four node-op specials PR-88
+  found special-cased in the parser: they are IN the block and
+  are NOT bits), then EXACTLY 68 signal names AC_BLOK ..
+  AC_DISAPPEAR, then the literal string 'AC_EV_MAX' as the
+  end sentinel. Law: signal bit N = block index N+4. Machine-
+  checked three ways: (a) the port's LL_SIG_* enum (68 + the
+  AC_EV_MAX tail entry) matches the 68 names one-for-one IN
+  ORDER, zero mismatches; (b) the port's name->enum table in
+  ll_play.c holds exactly 68 pairs, complete against the block
+  and with zero name/enum mismatches — PR-88's table was
+  built by sampling, this is total; (c) every number PR-88
+  ever recorded off 0x48000 (AC_BLOK 0, AC_ENEMY 7, AC_TIME
+  9, AC_ENEMY_ATC 16, AC_ONAIR 18, K_FWD 36, K_FIRE 39,
+  K_JUMP 53, K_GEN1 54, K_GEN2 55) hits its own block name at
+  index = bit + 4, and PR-164's applier write [obj+0x61] |= 2
+  (live byte 1 bit 1 = bit 9) is AC_TIME at index 13. The
+  13-byte key = 3-dword mask + count byte: 0x552e0 stores the
+  count at [dst+0xc] then rep-moves the 12 mask bytes
+  (0x5533c-0x5534c); 0x49580 ORs 3 dwords (0x49589-0x4959a,
+  bounded by lea ecx,[eax+0xc]). So the row-line key, the
+  condition-node mask (PR-88's 3-dword folding), the live set
+  [obj+0x60] and the built keys are ONE 68-bit vocabulary —
+  PR-101's key law and PR-88's condition model are one system.
+
+- FINDING 2, THE PUMP'S KEY GETTER IS CLASS VERB +0x8c AND
+  ITS KEY IS MERGED INTO THE LIVE SET BEFORE THE WALK. 0x536f0
+  verbatim: lea edx,[esp+0x10] (local); call [[obj+8]+0x8c]
+  (0x536fb-0x536ff); lea ebx,[obj+0x60] — THE LIVE SET;
+  call 0x49580(eax=live, edx=returned key) — GETTER KEY ORed
+  IN (0x5370c); then 0x523f0 walks the CURRENT record's row
+  chain and its returned key is merged the same way
+  (0x5371c-0x53725) — the explicit site for PR-154's "authored
+  rows compose their key through the chain"; then verb +0x54
+  (0x53733, PR-164's hook). So transition matching (0x53520
+  copying the live key, PR-164) tests against live ∪ self-getter
+  ∪ chain-key. PR-157's shorthand "key = the object's OWN
+  12-byte live set" is re-grounded: true of the LOOKUP, but
+  the pump feeds that set from THREE producers first.
+
+- FINDING 3, THE TWO PROVIDER SLOTS CENSUSED (AND THE 99/99
+  PAIRING CONFIRMED AT SCALE). Anchor census: 178 tables carry
+  the PR-167 marker 0x23b80 at +0x60. Slot +0x8c (pump getter,
+  F2): base 0xa2550 = 0x52750 — PR-165's CHECK_LEW/ANI/ZW
+  pool-query key merge, slot-identified at last; 0x54910 the
+  motion synth x115; 0x23a60 x38; per-class singletons
+  (0x207d0..0x4fc10); 0x23a20 = `add eax,0x75; ret` — returns
+  &[obj+0x75], A SECOND 13-BYTE TEventSet adjacent to the
+  live set (0x60+0x15 = 0x75); the TLewZaria controller pair
+  installs 0x504e0, which tests [obj+0xa5] bits 0x2/0x40 and
+  calls 0x551f0 (partial read). The 99 family-B tables
+  (+0x78 = 0x54860 — the scan finds 0x54860 in EXACTLY 99
+  slots, each paired 1:1 with +0x9c = 0x549f0, confirming
+  PR-168/171) carry 0x23870 at +0x8c — `return [obj+0xa9]
+  != 0`, a BOOLEAN, not a key buffer. The slot has TWO
+  contracts; the pump's unconditional merge cannot run for the
+  boolean shape — call-site attribution is counted item (1).
+  Slot +0x78 (the pool-entry provider, PR-166/167): base
+  0x23b10 = zero-key emitter (12 zero bytes + count 0 — the
+  base entry contributes NO key); default 0x552e0 x65 + the
+  0x3df00/0x50f80 variants x34; ~76 per-class singletons —
+  one of those +0x78 values is 0x28af0, the function
+  PR-155/156 recorded raising bit 54 (K_GEN1) at 0x28af2
+  under a state-4 + lion-rect test: a provider role for that
+  family is the lead, body not re-read (item 3).
+  0x552e0 read whole: zero
+  local 12+count, gate 0x53ae0 (PR-59's solid-contact law as
+  a boolean — "does this entry touch the other"), gate class
+  verb +0x9c (the ZARIA tables carry 0x23a40 = const-true),
+  builder 0x55230; EITHER gate failing emits the all-zero key.
+  0x55230 read whole: flags via verb +0x44 (PR-170's getter);
+  test 0x80000 = ANTI_POCISK (PR-162's flag map) -> relation
+  verb +0xd0 on the OTHER object; relation gate +0x40 true ->
+  0x55130 (which runs 0x550c0 — both parties' +0x40 — and
+  branches on the [obj+0xad]/[other+0xad] ordinal pair: the
+  greater side builds a key with AC_ENEMY_ATC (bit 16 =
+  [key+2]|0x01), the other branch zero-key; tail partial,
+  item 2); flags test ah,0x20 = word bit 0x2000 = DANGER
+  (PR-162's map) -> the same +0xd0 with [container+0x54];
+  ALWAYS merges a local with byte0 |= 0x80 = AC_ENEMY (bit 7 —
+  independent PR-88 constant match). So the entry-key language
+  is about RELATIONS: contact, push-resistance, danger,
+  ordinals — all in the same 68-bit vocabulary.
+
+- FINDING 4, THE SYNTHESISER IS REACHED, AND ITS BITS ARE
+  INPUT KEYS. PR-171's "entry 0x54912, zero table slots" was
+  the listing trap (11th member) plus a search for the
+  mis-parsed value: the bytes at 0x54910-0x54913 are 53 51 56
+  57 — the push ebx/ecx/esi/edi prologue PR-171 itself quoted —
+  and EVERY class table stores 0x54910 (x115 at +0x8c in the
+  anchor census; table values are the entry ground truth).
+  Decoding F1's bit map through F1 of THIS record:
+  [obj+0xa5] & 0x01 -> [key+4]|0x80 = bit 39 = K_FIRE;
+  & 0x10 -> [key+5]|0x01 = bit 40 = K_ALT; & 0x20 ->
+  [key+6]|0x20 = bit 53 = K_JUMP; [obj+0xba] != 0 ->
+  K_BKWD (35) / K_FWD (36) selected by the [obj+0xb6] bit
+  0x10; [obj+0xba] == 0 -> [obj+0xbe] jge -> K_UP (37), jle
+  -> K_DOWN (38) — both at rest. The engine TURNS AN OBJECT'S
+  MOTION AND ACTION STATE INTO ITS OWN KEY-INPUT VOCABULARY —
+  the authored K_* condition tokens are AI-addressable motion
+  tests, not only player input. The 0x60/0x80 byte values of
+  PR-171's thesis are exactly the synthesizer's idle
+  (K_UP|K_DOWN = 0x60 in key+4) and fire-flag (0x80) states.
+
+- FINDING 5, THE DATA CENSUS AND THE PORT AUDIT. Strict
+  tokenization of every authored condition line (script
+  /tmp/opencode/pr173/cond_census.py — CHECK_LN can no longer
+  pollute K_LN): ZARIA.01 condition tokens — AC_BREAK_NEXT 65,
+  AC_ONAIR 58, K_FIRE 48, AC_ENEMY_ATC 38, K_GEN1 32, K_DOWN
+  26, K_F1 20, K_F2 16, K_UP 16, K_JUMP 16, AC_DUP 15,
+  AC_TIME 14, AC_DRECT 14, ..., K_ALT 10, ..., K_BKWD 4,
+  K_FWD 2. The K-input family (BKWD/FWD/UP/DOWN/FIRE/ALT/
+  JUMP/K_F1-12): ZARIA.01 118 lines in EXACTLY 2 files —
+  LEW.ZAR_LEW and LEW.ZAR_LEWPL, the LION's own scripts;
+  whole corpus 578 lines in 16 files — every stage's LEW pair
+  plus KADMAR.07_CAMEL_CAMEL.MOV and KADMAR.07_0_0.MOV. Port
+  side: the lion's K_* lines run in the port's PLAYER path
+  driven by real input (the player model, ll_play.c — the
+  LEW stems are only used for art leaf placement, ll_level.c
+  ~7971); obj_cond_true's default keeps every unmodelled bit
+  false with its own "still false until something raises them"
+  comment — PR-173 names the something (F4 + PR-155's
+  arbitrary-bit kind-0x10 law) and proves ZARIA.01 reaches
+  NONE of it through the object path: NO port change for this
+  stage. The K_*-keyed OBJECT rows that would need synthesis
+  live in the KADMAR camel pair — a later-stage reachability
+  item, counted, not modeled.
+
+- FINDING 6, THE 0x600000/0x800000 LITERALS ARE A LEDGER
+  ARTIFACT — CLOSED WITH PROVENANCE. git -S over all blobs:
+  PR-161 (7bae5a1) contains ZERO occurrences of either value
+  in its record or commit message; the strings FIRST ENTER the
+  ledger in PR-166's Next (c00c1ce) with no derivation
+  recorded in PR-166's own record; every later mention
+  (PR-167 "must surface", PR-168 "STILL where", PR-170/171's
+  "PR-161's constants") descends from that unrecorded coinage.
+  PR-171 F5's negative stands and needs no byte-level rescue:
+  the real flag->key bridge is F3's — pool queries keyed by
+  CHECK_LEW/ANI/ZW (0x52750, PR-165) and flag-word tests
+  ANTI_POCISK 0x80000 / DANGER 0x2000 in 0x55230. As for
+  CHECK_LN (0x100) / CHECK_BASE_LN (0x4000): their only engine
+  occurrences are control= flag bits (PR-162's map — the old
+  PR-59 numbers ARE those word bits); they occur in NO key
+  path read (negative, recorded honestly). The hunt is CLOSED;
+  the "PR-161" attribution is corrected in brackets.
+
+- OPEN ITEMS COUNTED (5 new, 1 re-scoped, 2 closed). NEW: (1)
+  the +0x8c slot's TWO contracts (buffer getters vs boolean
+  0x23870) — which classes run 0x536f0's pump merge and where
+  the boolean answer is consumed (the default wrapper 0x400b0
+  calls +0x68/+0x70/+0x71 — position paths — so the state-
+  machine pump attribution per family is open; PR-153's
+  "every LION tick" wording needs re-checking against 99-
+  family objects). (2) 0x55130/0x550c0 internals: the
+  [obj+0xad]/[other+0xad] ordinal pair (an ORDER field?),
+  0x55130's tail from 0x551ad, 0x550c0's body; the
+  [obj+0xa9] reader (boolean 0x23870's field). (3) the ~76
+  per-class +0x78 singleton providers as a family (the bit-54
+  raiser 0x28af0 now slot-identified; the census tool exists).
+  (4) KADMAR camel/0_0 K_*-keyed object rows: reachability of
+  synthesized or message-raised bits for THOSE at their stage
+  (T6+; not ZARIA.01). (5) [obj+0x75] — the second 13-byte
+  TEventSet adjacent to the live set: producers and readers
+  unread; the 0x504e0/0x551f0 detail. RE-SCOPED: PR-171's
+  family-B "producer referenced NOWHERE" — producers ARE
+  statically installed at +0x8c (F3/F4); the remaining half is
+  item (1). CLOSED: PR-171's literal-constants re-derivation
+  item (F6); PR-171's "0x54912 triple census" negative (the
+  entry is 0x54910 and x115 installed, F4). CARRIED: the
+  msg-id arms 0x5460e/0x5463a and the id map; the pool-name
+  decode; the ladder-gate fi-vs-state data block; PR-172's
+  BY_TY feed item; the SAME-STATE row-seek candidate (next
+  PR); everything else unchanged.
+
+- GATES. Docs-only behaviour-wise, ONE comment edit in
+  ported/ll_play.h (PR-88's block-bounds and verification
+  wording -> the pinned 0x91c68 block + the bit=idx+4 law):
+  full `make` after clean ZERO warnings; `make win` ZERO;
+  `make ll_level` force-relinked; `./ll_level --mov-selftest`
+  rc=0; no behaviour touched so verify-all was not required
+  (PR-158 comment-only precedent). Every added .md and comment
+  line <= 79 cols; over-79 baselines UNCHANGED (NEXT_STEPS 71,
+  HANDOFF 72); no game data or frames in git (censuses ran on
+  the scratch /tmp/opencode/mov and the pinned image;
+  artifacts in /tmp/opencode/pr173/); .github/workflows/*
+  untouched; image unchanged (text.bin sha256 edf19a12...).
+  CI: PR-171's run (44507890653) GREEN; PR-172's run
+  (44511410834) still IN PROGRESS at this record's time (the
+  PR-172 diff is comment/code with its own verify runs passed
+  locally); this PR's run queues at push.
+
+- EVIDENCE. The raw 73-entry block dump (tool
+  /tmp/opencode/pr173/sigcmp.py prints it with the bijection);
+  the port-table audit (68 pairs, zero mismatches, zero gaps);
+  0x536f0 0x536f6-0x53733 verbatim (the +0x8c call, the
+  lea ebx,[ecx+0x60], the two 0x49580 merges); the anchor
+  censuses (/tmp/opencode/pr173/slot_census2.py — 178 tables
+  + slot histograms; the 99/99 0x54860/+0x9c pairing scan);
+  raw bytes 0x548f5-0x54925 (the 53 51 56 57 at 0x54910 and
+  the objdump split at 0x5490f); 0x552e0/0x55230/0x55130-head/
+  0x550c0-head/0x23b10/0x23a20/0x23a40/0x23870 verbatim; the
+  strict condition-token census (script + outputs); the git -S
+  provenance runs (7bae5a1 zero hits; c00c1ce first). Port
+  side: obj_cond_true's default false + its PR-88 comment, the
+  LEW art-stem special case (ll_level.c ~7971). Ledger rules
+  applied: census first — HEAD af3e3ff carries PR-150..PR-172
+  (23 records, last carrier); records re-spliced from it;
+  5 brackets (PR-88 bounds; PR-171 F1 entry+reachability; its
+  labeled thesis superseded; its F5 attribution closed with
+  provenance; its family-B item re-scoped).
 
 ## Deferred big items (deliberately out of scope so far)
 

@@ -3903,6 +3903,60 @@ writer as its open items.
      out, rc=0 both; baselines held (71/72); census run (HEAD
      2872f45 = last carrier). Full record: the PR-172 section
      of NEXT_STEPS.md (scratch /tmp/opencode/pr172/).
+   - PR-173 (READING + LEDGER CORRECTION + ONE CODE COMMENT
+     FIX): THE KEY-LITERAL RE-DERIVATION CLOSED THE HUNT AND
+     UNIFIED THE KEY WITH THE SIGNAL SET. The 0x919ec name
+     block dumped whole (bounds CORRECTED: 0x919ec..0x91c68,
+     73 entries): 4 non-bit node-op specials + 68 signal names
+     in the port enum's EXACT order + the 'AC_EV_MAX' sentinel;
+     law bit N = index N+4; machine-verified 68/68 against the
+     port LL_SIG_* enum AND the port's 68-pair token table
+     (complete, zero mismatches). The 13-byte key = 3-dword
+     TEventSet mask + count at +0xc (0x5533c/0x49580): row
+     keys, condition masks, live set, built keys = ONE system.
+     The pump 0x536f0 verbatim: class verb +0x8c = the self
+     key getter, merged into [obj+0x60] BEFORE the 0x523f0
+     chain merge — matching tests live ∪ getter ∪ chain. Slot
+     censuses (178 marker tables): +0x8c = 0x54910 x115 (PR-
+     171's 0x54912 = listing trap + wrong search value; tables
+     store 0x54910 — entry ground truth lesson), base 0x52750
+     = PR-165's CHECK_LEW/ANI/ZW pool-query merge slot-
+     identified, 0x23a60 x38, 0x23a20 = &[obj+0x75] (a SECOND
+     13-byte set!), 0x504e0 (TLewZaria, partial); the 99
+     family-B tables pair 0x54860/+0x9c 99/99 and carry the
+     BOOLEAN 0x23870 ([obj+0xa9]!=0) at +0x8c — two contracts,
+     call-sites now the open half of PR-171's family-B item
+     (re-scoped, producer hunt CLOSED). 0x54910 decoded:
+     [obj+0xa5]->K_FIRE/K_ALT/K_JUMP, [obj+0xba]->K_BKWD/
+     K_FWD, [obj+0xbe] sign->K_UP/K_DOWN — the engine
+     synthesizes the input-key vocabulary from motion state.
+     Strict .MOV token census: ZARIA.01's 118 K-input-family
+     condition lines are ONLY in the two LEW (lion) scripts ->
+     no ZARIA.01 object reaches a synthesized bit, NO port
+     change (corpus: 578 lines / 16 files — every stage's LEW
+     pair + KADMAR camel + KADMAR.07_0_0: future-stage
+     reachability item, counted). 0x600000/0x800000 CLOSED as
+     LEDGER ARTIFACTS (git-proven: zero hits in PR-161, first
+     entry PR-166's Next, no derivation anywhere); the real
+     flag->key bridge named: CHECK_LEW/ANI/ZW pool queries +
+     ANTI_POCISK/DANGER tests in the 0x55230 relation builder
+     (contact gate 0x53ae0, +0xd0 relation verbs, [x+0xad]
+     ordinals, AC_ENEMY always ORed, AC_ENEMY_ATC on the
+     ordinal branch); CHECK_LN/CHECK_BASE_LN occur in NO key
+     path (negative stated). 5 new items (+0x8c call-sites;
+     [obj+0xa9]/[0xad]/[0x75] readers; per-class +0x78 single-
+     ton family incl. slot-identified 0x28af0 = bit-54 raiser;
+     KADMAR reachability; 0x504e0/0x551f0). 5 brackets (PR-88
+     bounds + verification upgraded; PR-171 F1 entry 0x54910 +
+     reachability CLOSED; its hex-dump thesis SUPERSEDED; its
+     F5 "PR-161" attribution corrected with git provenance;
+     its family-B item re-scoped). ll_play.h comment fixed
+     (block bounds + law). ZARIA.01 output unchanged (comment-
+     only). Gates: make/make win ZERO warnings, ll_level re-
+     linked, mov-selftest rc=0; baselines 71/72 held; census
+     run (HEAD af3e3ff = last carrier, 23 records). Full
+     record: the PR-173 section of NEXT_STEPS.md (scratch
+     /tmp/opencode/pr173/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -6178,6 +6232,55 @@ token census). ZARIA.01 output: the pinned frame comparisons
 ALL pass UNCHANGED with the fix in. Gates: zero warnings both
 platforms, verify-all 56 (ok) / 10 (ok)+23 SKIP rc=0 both
 modes; baselines 71/72 held.
+
+STATUS after PR-173 (the KEY-LITERAL re-derivation CLOSED the
+literal hunt and UNIFIED the key with the signal set): the
+0x919ec block is fully dumped — 73 NUL names ending at 0x91c68
+(PR-88's 0x91c40 was short): 4 non-bit node-op specials, then
+EXACTLY 68 signal names in the port LL_SIG_* enum's exact
+order, then the 'AC_EV_MAX' sentinel; bit N = block index N+4,
+machine-verified 68/68 against the port enum AND the port's
+name->enum token table (complete, zero mismatches — PR-88's
+table was sampled, now total). KEY = TEventSet (3 dwords +
+count at +0xc; 0x5533c stores it, 0x49580 ORs the dwords):
+row keys, condition masks, the live set and built keys are ONE
+vocabulary. The pump 0x536f0 verbatim: class verb +0x8c = the
+self key GETTER, its key ORed into the live set [obj+0x60]
+before the 0x523f0 chain-walk merge — transition matching
+tests live ∪ getter ∪ chain-key. Slot censuses (marker
++0x60=0x23b80, 178 tables): +0x8c holds 0x54910 x115 — PR-
+171's "0x54912, zero table slots" was the listing trap plus a
+search for the mis-parsed value (bytes at 0x54910 = 53 51 56
+57, the prologue itself; tables store 0x54910) — plus the
+base 0x52750 (PR-165's CHECK_LEW/ANI/ZW pool-query merge,
+slot-identified), 0x23a60 x38, 0x23a20 = &[obj+0x75] (a
+SECOND 13-byte set beside the live set), TLewZaria's 0x504e0;
+the 99 family-B tables pair 0x54860/+0x9c=0x549f0 EXACTLY
+99/99 and carry 0x23870 = bool [obj+0xa9]!=0 at +0x8c — a
+SECOND contract, call-sites open. 0x54910 DECODED through the
+block: [obj+0xa5] bits -> K_FIRE/K_ALT/K_JUMP; [obj+0xba] ->
+K_BKWD/K_FWD; [obj+0xbe] sign -> K_UP/K_DOWN (0x60 = idle
+both) — THE ENGINE SYNTHESIZES ITS INPUT-KEY VOCABULARY FROM
+MOTION STATE: K_* tokens are AI-addressable motion tests. The
+strict authored-data census: ZARIA.01's K-input-family lines
+(118) live ONLY in the two LEW (lion) scripts — the port's
+player path feeds those from real input, and no ZARIA.01
+object path reaches any synthesized bit: NO port change (the
+obj_cond_true default-false comment stays honest). The
+0x600000/0x800000 "CHECK_LN constants" are CLOSED as pure
+ledger artifacts: git-proven zero occurrences in PR-161, first
+appearance PR-166's Next unrecorded; the REAL flag->key
+bridge is named (CHECK_LEW/ANI/ZW pool queries at 0x52750;
+ANTI_POCISK 0x80000 / DANGER 0x2000 tests in 0x55230 — the
+entry-key language is relations: contact via 0x53ae0, push-
+resistance, danger, [x+0xad] ordinals, always ORing AC_ENEMY).
+5 new counted items (+0x8c contracts' call-sites; [obj+0xa9]/
+[obj+0xad]/[obj+0x75] readers; per-class +0x78 singleton
+family incl. slot-identified 0x28af0 = the bit-54 raiser;
+KADMAR camel K_* reachability at its stage; 0x504e0/0x551f0).
+ZARIA.01 output: nothing executed differently (comment-only
+edit in ll_play.h). Gates: zero warnings both platforms,
+ll_level re-linked, mov-selftest rc=0; baselines 71/72 held.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
