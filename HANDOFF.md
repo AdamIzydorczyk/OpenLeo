@@ -562,27 +562,40 @@ Build and test (day-to-day, Linux-first - rule 8):
 
 The day-to-day gate is run IN PARALLEL (owner, 2026-11-19, measured):
 serial 124-159 s vs `-j22` 29-40 s and `-j4` 38 s, every run rc=0 with
-the SAME 93 verdicts. Safe because the legs' scratch paths are disjoint -
+the SAME verdict lines. Safe because the legs' scratch paths are disjoint -
 the one shared file is the read-only py-refs oracle frame, produced by a
 prerequisite. Caveat stated honestly: raw log TEXT is not bit-reproducible
 under load (one music-pump verdict line prints a wall-clock-derived
-duration; its assertions, e.g. peak=12706, do not move), so gate on rc and
-the `(ok)` counts, which is what this project has always done. The Windows
-half stays SERIAL: verify-win and verify-mod share one WINEPREFIX.
+duration; its assertions, e.g. peak=12706, do not move), so the gate is
+rc FIRST (that is authoritative: `make -k` returns non-zero if any leg
+failed) and then the legs' own verdict lines. Do NOT reduce that to a
+count of `(ok)` lines - measured 2026-11-19, that pattern undercounts,
+because verdict wording is per-leg: verify-mod prints `MOD <name>:
+parse+render linux == wine (fnv=<hash>)`, others print "byte-exact" or
+"== python reference". A pattern that covers the fixture-backed proofs is
+`grep -cE "\(ok\)|byte-exact|== (python|wine)|render 3000ms"`, and the
+real check is that the SET of verdict lines matches the previous run.
+The Windows half stays SERIAL: verify-win and verify-mod share one
+WINEPREFIX.
 
 The Windows pass, run ONCE at the end of implementation (rule 8, owner
 ruling 2026-11-19 - not part of the day-to-day gate):
 
-    # staging the pass needs: verify-mod reads three MOD records out of the
-    # SOUND container; without them it prints its named SKIP and proves
-    # nothing (measured 2026-11-19: verify-mod alone = 0.2s, zero verdicts).
-    M="$DATA/SOUND"; for m in TUNGA.MOD RAN.MOD ENA2.MOD; do
-      python3 tools/pull_record.py "$M" "$m" "$M/$m"; done
     make win                                        # cross build, warning-free
     make -k verify-windows DATA=... HD=...          # verify-win + verify-mod,
                                                     # WITH the game data
     make -k verify-all-windows                      # both halves at once
     make -k verify-all WINTEST=1                    # the old full gate
+
+    # No extra MOD staging is needed for that pass - verify-mod pulls the
+    # three records out of the SOUND container itself (the same
+    # tools/pull_record.py CONTAINER KEY OUTFILE the Makefile calls, into
+    # /tmp/opencode/<NAME>.mod). Checked by running it here 2026-11-19:
+    # with DATA staged it takes 4.5s and prints three cross-target verdicts
+    # (MOD TUNGA/RAN/ENA2: parse+render linux == wine (fnv=...)).
+    # An earlier note here claimed it "proves nothing, 0.2s, zero
+    # verdicts" - that was MY grep, not the suite: see the gating note
+    # directly below, which is the correction.
     # CI side of the same pass: .github/workflows/ci-windows.yml (cross .exe
     # build + the MSYS2 native smoke), run from Actions or by pushing a
     # windows-gate-* tag. ci.yml itself is linux + asan only now.

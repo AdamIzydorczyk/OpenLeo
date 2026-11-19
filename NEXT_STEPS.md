@@ -22095,6 +22095,105 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   which is not mine and was left alone.
 
 
+## OWNER (2026-11-19) — SUITE SPEED, SECOND ROUND: the oracle decodes ONCE,
+## two redundant chain replays are gone, one kept ON PURPOSE (no port
+## code, no tool changed - no frame can move)
+
+- py-refs: ONE decode pass for both oracle frames. The rule used to run
+  the whole file twice to get one frame each. Measured here: 6.43s for
+  the pair vs 3.21s for `--only 1020,1520`, and the frames are the same
+  bytes either way (sha256 f01020 1e56724734d76d7b..., f01520
+  50a7f40a459fd34e... - both methods, compared before the edit).
+  tools/is_decode.py already accepted a comma list and names its output
+  f<frame>.ppm, so no tool change was needed; the two consumer paths
+  (c_py = decode midpoint, py_last = ESC-skip end) are kept by placing
+  the second frame, so every leg stays byte-for-byte as it was.
+- The duplicate audit, done properly this time. All 71 chain runs in the
+  Makefile were parsed and grouped by (exact command line INCLUDING
+  positional args) + (state-affecting env), ignoring the dump-output
+  variables because they are observers. Result: exactly THREE duplicate
+  groups, not the "11 single-shot uses" I estimated earlier - most of
+  those differ in LEO_MENU_KEY / _SEL / _PICK, so there was nothing to
+  merge. Two were merged, one kept (below).
+- Why merging the frame dumps is safe - proven, not assumed. The two
+  hooks (single-shot `LEO_MENU_PPM`+TICK at ported/ll_menu.c:1288 and
+  sequence `LEO_MENU_PPM_DIR`+MAX at :1305) call the same ppm_fb on the
+  same composed buffer in the same loop iteration. Measured on BOTH
+  targets: sequence frame == single-shot frame at the same tick (t2
+  14c5ef3b..., t8 e41b61fd...), cross-target equality holds in all four
+  combinations including mixed hooks, and t2 != t8 WITHIN one run, which
+  is exactly what those two assertions claim. Side fact worth keeping:
+  frame content is TICK-deterministic, not wall-clock - a sequence run
+  does nine extra file writes per pass and still matches byte for byte.
+  That is the evidence any future non-real-time pacing mode would need;
+  it is NOT applied, because the clock / A-V-sync / row-clock legs
+  assert real-time behaviour and that is an owner decision.
+- MERGED: verify-menu (same chain, tick 2 and tick 8) and verify-win
+  (same chain under wine, tick 2 and tick 8) each now run ONCE with the
+  sequence hook. MEASURED PRICE of what that actually removes: one
+  native chain run = 1.1s, one wine chain run = 1.4s. Honest sizing:
+  my earlier framing implied ~10s; the real saving is ~2.5s per full
+  local run. Kept because it is free and removes a cold wine start -
+  but it is NOT the big lever, and the numbers here replace the ones
+  I quoted earlier today.
+- NOT merged, deliberately: verify-level runs `./ll_level $(DATA)
+  ZARIA.01` twice with identical state, into two logs. That is ~2s of
+  the suite, and two independent processes producing an identical
+  placement listing is the ONLY check anywhere that ll_level's scene
+  listing is reproducible run to run (the other determinism oracles are
+  linux-vs-wine fnv parity in verify-mod and C-vs-python agreement,
+  neither of which covers it). The second run now carries a comment
+  saying it is deliberate, so it is not "optimised" away later.
+- CORRECTION to what I wrote earlier today, twice over. (a)
+  "verify-mod produces zero verdicts in 0.2s and needs MOD records
+  staged" is wrong - the leg pulls the records itself, and run here it
+  took 4.5s and printed three cross-target verdicts (MOD
+  TUNGA/RAN/ENA2: parse+render linux == wine (fnv=...)). (b) The cause
+  was my own grep, and it invalidates the shortcut I put in HANDOFF
+  s3: counting `(ok)` lines UNDERCOUNTS, because verdict wording is
+  per-leg (MOD lines, "byte-exact", "== python reference"). s3 now says
+  to gate on rc FIRST (authoritative: make -k returns non-zero if any
+  leg failed) and then on the verdict-line SET.
+- Makefile comment convention, learned the hard way: a tab-indented
+  `#` INSIDE a recipe is a recipe line, so make ECHOES it into the log;
+  this file's own convention is a column-0 `#` between recipe lines
+  (already used, e.g. above the LEO_OBJ_ALL leg), which make treats as
+  a comment. My 30 comment lines were re-indented to match; `make -n
+  verify-all | grep -cE '^\s*#'` now finds none of mine. The two
+  pre-existing echoed lines at Makefile:1369-1370 (verify-play) were
+  left alone: different leg, not this round.
+- GATES for this round. (1) COVERAGE A/B against the previous Makefile
+  (HEAD copy, run with `make -f Makefile.head`, same commands, same
+  fixtures): 108 distinct verdict lines before, 108 after, sets
+  IDENTICAL, both halves rc=0 - no assertion, pin, SKIP text or wording
+  was lost. (2) Full fixture-backed run: Linux half parallel rc=0
+  40.8s; verify-win rc=0 144.7s; verify-mod 3 of 3 fnv verdicts;
+  fixture-free parallel rc=0 2.7s with 21 named SKIPs. (3) A rebuild
+  after touching every ported source: rc=0, 0 warnings, 0 errors
+  (`make win` skipped per ruling 8). (4) MUTATION: breaking the oracle
+  itself (`make verify-skip PYREF=/bin/true`) fails loudly and
+  instantly - `make: *** [Makefile:98: py-refs]`, rc=2 - and with the
+  real oracle restored verify-skip passes byte-exact again. Removing the
+  PLACED frame is not a mutation: py-refs is a PHONY prerequisite of
+  every leg that reads those frames, so make rebuilds it - which is the
+  actual safety property: an oracle frame cannot reach a comparison
+  stale.
+- NOT claimed: verify-win measured 164.8s earlier today (inside the
+  full-suite per-leg pass) and 143-145s standalone now. Only 1.4s of
+  that gap is this change; the rest is variance in a leg built out of
+  real-time segments and cold wine starts, and the per-leg CSV numbers
+  were single samples. Do not bank it.
+- NEXT, as a measurement rather than a guess: break verify-menu down per
+  RUN (12 runs, 19.8s) to find what actually dominates - a chain run to
+  tick 8 is only 1.1s, so the cost is spread across the other runs and
+  their dwell/`--skip-at` segments, which are part of what those legs
+  assert. Only after that is a pacing proposal worth putting to the
+  owner.
+- Files: Makefile (py-refs, the two merged pairs, the deliberate-
+  duplicate note, comment re-indent), HANDOFF s3 (the MOD correction
+  and the gate-on-rc note). Nothing under ported/ or tools/ changed.
+
+
 ## Deferred big items (deliberately out of scope so far)
 
 - **WINDOWS TESTING DEFERRED** (owner ruling, 2026-11-19 - full text in
