@@ -3490,6 +3490,61 @@ writer as its open items.
      changed; ledger census run (HEAD 2e43bc1 = last carrier).
      CI: PR-160's RERUN GREEN. Full record: the PR-164 section
      of NEXT_STEPS.md (scratch /tmp/opencode/pr164/).
+   - PR-165 (READING + LEDGER CORRECTION, no code - the PR-
+     138..164 precedent): THE FLAG-CONSUMER PASS. THE
+     BYTE-TEST CENSUS OF [rec+0x12..+0x15] IS EXHAUSTIVE BUT
+     ITS SCOPE WAS THE WRONG IDIOM - the BY_* bits' consumer
+     is the FEED DISPATCHER ITSELF: the record step calls
+     owner-slot +0xa0 (0x543a0) at 0x52317; its body re-
+     derives the current record ([[obj+0x50]+[obj+0x5c]*4]),
+     loads DWORD [rec+0x12], and, and 7 + a five-entry jump
+     table 0x54380: mode 0 = NO FLAG = BY_X -> [obj+0xa1] +=
+     abs([obj+0xca]) (PR-98's |v_x| law VERBATIM at the
+     field level, horizontal speed field confirmed); mode 1 =
+     BY_Y -> abs([obj+0xce]) (vertical twin, NEW - the port
+     has no BY_Y feed); mode 2 = BY_TIME -> a [[obj+0xa1]+
+     0xc] dereference + jle into a full sub-record feed
+     (semantics open, headline item); mode 3 = BY_TX = the
+     composite exactly as PR-162's map said, guarded by
+     [obj+0xba]; mode 4 = BY_TY -> [obj+0xa1] += pool scalar
+     [ds:0xcef40+0x388] (a runtime-set constant rate, static
+     0) guarded by [obj+0xbe]; mode >=5 (incl. FRAME_REV bit
+     3) = NO feed. FRAME_REV itself: zero consumers in any
+     form; DANGER/CH_DIR: no consumers (port-derived labels
+     stand as such); the byte-test hits are exactly SEQ_REV_X
+     /Y (0x52158/0x52171 + 0x52385/0x523a0 inside ENTER -
+     third corroboration) and CHECK_LEW/ANI/ZW inside the key
+     builder. SECOND CLOSE: THE KEY BUILDER = RECORD SLOT
+     +0x08 = 0x52750 (verbs +0x2c/+0x30 + owner getter +0xc8
+     + tail verb +0x34 = 0x52790) - PR-162 item 4 CLOSED.
+     0x52790 = FLAG-DRIVEN KEY MERGE: CHECK_LEW/ANI/ZW each
+     run a POOL QUERY (0x4bd30/0x4b890/0x4b870 over pools
+     ds:0xcef40/0xa94ec/0xcef44, with a 0x8000 CHECK_ALL_
+     PLANE sub-mode arg) ORed into the 13-byte key (count
+     byte at +0xc) - CHECK_* rows ADD KEY BITS, they do not
+     gate. 0x4b890's listing start misaligned again (0x4b88f
+     = push ecx) - fifth member of the one-byte trap class.
+     THIRD CLOSE: DERIVED ENTER OVERRIDES ARE WRAPPERS:
+     0x4fef0 (table 0x97c9c +0x1c) = pool prelude + TAIL
+     CALL of base 0x52360; 0x50040 (0x9a894) = base call +
+     slot +0xfa tag; 0x50060 wraps LEAVE - the base ENTER/
+     LEAVE bodies run IN FULL, the port's single obj_enter
+     core stands for derived classes. FOURTH: THE POOLS HAVE
+     A STARTUP REGISTRY (0x4fe02: 0x5c320(0x14) + 0x51120
+     with class ids 2,9,8,10,11 + obfuscated name strings at
+     0x9209a.. - decode open) feeding exactly the globals
+     F3's queries use. 6 new open items (headline: the
+     BY_TIME/BY_TX/BY_TY arm semantics - the [[obj+0xa1]+
+     0xc] deref and the [obj+0xba]/[obj+0xbe] guards touch
+     the ladder-gate block; pool name decode; 0x4b500 body).
+     ANSWERED: PR-162 item 1 (bracketed - BY_* bits select
+     the feed mode exactly as the port models, NO port change
+     indicated; the enum stays port-internal) and item 4's
+     0x52750 body (bracketed). ZARIA.01 output: UNCHANGED
+     (docs-only). Gates: added lines <= 79; baselines held
+     (71/72); image unchanged; ledger census run (HEAD
+     0509ce9 = last carrier). Full record: the PR-165 section
+     of NEXT_STEPS.md (scratch /tmp/opencode/pr165/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -5442,6 +5497,48 @@ shape stands. 4 new items (word consumer, 0x53520 arg plumbing,
 [obj+0x95] reader, 31-vs-24 slot delta); PR-162 item 5 CLOSED
 (bracketed in its record). ZARIA.01 output: UNCHANGED (docs-
 only). Baselines 71/72 held; census run; PR-160's rerun green.
+
+STATUS after PR-165 (the flag bits get their CONSUMERS, and
+the largest one was hidden behind a WORD read): the exhaustive
+byte-test census of [rec+0x12..+0x15] finds ONLY the SEQ_REV
+pair (0x52158/0x52171 + inside ENTER at 0x52385/0x523a0 -
+third corroboration of PR-95/162) and CHECK_LEW/ANI/ZW inside
+the key builder - but the BY_* bits' real consumer is the
+FEED DISPATCHER the record step calls at 0x52317: owner slot
++0xa0 (0x543a0) re-derives the current record, loads DWORD
+[rec+0x12], and,7, five-way jump table 0x54380 - mode 0 = NO
+FLAG = BY_X feeds [obj+0xa1] += abs([obj+0xca]) (PR-98's
+|v_x| law VERBATIM), mode 1 = BY_Y feeds abs([obj+0xce]) (a
+VERTICAL twin the port does not model), mode 2 = BY_TIME runs
+a [[obj+0xa1]+0xc] deref + jle full-feed (open semantics -
+the headline new item, touching the ladder-gate block), mode
+3 = BY_TX is the guarded composite ([obj+0xba]) exactly as
+PR-162's map read it, mode 4 = BY_TY adds a POOL-RUNTIME
+constant rate [ds:0xcef40+0x388] (static 0, set at startup),
+mode >=5 incl. FRAME_REV bit 3 = NO feed. FRAME_REV has zero
+consumers anywhere; DANGER/CH_DIR still none - the port's
+labels for those stay PORT-DERIVED semantics, now labeled as
+such. NO port behaviour change indicated: the BY_* modes work
+exactly as the port's feed models (the enum stays port-
+internal). SECOND: THE KEY BUILDER IS RECORD SLOT +0x08
+(0x52750 -> verbs +0x2c/+0x30 + owner getter +0xc8 -> flag
+merge +0x34 = 0x52790, PR-162 item 4 CLOSED): CHECK_LEW/ANI/
+ZW run POOL QUERIES (0x4bd30/0x4b890/0x4b870 over pools ds:
+0xcef40/0xa94ec/0xcef44, 0x8000 CHECK_ALL_PLANE sub-mode)
+ORed into the 13-byte key + count byte - CHECK_* rows ADD
+KEY BITS, they do not gate. THIRD: DERIVED ENTER/LEAVE
+OVERRIDES ARE WRAPPERS (0x4fef0/0x50040 tail-call the base
+0x52360; 0x50060 wraps 0x52660) - the port's single obj_enter
+core stands for derived classes. FOURTH: THE POOLS' STARTUP
+REGISTRY (0x4fe02: 0x5c320/0x51120 with class ids + obfus-
+cated names at 0x9209a.. - decode open) feeds the very glo-
+bals the queries use - the pool-contents read is PR-166's
+first target. One-byte listing trap found again (0x4b890 ->
+0x4b88f). 6 new open items (BY_TIME deref semantics, pool
+name decode, 0x4b500 body, +0x2c/+0x30 bodies, the 0x4fef0
+pool side-effects, the second-view slots); PR-162 items 1
+and 4 CLOSED with brackets. ZARIA.01 output: UNCHANGED
+(docs-only). Baselines 71/72 held; census run; no code built.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

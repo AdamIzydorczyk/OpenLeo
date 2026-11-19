@@ -15733,55 +15733,49 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-165 IS THE FLAG-CONSUMER PASS (PR-162 item 1, carried;
-  the most port-relevant open read now): re-ground the port's
-  LL_CTRL_* names against the engine's real flag bits (FULL
-  MAP IN THE PR-162 RECORD: window [rec+0x12..+0x15], BY_X
-  has NO bit, SEQ_REV_X/Y=+0x12|0x10/0x20...). Method: for
-  each bit, find its CONSUMERS - start from the two known
-  (0x52158/0x52171 = the SEQ_REV pair) and byte-scan every
-  `[reg+0x12..0x15]` read in 0x5xxxx. THE FLIP QUESTION FIRST
-  (PR-162 item 2): PR-108's observed face-flip-on-transition
-  has no bit owner since the +0x15 bit-0x8 re-attribution to
-  ANTI_POCISK - the leads are the +0x13 CH_DIR bit 0x8 and
-  the walk's reversed-step tail 0x521a1-0x521b1; also WHAT
-  FRAME_REV=+0x12|0x8 really drives vs the port's row-reversal
-  reading (0x521d4 vs 0x521ae-0x521b1). Output: a consumer-
-  grounded table, and ONLY THEN decide whether any LL_CTRL_*
-  value/name changes (the enum is port-internal; the question
-  is names and behaviours, not wire formats).
-- THEN the row-end ordering read (PR-164 narrows): the walk's
-  list-end signal is the OR of 4/8 into the OWNER vtable+0
-  WORD (0x521c1-0x521c5, PR-162 F1b) - find its CONSUMER (and
-  whether the pump's [[obj+8]+0x8c] key getter at 0x536ff re-
-  ads it: that decides ordering question (a), i.e. whether a
-  row-end lands in the SAME step's transitions (engine) or the
-  NEXT step (port brk_arm); the port's model stands unless a
-  ZARIA.01-visible difference appears). Also 0x53520's arg
-  plumbing ([esp+0x20] vs [esp+0x24], [[obj+8]+0x54]/+0x90
-  writers) and [obj+0x95]'s reader; and the 31-vs-24 +0x14-
-  slot delta (dword occurrences that are NOT class-table slots
-  - classify them).
-- THEN carried reads (unchanged): the pool contents + numeric-
-  ID registrations (the K_GEN1 edge); the +0x70/+0x71/+0xc8
-  getters + [owner+0x99] sentinel; the mode-6 skip + 0x47770 +
-  0x52750 bodies; the walk return-value encoding (PR-161 item
-  1); derived ENTER overrides (0x4fef0 and friends - which
-  classes override the +0x1c body and whether an override kee-
-  ps the row half; PR-163 made ENTER a real behaviour, so
-  this now MATTERS); 0x9c05c identity; 0x524xx rest; 0x446de;
-  0x57d30 modes; FLAG +0x4c getter. THE LADDER-GATE fi-vs-
-  state DECISION stays data-blocked on the param-token map -
-  do NOT touch the port's fi gate.
-- RIDES THE NEXT CODE PR (not a read): the three port comments
-  citing the applier as 0x535a2 get the entry correction to
-  0x535a0 (ll_level.c:802,823, ll_play.c:209) - PR-164 F2.
+- PR-166 IS THE POOL-CONTENTS READ (PR-161 item 2 narrowed
+  by PR-165 F3/F5 - the K_GEN1 data-blocker edge and the
+  CHECK_* key-bit source in one): read the pool query body
+  0x4b500 and the wrapper contract of 0x4b870/0x4b890/0x4bd30
+  (what a query returns INTO the key buffer, and the 0x8000
+  CHECK_ALL_PLANE sub-mode); decode the obfuscated pool
+  REGISTRATION names at 0x9209a... (try XOR/case-shift - the
+  shapes 'XzXbZiIgBnIi`' look single-byte obfuscated); walk
+  what the startup registry (0x4fe02, 0x5c320(0x14)+0x51120)
+  actually registers per class id, and how authored .MOV rows
+  land in those pools (PR-161's 0x18-byte wrapper entries).
+  If the pool KEY model closes, the keyed-row semantics of
+  PR-101/161 get their engine-side completion bar.
+- THEN the feed-dispatcher arms (PR-165 item 1 - the largest
+  new behaviour question): the BY_TIME arm's [[obj+0xa1]+0xc]
+  dereference (accumulator-as-pointer? a record read where
+  +0xc = the AC_TIME gate offset is a LEAD, unproven), the
+  [obj+0xba]/[obj+0xbe] guards in the BY_TX/BY_TY arms, and
+  the pool scalar [pool+0x388] BY_TY rate - these three arms
+  are where the engine's per-mode row-feed really lives and
+  they touch the ladder-gate fi-vs-state block (do NOT touch
+  the port's fi gate until this reads land or data does).
+- THEN carried reads (unchanged): the vtable+0-word OR 4/8
+  row-end CONSUMER (PR-164 item 1 = ordering question (a));
+  the flip-bit owner (PR-162 item 2 - CH_DIR still has NO
+  consumer, negative result stands); the +0x70/+0x71
+  position sentinels + [owner+0x99]; 0x53520 arg plumbing +
+  [obj+0x95] reader; the 31-vs-24 +0x14-slot delta; record
+  verbs +0x2c/+0x30 bodies + the second-view slots
+  0x559c0/0x45800 (PR-165 item 5/6); the 0x4fef0 pool
+  side-effects (item 4); the walk return-value encoding
+  (PR-161 item 1); 0x9c05c identity; 0x524xx rest; 0x446de;
+  0x57d30 modes; FLAG +0x4c getter.
+- RIDES THE NEXT CODE PR (not a read): the three port
+  comments citing the applier as 0x535a2 get the entry
+  correction to 0x535a0 (ll_level.c:802,823, ll_play.c:209)
+  - PR-164 F2.
 - LEDGER RULE (PR-158 F1): every Next-swap re-splices recent
   records from the LAST revision that carried them. Census
   recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
   `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD 2e43bc1 carries all fourteen (PR-150..
-  PR-163); HEAD is the last carrier.
+  pass's census: HEAD 0509ce9 carries all fifteen (PR-150..
+  PR-164); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -18993,18 +18987,32 @@ of PR-159/160's cursor phrasing are SUPERSEDED below)
   e.g. 0x52158 = SEQ_REV_X) re-grounds the port's names and
   also answers the port enum's BY_X=2 (the engine has NO BY_X
   bit) - the enum values may need no change (internal names)
-  but the QUESTION is now exactly stated. (2) PR-108's face-
-  flip bit attribution: the behavior is observed, the [rec+
-  0x15] bit-0x8 = ANTI_POCISK attribution is not corroborated
+  but the QUESTION is now exactly stated [CLOSED BY PR-165:
+  the consumer pass ran - the BY_* bits ARE the feed-dispatcher
+  mode selector: slot +0xa0 (0x543a0) reads DWORD [rec+0x12],
+  and,7, five arms via 0x54380 (BY_X = abs([obj+0xca]) feed -
+  PR-98 VERBATIM; BY_Y/BY_TY feeds new; BY_TX the composite;
+  mode >=5 no feed); FRAME_REV confirmed zero-consumer;
+  DANGER/CH_DIR none - port labels stand as port-derived; NO
+  port change indicated, the enum stays internal]. (2) PR-108's
+  face-flip bit attribution: the behavior is observed, the
+  [rec+0x15] bit-0x8 = ANTI_POCISK attribution is not
+  corroborated
   by any consumer found - re-derive where the flip-on-transi-
   tion really comes from (the engine flag word's +0x13 CH_DIR
   bit 0x8, "change direction", is the lead). (3) [owner+8]+
   0x70/+0x71/+0xc8 getter family + [owner+0x99] sentinel +
   the vtable-slot-4 word ORs 4/8 semantics. (4) The mode-6
   skip + 0x47770 exhaustion semantics + the 0x52750 getter
-  composition bodies. (5) The mechanism boundary: the transi-
-  tion applier (0x535a2-0x5365c - condition matching, the
-  AC_TIME counter, the cursor SETS) vs the per-row key-merge
+  composition bodies [THE 0x52750 BODY CLOSED BY PR-165: it
+  is record slot +0x08 - verbs +0x2c/+0x30 + owner getter
+  +0xc8 + tail +0x34 = 0x52790, the flag-driven pool-key
+  merge: CHECK_LEW/ANI/ZW queries (0x4bd30/0x4b890/0x4b870
+  over ds:0xcef40/0xa94ec/0xcef44) ADD key bits; the mode-6
+  skip + 0x47770 halves stay open]. (5) The mechanism
+  boundary: the transition applier (0x535a2-0x5365c -
+  condition matching, the AC_TIME counter, the cursor SETS)
+  vs the per-row key-merge
   walk - which drives the port's per-row transition evaluation,
   and where the applier is INVOKED from (PR-105 called the
   walk "one virtual method, object slot +0x14, once per step
@@ -19394,6 +19402,201 @@ correction; PR-163's open item (1) is NARROWED, not closed)
   rule applied: census first - HEAD 2e43bc1 carries PR-150..
   PR-163 (last carrier HEAD); records re-spliced from it; 1
   bracket (PR-162 item 5 CLOSED).
+
+## PR-165 — THE FLAG-CONSUMER PASS: THE BYTE-TEST CENSUS IS
+## EXHAUSTIVE BUT ITS SCOPE WAS WRONG - THE BY_* BITS' ONLY
+## CONSUMER IS THE FEED DISPATCHER ITSELF (0x543a0, owner-slot
+## +0xa0: mode = [rec+0x12]&7, jump table 0x54380, five named
+## feed arms - the port's distance-feed law RE-GROUNDED
+## VERBATIM and BY_Y/BY_TY feeds NEW); THE KEY BUILDER IS
+## RECORD SLOT +0x08 (0x52750 -> verbs +0x2c/+0x30 + owner
+## getter +0xc8 -> flag merge +0x34 = 0x52790, closing PR-162
+## item 4's body); THE DERIVED ENTER SLOTS ARE WRAPPERS THAT
+## KEEP THE BASE BODY (0x4fef0/0x50040 tail-call 0x52360) AND
+## THE POOLS HAVE A NAMED STARTUP REGISTRY (0x4fe02)
+(READING + LEDGER CORRECTION; no code, no new test - the
+PR-138..164 precedent; PR-162 item (1) is CLOSED as answered,
+its port-name DECISION stays open as a new item; PR-162 item
+(4)'s 0x52750 body is CLOSED)
+
+- WHY. The Next entry specced exactly this pass: for each
+  control= flag bit, find its CONSUMERS - the flag map was
+  read verbatim from the parser in PR-162 F1d, but only two
+  consumers were known (the SEQ_REV pair at 0x52158/0x52171),
+  and the port's LL_CTRL_* enum, the PR-108 flip-bit
+  question, and the FRAME_REV name all hung on WHO READS
+  THESE BITS. Method: exhaustive scan of text.asm for every
+  read of the flag window [rec+0x12..+0x15], byte, word and
+  dword forms, then read each consumer body.
+
+- FINDING 1, THE EXHAUSTIVE BYTE-TEST CENSUS (AND ITS
+  BLIND SPOT). Every byte-granular TEST of the window in the
+  whole image: SEQ_REV_X/Y (+0x12 bits 0x10/0x20) at
+  0x52158/0x52171 (the step helper's reverse arm) AND at
+  0x52385/0x523a0 (inside ENTER 0x52360 - PR-95's and
+  PR-162's row-order reading corroborated a third time);
+  CHECK_LEW (+0x13 bit 2, 0x527b3), CHECK_ANI (+0x12 bit
+  0x40, 0x527db), CHECK_ZW (+0x12 bit 0x80, 0x52805) inside
+  the key builder (F3). The window's only writers: the
+  parser chain 0x51c59-0x51d97 (the or-BYTE stores behind the
+  PR-162 F1d map) and record-to-record struct copies at
+  0x5181a-0x5181d/0x518b3-0x518bd. FRAME_REV (+0x12 bit
+  0x8): ZERO consumers in ANY form (the mode mask and eax,7
+  excludes it from F2's mode selection) - its port-side
+  name stays unjustified. But the byte-test census was the
+  wrong IDIOM for the rest: BY_Y/BY_TIME/BY_TY/DANGER/...
+  are read in WORD/DWORD forms, and F2 finds the big one.
+
+- FINDING 2, THE FEED DISPATCHER IS THE BY_* CONSUMER - THE
+  MODE *IS* THE FLAG BITS. The record step 0x521f0 calls
+  `call DWORD [[obj]+8+0xa0]` at 0x52317 (eax = the owner,
+  the standard thiscall shape); slot +0xa0 holds 0x543a0
+  (raw-dword census: 155 table slots - the owner class
+  tables). Body: 0x543a6-0x543ac re-derives the CURRENT
+  RECORD with the standard [[obj+0x50]+[obj+0x5c]*4] idiom
+  (PR-164's object-state shape again), then 0x543af loads
+  DWORD [rec+0x12], and eax,7, cmp eax,4, ja default,
+  jmp cs:[eax*4+0x54380] - a FIVE-ENTRY jump table indexed
+  by the LOW THREE FLAG BITS: mode 0 = NO FLAG = BY_X (the
+  PR-162 "BY_X -> NO FLAG" reading MECHANISM-CONFIRMED):
+  0x543c6 = abs([obj+0xca]) added to [obj+0xa1] - the
+  horizontal speed field, PR-98's |v_x| distance feed law
+  VERBATIM at the field level; mode 1 = BY_Y (+0x12 bit 1):
+  0x543dc = abs([obj+0xce]) -> [obj+0xa1] - the vertical
+  twin, NEW (the port has no BY_Y feed); mode 2 = BY_TIME
+  (bit 2): 0x543fb reads [[obj+0xa1]+0xc] (accumulator
+  DEREFERENCED - see item 1), cmp with the value at +0xc,
+  jle into a full sub-record feed; mode 3 = BY_TX composite
+  (bits 1+2, exactly PR-162's composite reading): 0x543f2
+  guards `cmp [obj+0xba],0; je` default; mode 4 = BY_TY
+  (bit 4): 0x5441b guards `cmp [obj+0xbe],0; je` default,
+  else adds the pool global [ds:0xcef40+0x388] to
+  [obj+0xa1] (0x54429-0x5443d) - a CONSTANT per-step rate
+  read at runtime (static image value 0; the pool sets it) -
+  the engine's steady BY_TY feed, matching PR-105's note
+  that BY_TY flows only when the step runs; default (mode
+  >=5, i.e. FRAME_REV bit 3 set or any higher bit): no feed
+  at all, straight to the shared epilogue. THE CORRECTION:
+  the earlier "no consumers" negatives for BY_* were census
+  artifacts of byte-test-only scanning. The port's
+  DANGER/CH_DIR-based behaviours remain PORT-DERIVED
+  semantics: those bits have NO consumer in this dispatcher
+  or in any byte test (their only reads are struct copies).
+
+- FINDING 3, THE KEY BUILDER: RECORD SLOT +0x08 = 0x52750
+  (PR-162 ITEM 4'S BODY CLOSED). Table word-scan of the
+  record tables: 0xa25d4 +0x08 = 0x52750, +0x34 = 0x52790
+  (view 0xa260c: +0x08 = 0x559c0, +0x34 = 0x45800 -
+  unread, item 6; derived tables 0x97c9c/0x9a894 share the
+  same +0x08/+0x34 pair). 0x52750 body: call record verb
+  +0x2c (= 0x52680) with a scratch key buffer, call record
+  verb +0x30 (= 0x2b4d0), call the owner's second-table
+  getter +0xc8, then tail the record verb +0x34 = 0x52790,
+  and return the scratch buffer's value - the composition
+  PR-162 item 4 named sight-unseen is exactly that.
+  0x52790 = THE FLAG-DRIVEN KEY MERGE: tests CHECK_LEW
+  (+0x13 bit 2) -> pool query 0x4bd30(ds:0xcef40, owner,
+  flag, 0x8000 = the CHECK_ALL_PLANE sub-mode flag, key
+  buffer); CHECK_ANI -> 0x4b890 (pool ds:0xa94ec); CHECK_ZW
+  -> 0x4b870 (pool ds:0xcef44); each result is ORed into
+  the key via 0x49580, a COUNT byte is written at key+0xc,
+  and the 13-byte result is copied to the caller (0x52840-
+  0x52850 = the same 13-byte key-set shape the pump merges
+  at [obj+0x60..0x6c]). So CHECK_* rows do not gate inside
+  the engine: they ADD POOL-DERIVED KEY BITS - the engine's
+  side of the port's keyed-row model. The three query heads
+  0x4b870/0x4b890 are one-liners tailing a common 0x4b500
+  pool lookup (body open, item 3); 0x4b890's listing start
+  is misaligned again (0x4b88f = 51 = push ecx; 0x4bd30's
+  prologue proved against its own epilogue at
+  0x4bd1d-0x4bd20) - the one-byte trap class, fifth member.
+
+- FINDING 4, THE DERIVED ENTER OVERRIDES ARE WRAPPERS, NOT
+  REPLACEMENTS. The table scan (F3's same scan) shows +0x1c
+  = 0x4fef0 in 0x97c9c and 0x50040 in 0x9a894 (the four
+  bare-0x52360 tables of PR-107 item 1 confirmed beside
+  them). 0x4fef0: a pool prelude (ds:0xcef40 -> [pool+0x394]
+  -> verb +0xe4(0); owner verbs +0x4 with 0xc8; a 0x54f40
+  call; side effects around [pool+0x3a0]/[pool+0x3a8] and
+  the ds:0xcf068 family via 0x56380/0x56310 - semantics
+  open, item 4) ending in a TAIL CALL of the base 0x52360
+  with the same edx; 0x50040: calls 0x52360 then writes
+  vtable-slot tag +0xfa = 0x46; 0x9a894 +0x20 = 0x50060
+  likewise WRAPS the LEAVE verb 0x52660. PR-163's question
+  "do derived ENTER overrides keep the row half" is
+  ANSWERED: the base body runs IN FULL - overrides add pool
+  bookkeeping around it. The port's single obj_enter core
+  stands for every derived class.
+
+- FINDING 5, THE POOLS HAVE A STARTUP REGISTRY (the
+  pool-contents edge, lit from the registration side).
+  0x4fe02-0x4fee5, for each class id ebx in {2,9,8,10,11,
+  ...}: call 0x5c320(eax=0x14), then 0x51120(ecx=1,
+  ebx=class id, edx = a NAME pointer 0x9209a...), storing
+  the handle into ds:0xcefdc/0xcefe0/0xcefe4... - the same
+  pool-family globals F3's queries consume (0xcef40/0xcef44/
+  0xa94ec neighbor them). The name strings read obfuscated
+  ("XzXbZiIgBnIi`", "XpXaCwYeBlEpRaIfUcSi", "CxHxUxJxOxZxAx"
+  ...) - XOR-obfuscated or packed, decode open (item 2).
+  Registering a class-id + name is the shape PR-161/162
+  inferred for pool rows; the CONTENTS still need the query
+  body read (PR-166's first read).
+
+- OPEN ITEMS COUNTED (6 new). (1) THE BY_TIME/BY_TX/BY_TY
+  ARM SEMANTICS: what does [[obj+0xa1]+0xc] dereference
+  (the accumulator value used as a pointer? a record-image
+  read where +0xc = the AC_TIME gate offset is suggestive but
+  UNPROVEN), and what [obj+0xba]/[obj+0xbe] guard - these
+  three arms are the largest new behaviour question and they
+  touch the ladder-gate fi-vs-state block. (2) The
+  obfuscated pool REGISTRATION names at 0x9209a... (decode).
+  (3) The pool query bodies: 0x4b500 + the 0x4b870/0x4b890/
+  0x4bd30 wrappers' argument contract. (4) The 0x4fef0/
+  0x50040 pre/post pool side-effect semantics ([pool+0x3a0]/
+  [pool+0x3a8], ds:0xcf068 family). (5) The record verbs
+  +0x2c (0x52680) and +0x30 (0x2b4d0) bodies - what key
+  parts they compose. (6) The SECOND-VIEW key-builder slots
+  (0xa260c +0x08 = 0x559c0, +0x34 = 0x45800) not read.
+  CARRIED unchanged: PR-162 item (2) the flip-bit owner
+  (CH_DIR has STILL no consumer found - negative result
+  holds), item (3) the +0x70/+0x71/+0xc8 getters (the +0xc8
+  getter is now KNOWN to feed the key, contents still
+  unread), [owner+0x99] sentinel, vtable-slot-4 OR 4/8
+  consumer (= PR-164 item 1 = the ordering question);
+  PR-164 items (2)-(4); PR-163 items (2)-(6); PR-161 (1)
+  walk-return encoding, (2) pool contents (now narrowed to
+  the query body + name decode); the ladder-gate data block;
+  the port's LL_CTRL_* NAME decision (this pass ANSWERS the
+  engine side: BY_* bits select the feed mode exactly as the
+  port's behaviours model, so NO port change is indicated -
+  the enum stays port-internal).
+
+- GATES. Docs-only per the PR-138..164 precedent; nothing
+  compiled. Every added prose line <= 79 cols; over-79
+  baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 72); no game
+  data or frames in git (scratch /tmp/opencode/pr165/);
+  .github/workflows/* untouched; the image unchanged
+  (text.bin sha256 edf19a12...). CI: PR-163's run
+  (44499504438) and PR-164's (44500464181) watched; PR-161's
+  rerun was pending at record time.
+
+- EVIDENCE. All reads from the pinned image: the byte-test
+  census (`test BYTE PTR [reg+0x1[2-5]]` - complete hit list
+  quoted in F1); the word/dword-form scan that FOUND
+  0x543af (the miss class); 0x543a0-0x54443 verbatim
+  including the 0x54380 jump table (five entries, values
+  0x543c6/0x543dc/0x543fb/0x543f2/0x5441b - mode 5+ is out
+  of table = default arm); slot +0xa0 census (155 slots hold
+  bare 0x543a0); 0x52750/0x52790 verbatim; the four record
+  tables' +0x08/+0x1c/+0x20/+0x2c/+0x30/+0x34 rows (word
+  scan); 0x4fef0/0x50040/0x50060 verbatim; 0x4fe02 registry
+  loop + the 0x9209a.. strings raw; 0x4b870/0x4b890 heads
+  (with the misalignment proof); static image bytes at
+  [0xcef40+0x388] = 0 (the BY_TY rate is runtime-set).
+  Ledger rule applied: census first - HEAD 0509ce9 carries
+  PR-150..PR-164 (last carrier HEAD); records re-spliced
+  from it; 2 brackets (PR-162 item (1) answered, item (4)
+  0x52750 body CLOSED).
 
 ## Deferred big items (deliberately out of scope so far)
 
