@@ -388,11 +388,25 @@ typedef struct {
                                              * increment channel. The port
                                              * keeps the px/s reading until
                                              * that T test exists. */
-    int time_ms;                            /* time=<ms?>: parsed and
-                                             * counted but NOT acted on -
-                                             * unit undetermined (ranges
-                                             * like 32,64 / 90,120; see
-                                             * ll_player_step's note)     */
+    int time_lo, time_hi;                   /* PR-83 parsed, PR-163 MODELLED:
+                                             * `time=<min>[,<max>]`. The
+                                             * engine law (PR-159 F2 / PR-
+                                             * 160 F2-F3): the pair lands
+                                             * at [rec+0x8]/+0xa as WORDs
+                                             * and the ENTER verb (0x52072)
+                                             * rolls [rec+0xc] = min +
+                                             * (max-min)*rand()/32767 (its
+                                             * 0x76bcc = the classic Borland
+                                             * LCG); same-state transition
+                                             * MATCHES counted in [obj+0x9d]
+                                             * raise live-set bit 9 once the
+                                             * count reaches the roll; NO
+                                             * time= line = gate 0 = never.
+                                             * The scanf pair ('%hi' /',%hi')
+                                             * leaves max=min when the comma
+                                             * is absent (the single-value
+                                             * `time=350` form) - same shape
+                                             * as parse_pair. */
     int time_scale;                         /* PR-110: the block's
                                              * `time_scale=`, stored as
                                              * read; 1000 = the engine's

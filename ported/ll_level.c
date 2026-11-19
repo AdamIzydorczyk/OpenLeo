@@ -489,7 +489,9 @@ typedef struct {                     /* one placement of a script        */
                                   * units + the iteration carry (mirrors
                                   * [obj+0xa1] and ll_player.row_t) */
     unsigned brk_arm;            /* PR-135: the "row list ended" bit of the
-                                  * engine's key buffer (0x521d7): raised by
+                                  * engine walk: at the wrap it ORs 4 at
+                                  * 0x521c1-0x521c5 (PR-162 F1b; reach
+                                  * into the key is open). Raised by
                                   * the step that wraps the list, consumed by
                                   * the NEXT step's key composition - never
                                   * matched by the step that armed it.
@@ -556,6 +558,19 @@ typedef struct {                     /* one placement of a script        */
      * shape/touch all gate on sc->mov), so the flag drives only the
      * counts, the draw order and the report labels. */
     unsigned char static_img;
+    /* PR-163: the engine's AC_TIME self-raiser (PR-159 F2/PR-160 F3 -
+     * ENTER 0x52072 + the match arm 0x53626-0x5365c). act_gate = the
+     * rolled gate of the CURRENT state ([rec+0xc]: 0 = never; ENTER
+     * rolls it from the authored time= pair); act_n = the same-state
+     * transition-match counter ([obj+0x9d]: zeroed at ENTER and at the
+     * applier's state-change arm 0x535c2); act_r = the rand() LCG state
+     * (the engine keeps ONE at 0x76bc6; the port keeps it per-object -
+     * deterministic selftests; no shipped content authors time= so no
+     * leg observes the difference). */
+    unsigned act_gate, act_n, act_r;
+    unsigned char act_init;   /* lazy ENTER at first tick = the placement
+                               * ctor's ENTER on the initial record
+                               * (0x539e6-0x539fb, PR-162 F4) */
 } lvl_obj;
 
 typedef struct {                     /* one level's authored scene: the
@@ -719,21 +734,22 @@ static void obj_draw(const lvl_obj *o, unsigned char *canvas, int cw,
  * the scene model can decide: AC_BREAK_NEXT (the frame list just ended),
  * K_GEN1..5 and any other signal NAME of the LL_SIG_* table (PR-88: tested
  * against this object's own pulse set - raised by frame `GEN <signal>`
- * tails or by gameplay code like the PR-70 balloon pop); AC_TIME
- * (a timed wait, `time=min,max`, unit unresolved) is APPROXIMATED as "at the
- * end of the frame list" so a waiting state never freezes - OR a raised
- * AC_TIME bit. PR-159 read the engine's REAL self-raiser: the
- * transition pipeline's same-state arm counts its OWN matches
- * in [obj+0x9d] (zeroed at state change 0x535c2 / ctor 0x538c3
- * / list-parent 0x52077) and when a WORD in the CURRENT STATE
- * record ([rec+0xc], itself COMPUTED by 0x52072 from WORDs
- * +0x8/+0xa - authoring source open) is nonzero and <= that
- * count it ORs live-set bit 9 = AC_TIME in (0x53626-0x5365c):
- * self-transition MATCHES, not a timer - so this approximation
- * is directionally right; the exact gate is blocked on the
- * [rec+0xc] authoring chain (and on whether a WAIT entry re-
- * matches every step, which would make it an effective step-
- * timer). What still stays false (keys, AC_ONAIR, AC_ENEMY_ATC ...)
+ * tails or by gameplay code like the PR-70 balloon pop); AC_TIME is
+ * PR-163 MODELLED, not approximated: the engine's own self-
+ * raiser (PR-159 F2 / PR-160 F2-F3 / PR-162 F1c) - ENTER rolls
+ * a gate [rec+0xc] uniformly from the authored `time=<min>[,max]`
+ * pair (rand = the Borland LCG at 0x76bcc), same-state transi-
+ * tion MATCHES counted in [obj+0x9d] raise live-set bit 9 once
+ * the count reaches the gate (0x53626-0x5365c), and NO time=
+ * line = gate 0 = never. obj_transition/obj_enter now implement
+ * exactly that law, so the bit reaching THIS test is real. The
+ * one approximation that stays is `brk ||`: the engine's record
+ * walk arms the list-end bit in the composed key itself, while
+ * the port passes it as an argument beside its own pulse set -
+ * additive, not conflicting; whether the engine's in-walk raise
+ * is visible to LATER lines of the same list is the PR-164
+ * mechanism-boundary question (counted open). What still stays
+ * false (keys, AC_ONAIR, AC_ENEMY_ATC ...)
  * needs the lion/world signals feeding this set (open). First-match order
  * as the player's transitions; PR-88 aligned the grammar with the engine
  * too: the clause parser at 0x47d60 folds a ',' run into ONE node bit
@@ -807,17 +823,21 @@ static int obj_cond_true(const lvl_obj *o, int brk, const ll_mov_tr *tr)
  * 0x535a2 (what PR-101 called "the switch") writes the int it was handed
  * into the state record's live row counter at rec+0x4 on its same-index
  * path (0x53616), and rec+0x4 IS that counter - the
- * row stepper 0x520c0 advances it (0x521d7) and wraps it at the last row
- * (0x521c5). Its cross-state path reaches the same field through the
+ * row stepper helper 0x520c0 advances it (lea+store 0x521d4 - PR-162
+ * F1b, one byte off PR-107's 0x521d7) and wraps last->0 at
+ * 0x521c1-0x521c5. Its cross-state path reaches the same field through the
  * state record's own method table: every record stores the fixed table
  * 0xa25d4 at rec+0x44 (its constructors, 0x524cf and 0x52508) and that
  * path calls slot +0x1c of it on the NEW record (0x535e7-0x535ea) - and
- * +0x1c is the row-set method 0x52360. It refuses a negative value
+ * +0x1c is the method 0x52360. Its row-set half refuses a negative value
  * (`test edx,edx` + `jl`, 0x52381) and otherwise writes it there raw,
- * mirrored to `[rec+0x36] - n - 1` when the SEQ_REV reversal of PR-95
- * says so (0x523bc-0x523c5) - with NO upper bound. PR-107 applies the
- * row here, through ll_mov_row_start, the rule the lion's side has used
- * since PR-86. The shipped scope, measured through the port's own parser
+ * mirrored to `[rec+0x36] - n - 1` when the SEQ_REV_X/Y reversal of PR-95
+ * says so (0x523bc-0x523c5) - with NO upper bound. PR-160/PR-162 read
+ * the OTHER half of the same method: its tail 0x52070/0x52072 zeroes
+ * the [obj+0x9d] match counter and rolls the AC_TIME gate - one
+ * ENTER. PR-107 applies the row here, through ll_mov_row_start, the
+ * rule the lion's side has used since PR-86. The shipped scope,
+ * measured through the port's own parser
  * over the 777 .MOV: of 2572 numeric transition lines only 273 ask for a
  * row other than 0 (2299 say `(1)`, which is row 0); 172 of the 273
  * cross a state boundary, 101 are self-targets, and 25 of the 172 are in
@@ -831,6 +851,40 @@ static int obj_cond_true(const lvl_obj *o, int brk, const ll_mov_tr *tr)
  * the rows, look up this table, apply the match - is ONE virtual method,
  * the object's slot +0x14 (0x536f0), called once per step from the
  * level's message pump. */
+
+/* PR-163: the engine's rand() - 0x76bcc verbatim (Borland LCG: state
+ * x*0x41c64e6d+0x3039, output (x>>16)&0x7fff; 0x76bc6 holds ONE state
+ * image-wide). */
+static unsigned obj_rand(unsigned *st)
+{
+    *st = *st * 0x41c64e6du + 0x3039u;
+    return (*st >> 16) & 0x7fffu;
+}
+
+/* PR-163: ENTER - the record-class +0x1c verb body (base 0x52360 ->
+ * 0x52070/0x52072): zero the [obj+0x9d] match counter and ROLL the
+ * gate from the authored time= pair, [rec+0xc] = min + (max-min)*r/
+ * 32767 (r = obj_rand); NO time= pair -> gate 0 -> NEVER raises (the
+ * ctor leaves it; PR-160 F3). The single-value form pairs to min=max
+ * (parse_pair = the engine scanf), so the roll degenerates to gate =
+ * min - the deterministic N-match wait; the engine's lerp with max=min
+ * is its open item (PR-160), the port's reading is pinned by the
+ * PR-163 selftest. */
+static void obj_enter(lvl_obj *o, ll_mov_t *mov, int sti)
+{
+    o->act_n = 0;
+    if (sti < 0 || sti >= mov->nst || mov->st[sti].time_lo <= 0) {
+        o->act_gate = 0;
+        return;
+    }
+    unsigned r = obj_rand(&o->act_r);
+    unsigned lo = (unsigned)mov->st[sti].time_lo,
+             hi = (unsigned)mov->st[sti].time_hi;
+    o->act_gate = (hi > lo)
+        ? (unsigned)(lo + (hi - lo) * r / 32767u)
+        : lo;
+}
+
 static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
 {
     const ll_mov_st *s = &mov->st[o->sti];
@@ -838,8 +892,20 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
     for (int t = 0; t < s->ntr; t++) {
         if (!obj_cond_true(o, brk, &s->tr[t]))
             continue;
-        if (s->tr[t].tidx < 0 || s->tr[t].tidx == o->sti)
-            continue;                         /* unresolved / keep this state */
+        if (s->tr[t].tidx < 0)
+            continue;                         /* unresolved */
+        if (s->tr[t].tidx == o->sti) {
+            /* PR-163: the engine's same-state match arm (0x53626-0x5365c,
+             * the else beside the applier's state-change arm): a MATCH
+             * that keeps this state is the AC_TIME counting event - it
+             * bumps [obj+0x9d] and the gate check raises live-set bit 9
+             * once the count reaches the rolled gate. Unresolved targets
+             * (tidx < 0) never reach this arm. */
+            o->act_n++;
+            if (o->act_gate && o->act_n >= o->act_gate)
+                o->sig |= 1ull << LL_SIG_AC_TIME;
+            continue;                         /* keep this state */
+        }
         int byx = (s->ctrl & LL_CTRL_BY_X) ||
                   (mov->st[s->tr[t].tidx].ctrl & LL_CTRL_BY_X);
         o->sti = s->tr[t].tidx;
@@ -861,6 +927,10 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
         o->atc = 0;                  /* PR-89: an attack window belongs to
                                       * the state that opened it           */
         o->atc_hit = 0;              /* PR-90: and so does its one-hit flag */
+        obj_enter(o, mov, o->sti);   /* PR-163: the applier's state-change
+                                     * arm (0x535c2) runs ENTER on the new
+                                     * record: zero the counter and roll
+                                     * the new state's gate               */
         return 1;
     }
     return 0;
@@ -990,6 +1060,8 @@ static int obj_hit(lvl_obj *o, int damage)   /* 0 = no hit, 1 = hurt,
             o->sig = 0;
             o->atc = 0;             /* PR-90: same window rule as the     */
             o->atc_hit = 0;         /* transition table's own             */
+            obj_enter(o, mov, d);   /* PR-163: every forced state change
+                                     * runs the applier's ENTER arm too */
         }
         return 2;
     }
@@ -1070,6 +1142,7 @@ static void obj_arm_atak(lvl_obj *o, int lx, int ly, int verbose, int tick)
     o->sig = 0;
     o->atc = 0;
     o->atc_hit = 0;
+    obj_enter(o, mov, a);                /* PR-163: forced change = ENTER */
 }
 
 /* PR-79: BY_X states WALK. The frame-list slot semantics are data-
@@ -1259,6 +1332,14 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         obj_row_tick(o, dt_ms);
         return;
     }
+    if (!o->act_init) {
+        /* PR-163: the placement ctor runs ENTER on the INITIAL record
+         * (0x539e6-0x539fb, PR-162 F4) - the gate for the declared
+         * start state is rolled AT SPAWN, before any step. The port
+         * defers that to the object's first scripted call. */
+        o->act_init = 1;
+        obj_enter(o, mov, o->sti);
+    }
     unsigned its = obj_row_tick(o, dt_ms);
     for (unsigned step = 0; step < its; step++) {
     /* PR-135: ONE engine record step per iteration - PR-105's reading
@@ -1276,7 +1357,8 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         o->hit_cd--;
     /* The key composition comes FIRST, as it does in the driver: the
      * bits the PREVIOUS step armed - the row list ending (brk_arm, the
-     * bit the engine ORs into the caller's key buffer at 0x521d7) and
+     * port's model of the wrap flag the engine ORs at 0x521c1-0x521c5,
+     * PR-162 F1b) and
      * whatever a frame's `GEN` tail raised - are what this step's
      * transitions test, and they are cleared here rather than by the
      * step that raised them. */
@@ -1311,21 +1393,22 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         if (s->nfr == 0)                        /* an empty list: nothing */
             continue;                           /* to admit at all        */
         if (o->fi >= s->nfr) {                  /* past the last row     */
-            /* PR-101 read the engine's end of the row list: 0x520c0's
-             * sequential path wraps it - at the last row (`n =
-             * [[rec+0x2e]+8]`, the record's row count at rec+0x36) it
-             * goes back to row 0 and ORs bit 2 into a byte the caller
-             * passed in, and the reversed direction does the mirror at
-             * row 0 with bit 3 (0x5219a-0x521d7). That byte is the
-             * caller's key buffer, so "the list ended" arrives as KEY
-             * BITS, which is what the keyed rows and the transition
-             * table of PR-101 can then match. Reaching this branch
-             * without a matching transition is the same shape as the
-             * engine wrapping and re-running the row list; the port
-             * just has no key to raise (PR-95 item 1: the engine
-             * reverses rows with the SEQ_REV_X/Y control bits XOR-ed
-             * against two owner-side guards, not with any frame
-             * reverse - see NEXT_STEPS PR-99/100/101). */
+            /* PR-101 read the engine's end of the row list; PR-162
+             * F1b re-read it byte-accurate: 0x520c0's sequential
+             * path wraps it - at the last row (`n = [[rec+0x2e]+8]`,
+             * the record's row count at rec+0x36) it writes 0 and
+             * ORs 4 into the owner's vtable-slot-4 word (0x521c1-
+             * 0x521c5); the reversed arm at 0x521a1-0x521b1 is gated
+             * by the SEQ_REV_X/Y bits 0x10/0x20 XOR-ed against two
+             * owner-side position sentinels (PR-95 item 1 CONFIRMED
+             * by PR-162: rows reverse by flags, not frame reversal).
+             * Whether that OR reaches the transition key directly or
+             * through a return value is open (walk return encoding,
+             * NEXT_STEPS PR-162); the port models the list end as
+             * brk_arm, tested by the NEXT step's key composition.
+             * Reaching this branch without a matching transition is
+             * the same shape as the engine wrapping and re-running
+             * the row list. */
             o->fi = 0;                          /* no way out: loop the state */
             if (!(s->ctrl & LL_CTRL_BY_X)) {    /* walking keeps its position */
                 o->x = o->bx;
@@ -2447,6 +2530,245 @@ out:
  * moves x and feeds the row clock LL_ITER_MS at a time instead; F px/s
  * would move 4x too far; a position reset at the state loop lands on
  * the anchor. */
+
+/* PR-163: the AC_TIME self-raise law, unit level (engine ENTER
+ * 0x52070/0x52072 + the same-state match arm 0x53626-0x5365c):
+ * time=<lo>[,<hi>] rolls a gate at ENTER (rand = the Borland LCG at
+ * 0x76bcc), same-state transition MATCHES bump the counter, and when
+ * the count reaches the gate the object's own live set gets bit 9,
+ * which its own AC_TIME line can then take. NO time= line = gate 0 =
+ * never. Every leg is data-free and hand-derived: a fresh object's
+ * LCG starts at 0, whose first output is 0 (so gate = lo for ANY
+ * pair) and whose second is 21468. */
+static int obj_actime_selftest(void)
+{
+    /* [A_ONE] counts its own K_GEN1 matches behind a gated AC_TIME
+     * exit; [A_TWO] authors NO time= line. */
+    static const char gated[] =
+        "A_ONE\nA_TWO\n\n[A_ONE]\ncontrol=BY_TIME\ntime=2,50\n"
+        "A_ONE(1)=K_GEN1\nA_TWO(1)=AC_TIME\n1,0\n\n"
+        "[A_TWO]\ncontrol=BY_TIME\nA_TWO(1)=K_GEN1\n1,0\n";
+    /* no time= anywhere: the same shape must never raise */
+    static const char plain[] =
+        "A_ONE\n\n[A_ONE]\ncontrol=BY_TIME\nA_ONE(1)=K_GEN1\n1,0\n";
+    /* single-value time=2 pairs to (2,2) - the engine's scanf form
+     * (the authored time=350 shape); [A_TWO]'s time=1,10 then rolls
+     * the SECOND rand output (21468): gate = 1 + 9*21468/32767 = 6,
+     * hand-derived. */
+    static const char single[] =
+        "A_ONE\nA_TWO\n\n[A_ONE]\ncontrol=BY_TIME\ntime=2\n"
+        "A_ONE(1)=K_GEN1\nA_TWO(1)=AC_TIME\n1,0\n\n"
+        "[A_TWO]\ncontrol=BY_TIME\ntime=1,10\nA_TWO(1)=K_GEN1\n1,0\n";
+    /* the death force: [A_ONE] holds a live gate and counter when a
+     * lethal hit forces A_DEAD - ENTER must clear both there too. */
+    static const char deadf[] =
+        "A_ONE\nA_DOSTAL\nA_DEAD\n\n[A_ONE]\ncontrol=BY_TIME\ntime=2\n"
+        "A_ONE(1)=K_GEN1\n1,0\n\n[A_DOSTAL]\ncontrol=BY_TIME\n1,0\n\n"
+        "[A_DEAD]\ncontrol=BY_TIME\n1,0\n";
+    int rc = 1, i = 0, r = 0;
+    ll_mov_t *mg = calloc(1, sizeof *mg), *mp = calloc(1, sizeof *mp),
+             *ms = calloc(1, sizeof *ms), *md = calloc(1, sizeof *md);
+    obj_script sg, sp, ss, sd;
+    lvl_obj a, c, b;
+
+    if (!mg || !mp || !ms || !md)
+        goto out;
+    memset(&sg, 0, sizeof sg);
+    memset(&sp, 0, sizeof sp);
+    memset(&ss, 0, sizeof ss);
+    sg.mov = mg;
+    sp.mov = mp;
+    ss.mov = ms;
+    if (ll_mov_parse(gated, mg) != 2 || ll_mov_parse(plain, mp) != 1 ||
+        ll_mov_parse(single, ms) != 2) {
+        fprintf(stderr, "object actime selftest: FAILED parse\n");
+        goto out;
+    }
+    if (mg->st[0].time_lo != 2 || mg->st[0].time_hi != 50 ||
+        mg->st[1].time_lo != 0 || ms->st[0].time_lo != 2 ||
+        ms->st[0].time_hi != 2 || ms->st[1].time_lo != 1 ||
+        ms->st[1].time_hi != 10) {
+        fprintf(stderr, "object actime selftest: FAILED a time= pair did"
+                        " not land in the state record\n");
+        goto out;
+    }
+    /* LEG 1 (range pair, gated wait): the placement ENTER is the
+     * deferred one at the object's first scripted call; the fresh
+     * LCG's first output is 0, so a gate rolled from (2,50) is 2. */
+    memset(&a, 0, sizeof a);
+    a.sc = &sg;
+    a.sti = 0;
+    obj_advance(&a, 0);                     /* ENTER only: zero steps */
+    if (!a.act_init || a.act_gate != 2 || a.act_n != 0) {
+        fprintf(stderr, "object actime selftest: FAILED the placement"
+                        " ENTER did not roll the gate (init %u gate"
+                        " %u n %u)\n", a.act_init, a.act_gate, a.act_n);
+        goto out;
+    }
+    for (i = 1; i <= 2; i++) {
+        a.sig = 1ull << LL_SIG_K_GEN1;      /* what a row's GEN tail */
+        r = obj_transition(&a, mg, 0);      /* arms for a step; brk 0:  */
+        if (i == 1) {                       /* ONLY the count can  */
+            if (r != 0 || a.sti != 0 || a.act_n != 1 ||
+                ((a.sig >> LL_SIG_AC_TIME) & 1)) {
+                fprintf(stderr, "object actime selftest: FAILED match 1"
+                                " of a gate-2 wait counted or raised"
+                                " wrong (r %d n %u state %d)\n",
+                        r, a.act_n, a.sti);
+                goto out;
+            }
+        } else if (r != 1 || a.sti != 1) {  /* the state change IS the */
+            fprintf(stderr, "object actime selftest: FAILED the count"
+                            " reaching its gate did not raise AC_TIME"
+                            " through the object's own line (r %d n %u"
+                            " state %d)\n", r, a.act_n, a.sti);
+            goto out;
+        }
+    }
+    /* The change itself proves the raise: the AC_TIME line was tested
+     * with brk = 0, so only bit 9 raised by the count could take it.
+     * And the change ran ENTER on the NEW record: A_TWO authors no
+     * time=, so its gate must be 0 and its counter must start clean
+     * (this also kills a stale-gate mutant: A_ONE's leftover 2 would
+     * fire at the second match below). */
+    if (a.act_n != 0 || a.act_gate != 0) {
+        fprintf(stderr, "object actime selftest: FAILED the state change"
+                        " left a counter or gate (n %u gate %u)\n",
+                a.act_n, a.act_gate);
+        goto out;
+    }
+    /* A_TWO has no time= AND the change entered it: one match there
+     * must leave the gate at 0, not A_ONE's leftover. This is the
+     * leg that kills a gate-zero mutant at the ENTER's no-time= arm. */
+    a.sig = 1ull << LL_SIG_K_GEN1;
+    if (obj_transition(&a, mg, 0) != 0 || a.sti != 1 ||
+        a.act_gate != 0 || a.act_n != 1 ||
+        ((a.sig >> LL_SIG_AC_TIME) & 1)) {
+        fprintf(stderr, "object actime selftest: FAILED a match in the"
+                        " just-entered no-time= state (gate %u n %u"
+                        " state %d)\n", a.act_gate, a.act_n, a.sti);
+        goto out;
+    }
+    /* LEG 2: A_TWO has no time= - ten more matches, never a raise. */
+    for (i = 1; i <= 10; i++) {
+        a.sig = 1ull << LL_SIG_K_GEN1;
+        r = obj_transition(&a, mg, 0);
+        if (r != 0 || a.sti != 1 || ((a.sig >> LL_SIG_AC_TIME) & 1))
+            break;
+    }
+    if (i <= 10 || a.act_n != 11) {
+        fprintf(stderr, "object actime selftest: FAILED a state without"
+                        " any time= line raised AC_TIME (n %u state"
+                        " %d)\n", a.act_n, a.sti);
+        goto out;
+    }
+    /* LEG 3: the whole-script never case. */
+    memset(&c, 0, sizeof c);
+    c.sc = &sp;
+    obj_advance(&c, 0);
+    if (c.act_gate != 0) {
+        fprintf(stderr, "object actime selftest: FAILED ENTER rolled a"
+                        " gate for a state with no time= line (%u)\n",
+                c.act_gate);
+        goto out;
+    }
+    for (i = 1; i <= 6; i++) {
+        c.sig = 1ull << LL_SIG_K_GEN1;
+        if (obj_transition(&c, mp, 0) != 0 ||
+            ((c.sig >> LL_SIG_AC_TIME) & 1))
+            break;
+    }
+    if (i <= 6 || c.act_n != 6) {
+        fprintf(stderr, "object actime selftest: FAILED a gate-0 state"
+                        " raised AC_TIME (n %u)\n", c.act_n);
+        goto out;
+    }
+    /* LEG 4 (the single-value form + the re-roll): time=2 pairs to
+     * (2,2) and its roll degenerates to gate = 2 deterministically;
+     * the state change ENTER rolls again - the fresh LCG's SECOND
+     * output is 21468, and the port's reading of the engine's lerp
+     * on (1,10) is 1 + 9*21468/32767 = 6. */
+    memset(&b, 0, sizeof b);
+    b.sc = &ss;
+    obj_advance(&b, 0);
+    if (b.act_gate != 2) {
+        fprintf(stderr, "object actime selftest: FAILED the single-value"
+                        " form did not roll a deterministic gate (%u)\n",
+                b.act_gate);
+        goto out;
+    }
+    b.sig = 1ull << LL_SIG_K_GEN1;
+    if (obj_transition(&b, ms, 0) != 0 || b.sti != 0 || b.act_n != 1) {
+        fprintf(stderr, "object actime selftest: FAILED match 1 of the"
+                        " single-value wait (state %d n %u)\n",
+                b.sti, b.act_n);
+        goto out;
+    }
+    b.sig = 1ull << LL_SIG_K_GEN1;
+    if (obj_transition(&b, ms, 0) != 1 || b.sti != 1 || b.act_n != 0 ||
+        b.act_gate != 6) {
+        fprintf(stderr, "object actime selftest: FAILED the state-change"
+                        " ENTER (gate %d n %u state %d): expected gate 6"
+                        " from the second LCG output 21468\n",
+                b.act_gate, b.act_n, b.sti);
+        goto out;
+    }
+    for (i = 1; i <= 5; i++) {
+        b.sig = 1ull << LL_SIG_K_GEN1;
+        obj_transition(&b, ms, 0);
+    }
+    if (b.act_n != 5 || b.sti != 1 || ((b.sig >> LL_SIG_AC_TIME) & 1)) {
+        fprintf(stderr, "object actime selftest: FAILED the gate-6 wait"
+                        " raised early (n %u state %d)\n",
+                b.act_n, b.sti);
+        goto out;
+    }
+    b.sig = 1ull << LL_SIG_K_GEN1;
+    if (obj_transition(&b, ms, 0) != 0 || b.sti != 1 ||
+        !((b.sig >> LL_SIG_AC_TIME) & 1)) {
+        fprintf(stderr, "object actime selftest: FAILED the 6th match of"
+                        " a gate-6 wait did not raise (n %u state %d)\n",
+                b.act_n, b.sti);
+        goto out;
+    }
+    /* LEG 5: the death force is a forced state change and runs ENTER
+     * too (the port mirrors the applier's arm at its two forced
+     * sites). The observable is a leftover live gate or counter in
+     * A_DEAD: this fixture carries gate 2 and count 1 into the hit. */
+    if (ll_mov_parse(deadf, md) != 3) {
+        fprintf(stderr, "object actime selftest: FAILED the death"
+                        " fixture did not parse\n");
+        goto out;
+    }
+    memset(&sd, 0, sizeof sd);
+    sd.mov = md;
+    memset(&a, 0, sizeof a);              /* fresh: reuse a, mg done */
+    a.sc = &sd;
+    obj_advance(&a, 0);                   /* placement ENTER: (2,2) */
+    if (a.act_gate != 2) {
+        fprintf(stderr, "object actime selftest: FAILED the death"
+                        " fixture did not arm gate 2 (%u)\n", a.act_gate);
+        goto out;
+    }
+    a.sig = 1ull << LL_SIG_K_GEN1;
+    obj_transition(&a, md, 0);            /* count 1 of the gate of 2 */
+    a.hp = 1;
+    if (obj_hit(&a, 15) != 2 || a.sti != 2 || a.act_gate != 0 ||
+        a.act_n != 0) {
+        fprintf(stderr, "object actime selftest: FAILED the forced"
+                        " A_DEAD change did not run ENTER (sti %d gate"
+                        " %u n %u)\n", a.sti, a.act_gate, a.act_n);
+        goto out;
+    }
+    rc = 0;
+out:
+    free(mg);
+    free(mp);
+    free(ms);
+    free(md);
+    return rc;
+}
+
 static int obj_motion_selftest(void)
 {
     static const char run[] =
@@ -3446,6 +3768,7 @@ int ll_mov_selftest(void)
     if (seq_codec_selftest() != 0 || seq_anchor_selftest() != 0 ||
         seq_shape_selftest() != 0 || seq_push_selftest() != 0 ||
         obj_layer_selftest() != 0 || obj_state_selftest() != 0 ||
+        obj_actime_selftest() != 0 ||
         obj_motion_selftest() != 0 || contact_model_selftest() != 0 ||
         ladder_answer_selftest() != 0 || place_grammar_selftest() != 0) {
         free(sc.mov);

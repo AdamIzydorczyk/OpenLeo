@@ -15733,61 +15733,45 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-163 IS THE AC_TIME CODE PASS (unchanged spec, and PR-
-  162 changes nothing in it): on state ENTER (including AT
-  PLACEMENT for the initial record - 0x539e6/0x539fb) roll
-  rand(min,max) from the parsed time= pair; count same-state
-  transition matches; raise LL_SIG_AC_TIME when count >= roll;
-  no time= line = never. The port parses the pair already (ll_
-  play.c discards it today: only s->time_ms=t1 is kept, and
-  field_other counts); ZARIA.01 has ZERO time= lines so out-
-  put CANNOT change - hand-derived tests + mutation battery
-  prove the law fires where the corpus does not. Also carry:
-  the ll_level.c comment address fix (the row stepper is the
-  helper tail 0x520c0/0x521d4/0x521c5 - PR-162 F1 verified
-  the note's LAW, only the 0x520d7 address was a byte off)
-  and update that comment with the reverse/mode-6/wrap-flag
-  details + the corrected flag names (SEQ_REV_X=0x10, SEQ_
-  REV_Y=0x20 verified; BY_X has NO bit).
-- THEN the mechanism-boundary read (PR-162 item 5) - THE most
-  port-relevant open item now: WHERE is the transition applier
-  (0x535a2-0x5365c) invoked from? The per-tick call found so
-  far is the WALK (object +0x44 at 0x53b18); the applier's
-  driver is unpinned (PR-105 claimed object slot +0x14 = a
-  once-per-step pump call: 0x536f0 - the census should start
-  by finding +0x14's caller and testing whether it leads to
-  0x535a2 or to the walk). This decides how the port's obj_-
-  transition condition evaluation and the engine's two mecha-
-  nisms correspond, i.e. where the AC_TIME counter really in-
-  crements in port terms.
-- THEN the flag-consumer pass (PR-162 item 1): engine flag
-  bits BY_Y=+0x12|0x1, BY_TIME=|0x2, BY_TX=|0x3, BY_TY=|0x4,
-  FRAME_REV=|0x8, SEQ_REV_X=|0x10, SEQ_REV_Y=|0x20, CHECK_
-  ANI=|0x40, CHECK_ZW=|0x80, +0x13 CHECK_LN=0x1...ANTI_
-  POCISK=+0x14|0x8 (FULL MAP IN THE PR-162 RECORD). Re-ground
-  the port's LL_CTRL_* NAMES against the consumers (0x52158/
-  0x52171 = the SEQ_REV pair; find what FRAME_REV=0x8 vs the
-  port's row-reversal reading really drives; PR-108's face-
-  flip bit attribution is REOPENED - the +0x15 bit 0x8 is the
-  ANTI_POCISK bit; lead: the CH_DIR name or the flip lives in
-  the walk's reversed-step semantics at 0x5219a-0x521b1).
-- THEN carried reads: the pool contents + numeric-ID registra-
-  tions (the K_GEN1 edge, PR-161 item 2); the [owner+8]+0x70/
-  +0x71/+0xc8 getters + [owner+0x99] sentinel + the vtable-
-  slot-4 |=4/|=8 row-end signals (items 3); mode-6 skip +
-  0x47770 + 0x52750 bodies (item 4); the walk return-value
-  encoding (PR-161 item 1); transition-tail parse owner; de-
-  rived ENTER overrides 0x4fef0; non-null +0x84 families;
-  0x9c05c identity; 0x524xx rest; 0x446de; 0x57d30 modes;
-  FLAG +0x4c getter. THE LADDER-GATE fi-vs-state DECISION
-  stays data-blocked on the param-token map - do NOT touch the
-  port's fi gate.
+- PR-164 IS THE MECHANISM-BOUNDARY READ (PR-162 item 5, now
+  PR-163 item 1 too - THE most port-relevant open item):
+  WHERE is the transition applier (0x535a2-0x5365c) invoked
+  from? The per-tick call found so far is the WALK (object
+  +0x44 at 0x53b18); the applier's driver is unpinned (PR-105
+  claimed object slot +0x14 = a once-per-step pump call:
+  0x536f0 - the census starts by finding +0x14's CALLER and
+  testing whether it leads to 0x535a2 or to the walk). This
+  decides how the port's single obj_transition corresponds to
+  the engine's two mechanisms, WHERE the AC_TIME counter real-
+  ly increments in engine terms, and whether an IN-WALK raise
+  is visible to later lines of the same list - the port's in-
+  call reading (PR-163 F5) is pinned as a MODEL CHOICE until
+  this read lands.
+- THEN the flag-consumer pass (PR-162 item 1, unchanged): re-
+  ground the port's LL_CTRL_* names against the engine flag
+  bits (FULL MAP IN THE PR-162 RECORD; consumers 0x52158/
+  0x52171 = the SEQ_REV pair; find what FRAME_REV=0x8 really
+  drives vs the port's row-reversal reading; PR-108's flip-bit
+  attribution REOPENED - leads: the CH_DIR name or the walk's
+  reversed-step tail 0x521a1-0x521b1).
+- THEN carried reads (PR-162's list, unchanged): the pool con-
+  tents + numeric-ID registrations (the K_GEN1 edge); the +0x70/
+  +0x71/+0xc8 getters + [owner+0x99] sentinel + vtable-slot-4
+  |=4/|=8 row-end signals; the mode-6 skip + 0x47770 + 0x52750
+  bodies; the walk return-value encoding (PR-161 item 1);
+  derived ENTER overrides (0x4fef0 and friends - PR-163 makes
+  ENTER a REAL behaviour, so which classes override the +0x1c
+  body, and whether an override keeps the row half, now mat-
+  ters to the port reading); 0x9c05c identity; 0x524xx rest;
+  0x446de; 0x57d30 modes; FLAG +0x4c getter. THE LADDER-GATE
+  fi-vs-state DECISION stays data-blocked on the param-token
+  map - do NOT touch the port's fi gate.
 - LEDGER RULE (PR-158 F1): every Next-swap re-splices recent
   records from the LAST revision that carried them. Census
   recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
   `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD 7bae5a1 carries all twelve (PR-150..PR-
-  161); HEAD is the last carrier.
+  pass's census: HEAD 033c12d carries all thirteen (PR-150..
+  PR-162); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -19053,6 +19037,200 @@ of PR-159/160's cursor phrasing are SUPERSEDED below)
   Corpus: unchanged. Ledger rule applied: census first - HEAD
   7bae5a1 carries PR-150..PR-161 (last carrier HEAD); records
   re-spliced from it.
+
+## PR-163 — THE AC_TIME LAW SHIPS AS CODE: THE time= PAIR
+## NOW ROLLS A GATE AT ENTER (PLACEMENT INCLUDED), SAME-STATE
+## TRANSITION MATCHES COUNT, AND A COUNT REACHING ITS GATE
+## RAISES THE SIGNAL THE OBJECT'S OWN AC_TIME LINE CAN TAKE;
+## THE FIVE-LEG HAND-DERIVED TEST PINS THE LCG VERBATIM (the
+## fresh-object stream: outputs 0, 21468) AND THE 9/11 MUTA-
+## TION BATTERY IS RECORDED WITH ITS TWO SURVIVORS, NOT HID-
+## DEN (CODE + TESTS)
+
+(CODE + TESTS; the port's first implementation of the law
+PR-159/160/162 closed on the engine side. ZARIA.01 output:
+UNCHANGED - the stage authors ZERO time= lines, proved by both
+verify-all modes staying at their counts.)
+
+- WHY. The engine law is fully read (ENTER 0x52070/0x52072
+  rolls [rec+0xc] from the authored time= pair through the
+  rand at 0x76bcc; the same-state match arm 0x53626-0x5365c
+  counts matches at [obj+0x9d] and ORs live-set bit 9 once
+  the count reaches the roll; no time= line = never; the
+  placement ctor ENTERs the initial record at 0x539e6-0x539fb)
+  but the port parsed-and-discarded the pair: ll_play.c kept
+  only a single time_ms value that no code ever read, and
+  obj_cond_true approximated AC_TIME as the list-end bit. The
+  PR-162 pass verified the row-advance model the code pass
+  depends on, so the law now ships as behaviour, data-free,
+  with the corpus impact proven zero.
+
+- FINDING 1, ONE ENTER BODY, TWO HALVES, NOW IN THE CODE. The
+  record-class table 0xa25d4 slot +0x1c IS the body at 0x52360
+  that PR-107 item 2 read as "the row-set method" (refuses a
+  negative at 0x52381, writes the authored (N-1) raw, mirrors
+  under the SEQ_REV_X/Y pair at 0x523bc-0x523c5) AND that
+  PR-160 F3 read as ENTER (it calls 0x52070/0x52072 - zero
+  [obj+0x9d], roll [rec+0xc]). The two readings are halves of
+  ONE method - PR-107's own item-2 text already showed the
+  call to 0x52070 inside the row-setter, so no older record
+  needed a bracket; what changes is that the port now SPLITS
+  THE SAME WAY THE APPLIER REACHES IT: ll_mov_row_start for
+  the row half (PR-107's rule) and obj_enter for the gate
+  half (this PR), both invoked at every state-change site.
+
+- FINDING 2, THE PORT LAW AS SHIPPED. ll_mov_st replaces the
+  single time_ms with time_lo/time_hi - parse_pair already
+  pairs a single value to lo==hi, the exact shape of the
+  engine's scanf pair leaving max unset=min (the authored
+  `time=350` form of ENA.03_SURPRISE needs no special case);
+  the PK fixture check now asserts the PAIR (50,50). obj_en-
+  ter zeroes the match counter and rolls gate = lo + (hi-lo)*r
+  /32767 with the engine rand VERBATIM (state x*0x41c64e6d +
+  0x3039, output (x>>16)&0x7fff - 0x76bcc); obj_transition's
+  SAME-STATE arm - the exact place the engine's match arm
+  sits, the else beside the state-change arm - counts every
+  match and ORs LL_SIG_AC_TIME (bit 9) when gate && count >=
+  gate; unresolved targets (tidx < 0) never reach the arm. No
+  time= line = gate 0 = never, and the count stays observable
+  but inert.
+
+- FINDING 3, ENTER SITES = ENGINE SITES. The placement ctor's
+  ENTER on the INITIAL record (0x539e6-0x539fb, PR-161 F4) is
+  the port's lazy ENTER at the object's FIRST scripted obj_-
+  advance call (placement slots come from obj_slot, which mem-
+  sets, so the once-flag starts clean); the applier's state-
+  change arm (0x535c2) is obj_enter at the end of obj_transi-
+  tion's change arm AND at the two forced sites (the death
+  force to A_DEAD, PR-90's A_ATAK arm). All four carry the
+  same zero-and-roll.
+
+- FINDING 4, DOCUMENTED DIVERGENCE: LCG SCOPE. The engine
+  keeps ONE rand state at 0x76bc6 image-wide; the port keeps
+  act_r per object so the selftests are deterministic and one
+  object's rolls cannot be shifted by another's. No shipped
+  content authors time=, so no shipped leg observes the dif-
+  ference; the divergence is written at the struct (counted
+  open item 2).
+
+- FINDING 5, THE brk || APPROXIMATION STAYS, ADDITIVELY.
+  obj_cond_true still reads AC_TIME as "list-end bit OR
+  raised bit 9": the engine arms the list-end bit inside the
+  walk's own key while the port passes it as an argument, and
+  the new raise only ADDS the second term. But the raise now
+  fires from a real count, and in the port a raise mid-list
+  is visible to LATER lines of the SAME obj_transition call -
+  whether the engine's in-walk raise behaves that way is ex-
+  actly PR-164's mechanism-boundary question (item 1). The
+  raise is a per-step pulse like every other sig bit (the
+  step tail clears o->sig); the engine's live-set lifetime is
+  the same open question (item 6).
+
+- FINDING 6, CARRIED CODE COMMENTS FIXED (the PR-162 pre-
+ scription): the obj_transition header now cites the row step
+  at 0x521d4 (PR-107's 0x521d7 was one byte into the store),
+  the wrap+flag OR at 0x521c1-0x521c5, the reverse arm at
+  0x521a1-0x521b1 with the SEQ_REV_X/Y names, and the unified
+  ENTER half of 0x52360; the brk_arm struct comment and the
+  end-of-list branch in obj_advance cite the corrected wrap
+  site instead of the old "caller's key buffer (0x521d7)" at-
+  tribution; the obj_cond_true header states the real law and
+  names brk || as the remaining approximation.
+
+- TESTS. obj_actime_selftest, wired right after obj_state_-
+  selftest in the mov chain; five legs, all hand-derived and
+  data-free, the LCG starting fresh (state 0) so its stream
+  is a constant: first output 0 (gate = lo for ANY pair),
+  second output 21468 (hand-derivation in EVIDENCE).
+  LEG 1: placement ENTER rolls (2,50) to 2; a match at brk=0
+  counts 1 and does nothing; the SECOND match RAISES and the
+  object's OWN `A_TWO(1)=AC_TIME` line takes it - the state
+  change IS the observation, since with brk=0 only bit 9 can
+  make that line true. The change ENTERs the target: A_TWO
+  authors no time=, so gate must read 0 and counter 0, and
+  the first match in the just-entered state must still show
+  gate 0 (this leg kills the stale-gate mutant).
+  LEG 2: ten further matches in that no-time= state: never.
+  LEG 3: whole-script no time=: gate 0 at ENTER, six matches,
+  never (kills a dropped `act_gate &&` guard).
+  LEG 4: the single-value form time=2 -> deterministic gate
+  2; the state-change ENTER rolls the SECOND output: the
+  port's reading of the engine's lerp on (1,10) is exactly
+  1 + 9*21468/32767 = 6 - five matches silent, the SIXTH
+  raises (no consumer line: the raise is observed directly on
+  the live set, and its absence before the 6th is pinned by
+  the silent five).
+  LEG 5: a lethal hit forces A_DEAD while gate=2 and count=1
+  are live - ENTER at the forced site must clear both.
+
+- MUTATION BATTERY (11 mutants under /tmp/opencode/pr163/mut/
+  built and run through the full mov chain): 9 KILLED, each
+  naming its leg - M1 drop the raise (L1), M2 drop the count
+  (L1), M3 no roll, gate=lo always (L4's gate-6 pin), M4 no
+  gate-zero at the no-time= arm (L1's just-entered leg), M5
+  gate=hi (L1), M6 no placement ENTER (L1), M7 no ENTER at
+  the state-change arm (L1), M8 no ENTER at the death force
+  (L5), M9 raise whenever count>=gate without the gate guard
+  (L2/L3). TWO SURVIVORS, STATED NOT HIDDEN: M10 "count
+  cross-state matches too" is unobservable BY CONSTRUCTION -
+  every cross match changes state and its ENTER zeroes the
+  counter in the same step (the engine's arm is same-state-
+  only, so the mutation models a shape only a non-changing
+  cross match could reveal: item 4); M11 "remove the ENTER at
+  the A_ATAK force" is UNREACHABLE - no content and no test
+  drives the DANGER MAIN-box force while a gate is live
+  (item 5).
+
+- OPEN ITEMS COUNTED (6 new). (1) The in-walk visibility of
+  the raise: the port makes a raised bit 9 visible to later
+  lines of the same call; PR-164's boundary read (where the
+  applier is invoked from) decides the engine's truth. (2) The
+  per-object vs single 0x76bc6 LCG scope (documented, unob-
+  servable in shipped content). (3) The engine's lerp at
+  max=min stays the engine's side of the single-value reading
+  (the port's reading is its formula's direct evaluation and
+  is now PINNED by L4; carried from PR-160). (4) M10's con-
+  structed unobservability - the counter model's exact bound-
+  ary (a cross match that did NOT change state, if the engine
+  has one, would count differently). (5) M11's unreachability
+  - the forced-change ENTER at A_ATAK is untested code. (6)
+  The raise's per-step pulse + clear vs the engine's live-set
+  lifetime (part of item 1's boundary). CARRIED unchanged:
+  PR-162 items (1)-(5) except the flag-map close, PR-161's
+  walk-return encoding and pool contents, the ladder-gate data
+  block, the flip-bit re-attribution.
+
+- GATES. make clean; make - ZERO warnings; make win - ZERO
+  warnings; make ll_level (forced relink, the Makefile skip
+  trap); ./ll_level --mov-selftest rc=0 (five new legs + the
+  whole existing chain); ./ll_level --play-selftest rc=0;
+  make -k verify-all rc=0 WITH fixtures (56 (ok)) and FIX-
+  TURE-FREE (10 (ok) + the same 23 named SKIPs) - the law is
+  proven corpus-neutral in both modes; git diff shows NO over-
+  79 line added to any touched file; every added .md prose
+  line <= 79; over-79 baselines UNCHANGED (NEXT_STEPS 71,
+  HANDOFF 72); no game data or frames in git (scratch /tmp/
+  opencode/pr163/); .github/workflows/* untouched; the image
+  unchanged (text.bin sha256 edf19a12...). CI note: PR-160/
+  161's runs had been CANCELLED by "Install toolchain" hangs
+  - `gh run rerun` issued this pass; PR-162's run (033c12d)
+  confirmed green.
+
+- EVIDENCE. /tmp/opencode/pr163/: final_mov.log/final_play.
+  log (both rc=0, empty stderr), final_verify_fixture.log
+  (56 (ok)), final_verify_nofix.log (10 (ok) + 23 SKIPs),
+  mut/muts.py + per-mutant M1..M11 build/mov/play logs (the
+  9 kills quote their exact first-failure lines), and the
+  hand-derivation of the LCG constants: state 0 -> 12345 =
+  0x3039 after the first step (output (12345>>16)&0x7fff =
+  0), second state 3554416254 (output 21468), 9*21468 =
+  193212, 32767*5 = 163835 < 193212 < 32767*6 - so
+  1 + 193212/32767 = 6 exactly. Corpus: unchanged. Ledger
+  rule (PR-158 F1) applied: census first - HEAD 033c12d car-
+  ries PR-150..PR-162 (last carrier HEAD); records re-spliced
+  from it, zero brackets this pass (Finding 1 verified no
+  older record needs superseding: PR-107 item 2 already shows
+  the 0x52070 call inside the row-setter).
 
 ## Deferred big items (deliberately out of scope so far)
 

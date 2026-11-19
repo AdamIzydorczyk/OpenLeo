@@ -3402,6 +3402,44 @@ writer as its open items.
      CHANGED (71/72); image unchanged; ledger census run (HEAD
      = last carrier). Full record: the PR-162 section of NEXT_
      STEPS.md (scratch /tmp/opencode/pr162/).
+   - PR-163 (CODE + TESTS): THE AC_TIME LAW IS SHIPPED BE-
+     HAVIOUR. The engine law PR-159/160/162 closed now runs
+     in the port: time_lo/time_hi parse (single values pair
+     to lo==hi, the engine scanf's own shape), obj_enter rolls
+     gate = lo+(hi-lo)*rand/32767 with the Borland LCG verba-
+     tim at EVERY state-change site - a LAZY placement ENTER
+     (the ctor ENTER 0x539e6/0x539fb), the transition change
+     arm (0x535c2), the death force, the A_ATAK force; obj_-
+     transition's same-state arm (the engine's match arm at
+     0x53626-0x5365c) counts matches and raises bit 9 exactly
+     when gate && count >= gate; no time= = never. UNIFIED
+     ENTER STATED IN CODE: record-table +0x1c (0x52360) is
+     ONE body - PR-107's row-set half AND PR-160's gate half
+     - and the port splits it exactly where the applier splits
+     it (ll_mov_row_start + obj_enter); the carried ll_level.c
+     comments are FIXED per PR-162 (row step 0x521d4, wrap+
+     OR-4 0x521c1-0x521c5, SEQ_REV_X/Y reverse, brk || labeled
+     as the remaining approximation, raise additive). Five-leg
+     obj_actime_selftest, all hand-derived: the fresh-object
+     LCG stream (0, 21468) pins the rolls ((2,50) -> 2; the
+     single-value deterministic gate; lerp(1,10) at 21468 =
+     exactly 6); the state change ITSELF proves the raise (the
+     consuming line tested at brk=0); the death force clears a
+     live gate+count. MUTATION BATTERY: 11 mutants, 9 KILLED
+     naming their legs; 2 SURVIVORS STATED: cross-match count-
+     ing (unobservable BY CONSTRUCTION - the change ENTER zero-
+     es) and the A_ATAK-force ENTER (unreachable with current
+     content). ZARIA.01 output: UNCHANGED - zero time= lines;
+     proved both ways: verify-all WITH fixtures 56 (ok) and
+     fixture-free 10 (ok) + the same 23 SKIPs, all rc=0; make
+     + make win ZERO warnings; ll_level force-relinked. New
+     open items 6 (headline: in-walk visibility of the raise
+     = PR-162's mechanism boundary = PR-164's read; per-object
+     vs the engine's single 0x76bc6 LCG state, documented). CI
+     note: PR-160/161's runs had been cancelled by toolchain-
+     install hangs - gh run rerun issued; PR-162's run is CONF-
+     IRMED GREEN. Full record: the PR-163 section of NEXT_
+     STEPS.md (scratch /tmp/opencode/pr163/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -5285,6 +5323,43 @@ importantly the mechanism boundary: where the transition ap-
 plier is invoked from (the port's per-row transition model de-
 pends on it). ZARIA.01 output: UNCHANGED (docs-only, nothing
 compiled). Baselines 71/72 held; ledger census run.
+
+STATUS after PR-163 (THE AC_TIME LAW IS NOW PORT CODE, and
+ZARIA.01 output is UNCHANGED): the time= pair lives as
+time_lo/time_hi (parse_pair pairs single values exactly like
+the engine scanf leaves max unset=min); obj_enter zeroes the
+match counter and rolls gate = lo + (hi-lo)*rand/32767 with
+the Borland LCG verbatim; obj_transition's SAME-STATE arm -
+the port's copy of the engine's match arm at 0x53626-0x5365c -
+counts matches and raises LL_SIG_AC_TIME (bit 9) exactly when
+gate && count >= gate; no time= = gate 0 = never. ENTER runs
+at all four state-change sites mirroring the engine: a LAZY
+placement ENTER at the first scripted tick (the 0x539e6/0x539fb
+ctor ENTER), obj_transition's change arm, the death force, and
+the A_ATAK force. The unified ENTER is now stated IN THE CODE:
+record-table slot +0x1c (0x52360) is ONE body - PR-107's row-
+set half and PR-160's gate half - and the port splits it the
+same way the applier reaches it (ll_mov_row_start + obj_enter).
+CARRIED CODE COMMENTS FIXED: the row step 0x521d4, wrap+OR-4
+at 0x521c1-0x521c5, reverse via SEQ_REV_X/Y 0x10/0x20, and
+the brk || approximation is now labeled as exactly that (the
+raise is additive). obj_actime_selftest adds FIVE hand-derived
+legs (fresh-object LCG stream 0, 21468 pins the roll: gate
+(2,50)=2, the single-value deterministic gate, lerp(1,10) at
+r=21468 = exactly 6; the state change itself proves the raise,
+since the consuming line is tested at brk=0; the death force
+clears a live gate+count). MUTATION BATTERY 11 mutants: 9
+killed; 2 SURVIVORS STATED - M10 cross-match counting (unob-
+servable by construction: the change ENTER zeroes) and M11
+(A_ATAK-force ENTER unreachable with current content). DIVER-
+GENCE DOCUMENTED: per-object LCG state vs the engine's single
+0x76bc6. 6 open items counted, the in-walk-visibility one
+merged with PR-162's mechanism boundary = PR-164's read. Gates
+ALL RUN: make + make win zero warnings, ll_level relinked,
+mov/play selftests rc=0, verify-all BOTH modes unchanged (56
+/ 10+23), no over-79 added, baselines 71/72 held. CI note:
+PR-160/161's cancelled runs re-issued via gh run rerun; PR-
+162's run confirmed green.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

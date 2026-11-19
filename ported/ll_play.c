@@ -660,18 +660,26 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                         m->drop_tr++;
                     }
                 } else if (strncmp(line, "time=", 5) == 0) {
-                    /* PR-83: `time=<n>` (or an `n,m` range: seen as 32,64
-                     * / 90,120 / 220 / 350) sits next to several AC_TIME
-                     * transitions, but its UNIT is undetermined and acting
-                     * on it changed real behavior wrongly (as ms: ENA.03's
-                     * A_SWIM left state 2 ticks after spawn). So it is
-                     * parsed for the record only, and stays counted: the
-                     * player's proven AC_TIME source is the frame's
-                     * `GEN AC_TIME` tail. OPEN QUESTION (recorded). */
+                    /* PR-83 parsed this as counted-only; PR-163 MODELS
+                     * the engine law (PR-159 F2/PR-160 F2-F3): `time=<min>
+                     * [,max]` is the AC_TIME BOUNDS PAIR - ENTER rolls the
+                     * gate uniformly in it (Borland rand), and same-state
+                     * transition matches raise AC_TIME when the count
+                     * reaches the roll; no line = never. The engine's
+                     * scanf pair ('%hi' / ',%hi') leaves max=min when the
+                     * comma is absent (the single-value `time=350` form,
+                     * ENA.03_SURPRISE) - parse_pair does the same, so the
+                     * form needs no special case HERE; what the engine's
+                     * lerp computes with max=min stays its open item (the
+                     * port's reading: gate=min, a deterministic N-match
+                     * wait; PR-163 selftest pins it). Still counted so no
+                     * report number moves. */
                     int t1 = 0, t2 = 0;
                     parse_pair(line + 5, &t1, &t2);
-                    if (t1 > 0)
-                        s->time_ms = t1;
+                    if (t1 > 0) {
+                        s->time_lo = t1;
+                        s->time_hi = t2;
+                    }
                     s->field_other++;
                 } else if (strncmp(line, "time_scale", 10) == 0) {
                     /* PR-110 IMPLEMENTS this, it used to be counted.
@@ -2432,7 +2440,9 @@ int ll_play_selftest(void)
 
         CHECK(pm && ll_plt_parse(PP, &pp) == 0);
         CHECK(ll_mov_parse(PK, pm) == 2);
-        CHECK(pm->st[1].time_ms == 50);                /* parsed, counted  */
+        CHECK(pm->st[1].time_lo == 50 && pm->st[1].time_hi == 50);
+        /* PR-163: the single-value form pairs to (50,50) exactly as the
+         * engine's scanf pair leaves max=min (the `time=350` shape) */
         ll_player_start(&q, pm, 500, 100, 1);
         /* PR-135 RE-DERIVED THE TIMING AND THE RATE: one call is one
          * iteration, every feed is 100 units, and [A_RUN]'s first row
