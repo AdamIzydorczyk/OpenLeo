@@ -900,6 +900,20 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
         if (s->tr[t].tidx < 0)
             continue;                         /* unresolved */
         if (s->tr[t].tidx == o->sti) {
+            /* PR-174: the arm opens with the ROW write, exactly as the
+             * engine's does: 0x5360f-0x53616 read the current record's
+             * row counter, skip the store only when it already holds the
+             * value (0x53612 - which today only gates the +0xac verb's
+             * call, an unread body, item (1)), else `mov [eax+0x4],edx`
+             * stores the authored start row into it. PR-107 settled the
+             * value's shape for THIS path: stored raw, and an absent
+             * token (-1) lands on row 0 through the stepper's wrap
+             * (0x521c5) - "the same visible result" as starting at the
+             * top - so the shared ll_mov_row_start mapping is the
+             * engine's observable behaviour here (its over-long clamp
+             * stays the recorded PR-107 model choice). */
+            o->fi = ll_mov_row_start(&mov->st[o->sti],
+                                     s->tr[t].entry);
             /* PR-163: the engine's same-state match arm (0x53626-0x5365c,
              * the else beside the applier's state-change arm): a MATCH
              * that keeps this state is the AC_TIME counting event - it
@@ -2971,6 +2985,183 @@ out:
     return rc;
 }
 
+/* PR-174: the same-state match arm writes the authored start row into
+ * the CURRENT state's row counter - the engine's first act at
+ * 0x5360f-0x53616 (`mov esi,[eax+0x4]; cmp esi,edx; je skip; mov
+ * [eax+0x4],edx`), which sits BEFORE the 0x53626 count arm and calls
+ * no ENTER. PR-107's settlement applies to this path: the value is
+ * stored raw, an absent token lands on row 0 at the next tick through
+ * the stepper's wrap (0x521c5) - "the same visible result" as the top
+ * - and the port's mapping is the shared ll_mov_row_start (entry ->
+ * entry-1; empty/non-numeric/over-long -> the top, the recorded
+ * model choices). The row the seek writes is the LIVE row: its
+ * threshold gates the next advance (legs B and the advances after
+ * C/E). ZARIA.01 grounding for the record: ZERO self-target lines in
+ * any ZARIA.01 scene-object script (the port-parser census
+ * reproduces PR-107's 101 exactly: LION 77 / SCENE 24; all 20
+ * ZARIA.01 ones are the lion's own scripts) - so this behaviour is
+ * law-completion for the object path, observable on KADMAR/LONA-
+ * class data, and no shipped ZARIA.01 object output moves. */
+static int obj_rowseek_selftest(void)
+{
+    static const char rs[] =
+        "A_ONE\nA_TWO\n\n[A_ONE]\ncontrol=BY_TIME\n"
+        "A_TWO(1)=K_GEN1\nA_ONE(3)=K_GEN2\nA_ONE(1)=K_GEN5\n"
+        "A_ONE()=K_GEN3\nA_ONE(9)=K_GEN4\n"
+        "1,70\n2,240\n3,70\n4,70\n5,70\n6,70\n\n[A_TWO]\n"
+        "control=BY_TIME\nA_ONE(4)=K_GEN2\n1,100\n";
+    int rc = 1;
+    ll_mov_t *m = calloc(1, sizeof *m);
+    obj_script sc;
+    lvl_obj a;
+
+    if (!m)
+        goto out;
+    memset(&sc, 0, sizeof sc);
+    sc.mov = m;
+    if (ll_mov_parse(rs, m) != 2 || m->st[0].ntr != 5 ||
+        m->st[0].nfr != 6) {
+        fprintf(stderr, "object rowseek selftest: FAILED parse"
+                        " (nst %d ntr %d nfr %d)\n", m->nst,
+                        m->st[0].ntr, m->st[0].nfr);
+        goto out;
+    }
+    memset(&a, 0, sizeof a);
+    a.sc = &sc;
+    obj_advance(&a, LL_ITER_MS);          /* row 0 (gate 70) opens:   */
+    if (a.fi != 1 || a.row_t != 30u) {   /* fi 1, remainder 30        */
+        fprintf(stderr, "object rowseek selftest: FAILED the opening"
+                        " step (fi %d t %u want fi 1 t 30)\n", a.fi,
+                a.row_t);
+        goto out;
+    }
+    /* LEG A: the seek to (3) lands on row 2 and the object KEEPS the
+     * state (the M1 no-write and M2 raw-store mutants land 1 and 3;
+     * M6, which gates the write on a rolled AC_TIME gate, lands 1:
+     * this state has no time= line and the seek is unconditional). */
+    a.sig = 1ull << LL_SIG_K_GEN2;
+    obj_transition(&a, m, 0);
+    a.sig = 0;
+    if (a.sti != 0 || a.fi != 2) {
+        fprintf(stderr, "object rowseek selftest: FAILED the seek to"
+                        " (3) (state %d fi %d want state 0 fi 2)\n",
+                a.sti, a.fi);
+        goto out;
+    }
+    /* LEG B: the seeked row is LIVE - its gate 70 opens this very
+     * step (30+100=130, remainder 60). A seek that landed anywhere
+     * else would not meet gate 70 from the carried 30. */
+    obj_advance(&a, LL_ITER_MS);
+    if (a.fi != 3 || a.row_t != 60u) {
+        fprintf(stderr, "object rowseek selftest: FAILED advancing"
+                        " from the seeked row (fi %d t %u want fi 3"
+                        " t 60)\n", a.fi, a.row_t);
+        goto out;
+    }
+    /* LEG C: the empty token (the "(x)" class the parser maps to
+     * entry 0) ALSO re-seeks - to the top, from row 3. The engine
+     * stores its -1 raw and the wrap lands 0; same visible row
+     * (PR-107); the M3 skip-empty mutant lands fi 3 here. */
+    a.sig = 1ull << LL_SIG_K_GEN3;
+    obj_transition(&a, m, 0);
+    a.sig = 0;
+    if (a.sti != 0 || a.fi != 0) {
+        fprintf(stderr, "object rowseek selftest: FAILED the empty-"
+                        "token seek (state %d fi %d want state 0 fi"
+                        " 0)\n", a.sti, a.fi);
+        goto out;
+    }
+    obj_advance(&a, LL_ITER_MS);          /* the top is live: 160     */
+    if (a.fi != 1 || a.row_t != 90u) {   /* opens row 0, fi 1, 90    */
+        fprintf(stderr, "object rowseek selftest: FAILED advancing"
+                        " from the empty-token top (fi %d t %u want"
+                        " fi 1 t 90)\n", a.fi, a.row_t);
+        goto out;
+    }
+    /* LEG D: (1) = row 0 = the top - the engine's "(1) is the
+     * engine's row 0" (PR-107) - from row 1; a raw store (M2)
+     * lands 1 and a skip-small-token mutant lands 1 here too. */
+    a.sig = 1ull << LL_SIG_K_GEN5;
+    obj_transition(&a, m, 0);
+    a.sig = 0;
+    if (a.sti != 0 || a.fi != 0) {
+        fprintf(stderr, "object rowseek selftest: FAILED the (1)"
+                        " seek (state %d fi %d want state 0 fi 0)\n",
+                a.sti, a.fi);
+        goto out;
+    }
+    obj_advance(&a, LL_ITER_MS);          /* 190 opens row 0 again:   */
+    if (a.fi != 1 || a.row_t != 120u) {  /* fi 1, carry 120           */
+        fprintf(stderr, "object rowseek selftest: FAILED the step"
+                        " after the (1) seek (fi %d t %u want fi 1 t"
+                        " 120)\n", a.fi, a.row_t);
+        goto out;
+    }
+    /* LEG E: an over-long token (9 > 6 rows) clamps to the top - the
+     * recorded PR-107 model choice; an unclamped store (M4) lands 8
+     * and fails here. */
+    a.sig = 1ull << LL_SIG_K_GEN4;
+    obj_transition(&a, m, 0);
+    a.sig = 0;
+    if (a.sti != 0 || a.fi != 0) {
+        fprintf(stderr, "object rowseek selftest: FAILED the over-"
+                        "long clamp (state %d fi %d want state 0 fi"
+                        " 0)\n", a.sti, a.fi);
+        goto out;
+    }
+    obj_advance(&a, LL_ITER_MS);          /* the clamped top is live: */
+    if (a.fi != 1 || a.row_t != 150u) {  /* 220 opens row 0: fi 1    */
+        fprintf(stderr, "object rowseek selftest: FAILED advancing"
+                        " from the clamped top (fi %d t %u want fi 1"
+                        " t 150)\n", a.fi, a.row_t);
+        goto out;
+    }
+    /* LEG F: the seek writes the ROW only - the register keeps the
+     * carried 150 (an arm that also zeroed it - M7 - lands 30 and
+     * fails here; PR-172's obj_rowzero_selftest pins the same law
+     * from its own side). Seek to (3) from fi 1, step: row 2's gate
+     * 70 opens (150+100=250, remainder 180) and row 2 is admitted
+     * (fi 3). */
+    a.sig = 1ull << LL_SIG_K_GEN2;
+    obj_transition(&a, m, 0);
+    a.sig = 0;
+    obj_advance(&a, LL_ITER_MS);
+    if (a.sti != 0 || a.fi != 3 || a.row_t != 180u) {
+        fprintf(stderr, "object rowseek selftest: FAILED the carried"
+                        " register across the seek (state %d fi %d t"
+                        " %u want state 0 fi 3 t 180)\n", a.sti,
+                a.fi, a.row_t);
+        goto out;
+    }
+    /* LEG G (regression, PR-107): the state-CHANGE arm's authored
+     * seek is untouched by this PR - first into A_TWO, then the
+     * (4) line there re-joins A_ONE at row 3, mid-list. */
+    a.fi = 0;
+    a.row_t = 0;
+    a.sig = 1ull << LL_SIG_K_GEN1;
+    obj_transition(&a, m, 0);
+    a.sig = 0;
+    if (a.sti != 1 || a.fi != 0) {
+        fprintf(stderr, "object rowseek selftest: FAILED the"
+                        " state-change control (state %d fi %d want"
+                        " state 1 fi 0)\n", a.sti, a.fi);
+        goto out;
+    }
+    a.sig = 1ull << LL_SIG_K_GEN2;
+    obj_transition(&a, m, 0);
+    a.sig = 0;
+    if (a.sti != 0 || a.fi != 3) {
+        fprintf(stderr, "object rowseek selftest: FAILED the"
+                        " cross-state seek to (4) (state %d fi %d"
+                        " want state 0 fi 3)\n", a.sti, a.fi);
+        goto out;
+    }
+    rc = 0;
+out:
+    free(m);
+    return rc;
+}
+
 static int obj_motion_selftest(void)
 {
     static const char run[] =
@@ -3971,7 +4162,7 @@ int ll_mov_selftest(void)
         seq_shape_selftest() != 0 || seq_push_selftest() != 0 ||
         obj_layer_selftest() != 0 || obj_state_selftest() != 0 ||
         obj_actime_selftest() != 0 ||
-        obj_rowzero_selftest() != 0 ||
+        obj_rowzero_selftest() != 0 || obj_rowseek_selftest() != 0 ||
         obj_motion_selftest() != 0 || contact_model_selftest() != 0 ||
         ladder_answer_selftest() != 0 || place_grammar_selftest() != 0) {
         free(sc.mov);

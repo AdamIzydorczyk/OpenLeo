@@ -3957,6 +3957,51 @@ writer as its open items.
      run (HEAD af3e3ff = last carrier, 23 records). Full
      record: the PR-173 section of NEXT_STEPS.md (scratch
      /tmp/opencode/pr173/).
+   - PR-174 (CODE + TEST): THE SAME-STATE MATCH NOW WRITES
+     THE AUTHORED START ROW in the object path, exactly as
+     the engine's arm does (0x5360f-0x53616: read the current
+     record's row counter, store only if it differs, then the
+     0x53626 count arm; no ENTER, the register carried -
+     PR-172). The CENSUS (C tool linking ported/ll_play.c,
+     PR-107's method; /tmp/opencode/pr174/) reproduced PR-
+     107's numbers EXACTLY - 2767 lines, self-target buckets
+     92 absent + 24 "(1)" + 101 seeks (12 over-range) - and
+     added the split PR-107 left open: LION 77 / SCENE 24.
+     ZARIA.01: ALL 20 seek lines are the lion's own scripts
+     (ZAR_LEW/ZAR_LEWPL: A_BORRING/A_DEAD/A_FALL_DOWN/
+     A_FG_PACKA/A_FIGHT/A_JUMP/A_JUMP_S/A_KILOF), and NO
+     ZARIA.01 scene .MOV has ANY self-target line - so the
+     fix is provably unobservable here; the verify-all fix-
+     tures (56 ok, byte-identical ZARIA.01 output) prove it
+     from the other side; the fix is what makes the 24 KAD-
+     MAR/KADMAR2/LONA lines behave at their stages. The im-
+     plementation is the SHARED ll_mov_row_start rule (fourth
+     call site; "(1)"/absent/over-long = the recorded PR-107
+     model choices, already settled for this exact path).
+     obj_rowseek_selftest (7 legs: seek lands live, empty
+     token re-seeks from a non-top row, (1)-top, over-long
+     clamp, row-only (register carried), cross-state regress-
+     ion): mutation battery 6/7 KILLED (no-write, raw-store,
+     skip-empty, no-clamp, gate-on-AC_TIME, zero-register);
+     SURVIVOR STATED: the engine's literal equality guard -
+     equivalent by definition; its only unmodelled half is
+     class verb +0xac (NEW counted item: called on state
+     change at 0x535f7 and only on changing same-state writes
+     at 0x5361c-0x53620; body unread). The PLAYER-side half
+     stays open WITH ITS FULL DATA (new counted item): the
+     20 lion lines' conditions are AC_TIME/AC_DUP/|K_ANY/
+     K_FIRE,K_GEN2/AC_RECT,K_GEN1 - the player path models
+     none of those signal legs; PR-86's keep-running stays
+     shipped until the signal-side model + fresh frames run.
+     PR-107 item (2) CLOSED for the object path (bracketed,
+     re-scoped to the player side); the PR-172 row-seek cand-
+     idate CLOSED. 2 new items; 2 brackets (both closures).
+     Gates: make/make win ZERO warnings, ll-
+     _level re-linked, mov-selftest rc=0, verify-all rc=0
+     BOTH ways (56 ok; 10 ok + 23 named SKIPs); added lines
+     <= 79; baselines 71/72 held; census (HEAD carries PR-
+     150..PR-173, last carrier). Full record: the PR-174
+     section of NEXT_STEPS.md (scratch /tmp/opencode/pr174/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -6281,6 +6326,50 @@ KADMAR camel K_* reachability at its stage; 0x504e0/0x551f0).
 ZARIA.01 output: nothing executed differently (comment-only
 edit in ll_play.h). Gates: zero warnings both platforms,
 ll_level re-linked, mov-selftest rc=0; baselines 71/72 held.
+
+STATUS after PR-174 (the SAME-STATE ROW SEEK shipped for the
+object path): obj_transition's same-state arm now opens as the
+engine's does - it writes the authored start row into the cur-
+rent state's row counter BEFORE the PR-163 count legs (0x5360f-
+0x53616: store only when it differs; the guard's other half is
+the +0xac verb call, unread, counted), calls no ENTER, and the
+feed register stays carried (PR-172's law, mutant M7 pins it
+again). The mapping is the shared ll_mov_row_start - the fourth
+call site of the one rule (N>=2 -> N-1; "(1)"/absent/over-long
+-> the top, all already settled for this path by PR-107). OBSER-
+VABILITY (census, C tool linking ported/ll_play.c - PR-107's
+method, numbers reproduce PR-107 EXACTLY: 2767 lines, 92 absent
++ 24 "(1)" + 101 seeks, 12 over-range): the 101 split LION 77 /
+SCENE 24 (KADMAR.07 19, KADMAR2 3, LONA.05 2); ZARIA.01 has
+ALL 20 in the lion's ZAR_LEW/ZAR_LEWPL and NOT ONE self-target
+line in any ZARIA.01 scene script - shipped ZARIA.01 object out-
+put is provably unchanged, and the verify-all fixtures (56 ok,
+byte-identical) confirm it. The fix is law-completion: it is
+what makes the 24 KADMAR/LONA-class lines behave at their T6+
+stages. TEST: obj_rowseek_selftest, 7 hand-derived legs (seek
+lands and is the LIVE row; empty token re-seeks to the top from
+row 3; "(1)" = top; over-long clamp; row-write-only with the
+carried 150 opening row 2's gate from 250; cross-state PR-107
+regression through A_TWO's (4) line). MUTATIONS: 6/7 killed -
+no-write, raw-store, skip-empty, no-clamp, gate-on-AC_TIME,
+zero-register (M2/M7 also die in PR-172's obj_rowzero_selftest
+- cross-coverage); the SURVIVOR is the engine's own equality
+guard (observationally equivalent; the unmodelled half is +0xac
+- counted item 1). THE PLAYER SIDE STAYS OPEN with its full
+data (item 2): the 20 lion lines (A_BORRING(10), A_DEAD(33) x2,
+A_FALL_DOWN(3), A_FG_PACKA(17), A_FIGHT(20), A_JUMP(11),
+A_JUMP_S(9), A_KILOF(13)/(25)) key on AC_TIME/AC_DUP/|K_ANY/
+K_FIRE,K_GEN2/AC_RECT,K_GEN1 - the player path models none of
+those signal legs, and lion row changes re-open T2/T3 animation
+claims, so PR-86's keep-running stays shipped until the signal-
+side model + fresh frames run (the applier is class-independent
+- PR-107's fixed record table 0xa25d4 - so the engine DOES re-
+seek the lion's rows: this is a real divergence, bounded and
+listed, not hand-waved). ZARIA.01 output: nothing executed dif-
+ferently. Gates: zero warnings both platforms, ll_level re-
+linked, mov-selftest rc=0 with the new test in the chain, ver-
+ify-all rc=0 both ways (56 ok; 10 ok + the same 23 named SKIPs);
+baselines 71/72 held.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

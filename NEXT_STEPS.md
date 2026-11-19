@@ -7671,6 +7671,19 @@ first thing to check and it is `eax/edx/ebx`, not the 64-bit form.
   seek; the engine re-seeks on EVERY same-state match (0x53616,
   inline, no ENTER). Candidate small code PR once the entry-
   token census of the 101 lines is done; now on the Next list.]
+  [CLOSED FOR THE OBJECT PATH BY PR-174: the entry-token
+  census ran through the port's own parser and reproduced THIS
+  record's numbers EXACTLY (2767 transition lines; 92 absent +
+  24 "(1)" + 101 seeks, 12 of them over-range); the split it
+  could not measure is now measured - 77 lion / 24 scene
+  (KADMAR.07 19, KADMAR2 3, LONA.05 2) - and ZARIA.01 carries
+  all 20 of its seeks in the lion's own scripts, ZERO in any
+  scene script. The object arm now writes the authored row
+  exactly as this paragraph's 0x53616 says (obj_transition +
+  obj_rowseek_selftest, 6/7 mutants killed, the equality-guard
+  survivor stated). The remaining half is PLAYER-side only -
+  PR-174's counted item (2), whose 20 lines and conditions are
+  listed there.]
   (3) The owner side of the row-set method. `[rec+0]` is
   the owner: 0x52369 and 0x52663 both read it and 0x5266c then clears bit
   0x20 of `[owner+0xb6]`, the byte PR-98 read the drag floor in - so
@@ -15749,69 +15762,86 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-174 IS THE SAME-STATE ROW SEEK code PR (carried from PR-
-  172's Next, spec unchanged): the engine's match arm writes
-  the authored start row into the CURRENT state's row counter
-  inline (0x53616) on EVERY same-state match; the port's
-  object arm counts the match (PR-163) but never re-seeks,
-  and its player side deliberately keeps running (PR-86).
-  Census FIRST: how many of the 101 shipped self-target lines
-  carry a row token and which rows (the /tmp/opencode/mov
-  scratch answers it); then the fix + a hand-derived test +
-  mutation battery if shipped rows can reach it.
-- THEN the KEY-FOLLOW-UP items opened by PR-173 (pull in one
-  pass where they interlock): (a) the +0x8c TWO contracts —
-  which families' objects actually run 0x536f0's pump merge
-  (PR-153's "every LION tick" vs the 99-family boolean
-  0x23870; the default wrapper 0x400b0 is a position path, so
-  per-family state-step attribution is OPEN); (b) [obj+0xa9]
-  and [obj+0xad] readers (the boolean and the ordinal-pair
-  field in 0x55130/0x550c0); (c) the ~76 per-class +0x78
-  singleton providers as a family (0x28af0 = PR-155's bit-54
-  raiser, +0x78 install noted; reading it whole is the named
-  lead for the K_GEN1 platform key half); (d) [obj+0x75], the
-  second 13-byte TEventSet next to the live set: producers
-  and readers; (e) 0x504e0/0x551f0 whole; (f) 0x9c05c/9c054
-  identity (updated: its slots are +0x78 0x552e0, +0x8c
-  0x54910, +0x9c const-true 0x23a40, +0xd0 0x54550 = PR-
-  170's timed registration, +0xd8 0x31ba0 — a pool-joining
-  motion-synth class installed by the 0x300d7 creation
-  path).
+- PR-175 IS THE KEY-FOLLOW-UP INTERLOCK PASS (carried from
+  PR-173's Next, items (a)+(b) pulled together because they
+  share their call-site reads): (a) the +0x8c TWO contracts -
+  which families' objects actually run the 0x536f0 pump merge
+  (0x54910 x115 / base 0x52750 / 0x23a60 x38 buffer getters)
+  versus the 99 family-B tables whose +0x8c is the BOOLEAN
+  0x23870 ([obj+0xa9] != 0); the default wrapper 0x400b0 is a
+  position path (+0x68/+0x70/+0x71), so per-family state-step
+  attribution is OPEN, and PR-153's "every LION tick" wording
+  must be re-checked against the 99 family; (b) the field
+  readers: who reads [obj+0xa9] (the boolean's field), the
+  [obj+0xad] ordinal pair in 0x55130/0x550c0 (an ORDER or an
+  ENERGY field? - PR-89's obj docs already call [obj+0xad]
+  the energy counter: reconcile with PR-173 F3's ordinal
+  reading - the two may be the SAME field, say so or
+  separate them), and [obj+0x75], the SECOND 13-byte
+  TEventSet adjacent to the live set (installed as the
+  0x23a20 getter answer at x38+ tables): producers, readers,
+  and whether the pump merge sees it. Method: cross-reference
+  the +0x8c call sites (the pump 0x536f0 verbatim is already
+  pinned; find every caller of the pump and every caller of
+  the boolean), and the image-wide read/write census for the
+  three offsets. A docs reading PR unless the answers point
+  at a port-side gap, then a code PR follows.
+- THEN the +0xac READ (PR-174's new item): the verb called
+  by the state-change applier at 0x535f7 (edx = the row
+  value, after ENTER) and by the same-state arm ONLY on a
+  changing write (0x5361c-0x53620) - the base table's slot
+  and the per-class variants; it is the other half of the
+  0x53612 guard and may re-ground the row-seek model. It
+  interlocks with PR-175's call-site maps: pull it into that
+  pass if the census of the slot tables lands there.
+- THEN the per-class +0x78 singleton family (~76 tables):
+  0x28af0 whole read (the named lead for the K_GEN1 platform
+  key half; PR-155/156 recorded it raising bit 54 at
+  0x28af2), and the rest as census only.
 - THEN the BY_TY FEED READ (PR-172 item): 4 shipped ZARIA.01
-  states use control=BY_TY (rows gated 200/300); the port runs
-  them as plain time states. Read the feed dispatcher 0x543a0's
-  mode arm for that token (PR-166's +0x14 map) and its
-  relation to the [obj+0xba]/[obj+0xbe] pair; a labeled model
-  note or a feed implementation follows.
+  states use control=BY_TY (rows gated 200/300); the port
+  runs them as plain time states. Read the feed dispatcher
+  0x543a0 mode arm for that token (PR-166's +0x14 map) and
+  its relation to the [obj+0xba]/[obj+0xbe] pair; a labeled
+  model note or a feed implementation follows.
+- THEN the PLAYER-SIDE same-state seek (PR-174 item (2)):
+  the 20 ZARIA.01 lion lines (conditions: AC_TIME x2, AC_DUP,
+  |K_ANY, K_FIRE,K_GEN2, AC_RECT,K_GEN1 - the player path
+  models NONE of those signal legs) - the signal-side model
+  first (the AC_TIME count + live-set bits on the lion),
+  THEN the row writes, with fresh frame evidence for any
+  changed T2/T3 animation claim. PR-86's keep-running stays
+  shipped until then.
 - THEN the KADMAR camel reachability item (PR-173 F5): the
   K_*-keyed OBJECT rows (KADMAR.07_CAMEL_CAMEL.MOV,
-  KADMAR.07_0_0.MOV) — at that stage, decide whether the
-  engine raises those bits via synthesis (0x54910-shape
-  getters) or via the kind-0x10 arbitrary-bit law (PR-155);
-  only then is a port-side synthesizer justified. ZARIA.01 is
-  proven NOT to reach any of it (F5) — no port change now.
+  KADMAR.07_0_0.MOV) - decide synthesis (0x54910-shape) vs
+  the kind-0x10 arbitrary-bit law (PR-155) at that stage.
+  ZARIA.01 is proven NOT to reach any of it (F5) - no port
+  change now.
 - THEN the msg-id map + pool-name decode (carried unchanged):
   0x5460e/0x5463a arms, the id-to-meaning table; the pool
   names (PR-166 item 2 negatives banked) and the name-keyed
   path 0x4dcc0/0x4df10.
-- THEN carried reads (unchanged): the +0x60 conditional mi-
-  nority (PR-169 item 3); the vtable+0-word OR 4/8 row-end
-  CONSUMER (PR-164 item 1); [obj+0x99] reader semantics (PR-
-  167 item 5); the base table's +0x1c/+0x20 overrides (PR-
-  167 item 2); the 0xa2e9c/0xa2ed4 view selection (PR-167
-  item 3); 0x53520 arg plumbing + [obj+0x95] reader; the 31-
-  vs-24 +0x14-slot delta; record verbs +0x2c/+0x30 bodies +
-  the second-view slots 0x559c0/0x45800; the +0x9c per-class
-  gate variants (PR-168 item 4); the walk return-value encod-
-  ing (PR-161 item 1); 0x524xx rest; 0x446de; 0x57d30 modes;
-  FLAG +0x4c getter; the 0x4fef0 side-effect SEMANTICS
-  ([pool+0x3a0]/[0x3a8], ds:0xcf068) as PR-170 item (4).
+- THEN carried reads (unchanged): 0x504e0/0x551f0 whole and
+  0x9c05c/0x9c054 identity (PR-173 items (e)/(f)); the +0x60
+  conditional minority (PR-169 item 3); the vtable+0-word OR
+  4/8 row-end CONSUMER (PR-164 item 1); [obj+0x99] reader
+  semantics (PR-167 item 5); the base table's +0x1c/+0x20
+  overrides (PR-167 item 2); the 0xa2e9c/0xa2ed4 view
+  selection (PR-167 item 3); 0x53520 arg plumbing + [obj+0x95]
+  reader; the 31-vs-24 +0x14-slot delta; record verbs
+  +0x2c/+0x30 bodies + the second-view slots 0x559c0/0x45800;
+  the +0x9c per-class gate variants (PR-168 item 4); the walk
+  return-value encoding (PR-161 item 1); 0x524xx rest;
+  0x446de; 0x57d30 modes; FLAG +0x4c getter; the 0x4fef0
+  side-effect SEMANTICS ([pool+0x3a0]/[0x3a8], ds:0xcf068)
+  as PR-170 item (4).
 - LEDGER RULE (PR-158 F1): every Next-swap re-splices recent
   records from the LAST revision that carried them. Census
   recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
   `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD af3e3ff carries all twenty-three (PR-
-  150..PR-172); HEAD is the last carrier.
+  pass's census: HEAD carries all twenty-four (PR-150..PR-
+  173); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -20938,7 +20968,13 @@ ride item CLOSED; the PR-107 self-target row item UPDATED)
   still never applies their authored row seek - the engine
   writes rec+0x4 inline on every same-state match (0x53616,
   F2); a small code PR candidate once the entry-token census
-  of the 101 shipped self-target lines is done. (3) PR-170's
+  of the 101 shipped self-target lines is done. [CLOSED BY
+  PR-174: census done - the numbers of PR-107's method held
+  exactly, the LION/SCENE split came out 77/24, and the
+  object arm now performs the write; the lion's 20 lines
+  (ZARIA.01's only ones) moved to PR-174's player-side item
+  (2) - their signal conditions are unmodelled in the player
+  path, so PR-86's keep-running stays shipped.] (3) PR-170's
   "TAIL CALL" wording at 0x4fef0 corrected to a call at
   0x4ff6b (F1). CLOSED: PR-168 item (1) (the BY_TIME audit -
   audited, divergence real, fixed); the PR-164 ride item
@@ -21193,7 +21229,9 @@ table now verified 68/68)
   msg-id arms 0x5460e/0x5463a and the id map; the pool-name
   decode; the ladder-gate fi-vs-state data block; PR-172's
   BY_TY feed item; the SAME-STATE row-seek candidate (next
-  PR); everything else unchanged.
+  PR) CLOSED BY PR-174 (the object-path half shipped there;
+  the lion-side half became PR-174's counted item (2));
+  everything else unchanged.
 
 - GATES. Docs-only behaviour-wise, ONE comment edit in
   ported/ll_play.h (PR-88's block-bounds and verification
@@ -21231,6 +21269,174 @@ table now verified 68/68)
   5 brackets (PR-88 bounds; PR-171 F1 entry+reachability; its
   labeled thesis superseded; its F5 attribution closed with
   provenance; its family-B item re-scoped).
+
+## PR-174 — THE SAME-STATE MATCH WRITES THE AUTHORED START
+## ROW: THE OBJECT ARM NOW SEEks AS THE ENGINE DOES AT
+## 0x53616, AND THE PR-107 ITEM CLOSES EXACTLY ON ITS OWN
+## CENSUS NUMBERS (101 SEEK LINES = LION 77 / SCENE 24;
+## ZARIA.01: THE 20 ARE ALL THE LION'S OWN SCRIPTS, THE
+## SCENE-OBJECT SCRIPTS CARRY NOT ONE SELF-TARGET LINE)
+(CODE + TEST; the object-path half of the PR-172 Next item
+CLOSED, the PR-107 self-target item CLOSED for the object
+path and re-scoped to the player side; the census reproduced
+PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
+- the fixture suite proves it)
+
+- WHY. The Next entry specced the SAME-STATE ROW SEEK: the
+  engine's match arm writes the authored start row into the
+  current state's record inline (0x53616) on every same-state
+  match; the port's object arm counted matches (PR-163) but
+  never re-seeked, and its player side kept running (PR-86).
+  Census first, then the fix if shipped rows reach it. Method:
+  a C census tool that LINKS ported/ll_play.c (PR-107's
+  method - counts are what ll_mov_parse actually stores); the
+  0x53602-0x53626 arm re-read verbatim; the fix + a new
+  obj_rowseek_selftest + a seven-member mutation battery; the
+  full gates including verify-all with and without fixtures.
+
+- FINDING 1, THE CENSUS REPRODUCES PR-107 EXACTLY AND
+  ANSWERS THE OBSERVABILITY QUESTION. Over all 777 authored
+  texts: 2767 parsed transition lines (= PR-107's 2572
+  numeric + 195 absent/non-numeric), and the self-target
+  buckets: 92 entry 0 (absent/empty), 24 "(1)" (= row 0, a
+  no-op), and 101 with entry >= 2 - EXACTLY PR-107's 101,
+  with the same 12 over-range (row >= the state's row count).
+  The split PR-107 left unmeasured: 77 lion (LEW/LEW2 class
+  stems), 24 scene-object. ZARIA.01: all 20 seek lines are
+  in the two lion scripts (ZAR_LEW and ZAR_LEWPL, mirrored
+  10+10: A_BORRING(10), A_DEAD(33)=AC_TIME and =|K_ANY,
+  A_FALL_DOWN(3), A_FG_PACKA(17), A_FIGHT(20)=AC_TIME,
+  A_JUMP(11)=AC_DUP, A_JUMP_S(9), A_KILOF(13)=K_FIRE,K_
+  GEN2 and (25)=AC_RECT,K_GEN1); the 24 scene ones are
+  KADMAR.07 19, KADMAR2 3, LONA.05 2. STRONGER: no ZARIA.01
+  scene-object .MOV contains ANY self-target transition line
+  at all - not one seek, not one "(1)", not one bare - so
+  the object-path fix is provably unobservable on ZARIA.01
+  data, and the verify-all fixtures (56 ok, byte-identical
+  output) confirm that from the other side. The fix is law-
+  completion: it is what makes the 24 KADMAR/LONA-class
+  lines behave when T6+ gets there.
+
+- FINDING 2, THE ENGINE ARM, VERBATIM AGAIN (0x53602-0x53626).
+  The applier's same-index entry reads the CURRENT record's
+  row counter (`mov esi,[eax+0x4]`, 0x5360f), and the store
+  at 0x53616 runs ONLY when it differs from the argument
+  (0x53612's je jumps over it): when it runs it also calls
+  class verb +0xac (0x53619-0x53620, edx = the row value)
+  BEFORE falling through to the 0x53626 count arm. PR-107's
+  settlement stands for this path: the value is stored RAW
+  (no sign test - the 0x52381 refusal is the +0x1c method's,
+  the cross-state path), an absent token (-1) is stored and
+  lands on row 0 at the next tick through the stepper's wrap
+  (0x521c5) - "the same visible result" as the top - so the
+  shared ll_mov_row_start mapping reproduces the engine's
+  OBSERVABLE behaviour on all four token classes (N>=2 -> N-
+  1; "(1)" -> 0; empty/non-numeric -> 0; over-long -> 0,
+  the recorded PR-107 clamps). The equality guard cannot
+  change any final row value - an assignment that stores an
+  equal value is the same - so its only engine-side effect
+  is skipping the +0xac call, whose body no PR has read:
+  counted as item (1).
+
+- FINDING 3, THE SHIPPED FIX. obj_transition's same-state arm
+  now opens exactly as the engine's does - the row write
+  first, THEN the PR-163 count/AC_TIME legs (the order is a
+  fidelity detail; the two outputs are independent state). No
+  new mapping, no new constants: the one shared
+  ll_mov_row_start rule the cross-state arm already uses -
+  "one rule for both sides so they cannot drift" stays true
+  with a third call site. The register stays carried (the arm
+  calls no ENTER - PR-172's law, re-pinned by mutant M7).
+
+- FINDING 4, TEST AND MUTATIONS. obj_rowseek_selftest (7
+  legs, hand-derived from the engine law, zero game data):
+  opening step to fi 1 t 30; LEG A seek (3) -> row 2 while
+  KEEPING the state; LEG B the seeked row is the LIVE row
+  (its gate opens this very step, from the carried 30); LEG
+  C the empty token re-seeks to the top FROM row 3; an
+  advance proves the top is live (160 opens row 0); LEG D
+  "(1)" -> row 0 from row 1; advance to carry 120; LEG E the
+  over-long (9 > 6 rows) clamps to the top; advance proves
+  that live; LEG F the seek writes the ROW only (the carried
+  150 survives; 250 opens row 2's gate 70, remainder 180);
+  LEG G the state-change arm's authored seek is unchanged
+  (into A_TWO, then its (4) line re-joins A_ONE at row 3 -
+  the PR-107 regression). Battery: M1 no-write, M2 raw-token
+  store, M3 skip-empty, M4 no-clamp, M6 gate the seek on a
+  rolled AC_TIME gate, M7 also-zero the register - ALL SIX
+  KILLED (M2 also dies in PR-172's obj_rowzero_selftest,
+  whose "(1)" same-state line is now cross-covering; M7
+  dies in both). SURVIVOR, STATED: M5, the engine's literal
+  equality guard (`if fi != value` store) - equivalent by
+  F2's argument; the guard's only unmodelled half is +0xac,
+  item (1).
+
+- FINDING 5, THE PLAYER SIDE STAYS OPEN, NOW WITH ITS FULL
+  DATA. The 20 ZARIA.01 lines are player-side, and the
+  engine's applier is class-independent (PR-107: every record
+  stores the fixed table 0xa25d4; 0x53602 runs for the lion
+  too) - so the engine re-seeks the LION's rows on those
+  matches. Applying that in the port's player path is NOT a
+  one-liner: those lines' conditions are AC_TIME (twice),
+  AC_DUP, |K_ANY, K_FIRE,K_GEN2 and AC_RECT,K_GEN1 - the
+  player path models none of the signal side (no AC_TIME
+  count, no live-set bits; PR-173 F5's "the player path
+  feeds K_* from real input" is the whole signal story
+  there), and changing lion animation rows re-opens claimed
+  T2/T3 animation behaviour, which needs fresh frame
+  evidence. Counted item (2) with the line list; PR-86's
+  "keep running" stays the shipped player model until that
+  item runs with its video work.
+
+- OPEN ITEMS COUNTED (2 new). NEW: (1) class verb +0xac -
+  called with the row value by the state-change arm
+  (0x535f7, after ENTER) and by the same-state arm ONLY on
+  a row-changing write (0x5361c-0x53620): the body is the
+  other half of the 0x53612 guard and is unread. (2) the
+  player-side same-state seek for the 20 lion lines (F5:
+  needs the signal-side model + fresh frames; the exact 20
+  lines and their conditions are listed in F1). CLOSED: the
+  PR-172 Next "SAME-STATE row-seek candidate" (object half
+  shipped here); the PR-107 item-(2) self-target line item
+  for the OBJECT path (bracketed; re-scoped to the player
+  side as item (2)). RE-SCOPED nowhere else. CARRIED
+  unchanged: the PR-173 key-follow-up set (a)-(f); the
+  BY_TY feed read; the msg-id arms 0x5460e/0x5463a; the
+  pool-name decode; the ladder-gate fi-vs-state data block;
+  everything else unchanged.
+
+- GATES. Code PR, all gates: clean-tree `make` ZERO warnings;
+  `make win` ZERO; `make ll_level` force-relinked;
+  `./ll_level --mov-selftest` rc=0 (with obj_rowseek_self-
+  test in the chain); `make -k verify-all` rc=0 BOTH ways -
+  WITH fixtures 56 (ok), fixture-free 10 (ok) + the same 23
+  named SKIPs; the fixture pass at byte-identical ZARIA.01
+  output is the second proof of F1's unobservability. Added
+  code and .md lines <= 79 cols; over-79 baselines UNCHANGED
+  (NEXT_STEPS 71, HANDOFF 72); no game data or frames in
+  git (census tool + outputs under /tmp/opencode/pr174/);
+  .github/workflows/* untouched; the image is unchanged.
+  CI: PR-172's run (44511410834) was CANCELLED as
+  superseded when PR-173's push queued; PR-173's run
+  (44515534020) IN PROGRESS at this record's time - it is
+  the first CI to cover the PR-172 and PR-173 diffs
+  together; this PR's run queues at push.
+
+- EVIDENCE. The census tool
+  (/tmp/opencode/pr174/selft_census.c - links ported/
+  ll_play.c, PR-107's method; outputs census_all.txt and
+  census_lines.txt with every SCENE line printed per-class
+  and every ZARIA.01 seek line with its entry/nfr); the
+  0x53602-0x5365f disassembly re-read (the arm's full
+  shape, the count arm's [rec+0xc] gate read included);
+  obj_transition's shipped arm + obj_rowseek_selftest
+  (ported/ll_level.c, ~893/~3005); the mutation battery
+  script and results (/tmp/opencode/pr174/mutate.py - 6
+  killed, M5 stated); the two verify-all logs (verify_fix.
+  txt / verify_nofix.txt). Ledger: records re-spliced from
+  HEAD (census: HEAD carries PR-150..PR-173, 24 records,
+  last carrier); 2 brackets (PR-107 item (2) CLOSED for the
+  object path; PR-172's carried candidate CLOSED).
 
 ## Deferred big items (deliberately out of scope so far)
 
