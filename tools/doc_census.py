@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""doc_census.py - THE ENGINE-DOCUMENTATION STRUCTURE PIN (PR-195).
+"""doc_census.py - THE ENGINE-DOCUMENTATION STRUCTURE PIN (PR-195;
+   P4 added by PR-196, the record template).
 
 WHY. The owner's documentation audit (2026-11-19) measured the doc set
 and found that the only structural checks in this repo were two greps
 run by hand: a heading census that is a PREFIX PROXY (`grep -c
-'^## PR-1'` sees 107 of the 181 records in NEXT_STEPS.md) and a frozen
+'^## PR-1'` sees 107 of the 184 records in NEXT_STEPS.md) and a frozen
 set of over-79-column lines. Neither one can see a record heading
 disappear, a title stop matching the record anchor, or the plan section
 be duplicated. This tool turns those hand-checks into a build leg. It
@@ -27,6 +28,17 @@ WHAT IT PINS - any of these fails the build:
      needs a commit that says why. The current numbers are what the
      2026-11-19 audit measured (41 of HANDOFF's are section 6 table
      rows, 22 of NEXT_STEPS' are wrapped record titles).
+  P4 the record template (PR-196, HANDOFF section 10a). A record whose
+     number is >= TEMPLATE_FROM must carry the field block - the eleven
+     lines (ten fields, the gate in two lines) each present once, at
+     line start, in the agreed order. Only FIELDS_EXEMPT is exempt of
+     the requirement (it may still use the format - PR-196 carries its
+     two gate lines - and is reported as a NOTE); no other record may
+     carry a partial block. From the next record on,
+     the template cannot decay back into prose: this is what makes it
+     a contract. Position is NOT tested ("immediately after the title"
+     is section 10a's style, not a rule); presence, order and
+     exactly-one-each are.
 
 WHAT IT ONLY REPORTS (no rule attached yet, they are the audit's
 measurement points so a future PR can show a change): wrapped-title
@@ -61,6 +73,49 @@ MISSING_OK = frozenset(list(range(1, 7)) + [22, 23, 24, 80, 113])
 # P3: the width ratchet, exactly as the 2026-11-19 audit measured it.
 WIDTH_MAX = {'NEXT_STEPS.md': 71, 'HANDOFF.md': 71, 'README.md': 12}
 
+# P4: the record template (PR-196), HANDOFF section 10a. It applies to
+# every record whose number is TEMPLATE_FROM or higher. The one
+# exemption is PR-196 itself: the record that WRITES this contract.
+# The exemption skips the BLOCK requirement - that record does carry
+# its two gate lines in the new format, which is legal for an exempt
+# record and reported as a NOTE - and no other record may carry a
+# partial block. The number is a constant on purpose - bumping
+# TEMPLATE_FROM would silently let records skip the block again.
+TEMPLATE_FROM = 196
+FIELDS_EXEMPT = frozenset([196])
+# The field lines, in order (ten fields, the gate in two lines =
+# eleven lines), matched at line start only (a wrapped
+# record title cannot produce a false hit: its lines never start with
+# these names at column 0). The names are exact; prose variants are
+# what the audit measured (86 gate-marker lines in 4 forms: `- GATES.`
+# / `- GATES:` / `- GATES (` / `- TESTS AND GATES`, 12 distinct count
+# claims) - so the field name is checked as a literal, not a stem. The
+# gate line's wording is short on purpose and split in two: measured,
+# one line carrying BOTH gate halves with their counts is 107 columns
+# (control N7: merged, it fails P3 AND stops being the GATE-FREE
+# field), so `GATE:` is the with-fixtures half and
+# `GATE-FIXTURE-FREE:` the fixture-free half (section 2 rule 4
+# requires both, so both are fields). A record may continue either
+# line with wrapped prose. The counts are the point of
+# the format - the audit measured 12 distinct count claims floating
+# around 86 prose gate markers, which is where the 18/19/20 drift
+# came from.
+FIELDS = (
+    ('KIND', re.compile(r'^KIND: (read|port|gate|docs) *$')),
+    ('SUBSYSTEM', re.compile(r'^SUBSYSTEM: \S')),
+    ('ADDRESSES', re.compile(r'^ADDRESSES: [a-z0-9.,;+ /\[\]x_-]+')),
+    ('NAMES', re.compile(r'^NAMES: [A-Za-z0-9.,;+ /()\[\]_-]+')),
+    ('CODE', re.compile(r'^CODE: (no|yes): \S')),
+    ('HOOKS', re.compile(r'^HOOKS: \S')),
+    ('OPENS', re.compile(r'^OPENS: [A-Za-z0-9,;+ ._-]+')),
+    ('CLOSES', re.compile(r'^CLOSES: [A-Za-z0-9,;+ ._-]+')),
+    ('CORRECTS', re.compile(r'^CORRECTS: (none|PR-\d+)')),
+    ('GATE', re.compile(r'^GATE: make 0 warnings; verify-all fixtures '
+                        r'rc=0 \d+ \(ok\);')),
+    ('GATE-FREE', re.compile(r'^GATE-FIXTURE-FREE: rc=0 \d+ \(ok\) \+ '
+                             r'\d+ named')),
+)
+
 RECORD_RE = re.compile(r'^## PR-(\d+)[\s(]')
 OWNER_RE = re.compile(r'^## OWNER')
 HEAD_RE = re.compile(r'^## ')
@@ -84,6 +139,72 @@ def read(path):
         return None
 
 
+def check_template(lines, starts, heads, bad):
+    """P4: every record at or above TEMPLATE_FROM carries the field
+    block - ten fields, the gate in two lines, per HANDOFF section
+    10a. A record's text runs from its heading to the NEXT REAL
+    HEADING (the `## PR-<n>` anchor matches wrapped-title
+    continuation lines too, and stopping at one of those cut this
+    check's own first run of PR-196 down to a single line - the bug
+    the real record caught, where the controls could not see it);
+    fields are matched at column 0 only, so a quoted example
+    of the template has to be indented to stay an example."""
+    have, exempt = [], []
+    for i, n in starts:
+        if n < TEMPLATE_FROM or i not in heads:
+            continue
+        end = len(lines)
+        for j in range(i + 1, len(lines)):
+            if j in heads:
+                end = j
+                break
+        block = lines[i:end]
+        fields_here = [l for l in block
+                       if any(rx.match(l) for _, rx in FIELDS)]
+        if n in FIELDS_EXEMPT:
+            exempt.append(n)
+            if fields_here and len(fields_here) < len(FIELDS):
+                print('docs structure: NOTE the exempt record PR-%d '
+                      'carries %d field line(s) anyway (it is exempt '
+                      'from the block, not forbidden from using the '
+                      'format)' % (n, len(fields_here)))
+            continue
+        # found is built in LINE order, so a swap or a duplicated
+        # field is visible: wanted == found only for exactly-one-each,
+        # in the agreed order.
+        want = [f for f, _ in FIELDS]
+        found = []
+        for l in block:
+            for f, rx in FIELDS:
+                if rx.match(l):
+                    found.append(f)
+        if found == want:
+            have.append(n)
+            continue
+        cnt = collections.Counter(found)
+        miss = [f for f in want if not cnt[f]]
+        dup = [f for f in want if cnt[f] > 1]
+        msg = []
+        if miss:
+            msg.append('missing %s' % ','.join(miss))
+        if dup:
+            msg.append('duplicated %s' % ','.join(dup))
+        if not msg:
+            at = next(k for k in range(len(want)) if found[k] != want[k])
+            msg.append('%s before %s (the template order is %s before '
+                       '%s)' % (found[at], want[at], want[at],
+                                found[at]))
+        bad.append('PR-%d does not carry the record template: %s'
+                   % (n, '; '.join(msg)))
+    print('docs structure: template check (P4, from PR-%d): %d records '
+          'carry the field block, %d without (accepted)'
+          % (TEMPLATE_FROM, len(have), len(exempt)))
+    if exempt:
+        print('docs structure: NOTE exempt from the template: %s'
+              % ', '.join('PR-%d' % n for n in exempt))
+    return have
+
+
 def main(argv):
     files = argv[1:] or list(DOCS)
     bad = []
@@ -100,13 +221,21 @@ def main(argv):
     ids = []
     owner = 0
     heads = 0
+    starts = {}
+    heads_at = {}
     for f, t in text.items():
-        for line in t.split('\n'):
+        starts[f] = []
+        fl = t.split('\n')
+        heads_at[f] = {ln for ln in range(len(fl))
+                       if HEAD_RE.match(fl[ln])
+                       and (ln == 0 or fl[ln - 1].strip() == '')}
+        for ln, line in enumerate(fl):
             if HEAD_RE.match(line):
                 heads += 1
             m = RECORD_RE.match(line)
             if m:
                 ids.append(int(m.group(1)))
+                starts[f].append((ln, int(m.group(1))))
             elif OWNER_RE.match(line):
                 owner += 1
     uniq = set(ids)
@@ -117,8 +246,8 @@ def main(argv):
           % (len(ids), len(uniq), top, owner, heads))
     if len(ids) < RECORD_MIN and ns_path in text:
         bad.append('only %d record headings, expected at least %d: a '
-                   'record went missing or stopped matching '
-                   '"## PR-<n> -"' % (len(ids), RECORD_MIN))
+                   'record went missing or stopped matching the '
+                   '"## PR-<n>" anchor' % (len(ids), RECORD_MIN))
     if top:
         gaps = {n for n in range(1, top + 1) if n not in uniq}
         new = sorted(gaps - set(MISSING_OK))
@@ -157,6 +286,11 @@ def main(argv):
     print('docs structure: over-79-column lines (count/ratchet): %s'
           % ', '.join(parts))
 
+    # ---- P4 the record template (PR-196) ----------------------------
+    if ns_path in text:
+        check_template(text[ns_path].split('\n'), starts[ns_path],
+                       heads_at[ns_path], bad)
+
     # ---- report only ----------------------------------------------
     ns = text.get(ns_path, '')
     addrs = ADDR_RE.findall(ns)
@@ -184,8 +318,8 @@ def main(argv):
         for b in bad:
             print('docs structure: FAILED %s' % b)
         return 1
-    print('docs structure: record headings, plan sections and the '
-          'width ratchet hold (ok)')
+    print('docs structure: record headings, plan sections, the width '
+          'ratchet and the record template hold (ok)')
     return 0
 
 

@@ -15851,20 +15851,15 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-196 IS THE RECORD TEMPLATE (the owner's doc audit step 1, forward-
-  only): every NEW record in this file starts with a fixed field block -
-  `KIND:` read/port/gate/docs, `SUBSYSTEM:`, `ADDRESSES:` (every engine
-  address the record establishes OR retracts), `NAMES:` (the `.des` keys,
-  `.MOV`/`.SEQ` members and state names it touches), `OPENS:`/`CLOSES:`
-  (the open-item ids), `CORRECTS: PR-nn F-k`, and ONE `GATE:` line in
-  one agreed format (`make 0 warnings; verify-all with fixtures rc=0 N
-  (ok); fixture-free rc=0 M (ok) + K named SKIPs`). Add it to HANDOFF
-  section 10 (the checklist) and to the record recipe. WHY IT IS FIRST:
-  the audit measured that those fields exist in 29-43% of records and
-  that the gate state is restated 79 times in 62 wordings with 50
-  different `(ok)` count claims; a generator can only be exact if the
-  fields exist. History is NOT rewritten: tools/doc_census.py already
-  reads prose, and step 2's index reads prose too.
+- PR-196 IS SHIPPED (the owner's doc-audit step 1): the record
+  template lives in HANDOFF section 10a and `tools/doc_census.py` P4
+  enforces it from PR-196 on, this record being the one exemption
+  (FIELDS_EXEMPT). From the next record on a record without its field
+  block fails the build; the POS/E1 + N1..N7 controls are measured in
+  the PR-196 record. Two details that are easy to get wrong: field
+  names match at COLUMN 0 only (an indented copy is prose), and the
+  gate is TWO lines, `GATE:` and `GATE-FIXTURE-FREE:`, because one
+  line carrying both halves with its counts measures 107 columns.
 - PR-197 IS THE INDEX (step 2): `tools/re_index.py` generates
   `docs/RE_INDEX.md` from the ledger - (a) addresses appearing in >=3
   records: 729 entries, which answers 60% of every address lookup the
@@ -15873,24 +15868,30 @@ no port behaviour change)
   `.MOV` members). Each entry lists the records that mention the key
   and whether a later record RETRACTS it - that is what makes "is this
   claim still current?" one grep instead of 51 records (today: 0xcef40
-  = 113 lines across 51 records, 0x49580 = 88 across 42). `verify-index`
-  regenerates it and `cmp`s, so the index cannot drift; it runs in both
-  fixture modes (docs are tracked). Keep the generated file's own
-  over-79 count at 0, and re-derive the width ratchet in that commit if
-  anything else moves.
-- THEN THE DOCUMENT WORK, IN ORDER: step 3, one open-items register with
-  stable ids (~40 rows seeded from the audit's re-listed phrases), the
-  ledger citing `OI-nnn` instead of restating sentences; step 4, HANDOFF
-  sections 5/6/7 become pointers (5 = a short current-truth map per
-  subsystem, 6 = one greppable block per estimate - which also removes
-  the 41 over-79 table rows, longest 3,512 columns - 7 = the register
-  plus pointers); step 5, NEXT_STEPS becomes journal-only: the stale
-  2026-11-14 status block becomes a 5-line pointer, `## Next` moves into
-  HANDOFF section 8 (one plan, one place - 14 of its 15 keys are already
-  duplicated there), `## Deferred big items` joins the register,
-  `## Standing rules` joins the rules. Do NOT split the journal by era:
-  it re-breaks the 176-sha table and buys nothing these steps give.
-- THEN PR-198 IS THE PRODUCER'S LAST STEP: THE .MOV ACTION RUNTIME.
+  = 113 lines across 51 records, 0x49580 = 88 across 42). It reads the
+  PROSE for the 185 records that predate the template and the FIELDS
+  for PR-196-on records; the template exists so that from now on the
+  current/retracted judgement has a source better than proximity.
+  `verify-index` regenerates the file and `cmp`s it, so the index
+  cannot drift; it runs in both fixture modes (the inputs are tracked
+  docs). Keep the generated file's own over-79 count at 0; add it to
+  WIDTH_MAX with a measured value if it is tracked by verify-docs.
+- THEN THE DOCUMENT WORK, IN ORDER: step 3, one open-items register
+  with stable ids (~40 rows seeded from the audit's re-listed phrases
+  AND from the new `OPENS:`/`CLOSES:` lines), the ledger citing
+  `OI-nnn` instead of restating sentences; step 4, HANDOFF sections
+  5/6/7 become pointers (5 = a short current-truth map per subsystem,
+  6 = one greppable block per estimate - which also removes the 41
+  over-79 table rows, longest 3,512 columns - 7 = the register plus
+  pointers); step 5, NEXT_STEPS becomes journal-only: the stale
+  2026-11-14 status block becomes a 5-line pointer, `## Next` moves
+  into HANDOFF section 8 (one plan, one place - 14 of its 15 keys are
+  already duplicated there), `## Deferred big items` joins the
+  register, `## Standing rules` joins the rules. Do NOT split the
+  journal by era: it re-breaks the 176-sha table and buys nothing
+  these steps give.
+- THEN PR-198 IS THE PRODUCER'S LAST STEP: THE .MOV ACTION RUNTIME
+  (and the first record in production carrying the field block).
   PR-194 F-(a)/(b) left exactly one link missing between authored data
   and an exit code: the parser turns `end_level <n>` into a node of
   class 0xa1048 (0x46bbd-0x46c01), and nobody has read the interpreter
@@ -15911,16 +15912,16 @@ no port behaviour change)
 - STOP CONDITIONS: every claim byte-backed or fixture-byte-backed
   (cite ISO offsets); formats cross-checked against the real
   ZARIA1.IS/ANIMACJE bytes, never inferred from names alone;
-  unproven halves stay counted; corrections get brackets; no port
-  behaviour changes without a failing test; Linux-first gates
-  (make zero-warning + verify-all both fixture modes) apply to any
-  code PR - docs-only PRs cite the last measured state, which is the
-  GATES section of the newest record (PR-195's: 59 (ok) with fixtures,
-  12 (ok) + 20 named SKIPs fixture-free). THE DOC INVARIANTS ARE NO
-  LONGER HAND-CHECKED: `make verify-docs` measures the record headings
+  unproven halves stay counted; corrections get brackets AND now a
+  `CORRECTS:` line; no port behaviour changes without a failing test;
+  Linux-first gates (make zero-warning + verify-all both fixture
+  modes) apply to any code PR, and a record states its gate state
+  ONCE, in its two GATE lines. THE DOC INVARIANTS ARE NOT
+  HAND-CHECKED: `make verify-docs` measures the record headings
   (floor 184, the accepted-gap list), the one `## Next` /
-  `## Deferred` / `## Standing rules`, and the over-79 ratchet
-  71/71/12; a raised ratchet needs a commit that says why.
+  `## Deferred` / `## Standing rules`, the over-79 ratchet 71/71/12,
+  and since PR-196 the field block of every record from PR-196 on; a
+  raised ratchet needs a commit that says why.
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -28235,6 +28236,182 @@ BEHAVIOUR CHANGE)
   these steps give). The journal's prose, order and correction brackets
   are deliberately untouched - they are the evidence and the honest
   trail.
+
+## PR-196 — THE RECORD TEMPLATE IS THE CONTRACT, AND P4 ENFORCES IT
+## (HANDOFF section 10a + `tools/doc_census.py` P4, from PR-196 with
+## this record as the one exemption): SEVEN NEGATIVE CONTROLS AND ONE
+## POSITIVE MEASURED; the gate line is TWO lines because one line
+## carrying both halves measures 107 columns and breaks the width rule
+
+- WHY. The owner approved the doc-audit order with "ok, go": step 0 was
+  PR-195's structure leg, step 1 is this record template, step 2 the
+  generated index. The audit measured what optional fields cost: a
+  `- FINDING` marker in 29% of records, `- WHY` 39%, `OPEN ITEMS` 43%,
+  a gate marker in 41%; 3,022 of 3,371 `PR-nn` citations carrying no
+  address/field/name token within 200 characters; corrections written
+  as prose (112 `CORRECTED` + 21 `WRONG` + 12 `RETRACT` + 6
+  `SUPERSEDE`) with the bracket form used 7 times. A record's KIND
+  lives in its title prose ("READING RECORD - NO CODE CHANGE" x24). So
+  the template is written as a REQUIREMENT and enforced by the build,
+  because a rule nobody checks is the state that produced those
+  numbers. Forward-only: P4 tests records numbered `TEMPLATE_FROM` (196)
+  or higher, history is not rewritten, and step 2's index keeps reading
+  prose so it works on all 186 records, not only the formatted ones.
+
+- WHAT SHIPPED. HANDOFF section 10a: the field block, ten fields over
+  eleven lines, in a fixed order - `KIND:` (read/port/gate/docs, what
+  the record ESTABLISHES, not which files it touches), `SUBSYSTEM:`,
+  `ADDRESSES:` (every engine address the record establishes as current
+  truth OR retracts, exact tokens only), `NAMES:` (the authored
+  vocabulary: `.des` keys, state/action names, `.MOV` members,
+  `[field+0xNN]` words), `CODE: no:`/`yes:`, `HOOKS:`, `OPENS:` /
+  `CLOSES:`, `CORRECTS: none | PR-nn: <the claim that was wrong>`, and
+  the gate in two lines, `GATE:` (the with-fixtures half) and
+  `GATE-FIXTURE-FREE:` (the rule-4 second half). Field NAMES ARE
+  LITERALS, not stems: the audit's 86 prose gate markers came in four
+  spellings (`- GATES.` 75, `- GATES:`, `- GATES (`, `- TESTS AND
+  GATES`), so P4 matches each name exactly at COLUMN 0 - which is also
+  why an INDENTED copy of a field name is prose and never a field.
+  Field CONTENTS are free text within a sanity character class, so a
+  wording change can never break the pin; a prose-only PR-nn citation
+  does not satisfy `CORRECTS:`, which demands a record number. P4
+  tests PRESENCE, ORDER and EXACTLY-ONE-EACH; it does not test where
+  in the record the block sits - "immediately after the title" is the
+  section's style, not a rule, and no invented rule was added to
+  enforce it.
+  HANDOFF section 10's record checklist line now points at 10a.
+
+- THE GATE FORMAT, MEASURED INTO EXISTENCE. Before designing it: 86
+  gate-marker lines in the ledger, 39 of them followed by `(ok)`, and
+  12 distinct count-claim tokens around those markers - `10 (ok)`,
+  `11 (ok)`, `12 (ok)`, `52 (ok)`, `56 (ok)`, `58 (ok)`, `59 (ok)`,
+  `18 named SKIPs`, `18 named verify-SKIPs`, `21 named SKIPs`,
+  `23 named SKIP`, `23 named SKIPs` (the last pair differs only in the
+  plural `s`). Zero lines in any canonical format, and none of those
+  counts is wrong for its date: they are restatements of a moving
+  state, which is exactly the mechanism the audit blamed for the
+  18/19/20 SKIP drift. TWO LINES BECAUSE OF WIDTH: the first draft,
+  one line carrying both halves with their counts
+  (`GATE: make 0 warnings; verify-all with fixtures rc=0 59 (ok);
+  fixture-free rc=0 12 (ok) + 20 named verify-SKIPs`), measures 106
+  columns; the two mandatory prefixes with their counts alone measure
+  107. Control N7 below shows a merged line tripping the width ratchet
+  AND losing the `GATE-FREE` field at the same time. So the rule-4
+  halves are two fields: `GATE: make 0 warnings; verify-all fixtures
+  rc=0 <N> (ok);` is 56 columns with its counts, `GATE-FIXTURE-FREE:
+  rc=0 <M> (ok) + <K> named` is 55, and a record continues either line
+  with indented prose. A record writes its gate state ONCE.
+
+- P4 IN `tools/doc_census.py`. For every record heading numbered
+  TEMPLATE_FROM (196) or higher, the tool reads that record's text
+  (heading to the NEXT REAL HEADING) and requires each field name to
+  match once and only, at column 0, IN THE ORDER the template gives -
+  it builds the found list in LINE order, which is what lets it see a
+  swap or a duplicate at all (the first version collected matches in
+  template order and could only ever report a missing field). Two
+  things the real record caught that POS/E1 + N1..N7 could not:
+  the `## PR-<n>` anchor ALSO matches wrapped-title continuation lines,
+  so a slice ended at PR-196's own title continuation and the check
+  saw ONE line - the boundary is now "the next line that starts a
+  heading, i.e. a `## ` line with a blank line before it", which is
+  what separates a real heading from a wrapped title; and the
+  exemption's first form ("exempt if it carries no field name at all")
+  was disproved by this record itself, which does carry two field
+  lines, its gate. The exemption therefore skips the BLOCK requirement
+  and the tool still reports the field lines an exempt record carries
+  (a partial block fails every other record). The exemption itself is
+  FIELDS_EXEMPT = {196}, frozen as a constant with a comment, because
+  raising TEMPLATE_FROM would silently let records skip the block
+  again.
+
+- POSITIVE CONTROL + SEVEN NEGATIVES + THE EXEMPTION, MEASURED
+  (`/tmp/opencode/pr196/controls.sh`, output kept at
+  /tmp/opencode/pr196/controls.out). Each case inserts a synthetic
+  PR-196 and PR-197 into a copy of the CURRENT tree, so P1/P2 stay
+  silent and the only failure is the one under test; because the tree
+  already contains this record, the exempt count reads "PR-196, PR-196"
+  and "2 without" - the duplicate is the real record and the stand-in.
+  POS  PR-197 with the full block -> rc=0, "1 records carry the field
+       block, 2 without (accepted)".
+  E1   PR-197 not inserted at all -> rc=0, "0 carry", NOTE exempt.
+  N1   PR-197 with no field block -> rc=1 "missing KIND,SUBSYSTEM,
+       ADDRESSES,NAMES,CODE,HOOKS,OPENS,CLOSES,CORRECTS,GATE,GATE-
+       FREE".
+  N2   NAMES line dropped -> rc=1 "missing NAMES".
+  N3   `SUBSYSTEM:` renamed `SUBSYSTEMS:` -> rc=1 "missing SUBSYSTEM"
+       (the literal-name rule, proven from the other side).
+  N4   `GATE-FIXTURE-FREE:` placed before `GATE:` -> rc=1 "GATE-FREE
+       before GATE (the template order is GATE before GATE-FREE)".
+  N5   the whole block quoted INDENTED (an example, not a block) ->
+       rc=1, all eleven lines missing (column 0 is what distinguishes
+       a field from a quotation).
+  N6   `GATE:` line duplicated adjacently -> rc=1 "duplicated GATE".
+  N7   the two gate lines merged into one -> rc=1, BOTH "72 lines over
+       79 columns, the ratchet is 71" AND "missing GATE-FREE;
+       duplicated GATE" - the split is a width fact, not a style
+       choice. The two gate prefixes with their counts on one line
+       measure 107 columns; the format's own two lines measure 56 and
+       55 (printed by the script before the cases run).
+  Five defects in the controls or the tool were found by running them:
+  an appended variant line landed past a blank line outside the record,
+  so N4/N6 first reported rc=0; collecting matches in template order
+  hid a swap and a duplicate entirely; this record's own draft gate
+  line exceeded the width rule, which is how the two-line format came
+  to exist; and the record's own text disproved the first exemption
+  rule (see the P4 paragraph above). The tool's own file keeps max
+  width 74 with 0 over-79 lines.
+
+- SELF-EXEMPTION NOTE (the only one, and it is load-bearing). This
+  record deliberately carries no field BLOCK - nine of the eleven lines
+  are absent - and it is the record that introduces the contract, so
+  P4's exemption covers exactly it. What the exemption does NOT do is
+  hide the record from the check: P4 reads it and reports the field
+  lines it finds - here exactly two, this record's own gate lines,
+  because a record that defines a format
+  should use it for the one thing it is allowed to state. A partial
+  block fails every other record. So quoting these names at column 0
+  is safe only inside the exempt record, and every other field name in
+  this record stays quoted or indented. From PR-197 on, every record
+  carries the block, and PR-198 (the .MOV runtime read) is the first
+  one in production.
+
+- GATE. Section 2 rule 4's exception means a docs-and-tool-only commit
+  need not run verify-all, but this one did, deliberately: PR-196 is
+  the first doc PR after PR-195 put verify-docs INTO verify-all, so a
+  fresh full-gate baseline is worth having for the doc PRs that follow
+  (PR-197's index leg joins the same target). Measured on this tree
+  after the tool, HANDOFF, this record and the Next swap were all
+  final: `make` ZERO warnings; `make -k
+  -j$(nproc) verify-all DATA=<iso> HD=<hd>`; the same target
+  fixture-free. The counts live in ONE place in this record - the two
+  GATE lines at its end, the first production use of the format this
+  PR introduces - because restating them in prose is the measured
+  drift mechanism. Docs invariants, re-measured by `make verify-docs`
+  after the splice: records 186 (185 distinct PR numbers up to
+  PR-196), `## Next` / `## Deferred big items` / `## Standing rules`
+  each present once, over-79 ratchet 71/71/12
+  with the over-79 SETS byte-identical (0 added, 0 removed in all
+  three documents), template check "0 records carry the field block,
+  1 without" + "NOTE exempt from the template: PR-196" + "NOTE the
+  exempt record PR-196 carries 2 field line(s) anyway". No `ported/`
+  or `tools/*.c` file changed, so no leg body
+  could read this diff; the Windows half stays in the end pass
+  (rule 8).
+
+- OPEN ITEMS, COUNTED. This PR closes the doc-audit step 1 item (the
+  record template) and opens none. Counted as still open from the
+  audit: step 2, the generated index (PR-197, now able to read fields
+  from PR-196-on records and prose from the rest); step 3, the
+  open-items register with `OI-` ids, whose `OPENS:`/`CLOSES:` lines
+  this template already prepares; steps 4 and 5, HANDOFF 5/6/7 and the
+  NEXT_STEPS move. The engine's unread items are untouched by this PR
+  and stay listed where they have always been listed.
+
+GATE: make 0 warnings; verify-all fixtures rc=0 59 (ok);
+GATE-FIXTURE-FREE: rc=0 12 (ok) + 20 named verify-SKIPs (the first
+production use of this format outside the controls; the record is
+spliced before the gate runs and `make verify-docs` is re-run on the
+final tree afterwards, which is the recipe section 10 pins).
 
 ## Deferred big items (deliberately out of scope so far)
 

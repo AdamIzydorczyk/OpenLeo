@@ -2279,7 +2279,7 @@ verify-arch:
 # PR-195: THE ENGINE-DOCUMENTATION STRUCTURE PIN (tools/doc_census.py,
 # the owner's 2026-11-19 documentation audit). It reads only the tracked
 # markdown, so like verify-arch and stage_selftest it runs in EVERY
-# configuration - fixtures or not. Three rules; the rest it only reports:
+# configuration - fixtures or not. Four rules; the rest it only reports:
 #   P1 every record heading is found (a `## PR-<n>` heading followed by a
 #     space or `(`), the count never falls below the recorded floor, and
 #     every PR number up to the newest one either has a record or is in
@@ -2292,6 +2292,11 @@ verify-arch:
 #     HANDOFF / README, the state this audit measured). Raising one
 #     fails the build until a commit says why; that is the hand-check
 #     "the over-79 line set did not move", made automatic.
+#   P4 (PR-196) the record template: every record numbered 196 or
+#     higher carries the HANDOFF section 10a field block - ten fields,
+#     the gate in two lines, each present once at column 0 in order.
+#     PR-196 itself is the one exemption; a partial block fails every
+#     other record.
 # P1 is also what replaces the hand census `grep -c '^## PR-1'`, a
 # PREFIX PROXY: it sees 107 of the 184 records (the 74 older records and
 # the 4 OWNER records are invisible to it).

@@ -8362,10 +8362,88 @@ Measuring on the reference video (episodes 1-11 of the playlist
       `make -k verify-windows`, and ci-windows.yml green
 - [ ] README hook list updated if a `LEO_*` variable was added
 - [ ] `make verify-docs` EXIT=0 (the docs structure pin: record
-      headings, the plan/rule sections, the over-79 ratchet). This
-      replaces the two hand greps the audit measured: the width-set
-      check, and the heading census, a prefix proxy that sees 107 of
-      the 184 records.
-- [ ] NEXT_STEPS.md record; this file's sections 1, 6, 7, 8 updated
+      headings, the plan/rule sections, the over-79 ratchet, and the
+      field block of every record from PR-196 on). This replaces the
+      two hand greps the audit measured: the width-set check, and the
+      heading census, a PREFIX PROXY that saw 107 of the 184 records
+      existing at the PR-195 measurement.
+- [ ] NEXT_STEPS.md record, carrying the field block of section 10a
+      (required from PR-196 on; `make verify-docs` P4 enforces it);
+      this file's sections 1, 6, 7, 8 updated
 - [ ] commit "PR-NN: ..." ; `git push`; `gh run list --workflow=ci.yml` green
 - [ ] nothing copyrighted staged (`git status`)
+
+## 10a. The record template (PR-196, doc-audit step 1)
+
+The owner's audit measured what the fields are worth when they are
+optional: `- FINDING` in 29% of records, `- WHY` 39%, `OPEN ITEMS` 43%,
+a gate marker in 41%, and 3,022 of 3,371 `PR-nn` citations carrying no
+address/field/name token within 200 characters. The fields below are
+therefore REQUIRED, from PR-196 on, by `tools/doc_census.py` P4 - not
+advice. History is not rewritten: P4 tests records whose number is
+`TEMPLATE_FROM` (196) or higher.
+
+The block is the eleven lines below, in this order, immediately after
+the record's title lines. Field names are exact - the audit found 86
+prose gate markers in four spellings (`- GATES.`, `- GATES:`,
+`- GATES (`, `- TESTS AND GATES`), so a stem is not enough. Every line
+stays within 79 columns; a field continues on an INDENTED continuation
+line, and an indented copy of a field name is prose, never a field.
+The indented lines below give each field name and, after it, what to
+write. P4 enforces PRESENCE, ORDER and EXACTLY-ONE-EACH; it does not
+test position inside the record, and "immediately after the title" is
+the style that keeps a record readable.
+
+  KIND: read | port | gate | docs
+      What the record ESTABLISHES, not which files it touches: a
+      reading PR that adds a tool to prove it is still `read`; a gate
+      or tooling PR whose product is the check itself is `gate`. The
+      commit subject's kind tag matches this value (section 2 rule 9).
+  SUBSYSTEM: <one lowercase phrase>
+      The subsystem the finding lands in (`level exit contract`,
+      `.MOV` action runtime, `.mnu` interpreter, docs structure). It
+      is what groups the index by area.
+  ADDRESSES: <tokens>, or `none`
+      EVERY engine address the record establishes as current truth OR
+      retracts, exact `0xNNNNN` tokens only, prose elsewhere. A
+      retracted address belongs here - that is what stops the reader
+      having to read 51 records to learn whether a claim still stands
+      (0xcef40 measured 113 lines across 51 records).
+  NAMES: <tokens>, or `none`
+      The authored vocabulary the record touches: `.des` keys
+      (`control=`), state and action names (`A_EXIT`, `AC_TIME`),
+      `.MOV`/`.SEQ` member names, `[field+0xNN]` words, file names.
+  CODE: no: <one line> | yes: <one line>
+      What the code change does; `no: none` for a reading or docs PR.
+  HOOKS: <LEO_* names>, or `none`
+      Environment hooks this record adds or changes. README's hook
+      list stays the authority for what exists.
+  OPENS: <ids or phrases> | CLOSES: <ids or phrases> | `none`
+      Open items moved by the record. Stable `OI-` ids arrive with
+      step 3; until then, name the item in one phrase so the register
+      can be seeded from these lines instead of re-reading 24 records.
+  CORRECTS: none | PR-nn[, PR-nn]: <the claim that was wrong>
+      The mechanical correction mark. The bracket form appears 7 times
+      in the ledger while the prose words appear 112 + 21 + 12 + 6
+      times, and 352 distinct addresses sit inside correction
+      sentences - `grep 0x4be20` finds the mentions, never the
+      sentence that killed it. This field fixes that going forward:
+      the index marks the record where a claim turned current or
+      retracted.
+  GATE: make 0 warnings; verify-all fixtures rc=0 <N> (ok);
+  GATE-FIXTURE-FREE: rc=0 <M> (ok) + <K> named verify-SKIPs
+      The two rule-4 halves, in exactly this wording, counts filled
+      in. Prose may continue either line, INDENTED. Do not restate
+      the gate state anywhere else in the record: this is the one
+      place it is written, because restating it is measured drift -
+      the audit found 12 different count claims around those 86
+      markers, which is where the 18/19/20 SKIP confusion came from.
+
+ONE exemption, frozen in the tool as FIELDS_EXEMPT: PR-196, the record
+that writes this rule. It cannot carry the contract it is introducing,
+so it carries a self-exemption note instead. The exemption skips the
+BLOCK requirement; the tool still reads that record and reports how
+many field lines it carries. PR-196 carries exactly two - its own
+gate lines, in the format defined here - and a PARTIAL block is not
+accepted for any other record, so quoting these names is only safe
+inside an exempt record.
