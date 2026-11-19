@@ -2131,6 +2131,70 @@ writer as its open items.
       14 address list) was caught by self-check and corrected
       before shipping. Full record: the PR-144 section of
       NEXT_STEPS.md (lion_map.txt carries the tables + censuses).
+
+    - PR-145 READ THE KEY PROVIDERS AND THE INPUT FEED (reading
+      record, no code change: PR-138..144 precedent). THE
+      STANDING-BITS PROVIDER IS THE GENERIC KEY-FEED: 0x54910 at
+      class slot +0x8c (dozens of object tables - 0x97c4c is
+      +0x8c of PR-139's 0x97bc0; DRABINKA's 0x97cdc +0x8c = the
+      zero stub 0x23a60 - so PR-142's "standing bits are zero"
+      was measured on an OVERRIDE and is CORRECTED here). It
+      returns a 13-byte buffer through the +0x8c step of the
+      compositor, and its bit sources are verbatim: AUTHORED
+      state flags [obj+0xa5] bit0/4/5 -> K_FIRE/K_ALT/K_JUMP;
+      the signed INTENT field [obj+0xba] plus the open-window
+      flag [obj+0xb6] bit 4 -> K_BKWD (window closed) / K_FWD
+      (open); [obj+0xbe] > 0 / < 0 -> K_UP (37) / K_DOWN (38).
+      THE LION'S provider (0x96960 +0x8c = 0x504e0) builds no
+      bits itself: it calls [vt+0xf8] (ZARIA 0x1e2f0: the
+      per-game input-reader family, 0x1e350 reads message modes
+      4/9 and calls PR-133's facing flip 0x53670) and honours
+      the authored flags against globals ds:0xcef5c... THE INPUT
+      FEED IS NOT A KEYBOARD POLL: the consumer 0x549f0 writes
+      the intent fields with +/-10 from message records - the
+      engine's OWN constant, confirming PR-139's s=10 ESTIMATE -
+      mode 1 targets the contact target [obj+0xd2] through the
+      [vt+0x68] getter with a +-8 dead band, mode 4 raw-x; the
+      frame loop copies a 12-byte block every iteration and
+      feeds the lion via [lion.vt+0xcc] (PR-106 read the shape;
+      the target is pinned here), and the 0xcf400 "input
+      singleton" is an object with a mode at +0xb and record
+      arrays (0x58690). A CONTACT PAIR SHARES ITS LIVE SETS:
+      under a row guard ([rec+0x8] == current row), the contact
+      target's OWN live set [[obj+0xd2]+0x10 +0x10 = [partner+
+      0x60]] is ORed into this object's (0x54b65..0x54b84 - the
+      context of PR-144's 14th census site is now read); the
+      contact-list pop 0x551f0 sets [obj+0xd2] and flags
+      [obj+0x106] when it empties. K_GEN1 HAS THREE RAISERS: an
+      HP<100-gated MESSAGE TYPE (0x50df4..0x50e24 - and 0x50df4
+      is a value AT the 0x50d20 base-receiver jump table, PR-
+      105), two lion-family posts (0x244a5/0x24552), and a
+      RANDOM K_GEN1/2/3 poster through a Borland-LCG PRNG
+      (0x76bcc: imul 0x41c64e6d, +0x3039; 0x26670 selects 54/
+      55/56; raised at 0x26738). THE FULL-GENRE RAISE IDIOM NOW
+      HAS FOUR INSTANCES (0x537d4, 0x26738, 0x2fbf0 payload-fed,
+      0x54964). HONEST CORRECTIONS, recorded not hidden: (i) PR-
+      143 open item 2 (the drain's missing caller) was OUR
+      mis-anchored function start - 0x52b50 IS the entry, and
+      its callers were ALREADY RECORDED in PR-106 (the pump
+      0x52b80 from the frame loop 0x4aed6 and the think pass
+      0x4baed/0x4bb12, plus 0x55398/0x55696); (ii) the mask at
+      0x2451e is K_FIRE, not a second K_GEN1; (iii) PR-142's
+      zero-standing-bits generalization, above. STILL GENUINELY
+      UNREFERENCED (byte-level any-alignment scan over both
+      segments): the contact-pass fragments 0x4bd32/0x4bdf6 (the
+      lion-specific half: it calls [lion.vt+0x78] with the LION
+      from [[level]+0x394])/0x4b500/0x4b602 - the climb blocker
+      is now exactly ONE named gap: that pass's entry + the
+      per-frame setter of the lion's contact target + the
+      signal-record poster for AC_DRAB (delivery forms fully read:
+      raise idiom + pair share; no direct site posts bits 10/12,
+      so they can only arrive as signal records or via the
+      share). 6 new open items counted; PR-142's 7 -> 6, PR-144
+      item 2 half-closed, PR-108's 6 CLOSED, PR-106's 1
+      narrowed. No mutants (no behaviour changed). Full record:
+      the PR-145 section of NEXT_STEPS.md (key_map.txt carries
+      the provider/bit/census map).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2878,11 +2942,25 @@ writer as its open items.
     turn and unioning their 13-byte outputs; the only ways bits
     enter a live set are now fully enumerated (14 sites). What
     the CLIMB still
-    needs: ONE named link - the entry into the per-object
-    dispatch passes (0x4bd32/0x52b52 have zero direct
-    references) plus the merge masks - the
-    key-bit/K_UP posting path, and the
-    A_WSP feed law (PR-145); SURPRISE
+    needs (PR-145 read the KEY FEED: the generic provider
+    0x54910 at class slot +0x8c builds K_UP/K_DOWN from the
+    signed intent fields [obj+0xbe], K_BKWD/K_FWD/K_JUMP from
+    the intent + the open-window flag, K_FIRE/K_ALT from the
+    AUTHORED state flags [obj+0xa5..]; the intents are written
+    with the engine's own ±10 by the message consumer 0x549f0;
+    PR-142's "standing bits zero" was DRABINKA's zero OVERRIDE,
+    corrected): the ONE named gap - the contact-pass entry
+    (0x4bd32/0x4bdf6/0x4b500/0x4b602 are zero-reference
+    fragments; the queue-drain entry 0x52b50 and its PR-106
+    callers were our mis-anchor, resolved), the per-frame setter
+    of the lion's contact target [obj+0xd2] (contact partners
+    SHARE live sets through it: 0x54b84 ORs the partner's own
+    [obj+0x60] in under a row guard), and the signal-record
+    poster for AC_DRAB (no direct site posts bits 10/12 - they
+    can only arrive as signal records or via the share; K_GEN1
+    itself has three raisers, one HP<100-gated message type at
+    0x50d20's jump table, one PRNG-random at 0x26670) - and the
+    A_WSP feed law (PR-146); SURPRISE
     "?" firing (G-12); and the
     ground SOURCE of the first screens (G-13, PR-136) IS DECIDED IN
     PR-138: the engine's ground records ARE the authored .PLT text,
@@ -3393,19 +3471,41 @@ dispatcher not a lookup, and an authored condition matches by
 condition model (a confirmation, no port change). Signals enter the
 live set through the class +0x10 entry 0x53770 (signal record, bit
 index at its byte +0xc), so K_GEN1's MECHANISM is found and only
-its POSTER is open. What remains for the climb now narrows to
-ONE named missing link plus two feeds (PR-144): the ENTRY into
-the per-object dispatch passes - the contact-pair probe 0x4bd32
-and the queue drain 0x52b52 have ZERO direct references in the
-image, one shared not-yet-found entry convention (PR-134/135's
-tick dispatcher is where to look) - the per-site masks of the
-12 direct live-set merges (all 14 write sites are enumerated:
-0x244a5, 0x244ea, 0x2451e, 0x24552, 0x26738 (a twin of the
-signal-raise idiom, context unread), 0x27f7d, 0x28bc7, 0x2fbf0,
-0x36cf8, 0x3dfbb, 0x50ab7, 0x50e24, 0x537d4, 0x54b84), the
-posting path of the
-K_* key bits (K_UP is bit 37 - that map is PR-88's; no broadcast
-posts key bits either), and the
+its POSTER is open. What remains for the climb is ONE named gap
+plus one open law
+(PR-145 read the key feed and the pair share; it also corrected
+two of this series' own readings):
+THE GAP - the contact-pass ENTRY: the fragments 0x4bd32 (pair
+walk), 0x4bdf6 (lion-specific half: it calls the lion's +0x78),
+0x4b500/0x4b602 have ZERO references anywhere (byte-level scan,
+both segments), and the per-frame SETTER of the lion's contact
+target [obj+0xd2] is not pinned - partners SHARE live sets
+through it (a row record with [rec+0x8] == current row ORs
+[partner+0x60] into the object at 0x54b84), and the signal-
+record POSTER for AC_DRAB/AC_DRAB_CATCH is unpinned (no site
+posts bits 10/12 directly - they can only arrive as signal
+records through the queue path or via that share). CLOSED as a
+FALSE gap by PR-145: the queue drain's entry is 0x52b50 (PR-
+143/144 mis-anchored the function start) and its callers were
+already in PR-106 - the pump 0x52b80 from the frame loop and
+the think pass. THE KEY FEED IS READ: the generic standing-bits
+provider 0x54910 (class slot +0x8c, dozens of tables; DRABINKA
+overrides it with a zero stub - PR-142's "always zero" was that
+override, corrected) builds K_UP/K_DOWN from the signed intent
+fields [obj+0xbe], K_BKWD/K_FWD/K_JUMP from intent + the open-
+window flag [obj+0xb6] bit 4, K_FIRE/K_ALT from the authored
+state flags [obj+0xa5..]; the intents are written with the
+ENGINE's own ±10 by the message consumer 0x549f0 (mode 1 targets
+[obj+0xd2] via the [vt+0x68] getter, ±8 dead band; mode 4 raw
+x; the frame loop feeds the lion through [lion.vt+0xcc]; the
+0xcf400 input singleton is itself an object, records via
+0x58690). K_GEN1's POSTER is no longer open in general: three
+raisers - an HP<100-gated message type (0x50d20 jump-table
+entry 0x50df4), 0x244a5/0x24552, and a PRNG-random K_GEN1/2/3
+(0x76bcc LCG -> 0x26670 -> the raise at 0x26738). The merge
+masks of PR-144's 14-site census are resolved except two
+windows (0x28bc7, 0x50ab7); 0x2451e is K_FIRE (corrected). And
+the open law, unchanged:
 A_WSP feed law (BY_TY `F=0,100 T=160,50` + SEQ_REV_Y, still
 PR-109's open law). CLOSED by PR-143 additionally: the answer-
 chain entry gate (row flags 0x4000 = the port's

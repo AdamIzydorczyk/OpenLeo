@@ -14130,51 +14130,315 @@ no port behaviour change)
   /tmp/opencode/pr139/rng.py over /tmp/opencode/vis/text.asm
   (203,343 lines, unchanged).
 
+## PR-145 — THE KEY PROVIDERS AND THE INPUT FEED ARE READ: THE
+
+## STANDING-BITS PROVIDER IS THE GENERIC KEY-FEED 0x54910 (K_LEW/
+
+## K_UP/K_DOWN/K_JUMP), THE OBJECT-SIDE INPUT CONSUMER 0x549f0
+
+## WRITES THE ±10 INTENT FIELDS, AND A CONTACT PAIR SHARES LIVE
+
+## SETS THROUGH THE TARGET FIELD +0xd2 — AND THE PR-143/144
+
+## "UNREFERENCED" PUZZLE PARTLY DISSOLVES (READING RECORD - NO
+
+## CODE CHANGE; PR-138..144 precedent)
+
+- WHY. PR-144's Next items (a) and (b): the entry into the per-
+  object dispatch passes, and the K_UP feed - the climb blocker
+  list ends there. Both questions turn out to have large answers
+  already in the image, one of them partly in this repo's own
+  PR-106 record. No behaviour change; every claim quoted from the
+  same image (sha256 edf19a12...).
+
+- FINDING 1, THE STANDING-BITS PROVIDER IS THE GENERIC KEY-FEED
+  0x54910, AND IT IS NOT ZERO (a correction to PR-142). PR-142
+  read the ladder's +0x8c getter 0x23a60 (memset+return zero) and
+  generalised "no standing bits". The generalisation is wrong:
+  0x54910 is the standing-bits provider at +0x8c in dozens of
+  object class tables (dword occurrences 0x96900, 0x96b14,
+  0x97064, 0x97148, 0x972e0 ...; for the 0x97bc0 pair PR-139
+  named, 0x97c4c = +0x8c exactly; DRABINKA's 0x97cdc overrides
+  it with the zero stub - that override, not the rule). Body
+  0x54910..0x549e6: it memsets a 13-byte buffer, sets bits, and
+  COPIES the buffer to the caller's output (repnz, 0x549cb..
+  0x549d8) - and 0x536f0's first step (`call [obj.vt+0x8c]`,
+  then 0x49580 OR into [obj+0x60]) consumes exactly that form.
+  The bit sources, verbatim:
+  * [obj+0xa5] bit 0 -> word 1 byte 0 |= 0x80 = bit 39
+    (LL_SIG_K_FIRE); [obj+0xa5] bit 4 -> byte 1 |= 1 = bit 40
+    (K_ALT); [obj+0xa5] bit 5 -> byte 2 |= 0x20 = bit 53 =
+    K_JUMP. [obj+0xa5/0xa6/0xa7] are AUTHORED per-state flags
+    (the port's .des flags - the consumer census at 0x504e0
+    below reads 0x1,0x2,0x4,0x8,0x40,0x80 and 0xa6 bits 1,2,
+    0x40,0x80, 0xa7 bits 1,2,4 against globals ds:0xcef5c..).
+  * [obj+0xba] (the horizontal intent field, Finding 2) != 0 and
+    [obj+0xb6] bit 4 (the PR-92/139 OPEN-WINDOW flag):
+    `test BYTE PTR [obj+0xb6],0x10; sete al; add al,0x23` ->
+    bit index 35 = K_BKWD when the window is CLOSED, 36 = K_FWD
+    when OPEN - raised by the divide-by-32 idiom (0x54964..
+    0x5499a).
+  * [obj+0xbe] (the vertical intent) > 0 -> word 1 byte 0 |=
+    0x20 = bit 37 = K_UP (0x5499d..0x549a6); < 0 -> |= 0x40 =
+    bit 38 = K_DOWN (0x549ab..0x549b4).
+  So authored conditions naming K_UP/K_DOWN/K_JUMP/K_LEW-family
+  bits have a concrete engine-side feed - PR-142 open item 5 is
+  CLOSED and its "standing bits zero" claim is corrected to the
+    DRABINKA-specific override it was measured on.
+
+- FINDING 2, THE INPUT FEED IS NOT A KEYBOARD POLL: THE INTENT
+  FIELDS ARE MESSAGE-FED. The consumer 0x549f0 (edx = a record):
+  `[obj+0xba] = [rec+0]`; for [rec+4] == 1 it computes from the
+  TARGET object [obj+0xd2]: target x via the [vt+0x68] position
+  getter (PR-105 assumed it; here it is called), if own x + 8 <
+  target x -> 10, if own x - 8 > target x -> -10 (0xf6), else 0
+  (0x54a16..0x54a93); for [rec+4] == 4 the same with the raw
+  block x (0x54aa2..0x54afd); and 0x54a02..0x54a08 stores the
+  block POINTER into [obj+0xd2] (the contact-target field,
+  Finding 3) and dispatches on [target+4]. [obj+0xba]/[obj+0xbe]
+  are cleared at 0x54e2e/0x54e38. THE VALUES ARE ±10 - the
+  numeric confirmation of PR-139/PR-145's s = 10 held-direction
+  estimate (it was a labelled ESTIMATE; here is the engine's own
+  constant). In the same consumer, [rec+4] == 9 is gated on the
+  global ds:0xcef64 - the ZARIA-region input reader family
+  (0x1e350, whose arms read modes 4 and 9 and call the PR-133
+  facing flip 0x53670). Per-frame source: the frame loop copies
+  a 12-byte block ([esp+0x1f0]->[esp+0x1e4], 0x4ae92..0x4aea0)
+  every iteration (PR-106), hands it to the lion through
+  [lion.vt+0xcc] (0x4aeca, ZARIA = 0x50340) - and 0x58690
+  (PR-106's `mov eax,0xcf400; call 0x58690`) reads [0xcf400]
+  as an OBJECT with a mode at +0xb and record arrays at +0xf/+
+  +0x2b (0x5869c..0x586ad): the input singleton is an object
+  with authored-style records. PR-108 open item 6 (who writes
+  [obj+0xba]/[obj+0xbe]) is CLOSED; PR-106 open item 1 is
+  narrowed (the block's reader 0x58690 is an object-side getter,
+  its full record format still open).
+
+- FINDING 3, A CONTACT PAIR SHARES ITS LIVE SETS - THE AC_DRAB
+  DELIVERY, GENERIC FORM. [obj+0xd2] is the CONTACT-TARGET field
+  (the only non-zero writer found is 0x551fc inside 0x551f0 -
+  PR-108's field - which pops the contact list head into +0xd2
+  and, when it empties with [obj.vt+0x3c] true, sets [obj+0x106]
+  = 1; readers: the key provider above, the intent consumer, and
+  0x549f0 itself). The merge at 0x54b65..0x54b84: guard the
+  current ROW RECORD: `cmp [rec+0x8],0; je skip` and `cmp
+  [obj+0x5c],[rec+8]` (the record's row number must equal the
+  object's current row), then `edx = [[obj+0xd2]+0x10]; edx +=
+  0x10; eax = [obj+0x60]; call 0x49580` - i.e. THE PARTNER'S OWN
+  LIVE SET AT [partner+0x60] IS ORed INTO THIS OBJECT'S LIVE SET
+  when the authored row record asks (this is the 0x54b84 entry of
+  PR-144's census - its context is now read, PR-144 open item 2
+  half-CLOSED). This is the generic form of "the ladder's
+  AC_DRAB/AC_DRAB_CATCH reaches the lion": the pair pass (PR-144
+  0x4bd32) hands both members' answers, and the live-set sharing
+  runs through +0xd2 + the row-scoped merge above. Which site
+  SETS the lion's +0xd2 per frame is NOT pinned (open item 1).
+
+- FINDING 4, K_GEN1 HAS RAISERS NOW, THREE, ONE PROBABLY THE
+  GENERAL ONE. (a) 0x50df4..0x50e24: `cmp [obj+0xad],0x64; jge
+  skip` - HP below 100 -> OR byte [buf+0xa] |= 0x40 = bit 54 =
+  K_GEN1 into a live set ([esi+0x60]) - and this fragment sits
+  inside the 0x50d60 message-receiver family: 0x50df4 is a value
+  AT 0x50d20, the base receiver's 13-case jump table (PR-105) -
+  so a MESSAGE TYPE raises K_GEN1 when the object is damaged.
+  (b) 0x244a5 and 0x24552 (lion health/death family): both post
+  bit 54. (c) 0x26670 + the merge at 0x26738: a PRNG helper
+  0x76bcc (Borland LCG constants: imul 0x41c64e6d, +0x3039,
+  shr 16, and 0x7fff) feeding `*5+1; div 0x7fff` -> quotient 3
+  -> 0x36 = 54 (K_GEN1), < 8 -> 0x37 = 55 (K_GEN2), else 0x38 =
+  56 (K_GEN3) - a RANDOM K_GEN* poster raised into a live set
+  through the divide-by-32 idiom; the containing class is
+  unreferenced (open item 2). For the LADDER's `WAIT K_GEN1`
+  idle gate, the general law is the same field for every object:
+  [obj+0xad] is PR-139/140's HP/damage field (its only setter
+  0x1e540, PR-139), so arm (a) applies to any DAMAGED object;
+  whether a full-HP ladder can reach K_GEN1 some other way
+  (through (b)/(c) or a posted signal record) is open item 3,
+  stated as a question, not fitted.
+
+- FINDING 5, THE "UNREFERENCED" PUZZLE PARTLY DISSOLVES - AN
+  HONEST CORRECTION TO PR-143/144. PR-143 open item 2 (the
+  caller of the queue drain 0x52b52): RESOLVED, and the fault
+  was a mis-anchored function start. 0x52b50 IS the drain's
+  entry (`push ebx; mov ebx,0xc...` - 0x52b52 is the interior
+  after the first push, which is why searching for 0x52b52 found
+  nothing); its callers exist and were ALREADY RECORDED IN
+  PR-106: 0x52b80 (the per-object pump: drain, then the state
+  step [[obj+8]+0x14], then [obj+0x28] -> [vt+0x0](2)) is
+  called from the frame loop at 0x4aed6 (the lion, every
+  iteration), from the think pass at 0x4baed/0x4bb12, and at
+  0x55398/0x55696. The delivery form matches PR-106's note: the
+  drain passes edx = &head, the node's first dword is the queue
+  link, so the receive entry reads [msg+4] as the type. WHAT
+  REMAINS GENUINELY UNREFERENCED: the contact-pass fragments -
+  0x4bd32 (the pair walk, PR-144), 0x4bdf6 (the LION-SPECIFIC
+  half: `mov eax,[[level]+0x394]` - the lion object - then
+  `call [lion.vt+0x78]` with ebx = the result buffer), and the
+  wrappers 0x4b500 (3 in-family call sites inside the fragment)
+  and 0x4b602 (self-recursive, contains the 0x4b5be +0x78
+  call); NONE of the five addresses occurs anywhere in the image
+  (byte-level scan over both loaded segments: zero hits, any
+  alignment). The frame-loop region between the two known passes
+  is 0x4ab80 and 0x4b0e0 (unread) and the pair pass's entry is
+  presumably there or through a convention this disassembly does
+  not show - the question is now ONE named gap (the contact-pass
+  entry + the +0xd2 setter), not two.
+
+- FINDING 6, THE MERGE-MASK CENSUS RESOLVED (completes PR-144
+  item 2 for the direct sites). All 14 live-set OR sites re-read
+  at their argument windows: 0x244a5 bit 54 K_GEN1; 0x244ea bit
+  55 K_GEN2; 0x2451e bit 39 K_FIRE (PR-144's window read this
+  one wrong as a second K_GEN1 - corrected); 0x24552 bit 54
+  K_GEN1; 0x26738 random K_GEN1/2/3 (Finding 4c); 0x27f7d word-0
+  byte 2 |= 0x2 = bit 17 AC_ENEMY_ATC; 0x28bc7 window not re-
+  read (its neighbours push a 0xf-kind message via 0x52b10 at
+  0x28b92 - counted unread); 0x2fbf0 = a SIGNAL-PAYLOAD raise:
+  the divide-by-32 idiom over a movsx'd stack byte ([rec+0x14])
+  - a fourth instance of the raise idiom, bit index payload-fed;
+  0x36cf8 word 1 byte 1 |= 0x2 = bit 41, guarded by `cmp
+  [rec+4] > 6` (record type); 0x3dfbb word-0 byte 0 |= 0x20 =
+  bit 5 AC_DUP (not AC_EDGE - the enum order corrects the
+  shorthand); 0x50ab7 inside the 0x50a70 receiver area (state
+  fields 0x11a/0xb1 written just above; mask window not
+  resolved); 0x50e24 bit 54 K_GEN1 under the HP<100 guard
+  (Finding 4a); 0x537d4 the signal-record raise (PR-142);
+  0x54b84 the pair live-set share (Finding 3). No site posts
+  bits 10/12 (AC_DRAB/AC_DRAB_CATCH) or 21/22 (AC_LINA*) -
+  consistent with PR-143's broadcast census: those bits enter a
+  live set ONLY as signal records through the queue/receive path
+  or via the pair share.
+
+- WHAT THIS CLOSES. PR-142 item 5 CLOSED (with the correction in
+  Finding 1); PR-142 item 1 untouched (K_ANY marker); PR-143
+  item 2 CLOSED (Finding 5); PR-144 item 2 half-CLOSED (the
+  0x26738 and 0x54b84 contexts read; two mask windows - 0x28bc7,
+  0x50ab7 - remain); PR-144's "one missing link" NARROWS to: the
+  contact-pass entry, the [obj+0xd2] setter, and the
+  signal-record poster for AC_DRAB (whose delivery form is now
+  read twice: the raise idiom and the pair share). PR-108 item 6
+  CLOSED; PR-106 item 1 narrowed; PR-139's s=10 ESTIMATE
+  confirmed as the engine's own ±10.
+
+- OPEN ITEMS COUNTED (6 new; carry: PR-139's 13, PR-140's 7,
+  PR-141's 4, PR-142's 7 (item 5 now CLOSED = 6), PR-143's 4,
+  PR-144's 5 (item 2 half-closed)): (1) The contact-pass entry (the 5 fragment
+  addresses 0x4bd32/0x4bdf6/0x4b500/0x4b602/(0x4bddb tail) have
+  zero references - start at the unread 0x4ab80/0x4b0e0 frame-
+  loop region) AND the per-frame setter of the lion's [obj+0xd2]
+  contact target. (2) The class context of the random-K_GEN
+  raiser 0x26670/0x26738 (its entry is unreferenced; the 0x21-
+  arm dispatcher 0x52bb0 connection unproven). (3) Whether a
+  full-HP object can reach K_GEN1 (the ladder's `WAIT K_GEN1`
+  gate at rest) - message-type arm of 0x50d20 which type, and
+  who sends it. (4) The mask windows at 0x28bc7 and 0x50ab7.
+  (5) The authored-flags globals ds:0xcef5c..0xcef78 - who
+  writes them (the per-game input readers at 0x1e35x read them).
+  (6) The 0xcf400 input singleton's record format ([+0xb] mode,
+  +0xf/+0x2b arrays through 0x58690) and the 12-byte block's
+  producer.
+
+- MUTATIONS. None: no code and no test changed (reading record,
+  PR-138..144 precedent). Two self-corrections are recorded, not
+  hidden: PR-142's "standing bits are zero" was measured on an
+  override and is corrected (Finding 1), and PR-143/144's
+  "unreferenced" for the queue drain was a mis-anchored function
+  start, with the answer already present in PR-106's record
+  (Finding 5); a mask read at 0x2451e is corrected in Finding 6.
+  The census numbers (dozens of +0x8c slots, the ±10 immediates,
+  the 14-site mask table, the 5 zero-reference fragment
+  addresses under a byte-level any-alignment scan) are
+  enumerated, not sampled.
+
+- GATES. No code touched: `make` rc=0, `make win` rc=0, zero
+  warnings; `make -k verify-all` with the standard fixtures rc=0
+  with 56 `(ok)` and zero FAILED; fixture-free rc=0 with the
+  same 23 named SKIP lines - all unchanged since the PR-142 gate
+  logs (/tmp/opencode/pr142_make.log, pr142_makewin.log,
+  pr142_va.log, pr142_va_nofix.log; no source or Makefile byte
+  changed since - the newest code commit is PR-140's `afefe73`).
+  The image is unchanged (sha256 edf19a129e85efb8764457a0808e24
+  6ca4baf08a9111aa09be4ec99ce6b8c40e). No game data or frames
+  in git; no .github/workflows/* touched.
+
+- HANDOFF UPDATED. Section 7 item 15's G-9 line and section 8
+  T5's STATUS: the key feed and the pair live-set share are read;
+  the climb blocker list narrows to the contact-pass entry + the
+  contact-target setter + the AC_DRAB signal poster (and the
+  A_WSP feed law, unchanged as an open law). Item 13 gains the
+  PR-145 bullet.
+
+- EVIDENCE. /tmp/opencode/pr145/key_map.txt (the provider
+  addresses, the bit-source table, the intent-field map, the
+  corrected census table, the fragment-reference scan result).
+  Ranges quoted verbatim: 0x54910..0x549e6 (the generic
+  provider), 0x96900/0x97c4c (+0x8c occurrences), 0x504e0..
+  0x505f4 (the LION provider, table slot +0x8c = 0x504e0),
+  0x549f0..0x54b47 (the intent consumer), 0x54e2e/0x54e38 (the
+  clear), 0x54b65..0x54b84 (the pair live-set share), 0x551f0..
+  0x55228 (the contact-list pop), 0x50df4..0x50e24 (the HP->
+  K_GEN1 arm, value at 0x50d20), 0x26670..0x266a5 + 0x26704..
+  0x26738 (the random K_GEN raiser), 0x76bcc..0x76bef (the PRNG
+  helper), 0x52b50..0x52b7d (the drain, entry corrected),
+  0x52b80..0x52b8f (the pump head), 0x4aed6/0x4baed/0x4bb12/
+  0x55398/0x55696 (its callers), 0x4ae92..0x4aeca (the frame-
+  loop block + the lion +0xcc), 0x58690..0x586ad (the 0xcf400
+  getter), 0x1e2f0/0x1e350..0x1e386 (the ZARIA input readers,
+  the facing flip call at 0x1e368). All reproducible with
+  /tmp/opencode/pr139/rng.py over /tmp/opencode/vis/text.asm
+  (203,343 lines, unchanged).
+
 ## Next — pick from the Deferred list below
 
-- THE LION SIDE IS READ (read the PR-144 record first): the
-  player's class tables are 0x96960/0x96958 (token LewZaria
-  0x9078b, factory 0x1fef2); the lion's receive entry is its own
-  0x1e130 (arms types 5 and 0xc; generic tail 0x50d60 - the
-  per-family difference PR-143 predicted); its contact entry
-  +0x78 IS 0x50f80, the same slot the ladder answers through
-  (0x3f1c0), and the pair-probe 0x4bd32 gives BOTH members their
-  contact turn in one walk and aggregates their 13-byte outputs
-  into one union set. The player class-table pair is rewritten at
-  runtime at 0x1ec36..0x1ec3f. Bits enter any live set ONLY
-  through the raise idiom (0x537d4 + an unread twin at 0x26738)
-  or the 12 other direct 0x49580 merges (all 14 sites
-  enumerated). THE ONE MISSING LINK is named: the entry into the
-  per-object dispatch passes - 0x4bd32 (contact pairs) AND
-  0x52b52 (queue drain) have zero direct references in the image.
+- THE KEY FEED IS READ (read the PR-145 record first): the
+  standing-bits provider 0x54910 (class slot +0x8c, dozens of
+  object tables; DRABINKA overrides it with a zero stub - PR-142
+  read the override, corrected here) builds K_* bits: K_UP/K_DOWN
+  from the signed intent fields [obj+0xbe], K_BKWD/K_FWD from
+  the intent + the open-window flag ([obj+0xb6] bit 4), K_JUMP
+  likewise, K_FIRE/K_ALT from the AUTHORED state flags
+  [obj+0xa5..]. The intent fields are written with ±10 (the
+  engine's own constant, confirming PR-139's estimate) by the
+  consumer 0x549f0 from message records - the input singleton
+  0xcf400 is an object read via 0x58690; the frame loop copies a
+  12-byte block every iteration and feeds the lion through
+  [lion.vt+0xcc]. Contact partners SHARE live sets: a row record
+  with [rec+0x8] == the current row ORs the contact target's
+  ([obj+0xd2]) own [partner+0x60] into this object (0x54b84).
+  K_GEN1 has three raisers: the HP<100 arm of a message type
+  (0x50d20 jump-table entry 0x50df4), two lion-family posts, and
+  a PRNG random-K_GEN (0x26670/0x26738, Borland LCG 0x76bcc).
+  PR-143 item 2 CLOSED: the queue drain's entry is 0x52b50 (the
+  function start was mis-anchored), and its callers are already
+  in PR-106 - the per-object pump 0x52b80 from the frame loop
+  (lion, every iteration) and the think pass.
 
-- NEXT PR (PR-145), in order: (a) FIND THE DISPATCH ENTRY -
-  how 0x4bd32 and 0x52b52 get called (start at PR-134/135's
-  tick-dispatcher family 0x543a2 and the object tick loops;
-  look for indirect-call conventions that a linear disassembly
-  shows as data, e.g. thunk tables or register-loaded
-  addresses); while there, resolve the 13 direct merges' masks
-  (0x26738's twin context too). A negative is allowed - count
-  it. (b) The K_UP feed: posts/writes of bits 35-38/53 into the
-  PLAYER's live set (the 12-merge census is the place to check
-  masks first now), and the '!' complement representation
-  (PR-142 item 2). (c) The A_WSP feed law (BY_TY F=0,100
-  T=160,50 + SEQ_REV_Y vs the 0x543a2 family, with the
-  [rec+0x10] vs [obj+0xa1]+[0xcef40]+0x388 threshold from
-  PR-142 Finding 4). Only after (a)+(b) does the climb-entry
-  implementation become decidable (hand-derived test +
-  mutations, behaviour-PR rule); count, do not fit.
+- NEXT PR (PR-146), in order: (a) THE CONTACT PASS - read the
+  unread frame-loop neighbours 0x4ab80 and 0x4b0e0 (and the
+  lion's +0xcc method 0x50340) to find how the contact-pass
+  fragments (0x4bd32/0x4bdf6/0x4b500/0x4b602 - zero references,
+  re-verified by byte-level scan) are entered, and what sets the
+  lion's [obj+0xd2] contact target per frame; then pin the
+  signal-record POSTER for AC_DRAB/AC_DRAB_CATCH (0x52b10
+  callers with a type-0x10 payload - the pair pass hands both
+  members' answers; the share runs through +0xd2). (b) The
+  A_WSP feed law (BY_TY F=0,100 T=160,50 + SEQ_REV_Y vs the
+  0x543a2 family, with the [rec+0x10] vs [obj+0xa1]+[0xcef40]+
+  0x388 threshold, PR-142 Finding 4) - the last unread item on
+  the climb blocker list. Only after (a)+(b) is the climb-entry
+  implementation decidable (hand-derived test + mutations,
+  behaviour-PR rule); count, do not fit.
 
 - THEN, from the PR-131 gap list (HANDOFF.md §7 item 15 is the
   current text of every item): G-8's HUD lives - map the
   STATUS.LEO fields (both R3 clips start at "5", the port
   prints 6); G-3's ZAR.BLK corridor and the KAMIEN sixth field
-  (1308/1218/1115 toward 1299..1620); then G-7 (the water
-  surface as a floor), G-12 (the SURPRISE "?" firing - the
-  whole delivery + instance machinery is now read, find its
-  posting site) and G-10/G-11 (the level-end scene and the
-  mid-level bird sequences). G-13's local-lines remainder
-  unchanged (the [obj+0xb1..0xbd] provider).
+  (1308/1218/1115 toward 1299..1620 - and PR-145 found bit 41
+  posted under a record-type-6 guard at 0x36cf8, next to the
+  KAMIEN signal name); then G-7 (the water surface as a floor),
+  G-12 (the SURPRISE "?" firing - the raise idioms are now
+  mapped in four instances, find its poster) and G-10/G-11 (the
+  level-end scene and the mid-level bird sequences). G-13's
+  local-lines remainder unchanged.
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
 first item and PR-45 its second (the authored scene), PR-46 its third
