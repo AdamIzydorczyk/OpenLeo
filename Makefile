@@ -355,6 +355,23 @@ stage_selftest.exe: tools/stage_selftest.c ported/ll_stage.c ported/ll_stage.h
 	$(XC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ \
 	    tools/stage_selftest.c ported/ll_stage.c
 
+# PR-199: the end_level row census (tools/endlevel_census.c) - opens the HD
+# ANIMACJE container and parses EVERY .MOV member with the play leg's own
+# parser (ported/ll_play.c's ll_mov_parse), so the shipped rows are counted
+# by the same code that runs them. No window, no SDL; the container is game
+# data, so the leg is guarded by the fixture probe like the other data legs.
+endlevel_census: tools/endlevel_census.c ported/ll_play.c ported/ll_play.h \
+                 ported/llrs.c ported/llrs.h ported/fs_ci.c ported/fs_ci.h
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra $(SAN) \
+	    -Iported -o $@ tools/endlevel_census.c ported/ll_play.c \
+	    ported/llrs.c ported/fs_ci.c -lm
+
+endlevel_census.exe: tools/endlevel_census.c ported/ll_play.c ported/ll_play.h \
+                     ported/llrs.c ported/llrs.h ported/fs_ci.c ported/fs_ci.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ \
+	    tools/endlevel_census.c ported/ll_play.c ported/llrs.c \
+	    ported/fs_ci.c -lm
+
 # ll_level: level-scene viewer - prints a level's .DES wiring, composites
 # its tlo= PCX background + ANIMACJE leaf .SEQ object sprites driven by the
 # HD-install .MOV state machines (LEO_HD_DIR=<dir with ANIMACJE/ETAPY>).
@@ -2137,6 +2154,111 @@ else
 	  "above ran"
 endif
 
+# PR-199: AN AUTHORED `.MOV` ROW IS THE PRODUCER OF THE LEVEL LOOP'S EXIT
+# CODE 1. The read is PR-198: the row tail `end_level <n>` reaches a node
+# of class 0xa1048, that class's apply method 0x45750 stores n into the
+# level object's +0x4 slot (`mov ebx,ds:0xcef40; mov ecx,[node+0x8];
+# mov [ebx+0x4],ecx`), and the level loop 0x4abd0 compares that slot
+# against zero at the TOP of every iteration (0x4ac55) - a nonzero sets
+# ebx=1 (0x4ac5b) and jumps to the loop's single epilogue 0x4ae53/0x4ae81,
+# so the level function returns 1 whatever n was, and the copy published
+# beside it (0x5d25e/0x5d2dc) has no reader in the image. The port:
+# ll_play.c parses the tail (ll_mov_fr.endlv, data), the row admit writes
+# the slot (ll_player.exit_word), ll_level.c's play loop tests it at its
+# own top and hands code 1 to ll_stage_outcome. THREE THINGS ARE PINNED:
+#   (a) the shipped rows, counted THROUGH THE PORT'S OWN PARSER: 26 rows
+#       in 3 of the 777 .MOV members (25 x value 1, 1 x value 2), each one
+#       named by level / leaf / state / row / authored frame / threshold -
+#       and RAN.01, ZARIA.01 and every other level a play leg runs carry
+#       ZERO, which is what makes the new path inert on all of those pins;
+#   (b) the path driven end to end on RAN.01. That level's own data has no
+#       such row (see (a)) and the three levels that do cannot be played
+#       here (JUNCTION's own data says it has no ground; TUNGA's A_EXIT is
+#       entered only by the arm `A_EXIT(x)=AC_RECT,AC_BLOK`), so the tail
+#       is INJECTED into one authored row of the level's own text by
+#       LEO_PLAY_ENDLV - see mov_inject_endlv in ported/ll_level.c for
+#       exactly that and for what the injection does and does not prove.
+#       From that byte onward every step is shipped code. The equalities
+#       are the strong kind: the 60-tick run the row ends is
+#       byte-identical to (i) a 6-tick run of the same injected script -
+#       the end lands on the iteration boundary after the admit and NO
+#       extra iteration ran, exactly the engine's shape, (ii) a run whose
+#       injected value is 1 instead of 2 - the value selects nothing, and
+#       (iii) a 6-tick run with NO injection at all - carrying the tail
+#       changes not one byte of the simulation;
+#   (c) the negative paths: an address that does not resolve prints its own
+#       line and changes nothing, and with no LEO_PLAY_ENDLV no driver line
+#       appears at all (PR-194's INERT pin, re-proved here with the new
+#       code in the loop).
+verify-endlevel: endlevel_census ll_level
+ifeq ($(PX_DATA),1)
+	@./endlevel_census $(HD)/ANIMACJE > /tmp/opencode/endlv_census.txt 2>&1 \
+	  || { echo "end_level census FAILED"; cat /tmp/opencode/endlv_census.txt; \
+	         exit 1; }
+	@grep -qF 'census total: 777 .MOV member(s) parsed, 0 unreadable,' \
+	        /tmp/opencode/endlv_census.txt \
+	  && grep -qF '3 member(s) carry the tail, 26 row(s) with end_level' \
+	        /tmp/opencode/endlv_census.txt \
+	  && grep -qF 'value 1: 25 row(s)' /tmp/opencode/endlv_census.txt \
+	  && grep -qF 'value 2: 1 row(s)' /tmp/opencode/endlv_census.txt \
+	  && grep -qF 'JUNCTION/LEW.JUN state 2 [A_TUNGA1] row 41 (authored frame 42, threshold 200) end_level 1' /tmp/opencode/endlv_census.txt \
+	  && grep -qF 'JUNCTION/LEW.JUN state 3 [A_TUNGA2] row 81 (authored frame 82, threshold 200) end_level 2' /tmp/opencode/endlv_census.txt \
+	  && grep -qF 'TUNGA.11/LEW.TUN state 9 [A_EXIT] row 0 (authored frame 10, threshold 6) end_level 1' /tmp/opencode/endlv_census.txt \
+	  && grep -qF 'TUNGA2.12/LEW.TUN state 32 [A_EXIT] row 11 (authored frame 9, threshold 6) end_level 1' /tmp/opencode/endlv_census.txt \
+	  && grep -qF 'LEVEL RAN.01: 84 .MOV member(s), 0 end_level row(s)' /tmp/opencode/endlv_census.txt \
+	  && grep -qF 'LEVEL ZARIA.01: 33 .MOV member(s), 0 end_level row(s)' /tmp/opencode/endlv_census.txt \
+	  && echo "end_level rows counted by the port's own parser: 26 rows in 3 of" \
+	     "the 777 .MOV members (25 x value 1, 1 x value 2), each named by level," \
+	     "leaf, state, row, authored frame and threshold; RAN.01 and ZARIA.01" \
+	     "carry ZERO, so the new path cannot move those legs' frames (ok)" \
+	  || { echo "end_level census leg FAILED:"; \
+	         grep -E '^(LEVEL|value|census)' /tmp/opencode/endlv_census.txt; \
+	         exit 1; }
+	@rm -f /tmp/opencode/endlv_*.ppm /tmp/opencode/endlv_*.log; \
+	run() { env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	          LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	          LEO_PLAY_SCRIPT="1:FWD" \
+	          LEO_LEVEL_PPM=/tmp/opencode/endlv_$$1.ppm LEO_LEVEL_PPM_TICK=$$2 \
+	          $${3:+LEO_PLAY_ENDLV=$$3} \
+	          ./ll_level $(DATA) RAN.01 --play --no-audio \
+	          > /tmp/opencode/endlv_$$1.log 2>&1 \
+	          || { echo "end-level leg $$1 FAILED (rc=$$?)"; \
+	               cat /tmp/opencode/endlv_$$1.log; exit 1; }; }; \
+	run end2 60 "23:1:2"; run exact 6 "23:1:2"; run end1 60 "23:1:1"; \
+	run plain6 6 ""; run plain60 60 ""; run oor 60 "0:5:1"
+	@grep -qF 'end_level INJECTED on state 23 row 1 of the level'"'"'s own .MOV text: the line now reads "2,6,end_level 2"' /tmp/opencode/endlv_end2.log \
+	  && grep -qF 'stage driver: exit 1 at tick 6: run on, NO reset (the engine'"'"'s 0x5d3dc)' /tmp/opencode/endlv_end2.log \
+	  && grep -qF 'exit word 2 from an authored end_level row: the level loop returns 1 (0x4ac5b -> the single epilogue 0x4ae53) at tick 6 of 60' /tmp/opencode/endlv_end2.log \
+	  && echo "the injected row admitted on tick 5 ends the run at the TOP of tick" \
+	     "7 (reported as the last completed tick 6): the contract line names code" \
+	     "1 and the producer line names the slot, the value and the addresses (ok)" \
+	  || { echo "end-level driven leg FAILED"; cat /tmp/opencode/endlv_end2.log; \
+	         exit 1; }
+	@cmp /tmp/opencode/endlv_end2.ppm /tmp/opencode/endlv_exact.ppm \
+	  && cmp /tmp/opencode/endlv_end2.ppm /tmp/opencode/endlv_end1.ppm \
+	  && cmp /tmp/opencode/endlv_end2.ppm /tmp/opencode/endlv_plain6.ppm \
+	  && echo "the run the authored row ends is BYTE-IDENTICAL to a 6-tick run of" \
+	     "the same injected script (no extra iteration ran), to a run injected with" \
+	     "value 1 instead of 2 (the value selects nothing - PR-198 measured the" \
+	     "same loop return for every value), and to a 6-tick run with NO injection" \
+	     "at all (carrying the tail changes no byte of the simulation) (ok)" \
+	  || { echo "end-level byte leg FAILED"; ls -l /tmp/opencode/endlv_*.ppm; \
+	         exit 1; }
+	@grep -qF "LEO_PLAY_ENDLV='0:5:1' names state 0 row 5, which this .MOV does not have" /tmp/opencode/endlv_oor.log \
+	  && cmp /tmp/opencode/endlv_oor.ppm /tmp/opencode/endlv_plain60.ppm \
+	  && ! grep -q 'stage driver:' /tmp/opencode/endlv_oor.log \
+	  && ! grep -q 'stage driver:' /tmp/opencode/endlv_plain60.log \
+	  && echo "an address that does not resolve names itself and changes NOTHING" \
+	     "(byte-identical to the plain 60-tick run), and without LEO_PLAY_ENDLV no" \
+	     "driver line appears at all - the new top-of-loop test is inert on the" \
+	     "shipped rows of every level these legs run (ok)" \
+	  || { echo "end-level negative leg FAILED"; cat /tmp/opencode/endlv_oor.log; \
+	         exit 1; }
+else
+	@echo "verify-endlevel: SKIP the census and the driven legs (needs $(DATA) +" \
+	  "LEO_HD_DIR fixtures; see the restaging recipe in NEXT_STEPS.md)"
+endif
+
 # P-07 end-to-end: game data + output paths through a non-ASCII
 # directory (the review's "C:\Gry\Łódź\" case).  Linux proves the
 # engine itself is path-encoding agnostic; the wine runs prove the
@@ -2444,7 +2566,7 @@ verify-all: verify verify-is-synth verify-skip verify-llrs verify-pcx \
             verify-seq verify-pcm verify-level verify-play verify-help \
             verify-menu verify-sel verify-quit verify-save verify-music \
             verify-utf8 verify-fuzz verify-platform verify-userdir \
-            verify-stage \
+            verify-stage verify-endlevel \
             verify-arch verify-docs verify-index verify-golden \
             verify-cmake $(WIN_LEGS)
 	@echo "ALL TESTS PASSED (linux half; Windows legs are deferred by the"
@@ -2466,12 +2588,13 @@ clean:
 	      pcx_selftest pcx_selftest.exe seq_selftest seq_selftest.exe \
 	      seq_patchdump seq_patchdump.exe seq_shapedump seq_shapedump.exe pcm_selftest pcm_selftest.exe \
 	      mod_selftest mod_selftest.exe ll_level ll_level.exe \
-	      ll_save ll_save.exe stage_selftest stage_selftest.exe *.o *.obj
+	      ll_save ll_save.exe stage_selftest stage_selftest.exe \
+	      endlevel_census endlevel_census.exe *.o *.obj
 
 .PHONY: py-refs verify-is-synth run win verify verify-skip verify-win verify-llrs verify-pcx \
         verify-seq verify-pcm verify-mod verify-level verify-play verify-help verify-menu \
         verify-sel verify-quit verify-save verify-music verify-utf8 verify-fuzz \
         verify-platform verify-userdir verify-cmake verify-all verify-windows \
         verify-all-windows level clean package package-win package-linux \
-        verify-golden verify-arch verify-stage verify-docs \
+        verify-golden verify-arch verify-stage verify-endlevel verify-docs \
         verify-index golden_rig golden_rig_cd golden_rig_ddir

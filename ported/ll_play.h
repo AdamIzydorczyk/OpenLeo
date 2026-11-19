@@ -264,7 +264,38 @@ int ll_sig_id(const char *name);
 
 typedef struct { int frame; unsigned thresh; int dx, dy;
                  unsigned long long gsig; unsigned char atc;
-                 int has_i, ix, iy; } ll_mov_fr;   /* has_i: `I ix,iy` impulse tail */   /* gsig: the frame's `GEN <signal>` tail(s), one bit per name
+                 int has_i, ix, iy, endlv; } ll_mov_fr;
+                 /* has_i: `I ix,iy` impulse tail */
+                 /* endlv: this row's `end_level <n>` tail: the AUTHORED
+                 * NUMBER kept as DATA, 0 = the row carries no such tail
+                 * (PR-199). The word is in the engine's own .MOV
+                 * directive vocabulary (the 0x91940 block: pos, goto,
+                 * gotorel, goto_rel, I, F, IC, FC, M, MOVE, GEN, Wait,
+                 * end_level) and its parse arm is 0x46beb-0x46c01: the
+                 * number goes through the `' %i '` format at 0x91998
+                 * into [node+0x8] of a node whose class word is
+                 * 0xa1048 (PR-194 F(a)). What EXECUTES such a node is
+                 * PR-198's read: class 0xa1048's slot +0x04 is 0x45750,
+                 * `mov ebx,ds:0xcef40; mov ecx,[node+0x8];
+                 * mov [ebx+0x4],ecx` and then the rest of the row's
+                 * chain - so the number lands in the CURRENT LEVEL
+                 * OBJECT's +0x4 slot, and the level loop 0x4abd0 tests
+                 * that slot against ZERO at the top of every iteration
+                 * (0x4ac55): a nonzero makes the loop RETURN THE
+                 * CONSTANT 1 (0x4ac5b; `jmp 0x4ae53` at 0x4ac60 into
+                 * the single epilogue 0x4ae81) for EVERY value, which
+                 * is why the shipped 25x1 and 1x2 rows behave alike.
+                 * The same pair 0x5d25e/0x5d2dc also publishes the
+                 * number beside the code, and PR-198 enumerated all 14
+                 * call sites of the level function 0x5d170: NONE reads
+                 * it. So the value is carried, never interpreted.
+                 * One documented collapse: the engine's apply is
+                 * unconditional, so a literal `end_level 0` row would
+                 * CLEAR the slot; the parser cannot tell that row from
+                 * a row without the tail once the value is 0. No shipped
+                 * script does it (26 rows, values 1 and 2 only), and the
+                 * census leg (verify-endlevel) re-measures that. */
+                 /* gsig: the frame's `GEN <signal>` tail(s), one bit per name
                  at its LL_SIG_* index (PR-88: any table name, not just
                  K_GENn/AC_TIME - the engine's own GEN survey raises
                  AC_PLAT_OFF 181x, AC_TIME 60x ...). Names at index >= 64
@@ -713,6 +744,33 @@ typedef struct {
                                   * it from the state it is showing
                                   * (ll_player_set_contact); ll_player_start
                                   * leaves it 0. */
+
+    /* PR-199: THE EXIT WORD, the port's copy of the engine's field at
+     * [level object + 0x4]. The whole path is PR-198's read: an authored
+     * `.MOV` row tail `end_level <n>` reaches a node of class 0xa1048,
+     * that class's apply method 0x45750 stores n into this slot of the
+     * object the global ds:0xcef40 points at (the level-session object),
+     * and the level loop 0x4abd0 compares the slot against ZERO at the
+     * top of EVERY iteration (0x4ac55) - nonzero sets ebx=1 (0x4ac5b)
+     * and jumps to the loop's single epilogue, so the level function
+     * returns 1 whatever n was. Two measured facts about the slot's
+     * life: the loop body contains NO store to it (zero [reg]/[reg+4]
+     * dword stores, zero ds:0xcef40 mentions), and the level ctor
+     * 0x4a4c0 zeroes it (0x4a4c3/0x4a4cc) on a freshly allocated 0x3ea
+     * block (0x5d1f5). So the flag is never cleared mid-run and cannot
+     * leak into the next level: the end lands on the first iteration
+     * boundary after the row ran.
+     * THE MAPPING, stated rather than hidden: the engine's slot is ONE
+     * PER LEVEL OBJECT; the port's owner here is the lion's own state,
+     * because the lion's row walk is the only one the shipped data puts
+     * the directive in - all 26 rows are in `LEW.MOV` members, in three
+     * of them only (JUNCTION A_TUNGA1/A_TUNGA2, TUNGA.11 A_EXIT,
+     * TUNGA2.12 A_EXIT; measured by verify-endlevel over the 777 .MOV
+     * members of the HD ANIMACJE). A SCENE OBJECT's row cannot reach
+     * this field and stays counted (no shipped script does it today).
+     * ll_level.c's play leg reads the field at the top of its iteration
+     * - the 0x4ac55 analogue - and hands code 1 to ll_stage_outcome. */
+    int exit_word;              /* 0 = no authored end_level has fired  */
 } ll_player;
 
 enum {                                              /* ll_player_step ev */

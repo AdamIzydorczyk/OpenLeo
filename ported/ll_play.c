@@ -489,6 +489,7 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                         mf->gsig = 0;
                         mf->atc = 0;
                         mf->has_i = 0;
+                        mf->endlv = 0;
                         /* A frame line may carry further fields. The ones the
                          * model acts on are the authored motion of THIS frame,
                          * "N,ms, M dx,dy" (285 of 18617 shipped frame lines
@@ -499,11 +500,15 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                          * (PR-89, the attack-connect window).
                          * Everything else the table names (ground_on/off,
                          * lock/unlock, chdir, ldir/rdir, pos, goto/gotorel,
-                         * F/IC/FC, MOVE, Wait, end_level, the smp and
-                         * vol sound words, WAIT <signal>, inline F=) is
-                         * counted - measured 1568 such lines before this
-                         * PR took the GEN and ATC ones out of that count,
-                         * PLAN 8g - never dropped in silence. */
+                         * F/IC/FC, MOVE, Wait, the smp and vol sound
+                         * words, WAIT <signal>, inline F=) is counted -
+                         * measured 1568 such lines before this PR took
+                         * the GEN and ATC ones out of that count, PLAN
+                         * 8g - never dropped in silence. `end_level`
+                         * joined the modeled set in PR-199 once PR-198
+                         * had read its apply: it is 26 lines in the
+                         * whole shipped set (three LEW.MOV members), so
+                         * this parser meets it in those three only. */
                         const char *fc = strchr(line, ',');
                         const char *rest = fc ? strchr(fc + 1, ',') : NULL;
                         if (rest) {
@@ -593,6 +598,33 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                                 if (strcasecmp(word, "ATC_OFF") == 0) {
                                     mf->atc |= LMOV_ATC_OFF;
                                     continue;
+                                }
+                                if (strcasecmp(word, "end_level") == 0) {
+                                    /* PR-199: `end_level <n>` - this row
+                                     * ENDS THE LEVEL RUN. Kept as the
+                                     * authored number (ll_mov_fr.endlv);
+                                     * the row admit below is what puts
+                                     * it in the level's exit-word slot,
+                                     * the copy of the engine's apply
+                                     * 0x45750, and the only reader of
+                                     * that slot is the level loop's
+                                     * compare against zero (0x4ac55),
+                                     * which returns the loop code 1 for
+                                     * ANY value. The number is therefore
+                                     * never interpreted here, and a tail
+                                     * with no number after it stays a
+                                     * counted directive, never a guess.
+                                     * The shipped spelling is lowercase
+                                     * in all 26 rows (JUNCTION, TUNGA.11,
+                                     * TUNGA2.12); strcasecmp matches the
+                                     * other word arms of this parser. */
+                                    int v = 0;
+                                    while (*q == ' ')
+                                        q++;
+                                    if (sscanf(q, "%d", &v) == 1) {
+                                        mf->endlv = v;
+                                        continue;
+                                    }
                                 }
                                 other_directive = 1;
                             }
@@ -1475,6 +1507,19 @@ static int player_iterate(ll_player *p, const ll_plt *ground,
                 p->atc = 1;                        /* `ATC_ON` opens the */
             if (ac & LMOV_ATC_OFF)                 /* attack-connect     */
                 p->atc = 0;                        /* window. */
+            /* PR-199: a row that carries `end_level <n>` is the engine's
+             * apply method 0x45750 running on that node:
+             * `mov ebx,ds:0xcef40; mov ecx,[node+0x8]; mov [ebx+0x4],
+             * ecx`. The number goes to the level's exit-word slot and
+             * NOTHING else happens - the apply ignores its second
+             * argument and still walks the row's own chain, which is
+             * what the two engine legs above already model. The value is
+             * not examined here and never cleared here: PR-198 measured
+             * that the loop body has no store to that slot and that the
+             * slot's only test is `cmp [ecx+0x4],0x0` at the TOP of an
+             * iteration, so the end lands one boundary after this admit. */
+            if (st->fr[p->fi].endlv)
+                p->exit_word = st->fr[p->fi].endlv;
             if (p->fi + 1 >= st->nfr) {
                 p->fi = 0;
                 p->broke = 1;
@@ -3235,5 +3280,61 @@ int ll_play_selftest(void)
                " each = 50 u/s, the worm's 4-unit poses at 3.2 ="
                " 25 u/s), with a released key leaving the authored drag"
                " to run out over 25 iterations (ok)\n");
+
+    /* PR-199: the `end_level <n>` row tail, end to end INSIDE the
+     * player. The engine side is PR-198's read (the parse arm
+     * 0x46beb-0x46c01; the apply 0x45750 of class 0xa1048 writing the
+     * level object's +0x4; the loop's compare against zero at 0x4ac55
+     * that returns the constant 1 for any nonzero). What is pinned here
+     * is the port's half: the number is parsed as DATA, the row admit
+     * copies it into the exit-word slot, the frame's own motion is
+     * unchanged by carrying it, and NOTHING here reads the value as a
+     * number or clears it again - the loop's test is the only reader,
+     * and ll_level.c's play leg is what turns a nonzero into the loop
+     * return 1 (the contract half, code 1 = run on with no reset, is
+     * pinned by stage_selftest). */
+    {
+        static const char EL[] =
+            "A_WALK\nA_EXIT\n\n[A_WALK]\ncontrol=BY_TIME\nF=0,0\n"
+            "T=0,0\nG=0,0\nA_EXIT(1)=K_JUMP\nseq=a\n1,100\n"
+            "2,100,end_level 2\n3,100\n\n[A_EXIT]\ncontrol=BY_TIME\n"
+            "F=0,0\nT=0,0\nG=0,0\nseq=a\n0,200\n";
+        static const char ELP[] = "1\n1 0,100;2000,100;\n";
+        ll_mov_t *em = calloc(1, sizeof *em);
+        ll_plt ep;
+        ll_player eq;
+        ll_play_keys ek = { 0 };
+        int ekk, fired = -1;
+
+        CHECK(em && ll_plt_parse(ELP, &ep) == 0);
+        CHECK(ll_mov_parse(EL, em) == 2);
+        CHECK(em->st[0].nfr == 3);
+        CHECK(em->st[0].fr[0].endlv == 0 &&
+              em->st[0].fr[1].endlv == 2 &&        /* the authored number, */
+              em->st[0].fr[2].endlv == 0);         /* data, and ONLY there */
+        ll_player_start(&eq, em, 500, 100, 1);
+        CHECK(eq.exit_word == 0);                  /* the ctor's zero      */
+        for (ekk = 0; ekk < 10 && !eq.exit_word; ekk++) {
+            ll_player_step(&eq, &ep, &ek, 0, 2000, LL_ITER_MS);
+            if (eq.exit_word && fired < 0)
+                fired = ekk;
+        }
+        CHECK(eq.exit_word == 2);                  /* the admit set it     */
+        CHECK(fired == 1);                         /* exactly when the     */
+                                                  /* state's 2nd row became */
+                                                  /* current, never before */
+        for (ekk = 0; ekk < 60; ekk++)            /* and NOTHING clears   */
+            ll_player_step(&eq, &ep, &ek, 0, 2000, LL_ITER_MS);
+                                                  /* it: the engine's loop */
+                                                  /* body has no store to */
+                                                  /* the slot either      */
+        CHECK(eq.exit_word == 2);
+        CHECK(eq.sti == 0);                        /* the tail is not an  */
+                                                  /* arm: the state never */
+                                                  /* left A_WALK         */
+        ll_plt_free(&ep);
+        free(em);
+    }
+
     return rc;
 }

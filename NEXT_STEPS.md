@@ -15851,50 +15851,26 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-197 IS SHIPPED (the owner's doc-audit step 2; steps 0/1/2 of the
-  approved doc order are done): `tools/re_index.py` generates
-  `docs/RE_INDEX.md` and `make verify-index` pins it by regenerate +
-  `cmp` (tracked markdown only, so both fixture modes; one (ok) each).
-  Measured, records-scoped, on the real-heading boundary doc_census
-  itself slices records with (re_index imports doc_census on purpose):
-  182 records -> 619 addresses in >=3 records (47% of address
-  mentions), 140 field tokens (64%), 224 authored names = 983 entries,
-  4,180 lines, 0 over 79. P1's headline 187 counts heading-SHAPED
-  lines (5 old titles repeat their own number on a wrap line); the
-  187/182/189 difference is measured and explained in PR-197.
-  `corrected in:` is only a
-  pointer to where a correction is WRITTEN - never a census, not a
-  direction, never a currency verdict (the three limits print in the
-  generated header; 37 of 619 carry one). Two findings every later doc
-  PR must know: building on the shared regexes FOUND A DEAD BRANCH
-  (`[a-z_]{4,20}=\b` never matches, so every `.des` key was invisible
-  to the audit, to doc_census's report and to the index's first run -
-  fixed as `DES_RE`, NAME_RE kept so the historical report stays
-  comparable), and the audit's loose `## PR-` cut made 8 phantom
-  records (worked example 0xcef40: 118 raw lines on this tree, 115
-  before this record cited it, in 47 real records vs 55 loose
-  segments on the pre-record tree; the generated header computes its
-  own live numbers at build time, never a frozen count). This file's
-  PR-197 record is the FIRST carrying the field block; PR-196's Next
-  guessed PR-198 - corrected in PR-197's CORRECTS field.
-- THEN PR-199 IS THE PRODUCER'S NEXT STEP: THE [PORT] THAT
-  REPLACES LEO_LEVEL_EXIT'S INJECTED CODES WITH REAL `A_EXIT` ROWS.
-  PR-198 closed the runtime end to end: an authored `end_level <n>`
-  row runs as any other row; class 0xa1048's apply 0x45750 stores n
-  into the level object's +0x4; the level loop 0x4abd0 tests that
-  slot against zero at every iteration top (0x4ac55) and a nonzero
-  makes it RETURN THE CONSTANT 1 for EVERY value; the number itself
-  is published beside that code (0x5d25e/0x5d2dc) and read by
-  nothing.
-  So the fixture rows (PR-194 F(b): the LEW.MOV `A_EXIT`/`A_TUNGA`
-  states) drive the engine's own end-of-level walk through the port's
-  existing row walk, and the injected hook stops being the model:
-  keep the authored number as data only, and pin the measured
-  any-nonzero -> loop code 1, while exit 4 stays the menu leg and
-  must not model a level end. Rules unchanged: full gate per
-  record, one LEO_* hook documented (rule 4), no invented semantics.
+- PR-199 IS SHIPPED: the level loop's exit code now has an
+  IMPLEMENTED PRODUCER in the port. The authored `.MOV` row tail
+  `end_level <n>` is parsed as data (ll_mov_fr.endlv), the row's
+  admit writes the exit-word slot (ll_player.exit_word - the port's
+  copy of apply 0x45750 on the level object's +0x4), the play loop
+  tests that slot against zero at the TOP of its iteration (the
+  0x4ac55 position), and a nonzero hands loop code 1 to the stage
+  contract and ends the level run there - for EVERY value, as
+  PR-198 measured. The census leg counts the 26 shipped rows through
+  the port's own parser (3 of 777 .MOV members, 25 x 1 + 1 x 2;
+  RAN.01/ZARIA.01 carry zero, so every existing frame is inert),
+  and LEO_PLAY_ENDLV drives the real path on RAN.01 with the
+  byte-identical proofs the record states. The design calls - the
+  lion-owned slot, the `end_level 0` collapse, the no-re-entry end -
+  are stated in the record and at the fields, not hidden.
+- OWNER'S RULING (2026-11-19): STOP AFTER PR-199. The steps below
+  stay PLANNED, NOT STARTED; nothing after this ruling was begun.
 
-- THEN THE DOCUMENT WORK, IN ORDER: step 3, one open-items register
+- WHEN WORK RESUMES, THE DOCUMENT WORK, IN ORDER: step 3,
+  one open-items register
   with stable ids (~40 rows seeded from the audit's re-listed phrases
   AND from the new `OPENS:`/`CLOSES:` lines), the ledger citing
   `OI-nnn` instead of restating sentences; step 4, HANDOFF sections
@@ -28849,6 +28825,169 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 20 named verify-SKIPs - the counts
   re-run on the final tree, and the over-79 SETS of the three
   tracked docs are compared to HEAD (0 added, 0 removed).
 
+
+## PR-199 — AN AUTHORED `.MOV` ROW ENDS THE PORT'S LEVEL RUN: the
+## `end_level <n>` tail is parsed as data, the row's admit writes the
+## exit-word slot (the port's copy of apply 0x45750), and the play loop
+## tests that slot at the TOP of an iteration exactly like 0x4ac55 —
+## ANY nonzero value then returns loop code 1; the 26 shipped rows are
+## counted through the port's own parser (3 of 777 .MOV members)
+
+KIND: port
+SUBSYSTEM: .MOV row execution -> the level loop's exit code; the
+      player's row admit; the only real producer of PR-194's contract
+ADDRESSES: 0x45750 0x4ac55 0x4ac5b 0x4ac60 0x4ae53 0x4a4c3 0x4a4cc
+      0x5d1f5 0x46beb 0x91998 0xa1048 0x5d25e 0x5d2dc (all read in
+      PR-198/PR-194 and ported here; this PR added no new read)
+NAMES: end_level, LEW.MOV, LEW.JUN, LEW.TUN, A_EXIT, A_TUNGA1,
+      A_TUNGA2, A_STAY, A_WALK_FWD, JUNCTION, TUNGA.11, TUNGA2.12,
+      RAN.01, ZARIA.01, LEO_PLAY_ENDLV, LEO_LEVEL_EXIT, ANIMACJE
+CODE: yes: ported/ll_play.h (ll_mov_fr.endlv, ll_player.exit_word);
+      ported/ll_play.c (the parse arm, the admit apply, a
+      ll_play_selftest case); ported/ll_level.c (the top-of-loop guard,
+      the producer line, the ctor-zero on the reset leg,
+      mov_inject_endlv, the PR-194 block comment);
+      tools/endlevel_census.c; Makefile (rules + verify-endlevel);
+      README.md (the stage-driver paragraph)
+HOOKS: LEO_PLAY_ENDLV="<state>:<row>:<value>" - appends an
+      `end_level <value>` tail to ONE authored row of the level's own
+      .MOV TEXT (mov_inject_endlv). LEO_LEVEL_EXIT is unchanged.
+OPENS: the port's owner for the slot is the LION, so a SCENE OBJECT's
+      row admit cannot reach it (no shipped script does it - counted);
+      the engine's stage RE-ENTRY through a new level object (0x5d1f5
+      allocates, 0x5d233 runs the ctor that zeroes the slot) has no
+      port counterpart, so the port ends the level run at the guard;
+      the second apply site 0x51101; the other 22 class applies and
+      the 6 pure-walks (PR-198's end pass)
+CLOSES: the PR-199 scope in `## Next`; PR-198's PORT CONSEQUENCE
+      paragraph - the port now implements that contract
+CORRECTS: PR-194's block comment in ported/ll_level.c, "The port has
+      no exit-word PRODUCER: ... its runtime executor was never read" -
+      replaced in place, quoting that wording and naming PR-198/PR-199
+      as the answer; PR-198's "LEO_LEVEL_EXIT can therefore stop
+      injecting the codes" - true for the ONE outcome a real row
+      produces only: the other three have no producer in the port, and
+      none of the three levels that carry the rows can be run here, so
+      the injection stays how all four are driven (measured below).
+
+- WHAT SHIPPED, ONE PATH, EVERY STEP ANCHORED. (1) PARSER:
+  `end_level <n>` in a row's directive chain now fills
+  `ll_mov_fr.endlv` with the authored NUMBER - the analogue of the
+  parse arm 0x46beb, which puts n through the `' %i '` format at
+  0x91998 into [node+0x8] of a class-0xa1048 node (PR-194 F(a)). A
+  tail with no number stays a counted directive, never a guess.
+  (2) APPLY: the player's row admit - the point where a row becomes
+  current, i.e. what the engine's 0x520e1 apply call reaches for that
+  node - copies the number into `ll_player.exit_word`, exactly what
+  0x45750 (`mov ebx,ds:0xcef40; mov ecx,[node+0x8]; mov [ebx+0x4],
+  ecx`) does for the level object's +0x4 slot, and like the engine
+  nothing ELSE happens: the apply ignores its remainder argument and
+  the row's own chain still runs. (3) TEST: ll_level.c's play loop
+  now compares that slot against zero at the TOP of its iteration,
+  before any of the iteration's work - the 0x4ac55 position - and a
+  nonzero hands loop code 1 to ll_stage_outcome (the 0x4ac5b
+  ebx=1 + `jmp 0x4ae53` epilogue), prints a named producer line with
+  the value and the addresses, and ENDS the level run there.
+  (4) LIFE OF THE FLAG: never cleared by the loop (PR-198: the body
+  has no store to the slot), zeroed where the engine's ctor 0x4a4c0
+  zeroes it - the reset leg (stage_reset_to_authored -> play_spawn).
+  A new named line makes the two producers distinguishable in any
+  log: an injected CODE says "stage driver: exit N at tick T", a real
+  row says "exit word <v> from an authored end_level row ...".
+
+- THE DESIGN CALL, STATED NOT HIDDEN. The engine's field is ONE PER
+  LEVEL OBJECT; the port's owner is the LION's state, because the
+  lion's row walk is the only one the shipped data puts the directive
+  in - all 26 rows live in `LEW.MOV` members (measured by the new
+  census). That mapping is written at both fields, not implied. A
+  SCENE OBJECT's row cannot reach the slot and stays counted. A
+  literal `end_level 0` (which in the engine would CLEAR the slot)
+  collapses into "no tail" - the parser cannot distinguish value 0
+  from absence - and no shipped row does it (26 rows, values 1 and 2
+  only), re-measured by the census leg. And the port ENDS the level
+  run at the guard rather than pretending to continue: the engine's
+  "run on, no reset" for code 1 is the CALLER's decision, and the
+  caller re-enters the stage through a NEW level object, which the
+  port has no equivalent of - the producer line names that limit.
+
+- MEASURED - THE SHIPPED ROWS, THROUGH THE PORT'S OWN PARSER (new
+  tool/endlevel_census.c + a verify-endlevel leg): 777 `.MOV` members
+  of the HD ANIMACJE parsed by ll_mov_parse itself, 0 unreadable;
+  exactly 3 members carry the tail and 26 rows total - 25 with value
+  1, 1 with value 2, confirming PR-194 F(a) by an independent route.
+  Every row is named in the log: JUNCTION/LEW.JUN state 2 [A_TUNGA1]
+  row 41 (authored frame 42, threshold 200) end_level 1; JUNCTION
+  state 3 [A_TUNGA2] row 81 (frame 82, threshold 200) end_level 2;
+  TUNGA.11/LEW.TUN state 9 [A_EXIT] rows 0-11 and
+  TUNGA2.12/LEW.TUN state 32 [A_EXIT] rows 0-11, all `frame,6` -
+  2 + 12 + 12 = the 26. And the levels every play leg DOES run
+  carry ZERO such
+  rows - RAN.01: 84 members, 0 rows; ZARIA.01: 33 members, 0 rows -
+  which is what makes steps (2)/(3) inert on every existing frame
+  pin.
+- MEASURED - THE PATH DRIVEN END TO END ON RAN.01 (the level cannot
+  carry a real row: see the CORRECTS note for why the three that do
+  cannot be played here - JUNCTION's platformy=none.des declares 0
+  polylines ("this level has NO ground"), and TUNGA's A_EXIT is armed
+  only by `A_EXIT(x)=AC_RECT,AC_BLOK`, signals this port's object
+  world does not raise). Injecting the tail on the level's OWN row -
+  state 23 [A_WALK_FWD] row 1, the line becomes `2,6,end_level 2` -
+  makes the guard fire: the row admits on tick 5, the loop ENDS at
+  the top of tick 7 (reported as last completed tick 6, the same
+  numbering as the injected codes), stage_apply answers exactly like
+  an injected code 1 ("run on, NO reset (the engine's 0x5d3dc)"),
+  and the 60-tick PPM is BYTE-IDENTICAL to (i) a 6-tick run of the
+  same injected script - no extra iteration ran after the admit, the
+  engine's own boundary shape; (ii) a run injected with value 1
+  instead of 2 - the value selects nothing, PR-198's central finding,
+  now demonstrated in the port; (iii) a 6-tick run with NO injection
+  at all - carrying the tail changes not one byte of the simulation.
+  An address that does not resolve (state 0 row 5 of a 30-state
+  script) prints its own line and is byte-identical to the plain
+  run; with no LEO_PLAY_ENDLV no driver line appears at all.
+  ll_play_selftest adds the hermetic case: the flag lands EXACTLY on
+  the admit of the carrying row and 60 further steps never clear it.
+- WHY THE PROBE HAD TO NAME STATE 23, RECORDED SO NOBODY RE-FINDS IT
+  THE HARD WAY. First probes injected on state 0 and did nothing,
+  and the reason is the port's own correct behavior, not a dead
+  path: RAN.01's lion spawns in state INDEX 22 (A_STAY, PR-83's
+  declared-name spawn), state 0 (A_FLY_PTAKI1) is never current, and
+  even A_STAY's single row is threshold-fed with no key effect, so
+  no row there ever ADMITS while the lion stands. A_WALK_FWD's rows
+  admit continuously while the walk script runs. The injection
+  counter counts rows exactly as ll_mov_parse counts them, so the
+  address is the shipped grammar, not a second indexing.
+
+GATE: make 0 warnings; verify-all fixtures rc=0 64 (ok); the
+      baseline 60 plus this PR's four new (ok) lines, nothing else
+      moved; verify-docs + verify-index green on the final tree, and
+      the over-79 sets of the tracked docs unchanged.
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs (the +1 over PR-198 is verify-endlevel's own SKIP
+      line, which names the reason and points at the restaging
+      recipe).
+
+- DOCS: README's stage-driver paragraph now names the REAL producer,
+  the top-of-loop test, the code-1 equivalence, the census numbers and
+  LEO_PLAY_ENDLV; the PR-194 block comment in ported/ll_level.c
+  carries the corrected wording quoted above; this record is spliced
+  and docs/RE_INDEX.md regenerated (record count +1, every entry
+  regenerated).
+
+- RISK: LOW. Every new byte is (a) inert without the new hook - the
+  26 shipped rows live in three levels no leg drives and the guard
+  tests a field that stays 0 everywhere else (proved: 13 unchanged
+  (ok) lines, byte-identical frames, zero driver lines); (b) exactly
+  one new printf; (c) a parse arm for a directive that previously
+  fell into the counted bucket - the only frame-visible change it can
+  make is in a script that carries the tail, and none of the fixture
+  levels' lion scripts does. The row-admit apply sits in the same
+  block as the ATC arms (PR-89), which is where the engine puts row
+  side effects too.
+
+- REVERT: `git revert` of this PR's commit removes the parse arm,
+  both fields, the guard, the injector, the census tool and the leg;
+  no output line and no frame of any pre-existing leg depends on it.
 
 ## Deferred big items (deliberately out of scope so far)
 

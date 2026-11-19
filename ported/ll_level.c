@@ -5891,16 +5891,26 @@ static void play_claim_leaf(lvl_obj *objs, int *nobj, const play_ctx *pl)
  *
  * The engine's level loop ends and its per-stage caller acts on the code;
  * ported/ll_stage.h states the contract with every address, and PR-193
- * F2/F3/F4 is the read behind it. The port has no exit-word PRODUCER:
- * the authored `.MOV` directive `end_level <n>` (26 lines in the HD
- * ANIMACJE members, values 1 and 2; the engine parses it at
- * 0x46bbd-0x46c01 into a node of class 0xa1048) is the candidate the
- * data names, but its runtime executor was never read. So the only
- * honest way to run the four outcomes is to INJECT the code, which is
- * what LEO_LEVEL_EXIT does: a comma list of "<tick>:<code>", meaning
- * "the level ended at that tick with that code". With the variable
- * absent nothing is printed and nothing changes, so every existing pin
- * stays byte-identical.
+ * F2/F3/F4 is the read behind it. What this block said when it shipped -
+ * "The port has no exit-word PRODUCER: ... its runtime executor was
+ * never read" - is ANSWERED and corrected here: PR-198 read the runtime
+ * end to end (the row's apply method 0x45750 stores the number into the
+ * level object's +0x4 slot; the level loop 0x4abd0 compares that slot
+ * against zero at the top of every iteration at 0x4ac55 and returns the
+ * constant 1 for any value; the published copy at 0x5d2dc has no reader)
+ * and PR-199 implemented it: the port's producer is the authored row
+ * (ll_play.c's parser + the row admit + pl.p.exit_word + the guard at
+ * the top of the loop below). Two things this block still needs the
+ * INJECTION for, and the reason is data, not ignorance: the 26 shipped
+ * rows live in JUNCTION / TUNGA.11 / TUNGA2.12 only, none of which the
+ * port can run end to end here (JUNCTION's own data says it has no
+ * ground, and TUNGA's A_EXIT is entered by the AC_RECT,AC_BLOK signal
+ * pair), so LEO_LEVEL_EXIT ("<tick>:<code>" = "the level ended at that
+ * tick with that code") stays the way all FOUR outcomes are driven on
+ * the RAN.01 leg, and LEO_PLAY_ENDLV (see mov_inject_endlv) drives the
+ * one outcome a real row produces. With neither variable present nothing
+ * is printed and nothing changes, so every existing pin stays
+ * byte-identical.
  *
  * What each outcome does here, and where the port stays honest about not
  * knowing (the log lines say the same, so a test can pin them):
@@ -5967,8 +5977,17 @@ static void stage_reset_to_authored(lvl_obj *objs, int nobj, play_ctx *pl)
         o->x = o->bx;
         o->y = o->by;
     }
-    if (pl && pl->have)
+    if (pl && pl->have) {
+        /* PR-199: the exit-word slot zeroes here. In the engine the zero
+         * belongs to the level ctor (0x4a4c3/0x4a4cc over the freshly
+         * allocated 0x3ea block at 0x5d1f5), and the reset pair is
+         * followed by the caller re-entering the stage, which builds
+         * exactly that new object. The port re-uses this context, so the
+         * ctor's zero is applied at the same point in the sequence - and
+         * nowhere else: the loop never clears the slot (PR-198). */
+        pl->p.exit_word = 0;
         play_spawn(pl);
+    }
 }
 
 /* One exit code, as the engine's wrapper answers it. Returns 1 to keep
@@ -6001,6 +6020,100 @@ static int stage_apply(int code, int tick, lvl_obj *objs, int nobj,
                " reset (the engine's 0x5d3dc)\n", code, tick);
     }
     return out != LL_STAGE_STOP;
+}
+
+/* PR-199: DRIVING THE REAL end_level ROW PATH ON A REAL LEVEL.
+ *
+ * The path itself is the shipped one - parse, row admit, slot, the test
+ * at the top of the iteration. What cannot be shown with the fixture as
+ * it is: the 26 shipped rows live in THREE members only (JUNCTION's
+ * A_TUNGA1/A_TUNGA2, TUNGA.11's and TUNGA2.12's A_EXIT - measured over
+ * the 777 .MOV members of the HD ANIMACJE, and re-measured by the
+ * verify-endlevel leg), and of those the port cannot run one end to
+ * end: JUNCTION refuses to play for a reason of its own (its platformy=
+ * names none.des, which declares 0 polylines - "this level has NO
+ * ground", the port's existing rule), and TUNGA's A_EXIT is entered only
+ * through the arm `A_EXIT(x)=AC_RECT,AC_BLOK`, signals this port's
+ * object world does not raise yet. RAN.01, the level every play leg
+ * runs, carries ZERO such rows (verify-endlevel pins that too).
+ * So the leg INJECTS the tail into the level's own text:
+ * LEO_PLAY_ENDLV="<state>:<row>:<value>" inserts `,end_level <value>`
+ * at the end of one authored row line, where the state and row are
+ * counted EXACTLY the way ll_mov_parse counts them ([STATE] headers in
+ * order; frame lines by the parser's own test,
+ * `sscanf(line, "%d,%d", ...) == 2`). Everything downstream of that
+ * byte is shipped code. The line below names the injection, so no log
+ * can read it as shipped data. Returns a NEW buffer (caller frees) with
+ * the tail inserted, or NULL when nothing was asked for or the address
+ * does not resolve - which is printed, never guessed. */
+static char *mov_inject_endlv(const char *text, size_t len)
+{
+    const char *spec = getenv("LEO_PLAY_ENDLV");
+    int want_st, want_row, value;
+    size_t i = 0;
+    int st = -1, row = 0;
+
+    if (!spec)
+        return NULL;
+    if (sscanf(spec, "%d:%d:%d", &want_st, &want_row, &value) != 3 ||
+            want_st < 0 || want_row < 0) {
+        printf("ll_level: play: LEO_PLAY_ENDLV='%s' is not"
+               " <state>:<row>:<value> - no injection, the script is"
+               " parsed exactly as authored\n", spec);
+        return NULL;
+    }
+    while (i < len) {
+        size_t j = i;
+        while (j < len && text[j] != '\n' && text[j] != '\r')
+            j++;
+        size_t ln = j - i;
+        if (ln && ln < 160) {
+            char line[160];
+            memcpy(line, text + i, ln);
+            line[ln] = '\0';
+            if (line[0] == '[') {
+                st++;
+                row = 0;
+            } else if (st == want_st) {
+                int a, b;
+                if (sscanf(line, "%d,%d", &a, &b) == 2) {
+                    if (row == want_row) {
+                        char tail[32];
+                        int tn = snprintf(tail, sizeof tail,
+                                          ",end_level %d", value);
+                        char *out = malloc(len + (size_t)tn + 1);
+                        if (!out) {
+                            printf("ll_level: play: LEO_PLAY_ENDLV: out of"
+                                   " memory, the script is parsed as"
+                                   " authored\n");
+                            return NULL;
+                        }
+                        memcpy(out, text, j);
+                        memcpy(out + j, tail, (size_t)tn);
+                        memcpy(out + j + (size_t)tn, text + j,
+                               len - j);
+                        out[len + (size_t)tn] = '\0';
+                        printf("ll_level: play: end_level INJECTED on"
+                               " state %d row %d of the level's own .MOV"
+                               " text: the line now reads \"%s%s\" (the"
+                               " tail is INJECTED by LEO_PLAY_ENDLV, not"
+                               " shipped data: the shipped end_level rows"
+                               " are in JUNCTION/TUNGA.11/TUNGA2.12 only)"
+                               "\n", want_st, want_row, line, tail);
+                        return out;
+                    }
+                    row++;
+                }
+            }
+        }
+        i = j;
+        while (i < len && (text[i] == '\n' || text[i] == '\r'))
+            i++;
+    }
+    printf("ll_level: play: LEO_PLAY_ENDLV='%s' names state %d row %d,"
+           " which this .MOV does not have (it declares %d state(s)) -"
+           " no injection\n", spec, want_st, want_row, st + 1);
+    return NULL;
 }
 
 /* PPM dump of the composited scene (CI hook, LEO_LEVEL_PPM; the parent
@@ -8369,10 +8482,21 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                                 }
                             }
                             unsigned char *mtxt = NULL;
-                            if (mv && llrs_read(&han, mv, &mtxt) > 0) {
+                            char *minj = NULL;
+                            long mlen = mv ? llrs_read(&han, mv, &mtxt) : 0;
+                            if (mlen > 0) {
+                                /* PR-199: only when LEO_PLAY_ENDLV asks
+                                 * (see mov_inject_endlv: why the
+                                 * injection exists and what it does and
+                                 * does not prove); with the variable
+                                 * absent minj stays NULL and the parse
+                                 * reads the member's own bytes. */
+                                minj = mov_inject_endlv((char *)mtxt,
+                                                        (size_t)mlen);
                                 pl.mov = calloc(1, sizeof *pl.mov);
                                 if (!pl.mov ||
-                                    ll_mov_parse((char *)mtxt,
+                                    ll_mov_parse(minj ? minj
+                                                      : (char *)mtxt,
                                                  pl.mov) <= 0) {
                                     free(pl.mov);
                                     pl.mov = NULL;
@@ -8382,6 +8506,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                                            " '%s'\n", mv->name,
                                            pl.mov->nst, pl.mov->seqkey);
                             }
+                            free(minj);
                             free(mtxt);
                             llrs_block_free(mrecs);
                         }
@@ -8678,6 +8803,36 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             stage_inj inj[STAGE_MAX_INJ];
             int ninj = stage_inj_parse(getenv("LEO_LEVEL_EXIT"), inj);
             for (int tk = 1; tk <= ticks; tk++) {
+                /* PR-199: THE REAL PRODUCER, tested where the engine
+                 * tests it - at the TOP of the iteration, before any of
+                 * its work (0x4ac55, after the 0x4ac3b loop head). A row
+                 * that admitted `end_level <n>` in the PREVIOUS iteration
+                 * ends the run here and the level function returns 1
+                 * (0x4ac5b + the `jmp 0x4ae53` epilogue), the same for
+                 * every value. The slot is NOT cleared here: PR-198
+                 * measured that the loop body has no store to it and
+                 * that only the next level object's ctor zeroes it.
+                 * The injected codes below stay where they are (checked
+                 * after the tick, which is what makes PR-194's legs byte
+                 * comparable); a level whose own data carries no
+                 * end_level row - every level in the fixture except
+                 * three, none of them runnable here - never reaches
+                 * this line, so every existing pin is byte-identical. */
+                if (pl.p.exit_word) {
+                    stage_apply(1, tk - 1, objs, nobj, &pl);
+                    printf("ll_level: stage driver: exit word %d from an"
+                           " authored end_level row: the level loop returns"
+                           " 1 (0x4ac5b -> the single epilogue 0x4ae53) at"
+                           " tick %d of %d - the value selects nothing"
+                           " (PR-198: the copy published at 0x5d2dc has no"
+                           " reader in the image); the engine's caller"
+                           " re-enters the stage through a NEW level object"
+                           " (0x5d1f5 allocates, 0x5d233 runs the ctor"
+                           " 0x4a4c0 that zeroes the slot), and the port"
+                           " has no such re-entry point, so the level run"
+                           " ends here\n", pl.p.exit_word, tk - 1, ticks);
+                    break;
+                }
                 ll_play_keys keys = script_keys(scr, tk);
                 play_advance(&pl, &keys, LL_ITER_MS, 1, tk, objs, nobj);
                 for (int k = 0; k < nobj; k++)

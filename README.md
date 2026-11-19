@@ -207,10 +207,29 @@ caller does (the contract with every address is in `ported/ll_stage.h`; the
 read is PR-193 F2/F3/F4): 3 resets the stage to its authored start and runs
 on, 2 takes the queue leg - with no queue producer in the port that is the
 engine's OWN empty-queue answer, stop -, 4 stops, any other value runs on
-with NO reset. The port claims no producer for the code: the authored .MOV
-directive `end_level <n>` is the candidate the data names and its runtime
-executor is unread. Without the variable the driver prints nothing and
-changes no byte, which is why every existing play pin is untouched.
+with NO reset.
+That last answer now has a PRODUCER (PR-199; the read is PR-198): an
+authored `.MOV` row tail `end_level <n>` is parsed as data, the row's
+admit writes the level's exit-word slot (the engine's apply method
+0x45750), and the play loop compares that slot against zero at the TOP of
+every iteration - the engine's own test at 0x4ac55. A nonzero ends the
+level run at that boundary and the level loop returns 1 for EVERY value of
+n (PR-198 measured that the published copy of the number has no reader),
+which is the "run on, NO reset" answer above; the port then stops the
+level run there, because the engine re-enters the stage through a NEW
+level object (its ctor 0x4a4c0 zeroes the slot) and the port has no such
+re-entry point. `make verify-endlevel` counts the shipped rows through the
+port's own parser (26 rows in 3 of the 777 `.MOV` members - JUNCTION,
+TUNGA.11, TUNGA2.12; 25 x value 1, 1 x value 2 - and ZERO in the levels
+these legs run, so no existing frame moves), and drives the path on
+RAN.01 through `LEO_PLAY_ENDLV="<state>:<row>:<value>"`, which appends
+such a tail to one authored row of the level's own `.MOV` text (the three
+levels that carry the rows cannot be played here: JUNCTION's own data
+says it has no ground, and TUNGA's `A_EXIT` is entered only by the arm
+`A_EXIT(x)=AC_RECT,AC_BLOK`). From that byte on the code is the shipped
+code, and the log names the injection. Without either variable the driver
+prints nothing and changes no byte, which is why every existing play pin
+is untouched.
 `./stage_selftest` (built by `make stage_selftest`) pins the table itself
 with no data at all.
 Scene hooks (M4-C, PR-45, used by verify-level): the level preview now

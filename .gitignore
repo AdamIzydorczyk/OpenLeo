@@ -52,6 +52,8 @@ fuzz
 platform_selftest
 stage_selftest
 stage_selftest.exe
+endlevel_census
+endlevel_census.exe
 *.o
 *.obj
 
