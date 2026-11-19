@@ -4314,6 +4314,48 @@ writer as its open items.
      the attach/gate-field PRODUCER pass. Full record:
      PR-179 section of NEXT_STEPS.md (scratch
      /tmp/opencode/pr179/).
+   - PR-180 (READING; no port code, no behaviour change):
+     THE FEED-GATE WORD HAS ITS PRODUCER LAW. The +0xcc
+     slot is a SENSOR-WORD CHANNEL: every class's step
+     driver computes a 2-dword word and calls +0xcc then
+     its pump (7 sites; 6 driver shapes found - distance-
+     ratio x2 with constants 0x909ef/0x909f7 = doubles
+     10.0, a grid-index word, a TILE-QUERY word that
+     DOUBLE-dereferences [obj+0x106], two buffer-shape
+     drivers). The LION's driver, whole: 0x27d60 at LION-
+     table +0x240 (single install) - anchor pair [obj+
+     0x126/0x12a] (setter helper at 0x27d40), deltas vs
+     the +0x68 position, QUADRANT GATE (compute only if
+     dX>0 or dY<0, else zeros), then buf0=round((|dX|+
+     |dY|)/(10|dX|)), buf1=(...)/(10|dY|) - pure vertical
+     motion gives ZERO gate words (integer floors;
+     gate_driver.py verifies the |dX|<9|dY| floor) - then
+     call +0xcc (0x50340 -> 0x549f0 window re-decide per
+     PR-178) and the pump 0x550a0 (0x27e25). The dispatch
+     INTO 0x27d60 is NOT statically resolvable (negative
+     scans for any +0x240 access; only `lea` table-walk
+     mentions at 0x49e89/0x49ec0 - counted). PR-178 item
+     (1) CLOSED (the filler is the class driver; LION's
+     law pinned; dispatch + other drivers counted). THE
+     CANDIDATE [obj+0xe6] IS WIRED BY ADDRESS AT LEVEL
+     INIT: 0x2c6f0 = pool-wiring (mgr+0x390 -> 0x57500 ->
+     ds:0xcec74; 0x57530 CLASS QUERY for table 0x98274 ->
+     ds:0xcec78; then &found+0xe6 and [obj-0x1e] parked
+     into a cfg block) - stores through the linked pointer
+     are statically invisible, which explains why no
+     per-step writer was ever found; PR-179 item (1)
+     re-scoped (0x54eb2 = a TELEPORT/ATTACH-HERE method,
+     not a writer; 0x5413e = a READ in a state-COPY
+     helper 0x54120-0x5416d). NO PORT CHANGE: gate words
+     are engine-internal; the port's intent-proxy is
+     neither confirmed nor contradicted - the behavioural
+     reading of the ratio law is video-gated like the
+     ladder-gate item. 4 new items; 1 closed, 1 re-scoped;
+     2 brackets. Next -> PR-181 = the pool-wiring pass
+     (0x2c6d3 entry+callers, 0x57500/0x57530 pool queries,
+     the +0xe6 holder - also the pool-name decode's home).
+     Full record: PR-180 section of NEXT_STEPS.md (scratch
+     /tmp/opencode/pr180/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -6879,6 +6921,43 @@ lead NAMED for the next pass (what fills [obj+0xe6]);
 three carried items closed or updated; 0x55070's slot
 corrected to +0x54.
 Gates: docs-only (PR-138..178 precedent); added lines <=
+79; baselines 71/71 held; the Windows half stays in the
+end pass (rule 8).
+
+STATUS after PR-180 (the producer pass for the feed-gate
+words; docs reading - ZERO port lines changed, the ZARIA.01
+output image is byte-identical to PR-179's; build state =
+the OWNER GATE (rule 8) measured on 7b4d736, only docs
+moved since).
+
+What this pass GROUNDS for T5:
+(1) THE FEED-GATE STORY IS NOW MECHANICALLY COMPLETE ON
+    THE ENGINE SIDE except one dispatch: sensor word ->
+    +0xcc (0x50340: zero-guard + [obj+0x11a]==5 negate) ->
+    0x549f0 (assign + attach-window re-decide) -> mode-2/
+    4 gate -> row feed. For the LION the sensor word is
+    an ANCHOR-DELTA ratio (PR-180 F1) - the exact formula
+    is in the record; its behavioural reading (does the
+    port's intent-proxy ever diverge?) is video-gated and
+    counted, like the standing ladder-gate item.
+(2) PR-178 ITEM (1) CLOSED - the buffer filler is named
+    (the class step driver pattern), so the carried
+    "feed gate unmodelled" question is no longer a port
+    gap; it is a data-blocked behaviour study.
+(3) THE CANDIDATE MECHANISM IS WIRED-BY-ADDRESS (PR-180
+    F3) - PR-150's ladder-overlap AC_DUP law (engine half
+    named by PR-179) now has its last open half pinned
+    down to ONE specific function (the 0x2c6d3 level-init
+    wiring) that PR-181 will read, together with the
+    carried pool-name decode. Same pass, two carried items
+    converge - that is why PR-181 is specced as the pool-
+    wiring pass.
+Four new items are counted (the +0x240 dispatch; the
+ratio-law behaviour study; the other drivers' bodies; the
+state-copy helper + the -0xd6 structure family); one
+closed (PR-178 item (1)); one re-scoped (PR-179 item (1)
+-> the pool-wiring lead).
+Gates: docs-only (PR-138..179 precedent); added lines <=
 79; baselines 71/71 held; the Windows half stays in the
 end pass (rule 8).
 

@@ -15762,41 +15762,38 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-180 IS THE PRODUCER PASS FOR THE ATTACH/GATE FIELDS
-  (the two producer halves now carry single named leads, so
-  they run as ONE pass): (A) WHAT FILLS THE CANDIDATE
-  [obj+0xe6] EVERY STEP after the LION pump 0x550a0 clears
-  it (PR-179 F3) - read 0x54eb2 (immediately after the
-  reset method 0x54e00), 0x2c6f0, 0x5413e, and the 0x4fef0
-  preamble's 0x54f40/0x4ab70 (PR-172 F1) - the +0xac
-  attach machine and AC_DUP raising become a CLOSED law the
-  moment the candidate source is named, and PR-150's
-  ladder-overlap model gets its engine counterpart.
-  (B) THE GATE-BUFFER FILLER (PR-178 item (1)): getter
-  0x50340's 7 indirect callers 0x27e1d/0x282a1/0x344c8/
-  0x4010e/0x4110c/0x41c01/0x4aeca, the [obj+0x106]
-  190-site family's writers, and the [obj+0xd2] attach
-  links (13 sites) - the [obj+0xba]/[obj+0xbe] window law
-  for the mode-2/4 feed gates (PR-178 F4). IF either half
-  lands a code-visible rule that the port lacks, ship the
-  fix with its hand-derived test + mutation battery per
-  the standing rules; else count with data. THEN, in
-  order: the msg SENDERS (id 2 velocity-set / id 13
-  impulse are surely the player-input path - find who
-  puts msgs on the wire and to which slot, closing PR-179
-  item (4)); the player-side same-state row seek (PR-174
-  item (2)); the relation-helper bodies 0x52eb0/0x52cc0/
-  0x534e0/0x45620 + the provider tails (PR-177 items
-  (1)/(2)) + 0x549f0's tails (PR-178 item (3)); the other
-  55 +0x78 singletons as census (PR-177 item (3)); the
-  [obj+0x11a] value map and the 0x504e0 getter's remaining
-  mode arms (PR-179 item (5)); PR-176's five controller
-  items. Carried reads unchanged: the +0x54 hook families
-  0x53df0/0x3ddf0, 0x550c0's body, the 0x55130 tail, the
-  pool-name decode, the +0x4c/+0x1c 0x23a20 recount, the
-  73 dead-0x54910 tables, the +0xa0 census oddities, the
-  0x54790-0x547b5 CFG gap (PR-179 item (3)), everything
-  else in the ledger's carried list.
+- PR-181 IS THE POOL-WIRING PASS (the candidate-filler now
+  has ONE named lead and the pool-name decode sits right
+  next to it): read the function containing 0x2c6d3 (its
+  entry + callers: level-init sequence taking mgr+0x390,
+  calling 0x57500 -> ds:0xcec74 and 0x57530 with CLASS
+  TABLE 0x98274 -> ds:0xcec78, then parking [obj+0xe6]
+  ADDRESSES and [obj-0x1e] into a cfg block) - name the
+  holder of the linked +0xe6 pointer and find the code
+  that STORES through it: that is the per-step candidate
+  writer PR-179/180 both pointed at, and its window rule
+  completes PR-150's ladder-overlap story end to end (if
+  the rule is code-visible AND the port lacks it, ship the
+  fix with hand-derived test + mutation battery per the
+  standing rules; else count with data). Read 0x57500/
+  0x57530 whole (pool class-queries over the mgr+0x390
+  pool - the carried POOL-NAME DECODE lives in them) and
+  the consumers of ds:0xcec74/0xcec78. THEN, in order:
+  the msg senders (who emits ids 2/6/13/27 - the input
+  path's protocol, PR-179 item (4)); the player-side same-
+  state row seek (PR-174 item (2)); the relation-helper
+  bodies 0x52eb0/0x52cc0/0x534e0/0x45620 + provider tails
+  (PR-177 items (1)/(2)) + 0x549f0's tails (PR-178 item
+  (3)); the other 55 +0x78 singletons as census (PR-177
+  item (3)); the +0x240 driver dispatch (PR-180 item (1));
+  PR-176's five controller items. Carried reads unchanged:
+  the ratio-law behaviour study (PR-180 item (2), video-
+  gated); the other +0xcc drivers (PR-180 item (3)); the
+  state-copy helper (PR-180 item (4)); the +0x54 hook
+  families; 0x550c0's body; the 0x55130 tail; the +0x4c/
+  +0x1c recount; the 73 dead-0x54910 tables; the +0xa0
+  census oddities; the CFG windows (PR-179 item (3));
+  everything else in the ledger's carried list.
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -22647,6 +22644,16 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   sites 0x27e1d/0x282a1/0x344c8/0x4010e/0x4110c/0x41c01/
   0x4aeca and their data; the [obj+0x106] field family, 190
   operand sites, top candidate for the attach/rope link).
+  [CLOSED BY PR-180: the filler is the CLASS STEP DRIVER -
+  +0xcc is a general sensor-word channel (7 sites, 6
+  driver shapes); the LION's driver 0x27d60 (LION-table
+  +0x240) computes the anchor-delta quadrant gate +
+  reciprocal Manhattan ratios (PR-180 F1) right before
+  calling +0xcc and the pump. The [obj+0x106] family got
+  its first deref shape (double pointer at 0x400f5).
+  REMAINING, counted as PR-180 items (1)/(3): the static
+  dispatch into the +0x240 driver; the other drivers'
+  bodies.]
   (2) [obj+0x11a] semantics - a mode-ish field: ==5 negates
   the gate scalar, ==7 arms 0x50f80's energy half (PR-177
   F3(iii)): SAME field, new fact; its 14 sites are the
@@ -22863,7 +22870,15 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   EVERY STEP (the candidates): the 0x54eb2 function
   (immediately after 0x54e00, unread), 0x2c6f0, 0x5413e -
   THE lead for the next pass (it completes both the +0xac
-  attach story and PR-178's gate-buffer half). (2) The
+  attach story and PR-178's gate-buffer half). [RE-SCOPED
+  BY PR-180: 0x54eb2 is a TELEPORT/ATTACH-HERE method
+  (msg-27 null + anchor-adjust), not a candidate writer;
+  0x5413e is a READ in a state-copy helper; 0x2c6f0 is
+  the ONLY lead - a level-init POOL WIRING that parks the
+  found pool object's +0xe6 ADDRESS into a cfg block, so
+  per-step stores are through a linked pointer and
+  statically invisible (the pool-wiring pass, PR-181,
+  names the holder).] (2) The
   [obj+0xb6] bit law: which code SETS bits 2/4/8 (msg 3/4
   set 4/8; +0.ac gates bit 2; 0x549f0 NULL-branch set
   0x10; 0x54e00 clears 0xc0) - a five-bit flags word with
@@ -22929,6 +22944,164 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   F4 slot correction; PR-178's carried line CLOSED for the
   msg-id/+0xa9 and +0xac items; PR-177 item (2) UPDATED
   for [obj+0x11a]/[obj+0xb1]).
+
+## PR-180 — THE FEED-GATE WORD HAS ITS PRODUCER LAW: THE
+## +0xcc SLOT IS A SENSOR-WORD CHANNEL FED BY THE CLASS STEP
+## DRIVER, AND THE LION'S DRIVER IS READ WHOLE (0x27d60,
+## installed at LION-table +0x240: an anchor-delta quadrant
+## gate + reciprocal Manhattan ratios, then +0xcc, then the
+## pump); THE CANDIDATE [obj+0xe6] IS WIRED BY ADDRESS AT
+## LEVEL INIT - ITS STORES ARE NOT STATICALLY VISIBLE
+## (READING, NO PORT CODE, NO BEHAVIOUR CHANGE)
+
+- WHY. PR-179's Next specced the producer pass: PR-178
+  item (1) (what fills 0x50340's buffer) and PR-179 item
+  (1) (what fills [obj+0xe6] every step). Method: the byte
+  callscans (rel-call + ModRM ff /2) for the seven
+  [r+0xcc] sites; continuous objdump ranges (obj_range.sh;
+  desync windows at 0x27d80-0x27d95 and 0x5455f flagged
+  where they touch a claim); decoding the float constants
+  from the elf (struct '<d'); the [obj+0xe6] operand-site
+  list read one by one. Docs only; nothing shipped moves.
+
+- FINDING 1, THE LION'S GATE-WORD DRIVER, WHOLE (closes
+  PR-178 item (1)'s core). The [r+0xcc] site 0x27e1d sits
+  in a method entered at 0x27d60 - installed at LION table
+  0x9a54c's +0x240 (dword-ref scan; the +0xcc slot of all
+  15 LION tables is 0x50340, PR-178). Its law, byte-exact:
+  (i) dX := [obj+0x126] - x, dY := [obj+0x12a] - y, x/y
+  read through the class +0x68 position getter - the
+  ANCHOR pair [obj+0x126/0x12a] has a setter helper in
+  the same function's head (0x27d40: `add ecx,0x126; mov
+  [ecx+4],edx` writes the y-anchor). (ii) QUADRANT GATE:
+  compute only if (dX > 0) OR (dY < 0); else the 2-dword
+  buffer is ZEROed. (iii) THE WORD: buf0 = round((|dX| +
+  |dY|) / (10*|dX|)), buf1 = round((|dX| + |dY|) /
+  (10*|dY|)) - fild/fmul qword ds:0x909ef / ds:0x909f7
+  (both decode to double 10.0)/fdivrp/fistp under the
+  helper 0x75d96. (iv) call [class+0xcc] (0x50340 ->
+  0x549f0: window re-decide per PR-178 F4), THEN CALL THE
+  PUMP 0x550a0 (0x27e25) - the driver runs the sensor
+  word IMMEDIATELY BEFORE the step, exactly the position
+  the law needs. So the mode-2/4 gate scalars start as
+  RECIPROCAL MANHATTAN RATIOS against an anchor: e.g.
+  buf1 = 0 whenever |dX| < 9*|dY| (the integer division
+  floors) - the pure-vertical case feeds ZERO until a
+  window re-decide (kind-1/4, PR-178 F4) overrides. WHY
+  this parametrization matches climb behaviour is NOT
+  claimed (counted); the port's intent-proxy (PR-148) is
+  neither confirmed nor contradicted by it. HONESTY: the
+  dispatch INTO 0x27d60 (slot +0x240) is not statically
+  resolvable - no rel-caller, no `call [r+0x240]`, no
+  dword-access of +0x240 anywhere in text (byte scans; the
+  only +0x240 mentions are `lea` scans at 0x49e89/0x49ec0
+  over table ranges, a different config walk) - a computed
+  dispatch or an initialization-time call; counted.
+
+- FINDING 2, +0xcc IS A GENERAL SENSOR-WORD CHANNEL (the
+  six other [r+0xcc] sites are per-class drivers feeding
+  their own class's +0xcc the same way): 0x282a1 = the
+  same ratio shape with constant 0x909f7 (= 10.0);
+  0x344c8 = a GRID-INDEX word (calls class +0x70, scales
+  2*(idx*4 + base)); 0x4010e = a TILE-QUERY word whose
+  data comes through `lea eax,[ebx+0x106]; mov eax,[eax];
+  mov eax,[eax]` - the [obj+0x106] field is a DOUBLE
+  pointer chain there, and the code reads [eax+0x2e] of
+  the far object - PARTIAL ANSWER to the [obj+0x106]
+  family question (its deref shape at one site; the 190-
+  site family stays open); 0x410f0/0x41c01/0x4aeca =
+  buffer-shape drivers (the 0x4aeca one sits in the big
+  setup/teardown sequence that also calls 0x222d0/0x4b970/
+  0x4ba90 and touches mgr +0x394 - the PR-177 F1(b)
+  global-fallback manager object). NO PORT CHANGE: these
+  words are engine-internal gate inputs; the port gates on
+  player intent (a proxy) and on the object-path settled
+  negative (PR-178 F5).
+
+- FINDING 3, THE CANDIDATE [obj+0xe6] IS WIRED, NOT
+  ASSIGNED (PR-179 item (1) narrowed hard): the operand
+  list re-checked one by one - 0x54e98 (reset zero,
+  PR-179 F4), 0x550a0 (pump clear, F3), 0x5413e = a READ
+  inside a STATE-COPY helper (0x54120-0x5416d moves v
+  pair/deltas/e2/e6/b5 between two object regions and
+  clears [that -0xd6 +0xd2] - a hand-off/transfer method;
+  the 0x5455f desync window flagged; CFG not proven), and
+  0x2c6f0 = `lea edx,[eax+0xe6]` INSIDE a level-init
+  sequence: mgr 0xcef40+0x390 -> 0x57500 -> ds:0xcec74;
+  the same pool asked for CLASS TABLE 0x98274 (the CAMEL-
+  variant table of PR-176/177!) via 0x57530 -> ds:0xcec78;
+  then the found object's +0xe6 ADDRESS and (obj - 0x1e)
+  are parked into a cfg block ([esp+0xc..0x34]). So the
+  candidate field is HANDED OUT BY ADDRESS at level init
+  (the pool-wiring pass will name the holder - PR-181's
+  lead), and stores through it are invisible to static
+  scans - which also EXPLAINS why no per-step writer was
+  ever found: the writer holds a pointer.
+
+- OPEN ITEMS COUNTED (4 new). (1) The +0x240 dispatch into
+  the LION driver (computed call or init-time call - the
+  0x49e89/0x49ec0 table-range `lea` walks are the only
+  +0x240 mentions and belong to a config scan; its
+  function 0x49db0's loop over stride-6 records counted).
+  (2) The BEHAVIOURAL reading of the ratio law (which
+  climb geometry yields which gate pattern; whether the
+  port's intent-proxy ever diverges from it - needs video
+  or a fixture, data-blocked like the ladder-gate item).
+  (3) The other five +0xcc drivers' full bodies and their
+  classes' sensor semantics; the [obj+0x106] chain beyond
+  the 0x400f5 double-deref. (4) The state-copy helper
+  (0x54120-0x5416d) - entry, callers, and the "-0xd6"
+  arithmetic (the same -0xd6 offset as 0x5415b/0x54144!
+  one structure family: a base pointer at [obj-0xd6+...]
+  or an embedded sub-object; naming it is the sibling of
+  the 0x2c6f0 wiring question). CLOSED: PR-178 item (1)
+  (bracket: the filler is the class step driver; LION's
+  law pinned; remainders moved to (1)/(3)). UPDATED:
+  PR-179 item (1) (bracket: 0x54eb2 is a TELEPORT/
+  ATTACH-HERE method - msg-27 null call + anchor-adjust
+  (it reads [obj+0xd6]/[obj+0xda]/[obj+0x89]/[obj+0x8d],
+  sets x/y, calls +0x54 after) - NOT a candidate writer;
+  0x5413e is a read; the lead becomes the 0x2c6d3 wiring).
+  CARRIED unchanged: the +0x240 dispatch above; the
+  player-side same-state seek (PR-174 item (2)); the
+  relation-helper bodies + provider tails (PR-177 items
+  (1)/(2)); 0x549f0's tails (PR-178 item (3)); the other
+  55 +0x78 singletons (PR-177 item (3)); PR-176's five
+  controller items; the +0x54 hook families; 0x550c0's
+  body; the 0x55130 tail; the pool-name decode (now
+  adjacent to PR-181's wiring pass); the +0x4c/+0x1c
+  recount; the 73 dead-0x54910 tables; the +0xa0 census
+  oddities; the CFG window (PR-179 item (3)); the msg
+  senders; everything else in the ledger's carried list.
+
+- GATES. Docs-only reading PR (PR-138..179 precedent): no
+  port file touched; build state = the OWNER GATE (rule 8)
+  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
+  SKIPs) - only docs moved since. CI truth at this
+  record's time: PR-179's docs run 44547207457 = SUCCESS
+  on a6e7c19; the chain (PR-178 44546099837, PR-177
+  44544519251) SUCCESS unchanged. This docs push queues
+  its own run. Added .md lines <= 79 cols; over-79
+  baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 71); no
+  game data or frames in git (scripts under
+  /tmp/opencode/pr180/); .github/workflows/* untouched;
+  the image is unchanged.
+
+- EVIDENCE. gate_driver.py (the anchor-delta + ratio
+  reconstruction: constants 0x909ef/0x909f7 decoded as
+  doubles = both 10.0; the buf0/buf1 integer-floor
+  formula); producer_scan.py (the 7 [r+0xcc] sites, the
+  0x27d60 install at LION+0x240 + the negative scans for
+  +0x240 access, the [obj+0xe6] operand sites, the 0x2c6f0
+  pool-wiring context); obj_range.sh (the whole reads:
+  0x27d40-0x27e2a, 0x54110-0x5416d, 0x54eb2-0x54f30,
+  0x2c6c0-0x2c720; desync windows at 0x27d80-0x27d95,
+  0x5455f flagged). Ledger: records re-spliced from HEAD
+  (census: HEAD carries PR-150..PR-179 (30 records) PLUS
+  the four OWNER 2026-11-19 records, last carrier); 2
+  brackets (PR-178 item (1) CLOSED with remainders;
+  PR-179 item (1) UPDATED re-scoped).
 
 ## Deferred big items (deliberately out of scope so far)
 
