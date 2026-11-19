@@ -18,6 +18,23 @@
 #   far only ever been cross-compiled and exercised under wine);
 # - asan: ASan/UBSan build of main + tools, run against the repo-committed
 #   fixtures (data/INTRO_P.IS, the ANIMACJE/ETAPY/SOUND containers).
+#
+# FIX-14 (CI speed, measured) additions, this file only:
+# - the measured critical path of a run was the linux job (5m04s) and 81%
+#   of it was ONE step: "Install toolchain" at 4m07s, downloading 149 MB
+#   of archives (the mingw-w64 cross toolchain, cmake, the libsdl2-dev
+#   closure). That step now lives in a pre-baked image: the linux and
+#   asan jobs run in ghcr.io/adamizydorczyk/open-leo-ci:ci, built by
+#   ci-image.yml from .github/ci/Dockerfile (same apt package list, no
+#   game data - every fixture probe still prints its named SKIP).
+#   BOOTSTRAP: publish the image once (Run workflow on ci-image.yml)
+#   before landing this file, or ci.yml's container pull fails.
+#   If the repo/owner is ever renamed, update the image path in BOTH
+#   files together (GHCR names are lower-case).
+# - windows-smoke: msys2's own package cache (setup-msys2's cache: true),
+#   keyed by its lockfile; pacman fetches drop from ~28s to near zero.
+# No Makefile, test-leg or artifact change: identical commands, identical
+# coverage, only the toolchain acquisition moved.
 name: ci
 
 on:
@@ -31,52 +48,45 @@ permissions:
 jobs:
   linux:
     runs-on: ubuntu-latest
+    # FIX-14: toolchain pre-baked (see the header note). The image is the
+    # OLD apt package list verbatim: native gcc + system SDL2 (the vendored
+    # vendor/SDL2-2.32.10 and vendor/llvm-mingw are gitignored, so the
+    # Makefile's system fallbacks apply) and the mingw-w64 gcc + windres
+    # for the cross target (Makefile XC fallback path).
+    container:
+      # lower-case literal: it must match env.IMAGE in ci-image.yml (see
+      # the note there - GHCR names are lower-case and a job-level
+      # container: cannot be computed by an expression/step).
+      image: ghcr.io/adamizydorczyk/open-leo-ci:ci
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install toolchain
-        # Native target: system SDL2 (the vendored vendor/SDL2-2.32.10 and
-        # vendor/llvm-mingw are gitignored, so the system fallbacks apply).
-        # Cross target: mingw-w64 gcc + windres (Makefile XC fallback path).
-        run: |
-          sudo apt-get update
-          sudo apt-get -y install --no-install-recommends \
-            build-essential pkg-config libsdl2-dev \
-            gcc-mingw-w64-x86-64 binutils-mingw-w64-x86-64 \
-            cmake python3
-
-      - name: Provision SDL2 for the Windows target
-        # Ubuntu apt has no mingw SDL2; the Makefile's SDL_WIN points at the
-        # vendored layout, so CI unpacks the SAME official SDL2 mingw devel
-        # tarball (zlib-licensed OSS, not game data) into vendor/. Identical
-        # version to the local gitignored copy keeps the two builds equal.
-        # Pin: sha256 of https://www.libsdl.org/release/SDL2-devel-2.32.10-mingw.tar.gz
-        # (computed 2026-11-15 from that exact URL; bump together with the
-        # version - deliberately breaking this line must fail the job).
-        run: |
-          mkdir -p vendor
-          curl -fsSLo /tmp/sdl.tar.gz \
-            https://www.libsdl.org/release/SDL2-devel-2.32.10-mingw.tar.gz
-          echo "83a5d74012311edc3c0d40ea6faecbe57ad692aa033fa5dc273cc937e3938ff2  /tmp/sdl.tar.gz" \
-            | sha256sum -c -
-          tar -xzf /tmp/sdl.tar.gz -C vendor
+      # (the old "Install toolchain" step is what the image replaced -
+      # 4m07s of apt + 149 MB of archives; the pull hits the layer cache)
 
       - name: Python tools compile check (the suite's oracles are Python)
         run: python3 -m compileall -q tools
 
-      - name: Build both targets
-        run: |
-          make -j"$(nproc)"
-          make -j"$(nproc)" win
+      - name: Build the native target
+        # Ruling 2026-11-19 (HANDOFF s2 r8): the per-push path is Linux-only.
+        # The `make win` cross build and the vendor/SDL2 mingw provisioning
+        # that it needed moved to ci-windows.yml; the Makefile's verify-cmake
+        # windows half now prints its documented SKIP here (no $(SDL_WIN)).
+        run: make -j"$(nproc)"
 
-      - name: Full suite (data-backed legs print clean SKIPs)
-        run: make -k verify-all
+      - name: Suite (Linux legs; data-backed legs print clean SKIPs)
+        # -j is safe and worth ~3x: measured 2026-11-19, the legs' scratch
+        # paths are disjoint (the only shared file is the read-only py-refs
+        # oracle frame), and a 4-core parallel run produced the SAME verdict
+        # set as the serial run. Deliberately not parallel anywhere wine
+        # runs: verify-windows keeps one WINEPREFIX and stays serial.
+        run: make -k -j"$(nproc)" verify-all
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: openleo-${{ github.sha }}
+          name: open-leo-${{ github.sha }}
           path: |
             ll_cutscene
             ll_level
@@ -89,98 +99,14 @@ jobs:
             mod_selftest
             platform_selftest
             fuzz
-            ll_cutscene.exe
-            ll_level.exe
-            ll_save.exe
-            llrs_selftest.exe
-            pcx_selftest.exe
-            seq_selftest.exe
-            seq_patchdump.exe
-            pcm_selftest.exe
-            mod_selftest.exe
           if-no-files-found: error
 
-  # FIX-12 (B-01): the .exe targets have only ever been CROSS-built and
-  # run under wine. This job proves the native Windows toolchain path:
-  # MSYS2 MINGW64 builds and runs the SDL-free headless selftests (the
-  # T-01 dummy backend - no display needed), runs them against the
-  # repo-committed fixtures, and smoke-starts the REAL ll_cutscene.exe
-  # linked against MSYS2's SDL2. Sanitizer flags are switched off here
-  # (SAN=, MSYS2 gcc has no asan runtime) - sanitizer coverage lives in
-  # the asan job; this job proves the native Windows toolchain path.
-  windows-smoke:
-    runs-on: windows-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            make
-            pkg-config
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-binutils
-            mingw-w64-x86_64-SDL2
-
-      - name: Build the headless selftests natively
-        shell: msys2 {0}
-        # SAN=: MSYS2's mingw-w64 gcc ships no libasan/libubsan (measured
-        # on the first run of this job: cannot find -lasan), so the
-        # always-on sanitizer flags of the tool rules are switched off
-        # here (Makefile SAN ?=, PR-27b). Sanitizer coverage stays on
-        # the asan job; this job's value is native build + real runs.
-        run: make -j SAN= platform_selftest llrs_selftest pcx_selftest seq_selftest seq_patchdump pcm_selftest mod_selftest
-
-      - name: Run them (committed fixtures only; no game-data staging)
-        shell: msys2 {0}
-        run: |
-          ./platform_selftest
-          ./llrs_selftest data/ANIMACJE
-          ./llrs_selftest data/ETAPY
-          ./llrs_selftest data/SOUND
-          make verify-arch
-        # platform_selftest defaults to data/INTRO_P.IS (in git). The
-        # make-side verify-* legs would SKIP here (no $(DATA) staging) -
-        # running the built binaries directly gives the REAL assertions.
-
-      - name: Build the real .exe against native SDL2
-        shell: msys2 {0}
-        # XC/WINDRES/SDL_WIN point the existing cross rules at the native
-        # MSYS2 toolchain (-DPLATFORM_WIN=1, SDL_main, static runtime):
-        # the same recipe the Linux cross-build uses, natively.
-        run: make XC=gcc WINDRES=windres SDL_WIN=/mingw64 ll_cutscene.exe
-
-      - name: Smoke-run the .exe headless (--help, expect exit 0)
-        shell: msys2 {0}
-        # FIX-13 landed: --help is a real CLI answer now instead of being
-        # treated as FILE.IS, so (as FIX-12 anticipated) the smoke asks
-        # for a DEFINED answer: usage text + exit 0. Proves: process
-        # starts, SDL2 links and loads, SDL_main runs, argument parsing
-        # and the exit path complete cleanly.
-        run: |
-          mkdir -p /tmp/leo-smoke
-          cp ll_cutscene.exe /tmp/leo-smoke/
-          # The .exe links MSYS2's libSDL2 DLL; copy it plus any runtime
-          # DLLs that build depends on (winpthread/gcc are system DLLs in
-          # the official libsdl.org build but NOT guaranteed in MSYS2's).
-          for d in /mingw64/bin/libSDL2*.dll /mingw64/bin/libwinpthread*.dll \
-                   /mingw64/bin/libgcc_s_seh*.dll /mingw64/bin/libstdc++*.dll; do
-            if [ -f "$d" ]; then cp "$d" /tmp/leo-smoke/; fi
-          done
-          cd /tmp/leo-smoke
-          export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
-          set +e
-          out=$(./ll_cutscene.exe --help 2>&1)
-          rc=$?
-          set -e
-          printf '%s\n' "$out"
-          if [ "$rc" -ne 0 ]; then echo "windows smoke FAILED: --help exit $rc, expected 0"; exit 1; fi
-          printf '%s\n' "$out" | grep -q 'usage:' || { echo "windows smoke FAILED: no usage text"; exit 1; }
-          echo "windows smoke: native .exe starts, links SDL2, runs SDL_main, CLI answers (ok)"
-
+  # The Windows gate (this windows-smoke job, the cross build and the .exe
+  # artifacts) left the per-push path on 2026-11-19 by the owner's ruling in
+  # HANDOFF.md section 2 rule 8: implementation is Linux-first and the Windows
+  # target is verified ONCE at the end. It now lives in
+  # .github/workflows/ci-windows.yml - run it from Actions with "Run workflow",
+  # or push a windows-gate-* tag. The job itself is unchanged.
   # FIX-12 (B-01): ASan/UBSan build of the main binary + tools, run
   # against the repo-committed fixtures (NOT the gitignored $(DATA)
   # staging - the data-backed legs SKIP here too; what runs here is
@@ -190,15 +116,14 @@ jobs:
   # per the documented leak-clean config (plan ruling C7).
   asan:
     runs-on: ubuntu-latest
+    # FIX-14: the same pre-baked image (its package list is a superset of
+    # this job's old apt list; the asan/ubsan runtimes ship with gcc, as
+    # the previous runs proved).
+    container:
+      image: ghcr.io/adamizydorczyk/open-leo-ci:ci
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get -y install --no-install-recommends \
-            build-essential pkg-config libsdl2-dev python3
 
       - name: Build with ASan+UBSan (flags as the fuzz leg composes them)
         run: |

@@ -1,0 +1,66 @@
+# Builds and publishes the CI toolchain image consumed by the linux and
+# asan jobs of ci.yml (ghcr.io/<owner>/<repo>-ci:ci), from .github/ci/Dockerfile.
+#
+# BOOTSTRAP (once, before ci.yml can use the image):
+#   1. merge this workflow + .github/ci/Dockerfile;
+#   2. run it once from the Actions "Run workflow" button (workflow_dispatch);
+#   3. ci.yml's container reference then resolves.
+#
+# After that it re-runs automatically only when the Dockerfile or this
+# file changes on main; the image layers stay identical until then, so
+# ci.yml's pulls hit Docker's layer cache on warmed runners.
+#
+# Image visibility on GHCR defaults to private for org/user accounts, but
+# the built-in GITHUB_TOKEN of the SAME repo reads its own packages
+# without any login step - no extra secret is needed. If you set the
+# image public instead, that also just works (no auth at all).
+name: ci-image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/ci/Dockerfile
+      - .github/workflows/ci-image.yml
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  # lower-case on purpose: GHCR image names are lower-case, and this must
+  # match the container: line in ci.yml exactly. If the repo or owner is
+  # ever renamed, update BOTH lines together (Actions expressions cannot
+  # lower-case a value, and a job-level container: cannot be computed by
+  # a step, so a literal is the only drift-free option).
+  IMAGE: adamizydorczyk/open-leo-ci
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # The registry layer cache (cache-from/cache-to below) needs the
+      # buildx container driver; the runner's default docker driver only
+      # speaks inline caches. Native arch, so no QEMU cost.
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push the toolchain image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .github/ci/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE }}:ci
+            ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ github.sha }}
+          # plain inline layer cache on the runner's default builder:
+          # rebuilds after a toolchain bump cost seconds, not minutes.
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE }}:buildcache,mode=min
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE }}:buildcache,mode=max,ignore-error=true
