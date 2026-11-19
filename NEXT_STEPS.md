@@ -14988,146 +14988,308 @@ no port behaviour change)
   scans over text.bin, and python over
   /tmp/opencode/hd_files/ANIMACJE.
 
+## PR-148 — THE INPUT/GUARD LAW BECOMES BEHAVIOUR: THE PORT'S
+## PLAYER NOW CARRIES THE ENGINE'S VERTICAL-INTENT WORD AND A
+## BY_TY ROW IS FED ONLY WHILE IT IS HELD — AND THE SESSION'S
+## 0x50252 "RISE LAW" CANDIDATE IS CAUGHT DEAD CODE (CODE PR,
+## THE FIRST SINCE PR-140's `afefe73`)
+
+- WHY. PR-147 closed the climb feed law with ZERO open laws and
+  said what remained was the implementation decision: give the
+  port the guard and the intent word (the PR-147 Next entry, item
+  (a)). This PR implements exactly that law as behaviour, with a
+  hand-derived test (the re-pinned PR-108 leg) and a mutation
+  battery. The second half of the reading that PR-147's Next
+  handed to PR-148 - a claimed rise law at 0x50252, carried in the
+  working notes but NEVER in a shipped record - was tested against
+  the image first and REFUTED before it could be coded; the
+  finding is corrected here, not hidden.
+
+- FINDING 1, THE GUARD IS SHIPPED. Three parts, each a byte-exact
+  copy of an engine fact PR-147 recorded:
+  (i) `LL_CTRL_BY_TY = 0x20000u` and the parser now maps the
+  `BY_TY` keyword to it (ll_play.c `ctrl_flag`, ll_play.h enum).
+  The port's enum values have never been the wire values; the
+  wire encoding (BY_TY = mode 5-in-bits-0..2, PR-147's
+  0x51bd7) stays recorded where it was read.
+  (ii) The player carries `p->vert_intent`, set every iteration
+  from the held Up/Down keys with the engine's SIGN semantics
+  (Up negative, y+ = down - the capture reader 0x582f0's own
+  signs, PR-147) at the port's single intent scale
+  (LL_PLAY_INTENT_FULL, PR-132's 10; the engine's keyboard word
+  is +/-20 - that tension is named at the constant, not
+  smoothed).
+  (iii) Section 7's mode-4 feed guard: `control=BY_TY` states
+  receive the 100-per-iteration feed ONLY while the word is
+  non-zero, and the row compare runs regardless - the engine's
+  order at 0x5441b is `cmp [obj+0xbe],0; je` (skip the ADD)
+  and the step then compares [rec+0x10] against [obj+0xa1]
+  (PR-147's 0x52317-then-0x52320 order), so a BY_TY row closes
+  only on QUALIFYING iterations and the partial accumulator
+  carries across the gap, exactly like [obj+0xa1]. The authored
+  A_WSP rows (300 then 200, wire word 0x205) therefore advance
+  after 3 and then 2 qualifying frames and stop the instant the
+  intent stops - PR-147's law, now executable.
+  NOT copied, deliberately: 0x543f2's guard of BY_TIME (mode 2)
+  on the X-intent word (open item 2), and 0x542cd's use of the
+  y-word as a v_y FORCE (open item 1). PR-102's "mode 2 carries
+  no guard" stands as the port's behaviour; every video-verified
+  leg since has run on that reading, and PR-147's own source for
+  the guard (word0 = the arrows) makes it a behaviour-regression
+  study, not a copy.
+
+- FINDING 2, 0x50252 IS DEAD CODE IN THIS IMAGE, AND THE LION'S
+  FRAME-LOOP +0x74 IS 0x50320. The working notes carried: "entry
+  0x50252 (class slot +0x74, called on the LION at 0x4afea) is
+  THE CLIMB RISE LAW, v_y*15/100 written into the position
+  block." Three measurements refute it:
+  (a) BYTE-EXACT TABLE: the LION's table 0x96960 has +0x74 =
+  0x50320, not 0x50252 (struct read of 0x96960: +0x68 =
+  0x23900, +0x74 = 0x50320, +0x78 = 0x50f80, +0xcc = 0x50340,
+  +0xa0 = 0x543a0 - the last three match PR-144's readings,
+  which anchors the read).
+  (b) ZERO REFERENCES: a whole-image scan finds no rel32
+  `call 0x50252` (0 hits), no dword pointing at 0x50252 (0
+  hits), and text.asm quotes no such call. (The neighbours
+  0x5024f/0x502b0 have no dword refs either - 0x502b0 is
+  reached by a DIRECT call from 0x5032c, which is why a dword
+  scan alone would miss it; the rel32 scan covers calls, so
+  0x50252 is unreferenced both ways.)
+  (c) WHAT ACTUALLY RUNS AT 0x4afea: 0x50320 gates on
+  [obj+0x126] == 0, calls 0x502b0 - which tests the ODDNESS of
+  [obj+0x102] and falls back to [obj+0xf2] - and when that
+  returns zero calls 0x54c00, whose head (0x54c07..0x54c39:
+  [obj+0xb5] as a signed byte, the [obj+0xb6] 0x2-and-0x1-bit
+  tests, the [vt+0xbc] call) is a friction/ground-contact gate,
+  not a rise.
+  The *15/100 form at 0x50266 is real code but unreached; a
+  pattern census (C1 E0 `shl eax,4` within 8 bytes of 29 D0
+  `sub eax,edx`) finds 28 such sites image-wide, so the shape
+  itself is a common multiply-by-15, not a signature of one law.
+  CONSEQUENCE: no vertical MOTION was added to the port by this
+  PR. The vertical position of a climbing lion stays unmodelled,
+  and the path that could move it - this word as a v_y force at
+  0x542cd plus whatever integrates v_y (the generic step
+  0x54c00 is the candidate and is unread) - is open item 1.
+  SELF-CORRECTION SCOPE: 0x50252 appears in NO shipped record
+  (NEXT_STEPS and HANDOFF grep it zero times), so nothing needs
+  re-editing; the error dies in this record. One shipped
+  sentence DOES need narrowing: PR-147's "imul [ecx+0xbe] with
+  the T1 pair /20 into v_y ... -80-per-frame" - at 0x542cd the
+  multiplier is `[ebx+0x4]` of the same param struct whose
+  +0x8 PR-132 read as the raised-to->=20 T word, and 0x542ab
+  uses [ebx+0x8] for the x force. Which param field is the
+  y-side multiplier (and whether it is the authored T pair at
+  all) is UNREAD - the "-80" figure is conditional on that
+  identification and is counted as open item 1's sub-question,
+  not retracted (the instruction shape - intent * param/20 ->
+  v_y - is byte-exact and stands).
+
+- FINDING 3, THE RE-PINNED LEG (ll_play.c, the PR-108 leg,
+  hand-derived, no game data). Three legs on authored-shaped
+  fixtures:
+  LEG 1 (the guard as behaviour): AC_DRAB raised, NO key ever
+  held - the state is entered at list index 2 (PR-108's
+  `A_WSP(3)=` entry-1 rule) and then 25 iterations change
+  nothing: no feed (`row_t` stays exactly 0), no row advance, no
+  wrap, no AC_BREAK_NEXT, and x, y, v_x, v_y never move. Under
+  the old model the same loop advanced and wrapped at t=17. The
+  final step lets AC_DRAB go and `A_FALL_DOWN(1)=!AC_DRAB`
+  fires FROM A STATE WHOSE LIST NEVER TICKED - the transition
+  pass is independent of the row pass, section 1 vs section 7,
+  as the engine evaluates them separately.
+  LEG 2 (guard held = the PR-108 spans, unchanged): Up held
+  t=1..15, every iteration qualifies, rows close at
+  t=2,4,6,8,10,12,14 with the entry at t=1 - the held-climb
+  clock is IDENTICAL to the old ungated clock, which is the
+  direct proof that the guard only ever SUBTRACTS feeds.
+  LEG 3 (the gap): keys released t=16,17 - rows freeze at index
+  9, the carried 100 of the 300-row survives untouched, no wrap
+  at t=17 (the mutation that deletes the guard wraps HERE);
+  Down held t=18: 100 + 100 = 200 < 300, no admit; t=19: 300
+  -> wrap, index 0, AC_BREAK_NEXT armed and readable only on
+  that step; t=20: a fresh 100 on the wrapped row. Up and Down
+  qualify alike - the guard tests non-zero, exactly like the
+  engine's cmp/je pair, and the sign is carried in the word for
+  the force path (open item 1), unused by the clock.
+  The PR-108 parser pins re-pin honestly: BY_TY leaves
+  `ctrl_other` (2 -> 1, SEQ_REV_Y alone remains) and `ctrl`
+  gains the new bit; `CHECK_ALL` still reaches ctrl as before.
+  The selftest summary line was rewritten with the new
+  behaviour text.
+
+- WHAT THIS CLOSES / NARROWS. HANDOFF item 15's "implementation
+  decision" is now HALF shipped: the guard and the word are in
+  the port, and the authored BY_TY blocks now PARSE with a model
+  bit. A sharper census comes with it: splitting the archive by
+  BLOCK (not by string occurrence) counts exactly 12 BY_TY
+  blocks across three state names - A_WSP x5, A_WSP_LIN x6,
+  A_DRAB x1 - firm. Their MEMBER attribution, though, is
+  anchoring-dependent: PR-147's string-offset anchor named
+  KLADKA1/MIOTLA_W/XKALUZA for the last occurrences, the
+  block-start anchor names F4ZDYBYA/DEMO/BALONIK instead (the
+  first eight sit under 2LEW.MOV x4 and LEWPL.MOV x4 both
+  ways). Counted, not smoothed - the member table of the
+  archive is the actual authority and has not been parsed (it
+  joins PR-147's item 1 as a named gap); what does NOT change
+  is that these states all belong to the lion-family state name
+  space PR-108 census'd. The climb at ZARIA.01 x=180 still
+  does not climb - its blocker is the contact-answer route (the
+  AC_DRAB poster, PR-146/147's model), not the guard. Scene-
+  side note: ll_level.c's obj_advance has NO BY_TY guard, so a
+  scene object's BY_TY rows stay time-fed - no behaviour change
+  (the bit is unread there), counted as open item 4 so the
+  mirror is not silently half-done.
+
+- OPEN ITEMS COUNTED (4 new; carry PR-147's 3, PR-146's 6 with
+  item 1 half-resolved, and PR-145's remaining 5). (1) The y-
+  force path: the param-struct field map at the velocity step
+  (0x542ab reads [param+0x8] for x, 0x542cd reads [param+0x4]
+  for y - PR-132's map covers only +0x8's T-floor raise), what
+  integrates v_y into position (0x54c00 is the frame-loop-
+  reachable candidate, its head read, its body unread), and
+  whether the ladder's rise is that path, a node delta
+  (G=0,0 authored - no), or something in the unread tail of
+  0x50320/0x54c00. (2) The BY_TIME guard 0x543f2 on the
+  X-intent word: modelled, not copied; the regression study is
+  named. (3) The dead region: why are 0x5024f/0x50252 and the
+  gap around 0x50289 unreferenced in a loaded PE (linker
+  artifact, or a table built at runtime)? (4) The scene-side
+  mirror: obj_advance/obj_walk have no mode-4 guard; whether the
+  one authored A_DRAB block (T=1000,50, rows 1..10,500 - PR-109
+  quoted it) even uses the row list the way the lion's do is
+  unread, and its member - like the other four fuzzy-anchored
+  ones - needs the ANIMACJE member table parsed before it can
+  be called a scene object at all.
+  New tension NAMED at LL_PLAY_INTENT_FULL: the keyboard word is
+  +/-20 (PR-147), the port's one video-validated intent scale is
+  10 (PR-132/134); mutation M8 shows changing the shared
+  constant is caught by the x-side gait legs, so the port stays
+  at 10 by evidence and the y path inherits the question.
+
+- MUTATIONS (battery driver kept out of git at
+  /tmp/opencode/pr148/run_mut.sh, scratch tree
+  /tmp/opencode/pr148_mut; every run logged to a file, never
+  piped; the selftest reports FAILED with a line number, and
+  the first line each mutant prints is recorded below).
+  Detected: M1 guard deleted (dies on leg 1, the frozen-climb
+  `!bad`); M2 guard inverted (same leg 1); M3 guard keyed on
+  the x keys (dies on leg 2's row-span pin); M4 parser bit
+  dropped - the keyword falls back to counted (dies on the
+  parser pin, `ctrl` loses the bit); M5 the accumulator zeroed
+  on a non-qualifying iteration (dies on leg 3's first release
+  pin: `row_t == 100` must survive the gap); M6 the intent
+  guard extended to EVERY non-walk mode (BY_TIME legs starve
+  across the whole selftest - the first deaths are the
+  pre-existing walk-frames and jump-apex pins,
+  ll_play.c:1705/1870 -
+  the scope boundary is pinned by legs OUTSIDE this PR's
+  fixture, which is exactly what makes it a good control); M7
+  the ADMIT gated instead of the feed (the feed runs, the row
+  never admits - the first death is again a pre-existing
+  walk-frames pin,
+  ll_play.c:1705, where frames stop advancing entirely); M8
+  the intent scale 10 -> 20 (dies on the x-side gait
+  closed-form pin, ll_play.c:2192 - the shared scale is
+  observable on the walk legs, so the port's 10 stands by
+  evidence). SURVIVING, REPORTED:
+  M9 the intent sign flip (Up -> +, Down -> -) and M10 the
+  guard keyed on the raw k_up/k_down keys instead of the intent
+  word. Both are equivalent BY CONSTRUCTION under this scope:
+  the clock is sign-blind (the engine's cmp/je is too), no
+  vertical motion is modelled, and the word is currently a
+  one-to-one copy of the keys. They become distinguishable
+  exactly where the open items live: M9 at the y-force path
+  (item 1), M10 at the kind-4 contact override (PR-149) -
+  which is the direct reason the port carries a WORD and not a
+  key test.
+
+- GATES (fresh for this PR, not carried). `make` rc=0 and
+  `make win` rc=0 with ZERO warnings (/tmp/opencode/pr148_make.
+  log, pr148_makewin.log); `make -k verify-all` with the
+  standard fixtures (DATA=/tmp/opencode/iso_stage/LEO HD=
+  /tmp/opencode/hd_files) rc=0 with 56 `(ok)` and zero FAILED
+  (pr148_va.log); fixture-free (DATA=/tmp/opencode/nope HD=
+  /tmp/opencode/nope) rc=0 with the same 23 named SKIP lines
+  (pr148_va_nofix.log). The `(ok)` count is UNCHANGED from
+  PR-147: no new selftest binary and no new leg section - the
+  PR-108 leg was re-pinned in place, which is the honest way to
+  state it. The image is unchanged (sha256 edf19a129e85efb87644
+  57a0808e246ca4baf08a9111aa09be4ec99ce6b8c40e); no game data
+  or frames in git; .github/workflows/* untouched.
+
+- HANDOFF UPDATED. Item 13 gains the PR-148 bullet; item 15's
+  climb block now reads: guard and intent word SHIPPED, the
+  remaining climb work is the contact-answer route plus the two
+  counted y-path items; section 8 T5's STATUS gains the shipped
+  guard and the 0x50252 correction.
+
+- EVIDENCE. /tmp/opencode/pr148/run_mut.sh (the mutation
+  battery), the cited engine ranges are PR-147's already-shipped
+  feed_map.txt plus this record's new reads: the 0x96960 table
+  dump (+0x74 = 0x50320), the rel32/dword zero-reference scans
+  over text.bin, 0x50320/0x502b0/0x54c00's heads verbatim, the
+  shl4-sub pattern census (28 sites), and the corrected
+  instruction at 0x542d3 (`mov edx,[ebx+0x4]; imul edx,ebp`
+  with ebp = [ecx+0xbe]). All reproducible with
+  /tmp/opencode/pr139/rng.py and struct scans over
+  /tmp/opencode/vis/text.bin + text.asm (203,343 lines,
+  unchanged).
+
 ## Next — pick from the Deferred list below
 
-- THE CLIMB LAW IS FULLY READ (read the PR-147 record first). The
-  authored A_WSP/A_WSP_LIN states (12 blocks, BY_TX zero, byte
-  census over ANIMACJE) are mode 4: guard `[obj+0xbe] != 0`, feed
-  exactly 100 per frame, threshold = the row's [rec+0x10] word
-  (the 300/200 row lists), compare after the feed, one admit,
-  remainder carried - the port's row model already matches that
-  SHAPE. What the port does not have: (i) the guard, and (ii)
-  the intent values - the engine's own words are the player's
-  keyboard axes at +/-20 (Up 0x248 -> -20, Down 0x250 -> +20,
-  Home/Left 0x24b -> -20, Right 0x24d -> +20; word 1 = y, y+ =
-  down) written through the frame loop's per-frame call of the
-  LION's +0xcc contact method with the input block (0x4aeca), and
-  overridden afterwards by the contact chain when the head node's
-  KIND is 4 (+/-10 toward [node+0x1d], a +-8 dead band, 0x54b16/
-  0x54b3b/0x54b47). Zero open laws remain on the climb line.
+- THE GUARD IS SHIPPED (read the PR-148 record first). A BY_TY
+  row now closes only on iterations where the player's vertical
+  intent word is non-zero (0x5441b's shape, with the carry and
+  the compare-after-feed order), the word is set from the
+  Up/Down keys at the port's validated intent scale with the
+  engine's sign, and the held-climb spans are unchanged from
+  PR-108's - which is exactly what makes the guard a pure
+  subtraction of feeds. No vertical MOTION was added: the
+  session's 0x50252 "rise law" is dead code in the image (zero
+  references, both scan kinds) and the lion's frame-loop +0x74
+  is 0x50320 -> 0x54c00 (friction/ground gate, body unread).
 
-- NEXT PR (PR-148), in order: (a) THE INPUT/GUARD LAW AS
-  BEHAVIOUR - give the port's player the engine's two signed
-  intent words (arrows/Home at the engine's magnitudes), feed
-  them where the engine feeds them (the BY_TIME guard is [obj+
-  +0xba], the BY_TY guard is [obj+0xbe]), and gate the port's
-  BY_TY/BY_TIME row feeds on them exactly as 0x543f2/0x5441b do.
-  Hand-derived test + mutation controls (invert the guard, widen
-  the dead band, change a magnitude - name the survivors). The
-  test must be data-free: build the state from a fixture string
-  (the ll_play-selftest pattern PR-108 used for the BY_TY pin at
-  ll_play.c:2547). (b) THEN THE CONTACT-ANSWER ROUTE (PR-146's
-  model): the ladder's contact entry answers with 10/12, the
-  answer rides as a node onto the lion's contact list, the lion
-  merges it into its live set - the AC_DRAB/AC_DRAB_CATCH edges
-  then fire for real and the climb-entry condition stops being a
-  stub. (c) A short pass on the node-shape oddity is worth
-  doing BEFORE (b): who builds kinds 1/2/4, and how a 0x1d-byte
-  node carries the +0x1d y field - if the real builder allocates
-  more, PR-146's node map needs one more correction, and (b)'s
-  node layout depends on it.
+- NEXT PR (PR-149), in order: (a) THE CONTACT-ANSWER ROUTE
+  (PR-146/147's model, unchanged): the ladder's contact entry
+  answers with 10/12, the answer rides as a node onto the lion's
+  contact list, the lion's kind-2 chain merges it into the live
+  set ([obj+0x60]) - the AC_DRAB/AC_DRAB_CATCH edges then fire
+  for real and the climb-entry stops being a stub; the word then
+  becomes observable beyond the keys, because the kind-4 arm
+  overrides it to +/-10 toward [node+0x1d] with the +-8 dead
+  band (mutation M10's demarcation). Do the node-shape pass
+  FIRST: who builds kinds 1/2/4, and how a 0x1d-byte allocation
+  carries the +0x1d y field (PR-147 item 1 - the layout (b)
+  depends on). (b) THEN, with the reachability fixed, the y-
+  FORCE path (PR-148 open item 1): the param-struct field map
+  at 0x542ab/0x542cd ([param+0x8] vs [param+0x4]), and whether
+  0x54c00 is what integrates v_y - the climb's actual rise. A
+  ZARIA.01 climb probe (the PR-140 traverse-probe method) is
+  the right instrument the moment AC_DRAB can fire.
+
+- SHORT STUDIES worth a small PR each, counted by PR-148: the
+  BY_TIME guard 0x543f2 on the X-intent word (item 2 - a
+  regression study against the video-pinned legs, PR-102's
+  unguarded reading stands until one is done); the scene-side
+  mode-4 mirror (item 4: KLADKA1/MIOTLA_W/XKALUZA's A_DRAB
+  blocks parse with the bit now, obj_advance ignores it - are
+  those row lists even intent-gated at T=1000,50?); the
+  0x5024f-0x502b0 dead region (item 3, low priority); and the
+  20-vs-10 intent-scale tension named at LL_PLAY_INTENT_FULL
+  (the keyboard word is 20, every validated x-leg pins 10 -
+  only the y path can tell which the engine consumes).
 
 - THEN, from the PR-131 gap list (HANDOFF.md §7 item 15 is the
   current text of every item): G-8's HUD lives - map the
-  STATUS.LEO fields (both R3 clips start at "5", the port prints
-  6); G-3's ZAR.BLK corridor and the KAMIEN sixth field; then
-  G-7 (the water surface as a floor), G-12 (the SURPRISE "?"
-  firing - the poster set is closed and none of the six is a
-  "?", so the answer is the node-carried answer path or an
-  unread class; say which), and G-10/G-11 (the level-end scene
-  and the mid-level bird sequences). G-13's local-lines remainder
-  unchanged.
-
-PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
-first item and PR-45 its second (the authored scene), PR-46 its third
-(the element SHAPE model, which also corrected PR-45's reading of the
-169 "inline" tables); the game-wide measurement (see the PR-43
-follow-up, PR-44, PR-45 and PR-46 records) says
-exactly where the remaining gaps are:
-- DONE in PR-44: ground from a SUB-.des (TUNGA2.12/SADES.06) and the
-  authored-empty ground (JUNCTION). 12 of 13 level blocks now run
-  their own lion; JUNCTION does not because its own data declares 0
-  polylines (no floor) - that is the honest end of the level matrix,
-  not a gap to close.
-- DONE in PR-45: the authored scene - all 68 placement files parsed,
-  2188 entries, real .MOV scripts per object, art per state via the
-  script's own seq=. All 13 levels report their own authored scene
-  (JUNCTION's is honestly 0).
-- DONE in PR-93: the two placement grammars PR-45 had not recognised -
-  the 3-comma static image lines ("<LEAF>,<name>.seq,x,y": the line
-  names its own .SEQ in that CD leaf; 84 game-wide, 69 join, the 15
-  LONA.05 WODOSPAD2 misses named) are placed and drawn BEHIND the
-  actors, and the 130 five-field entries authored at exactly 0,0 are
-  attached children (joined and counted, never instantiated at the
-  world origin - that was the user's "fruits not in place" corner).
-  See the PR-93 record for the census and the open items (§ statics
-  animation, child spawn trigger, panc.seq coordinates, GRP format).
-- DONE in PR-46: the SHAPE model. The census item "draw the inline
-  .SEQ form (169 tables)" turns out to be the MISREADING itself:
-  those tables are w0=2 shape-only invisible solids - the original
-  game never drew them either (every draw path needs a patch array).
-  Nothing to draw; what the shapes actually feed is collision:
-  ll_seq_shape_hit is ported and oracle-covered, and the real item
-  is USING it - player-vs-object blocking against authored objects
-  (the 169 solid tables incl. RAN.01's 48 EDGE*/DYMY solids, and
-  the art+shape tables), with the push-out (FUN_00042de0/42cf0)
-  still unmodeled: its operands and outputs are unresolved through
-  unmapped vtable slots - see the ll_seq.h "NOT MODELED" note;
-  resolving them (or a caller-side RE of the +0x48/+0x50 slots)
-  comes before any push behavior ships.
-- the condition names the data uses but our runtime scores false:
-  K_JUMP (76 uses game-wide - the up-arrow route into the A_UP_*
-  states is the single most valuable one), K_FIRE (253), K_ALT,
-  K_F1..F12 and the engine-internal AC_* signals (AC_ONAIR 199,
-  AC_ENEMY_ATC 144, AC_LINA/AC_LINA_CATCH, AC_DRAB, AC_TIME...).
-  K_GEN1..3 stay the hook point for hand/foot interactions
-  (A_MA_KORONE crown climb etc.), and the authored A_LADOW landing
-  chain is the real replacement for the LL_PLAY_GRAVITY path.
-- the control= flag names the data uses but our ctrl_flag table has no
-  bit for (measured 2026-11-16, counts in the PR-46 record): 13
-  tokens in 415 of the 775 scripts that carry control= lines at all -
-  head of the list CHECK_LEW / DANGER / CHECK_ANI, and the collision
-  family SOLID2 / SEMI_SOLID / ANTI_SOLID (SOLID itself has a bit) -
-  counted as ctrl_other in every report, never silently dropped. The
-  SOLID family is the authored switch for the shape collision the
-  PR-46 model feeds, so resolving the push-out (ll_seq.h "NOT
-  MODELED") and these flags land together.
-- objects that react to the player (move platforms via their own .MOV +
-  player riding; PR-45 already PLACES every authored object incl. the
-  ani_plat= platform scripts - what is left is the AC_* signal bus
-  that starts them and the player riding one);
-- the belka HUD (`BELKA.DES`/`BELKA1.DES` - 12 of 13 level blocks
-  name it through `belka=`, 0 orphan .des records game-wide says these
-  are all there is); `RAN.BLK`/`RAN.SUF` (blokady=/sufity=) are the
-  same pattern for their own keys.
-None of this is blocked on data - 12 of 13 levels already run their
-complete own player sets (see PLAN 8g). Small latent cleanup noticed on
-the way: tools/verify_help.py and tools/verify_pcm.py (FIXED in PR-47) scanned
-nested index tables only `count` slots (the PR-36 sparse-table bug,
-same shape as the extract_record.py fix in this PR); their pins are
-dense on today's fixtures so they pass - fix them before using those
-probes on other levels. Also waiting for an owner-side one-liner
-(workflow files are outside our token's scope): the asan job +
-`ll_level --play-selftest` (see the PR-43 record).
-
-PR-37 leaves one named golden follow-up: recover the ORIGINAL engine
-text FONT (the cursive used for corner words AND chapter titles).
-The capture's title band (2370 px) + corner words (2406 px) give
-glyph coverage for A,C,E,I,J,O,P,R,S,T,U,W,Y,Z only - closing the
-last ~5.8% needs more captured words (golden_rig can script more
-menu states) or a font reconstruction. PCM parallax layer row-windows
-read "0x0 rows" on RAN.01's plan2/plan1.pcm stack - the tlo ORDER is
-resolved (PR-36), the window semantics are the open question
-(verify-pcm owns the decoder oracle).
-
-Nothing queued from the review's "worth fixing" set: all of it has
-landed, and T-01 is finished (T-24 tooling landed in PR-19: the
-the original-side capture half LANDED in PR-37/PR-40: verify-golden
-compares the port's chapter map against a real capture of the original
-when the fixture is present). Open
-candidates: the Deferred big architecture items, or the user's call
-(T-11 4:3 aspect default, T-22 AppImage).
-
+  STATUS.LEO fields (both R3 clips start at "5", the port
+  prints 6); G-3's ZAR.BLK corridor and the KAMIEN sixth
+  field; then G-7 (the water surface as a floor), G-12 (the
+  SURPRISE "?" firing - the poster set is closed and none of
+  the six is a "?", so the answer is the node-carried answer
+  path or an unread class; say which), and G-10/G-11 (the
+  level-end scene and the mid-level bird sequences). G-13's
+  local-lines remainder unchanged.
 ## Deferred big items (deliberately out of scope so far)
 
 - P-03 single window + single SDL lifecycle - DONE for both: PR-10

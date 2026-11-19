@@ -2328,12 +2328,85 @@ writer as its open items.
       items counted (the node builders and the allocation fit; the
       ds:0xa94f0 loop gate; the singleton's merge/second-cursor
       fields). Zero open laws remain for the climb: what is left
-      is the implementation decision (PR-148: the input/guard law
-      with the engine's magnitudes, then the contact-answer
-      route). No mutants (no behaviour changed). Full record: the
+      is the implementation decision (PR-148 SHIPPED its first
+      half - the guard and the intent word are code; the
+      contact-answer route is what remains). No mutants (no
+      behaviour changed). Full record: the
       PR-147 section of NEXT_STEPS.md (feed_map.txt carries the
       keyword encoding, the keyboard map, the two censuses and the
       authored census).
+    - PR-148 MADE THE INPUT/GUARD LAW BEHAVIOUR (the first CODE
+      change since PR-140's afefe73; gates re-run fresh: make
+      rc=0 / make win rc=0 zero warnings; verify-all with
+      fixtures rc=0, 56 (ok), zero FAILED - the count is
+      unchanged because the PR-108 leg was RE-PINNED IN PLACE
+      rather than added to; fixture-free rc=0, the same 23 named
+      SKIPs). THE PORT NOW CARRIES THE ENGINE'S TWO FACTS: a
+      model bit for `BY_TY` (LL_CTRL_BY_TY, parser-mapped) and
+      the player's `vert_intent` word - the engine's [obj+0xbe]
+      with its sign semantics (Up negative, y+ = down, the
+      0x582f0 signs) at the port's single validated intent scale
+      (the 20-vs-10 tension is NAMED at LL_PLAY_INTENT_FULL, and
+      mutation M8 shows the shared scale is observable on the x
+      gait legs). Section 7's mode-4 feed guard copies 0x5441b
+      byte-for-byte in SHAPE: feed 100 only while the word is
+      non-zero, row compare runs regardless, so a BY_TY row
+      closes only on QUALIFYING iterations and the partial
+      accumulator carries across the gap (the engine's [obj+0xa1]
+      does the same) - while the held-intent spans stay EXACTLY
+      PR-108's, which proves the guard only subtracts feeds. The
+      re-pinned leg: no-keys = entered and frozen for 25
+      iterations, no wrap, and `!AC_DRAB` still fires from a
+      state whose list never ticked (transition pass vs row pass,
+      as in the engine); Up held = the PR-108 spans; release
+      mid-row keeps the carried 100, Down restarts on it, the
+      wrap lands at t=19 not t=17; Up/Down qualify alike (the
+      guard is sign-blind like the cmp/je). NOT copied, counted:
+      the BY_TIME guard 0x543f2 on x-intent (a regression study,
+      PR-102's reading stands) and the word's use as a v_y
+      force. THE SESSION'S CLAIMED RISE LAW AT 0x50252 WAS
+      CAUGHT DEAD BEFORE IT COULD BE CODED: the LION's table
+      0x96960 +0x74 is 0x50320 (byte-exact dump; its other
+      slots match PR-144's anchors), 0x50252 has ZERO references
+      image-wide (rel32 scan AND dword scan - the neighbour
+      0x502b0 proves the scan pair is sound, it is reached by a
+      direct call from 0x5032c), and what the frame loop's
+      [lion.vt+0x74] call at 0x4afea really runs is 0x50320 ->
+      an oddness test on [obj+0x102] -> the friction/ground gate
+      0x54c00. So NO vertical motion was added, and 0x50252
+      appears in no shipped record - nothing needed re-editing.
+      One PR-147 sentence NARROWED, not retracted: the y-force
+      multiplier at 0x542cd is `[param+0x4]` of the struct whose
+      +0x8 PR-132 read as the raised T word - the instruction
+      shape (intent * param/20 into v_y) stands, the "-80 at
+      T=160" figure is conditional on the unread field map. 4
+      new open items counted (the y-force path and param field
+      map; the BY_TIME guard study; the dead region 0x5024f..;
+      the scene-side mirror). A sharper BLOCK-level census (split
+      the archive by [NAME] block, not string occurrence): 12
+      BY_TY blocks firm across three names - A_WSP x5,
+      A_WSP_LIN x6, A_DRAB x1 - but MEMBER attribution is
+      anchoring-dependent, and this CORRECTS PR-147's list: the
+      block-start anchor puts the last four near F4ZDYBYA/DEMO/
+      BALONIK, not KLADKA1/MIOTLA_W/XKALUZA (first eight sit
+      under 2LEW.MOV x4 / LEWPL.MOV x4 both ways; the member
+      table is the authority and is unparsed - named gap, joined
+      PR-147 item 1). Any of those blocks on a SCENE member
+      parses the bit now while obj_advance ignores it - mirror
+      counted, not silently half-done. 10
+      mutations run: M1-M8 all DETECTED (guard deleted, inverted,
+      wrong axis, parser-bit dropped, carry-zeroed, guard
+      extended to all modes, admit-gated-instead-of-feed, scale
+      20); M9 (intent sign) and M10 (keys-not-word) SURVIVE and
+      are reported - they are equivalent by construction until
+      the y-force path (M9) and the kind-4 contact override
+      (M10) exist, which is exactly why the port carries a WORD
+      and not a key test. The climb at ZARIA.01 x=180 still does
+      not climb: its blocker is the contact-answer route, not
+      the guard - that is PR-149. Full record: the PR-148
+      section of NEXT_STEPS.md; battery driver at
+      /tmp/opencode/pr148/run_mut.sh (kept out of git with the
+      scratch tree).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -3599,7 +3672,9 @@ narrowed repeatedly (PR-141, PR-142, PR-144/145; PR-146 closed
 the last reading gap - the contact delivery is read end to end -
 and PR-147 closed the last reading law: the A_WSP feed law is
 now read at byte level, so ONLY the implementation decision is
-left). CLOSED by PR-141: the
+left; PR-148 shipped its first half - the guard and the intent
+word are CODE, and what blocks the climb now is solely the
+contact-answer route). CLOSED by PR-141: the
 AC_DRAB/AC_DRAB_CATCH answer bits themselves - DRABINKA's own
 answer entry 0x3f1c0 raises exactly those into the toucher, gated
 on its unroll rows, and the ladder's +0x40 getter is constant-zero
@@ -3707,12 +3782,22 @@ the contact path. The keyword encoding itself is now byte-exact
 FRAME_REV 8, SEQ_REV_X 0x10, SEQ_REV_Y 0x20, ...) confirming
 PR-108's five-value mode item for item; the demo record format
 is a 12-byte input block + a length (0x58690 playback,
-PR-145 item 6 CLOSED). WHAT REMAINS IS THE IMPLEMENTATION
-DECISION: the port's row model already matches the shape and
-lacks (i) the guard and (ii) the intent magnitudes, plus the
-contact-answer route (the node payload -> the live set) - all
-specified by engine numbers now, so PR-148 is code + a
-hand-derived test. OPEN ODDITY COUNTED: the kind-4 chain
+PR-145 item 6 CLOSED). THE IMPLEMENTATION DECISION IS HALF
+SHIPPED (PR-148): the port now HAS the guard - a BY_TY row is
+fed the 100 only while the player's vertical-intent word
+(p->vert_intent, the engine's [obj+0xbe] shape with its sign
+semantics) is non-zero, the compare still runs, and the partial
+accumulator carries across the gap (0x5441b's order); the held-
+intent spans are UNCHANGED from PR-108's, so the guard only
+subtracts feeds. What the port still lacks: the contact-answer
+route (the node payload -> the live set - the blocker of the
+ZARIA.01 climb, NOT the guard), the word's use as a v_y force
+(0x542cd reads [param+0x4], field map unread - PR-148 open
+item 1), and any vertical MOTION: the session's claimed rise
+law at 0x50252 is DEAD CODE (zero references by both scan
+kinds; the lion's frame-loop +0x74 is 0x50320 -> 0x54c00, a
+friction/ground gate), so the climb's rise waits on the y-force
+path, not on this PR. OPEN ODDITY COUNTED: the kind-4 chain
 compares node+0x1d, the 30th byte, while the node builder's
 allocation is 0x1d bytes (whose answer set ends at +0x1c) -
 who builds kinds 1/2/4 (PR-146 item 1) has teeth now; node+0xc
@@ -3758,6 +3843,27 @@ matches the shape and lacks the guard and the magnitudes. What
 remains is the implementation decision (PR-148: the input/guard
 law with the engine's numbers, then the contact-answer route),
 plus one counted oddity (node+0x1d vs the 0x1d allocation).
+STATUS after PR-148 (the guard, SHIPPED): that decision's first
+half is CODE now - LL_CTRL_BY_TY + the parser mapping, the
+player's vert_intent word (Up negative, y+ down, at the port's
+validated intent scale; the 20-vs-10 keyboard constant tension
+is NAMED at LL_PLAY_INTENT_FULL), and section 7's mode-4 feed
+guard in 0x5441b's exact order (feed gated, compare not, carry
+kept). The re-pinned PR-108 leg runs all three behaviours and
+the 8/10 mutation battery pins the scope (extending the guard
+to every non-walk mode starves the BY_TIME legs across the
+whole selftest, first at the pre-existing walk/jump legs; the
+BY_TIME guard 0x543f2 itself is a counted study, not copied).
+NO vertical
+motion was added: the 0x50252 "rise law" in the working notes
+is dead code (zero references, both scan kinds; the lion's
+frame-loop +0x74 is 0x50320 -> 0x54c00), and the y-force path
+(0x542cd, [param+0x4] field map unread) is open item 1 - the
+climb's rise is a contact-era question, not this PR's. M9 (the
+intent sign) and M10 (keys-not-word) survive by construction
+until the y-force path and the kind-4 override exist - the
+reason the port carries a WORD. The ZARIA.01 climb blocker is
+unchanged: the contact-answer route, PR-149.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

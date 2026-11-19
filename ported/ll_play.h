@@ -120,9 +120,14 @@ int  ll_plt_first_below(const ll_plt *o, int x, int from_y, ll_xy *hit);
  * on the owner's ladder clip, NOT 200 ms. That makes the `.ms` field of
  * ll_mov_fr a misnomer (renamed only with PR-110, the change) and the
  * row clocks of ll_play.c/ll_level.c 3.0-3.5x too slow in wall time.
- * Neither mode is modelled here (no LL_CTRL bit acts on either), and
- * PR-108's play selftest leg pins the ungated ms model this port runs
- * today. Names without a bit below are parsed, named here for the
+ * MODE 4 (BY_TY) IS MODELLED FROM PR-148: ll_play.c section 7 guards
+ * its feed on the player's vertical intent, exactly as 0x5441b guards
+ * on [obj+0xbe] (PR-147's byte-exact reading; its 12/0 BY_TY/BY_TX
+ * byte census over the authored archive confirms the counts above).
+ * Mode 1 (BY_Y) has no LL_CTRL bit acting on its |v_y| feed, and
+ * PR-108's play selftest leg pinned the ungated ms model this port
+ * ran until PR-148 re-pinned it. Names without a bit below are
+ * parsed, named here for the
  * record, and counted in ctrl_other - never silently dropped, never
  * invented into a behaviour. */
 enum {
@@ -160,7 +165,17 @@ enum {
      * compiled and reads no control flag (NEXT_STEPS PR-90 record,
      * HANDOFF §7 item 10). Here it is an internal bit again (the
      * enum's values never are the wire values). */
-    LL_CTRL_DANGER          = 0x10000u
+    LL_CTRL_DANGER          = 0x10000u,
+    /* PR-148: BY_TY, mode 4 of the feed dispatcher. Its branch at
+     * 0x5441b (byte-exact, PR-147) feeds the level constant 100 to
+     * the row accumulator ONLY while [obj+0xbe], the player's own
+     * vertical intent word, is non-zero; that word is the keyboard's
+     * y-axis (Up/Down at +/-20, reader 0x582f0; a kind-4 contact
+     * node overrides it to +/-10 toward the partner's y, 0x54b16,
+     * PR-149's route). ll_play.c section 7 implements the guard;
+     * the enum's values never are the wire values (wire: BY_TY 0x5
+     * in bits 0..2, PR-147's byte-exact keyword encoding). */
+    LL_CTRL_BY_TY           = 0x20000u
 };
 #define LL_CTRL_NAMES \
     X(BY_TIME) X(BY_X) X(BY_Y) X(BY_TY) X(CHECK_LN) X(CHECK_LEW) \
@@ -494,10 +509,18 @@ typedef struct { int k_fwd, k_bkwd, k_up, k_down, k_jump,
  *                                      400*10/90 = 44.4 u/s inside the
  *                                      measured [38,76])
  * s is the engine's intent register ([obj+0xba], read live as 10 by
- * PR-99, and PR-132 closed "10 IS full one-axis intent"). Only the one
- * value has ever been measured, so the port uses it for a held
- * direction key or an auto_walk state and 0 otherwise; partial intents
- * are counted as an open item, not modeled. */
+ * PR-99, and PR-132 closed "10 IS full one-axis intent"). PR-147's
+ * byte-level census NARROWS that: 10 is the CONTACT-path constant (a
+ * kind-1/4 contact node writes +/-10 toward the partner, 0x54a57/
+ * 0x54b16), while the keyboard path writes +/-20 (reader 0x582f0) -
+ * both into the same words, the contact chain overriding after the
+ * input store. Which scale the x force's unread multiplier consumes
+ * is not settled by either; the video-validated steady state keeps
+ * 10, so the port uses 10 for a held direction key, an auto_walk
+ * state, and PR-148's vertical intent alike. That shared scale is
+ * counted as an open item (it would decide the y-force path too),
+ * not smoothed over; partial intents remain an open item, not
+ * modeled. */
 #define LL_PLAY_DRAG_DEN 100
 #define LL_PLAY_INTENT_FULL 10
 /* PR-135: one unit of the engine's velocity register. That register is
@@ -587,6 +610,21 @@ typedef struct {
                                  * states that bake their direction into the
                                  * frame sign (A_GO_TO_BALON_L) never touch
                                  * it. Starts +1 = what the frames ask for. */
+    int vert_intent;            /* PR-148: the engine's y-intent word,
+                                 * [obj+0xbe], mirrored per iteration from
+                                 * the held Up/Down keys at the port's
+                                 * intent scale (Up = negative, y+ is down:
+                                 * scancode 0x248 writes -20 into the input
+                                 * block, 0x250 writes +20, reader 0x582f0;
+                                 * the scale question is named at
+                                 * LL_PLAY_INTENT_FULL). It guards the
+                                 * mode-4 (BY_TY) row feed exactly where
+                                 * 0x5441b guards on the same word. The
+                                 * kind-4 contact-chain override to
+                                 * +/-10 toward the partner's y and the
+                                 * word's use as a v_y force (0x542cd)
+                                 * are PR-149's route and not modelled
+                                 * here. */
     unsigned long long sig;   /* PR-88: the lion's signal set, a mirror of
                                * the engine's TEventSet at [obj+0x60] with
                                * the LL_SIG_* bit table. One-tick pulses

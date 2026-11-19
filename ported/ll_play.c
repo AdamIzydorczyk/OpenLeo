@@ -326,6 +326,11 @@ static void ctrl_flag(const char *tok, unsigned *f, int *other)
         { "BY_TIME", LL_CTRL_BY_TIME },
         { "BY_X", LL_CTRL_BY_X },
         { "BY_Y", LL_CTRL_BY_Y },
+        { "BY_TY", LL_CTRL_BY_TY },   /* PR-148: the mode-4 feed guard,
+                                       * ll_play.c section 7 (the engine's
+                                       * 0x5441b); BY_TX (wire mode 3) has
+                                       * zero authored uses and still no
+                                       * bit (PR-147's byte census). */
         { "CHECK_LN", LL_CTRL_CHECK_LN },
         { "CH_DIR", LL_CTRL_CH_DIR },
         { "CHECK_ALL_PLANE", LL_CTRL_CHECK_ALL_PLANE },  /* before CHECK_ALL */
@@ -1164,6 +1169,24 @@ static int player_iterate(ll_player *p, const ll_plt *ground,
     else if (p->vx < -20000.0)             /* one only bounds runaway    */
         p->vx = -20000.0;                  /* authored F/T (no data does)*/
 
+    /* PR-148: the engine's y-intent word, [obj+0xbe], set every
+     * iteration from the held Up/Down keys exactly where 0x549f0 (the
+     * frame loop's per-frame call of the lion's input method, 0x4aeca,
+     * PR-147) stores the input block's word1 into it: scancode 0x248
+     * (Up) writes the negative value, 0x250 (Down) the positive one -
+     * y+ is DOWN, PR-99's sign, re-confirmed at byte level by the
+     * capture reader 0x582f0. The magnitude question is named at
+     * LL_PLAY_INTENT_FULL (the keyboard's own constant is 20, the
+     * contact chain writes 10, the port's one validated scale is 10).
+     * The contact-node override (the kind-4 arm, 0x54b16) is PR-149's
+     * route. The consumer modelled here is section 7's mode-4 row
+     * feed guard (the engine's 0x5441b); the y-FORCE path (this word
+     * into v_y, 0x542cd) is counted open in the PR-148 record and
+     * not modelled: no shipped leg exercises it and the engine's own
+     * parameter word at [ebx+0x4] is unread there. */
+    p->vert_intent = keys->k_up ? -LL_PLAY_INTENT_FULL
+                                : (keys->k_down ? LL_PLAY_INTENT_FULL : 0);
+
     /* 3) vertical: authored G= wins; the documented project fallback
      * LL_PLAY_GRAVITY applies only while airborne in a CHECK_LN state
      * that has no authored fall route (stepped off a .plt edge). */
@@ -1383,7 +1406,21 @@ static int player_iterate(ll_player *p, const ll_plt *ground,
      * name their own source.) */
     if (st->nfr > 0) {
         int walk = (st->ctrl & LL_CTRL_BY_X) && st->fx != 0;
-        if (!walk)
+        int by_ty = (st->ctrl & LL_CTRL_BY_TY) && !p->vert_intent;
+        /* PR-148, the mode-4 feed guard, byte-exact at 0x5441b: the
+         * dispatcher's BY_TY branch adds nothing while [obj+0xbe] is
+         * zero, and the row compare runs on regardless - a BY_TY row
+         * CLOSES ONLY ON ITERATIONS WHERE THE VERTICAL INTENT IS
+         * HELD, and the accumulator carries the partial feed across
+         * the gap exactly like the engine's [obj+0xa1]. The guard is
+         * on the feed, not the admit. Not copied: the same branch's
+         * cousin at 0x543f2 guards BY_TIME (mode 2) on the X-intent
+         * word - PR-102 recorded mode 2 as unguarded, the model has
+         * run that way through every video-verified leg since, and
+         * PR-147's own reading of that guard's data source (word0 =
+         * the arrows) makes it a behavioural regression study, not a
+         * copy. Counted as open item 2 in the PR-148 record. */
+        if (!walk && !by_ty)
             p->row_t += 100;          /* one iteration = exactly one
                                        * feed of the engine's constant
                                        * (0x4c8b7): no millisecond
@@ -2544,59 +2581,97 @@ int ll_play_selftest(void)
         ll_plt_free(&hp);
         free(hm);
     }
-    {   /* PR-108: the BY_TY climb, pinned under the CURRENT model.
-         * A census of the shipped files (tools note in NEXT_STEPS PR-108,
-         * script kept out of git at /tmp/opencode/pr108_census.py) finds
-         * BY_TY in 12 state blocks in 7 .MOV files and three state names
-         * only: A_WSP (seq climb / climb_r), A_WSP_LIN (the rope
-         * variant of the same block) and TUNGA2's A_DRAB - the
-         * DRABINKA rung-ladder family (PR-109 corrected the earlier
-         * "vine or rope": ENA2's rope state A_CLIMB is BY_Y mode 1,
-         * a different mechanism).
-         * They all read `F=0,100 T=160,50` (A_DRAB `T=1000,50`), all
-         * `G=0,0`, all `control=BY_TY|CHECK_ALL|SEQ_REV_Y` (KARA's adds
-         * ANTI_SOLID|FRAME_REV), they are entered by
-         * AC_DRAB/AC_DRAB_CATCH/AC_LINA(+AC_ONAIR) and left by
-         * `!AC_DRAB`/`!AC_LINA`. What the engine does with the mode
-         * is still only half modelled: its feed dispatcher (0x543a0,
-         * jump table 0x54380) sends mode 4 to 0x5441b, which adds the
-         * level constant 100 to the frame-advance accumulator
-         * [obj+0xa1] only while [obj+0xbe] is non-zero - the vertical
-         * force register the input-apply method 0x549f0 writes - and
-         * the same register drives v_y in the velocity loop (0x542cd,
-         * /20). The port still has no such gate and no vertical feed
-         * (BY_TY is counted in ctrl_other exactly like SEQ_REV_Y),
-         * but PR-110 gave its row clock the engine's UNIT: the
-         * accumulator is fed 100 per iteration of LL_ITER_MS, not in
-         * wall ms. The gate - whether the clock runs at all while the
-         * lion hangs - stays unmodelled and open (T5 question 1).
-         * None of it is reachable from shipped data in the player sim
-         * - no port code raises AC_DRAB/AC_DRAB_CATCH/AC_ONAIR/
-         * AC_LINA/AC_EDGE (PR-50 showed those are engine-raised) - so
-         * the signals are raised directly, the way PR-91's leg does.
-         * The arithmetic, RE-DERIVED BY HAND for PR-135 (not scaled
-         * from the old numbers): the authored frame list is
-         * 300,200x8,300 with no time_scale line (thresholds 300/200 as
-         * written), and the clock is now ONE call = one iteration = one
-         * feed of 100 units, one row admit - so the feed pattern is
-         * trivial and what the leg tests is the row spans: a 200-row is
-         * two iterations, the 300-row three, and the 1700-unit list is
-         * 17 of them. `A_WSP(3)=` enters at list index 2 (drawn frame
-         * 3) with the accumulator reset, and the entry iteration's own
-         * feed puts 100 against that row:
+    {   /* PR-108's BY_TY climb leg, RE-PINNED by PR-148: the leg
+         * now tests the engine's input/guard law, not the old
+         * ungated time clock. A census of the shipped files (tools
+         * note in NEXT_STEPS PR-108, script kept out of git at
+         * /tmp/opencode/pr108_census.py) finds BY_TY in 12 state
+         * blocks in 7 .MOV files and three state names only: A_WSP
+         * (seq climb / climb_r), A_WSP_LIN (the rope variant of the
+         * same block) and TUNGA2's A_DRAB - the DRABINKA
+         * rung-ladder family (PR-109 corrected the earlier "vine or
+         * rope": ENA2's rope state A_CLIMB is BY_Y mode 1, a
+         * different mechanism).
+         * They all read `F=0,100 T=160,50` (A_DRAB `T=1000,50`),
+         * all `G=0,0`, all `control=BY_TY|CHECK_ALL|SEQ_REV_Y`
+         * (KARA's adds ANTI_SOLID|FRAME_REV), they are entered by
+         * AC_DRAB/AC_DRAB_CATCH/AC_ONAIR and left by
+         * `!AC_DRAB`/`!AC_LINA`. PR-147 read the rest of the law at
+         * byte level and PR-148 implements it: the mode-4 branch
+         * 0x5441b feeds the row accumulator 100 ONLY while
+         * [obj+0xbe], the player's vertical intent, is non-zero -
+         * the frame loop hands the LION the keyboard block through
+         * its input method every iteration (0x4aeca, PR-147) and
+         * 0x549f0 stores its word1 (Up/Down, y+ down) into that
+         * word. The port's p->vert_intent and section 7's feed
+         * guard are exactly that fact; the kind-4 contact override
+         * (0x54b16) is PR-149's route, and so is the word's use
+         * as a v_y force (0x542cd) - see the open items in the
+         * PR-148 record.
+         * None of it is reachable from shipped data in the player
+         * sim - no port code raises AC_DRAB/AC_DRAB_CATCH/AC_ONAIR/
+         * AC_LINA/AC_EDGE (PR-50 showed those are engine-raised) -
+         * so the signals are raised directly, the way PR-91's leg
+         * does. THE ARITHMETIC, RE-DERIVED BY HAND FOR PR-148:
+         * with the intent held every iteration the spans are
+         * exactly the PR-108 ones (the guard passes, so the held
+         * climb's clock is unchanged), and the NEW fact is the
+         * no-intent freeze and the partial accumulator surviving
+         * the gap. The authored frame list is 300,200x8,300 with
+         * no time_scale line; one call = one iteration = one feed
+         * of 100 units and one row admit; `A_WSP(3)=` enters at
+         * list index 2 (entry-1 = row 3, PR-108).
+         * LEG 1, no keys held: the guard fails every iteration, so
+         * the feed is zero FOREVER and 25 iterations change
+         * NOTHING beyond the entry itself: rows never advance, the
+         * list never wraps, AC_BREAK_NEXT never arms, the
+         * accumulator stays 0, and x, y, v_x, v_y never move (the
+         * model has no vertical motion for this state and this PR
+         * adds none: the word's use as a v_y FORCE at 0x542cd is
+         * counted open in the record, and the earlier session's
+         * 0x50252 "rise law" candidate was caught dead - a byte
+         * census shows NO call site and no table entry points at
+         * it anywhere in the image; what the frame loop's
+         * [lion.vt+0x74] call at 0x4afea really runs is 0x50320).
+         * Under the old ungated model this exact loop advanced and
+         * wrapped at t=17; the mutations that delete or invert the
+         * guard land here. The final step lets go of AC_DRAB:
+         * `A_FALL_DOWN(1)=!AC_DRAB` wins from a state whose list
+         * NEVER ticked - transitions are a separate pass (section
+         * 1), exactly as the engine evaluates transitions and rows
+         * separately.
+         * LEG 2, a fresh climb on a fresh player, Up held from the
+         * first step to t=15: every iteration qualifies, so the
+         * row spans are the PR-108 ones -
          *   t=1  enter at index 2, rem 100 < 200, nothing closes
          *   t=2  rem 200  -> index 3      t=4 -> 4   t=6 -> 5
          *   t=8  -> 6                    t=10 -> 7  t=12 -> 8
-         *   t=14 -> 9 (the last 200-row)
-         *   t=15 rem 100, t=16 rem 200 against the 300-row, both open
-         *   t=17 rem 300 -> the list WRAPS to index 0 and arms
-         *        AC_BREAK_NEXT
-         * x, y, v_x and v_y never move: F= gives no acceleration and no
-         * vertical feed is modelled, while the engine's mode 4 would be
-         * pulling him up at each iteration. With AC_DRAB held the
-         * state's other three exits stay dark; the tick it is not held,
-         * `A_FALL_DOWN(1)=!AC_DRAB` wins and the fall starts at the
-         * top of its own list. */
+         *   t=14 -> 9 (the last 200-row closes, the 300-row opens)
+         *   t=15 rem 100 against the 300-row, still index 9
+         * - and the held climb does NOT move x, y, v_x or v_y:
+         * holding Up on a ladder only drives the row clock in this
+         * model, the y-force path being the counted open item.
+         * LEG 3, release mid-row: t=16,17 hold NO key. The row
+         * clock freezes at index 9 - no feed - but the carried
+         * accumulator (100 of the 300-row) survives untouched,
+         * because the guard feeds nothing while the row compare
+         * still runs, the engine's own order (feed 0x52317, THEN
+         * compare 0x52320). No wrap at t=17 either: a mutation
+         * that deletes the guard wrapped HERE (the PR-108 spans),
+         * and one that zeroes the accumulator on a non-qualifying
+         * iteration loses the carry and wraps at t=20, not t=19.
+         *   t=18 Down held: the clock restarts ON THE CARRIED 100
+         *   (the engine's [obj+0xa1] does the same): 100 + 100 =
+         *   200 < 300, the row does NOT close.
+         *   t=19 still Down: 200 + 100 = 300 -> the list WRAPS to
+         *   index 0 and arms AC_BREAK_NEXT (readable only on the
+         *   step that armed it, `broke` clears at iteration head).
+         *   t=20 still Down: index 0's 300-row takes a fresh 100,
+         *   no close.
+         * The clock is sign-blind, Up and Down qualifying alike -
+         * the guard tests `!= 0`, exactly like 0x5441b /
+         * `cmp [obj+0xbe],0; je` - and only the unmodelled force
+         * path would care which way. */
         static const char CE[] =
             "A_JUMP\nA_WSP\nA_FALL_DOWN\nA_PRE_JUMP\nA_TURN_BACK\n"
             "A_PODCIAG\n\n[A_JUMP]\ncontrol=BY_TIME|CHECK_ALL\nF=0,100\n"
@@ -2613,21 +2688,25 @@ int ll_play_selftest(void)
             "1,300\n\n[A_PODCIAG]\ncontrol=BY_TIME\nF=0,100\nT=160,50\n"
             "G=0,0\nseq=podciag\n1,400\n";
         ll_mov_t *cm = calloc(1, sizeof *cm);
-        ll_player r;
+        ll_player r, u;
         ll_play_keys rk = { 0 };
-        static const int at[] = { 1, 2, 4, 6, 8, 10, 12, 14, 17 };
-        static const int want[] = { 2, 3, 4, 5, 6, 7, 8, 9, 0 };
+        static const int at[] = { 1, 2, 4, 6, 8, 10, 12, 14 };
+        static const int want[] = { 2, 3, 4, 5, 6, 7, 8, 9 };
         int nx = 0;
         int bad = 0;
 
         CHECK(cm && ll_mov_parse(CE, cm) == 6);
         CHECK(cm->st[1].nfr == 10 && cm->st[1].fr[2].thresh == 200 &&
               cm->st[1].fr[9].thresh == 300);
-        /* BY_TY and SEQ_REV_Y have no bit: both are counted, never
-         * dropped in silence, and the one flag the model does know
-         * (CHECK_ALL) still reaches ctrl. */
-        CHECK(cm->st[1].ctrl_other == 2 &&
+        /* PR-148: BY_TY has a model bit now (the 0x5441b feed
+         * guard) and reaches ctrl through the parser; SEQ_REV_Y
+         * alone is the name left counted in ctrl_other - the PR-
+         * 108 pin of ctrl_other == 2 re-pins to 1 here, honestly,
+         * and the one flag the model already knew (CHECK_ALL)
+         * still reaches ctrl. */
+        CHECK(cm->st[1].ctrl_other == 1 &&
               (cm->st[1].ctrl & LL_CTRL_CHECK_ALL) != 0 &&
+              (cm->st[1].ctrl & LL_CTRL_BY_TY) != 0 &&
               (cm->st[1].ctrl & (LL_CTRL_BY_X | LL_CTRL_BY_TIME)) == 0);
         /* the authored exit list, in order, with the negated signal */
         CHECK(cm->st[1].tr[2].entry == 1 && cm->st[1].tr[2].nc == 1 &&
@@ -2636,37 +2715,74 @@ int ll_play_selftest(void)
               cm->st[1].tr[2].c[0].neg == 1);
         CHECK(cm->st[0].tr[0].entry == 3 &&
               cm->st[0].tr[0].c[0].sig == LL_SIG_AC_DRAB_CATCH);
+        /* LEG 1: the guard. No key ever held. */
         ll_player_start(&r, cm, 500, 500, 1);
         CHECK(r.sti == 0);                            /* the declared name  */
-        /* The loop ends ON the wrap step: like the signal pulses,
-         * `broke` is cleared at the head of every iteration
-         * (ll_play.c), so the only step it can be read on is the one
-         * that armed it. */
-        for (int t = 1; t <= 17; t++) {
+        CHECK(r.vert_intent == 0);
+        for (int t = 1; t <= 25; t++) {
             r.sig |= 1ull << LL_SIG_AC_DRAB;   /* the ladder stays held   */
             if (t == 1)
                 r.sig |= (1ull << LL_SIG_AC_DRAB_CATCH) |
                          (1ull << LL_SIG_AC_ONAIR);
             ll_player_step(&r, NULL, &rk, 0, 2000, LL_ITER_MS);
-            if (t == 16 && (r.fi != 9 || r.broke))
-                bad = 1;      /* the final 300-row must STILL be running at
-                               * feed 16 (200 of its 300 units): a mutation
-                               * that treats every row as two feeds wraps
-                               * here instead of at 17 (the new leg below
-                               * is the full non-twin test; this is the
-                               * cheap trip-wire inside this one) */
+            if (r.sti != 1 || r.fi != 2)
+                bad = 1;        /* entered, then frozen: no feed at all   */
+            if (r.row_t != 0 || r.facc != 0.0)
+                bad = 1;        /* zero feeds; mode 4 is not distance-fed */
+        }
+        CHECK(!bad);
+        CHECK(r.broke == 0);                  /* never wrapped, never armed */
+        CHECK(r.y == 500 && r.x == 500 && r.vx == 0 && r.vy == 0);
+        r.sig &= ~(1ull << LL_SIG_AC_DRAB);   /* the ladder lets go     */
+        ll_player_step(&r, NULL, &rk, 0, 2000, LL_ITER_MS);
+        CHECK(r.sti == 2 && r.fi == 0);       /* the exit works from a     */
+                                              /* state whose list NEVER    */
+                                              /* ticked (separate passes)  */
+        /* LEG 2/3: a fresh climb, Up held t=1..15 (PR-108's spans
+         * while the guard passes), no key t=16..17 (frozen, carry
+         * kept, NO wrap at 17), Down t=18..20 (restart on the
+         * carry, wrap at 19). */
+        ll_player_start(&u, cm, 500, 500, 1);
+        rk.k_up = 1;
+        for (int t = 1; t <= 15; t++) {
+            u.sig |= 1ull << LL_SIG_AC_DRAB;
+            if (t == 1)
+                u.sig |= (1ull << LL_SIG_AC_DRAB_CATCH) |
+                         (1ull << LL_SIG_AC_ONAIR);
+            ll_player_step(&u, NULL, &rk, 0, 2000, LL_ITER_MS);
             if (nx < (int)(sizeof at / sizeof at[0]) && t == at[nx]) {
-                if (r.sti != 1 || r.fi != want[nx] ||
-                    ll_player_frame(&r) != want[nx] + 1)
+                if (u.sti != 1 || u.fi != want[nx] ||
+                    ll_player_frame(&u) != want[nx] + 1)
                     bad = 1;
                 nx++;
             }
         }
         CHECK(!bad && nx == (int)(sizeof at / sizeof at[0]));
-        CHECK(r.broke == 1);                     /* the wrap arms BREAK_NEXT */
-        CHECK(r.x == 500 && r.y == 500 && r.vx == 0 && r.vy == 0);
-        ll_player_step(&r, NULL, &rk, 0, 2000, LL_ITER_MS);    /* the ladder let go */
-        CHECK(r.sti == 2 && r.fi == 0);        /* A_FALL_DOWN(1): its top */
+        CHECK(u.sti == 1 && u.fi == 9 && u.row_t == 100);
+        CHECK(u.y == 500);        /* no vertical MOTION is modelled for   */
+        CHECK(u.x == 500 && u.vx == 0 && u.vy == 0);   /* this state yet */
+        rk.k_up = 0;
+        for (int t = 16; t <= 17; t++) {
+            u.sig |= 1ull << LL_SIG_AC_DRAB;
+            ll_player_step(&u, NULL, &rk, 0, 2000, LL_ITER_MS);
+            CHECK(u.sti == 1 && u.fi == 9 && u.row_t == 100);
+            CHECK(u.y == 500 && u.vy == 0);
+            CHECK(u.broke == 0);        /* NO wrap at t=17: the guard     */
+        }
+        rk.k_down = 1;
+        u.sig |= 1ull << LL_SIG_AC_DRAB;
+        ll_player_step(&u, NULL, &rk, 0, 2000, LL_ITER_MS);       /* t=18 */
+        CHECK(u.sti == 1 && u.fi == 9 && u.row_t == 200);
+        u.sig |= 1ull << LL_SIG_AC_DRAB;
+        ll_player_step(&u, NULL, &rk, 0, 2000, LL_ITER_MS);       /* t=19 */
+        CHECK(u.sti == 1 && u.fi == 0 && u.broke == 1);
+        CHECK(u.row_t == 0);            /* the wrap: index 0, BREAK_NEXT  */
+        u.sig |= 1ull << LL_SIG_AC_DRAB;
+        ll_player_step(&u, NULL, &rk, 0, 2000, LL_ITER_MS);       /* t=20 */
+        CHECK(u.sti == 1 && u.fi == 0 && u.row_t == 100);
+        CHECK(u.y == 500 && u.vy == 0); /* Down qualifies the clock like  */
+                                        /* Up: the guard is sign-blind    */
+        rk.k_down = 0;
         free(cm);
     }
     {   /* PR-110's own non-twin test: the row clock counts ITERATIONS,
@@ -3068,12 +3184,17 @@ int ll_play_selftest(void)
                " attack entry - FIRE alone never fires it), PR-91: a raised"
                " AC_ENEMY_ATC drives the authored hit reaction (entry row,"
                " pullback impulse, its OWN AC_BREAK_NEXT wrap ends it),"
-               " PR-108: a BY_TY climb's list runs on the ITERATION clock"
-               " with no key and no vertical feed (mid-list entry row 3,"
-               " a 1700-unit list = 17 feeds, wrap arms AC_BREAK_NEXT,"
-               " position never moves, !AC_DRAB drops him into"
-               " A_FALL_DOWN) - the CURRENT model, not the engine's gated"
-               " mode-4 feed, PR-110: the row clock is that iteration"
+               " PR-108/148: the BY_TY climb runs the engine's input/"
+               " guard law (mid-list entry row 3; with NO key held the"
+               " 0x5441b mode-4 feed never runs - rows freeze, no"
+               " wrap, no BREAK_NEXT; Up held gives the PR-108 spans"
+               " 3,2,2,2,2,2,2,2,3; release mid-row keeps the carried"
+               " 100 and wraps only when Down restarts it - the clock"
+               " is sign-blind like the engine's cmp/je; x, y, v_x,"
+               " v_y never move (the v_y-force path is counted open);"
+               " !AC_DRAB drops him into A_FALL_DOWN from a state"
+               " whose list never ticked), "
+               "PR-110: the row clock is that iteration"
                " clock (a 300-unit row is 3 feeds, a 200-unit row 2, on"
                " the 28 ms AND the 20 ms grid, with the exact carry"
                " arithmetic checked), a mode-0 state's rows are fed by"
