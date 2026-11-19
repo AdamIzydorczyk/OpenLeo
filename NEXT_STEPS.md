@@ -15762,38 +15762,46 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-182 IS THE MSG-SENDER PASS (carried since PR-180's
-  Next, now first): find WHO puts ids 2 (SET v) / 6 (SET
-  facing) / 13 (IMPULSE) / 27 (SET attached) on the wire
-  for the msg handler 0x54560 (PR-179 F2's map) - the
-  input/player side of the object-control protocol: scan
-  the msg-struct builders (the [msg+4]=id dword is the
-  search handle; the msg struct shape is [msg+4] id,
-  [msg+8]/[msg+0xc] payload per PR-179), then the class
-  slot that receives them (PR-179 item (4): the 87
-  installs of 0x54560 sit at shape-varying slots - pair
-  sender-callsites with the slot constants used). If the
-  player-input half lands a code-visible rule the port
+- PR-183 IS THE EVENT-CONSUMER BODY PASS: (A) THE LION'S
+  OWN +0x10 CONSUMER 0x1e130 (entry suspected a desync -
+  read via bytes; the PR-179 msg-id arms 2/6/13/27 may
+  live HERE for the LION, which would close the "is the
+  map per-family" question PR-182 item (3)); the 0x52bb0
+  helper's id<0xE and 0x21 arms (9 call sites); (B) THE
+  IDENTITY LAW: what class slot +0x0c returns per family
+  and what the sender constant 0x8138764 identifies
+  (player? level? the ZAR_LEW object?) - it gates the
+  AC_BUTLA/AC_BECZKA raises PR-182 F2 found, so it may
+  decide WHICH objects hear the camel's signals; (C) THE
+  ID/ARG VALUES AT THE 66 ENQUEUE SITES (trace the
+  wrappers PR-182 item (1) - the argument-driven ids are
+  the actual engine event alphabet). (D) FINALLY THE
+  PLAYER-SIDE SAME-STATE ROW SEEK (PR-174 item (2),
+  carried through three next-specs now): re-open the
+  ZAR_LEW same-state row question with fresh eyes - the
+  PR-182 event law (bit-raise = named signal broadcast)
+  is a NEW candidate mechanism for what that row drives.
+  IF any of these lands a code-visible rule the port
   lacks, ship the fix with its hand-derived test +
   mutation battery per the standing rules; else count.
-  THEN, in order: the player-side same-state row seek
-  (PR-174 item (2)); the relation-helper bodies 0x52eb0/
-  0x52cc0/0x534e0/0x45620 + 0x45620's entry-index
-  semantics (PR-177 item (1) remainder) + the chain
-  readers' tails (PR-177 item (2)); the class-byte value
-  map + the 31 family-name -> class-table mapping (PR-181
-  item (2)); 0x45380's list builder + the 13-byte record
-  layout + 0x455a0's distance formula (PR-181 item (3));
-  the 0x2cc/0x2d0 + 0x240 dispatch mechanism (shared with
-  PR-180 item (1)); the other 55 +0x78 singletons as
-  census (PR-177 item (3)); PR-176's five controller
-  items. Carried reads unchanged: the ratio-law behaviour
+  THEN, in order: the relation-helper bodies 0x52eb0/
+  0x52cc0/0x534e0/0x45620 (PR-177 item (1) remainder);
+  the class-byte value map + the 31 family-name ->
+  class-table mapping (PR-181 item (2)); 0x45380's list
+  builder + the 13-byte record layout + 0x455a0's
+  distance formula (PR-181 item (3)); the +0x240/+0x2cc
+  computed-dispatch mechanism (shared PR-180 item (1));
+  the other 55 +0x78 singletons as census (PR-177 item
+  (3)); PR-176's five controller items. Carried reads
+  unchanged: the 0x54458 energy class-range rule (PR-181
+  item (4)); the 0x2c670 placement model + the [obj+
+  0x5c]/[rec+4] guards (PR-181 item (5), PR-182 item
+  (5)); the [obj+0x28] pump gate and the ds:0xcf2c8
+  registry (PR-182 item (4)); the ratio-law behaviour
   study (PR-180 item (2), video-gated); the other +0xcc
   drivers (PR-180 item (3)); the state-copy helper (PR-
   180 item (4)); the [obj+0xb6] bit law; the 0x54790-
-  0x547b5 CFG window; the 0x54458 energy class-range
-  rule (PR-181 item (4)); the 0x2c670 placement model
-  (PR-181 item (5)); the +0x54 hook families; 0x550c0's
+  0x547b5 CFG window; the +0x54 hook families; 0x550c0's
   body; the 0x55130 tail; the +0x4c/+0x1c recount; the
   73 dead-0x54910 tables; the +0xa0 census oddities;
   everything else in the ledger's carried list.
@@ -22810,7 +22818,11 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   0xa9] != 0 call [[obj+0xa9]+4] (LEAVE), [obj+0xa9] :=
   [msg+8] (the payload object), call [[obj+0xa9]+0]
   (ENTER); anything else -> the generic 0x53770 (which
-  itself tests [msg+4] == 0x10, body counted). All arms
+  itself tests [msg+4] == 0x10, body counted). [UPDATED
+  BY PR-182 F2: 0x53770 IS NOW DECODED - the id-16
+  named-RAISE handler: sender magic 0x8138764 -> set
+  bit node+0xc (word N>>5, bit N&31) into [obj+0x60]
+  + merge 0x49580; else the 0x52bb0 helper.] All arms
   end at the 0x54698 epilogue. This is the full "msg-id
   arms + id map" carried since PR-175; the 0x5463a arm is
   the map's else-default, NOT a separate id.
@@ -22903,7 +22915,14 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   slot-offset census (table-shape ownership again) and
   msg senders (who puts id 2/6/13/27 on the wire - the
   player-input half is the natural pair: id 2 velocity-set
-  and id 13 impulse are surely the input path). (5) The
+  and id 13 impulse are surely the input path). [CLOSED
+  BY PR-182: the slot census ANSWERS at class slot +0x10
+  (0x54560 histogram 73/87 at +0x10) and the senders are
+  the 66 0x52b10 sites + the 0x4bc40 broadcast (id-16
+  named raises, PR-182 F1/F2); the id 2/6/13/27 map is
+  ONE consumer implementation, NOT the input path - the
+  input half stays with PR-176's controller items.] (5)
+  The
   [obj+0x11a] value map (14 sites read as tests, values
   unlabelled) and the 0x504e0 getter's mode arms beyond
   0x50902. CLOSED: the msg-id arms + id map + [obj+0xa9]
@@ -23316,7 +23335,10 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   PR-180 F3 (bracket: the pool-wiring reading is replaced
   by Findings 1-2 - no holder, arithmetic; the lead
   resolves to the selector); PR-180 item (1) unchanged.
-  CARRIED unchanged: the msg senders; the player-side
+  CARRIED unchanged: the msg senders [CLOSED BY PR-182:
+  the event architecture + the bit-raise law - see the
+  PR-182 record; only its item (1) (the 66-site id
+  values) stays open]; the player-side
   same-state seek (PR-174 item (2)); the relation-helper
   bodies (PR-177 items (1)/(2) remainder); 0x549f0's
   tails (PR-178 item (3)); the other 55 +0x78 singletons
@@ -23363,6 +23385,204 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   4 brackets (PR-180 F3 CORRECTED; PR-179 item (1) lead
   CLOSED; the carried pool-name decode CLOSED; PR-177
   provider items IN PART).
+
+## PR-182 — THE 'MSG' SURFACE IS THE EVENT SYSTEM: EVERY
+## OBJECT HAS A QUEUE AT +0x10 DRAINED THROUGH ITS CLASS
+## SLOT +0x10 BEFORE ITS STEP VERB; THE 0x54560 ID-MAP IS
+## ONE CONSUMER IMPLEMENTATION (73/87 INSTALLS AT +0x10);
+## THE GENERIC SENDER IS THE NAMED BROADCAST 0x4bc40,
+## WHOSE id-16 EVENTS RAISE KEY BITS BY NUMBER INTO
+## [obj+0x60] - THE ENGINE'S SIGNAL-RAISING MECHANISM
+## (READING, NO PORT CODE, NO BEHAVIOUR CHANGE)
+
+- WHY. PR-181's Next specced the msg-sender pass ("who
+  puts ids 2/6/13/27 on the wire"). Method: the byte
+  scan for stores of the id dwords (a negative: only TWO
+  literal id-stores in all of text - 0x53f62 id 2 and an
+  unrelated 0x7b5c1), the rel-call scan from the one
+  literal builder outward, and the slot histogram of the
+  87 consumer installs. events_evidence.py re-runs every
+  count. Desync entry traps again at 0x49872/0x52b52
+  (push-edx entries), flagged. Docs only; nothing shipped
+  moves.
+
+- FINDING 1, THE EVENT ARCHITECTURE (byte-exact, whole):
+  every object has a QUEUE HEADER at [obj+0x10]; a node
+  is 16 bytes (allocator 0x5c320 with the size in eax at
+  0x52b22): node+0 = next, node+4 = ID, node+8 = SENDER
+  identity, node+0xc = argument. APPEND: 0x52b10(obj,
+  edx=id, ebx=sender, ecx=arg) links it at the queue tail
+  - 66 direct call sites, all argument-driven (the scan
+  for `mov eax,imm` within 14 bytes: 0 of 66 - ids and
+  args always come from the calling function's
+  parameters). DRAIN: 0x52b50 walks the queue calling
+  `call [class+0x10]`(node) per node (eax=obj) and
+  frees via 0x5c370. PUMP POSITION: 0x52b80 = drain,
+  then `call [class+0x14]` - the PR-176 step verb (the
+  LION's +0x14 = 0x550a0, the pump of PR-179 F3!) - then
+  if [obj+0x28] != 0, `call [class+0x00]`; 6 direct
+  call sites (0x4aed6, 0x4baed, 0x4bb12, 0x55398,
+  0x55696, 0x556af). So the per-step order is EVENTS-
+  THEN-VERB: incoming events are consumed by the class
+  consumer slot BEFORE the step runs - and the PR-179
+  finding that the pump CLEARS the candidate every step
+  now has its full frame: events arrive, the consumer and
+  the selector re-decide, the verb acts.
+  THE CONSUMER SLOT IS +0x10: the 0x54560 install
+  histogram over the 178-table windows: {'0x10': 73, 14
+  odd singletons - the usual window-overlap artifacts}.
+  The LION tables do NOT use 0x54560: their +0x10 =
+  0x1e130 (the 0x1e3a0/0x1e570 provider-cluster family -
+  a consumer inside the provider code). 0x52bb0 is the
+  non-16 fall-through consumer helper (9 call sites
+  incl. 0x537dd, 0x55729; handles ids < 0xE and 0x21
+  arms - body not read further, counted).
+
+- FINDING 2, THE GENERIC SENDER: THE NAMED BROADCAST
+  0x4bc40 (22 direct callers - the provider clusters
+  0x1ecx/0x24xxx/0x2fxxx/0x32xxx/0x34xxx/0x3axxx/
+  0x3bxxx/0x3c1xx + the camel inits 0x2c5e6/0x2c624/
+  0x2c664). Law: walk the level's object list (array
+  [[mgr 0xcef40]+0x58] with count [mgr+0x44], chain
+  through node +0x34; then a second chain from [mgr+
+  0x64]); per object, optional identity FILTER via
+  `call [class+0x0c]` (the identity/name getter - 186
+  call sites of that slot across text); enqueue via
+  0x52b10 a node with ID=0x10, SENDER=the caller's
+  identity, ARG=the pushed immediate (0x4bd13 site; the
+  second form 0x4bd30 walks only the [obj+0x64] chain
+  with slot +0x0c filter and id 0xc). THE id-16
+  CONSUMER: 0x53770 (PR-179 F2's 'generic 0x53770') IS
+  THIS HANDLER: if node id == 0x10 and node+8 == the
+  constant 0x8138764: take the signal NUMBER from node+
+  0xc, compute word = N>>5, bit = N&31, OR it into the
+  live KEY set at [obj+0x60] (0x537cb-0x537d2 - the SAME
+  set the pump merges into, PR-17x/PR-176 F4), then call
+  the merge 0x49580 (0x537d4 - PR-176 F4's merge
+  helper); else fall through 0x52bb0. So RAISING AN AC_*
+  SIGNAL IN THE ENGINE = SET BIT N: the bit numbering is
+  identical to the port's PR-88-verified enum, and the
+  broadcast's ARGUMENT IS THE SIGNAL NUMBER - the name-
+  index = KEY bit number law. THE MAGIC 0x8138764 is the
+  SENDER IDENTITY of these raises: it occurs at exactly
+  FOUR sites in text (0x2c5e1, 0x2c613, 0x2c653 - the
+  three small methods just before the 0x2c670 camel-
+  placement method of PR-181 - and 0x3eacf inside a
+  provider cluster). THE THREE CAMEL SITES ARE AUTHORED
+  SEMANTICS: 0x2c5e0-ish raises ARG 0x1c (= 28 =
+  AC_BECZKA, the barrel signal) guarded by [rec index 1]+
+  4 == 1; 0x2c630 raises 0x1b (= 27 = AC_BUTLA, the
+  bottle signal) guarded by [obj+0x5c]==1 AND [rec+4]==
+  0xa; i.e. the camel-family classes RAISE the bottle/
+  barrel interaction signals when their record hits those
+  arms - and those ARE the signals the authored ZAR_LEW
+  states listen for (PR-15x read A_WSP(3)=AC_DRAB_CATCH,
+  AC_ONAIR style lists; AC_BUTLA/AC_BECZKA are in the
+  port's key model - ll_play.c raises them per PR-88/
+  PR-9x). 0x3eacf raises 0x39 = 57 = K_GEN4 (the K_*
+  general-signal family, PR-17x's bit 54 = K_GEN1) -
+  that provider's intent counted. THE MSG-SENDER QUESTION
+  IS ANSWERED AT THE
+  ARCHITECTURE LEVEL: senders = 66 enqueue sites + the
+  0x4bc40 broadcast (id-16 named raises); consumers =
+  class slot +0x10 per family; the id 2/6/13/27 map is
+  ONE consumer implementation used by non-LION classes
+  (73 installs). Whether the port needs anything from
+  this: the port's signal model already raises the same
+  numbered bits (PR-88 law) and its per-step order
+  (read state -> collide -> move) matches events-before-
+  verb; no shipped behaviour is contradicted - no port
+  change.
+
+- FINDING 3, THE LITERAL id-2 BUILDER 0x53f50 (the only
+  literal msg-id store): builds an id-2 'msg' at an
+  external buffer ([+0]=0, [+4]=2, [+8]=payload ecx),
+  copies a 13-byte block from [edx+0xc] (a node-shaped
+  trailer), then 0x53fb0 tests bit 2 in [x+4] and [msg+
+  4] and on a match calls 0x5c370 - which is NOT a msg
+  delivery: it is the queue/list REMOVAL on the global
+  registry ds:0xcf2c8/0xcf2cc/0xcf2d0 (pop last, walk
+  the +0x8/+0x0 chain, unlink) - so 0x53f50 (one caller,
+  0x3d66d in a provider cluster) + 0x53fb0 = a
+  node-append/remove dance around a provider; full
+  reading counted.
+
+- OPEN ITEMS COUNTED (5 new). (1) The id/arg VALUES at
+  the 66 enqueue sites (argument-driven: trace the 25
+  provider clusters' wrappers). (2) The consumer bodies:
+  the LION's own +0x10 = 0x1e130 (entry suspected a
+  desync; body unread) and the +0x0c identity-getter
+  implementations (what the identity value IS: the magic
+  0x8138764's meaning - a level/player identity constant?
+  counted). (3) The other [class+0x10] consumers vs the
+  0x54560 map (do the LION consumer 0x1e130 and the
+  0x52bb0 helper share the id 2/6/13/27 semantics?
+  unproven). (4) The [obj+0x28] gate at 0x52b80 and the
+  [obj+0x14] chain-list owner; the ds:0xcf2c8/0xcf2cc/
+  0xcf2d0 global registry (what list - the pump-free
+  pool? 0x5c370's removals vs 0x574d0s' pool setters).
+  (5) The [obj+0x5c]/[rec+4] guards of the camel raise
+  sites (which record kinds 1/0xa are - PR-15x read
+  [rec+0x12]'s mode field; [rec+4] is a DIFFERENT dword:
+  the record's state/entry field?, count with the
+  PR-150 era notes). CLOSED: PR-179 item (4) (the msg-
+  senders half: architecture answered; the slot-offset
+  census half: the +0x10 histogram answers it - the 87
+  installs concentrate at slot +0x10 with the usual
+  window artifacts); PR-180's msg-senders next-step
+  spec; the msg-sender half of PR-181 item (1)'s open
+  questions - the +0x10 consumer dispatch is RESOLVED
+  (drain through +0x10); only the +0x240/+0x2cc
+  computed-dispatch family stays open. UPDATED: PR-179
+  F2's 'else -> generic 0x53770' (bracket: it is the
+  id-16 named-raise handler + 0x52bb0 fall-through);
+  PR-181's 0x2c670 neighbourhood reading GAINS the three
+  raise methods (its placement model stays counted).
+  CARRIED unchanged: the player-side same-state seek
+  (PR-174 item (2)); the relation-helper bodies (PR-177
+  items (1)/(2) remainder); the class-byte value map
+  (PR-181 item (2)); 0x45380/0x455a0 internals (PR-181
+  item (3)); the energy class-range rule (PR-181 item
+  (4)); the 0x2c670 placement model + 0x52bb0/0x1e130
+  bodies (PR-182 items above); the +0x240/+0x2cc
+  dispatch; the ratio-law study (video-gated); the other
+  +0xcc drivers; the state-copy helper; the [obj+0xb6]
+  bit law; the CFG windows; the +0x54 hook families;
+  0x550c0; the 0x55130 tail; the +0x4c/+0x1c recount;
+  the 73 dead-0x54910 tables; the +0xa0 census oddities;
+  PR-176's five controller items; everything else in the
+  ledger's carried list.
+
+- GATES. Docs-only reading PR (PR-138..181 precedent): no
+  port file touched; build state = the OWNER GATE (rule
+  8) as MEASURED on 7b4d736 (ZERO-warning make;
+  verify-all rc=0 both ways = 52 (ok) fixtures / 10 (ok)
+  + 18 named SKIPs) - only docs moved since. CI truth at
+  this record's time: PR-181's docs run 44553528506 =
+  SUCCESS on ce469ab; the chain (PR-180 44549075152,
+  PR-179 44547207457, PR-178 44546099837, PR-177
+  44544519251) SUCCESS unchanged. This docs push queues
+  its own run. Added .md lines <= 79 cols; over-79
+  baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 71); no
+  game data or frames in git (scripts under
+  /tmp/opencode/pr182/); .github/workflows/* untouched;
+  the image is unchanged.
+
+- EVIDENCE. events_evidence.py (every count: 66/1/6/22/9
+  call-site numbers; the 0x54560 slot histogram {'0x10':
+  73, ...}; LION 0x96960 +0x10 = 0x1e130, +0x14 =
+  0x550a0; the 4 magic sites; 0/66 literal-id near
+  enqueue sites). obj_range.sh (the whole reads: 0x52b10-
+  0x52bb0 queue pieces, 0x4bc40-0x4bd20 broadcast,
+  0x53f50-0x53fc3, 0x53770-0x537e8, 0x2c5e0-0x2c66b;
+  entry-desync traps at 0x49872/0x52b52/0x3eac6 flagged).
+  Bit naming via the port enum (PR-88 law, sig_bits.py
+  from PR-179): 27 = AC_BUTLA, 28 = AC_BECZKA, 57 = the
+  K_* range. Ledger: records re-spliced from HEAD
+  (census: HEAD carries PR-150..PR-181 (32 records) PLUS
+  the four OWNER 2026-11-19 records, last carrier); 3
+  brackets (PR-179 F2 UPDATED; PR-179 item (4) CLOSED;
+  PR-180 next-spec msg-senders CLOSED).
 
 ## Deferred big items (deliberately out of scope so far)
 

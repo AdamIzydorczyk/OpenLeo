@@ -4397,6 +4397,44 @@ writer as its open items.
      msg-sender pass (ids 2/6/13/27 emitters - the input
      protocol). Full record: PR-181 section of
      NEXT_STEPS.md (scratch /tmp/opencode/pr181/).
+   - PR-182 (READING; no port code, no behaviour change):
+     THE 'MSG' SURFACE IS THE EVENT SYSTEM - PR-179 item
+     (4) CLOSED. EVERY OBJECT HAS A QUEUE AT [obj+0x10];
+     a 16-byte node is +0 next, +4 ID, +8 SENDER
+     identity, +0xc ARG, appended by 0x52b10 (66 sites,
+     ALL argument-driven - 0 literal ids near the calls);
+     drained by 0x52b50 through CLASS SLOT +0x10 (the
+     0x54560 install histogram 73/87 at +0x10 confirms
+     the slot); the pump 0x52b80 = drain, then verb
+     +0x14 (LION = 0x550a0 - PR-179's pump), conditional
+     +0x00 - EVENTS-BEFORE-VERB every step, the frame
+     PR-179's per-step candidate clear needed. The LION
+     tables use +0x10 = 0x1e130 instead (consumer body
+     counted). THE GENERIC SENDER IS THE BROADCAST
+     0x4bc40 (22 callers): walks the level object lists
+     (mgr+0x58/+0x64 chains via +0x34), filters via
+     class slot +0x0c identity getters, enqueues id-16
+     nodes with sender magic 0x8138764 + arg = THE
+     SIGNAL NUMBER; the consumer 0x53770 (PR-179's
+     'generic' - UPDATED) raises bit N into the live key
+     set [obj+0x60] (word N>>5, bit N&31 - the PR-88
+     numbering EXACTLY) + merge 0x49580: RAISING AN AC_*
+     SIGNAL = SET BIT N. The magic occurs at 4 sites:
+     the camel methods 0x2c5e1/0x2c613/0x2c653 raise
+     bits 27 = AC_BUTLA / 28 = AC_BECZKA at record arms
+     ([rec+4]==0xa / ==1 guards), 0x3eacf raises 57 =
+     K_GEN4. PR-179's ids 2/6/13/27 = ONE consumer
+     implementation (non-LION classes). The port matches
+     (same bit numbers, events-before-verb): NO port
+     change. 5 new items (enqueue-site id values, the
+     0x1e130/0x52bb0 bodies, the identity-getter +
+     magic semantics, the [obj+0x28]/0xcf2c8 registry,
+     the [rec+4] guards); 3 closed; 3 brackets. Next ->
+     PR-183 = the event-consumer BODY pass (0x1e130,
+     0x52bb0, the identity law, the enqueue-site id
+     values) + the player-side row seek (PR-174 item 2).
+     Full record: PR-182 section of NEXT_STEPS.md
+     (scratch /tmp/opencode/pr182/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -7040,6 +7078,45 @@ family; the class-byte value map; the list-builder +
 distance internals; the energy class-range rule; the
 camel placement model).
 Gates: docs-only (PR-138..180 precedent); added lines <=
+79; baselines 71/71 held; the Windows half stays in the
+end pass (rule 8).
+
+STATUS after PR-182 (the msg-sender/event pass; docs
+reading - ZERO port lines changed, the ZARIA.01 output
+image is byte-identical to PR-181's; build state = the
+OWNER GATE (rule 8) measured on 7b4d736, only docs moved
+since).
+
+What this pass GROUNDS for T5:
+(1) THE SIGNAL-RAISING LAW IS NOW ENGINE-VERIFIED:
+    raising an AC_* signal = the broadcast (0x4bc40)
+    enqueuing an id-16 event whose arg is the KEY BIT
+    NUMBER, and the consumer (0x53770) setting that bit
+    (word N>>5, bit N&31 - the port's PR-88 numbering
+    EXACTLY) into the live set [obj+0x60] + the merge
+    helper. The port's key model (ll_play.c raising
+    AC_BUTLA/AC_BECZKA etc., PR-88/PR-9x) is the same
+    mechanism under a different transport.
+(2) THE PER-STEP ORDER IS CONFIRMED: events are drained
+    through class slot +0x10 BEFORE the step verb +0x14
+    (the LION pump of PR-179) - the port's order (state/
+    signals -> collide/select -> move) is frame-aligned
+    with this; PR-179's per-step candidate clear now has
+    its full frame.
+(3) AUTHORED-LEVEL EVIDENCE: the camel-family classes
+    RAISE AC_BUTLA (27) / AC_BECZKA (28) at their record
+    arms - the exact signals the authored ZARIA .MOV
+    state lists listen for - closing a class of "where
+    do the authored signals come from" questions.
+No port code change (the model already matches); PR-179
+item (4) CLOSED (msg senders + the 87-slot census); the
+msg-sender half of PR-181 item (1) resolved; PR-179 F2's
+'generic 0x53770' UPDATED with data. 5 new items counted
+(the 66-site id/arg values; the LION consumer 0x1e130 +
+0x52bb0 bodies; the identity-getter semantics of the
+0x8138764 magic; the [obj+0x28] gate + the global
+registry; the [rec+4] guards).
+Gates: docs-only (PR-138..181 precedent); added lines <=
 79; baselines 71/71 held; the Windows half stays in the
 end pass (rule 8).
 
