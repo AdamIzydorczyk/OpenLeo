@@ -4818,6 +4818,73 @@ writer as its open items.
      PR-189 = the interaction-verb + subsystem-registry
      pass. Full record: PR-188 section of NEXT_STEPS.md
      (scratch /tmp/opencode/pr188/).
+   - PR-189 (READING; no port code, no behaviour change):
+      THE +0x100 VERB FIELD LAW COMPLETE: exactly TWO
+      dispatch sites whole-image (0x41b6a in a jump-table
+      arm, 0x50c2a in the key-state tail); THE DISPATCHER
+      FOUND AT 0x41a50 (its only ref = data slot 0x9803c
+      in the 0x980xx handler vector): [vt+0xe8], then the
+      [obj.vt+0x104] TARGET-LOOKUP verb, FP cmp [obj+
+      0x10b] vs [obj+0x12f] below -> `or BYTE [[obj+
+      0x60]+1],1` (synthetic key injection), gate [obj+
+      0x5c]==1, toggle [obj+0x106] 1<->2, selector BYTE
+      [obj+0x160] -> `jmp cs:[eax*4+0x41a40]` (0x41af5);
+      all four arms end with a 0x49580 record append.
+      0x50c70 FIELD LAW: partner = [[self+0x112].vt+
+      0xdc]() - the [obj+0x112] store census is EXACTLY
+      16 sites, all constructor-family (AUTHORED PER-
+      CLASS, never runtime); [self.vt+0x118] call; the
+      0x14 energy-copy CONFIRMED (PR-186's [obj+0xb1]
+      := 0x14 init IS the trigger); [other+0xee] := self
+      is a POINTER; [other+0xb5] byte copy; [partner.vt+
+      0xe0] call; ds:0xa94ec = THE DEFAULT-PARTNER
+      GLOBAL with ONE writer (0x4cda9 inside the config
+      parser, gated by 0x76d20(x,'animacje')) + 34 loads
+      (33 `mov ebx` + one `mov ecx`, 0x4b897) - passed
+      as the third arg to 0x531b0(self,partner,G), whose
+      0x4b140 walk counts 'A'-records in [mgr+0x30] when
+      self == [mgr+0x394], then 0x4aa70. REGISTRY LAW
+      (PR-188 item (3) CLOSED): 0x56360 = event post,
+      EXACTLY 2 senders (0x4aa07 edx=10 + 0x5df2b
+      dynamic); 0x57990 = named-entry ctor, 116 callers,
+      UTF-16 names byte-by-byte; the 0x4c9xx block
+      registers EIGHT 'none' + '[' + ']' entries (config
+      grammar); most internal registrations pass EMPTY
+      strings; the 0x55e00 open contract installs the
+      DEFAULT pair 0x96200/0x961fc + 0x57c60(name,
+      'none') cmp -1. CORRECTION: the 0x561a0 pump
+      vector is [[0xcf068]+0x44]/count +0x4c, NOT +0x48
+      (bracketed at all 3 ledger mentions). LEVEL-META
+      AUTHORING (item (4) CLOSED): [0x398]/[0x3a0]/
+      [0x3a8]/[0x3b0] have EXACTLY 3 stores each;
+      [0x3a8]/[0x3a0] are an on/off command pair
+      (0x4ff3d/0x4ff49 vs 0x50416/0x50464); THE FRAME
+      GATE 0x4ac76: [0x3a0]!=0 skips world construction
+      straight into the input push; [0x3b0] is a ONE-SHOT
+      deferred request consumed once (setter thunk
+      0x51187); [0x3b8] is built by 0x4d91a via the
+      0x961fc/0x96200 pair + the 'ANITAB' chunk. KEY-
+      STATE METHOD 0x50970 = TLewEna2's +0x90 SIGNAL
+      VERB (7 callers, bit-fed writes). LIVE-KEY WRITE
+      LAW: ZERO direct stores at +0x60..0x67 (only the
+      MANAGER ctor zero 0x4a613) - writes are 37 pointer
+      handoffs + TWO synthetic writers (0x41a50 OR-1,
+      id-17 OR-0x20); the 0x549f0 lead is DEAD (writes
+      [obj+0xba]/[0xbe], not the key words). FLAG-BLOCK
+      UNION (PR-186 item (5) CLOSED): [obj+0x118] has
+      ZERO object disp refs (class-table verb slot only,
+      0x50c50 x11); [0x116/0x11a/0x11e/0x126/0x12a]
+      double as config-array POINTERS on the parser
+      class (0x4cb92-0x4cbb6) - same-offset different-
+      class; [0x120]/[0x124] pair, 21/12 store census.
+      id-17==2 = state-0x17 key-bit injection |0x20;
+      id-19 = range-clear ([obj+0xad] := -1); 0x99500 =
+      EMPTY STRING (0x2742b print leg); 0x9f668/0xa0624
+      = TLewTunga1/2 ALREADY NAMED in PR-104 (citation).
+      7 new items counted. PORT VERDICT unchanged. Next
+      -> PR-190 = the frame-loop + record-chain +
+      handler-vector pass. Full record: PR-189 section of
+      NEXT_STEPS.md (scratch /tmp/opencode/pr189/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -7769,6 +7836,57 @@ rest spawner-driven constructors), (6) half (0x1c530 read;
 pair/carry-verb field law and the 0xcf068 subsystem-
 registry law are FIRST).
 Gates: docs-only (PR-138..187 precedent); added lines <=
+79; baselines 71/71 held; the Windows half stays in the
+end pass (rule 8).
+
+STATUS after PR-189 (the interaction-verb + subsystem-
+registry pass; docs reading - ZERO port lines changed,
+the ZARIA.01 output image is byte-identical to PR-188's;
+build state = the OWNER GATE (rule 8) measured on
+7b4d736, only docs moved since).
+
+What this pass GROUNDS for T5:
+(1) THE INTERACTION VERB IS FULLY LAID OUT (PR-188 item
+    (2) CLOSED): two dispatch sites only; the 0x41a50
+    dispatcher is an INSTALLED message handler (0x9803c);
+    partner selection runs through the [obj+0x104]
+    target-lookup verb and a per-class AUTHORED fallback
+    (16 ctor stores, never runtime); the default-partner
+    global ds:0xa94ec is fed from the CONFIG PARSER
+    ('animacje' gate). For T5: interactions are data-
+    driven per class; the energy-copy trigger IS the 0x14
+    init the port already models - no port change.
+(2) THE SUBSYSTEM REGISTRY IS NAMED (item (3) CLOSED):
+    UTF-16 entry names, the 'none'/'['/']' config-
+    grammar registration set, the event post with
+    EXACTLY 2 senders, the default handler pair 0x96200/
+    0x961fc. The pump-vector CORRECTION (+0x44/+0x4c)
+    fixes the ledger's frame-loop prose at 3 mentions -
+    the demo pump law stands.
+(3) THE FRAME GATE IS READ (item (4) CLOSED): [0x3a0]
+    != 0 makes the frame loop SKIP world construction
+    and go straight to the input push; [0x3b0] is a one-
+    shot deferred request; [0x3a8]/[0x3a0] are an on/off
+    command pair set by ONE command. T5's level flow
+    gains the exact skip/defer semantics the demo legs
+    hinge on, and the 'ANITAB' level chunk lands at
+    [level+0x3b8].
+(4) THE LIVE-KEY REGION'S WRITE LAW: NO direct stores -
+    writes are pointer-mediated plus exactly TWO
+    synthetic bit injections (the 0x41a50 distance leg
+    ORs key word 1 bit 1; the id-17 record arm ORs 0x20
+    into word 3). The port needs no extra synthetic-key
+    channel: injections come from VERBS, not devices.
+SELF-CORRECTION SHIPPED WITH DATA: 1 correction (the
+'+0x48' registry-pump prose -> +0x44/count +0x4c,
+bracketed at all three ledger mentions). Closures:
+PR-188 items (2)(3)(4), item (5) PART (the final
+pointer-mediated writer stays counted), PR-186 items
+(2)(3)(5), PR-187 item (2)'s carried remainders, and 5
+entries of the PR-188 carried list. 7 new items counted
+(the [obj+0x160] selector author and the final key-byte
+writer are first).
+Gates: docs-only (PR-138..188 precedent); added lines <=
 79; baselines 71/71 held; the Windows half stays in the
 end pass (rule 8).
 
