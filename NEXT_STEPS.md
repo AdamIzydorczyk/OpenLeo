@@ -15762,34 +15762,41 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-179 IS THE LION +0xac / IDENTITY PASS (the natural
-  pair: PR-177 NAMED the +0xac call sites, PR-178 PINNED
-  its table identity - all 15 LION tables share +0x14 =
-  0x550a0, +0xac = 0x546a0, +0xa0 = 0x543a0, +0x78 =
-  0x50f80). Read 0x546a0's FULL body (the +0xac law's
-  home: its +0x78-area calls 0x4b430/0x4b600/0x4b7f0 are
-  already named), the msg-id arms 0x5460e/0x5463a + the
-  id map + [obj+0xa9] semantics, and the [obj+0x11a] mode
-  field PR-178 F4 surfaced (== 5 negates the gate scalar,
-  == 7 arms 0x50f80's energy half - ONE field, 14 sites,
-  all in the 0x27xxx/0x3dxxx/0x50xxx clusters). THEN, in
-  order: the feed-gate buffer filler (PR-178 item (1): the
-  7 [r+0xcc] call sites 0x27e1d/0x282a1/0x344c8/0x4010e/
-  0x4110c/0x41c01/0x4aeca and the [obj+0x106] field family
-  - if the window law lands, the object-path guard could
-  become a code PR with test+battery per the standing
-  rules); the player-side same-state row seek (PR-174 item
-  (2)); the relation-helper bodies 0x52eb0/0x52cc0/0x534e0/
-  0x45620 + the unread provider tails (PR-177 items (1)/
-  (2)) and 0x549f0's tails 0x54b51-0x54b65/0x54be0-0x54c10
-  (PR-178 item (3)); the other 55 +0x78 singletons as
-  census (PR-177 item (3)); PR-176's five controller
+- PR-180 IS THE PRODUCER PASS FOR THE ATTACH/GATE FIELDS
+  (the two producer halves now carry single named leads, so
+  they run as ONE pass): (A) WHAT FILLS THE CANDIDATE
+  [obj+0xe6] EVERY STEP after the LION pump 0x550a0 clears
+  it (PR-179 F3) - read 0x54eb2 (immediately after the
+  reset method 0x54e00), 0x2c6f0, 0x5413e, and the 0x4fef0
+  preamble's 0x54f40/0x4ab70 (PR-172 F1) - the +0xac
+  attach machine and AC_DUP raising become a CLOSED law the
+  moment the candidate source is named, and PR-150's
+  ladder-overlap model gets its engine counterpart.
+  (B) THE GATE-BUFFER FILLER (PR-178 item (1)): getter
+  0x50340's 7 indirect callers 0x27e1d/0x282a1/0x344c8/
+  0x4010e/0x4110c/0x41c01/0x4aeca, the [obj+0x106]
+  190-site family's writers, and the [obj+0xd2] attach
+  links (13 sites) - the [obj+0xba]/[obj+0xbe] window law
+  for the mode-2/4 feed gates (PR-178 F4). IF either half
+  lands a code-visible rule that the port lacks, ship the
+  fix with its hand-derived test + mutation battery per
+  the standing rules; else count with data. THEN, in
+  order: the msg SENDERS (id 2 velocity-set / id 13
+  impulse are surely the player-input path - find who
+  puts msgs on the wire and to which slot, closing PR-179
+  item (4)); the player-side same-state row seek (PR-174
+  item (2)); the relation-helper bodies 0x52eb0/0x52cc0/
+  0x534e0/0x45620 + the provider tails (PR-177 items
+  (1)/(2)) + 0x549f0's tails (PR-178 item (3)); the other
+  55 +0x78 singletons as census (PR-177 item (3)); the
+  [obj+0x11a] value map and the 0x504e0 getter's remaining
+  mode arms (PR-179 item (5)); PR-176's five controller
   items. Carried reads unchanged: the +0x54 hook families
   0x53df0/0x3ddf0, 0x550c0's body, the 0x55130 tail, the
-  pool-name decode, the +0x4c/+0x1c 0x23a20 slot recount,
-  the 73 dead-0x54910 tables, the +0xa0 census oddities
-  (PR-178 item (4)), everything else in the ledger's
-  carried list.
+  pool-name decode, the +0x4c/+0x1c 0x23a20 recount, the
+  73 dead-0x54910 tables, the +0xa0 census oddities, the
+  0x54790-0x547b5 CFG gap (PR-179 item (3)), everything
+  else in the ledger's carried list.
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -22397,7 +22404,15 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   tails: 0x3d440 at 0x3d687/0x3d6ab, 0x3d990's [obj+0x5c]
   ==1 arm at 0x3da9d, the +0xf4/+0xd8/+0x3c verbs on the
   decor side, [self+0x11a]/[self+0xb1] semantics, [obj+
-  0xc2]/[obj+0xc6] readers beyond PR-171. (3) the other 55
+  0xc2]/[obj+0xc6] readers beyond PR-171. [UPDATED BY
+  PR-179 F4/F5: [obj+0x11a] is a LION MODE-ENUM field
+  (==5 negates the feed-gate scalar at 0x50357, ==7 arms
+  0x50f80's energy half; 14 sites mapped, values
+  unlabelled); [obj+0xb1] DEFAULTS to 22 and energy [obj+
+  0xad] to 100 at the reset method 0x54e00 (the whole
+  field family's map anchor: it zeroes BOTH gate scalars,
+  BOTH attach fields, v and the deltas). Value map and
+  0x54e00's callers counted.] (3) the other 55
   singleton bodies (the census tool is in EVIDENCE; 0x28af0
   read as the lead). (4) [obj+0x70]/[obj+0x7c] array
   producers, [mgr+0x394], the [obj+0x2c] store at 0x1eb9a
@@ -22589,7 +22604,13 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   DETACH: `mov DWORD [[obj-0xd6]+0xd2],0` with [obj+0xb5]
   copied around - the field family's clear site. The getter
   0x55070 (installed +0x8c in the 0x28af0 lineage's tables,
-  PR-177 F4) is a three-call chain: class +0xb0 with
+  PR-177 F4) is a three-call chain: [CORRECTED BY PR-179
+  F5: 0x55070 is NOT a +0x8c getter - it is installed at
+  +0x54 (LION 0x96960 and 0x9a36c alike; PR-177's own
+  dump printed it) and is the +0x54 PHYSICS HOOK - the
+  +0x98 call lands at LION's 0x23a50, the 0x23a2x getter
+  cluster of PR-175 F7c; the three-call chain and callers
+  stand.] class +0xb0 with class +0xb0 with
   &[obj+0xd6], 0x541f0 with &[obj+0x89] (the v-channel
   update whose 0x542a9 formula PR-9x read: v += F*[obj+
   0xba]/20 + G*[obj+0x6d] - so the SAME scalar drives both
@@ -22645,9 +22666,14 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   true of the object path only, not of these states' path).
   UPDATED: PR-177's carried "the BY_TY feed 0x543a0 mode
   arm" line (bracket: CLOSED here). CARRIED unchanged:
-  0x546a0's full body; the msg-id arms 0x5460e/0x5463a +
-  id map + [obj+0xa9] semantics; the player-side same-state
-  seek (PR-174 item (2)); the relation-helper bodies 0x52eb0
+  0x546a0's full body [CLOSED BY PR-179 - the +0xac law
+  is read, attach machine + AC_DUP/AC_DUP_CD raisers named,
+  one 38-byte CFG window counted]; the msg-id arms
+  0x5460e/0x5463a + id map + [obj+0xa9] semantics [CLOSED
+  BY PR-179 - 0x54560 is an 87-install msg handler with a
+  full id map; the "two arms" were one map's default]; the
+  player-side same-state seek (PR-174 item (2)); the
+  relation-helper bodies 0x52eb0
   0x52cc0 0x534e0 0x45620 + the unread provider tails
   (PR-177 items (1)/(2)); the other 55 +0x78 singletons
   (PR-177 item (3)); PR-176's five controller items; the
@@ -22686,6 +22712,223 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   2026-11-19 records, last carrier); 2 brackets (PR-172
   item (1) CLOSED with the path-honesty note; PR-177's
   carried line UPDATED).
+
+## PR-179 — LION'S +0xac VERB AND THE MSG HANDLER ARE READ
+## AT LAST: THE KEY EXTENSION RAISES THE POOL-QUERY KEYS,
+## THE AC_BLOK BOUNDS TEST AND THE ATTACH KEYS AC_DUP (byte
+## 0 bit 4) / AC_DUP_CD (byte 1 bit 5); [obj+0xa9] IS THE
+## ATTACHED OBJECT AND [obj+0xe6] THE PER-STEP CANDIDATE
+## (THE PUMP CLEARS IT); 0x54560 IS THE 87-SITE MSG
+## HANDLER WITH ITS FULL ID MAP; AND 0x55070 IS THE +0x54
+## PHYSICS HOOK, NOT A +0x8c GETTER (ONE ADDRESS CORRECTED)
+## (READING, NO PORT CODE, NO BEHAVIOUR CHANGE)
+
+- WHY. PR-178's Next specced this pass - the +0xac body was
+  the longest-carried engine item in the ledger (since
+  PR-174) and the msg-id arms since PR-175. Method:
+  continuous objdump ranges (obj_range.sh; the 0x545x-
+  0x548x region is dense with desyncs - stated per site
+  below); the elf dword-scan for installs and field sites
+  (callscan-style); the PR-88-verified port signal enum
+  (ll_play.h LL_SIG_*) to NAME the key bits the verb
+  raises (bit N = byte N/8 bit N%8 - the same law as
+  PR-155/156/177's raisers). Docs only; nothing shipped
+  moves.
+
+- FINDING 1, THE +0xac VERB 0x546a0, BODY READ (the pump's
+  key-extension call discipline is PR-176 F4; the +0x78-
+  area call sites are PR-177 F1). Entry: eax=obj, edx=ctx
+  (the key buffer being extended); prologue sub esp,0x60.
+  (a) GATE: test [obj+0xb6] bit 0x2 -> if set, SKIP
+  everything except the tail (d). (b) rec = [[obj+
+  0x50]+[obj+0x5c]*4]; if [rec+0x12] & 0x4000 (the record
+  control-flags word again - PR-159/160/177): call 0x4b600
+  (mgr 0xcef40, ecx=0, local buffer) -> merge the answer
+  into ctx via 0x49580; call 0x4b430 (the bounds test -
+  its answer is AC_BLOK per PR-177 F1) -> merge; then
+  0x4b7f0 -> merge (0x54746 common). ELSE test [rec+0x12]
+  bit 8 (= mode bit 2, mode >= 4 - the SAME word's mode
+  field PR-147/178 pinned): if set, the same triple with
+  ecx=2 (the 0x4b600 filter arg); if clear, none of them.
+  (c) THE ATTACH MACHINE (0x54759-0x54800): if [obj+0xe6]
+  == 0 -> detach path: if [obj+0xa9] != 0, call
+  [[obj+0xa9]+4] (the attached object's slot 4 = LEAVE,
+  self = the attached, edx = the lion), write [obj+0xa9]
+  := 0, call class-table +0xb8. Else if [obj+0xe2] == 2
+  AND [obj+0xc6] (the signed v_y) >= 0x58c (1420 raw units
+  = 14.2 px/tick-s scaled, a FALLING-PAST gate) -> skip
+  the attach; else if [obj+0xa9] == 0: OR BYTE [ctx] |=
+  0x10 = KEY BIT 4 = AC_DUP (the port enum, PR-88 law) -
+  then attach: [obj+0xa9] := [obj+0xe6] and call
+  [[obj+0xe6]+0] (slot 0 = ENTER on the candidate, edx =
+  the lion); the [obj+0xa9] != 0 path re-points at the new
+  candidate (0x547b6-0x547c6; the 0x54790-0x547b5 window
+  is a desync GAP - the re-attach flow is a data-flow
+  story, not a CFG proof, counted as an honesty note), and
+  after the re-attach, if [obj+0xe2] == 0: OR BYTE
+  [ctx+1] |= 0x20 = BIT 13 = AC_DUP_CD. (d) THE TAIL
+  (0x54804, reached by ALL paths): x += [obj+0xca]; y +=
+  [obj+0xce] + [obj+0xea]; [obj+0xca] := 0; [obj+0xce] :=
+  0 - the position commit consumes the SCALED-velocity
+  accumulators and the [obj+0xea] step-delta and clears
+  them. So the +0xac law is: gate on the mode word and the
+  [obj+0xb6] bit, merge the pool-query/bounds keys, run
+  the attach state machine raising AC_DUP / AC_DUP_CD on
+  candidate transitions, commit motion. THE PORT MATCHES
+  ON THE OBSERVED HALF: the AC_DUP-raising overlap model is
+  PR-150's ladder-extent model (green on frames), AC_BLOK
+  raising is the port's collision model; the candidate/
+  attach FIELDS are engine-internal - no port change
+  indicated.
+
+- FINDING 2, THE MSG HANDLER 0x54560 AND THE FULL ID MAP
+  (installed at 87 table sites - slot varies with table
+  shape, ownership by shape stays the carried census note).
+  eax=obj, ecx=msg struct, id = [msg+4]: id 2 (0x54590) =
+  SET VELOCITY: [obj+0xc2] := [msg+8], [obj+0xc6] :=
+  [msg+0xc]; id 3 (0x545c6) = OR BYTE [obj+0xb6] |= 4; id
+  4 (0x545d2) = |= 8; id 6 (0x545de) = SET FACING: if
+  [msg+8] != 0 then [obj+0x6d] := [msg+8], and [obj+
+  0x71] := [msg+0xc] (the facing + last-turn-direction
+  fields); id 8 (0x545f4) = ZERO velocity; id 13 (0x545a7)
+  = IMPULSE: [obj+0xc2] += [msg+8], [obj+0xc6] +=
+  [msg+0xc]; id 27 (0x5460e) = SET ATTACHED: if [obj+
+  0xa9] != 0 call [[obj+0xa9]+4] (LEAVE), [obj+0xa9] :=
+  [msg+8] (the payload object), call [[obj+0xa9]+0]
+  (ENTER); anything else -> the generic 0x53770 (which
+  itself tests [msg+4] == 0x10, body counted). All arms
+  end at the 0x54698 epilogue. This is the full "msg-id
+  arms + id map" carried since PR-175; the 0x5463a arm is
+  the map's else-default, NOT a separate id.
+
+- FINDING 3, [obj+0xa9] = THE ATTACHED OBJECT (rope/ladder/
+  interact target): written by msg 27 and by the +0xac
+  attach machine, read for the LEAVE call and by the
+  provider/gate families (PR-178 F4's window uses the
+  SEPARATE [obj+0xd2] link - the two attach fields
+  coexist; their relation is counted open). THE CANDIDATE
+  FIELD [obj+0xe6] IS CLEARED EVERY STEP BY THE LION PUMP
+  0x550a0 (0x550a0: [obj+0xe6] := 0, [obj+0xea] := 0,
+  call 0x536f0 - PR-177's pump; NEW: it zero-arms the
+  candidate and the y-delta before the merge, so whatever
+  fills [obj+0xe6] runs AFTER the pump clear and before
+  +0xac, i.e. every step - the producer is now the single
+  named lead for the next pass: sites 0x2c6f0 and 0x54eb2
+  (the function right after 0x54e00) plus 0x5413e.
+
+- FINDING 4, THE RESET METHOD 0x54e00 (the field family's
+  anchor): calls 0x52c70 (the PR-170 variant family - its
+  role now seen), SAVES position to [obj+0xd6], zeroes
+  [obj+0xe2], [obj+0xa5], BOTH gate scalars [obj+0xba]/
+  [obj+0xbe], velocity [obj+0xc2/c6], the scaled deltas
+  [obj+0xca/ce], BOTH attach fields [obj+0xa9]/[obj+
+  0xd2], [obj+0xe6]; WRITES ENERGY [obj+0xad] := 100 (the
+  PR-175 F7a field - a DEFAULT of 100, the same value the
+  energy law's ceiling sits at), [obj+0xb1] := 22 (0x16);
+  clears bits 0xc0 of [obj+0xb6]. The zeroed list IS the
+  field-family map this cluster uses; the 100/22 defaults
+  are new facts.
+
+- FINDING 5, ADDRESS CORRECTION + THE [obj+0x11a] MODE
+  FIELD. 0x55070 is NOT a +0x8c getter: the LION table
+  installs it at +0x54 (rd(0x96960+0x54) = 0x55070) and so
+  does the 0x28af0-lineage table 0x9a36c (PR-177's own
+  dump printed 0x54: 0x55070) - PR-178 F4's "+0x8c getter"
+  wording is wrong (bracket); it is a +0x54 HOOK (the
+  PR-173 hook-family slot) and its three-call chain
+  (+0xb0 with &[obj+0xd6] = the saved-position pair,
+  0x541f0 the physics with the PR-9x v-formula, +0x98) is
+  the per-step PHYSICS half. The indirect sites: call
+  [r+0xb0] x5 (0x2b881/0x2b900/0x3e9ba/0x4552f/0x5507e),
+  call [r+0x98] x2 (0x53e00, 0x55096). NOTE the LION slot
+  map the census prints: +0x98 = 0x23a50 (the physics
+  chain's +0x98 call lands INSIDE the 0x23a2x getter
+  cluster of PR-175 F7c - the rectangle/position-buffer
+  family), +0xb0 = 0x544f0, and the post-detach +0xb8 =
+  0x23880 (the 0x238x0 cluster again) - the hook chain and
+  the passive-lineage helpers overlap; bodies counted.
+  [obj+0x11a]: 14
+  operand sites (0x27220/0x27229/0x3dd4c/0x3ddae/0x3ddd8/
+  0x3e242/0x50107/0x50357/0x503da/0x50886/0x508a8/0x508d1/
+  0x50902/0x50ed7), clustered in the getter/provider
+  family; == 5
+  negates the gate scalar (PR-178 F4), == 7 arms 0x50f80's
+  energy half (PR-177 F3(iii)) - a LION MODE-ENUM field
+  (climb/water/rope states are the obvious reading, NOT
+  pinned); its tests inside getter 0x504e0 (the 0x5088-
+  0x5090 cluster) are read as tests but the mode VALUES'
+  meanings stay open.
+
+- OPEN ITEMS COUNTED (5 new). (1) WHAT FILLS [obj+0xe6]
+  EVERY STEP (the candidates): the 0x54eb2 function
+  (immediately after 0x54e00, unread), 0x2c6f0, 0x5413e -
+  THE lead for the next pass (it completes both the +0xac
+  attach story and PR-178's gate-buffer half). (2) The
+  [obj+0xb6] bit law: which code SETS bits 2/4/8 (msg 3/4
+  set 4/8; +0.ac gates bit 2; 0x549f0 NULL-branch set
+  0x10; 0x54e00 clears 0xc0) - a five-bit flags word with
+  partial writers known. (3) The 0x54790-0x547b5 CFG gap
+  inside the +0.ac re-attach path (desync window - the
+  bytes read, the branch shape not proven); [obj+0xe2]'s
+  writers (0x54147 copy-sites only), the 0x4b600 ecx
+  filter-arg semantics (0 vs 2), the 0x53770 body, the
+  class-table +0xb8 method. (4) The msg-handler 87 sites'
+  slot-offset census (table-shape ownership again) and
+  msg senders (who puts id 2/6/13/27 on the wire - the
+  player-input half is the natural pair: id 2 velocity-set
+  and id 13 impulse are surely the input path). (5) The
+  [obj+0x11a] value map (14 sites read as tests, values
+  unlabelled) and the 0x504e0 getter's mode arms beyond
+  0x50902. CLOSED: the msg-id arms + id map + [obj+0xa9]
+  semantics (carried since PR-175 - the 0x5463a "arm" is
+  the else-default, so the two "arms" were ONE map);
+  0x546a0's full body (carried since PR-174 - with the
+  (c) CFG gap honest); PR-177 item (2) IN PART ([obj+
+  0x11a] = mode field with two pinned uses; [obj+0xb1]
+  default 22). UPDATED: PR-178 F4's 0x55070 slot (bracket:
+  +0x54 hook, physics chain). CARRIED unchanged: the
+  player-side same-state seek (PR-174 item (2)); the
+  relation-helper bodies 0x52eb0/0x52cc0/0x534e0/0x45620 +
+  the unread provider tails (PR-177 items (1)/(2)) and
+  0x549f0's tails (PR-178 item (3)); the other 55 +0x78
+  singletons (PR-177 item (3)); PR-176's five controller
+  items; the +0x54 hook families 0x53df0/0x3ddf0 (the
+  LION's 0x55070 now seen); 0x550c0's body; the 0x55130
+  tail; the pool-name decode; the +0x4c/+0x1c 0x23a20
+  recount; the 73 dead-0x54910 tables; the +0xa0 census
+  oddities (PR-178 item (4)); the ladder-gate fi-vs-state
+  data block; everything else in the ledger's carried list.
+
+- GATES. Docs-only reading PR (PR-138..178 precedent): no
+  port file touched; the build state is the OWNER GATE
+  (rule 8) as MEASURED on 7b4d736 (make ZERO warnings;
+  verify-all rc=0 both ways = 52 (ok) fixtures / 10 (ok) +
+  18 named SKIPs) - only docs have changed since. CI truth
+  at this record's time: PR-178's docs run 44546099837 =
+  SUCCESS on 829dabe; PR-177's 44544519251 = SUCCESS; the
+  chain unchanged. This docs push queues its own run.
+  Added .md lines <= 79 cols; over-79 baselines UNCHANGED
+  (NEXT_STEPS 71, HANDOFF 71); no game data or frames in
+  git (scripts under /tmp/opencode/pr179/); .github/
+  workflows/* untouched; the image is unchanged.
+
+- EVIDENCE. acverb_census.py (the 0x54560 87-install scan,
+  the LION slot map +0x54/+0xac/+0xa0/+0x14 + the [obj+
+  0xe6/0xe2/0x11a/0xd2/0x106] operand-site scans, the
+  indirect [r+0xb0]/[r+0x98] scans); sig_bits.py (the
+  byte-bit -> LL_SIG_* naming from the PR-88-verified port
+  enum: byte0|0x10 = bit 4 = AC_DUP, byte1|0x20 = bit 13
+  = AC_DUP_CD, cross-checked against the PR-177 AC_BLOK/
+  AC_ENEMY/AC_ENEMY_ATC derivations); obj_range.sh (the
+  whole reads: 0x54560-0x5469f, 0x546a0-0x5485a, 0x54e00-
+  0x54eae; desync windows recorded at 0x5455f-0x54564,
+  0x54790-0x547b5, 0x545eb, 0x5439x-0x543a0). Ledger:
+  records re-spliced from HEAD (census: HEAD carries
+  PR-150..PR-178 (29 records) PLUS the four OWNER
+  2026-11-19 records, last carrier); 3 brackets (PR-178
+  F4 slot correction; PR-178's carried line CLOSED for the
+  msg-id/+0xa9 and +0xac items; PR-177 item (2) UPDATED
+  for [obj+0x11a]/[obj+0xb1]).
 
 ## Deferred big items (deliberately out of scope so far)
 

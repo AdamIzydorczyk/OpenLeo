@@ -4273,6 +4273,47 @@ writer as its open items.
      object path only); 2 brackets. Next -> PR-179 = the
      LION +0xac/identity pass. Full record: PR-178 section
      of NEXT_STEPS.md (scratch /tmp/opencode/pr178/).
+   - PR-179 (READING; no port code, no behaviour change):
+     LION'S +0xac VERB AND MSG HANDLER READ AT LAST - the
+     two longest-carried engine items (since PR-174/PR-175)
+     CLOSE. +0xac 0x546a0: gates ([obj+0xb6] bit 2;
+     [rec+0x12]&0x4000 -> the 0x4b600 pool query + the
+     AC_BLOK bounds test 0x4b430 + 0x4b7f0 merged into the
+     key; else mode>=4 -> the same triple with the ecx=2
+     filter) then the ATTACH MACHINE: [obj+0xe6] = per-
+     step candidate (the pump 0x550a0 CLEARS it - it is
+     refilled every step), [obj+0xa9] = attached object
+     (slot 0 = ENTER on it, slot 4 = LEAVE); candidate
+     transitions raise AC_DUP (byte0|0x10 = bit 4, the
+     PR-88-verified enum) and AC_DUP_CD (byte1|0x20 = bit
+     13) - PR-150's ladder-overlap AC_DUP model now HAS
+     its engine mechanism named; a vy>=0x58c gate skips the
+     attach while falling. Tail: position commit consumes
+     and zeroes [obj+0xca/ce] + [obj+0xea]. MSG HANDLER
+     0x54560 (87 installs, slot varies): full id map - 2 =
+     SET v, 3/4 = OR 4/8 into [obj+0xb6], 6 = SET facing
+     ([obj+0x6d]/[obj+0x71]), 8 = ZERO v, 13 = IMPULSE,
+     27 = SET attached (LEAVE old, ENTER new); else ->
+     0x53770; the "0x5463a arm" was the else-default, the
+     two carried items were ONE map. THE RESET METHOD
+     0x54e00 = the field-family map: zeroes both gate
+     scalars, both attach fields, v and deltas; energy
+     [obj+0xad] := 100 and [obj+0xb1] := 22 are DEFAULTS
+     (new facts). CORRECTION (bracket): 0x55070 is a +0x54
+     PHYSICS HOOK, not a +0x8c getter (PR-178 F4 was
+     wrong; LION +0x54 = 0x55070, and the 0x55070 chain's
+     +0x98 call lands in the 0x23a2x getter cluster, post-
+     detach +0xb8 = 0x23880 - the hook and passive-lineage
+     families touch). [obj+0x11a] = a LION mode field
+     (==5 negates the feed-gate scalar, ==7 arms the
+     energy half; 14 sites mapped). 5 new items (the
+     candidate-filler 0x54eb2/0x2c6f0/0x5413e is the
+     named LEAD for PR-180; + [obj+0xb6] bit law; the
+     0x54790-0x547b5 CFG gap; the msg senders; the mode
+     map); 3 closed/updated; 3 brackets. Next -> PR-180 =
+     the attach/gate-field PRODUCER pass. Full record:
+     PR-179 section of NEXT_STEPS.md (scratch
+     /tmp/opencode/pr179/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -6800,6 +6841,46 @@ one closed (PR-172 item (1)).
 Gates: docs-only (PR-138..177 precedent); added lines <= 79;
 baselines 71/71 held; the Windows half stays in the end
 pass (rule 8).
+
+STATUS after PR-179 (the LION +0xac / msg-map / identity
+pass; docs reading - ZERO port lines changed, the ZARIA.01
+output image is byte-identical to PR-178's, and the build
+state is the OWNER GATE of 2026-11-19 measured on
+7b4d736: 52 (ok) fixtures / 10 (ok) + 18 named SKIPs
+fixture-free; only docs have moved since).
+
+What this pass GROUNDS for T5:
+(1) PR-150'S AC_DUP LADDER-OVERLAP MODEL (green on frames
+    since PR-150) NOW HAS ITS ENGINE MECHANISM NAMED: the
+    pump's +0xac verb runs an attach state machine that
+    raises AC_DUP (bit 4) on candidate transitions and
+    AC_DUP_CD (bit 13) when the re-attach lands with
+    [obj+0xe2] = 0 - and the candidate field is cleared
+    EVERY STEP by the LION pump itself, so the engine
+    recomputes overlap continuously, exactly what the
+    port's per-step overlap model does.
+(2) THE AC_BLOK RAISER (PR-177 F1's bounds test 0x4b430)
+    is CONFIRMED to be MERGED INTO THE SAME KEY BUFFER by
+    +0xac - the collision-signal path is now complete:
+    bounds test -> merge -> row gating.
+(3) THE MSG SURFACE IS PINNED: velocity SET (id 2) and
+    IMPULSE (id 13) and facing SET (id 6) are the channels
+    the game uses to move objects from the OUTSIDE - the
+    future input-side work (PR-174 item (2), the msg
+    senders) now has its protocol; and the lion's velocity
+    feed (PR-178) has its external writer named.
+(4) The energy field [obj+0xad] has its DEFAULT (100) and
+    its reset site (0x54e00) named - the PR-175 energy
+    law's population story gains its starting value.
+No shipped behaviour is contradicted; the +0xac body's
+only unresolved shape is a 38-byte CFG window in the
+re-attach path (counted). Five new items are counted, one
+lead NAMED for the next pass (what fills [obj+0xe6]);
+three carried items closed or updated; 0x55070's slot
+corrected to +0x54.
+Gates: docs-only (PR-138..178 precedent); added lines <=
+79; baselines 71/71 held; the Windows half stays in the
+end pass (rule 8).
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
