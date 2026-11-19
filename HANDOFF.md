@@ -4230,6 +4230,49 @@ writer as its open items.
      + 18 named SKIPs fixture-free. Next -> PR-178 = the
      BY_TY feed pass. Full record: PR-177 section of
      NEXT_STEPS.md (scratch /tmp/opencode/pr177/).
+   - PR-178 (READING; no port code, no behaviour change):
+     THE BY_TY FEED IS THE SAME CONSTANT 100 BEHIND A
+     `cmp [obj+0xbe],0` GATE - PR-172's feed-source item
+     CLOSED, NO PORT GAP. The 4 shipped BY_TY states are
+     exactly ZAR_LEW/ZAR_LEWPL [A_WSP]/[A_WSP_LIN] (lion
+     climbs; no non-lion ZARIA.01 state uses BY_TY) - the
+     port has modelled guarded-feed+constant-100 there
+     since PR-148, and the object path's plain feed is
+     unobserved by any authored BY_TY row (settled
+     negative). The dispatcher 0x543a0 read byte-exact
+     whole (entry 0x543a0 - PR-98 was right, the 0x543a1
+     was a desync): [rec+0x12]&7 modes -> mode0 += |[obj+
+     0xca]|, mode1 += |[obj+0xce]| where [obj+0xca/ce] =
+     |[obj+0xc2/c6]|/100 (the walk-feed units PINNED =
+     the port's facc law); modes 2/3 = the constant 100
+     (mgr 0xcef40+0x388) behind the [obj+0xba] gate; mode
+     4 = the SAME constant behind the [obj+0xbe] gate;
+     modes >=5 no feed. +0xa0 census over the 178: 130
+     dispatcher + 26 unguarded 0x239d0 feeders + 22 odd
+     installs (incl. ONE false marker table, +0xa0 =
+     0x255d000 - counted); ALL 15 LION tables install the
+     dispatcher (the ZARIA.01 LION is table 0x96960). The
+     gate producer chain traced one step up: 0x549f0 (one
+     caller, inside getter 0x50340 at LION-table+0xcc)
+     assigns +0xba/+0xbe from a 3-dword buffer (zeroed
+     when [obj+0x106] = 0; dword 0 negated when [obj+
+     0x11a] = 5) and re-decides them via the [obj+0xd2]
+     attach object: kind 1 = the X window (PR-147 law,
+     re-read), kind 4 = SIGN WINDOWS on BOTH axes (be =
+     the y-window vs [d2]+0x1d - the climb gate's real
+     meaning), NULL = signs feed [obj+0x71]/[obj+0xb6]
+     bits instead; 0x55070 (the 0x28af0-lineage +0x8c
+     getter) is a 3-call chain (+0xb0, 0x541f0's v-channel
+     with the PR-9x [obj+0xba]/20 formula, +0x98) called
+     DIRECTLY from the PR-177 relation providers. NEW tool
+     fact: indirect `call [r+disp]` sites need the ModRM
+     ff /2 byte scan (callscan.py) - text.asm prints none
+     over the desynced clusters. 5 new items; 1 closed
+     (PR-172 item (1), with the honesty note that "the
+     port runs them as plain time states" was true of the
+     object path only); 2 brackets. Next -> PR-179 = the
+     LION +0xac/identity pass. Full record: PR-178 section
+     of NEXT_STEPS.md (scratch /tmp/opencode/pr178/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -6715,6 +6758,48 @@ honesty); one closed (PR-173 item (3)).
 Gates: docs-only (PR-138..171, PR-175, PR-176 precedent);
 added lines <= 79; baselines 71/71 held; the Windows half
 stays in the end pass (rule 8).
+
+STATUS after PR-178 (the BY_TY FEED pass; docs reading -
+ZERO port lines changed, the ZARIA.01 output image is byte-
+identical to PR-177's, and the build state is the OWNER
+GATE of 2026-11-19 measured on 7b4d736: make clean +
+parallel verify-all rc=0 both ways, 52 (ok) fixtures /
+10 (ok) + 18 named SKIPs fixture-free; only docs have
+moved since).
+
+What this pass GROUNDS for T5 (nothing shipped changed):
+(1) THE HIGHEST-CARRIED PORT-SIDE QUESTION IN ZARIA.01 IS
+    CLOSED AS NO GAP: the 4 BY_TY states ([A_WSP]/
+    [A_WSP_LIN] of ZAR_LEW/ZAR_LEWPL) are fed by the SAME
+    constant 100 the port feeds (byte-exact at 0x5441b/
+    0x543fb), and the port's player path has modelled the
+    guard since PR-148. The object path needs no BY_TY arm:
+    no authored ZARIA.01 non-lion state uses the mode.
+    The PR-148 intent-proxy guard STANDS unchanged - this
+    pass found no data contradicting it; what would pin
+    the real gate is the buffer filler (counted item 1).
+(2) THE FEED UNITS ARE PINNED: walking states are fed by
+    |[obj+0xc2/c6]|/100 - 1/100-pixel units, exactly the
+    port's facc law; time modes by the 100-per-iteration
+    constant, exactly the port's row_t law. The PR-109
+    unit measurement (the on-screen 200/300 ladder-clip
+    rows) now has its engine mechanism named end to end.
+(3) THE ZARIA.01 LION CLASS IS TABLE 0x96960 (of the 15,
+    all sharing +0x14 = 0x550a0, +0xac = 0x546a0, +0xa0 =
+    0x543a0, +0x78 = 0x50f80) - every future ZARIA.01
+    claim about "the lion's code" now has an address.
+(4) The climb gate's real meaning is a VERTICAL WINDOW
+    against the attach object ([obj+0xd2] kind-4, [obj+
+    0xbe] = +10/-10/0 vs [d2]+0x1d) - if a future pass
+    pins the buffer filler, the object-path guard becomes
+    a code-PR candidate with a hand-derived test.
+Five new open items are counted (buffer filler + [obj+
+0x106]; the [obj+0x11a] mode field; 0x549f0 tails + [obj+
+0x71] readers; the +0xa0 census oddities; 0x55070's chain);
+one closed (PR-172 item (1)).
+Gates: docs-only (PR-138..177 precedent); added lines <= 79;
+baselines 71/71 held; the Windows half stays in the end
+pass (rule 8).
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

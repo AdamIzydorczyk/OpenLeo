@@ -15762,30 +15762,34 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-178 IS THE BY_TY FEED PASS (the port-side gap carried
-  highest since PR-172: FOUR shipped ZARIA.01 states use
-  control=BY_TY with rows gated 200/300, and the port runs
-  them as plain time states). Read the feed dispatcher
-  0x543a0's mode arm for the BY_TY token (PR-166's +0x14
-  map), and its relation to the [obj+0xba]/[obj+0xbe] pair
-  and the record's [rec+0x12] flag word (PR-159/160) - if
-  the answer exposes a code-visible rule, ship the fix with
-  its hand-derived test + mutation battery per the standing
-  rules; else count it with its data. THEN, in order: the
-  msg-id arms 0x5460e/0x5463a + id map + [obj+0xa9]
-  semantics (the 24-site map from PR-175 F7b narrows it);
-  the player-side same-state row seek (PR-174 item (2));
-  0x546a0's full body (PR-177 NAMED its +0x78-area call
-  sites - 0x4b430/0x4b600/0x4b7f0 - but the verb body
-  itself stays unread and is the +0xac law's home); the
-  relation-helper bodies 0x52eb0/0x52cc0/0x534e0/0x45620
-  + the unread provider tails (PR-177 items (1)/(2)); the
-  other 55 +0x78 singletons as census (PR-177 item (3));
-  PR-176's five controller items. Carried reads unchanged:
-  the +0x54 hook families 0x53df0/0x3ddf0, 0x550c0's body,
-  the 0x55130 tail from 0x551b8, the pool-name decode, the
-  +0x4c/+0x1c 0x23a20 slot recount, the 73 dead-0x54910
-  tables, everything else in the ledger's CARRIED list.
+- PR-179 IS THE LION +0xac / IDENTITY PASS (the natural
+  pair: PR-177 NAMED the +0xac call sites, PR-178 PINNED
+  its table identity - all 15 LION tables share +0x14 =
+  0x550a0, +0xac = 0x546a0, +0xa0 = 0x543a0, +0x78 =
+  0x50f80). Read 0x546a0's FULL body (the +0xac law's
+  home: its +0x78-area calls 0x4b430/0x4b600/0x4b7f0 are
+  already named), the msg-id arms 0x5460e/0x5463a + the
+  id map + [obj+0xa9] semantics, and the [obj+0x11a] mode
+  field PR-178 F4 surfaced (== 5 negates the gate scalar,
+  == 7 arms 0x50f80's energy half - ONE field, 14 sites,
+  all in the 0x27xxx/0x3dxxx/0x50xxx clusters). THEN, in
+  order: the feed-gate buffer filler (PR-178 item (1): the
+  7 [r+0xcc] call sites 0x27e1d/0x282a1/0x344c8/0x4010e/
+  0x4110c/0x41c01/0x4aeca and the [obj+0x106] field family
+  - if the window law lands, the object-path guard could
+  become a code PR with test+battery per the standing
+  rules); the player-side same-state row seek (PR-174 item
+  (2)); the relation-helper bodies 0x52eb0/0x52cc0/0x534e0/
+  0x45620 + the unread provider tails (PR-177 items (1)/
+  (2)) and 0x549f0's tails 0x54b51-0x54b65/0x54be0-0x54c10
+  (PR-178 item (3)); the other 55 +0x78 singletons as
+  census (PR-177 item (3)); PR-176's five controller
+  items. Carried reads unchanged: the +0x54 hook families
+  0x53df0/0x3ddf0, 0x550c0's body, the 0x55130 tail, the
+  pool-name decode, the +0x4c/+0x1c 0x23a20 slot recount,
+  the 73 dead-0x54910 tables, the +0xa0 census oddities
+  (PR-178 item (4)), everything else in the ledger's
+  carried list.
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -20903,7 +20907,20 @@ ride item CLOSED; the PR-107 self-target row item UPDATED)
   port runs them as plain time states (anything not BY_X is
   wall-fed) - the engine's feed source for that mode (the
   dispatcher 0x543a0's mode arm, possibly the parameter pair
-  [obj+0xba]/[obj+0xbe]) is unread. UPDATED: (2) the PR-107
+  [obj+0xba]/[obj+0xbe]) is unread. [CLOSED BY PR-178: the
+  feed source IS the constant 100 (byte-exact 0x543fb/
+  0x5441b - the mode differs only by which gate field,
+  [obj+0xba] or [obj+0xbe], must be non-zero; modes 0/1
+  feed |v|/100, the port's facc units, PINNED). NO PORT
+  GAP: the 4 states are exactly ZAR_LEW/ZAR_LEWPL's own
+  A_WSP/A_WSP_LIN (player path) - the claim above is TRUE
+  of the object path only; since PR-148 the player path
+  models guarded-feed + constant-100, and no authored non-
+  lion ZARIA.01 state uses BY_TY, so the object-side
+  absence is a settled negative. The gate chain is traced
+  to 0x549f0 + getter 0x50340 and the [obj+0xd2] window
+  logic (PR-178 F4); the buffer filler stays open as
+  PR-178 item (1).] UPDATED: (2) the PR-107
   self-target row item: after PR-163 the port's object path
   no longer SKIPS self-target lines (it counts them) but
   still never applies their authored row seek - the engine
@@ -22397,7 +22414,9 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   0x546a0's full body (its +0x78-area call sites 0x4b430/
   0x4b600/0x4b7f0 are now NAMED but the verb body itself
   stays unread), the msg-id arms 0x5460e/0x5463a + id map +
-  [obj+0xa9] semantics, the BY_TY feed 0x543a0 mode arm,
+  [obj+0xa9] semantics, the BY_TY feed 0x543a0 mode arm
+  [CLOSED BY PR-178 - the dispatcher is byte-exact, no port
+  gap, see that record],
   the player-side seek, PR-176's five controller items, the
   pool-name decode, 0x550c0's body, the 0x55130 tail, the
   +0x54 hook families, the 73 dead-0x54910 tables, the
@@ -22448,6 +22467,225 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   brackets (PR-173 item (3) CLOSED corrected; PR-176's
   carried count line corrected; PR-176's camel bracket
   updated with the in-code CAMEL-table references).
+
+## PR-178 — THE BY_TY FEED IS THE SAME CONSTANT 100 BEHIND
+## A `cmp [obj+0xbe],0` GATE: THE DISPATCHER 0x543a0 READ
+## BYTE-EXACT END TO END, ALL 15 LION CLASS TABLES INSTALL IT
+## AT +0xa0, THE GATE'S PRODUCER CHAIN IS TRACED ONE STEP UP
+## (GETTER 0x50340 -> 0x549f0 AND THE [obj+0xd2] WINDOW
+## LOGIC), AND PR-172'S FEED-SOURCE ITEM CLOSES AS NO PORT
+## GAP — THE 4 SHIPPED BY_TY STATES ARE THE LION'S OWN
+## A_WSP/A_WSP_LIN, AND THE PORT'S PLAYER PATH HAS MODELLED
+## GUARDED-FEED + CONSTANT-100 SINCE PR-148 (READING, NO
+## PORT CODE, NO BEHAVIOUR CHANGE)
+
+- WHY. PR-177's Next specced this pass (framed there as "the
+  port-side gap carried highest"). Method: the authored
+  ZARIA.01 control= census over /tmp/opencode/mov (which
+  states, which objects); the class-table +0xa0 census over
+  the 178 marker tables; obj_range.sh (objdump ranges on
+  /tmp/opencode/text.bin) for 0x543a0 whole, 0x549f0 whole,
+  0x50340, 0x55070, 0x54144-0x5416d; a byte-scan for direct
+  and indirect call sites (rel-call scan over text.bin +
+  ModRM ff /2 scan for `call [r+slot]` - the linear
+  text.asm MISSES these over the 0x550xx/0x503xx desync,
+  stated so future passes use the byte scan); python over
+  the elf for table-slot ownership. Docs only: nothing
+  shipped moves.
+
+- FINDING 1, THE AUTHORED CENSUS: ALL 4 SHIPPED BY_TY STATES
+  ARE LION CLIMBS. BY_TY appears in exactly 2 of ZARIA.01's
+  100+ .MOV texts: ZAR_LEW and ZAR_LEWPL, states [A_WSP]
+  and [A_WSP_LIN] (ladder climb seq=climb, rope climb
+  seq=climb_r), both `control=BY_TY|CHECK_ALL|SEQ_REV_Y`,
+  F=0,100 T=160,50 G=0,0, rows 300/200.../300 exactly as
+  PR-172 counted (36 row lines, gates 200/300). No non-lion
+  ZARIA.01 state carries BY_TY. These states are PLAYER
+  states - the port runs them through ll_play.c section 7,
+  which since PR-148 feeds guarded ("by_ty = ctrl &&
+  !vert_intent", 0x5441b cited at ll_play.c:1418). PR-172's
+  "the port runs them as plain time states (anything not
+  BY_X is wall-fed)" is TRUE of the OBJECT path (ll_level.c
+  obj step: `if (walk0) ... else row_t += 100` - BY_X
+  special-cased, every other mode plain-fed) but was never
+  true of these four states' actual path since PR-148. No
+  port-side state needs a new BY_TY arm.
+
+- FINDING 2, THE DISPATCHER 0x543a0, BYTE-EXACT WHOLE (the
+  entry is 0x543a0 - PR-98's address, `push ebx` first; the
+  0x543a1 in some records was the objdump desync splitting
+  that byte). Prologue then: eax=obj -> [obj+0x5c] record
+  index, [obj+0x50] array, [rec+0x12] & 7 = the MODE (the
+  control-token mode field from PR-147 - the same dword-
+  word whose 0x8000 bit PR-177 F1(b) found gating the base
+  getter); cmp 4 / ja out / `jmp [eax*4+0x54380]` jump
+  table: mode 0 (0x543c6) [obj+0xa1] += |[obj+0xca]|; mode
+  1 (0x543dc) += |[obj+0xce]|; mode 2 (0x543f2) gate `cmp
+  [obj+0xba],0; je out` then falls INTO mode 3's body at
+  0x543fb; mode 3 = the shared body; mode 4 (0x5441b) gate
+  `cmp [obj+0xbe],0; je out` then the SAME body: [obj+
+  0xa1] += [ds:0xcef40 + 0x388] - PR-100's constant, NOT a
+  velocity or a T-derived quantity: BY_TY's feed source is
+  the plain 100, the mode differs ONLY by which gate field
+  must be non-zero. Modes >=5: no feed at all (0x5443f).
+  THE FEED-UNIT LAW IS ALSO PINNED: [obj+0xca] =
+  |[obj+0xc2]|/100 and [obj+0xce] = |[obj+0xc6]|/100
+  (idiv 100 at 0x54353-0x54372 inside the velocity setter
+  0x54344, which first calls 0x54170) - so a walking
+  state's rows are fed in 1/100-pixel units, exactly the
+  port's facc law; the time modes' in 100-per-iteration
+  units, exactly the port's row_t law.
+
+- FINDING 3, WHO INSTALLS WHICH FEED AT +0xa0 (CENSUS OVER
+  THE 178 MARKER TABLES): 130 put 0x543a0 (the mode
+  dispatcher); 26 put 0x239d0 (the UNGUARDED plain feeder:
+  [obj+0xa1] += [mgr+0x388] with no gate and no mode
+  switch - those classes are mode-less feeders); 4 put
+  0x23c70, 3 put 0x453d0, 3 put 0x536f0 (the pump merge!),
+  2 put 0x550a0, and 10 singletons (0x22f20, 0x55380,
+  0x2b4c0, 0x3db50, 0x39110, 0x452d0, 0x54560, 0x4fba0,
+  0x52360 - the row-set method IS one class's feed slot -
+  plus ONE bogus: a table whose +0xa0 holds 0x255d000, not
+  a code address: a false marker hit to re-verify, counted).
+  130+26+4+3+3+2+10=178. NOTE THE POPULATIONS: the PR-9x/
+  10x-era "155 tables put 0x543a0 / 31 put 0x239d0" counted
+  ALL class tables (including the non-pump ones); these
+  130/26 are the 178-population only - both stand, stated
+  so neither is mistaken for the other. THE 15 LION TABLES
+  (+0x78 = 0x50f80, the PR-177 F3(iii) count confirmed):
+  EVERY one has +0x14 = 0x550a0, +0xac = 0x546a0, and +0xa0
+  = 0x543a0 - the ZARIA.01 LION class (table 0x96960, with
+  0x97970...0xa2218 the level set) feeds through the mode
+  dispatcher. The per-iteration call site is the known
+  0x52320-0x5232b (feed via table +0xa0, compare [obj+
+  0xa1], row handler +0x18 on a hit) - unchanged from
+  PR-9x/13x.
+
+- FINDING 4, THE GATE PRODUCER CHAIN, ONE STEP UP (the part
+  PR-172 called unread). `call [r+0xcc]`-style INDIRECT
+  call sites and table installs need the BYTE scan (the
+  text.asm misses them at 0x55070/0x50340 - desync):
+  0x549f0 has exactly ONE direct caller, 0x50369, inside
+  getter 0x50340 (installed at LION table 0x97970's +0xcc;
+  other shapes put it at +0xec/+0x108 - ownership by table
+  shape counted open). 0x50340: if [obj+0x106] is ZERO the
+  3-dword buffer is zeroed; if [obj+0x11a] == 5 the buffer's
+  dword 0 is negated; then 0x549f0(obj, buf): [obj+0xba] =
+  buf[0], [obj+0xbe] = buf[1] (0x549f9/0x54a08 - PR-147's
+  assignment, confirmed); then IF [obj+0xd2] (an attached-
+  object link - the SAME field whose +4 kind / +8 position /
+  +0xc id PR-147 read): kind 1 -> the +/-10 X-window with
+  the 15x facing-mismatch + 5 margin (PR-147's law, re-read
+  byte-exact at 0x54a24-0x54a93); kind 4 (0x54aa2) -> BOTH
+  scalars re-decided as SIGN WINDOWS: [obj+0xba] = +10 if
+  (x+8) < [d2].+8, -10 if (x-8) > [d2].+8, else 0; [obj+
+  0xbe] = +10 if (y+8) < [d2].+0x1d, mirrored -10, else 0
+  (the Y half - the mode-4 gate's real meaning is a
+  vertical window against the attach object); [obj+0xd2] =
+  NULL (0x54b90) -> the scalars are NOT touched, and
+  instead [obj+0xbe]'s sign writes [obj+0x71] := -1/+1 and
+  [obj+0xba]*[obj+0x6d] (facing) sets bit 0x10 of the
+  [obj+0xb6] flags. 0x5415b (in a 0x54144 tail) is a
+  DETACH: `mov DWORD [[obj-0xd6]+0xd2],0` with [obj+0xb5]
+  copied around - the field family's clear site. The getter
+  0x55070 (installed +0x8c in the 0x28af0 lineage's tables,
+  PR-177 F4) is a three-call chain: class +0xb0 with
+  &[obj+0xd6], 0x541f0 with &[obj+0x89] (the v-channel
+  update whose 0x542a9 formula PR-9x read: v += F*[obj+
+  0xba]/20 + G*[obj+0x6d] - so the SAME scalar drives both
+  the feed gate and the velocity), class +0x98; its direct
+  callers 0x2b1a0/0x3ddfb/0x3e28b sit INSIDE the PR-177
+  relation providers (0x3df00/0x3e500 regions) - the
+  providers call the LION getter directly, not only via
+  slot. Verdict for the shipped data: for a lion attached to
+  a ladder/rope (an [obj+0xd2] with a kind-4 window)
+  [obj+0xbe] is non-zero exactly while the climb-offset is
+  off-window in one direction - i.e. the engine stops
+  feeding the climb rows when the window says "at target";
+  the full truth table needs the buffer filler (open item
+  1) and video, so the port's PR-148 intent-proxy guard
+  stands UNCHANGED - no data here contradicts it.
+
+- FINDING 5, PR-172 ITEM (1) CLOSED - NO PORT GAP. (a) The
+  feed source is the constant 100 for BOTH shipped time
+  modes - the port's row_t += 100 in ll_level.c and
+  ll_play.c is exactly the engine body. (b) The mode-4 gate
+  is modeled on the only path where shipped BY_TY rows run
+  (the player path, PR-148). (c) The object path's plain
+  feed of BY_TY states is HARMLESS UNOBSERVED: no shipped
+  ZARIA.01 non-lion state uses BY_TY (Finding 1), so the
+  absent object-side guard has no authored witness - count
+  as a settled negative, not a gap. (d) PR-163's AC_TIME
+  law and PR-172's zeroing law are untouched: [obj+0xa1]
+  sites re-enumerate exactly the known ones (zeros 0x5236b
+  0x533b0 0x5389e; the setter at 0x52118; the comparator
+  0x52323).
+
+- OPEN ITEMS COUNTED (5 new). (1) What FILLS 0x50340's
+  buffer when [obj+0x106] != 0 (its 7 [r+0xcc] indirect call
+  sites 0x27e1d/0x282a1/0x344c8/0x4010e/0x4110c/0x41c01/
+  0x4aeca and their data; the [obj+0x106] field family, 190
+  operand sites, top candidate for the attach/rope link).
+  (2) [obj+0x11a] semantics - a mode-ish field: ==5 negates
+  the gate scalar, ==7 arms 0x50f80's energy half (PR-177
+  F3(iii)): SAME field, new fact; its 14 sites are the
+  lead. (3) 0x549f0's unread tails 0x54b51-0x54b65 and
+  0x54be0-0x54c10 (the NULL-branch continuation into the
+  [obj+0xb6] bit tests), and [obj+0x71]'s readers.
+  (4) The +0xa0 variants: the 22 non-dispatcher/feeder
+  installs (esp. 0x52360-as-feeder and 0x536f0-as-feeder x3
+  - probably slot-shape artifacts) and the ONE bogus marker
+  table whose +0xa0 is 0x255d000 (the 178 census has that
+  one false positive to re-verify). (5) 0x55070's chain:
+  slots +0xb0/+0x98 semantics, &[obj+0xd6]/&[obj+0x89]
+  args, 0x541f0's full body (its 0x542a9 v-formula is
+  PR-9x-era), callers 0x2b1a0/0x3ddfb/0x3e28b contexts.
+  CLOSED: PR-172 item (1) (bracket; plus the honest note
+  that its "the port runs them as plain time states" was
+  true of the object path only, not of these states' path).
+  UPDATED: PR-177's carried "the BY_TY feed 0x543a0 mode
+  arm" line (bracket: CLOSED here). CARRIED unchanged:
+  0x546a0's full body; the msg-id arms 0x5460e/0x5463a +
+  id map + [obj+0xa9] semantics; the player-side same-state
+  seek (PR-174 item (2)); the relation-helper bodies 0x52eb0
+  0x52cc0 0x534e0 0x45620 + the unread provider tails
+  (PR-177 items (1)/(2)); the other 55 +0x78 singletons
+  (PR-177 item (3)); PR-176's five controller items; the
+  +0x54 hook families; 0x550c0's body; the 0x55130 tail;
+  the pool-name decode; the +0x4c/+0x1c 0x23a20 recount;
+  the 73 dead-0x54910 tables; the ladder-gate fi-vs-state
+  data block; everything else in the ledger's carried list.
+
+- GATES. Docs-only reading PR (PR-138..177 precedent): no
+  port file touched; the build state is the OWNER GATE of
+  2026-11-19 (HANDOFF rule 8) as MEASURED on 7b4d736 (make
+  ZERO warnings; verify-all rc=0 both ways = 52 (ok) with
+  fixtures / 10 (ok) + 18 named SKIPs fixture-free) - and
+  only docs have changed since (PR-177's commit is a
+  NEXT_STEPS/HANDOFF-only diff). CI truth at this record's
+  time: PR-177's docs run 44544519251 = SUCCESS on
+  9bff5de (the new linux-only ci.yml); the chain
+  7b4d736->44541651358, 112d914->44537126323 SUCCESS
+  unchanged. This docs push queues its own run. Added .md
+  lines <= 79 cols; over-79 baselines UNCHANGED (NEXT_STEPS
+  71, HANDOFF 71); no game data or frames in git (scripts
+  under /tmp/opencode/pr178/); .github/workflows/*
+  untouched; the image is unchanged.
+
+- EVIDENCE. mov_ctrl_census.py (the authored BY_TY/BY_Y/
+  BY_TIME/BY_X counts per ZARIA.01 file -> the Finding 1
+  table); slot_a0_census.py (the 178-population +0xa0
+  census, the 15-LION identity table, the 0x255d000 false
+  marker); callscan.py (the rel-call + ModRM ff /2 indirect
+  `call [r+slot]` byte scans - the recipe future passes need
+  because text.asm misses indirect sites over desyncs);
+  obj_range.sh (whole reads: 0x543a0, 0x549f0, 0x50340,
+  0x55070, 0x54144-0x5416d, 0x54aa2/0x54b90 branches).
+  Ledger: records re-spliced from HEAD (census: HEAD carries
+  PR-150..PR-177 (28 records) PLUS the four OWNER
+  2026-11-19 records, last carrier); 2 brackets (PR-172
+  item (1) CLOSED with the path-honesty note; PR-177's
+  carried line UPDATED).
 
 ## Deferred big items (deliberately out of scope so far)
 
