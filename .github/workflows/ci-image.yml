@@ -69,8 +69,13 @@ jobs:
         # Needed for the push. The pull side needs no login: GITHUB_TOKEN
         # reads its own repository's private packages (that is what ci.yml
         # and ci-windows.yml pass in the job's env).
-        run: echo "${GITHUB_TOKEN}" | docker login "${REGISTRY}" \
-               -u "${GITHUB_ACTOR}" --password-stdin
+        # block scalar on purpose: in a plain YAML scalar the trailing "\"
+        # is not a shell continuation, it folds to a literal "\ " and
+        # docker sees extra arguments (measured: "'docker login' requires
+        # at most 1 argument", run 44535211673).
+        run: |
+          echo "${GITHUB_TOKEN}" | docker login "${REGISTRY}" \
+            -u "${GITHUB_ACTOR}" --password-stdin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
