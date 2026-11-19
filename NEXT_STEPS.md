@@ -7344,7 +7344,14 @@ pointing at 0x4bb30" is instruction bytes (`mov esi,[eax]` at
   (index at [obj+0x2b], sub-index at [obj+0x2f]); those 12 bytes are
   then copied by 0x4ab50 into the block handed to the lion's slot
   +0xcc at 0x4aeca. Input-record playback, format and authoring
-  unread. (2) The real-hardware frame time: 55 ms clock granularity
+  unread. [EXTENDED BY PR-186 F2: the ring law is read -
+  [dev+0x2f] counts up mod the driver's [[drv]+0xc]
+  (0x586c0/0x586d5/0x586dc), driver index [dev+0x2b],
+  samples at [[drv]+0]+idx*0x10 - a sample ring per driver
+  behind the state-2 gate; the creator/filler of the
+  driver records (the capture hook vs a recording system)
+  stays this item's remainder.] 
+ (2) The real-hardware frame time: 55 ms clock granularity
   vs a 70 Hz PIT vs the 70.08 Hz mode-13h retrace - the three
   numbers are machine-verified individually, their combination on a
   real machine is not, and the port needs one of them (or a video
@@ -15762,59 +15769,63 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-186 IS THE LION-FLAG/INPUT-SOURCE FOLLOW-UP (PR-185's
-  five new items, in order): (1) the LION FLAG FAMILY
-  [obj+0x12a]/[obj+0x12e]/[obj+0x132] - consumers and
-  readers of the three flags (setters read: id-12 (PR-183),
-  id-29 (PR-185), id-18+guard (0x241aa)); the id-17 arm
-  body at 0x241e2; these fields live in the same 0x106..
-  0x132 block as [obj+0x106] (PR-176 queue flag) and
-  [obj+0x11a]/[obj+0x116]/[obj+0x11e] (PR-179 mode enum) -
-  map the whole block as the LION STATE BLOCK (mode +
-  flags), then join to the port's state model and rule on
-  any gap; (2) the INPUT-SOURCE IDENTITY: who is the object
-  whose +0x8 dword the 0x54910 tail copies into [obj+
-  0xa5..a8] (0x54be6 - trace ecx's producer up; test the
-  ds:0xcef40[+xxx] hypothesis) and who writes THAT field
-  (the hardware/BIOS hook) - settles the input-model
-  bottom; (3) the exact per-level gate values: trace the
-  providers that call the 0x1e0dc/0x50162/0x2dfe9 tails
-  with edx (create-record arguments; ZARIA.01's words =
-  ds:0xcef5c/0xcef60 - pin what the ZARIA provider passes
-  and where the value comes from in the HD/level data);
-  (4) the class NAMES of the 2 wrapped-getter tables
-  0x9f668/0xa0624 (joins PR-181 item (2): their provider
-  clusters + the name-block); (5) the id-13/15/21/23
-  deep-form arms (owners unverified). IF any of these lands
-  a code-visible rule the port lacks (the LION-state block
-  is the prime candidate), ship the fix with its
-  hand-derived test + mutation battery per the standing
-  rules; else count. THEN, in order: the LINK/GROUP fields
-  [obj+0x112]/[obj+0x30] + ds:0xcef8c (PR-184 item (2)
-  remainder); the relation-helper BODIES (PR-177 item (1)
-  remainder - now known as controller methods 0x45250/
-  0x452d0/0x453d0); the class-byte value map (PR-181 item
-  (2)); 0x45380's list builder + the 13-byte record layout
-  + 0x455a0 (PR-181 item (3)); the +0x240/+0x2cc computed
-  dispatch (PR-180 item (1)); the token->family
-  bookkeeping map (PR-184 item (3)); PR-176 items (1)/(3)
-  remainders. Carried reads unchanged: the id-9 FEED sender
-  (PR-183 item (4)); the targeted-arm bodies beyond decode
-  sites (PR-184 item (4)); the byte-form raise
-  bit-numbering (PR-184 item (5)); the [rec+4] guards +
-  ds:0xcec70 semantics; the id-25 pair pools (verify the
-  shared [obj+0xf2] arrays); the player-side same-state row
-  seek (PR-174 item (2), frames-blocked); the energy
-  class-range rule (PR-181 item (4)); the 0x2c670 placement
-  model; the ratio-law study (PR-180 item (2), video-
-  gated); the other +0xcc drivers; the state-copy helper;
-  the [obj+0xb6] bit-2 setter (NOTE: the 0x54910 tail
-  writes its bit 4 from [obj+0xba]*[obj+0x6d] < 0 - read
-  the rest of that tail); the ds:0xcf2c8 registry; the CFG
-  windows; the +0x54 hook bodies; 0x550c0; the 0x55130
-  tail; the +0x4c/+0x1c recount; the 73 dead-0x54910
-  tables; the +0xa0 census oddities; everything else in the
-  ledger's carried list.
+- PR-187 IS THE HARDWARE-BOTTOM/CONTROLLER-FAMILY PASS
+  (PR-186's items (7)/(9)/(4) in order): (1) THE 15th
+  WRAPPER CLASS 0x9a54c - what class is it (its +0x8c =
+  0x27280, +0x90 = 0x27170, near the 0x9a36c 0x28af0-
+  lineage of PR-179): read 0x27280/0x27170 (does 0x27280
+  merge keys like the controller getter?), find its
+  provider/name strings by the imm-load + name-block scan
+  (the PR-176 F3 method), and rule whether any non-LION
+  class gates input the same way ([obj+0x106]/mode-5 -
+  the wrapper is NOT controller-exclusive: 15 installs,
+  14+1); (2) THE CLASS-RECORD HEADER: [obj+0xc] = primary-
+  8 for every installed lion class (0x96958/0x97968/
+  0x97a90) - dump the 8 bytes before three class tables
+  (the elf dword-scan pattern + who reads [obj+0xc] as a
+  table - the PR-184 id-25 guards compare it, the 0x3dcc7
+  site READS [node+0xc] as an object!) and settle the
+  [obj+0x8]/[obj+0xc] pair law with the PR-177 multi-
+  subtable structure; (3) THE CAPTURE HOOK: who creates
+  and fills the device-manager driver records at
+  [0xcf400+0xf] (PR-106 item (1) remainder): scan writes
+  to 0xcf400+0xb/0xf/0x2b fields and to the driver-ctor
+  cluster - the true hardware bottom (BIOS/DOS hook?
+  DirectInput-era wrapper? 'input record playback' per
+  PR-106 - if it is a RECORDING system, the port's
+  input-model note in HANDOFF should say so); IF any of
+  (1)-(3) lands a code-visible rule the port lacks, ship
+  the fix with its hand-derived test + mutation battery per
+  the standing rules; else count. THEN, in order: the
+  flag-block REMAINING fields [obj+0x116]/[0x118]/[0x120]/
+  [0x124] producers + the id-17 ==2 arm 0x241cd + id-19
+  consumer law (PR-186 items (3)/(5)); the 0x3edaf +0x90
+  dispatch family (item (2)); the wrapped-class names +
+  id-13/15/21/23 deep arms (PR-185 items (2)/(5) again);
+  the LINK/GROUP fields [obj+0x112]/[obj+0x30] +
+  ds:0xcef8c (PR-184 item (2) remainder); the relation-
+  helper BODIES (PR-177 item (1)); the class-byte value
+  map (PR-181 item (2)); 0x45380's list builder + the
+  13-byte record layout + 0x455a0 (PR-181 item (3)); the
+  +0x240/+0x2cc computed dispatch (PR-180 item (1)); the
+  token->family bookkeeping map (PR-184 item (3)); PR-176
+  items (1)/(3) remainders. Carried reads unchanged: the
+  energy-signal/energy-init video check (PR-186 item (6));
+  per-level gate-word enumeration (item (11)); the device
+  sample third-dword naming (item (8)); the id-9 FEED
+  sender (PR-183 item (4)); the targeted-arm bodies
+  (PR-184 item (4)); the byte-form raise bit-numbering
+  (PR-184 item (5)); the [rec+4] guards + ds:0xcec70
+  semantics; the id-25 pair pools; the player-side same-
+  state row seek (PR-174 item (2), frames-blocked); the
+  energy class-range rule (PR-181 item (4)); the 0x2c670
+  placement model; the ratio-law study (PR-180 item (2),
+  video-gated); the other +0xcc drivers' bodies; the
+  state-copy helper; the [obj+0xb6] bit-2 setter; the
+  ds:0xcf2c8 registry; the CFG windows; the +0x54 hook
+  bodies; 0x550c0; the 0x55130 tail; the +0x4c/+0x1c
+  recount; the 73 dead-0x54910 tables; the +0xa0 census
+  oddities; everything else in the ledger's carried list.
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -21953,7 +21964,11 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   right before), 0x2dfe9, xor/or-imm 0x39e33/0x39e68/
   0x3b4dc, plus runtime self-clears 0x614ca/0x61505; the
   exact per-level VALUES (the create-record argument)
-  stay], and the decor class
+  stay] [CLOSED AS A LAW BY PR-186 F3: the values are
+  CODE-AUTHORED immediates/args in provider tails (ZARIA:
+  hard-coded 1 at 0x1e0dc/0x1e0e4 by the lion creator
+  0x1e0a0), not level-data; enumerating every stage's
+  provider values stays counted.], and the decor class
   0x98278's third-format verb layout + the 0x23ed0/0x23ea0/
   0x23e00 reads + the rec-class 0x98e7c pair semantics (the
   A_DEAD block at 0x240d0 also calls 0x524e0 - in PR-167's
@@ -22920,7 +22935,13 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   [obj+0xca/ce], BOTH attach fields [obj+0xa9]/[obj+
   0xd2], [obj+0xe6]; WRITES ENERGY [obj+0xad] := 100 (the
   PR-175 F7a field - a DEFAULT of 100, the same value the
-  energy law's ceiling sits at), [obj+0xb1] := 22 (0x16);
+  energy law's ceiling sits at)
+  [EXTENDED BY PR-186 F3: the ZARIA lion FACTORY provider
+  0x1e0a0 authors INITIAL energy [obj+0xad] := 500 (with
+  [obj+0x12a] := 0, [obj+0xb6] &= ~4, ds:0xcef5c/60 := 1)
+  - init 500 vs respawn 100; whether the HUD shows 500 at
+  level start is video-gated, NOT port-changed.],
+  [obj+0xb1] := 22 (0x16);
   clears bits 0xc0 of [obj+0xb6]. The zeroed list IS the
   field-family map this cluster uses; the 100/22 defaults
   are new facts.
@@ -24276,7 +24297,19 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   mov [ebx+0xa5],eax` - the object's button bytes
   [obj+0xa5..a8] ARE a COPY of the input object's state
   dword at +0x8, refreshed on every motion-synth call (the
-  x115 PR-173 census = every mover consults it). The getter
+  x115 PR-173 census = every mover consults it).
+  [CORRECTED BY PR-186 F2: the 0x54be6-0x54be9 write is
+  the tail of the INPUT-APPLY VERB 0x549f0 (entry 53 51
+  56; +0xcc in 115 tables), NOT of 0x54910 which ENDS at
+  0x549e6 (its 118 installs sit at other slots) - PR-106
+  read this correctly. And the 14 controller tables DO get
+  the frame input push: all 14 install the +0xcc WRAPPER
+  0x50340 (15 installs total; the 15th is the NON-
+  controller 0x9a54c, getter slot 0x27280): it zeroes the
+  block when [obj+0x106] == 0, negates dword[0] when
+  [obj+0x11a] == 5, then tail-calls 0x549f0 (0x50369).
+  The data-flow law and the port verdict STAND unchanged.]
+  The getter
   chain contains exactly 11 F6 bit-tests at [ebp+0xa5/a6/
   a7] (0x50504-0x50610): 10 priority-chain legs (PR-176 F1
   exact) + the first-gate test [obj+0xa5] bit 0x2 that
@@ -24360,15 +24393,50 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 - OPEN ITEMS COUNTED (5 new). (1) The EXACT per-level gate
   values: the provider callers that pass edx into 0x1e0dc/
   0x50162/0x2dfe9 (create-record argument tracing; ZARIA.
-  01's own words 0xcef5c/0xcef60). (2) The class NAMES of
+  01's own words 0xcef5c/0xcef60). [CLOSED FOR ZARIA.01 BY
+  PR-186 F3: the provider 0x1e0a0 (the lion FACTORY, after
+  the ret at 0x1e092) hard-codes `mov edx,1; ds:0xcef5c :=
+  edx; ds:0xcef60 := edx` - the K_F1/K_F2 leg words ON -
+  plus energy [obj+0xad] := 500, [obj+0x12a] := 0,
+  [obj+0xb6] &= ~4 and the default paired classes 0x97970/
+  0x97968; its 4 callers (0x1ff10/0x1ff44/0x20490/0x22ee0)
+  are the PR-176 name-match factories overriding [obj+0x8/
+  0xc] := 0x96960/0x96958 (TLewZaria) or 0x97a98/0x97a90
+  + [obj+0xf6] := 10000 (TLewZariaB); other stages' exact
+  values (0x50162/0x2dfe9/0x39e33/0x3b4dc sites) stay.]
+  (2) The class NAMES of
   the 2 wrapped tables 0x9f668/0xa0624 (joins PR-181 item
   (2)'s class-byte/name map). (3) The LION FLAG FAMILY
   [obj+0x12a]/[obj+0x12e]/[obj+0x132]: setters read
   (id-12/id-29/id-18 arms + the 0x241aa gate), consumers
-  and the id-17 arm 0x241e2 un-read. (4) The input-object
+  and the id-17 arm 0x241e2 un-read. [PART-CLOSED BY
+  PR-186 F1: the consumers ARE the +0x90 signal verbs (all
+  178 tables install one, 55 targets; only 0x3edaf and the
+  state pump 0x5357d dispatch it, on the LINKED object);
+  0x1e250 (only in 0x96960) acts on flags/modes/energy and
+  emits signal 9; 0x245b0 (only in 0x988ec) guards
+  [0x12e]/[0x12a], reads the authored list [obj+0x136]
+  {array, count @[+8]} and pushes KIND-4 nodes onto the
+  PLAYER's [obj+0xd2] queue, clears [tracked+0x106], and
+  broadcasts id 19 for pending [0x132]; id-17's arm decodes
+  node+8 (1 -> the 0x241aa mode/flag chain -> [0x132] := 1;
+  2 -> 0x241cd, body counted); death-latch [obj+0x12e]
+  joins the 0x988ec/0x9d338 life-death class PAIR. Census
+  60/38/20/8 refs. Remainders: 0x241cd body, id-19
+  consumer details, [obj+0x10e] producers, the 0x3edaf
+  family.] (4) The input-object
   IDENTITY: whose object's +0x8 is the source at 0x54be6
   (who is ecx at the 0x54910 tail; the ds:0xcef40[+xxx]
-  guess) + who writes IT (hardware/BIOS hook). (5) The
+  guess) + who writes IT (hardware/BIOS hook). [CLOSED BY
+  PR-186 F2: NO input object - ecx = the frame-loop input
+  block ([esp+0x1e4] at 0x4aeca, a 12-byte copy of the
+  device block at [esp+0x1f0] produced by `mov eax,
+  0xcf400; call 0x58690` - device-manager state gate
+  [+0xb] == 2, driver array [+0xf], ring [dev+0x2b]/
+  [dev+0x2f] mod [[drv]+0xc], samples [[drv]+0]+idx*0x10;
+  the block reaches [obj+0xa5..a8] via the 0x549f0 verb +
+  the 0x50340 wrapper; the capture hook that FILLS the
+  driver rings = the PR-106 item (1) remainder.] (5) The
   id-13/15/21/23 deep-form arms the same scan revealed
   (id 13 at 0x1e582/0x2c543, id 15 x11, id 21/23 singles)
   - unverified owners. CLOSED: PR-176 item (2) (the >=10
@@ -24434,6 +24502,275 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   carrier); 8 brackets (PR-176 items (2)/(4) CLOSED + item
   (5) PART; PR-184 item (1) CLOSED + item (2) PART + F1
   EXTENDED; PR-183 item (1) CLOSED; PR-177 item (4) PART).
+
+## PR-186 — THE LION FLAG BLOCK IS A SIGNAL-ROUTING STATE
+## MACHINE (the +0x90 SIGNAL VERB is dispatched only from the
+## state pump and the 0x988ec-variant reads AUTHORED SIGNAL
+## NODES onto the tracked object's queue), THE INPUT SOURCE IS
+## THE DEVICE-MANAGER SAMPLE BLOCK (PR-185 item (4) CLOSED =
+## EXTENDED AT PR-106's ITEM (1)), AND THE ZARIA GATE VALUES
+## ARE HARDCODED 1 BY THE LION-FACTORY PROVIDER 0x1e0a0,
+## WHICH ALSO CREATES THE PLAYER LION ITSELF - CLASS DEFAULT
+## 0x97970, ENERGY [obj+0xad] := 500 (a THIRD energy writer,
+## see PR-179's F4 note), and the per-level name-match
+## factories override [obj+0x8/0xc] := PAIRED CLASS TABLES
+## 0x96960/0x96958 (TLewZaria) or 0x97a98/0x97a90 +
+## [obj+0xf6] := 10000 (TLewZariaB) - PR-185 items (1)/(3)
+## CLOSED/PART; AND PR-185's F2 SELF-CORRECTED: the input-
+## write tail is the 0x549f0 INPUT-APPLY VERB + the 0x50340
+## wrapper, as PR-106 already read it, NOT the 0x54910 motion
+## synth) (READING, NO PORT CODE, NO BEHAVIOUR CHANGE)
+
+- WHY. PR-185's Next specced the LION-flag/input-source
+  follow-up: (1) the flag family [obj+0x12a]/[0x12e]/[0x132]
+  and the 0x106..0x132 block as a LION STATE BLOCK joined to
+  the known mode enum; (2) the input-source identity above
+  the 0x54be6 write (verify PR-185 F2!); (3) the exact
+  per-level gate values (ZARIA's words ds:0xcef5c/0xcef60);
+  (4) the wrapped classes' names (not reached, carried);
+  (5) the id-13/15/21/23 deep arms (not reached, carried).
+  Method: the elf dword-scan of slot +0xcc over all 178
+  marker tables; byte-checks at the 0x50340 wrapper and the
+  PR-106 frame-loop sites; a modrm disp32 field-reference
+  census over [reg+0x106..0x132]; obj_range.sh reads of the
+  +0x90 signal verbs (0x96960's 0x1e250, 0x988ec's 0x245b0),
+  the id-17 arm 0x241e2, the provider 0x1e0a0 and its four
+  factory callers, the device-manager leg 0x4ac65 -> 0x58690,
+  and the 0x54910/0x549f0 function boundaries.
+  flag_input_evidence.py re-runs every count. Docs only.
+
+- FINDING 1, THE SIGNAL VERB +0x90 AND THE LION FLAG BLOCK
+  (PR-185 item (3) PART-CLOSED). All 178 tables have a
+  nonzero +0x90 (55 distinct targets) - every class answers
+  signals. Exactly TWO call sites dispatch it: 0x3edaf and
+  0x5357d - the latter IS the PR-183 selector/state pump:
+  `mov edi,[ebp+0x8]` (the SECOND object, [class+0x74] per
+  that law), `mov edx,esp`, `call [edi+0x90]` with the row
+  fetched via [ebp+0x5c]/[ebp+0x50] - so A STATE ROW CAN
+  RAISE A SIGNAL ON THE LINKED OBJECT. (The other dispatch,
+  0x3edaf, is in the 0x3ecxx family - body untraced,
+  counted.) THE ZARIA LION's verb 0x1e250 (byte-exact):
+  signal [edx] == 4 AND [obj+0x10e]*[obj+0x6d] > 0 -> call
+  0x53670; mode [obj+0x5c] == 0xa OR signal == 10 ->
+  [obj+0xad] -= 30 (ENERGY DRAIN -30 via signal 10!);
+  [obj+0x12a] != 0 -> OUT signal := 9, [ebx] := 0, flag
+  cleared; mode 9 AND live-key [obj+0x60] bit 2 ->
+  [obj+0x116] := 1; signals 0xb/0xc test/copy the gate
+  words ds:0xcef68/0xcef64 (the K_F4/K_F3 leg words -
+  signal passthrough re-arms key legs); mode->signal
+  passthrough tail. THE 0x988ec-family verb 0x245b0: a
+  one-shot latch guard [obj+0x12e] == 0 (set at 0x24691)
+  AND an arm guard [obj+0x12a] != 0, then reads an AUTHORED
+  SIGNAL LIST at [obj+0x136] {array [obj+0x136], count
+  [obj+0x136+8]}, 12-byte entries {x, y, ...}: each entry
+  passes a 0x5c320(0x21) region check and becomes a node
+  via the PR-106 ctor 0x53eb0 ONTO THE TRACKED PLAYER'S
+  [obj+0xd2] queue with node+4 := 4 (kind 4 - the PR-147
+  kind-4 contact node!) and node+0x1d := y, and CLEARS
+  [tracked+0x106] - which per the PR-106 law just read
+  ZEROES the player's next input block! Then a pending
+  [obj+0x132] -> broadcast id 19 token-filtered (edx =
+  ds:0xcec2c, ecx = 0, push 0) + [obj+0x132] := 0; OUT
+  mode := 0x16; call 0x50970. Flag setters/consumers now
+  pinned end to end: [obj+0x12a] := 1 by the 0x24170 id-18
+  arm (sender == 0 AND arg == 0, 0x2419d) - and id-17's
+  arm at 0x241e2 is a node+8 small-code dispatch: == 1 ->
+  0x241aa (mode NOT in {22,23} AND [obj+0x12a] != 0 ->
+  [obj+0x132] := 1), == 2 -> 0x241cd (mode-0x17 checks,
+  body remainder counted); [obj+0x132] := 1 also at
+  0x241c0; consumed by 0x245b0 and cleared at 0x246ce;
+  [obj+0x12e] set via the id-29 -> 0x32130 arm (PR-185
+  F3), guarded at 0x245f7 - and since 0x9d338 is the
+  death-double pairing of 0x988ec's family (PR-176 F3),
+  the flag block is SHARED ACROSS THE LIFE/DEATH CLASS PAIR
+  of one object: id 29 (death signal) latches [obj+0x12e]
+  and the authored-signal machinery stops re-firing. Field
+  census (modrm disp32, any form): [obj+0x12a] 60 refs,
+  [obj+0x12e] 38, [obj+0x132] 20, [obj+0x136] 8 - the
+  flag block 0x12a/0x12e/0x132 + the mode enum [obj+0x11a]
+  (PR-179 F5) + the queue flag [obj+0x106] (PR-104/106) +
+  [obj+0x116] together ARE the LION state block; this pass
+  connected the flag half. [obj+0x10e] (signal-4 scalar,
+  17 refs incl. the 0x28xxx decorators) producers counted
+  as an item. PORT NOTE: ZARIA.01 authored signal rows are
+  level content the port's state-row interpreter already
+  evaluates generically; the flag block is LION-object
+  bookkeeping the port's scripted level flow does not
+  emulate. NO RULE OBSERVABLE AT ZARIA.01 ROWS WITHOUT NEW
+  DATA -> no port change; the -30 energy-signal law is a
+  T5 lead (video-gated), item (6).
+
+- FINDING 2, THE INPUT SOURCE AND THE PR-185 F2
+  SELF-CORRECTION (item (4) CLOSED; PR-106 item (1)
+  EXTENDED). Re-verifying PR-185 F2 byte-by-byte: 0x54910
+  ENDS at 0x549e6 (ret) - the 0x54be6-0x54be9 write tail
+  belongs to 0x549f0, THE INPUT-APPLY VERB (entry 0x549f0
+  = 53 51 56; installed at slot +0xcc in 115 tables; the
+  0x54910 motion synth installs at OTHER slots, 118 of
+  them). THE LEDGER ALREADY KNEW THIS RIGHT (PR-106's
+  'THE GUARD'S PRODUCER, AT LAST' paragraph): the frame
+  loop reads the device block at 0x4ac65 (`lea edx,
+  [esp+0x1f0]; mov eax,0xcf400; call 0x58690`), copies it
+  12B to [esp+0x1e4] (0x4ae92-0x4aea0 = 0x4ab50), and
+  dispatches it to the TRACKED object's +0xcc (0x4aeca) -
+  the ONLY frame-loop input push (7 call [class+0xcc] sites
+  total: 0x27e1d/0x282a1/0x344c8/0x4010e/0x4110c/0x41c01
+  family self-pushes + 0x4aeca). 0x58690 (device manager
+  0xcf400): state gate [[dev]+0xb] == 2, driver array at
+  [dev+0xf], round-robin driver index [dev+0x2b], sample
+  sub-index [dev+0x2f] incremented mod the driver's count
+  [[drv]+0xc] (wraps at 0x586d4-0x586df), 3 dwords copied
+  from [[drv]+0] + index*0x10 - A SAMPLE RING per driver;
+  who CREATES/fills the driver records (the capture hook
+  behind playback) stays the PR-106 item (1) remainder.
+  AND: all 14 PR-185 controller tables install the WRAPPER
+  0x50340 at +0xcc (15 installs total - the 15th is
+  0x9a54c, a NON-controller class: its +0x8c = 0x27280,
+  +0x90 = 0x27170, near PR-179's 0x9a36c lineage -
+  identity counted as item (7)) - 0x50345 zeroes the block
+  when [obj+0x106] == 0 ('an object not switched on gets
+  NO input' - PR-106's correction 4 law), 0x50357 negates
+  dword[0] when [obj+0x11a] == 5 (PR-179's mode-5 =
+  MIRRORED CONTROLS), then tail-calls 0x549f0 (0x50369).
+  So the controller objects DO receive the input push -
+  through the wrapper - and [obj+0xa5..a8] := block[+8] is
+  the third block dword (PR-106 read '[block+8]' as 'the
+  block's own class table'; with the sample-ring reading it
+  is the device sample's third dword - buttons/pointer,
+  naming open, item (8)). The getter's 10-leg chain and
+  queue gate (PR-176/185) run on THAT word. PR-185 F2's
+  'motion-synth tail' attribution is CORRECTED; the data-
+  flow conclusion (hardware word -> [obj+0xa5] every frame
+  for the tracked object, per family-push for others)
+  STANDS, and the port verdict is unchanged: the port's
+  SDL-keyboard -> ll_play_keys channel lands at the same
+  key-bit layer the engine synthesizes from [obj+0xba/
+  0xbe/0xa5] at the 0x54910 legs (PR-173 F4).
+
+- FINDING 3, THE LION-FACTORY PROVIDER AND THE ZARIA GATE
+  VALUES (item (1) CLOSED for ZARIA.01; PR-176 item (5)
+  CLOSED AS A LAW). The function after the `ret` at 0x1e092
+  (0x1e0a0-0x1e0e9, byte-exact): push edx; `call 0x500b0`
+  (the PR-1xx object allocator path); `[obj+0x8] :=
+  0x97970` (the BASE lion class = the PR-185 twelve's
+  default), `[obj+0xc] := 0x97968` (the PAIRED table -
+  always primary-8: 0x96960/0x96958, 0x97a98/0x97a90 -
+  the class-record header layout PR-177's multi-subtable
+  finding explains, exact role counted item (9));
+  `[obj+0x12a] := 0` (flag block init - joins F1),
+  `[obj+0xb6] &= ~4`, `mov edx,1`, `[obj+0xad] := 500`
+  (THIRD energy writer after 0x54e00's 100-reset and
+  0x54be9-era uses - PR-179 F4 EXTENDED: INITIAL energy is
+  provider-authored 500, respawn 100; whether the HUD
+  shows 500 at ZARIA start is video-gated, item (10)),
+  `ds:0xcef5c := edx`, `ds:0xcef60 := edx` (THE K_F1/
+  K_F2 LEG WORDS = HARD-CODED 1), pop edx, ret. ITS FOUR
+  CALLERS are exactly the PR-176-name-match factories:
+  0x1ff10 (TLewZaria arm, class-match via 0x76a69 at the
+  PR-176 exemplar 0x1fef4) -> override [obj+0x8/0xc] :=
+  0x96960/0x96958; 0x1ff44 (name == 'TLewZariaB' ->
+  0x97a98/0x97a90 PLUS `[obj+0xf6] := 0x2710` - the
+  0x45200 COUNT field authored 10000!); 0x20490 -> 0x96960
+  unconditionally; 0x22ee0 -> 0x97a98 + [f6] := 10000.
+  So THE PROVIDER IS THE PLAYER-LION CREATOR: it sets
+  energy, clears the flag block, and authors the K_F1/K_F2
+  gate words for EVERY level built on it; the factory then
+  swaps in the level-specific lion class by name. THE
+  GATE-VALUE QUESTION IS ANSWERED IN KIND: values are
+  CODE-AUTHORED immediates/args in provider tails (ZARIA:
+  1/1 on; the 0x50162/0x2dfe9/0x39e33/0x3b4dc sites
+  belong to other levels' providers - per-level
+  enumeration stays counted, item (11)). PR-185 F1's
+  'ZARIA.01 is 0x96960' CONFIRMED, mechanism completed.
+
+- OPEN ITEMS COUNTED (11 new, several small). (1) PR-185
+  items (2)/(5) remainders (wrapped-class names; id-13/15/
+  21/23 deep arms) carried. (2) The 0x3edaf +0x90 dispatch
+  family body. (3) The id-17 ==2 arm 0x241cd body
+  remainder; the id-19 consumer law details (0x365f0);
+  [obj+0x10e] producers; the 0xb/0xc passthrough details.
+  (4) Who creates/fills the device-manager driver records
+  (PR-106 item (1) remainder - the capture hook). (5) The
+  0x106..0x132 block's REMAINING fields' producers
+  ([obj+0x116] beyond mode 9, [obj+0x118]/[0x120]/[0x124]
+  region). (6) The -30 energy signal + the 500/100
+  energy-init question: video-gated, NOT port-changed.
+  (7) The 15th wrapper class 0x9a54c identity. (8) The
+  device sample's third dword: buttons vs pointer (naming
+  only - the getter leg semantics already known). (9) The
+  [obj+0xc] = class-record header exact layout. (10) HUD
+  energy at level start (video). (11) Per-level gate-word
+  enumeration for the non-ZARIA providers. CLOSED: PR-185
+  item (1) (ZARIA answered), PR-185 item (4) (input source
+  = device sample block + wrapper chain). PART-CLOSED:
+  PR-185 item (3) (flag block connected end to end except
+  the remainders above), PR-106 item (1) (sample-ring law;
+  capture hook stays), PR-176 item (5) (values are code-
+  authored - enumeration stays), PR-179 F4 (energy-init
+  500). EXTENDED (1 correction bracket): PR-185 F2's
+  function attribution. CARRIED unchanged: the wrapped
+  classes' names; id-13/15/21/23 arms; the relation-helper
+  BODIES; the class-byte map; 0x45380/0x455a0; the energy
+  class-range rule; the 0x2c670 placement; [rec+4]/
+  ds:0xcec70; the +0x240/+0x2cc dispatch; the token->
+  family map; the id-9 FEED sender; targeted-arm bodies;
+  byte-form bit-numbering; the id-25 pair pools; the
+  player-side row seek (frames); the ratio law (video);
+  the other +0xcc drivers' bodies; the state-copy helper;
+  [obj+0xb6] bit-2; ds:0xcf2c8; the CFG windows; +0x54
+  hooks; 0x550c0; the 0x55130 tail; the +0x4c/+0x1c
+  recount; the 73 dead-0x54910 tables; the +0xa0 oddities;
+  everything else in the ledger's carried list.
+
+- GATES. Docs-only reading PR (PR-138..185 precedent): no
+  port file touched; build state = the OWNER GATE (rule 8)
+  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
+  SKIPs) - only docs moved since. CI truth at this
+  record's time: PR-185's docs run 44563439495 = SUCCESS on
+  6496cd4; the chain (PR-184 44560356006, PR-183
+  44557634130, PR-182 44554963180, PR-181 44553528506)
+  SUCCESS unchanged. This docs push queues its own run.
+  Added .md lines <= 79 cols; over-79 baselines UNCHANGED
+  (NEXT_STEPS 71, HANDOFF 71); no game data or frames in
+  git (scripts under /tmp/opencode/pr186/); .github/
+  workflows/* untouched; the image is unchanged.
+
+- EVIDENCE. flag_input_evidence.py (every count/byte: all
+  14 controller +cc = 0x50340 True; 0x50340 installs 15
+  incl. the non-+cc-none extras (none at other slots);
+  0x549f0 installs 115; 0x54910 installs 118 and its ret
+  at 0x549e6; 0x9a54c +0x8c = 0x27280 / +0x90 = 0x27170;
+  the wrapper bytes [obj+0x106] load / [obj+0x11a]==5 cmp /
+  tail call all True; the frame-loop 0x4ae92/0x4aeca/
+  0x4ac65 bytes True; 0x5869c state-2 gate True + the ring
+  writes 0x586c0/0x586d5/0x586dc True; the 7 +0xcc call
+  sites; rel callers of 0x1e0a0 = [0x1ff10,0x1ff44,0x20490,
+  0x22ee0]; provider bytes default-class/flag-clear/b6-mask/
+  edx=1/energy-500/gate-writes all True; the four factory
+  override bytes + [f6] := 0x2710 at 0x1ff57/0x22ef3 True;
+  +0x90 nonzero in all 178 tables, 55 distinct targets,
+  0x1e250 only in 0x96960, 0x245b0 only in 0x988ec, call
+  sites [0x3edaf, 0x5357d]; field census [0x12a] 60 /
+  [0x12e] 38 / [0x132] 20 / [0x136] 8; the flag setter/
+  guard/clearer bytes at 0x2419d/0x241c0/0x245f7/0x24605/
+  0x246ce/0x1e288/0x1e294 all True; the id-17 arm bytes at
+  0x241e2 True; 0x54e24 reset-zero byte True; 0x549f0
+  entry bytes 53 51 56 True). obj_range.sh (the whole
+  reads: 0x1ff00-0x1ff60, 0x20480-0x204c0, 0x22ed8-0x22f10,
+  0x1e0a0-0x1e0d5 (provider), 0x1e250-0x1e2e0,
+  0x245e0-0x246e0, 0x241e2-0x24210, 0x53550-0x53590,
+  0x54910-0x549e6, 0x549f0-0x54a50, 0x54ae0-0x54c00
+  (the +0xcc verb body), 0x50340-0x503d0 (the wrapper),
+  0x4ae00-0x4ae95, 0x4a8c0-0x4a910, 0x58690-0x58700,
+  0x4ab50-0x4ab90, 0x2b690-0x2b6c0, 0x2b800-0x2b860,
+  0x576e0-0x57720; table slot scans by elf dword-scan).
+  Ledger: records re-spliced from HEAD (census: HEAD
+  carries PR-150..PR-185 (36 records) PLUS the four OWNER
+  2026-11-19 records, last carrier); 7 brackets (PR-185
+  F2 CORRECTED; PR-185 items (1)/(3)/(4); PR-106 item (1)
+  EXTENDED; PR-179 F4 EXTENDED; PR-176 item (5) CLOSED AS
+  LAW).
 
 ## Deferred big items (deliberately out of scope so far)
 

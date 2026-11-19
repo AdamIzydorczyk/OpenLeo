@@ -4614,6 +4614,78 @@ writer as its open items.
      Next -> PR-186 = the LION-flag/input-source follow-up.
      Full record: PR-185 section of NEXT_STEPS.md (scratch
      /tmp/opencode/pr185/).
+   - PR-186 (READING; no port code, no behaviour change):
+     THE LION FLAG BLOCK IS A SIGNAL-ROUTING STATE MACHINE
+     AND THE INPUT BOTTOM IS THE DEVICE-MANAGER SAMPLE
+     RING. THE SIGNAL VERB +0x90: every class installs it
+     (178/178, 55 targets) but ONLY 0x3edaf and the state
+     pump 0x5357d dispatch it - a state row can raise a
+     signal on the LINKED object ([class+0x74], PR-183's
+     selector law). ZARIA's verb 0x1e250: signal 4 gated by
+     [obj+0x10e]*[obj+0x6d] -> 0x53670; signal 10/mode 0xa
+     -> ENERGY [obj+0xad] -= 30; flag [obj+0x12a] ->
+     out-signal 9 + self-clear; mode 9 + live-key bit 2 ->
+     [obj+0x116] := 1; signals 0xb/0xc <-> the K_F4/K_F3
+     gate words. The 0x988ec-family verb 0x245b0: latch
+     [obj+0x12e] + arm [obj+0x12a] guards, then reads an
+     AUTHORED SIGNAL LIST [obj+0x136]{array,count@[+8]},
+     12-byte {x,y} entries -> 0x5c320(0x21) check -> kind-4
+     nodes via 0x53eb0 ONTO THE PLAYER'S [obj+0xd2] queue
+     (node+0x1d := y) + clears [tracked+0x106] (= zeroes
+     the player's next input block, PR-106 law); pending
+     [obj+0x132] -> broadcast id 19 (edx = ds:0xcec2c) then
+     clear; out-mode := 0x16. Flag chain pinned end to end:
+     id-18 (sender=arg=0) sets [obj+0x12a] (0x2419d);
+     id-17's arm 0x241e2 dispatches node+8: ==1 -> mode-
+     not-{22,23}+armed -> [obj+0x132] := 1, ==2 -> 0x241cd
+     (body counted); id-29 latches [obj+0x12e] (PR-185) -
+     since 0x9d338 is 0x988ec's death-double, THE FLAG
+     BLOCK IS SHARED ACROSS THE LIFE/DEATH CLASS PAIR of
+     one object: death latches off the authored-signal
+     machinery. Census: [obj+0x12a] 60 refs, [0x12e] 38,
+     [0x132] 20, [0x136] 8; block 0x106-0x132 + mode enum
+     (PR-179) + queue flag (PR-104/106) = THE LION STATE
+     BLOCK, now connected. PR-185 F2 SELF-CORRECTED (1
+     bracket): the input-write tail 0x54be6-0x54be9 belongs
+     to the INPUT-APPLY VERB 0x549f0 (+0xcc, 115 tables) -
+     NOT the 0x54910 motion synth, which ENDS at 0x549e6
+     (118 installs elsewhere) - as PR-106 already read.
+     INPUT BOTTOM: the frame loop reads the device block
+     (0x4ac65 `mov eax,0xcf400; call 0x58690`) - device
+     manager 0xcf400: state gate [+0xb]==2, driver array
+     [+0xf], ring indices [+0x2b]/[+0x2f] mod the driver's
+     count [[drv]+0xc], samples from [[drv]+0]+idx*0x10 -
+     SAMPLE RINGS (capture hook = PR-106 item (1)
+     remainder); all 14 controller tables install the
+     WRAPPER 0x50340 at +0xcc (15th install: NON-controller
+     0x9a54c, its getter slot 0x27280 - identity counted):
+     [obj+0x106]==0 -> input ZEROED (not-switched-on = no
+     input), [obj+0x11a]==5 -> dx NEGATED (mode 5 =
+     mirrored controls), then tail-call 0x549f0. PORT
+     VERDICT unchanged: the port's keyboard channel lands
+     at the same key-bit layer. PR-185 item (4) CLOSED
+     (input source = the device sample block; no input
+     object). PR-185 item (1) CLOSED + PR-176 item (5)
+     CLOSED AS LAW: the gate values are CODE-AUTHORED in
+     provider tails - the provider after `ret` at 0x1e092
+     (0x1e0a0) IS THE PLAYER-LION CREATOR: call 0x500b0,
+     class := PAIRED TABLES 0x97970/0x97968 (always
+     primary/primary-8), [obj+0x12a] := 0, [obj+0xb6] &=
+     ~4, ENERGY [obj+0xad] := 500 (THIRD writer - init
+     500 vs respawn 100, video-gated check), ds:0xcef5c/
+     0xcef60 := 1 HARD-CODED (ZARIA's K_F1/K_F2 legs ON);
+     its 4 callers are the PR-176 name-match factories
+     overriding [obj+0x8/0xc] := 0x96960/0x96958
+     (TLewZaria) or 0x97a98/0x97a90 + [obj+0xf6] := 10000
+     (TLewZariaB). PR-185 F1's 0x96960 confirmed,
+     mechanism completed. 11 new items (0x9a54c; the
+     [obj+0xc] header law; the capture hook; the 0x3edaf
+     dispatch; id-17/19 remainders; flag-block field
+     producers; the energy video checks; per-level gate
+     enumeration...). Next -> PR-187 = the hardware-bottom/
+     controller-family pass (0x9a54c, the class-record
+     header, the capture hook). Full record: PR-186 section
+     of NEXT_STEPS.md (scratch /tmp/opencode/pr186/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -7419,6 +7491,52 @@ names; the id-13/15/21/23 arms); PR-176 items (2)/(4) and
 PR-184 item (1) closed; PR-176 (5), PR-177 (4), PR-184 (2)
 part-closed.
 Gates: docs-only (PR-138..184 precedent); added lines <=
+79; baselines 71/71 held; the Windows half stays in the end
+pass (rule 8).
+
+STATUS after PR-186 (the LION-flag/input-bottom pass; docs
+reading - ZERO port lines changed, the ZARIA.01 output image
+is byte-identical to PR-185's; build state = the OWNER GATE
+(rule 8) measured on 7b4d736, only docs moved since).
+
+What this pass GROUNDS for T5:
+(1) THE INPUT MODEL IS ENGINE-SETTLED AT THE BOTTOM NOW:
+    device-manager sample rings (0xcf400/0x58690) -> frame
+    block -> the +0xcc INPUT-APPLY chain, with the LION
+    wrapper 0x50340 gating input OFF per object
+    ([obj+0x106] == 0, the PR-104/106 re-arm field) and
+    mirroring controls in mode 5 ([obj+0x11a] == 5). The
+    port's keyboard->ll_play_keys channel remains equivalent
+    at the key-bit layer. NO port change.
+(2) THE LION STATE BLOCK (mode [obj+0x11a] + flags [obj+
+    0x12a/0x12e/0x132] + queue flag [obj+0x106] +
+    [obj+0x116] + authored signal list [obj+0x136]) IS NOW
+    A CONNECTED MACHINE: state rows raise signals via the
+    +0x90 verb on the LINKED object; signals 9/10/0xb/0xc
+    and modes 9/0xa have read semantics; the authored list
+    pushes kind-4 nodes onto the PLAYER's queue (the PR-147
+    kind-4 contact node now has a PRODUCER) and zeroes the
+    player's input via [tracked+0x106]. T5's LION rows can
+    now be read against this machine.
+(3) T5 LEADS FOR THE ENERGY LAW (both video-gated, nothing
+    changed): signal 10/mode 0xa drains energy by 30, and
+    the lion FACTORY authors initial energy 500 while
+    0x54e00 resets to 100 (third writer; PR-179 F4
+    extended). The start-of-level HUD number decides.
+(4) LIFE/DEATH CLASS PAIRS share one object (flag block
+    survives the 0x988ec -> 0x9d338 class switch) - the
+    death-double law now has STATE semantics, not just
+    table pairing.
+SELF-CORRECTION SHIPPED WITH DATA: 1 bracket fixes PR-185
+F2's function attribution (input-write tail = the 0x549f0
+input-apply verb + the 0x50340 wrapper, as PR-106 already
+knew; 0x54910 ends at 0x549e6) - the data-flow conclusion
+and the port verdict STAND. Closures: PR-185 items (1)/
+(4); PR-176 item (5) as a law; parts of PR-185 item (3),
+PR-106 item (1), PR-179 F4. 11 new items counted (the
+non-controller wrapper class 0x9a54c; the class-record
+header pair law; the capture hook; ...).
+Gates: docs-only (PR-138..185 precedent); added lines <=
 79; baselines 71/71 held; the Windows half stays in the end
 pass (rule 8).
 
