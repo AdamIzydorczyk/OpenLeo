@@ -3794,6 +3794,67 @@ writer as its open items.
      unchanged; ledger census run (HEAD 643f13a = last carr-
      ier). Full record: the PR-170 section of NEXT_STEPS.md
      (scratch /tmp/opencode/pr170/).
+   - PR-171 (READING + LEDGER CORRECTION, no code - the PR-
+     138..170 precedent): THE KEY-BIT MAP IS COMPLETE AND A
+     TREASURE OF ROLES FALLS. (1) THE BUILDER ENTRY IS 0x54912
+     (ninth member of the one-byte listing trap: PR-168's
+     "0x54900" was interior - proven at byte level: padding +
+     pop/ret at 0x54905, fresh prologue at 0x54912). Full
+     bit map: [obj+0xa5] state-flag bits 0x1/0x10/0x20 ->
+     key[+4]|0x80 / key[+5]|0x01 / key[+6]|0x20; if [obj+
+     0xba] != 0: `test BYTE [obj+0xb6],0x10; sete al; add
+     al,0x23` -> set bit (35 or 36 mod 32) of the key dword
+     at (idx/32)*4 = key[+4]|0x08 or |0x10 (the "32-bucket
+     bitmap loop" is this ONE-index idiom); the param-sign
+     bits (PR-168 F3) run ONLY on the [obj+0xba]==0 path ->
+     key+4|0x20/|0x40 (both when zero: key+4 = 0x60). (2)
+     0x54860 (the 99-table +0x78 value) IS NOT A PROVIDER -
+     a key-CONSUMING counter-decay verb: reads the caller's
+     key bytes, and when [key+2]&4 gates and [key]&0x10 +
+     record-flag&0x10, decays [obj+0xc6] by -2*[obj+0xc6]/3
+     (idiv 3 at 0x5489f); other key bits reset [obj+0xc2]/
+     [obj+0xc6]. Those counters are SET/ADDed/ZEROED by the
+     CONTROL-MESSAGE verb +0x10 = 0x54560 (87/155 tables;
+     switch [block+4]: id<=5 sets facing [obj+0x6d]/[obj+
+     0x71]; arms set/add/zero the counters, OR status bits
+     [obj+0xb6]|4/8) - the loop closes: messages load, the
+     key verb decays. WHO BUILDS KEYS FOR THOSE 99 CLASSES:
+     0x54912 is referenced NOWHERE (triple census: no table
+     slot, no call, no branch) - new named mystery + top
+     lead. (3) THE +0x10 LEAD OF PR-170 IS DEAD BUT PAID:
+     the 0x54eb2 caller sends msg {0,0x1b,0,0} to SELF then
+     a guarded RE-ANCHOR: pos := arg - [[obj+0xd6],[obj+
+     0xd6+4]] + [[obj+0x89],[obj+0xda]] - the snapshot pair
+     is the anchor origin (ride law; PR-170 item (2) first
+     half answered); [obj+0xb6] = a named STATUS-BYTE. (4)
+     THE CLAMP FAMILY = A DEADZONE POSITION CONTROLLER (PR-
+     168 item 3 closed): [pb+4] mode (1=x,4=y), threshold
+     [pb+0xc] vs facing setne*15 (the flip-bit test 0x54a24
+     NAMED), snapshot dword +-5 window vs authored param ->
+     force 10/-10/0 per axis; flag bit-4 update law at
+     0x54bc1. (5) DECISIVE NEGATIVE: 0x600000/0x800000 occur
+     ONLY as byte-table misalignment artifacts (0xa8a86 char
+     map, 0x7c404/0x7c42d shift patterns, 0xa9aaa byte pair
+     table) - NO code immediate uses them: PR-161's CHECK_LN/
+     BASE_LN constants need re-derivation (labeled hypothesis:
+     they are key-BYTE sequences 0x60/0x80 in a hex reading -
+     exactly F1's bits). (6) THE LOAD POOL PATH ENDS EMPTY:
+     heads array alloc'd via 0x76a64 + stored at [poolObj+
+     0x58] (0x4cdf5-0x4cdf8 - an awk range bug had hidden it
+     from earlier passes), zero-filled, [poolObj+0x44] :=
+     count; [c+0x40] increments PER NAME GROUP (slot counter,
+     PR-166 F2 refined); insertion is runtime-only; chain-
+     store item stays open (third re-point: +0x10 minority
+     bodies, unread msg arms, the family-B producer hunt).
+     0x52070 read + RULED OUT (ENTER preamble, not an inse-
+     rt). 2 new items (family-B producer/reachability; msg-
+     id map + [obj+0x102] reader); CLOSED: PR-168 items (2)
+     (map complete) and (3) (deadzone law); PR-170 item (2)
+     half. 5 brackets. ZARIA.01 output: UNCHANGED (docs-
+     only). Gates: added lines <= 79; baselines held (71/
+     72); image unchanged; ledger census run (HEAD 0ce1036 =
+     last carrier). Full record: the PR-171 section of
+     NEXT_STEPS.md (scratch /tmp/opencode/pr171/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -5985,6 +6046,53 @@ vs [obj+0x89]/[obj+0xda]) and the +0x102 30-tick timeout (a
 CONTACT-work lead). 1 bracket: PR-169's manager-sentence cor-
 rected. ZARIA.01 output: UNCHANGED (docs-only). Baselines
 71/72 held; census run; no code built.
+
+STATUS after PR-171 (the key law is complete at the bit level,
+and three roles fall): THE MAIN KEY BUILDER IS AT 0x54912
+(ninth one-byte-trap member - PR-168's "0x54900" was inte-
+rior; byte-level proof: padding+ret at 0x54905, fresh pro-
+logue at 0x54912). COMPLETE BIT MAP: [obj+0xa5] state-flag
+bits -> key[+4]|0x80, key[+5]|0x01, key[+6]|0x20; nonzero
+motion param [obj+0xba] -> key[+4]|0x08 or |0x10 selected by
+status bit [obj+0xb6]&0x10 (the `sete; add al,0x23; idiv 32`
+one-index "bitmap" idiom); param-sign bits key+4|0x20/|0x40
+ONLY when [obj+0xba]==0 (key+4 = 0x60 exactly at zero). THE
+99-TABLE +0x78 VALUE 0x54860 IS A KEY CONSUMER, NOT A PRO-
+VIDER: it decays [obj+0xc6] by -2/3 (idiv) when the walked
+key bytes say so - and those counters [obj+0xc2]/[obj+0xc6]
+are SET/ADDED/ZEROED by the CONTROL-MESSAGE verb +0x10 =
+0x54560 (87/155 tables; switch on [block+4] id: facing
+writes id<=5, counter arms, status-bit ORs [obj+0xb6]|4/8):
+messages load counters, the key walk decays them - one closed
+loop. PR-170's +0x10 chain-store lead is DEAD but paid: its
+0x54eb2 caller sends msg {0,0x1b,0,0} then RE-ANCHORS posi-
+tion from the [obj+0xd6] snapshot pair (pos := arg - snapshot
++ [obj+0x89]/[obj+0xda] - the ride/re-anchor law; PR-170
+item (2) first half ANSWERED). THE "CLAMP" FAMILY IS A DEAD-
+ZONE POSITION CONTROLLER (PR-168 item 3 CLOSED): param mode
+[pb+4] (1=x/4=y), threshold [pb+0xc] vs facing setne*15 -
+the long-carried flip-bit test 0x54a24 is now NAMED - and a
++-5 window vs the snapshot forces the motion params to 10/-
+10/0. DECISIVE NEGATIVE: 0x600000/0x800000 exist ONLY as
+byte-table misalignment artifacts - no code immediate uses
+them: PR-161's CHECK_LN/BASE_LN "constants" MUST be re-de-
+rived (labeled hypothesis: key-BYTE sequences 0x60/0x80 in a
+hex-dump reading = exactly F1's bit map). NEW MYSTERY, TOP
+LEAD: the 99 family-B classes have NO statically-referenced
+key builder - 0x54912 has zero table slots, zero calls, zero
+branches (triple census). POOL LOAD PATH READ TO ITS END AND
+ENDS EMPTY: heads array allocated+zeroed at pool-slot assign-
+ment ([poolObj+0x58] = 0x76a64 buffer, the 0x4cdf8 store
+CONFIRMED as alloc - an awk range had hidden it), [poolObj+
+0x44] := count, [c+0x40] increments per name group (SLOT
+COUNTER - PR-166 F2 refined); runtime insert remains the one
+open chain-store item (third re-point: +0x10 minority bodies
+0x3dcb0 x27, unread msg arms 0x5460e/0x5463a, the family-B
+producer hunt). 0x52070 RULED OUT (ENTER preamble). 2 new
+items (family-B reachability; msg-id map + [obj+0x102] read-
+er); CLOSED with brackets: PR-168 items (2) and (3); PR-170
+item (2) half; 5 brackets total. ZARIA.01 output: UNCHANGED
+(docs-only). Baselines 71/72 held; census run; no code built.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

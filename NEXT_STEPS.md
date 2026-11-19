@@ -15733,50 +15733,57 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-171 IS THE KEY-BIT MAP + VERB +0x10 PASS (merges PR-168
-  item 2 with PR-170's re-pointed chain-store lead - they sit
-  in the SAME code family): read the full 0x54860 key-provi-
-  der family (99 tables) - the 32-bucket bitmap loop + the
-  param-sign bits 0x20/0x40 at key+4 are read, the REST of
-  the map is not; and the controller/obj verb +0x10 bodies
-  (the 0x54ed6 call passes a 4-dword arg block, values 0/0x1b
-  - decode them; the +0x10 slot values ARE the remaining
-  chain-maintenance candidates per PR-170 F3). Output: the
-  complete row-key bit law (STILL where the 0x600000/0x800000
-  CHECK_LN/BASE_LN constants must finally appear - if they do
-  not, PR-161's constants get re-derived) AND possibly the
-  pool chain insert. Also in scope: the [obj+0x102] 30-tick
-  field + [obj+0xd6] snapshot lifecycles (PR-170 item 2 - the
-  +0x102 timeout is a contact-work lead) and the 0x54a24
-  [paramblk+0xc]-vs-facing comparison (the flip-bit lead,
-  PR-168 F3).
-- THEN the BY_TIME equivalence audit (PR-168 item 1, narrow):
-  does the port's BY_TIME row-gating match the engine's
-  constant-100/tick accumulator feed for shipped rows (the
-  port's fixtures literally show '1,100/2,100' rows under
-  control=BY_TIME - one honest comparison, then a labeled
-  divergence or a pinned test). DO NOT touch the port's fi
-  gate (still data-blocked; the gate is PURELY fi-vs-state
-  parameter selection).
-- THEN the pool-name decode (PR-166 item 2, negatives banked:
-  not one-XOR, pair-like, position-independent, adjacent to a
-  fully readable name table): pair-substitution against the
-  readable neighborhood names; a solved name lights the
-  name-keyed path (0x4dcc0/0x4df10 contract, PR-166 item 3).
-- THEN carried reads (unchanged): the +0x60 conditional mino-
-  rity (PR-169 item 3); the [obj+0x2c] +0x08-product contract
-  remainder (PR-169 item 2 half); the vtable+0-word OR 4/8
-  row-end CONSUMER (PR-164 item 1 = ordering question (a));
-  the flip-bit owner (lead at 0x54a24); [obj+0x99] reader
-  semantics (PR-167 item 5); the base table's own +0x1c/+0x20
-  overrides 0x52c70/0x52a00 (PR-167 item 2); the 0xa2e9c/
-  0xa2ed4 view selection (PR-167 item 3); 0x53520 arg plumb-
-  ing + [obj+0x95] reader; the 31-vs-24 +0x14-slot delta;
-  record verbs +0x2c/+0x30 bodies + the second-view slots
-  0x559c0/0x45800; the 0x4fef0 pool prelude side-effects;
-  the walk return-value encoding (PR-161 item 1); 0x9c05c
-  identity; 0x524xx rest; 0x446de; 0x57d30 modes; FLAG +0x4c
-  getter.
+- PR-172 IS THE BY_TIME EQUIVALENCE AUDIT (PR-168 item 1,
+  narrow, docs or code): does the port's BY_TIME row-gating
+  match the engine's constant-100/tick accumulator feed for
+  shipped rows (the port's fixtures literally show '1,100/
+  2,100' rows under control=BY_TIME - one honest comparison,
+  then a labeled divergence or a pinned test + mutation con-
+  trols if the port changes). PR-171 F1/F3 help: the engine
+  also DECAYS counters [obj+0xc2]/[obj+0xc6] (/3 per key
+  hit) and re-anchors positions via the [obj+0xd6] snapshot
+  - check whether the port's row-step model consumes any
+  equivalent counter. DO NOT touch the port's fi gate (still
+  data-blocked; PURELY fi-vs-state parameter selection).
+- THEN the KEY-LITERAL RE-DERIVATION (concrete now): PR-
+  171 F5 proved the 0x600000/0x800000 CHECK_LN/BASE_LN
+  "constants" do not exist in code - re-derive PR-161's key
+  law against the REAL bit map (F1: [obj+0xa5] flag bits ->
+  key+4|0x80/key+5|0x01/key+6|0x20; motion-param status ->
+  key+4|0x08/0x10; param sign -> key+4|0x20/0x40 only when
+  [obj+0xba]==0) and the authored row data; the labeled hy-
+  pothesis (0x60/0x80 = key+4 BYTES in a hex-dump reading)
+  should be tested first. The port's 15-byte key model
+  (ll_level.c) gets audited against this map in the same
+  pass; any divergence = labeled item or a code PR.
+- THEN the FAMILY-B KEY PRODUCER + MESSAGE-ID MAP (PR-171
+  items 1-2): the 99 classes whose +0x78 CONSUMES the key
+  have NO statically-referenced builder (0x54912: zero table
+  slots/calls/branches) - hunt the reachability (runtime
+  table patching? computed call?) and read the +0x10 minor-
+  ity bodies (0x3dcb0 x27, 0x3d8f0, 0x50d60) + the unread
+  message arms (0x5460e 0x1b, 0x5463a default). This likely
+  carries the CHAIN-STORE answer (third re-point: pools
+  start EMPTY at load; heads alloc'd+zeroed at slot assign-
+  ment, [c+0x40] is a slot counter; runtime insert only).
+  Also: the [obj+0x102] 30-tick clear/reader (contact lead),
+  the [obj+0xa5] producer contract remainder.
+- THEN the pool-name decode (carried, PR-166 item 2, nega-
+  tives banked) and the name-keyed path (0x4dcc0/0x4df10,
+  PR-166 item 3).
+- THEN carried reads (unchanged): the +0x60 conditional mi-
+  nority (PR-169 item 3); the vtable+0-word OR 4/8 row-end
+  CONSUMER (PR-164 item 1); the flip-bit owner (NOW NAMED:
+  the 0x54a24 deadzone test - confirm its consumers before
+  closing the item); [obj+0x99] reader semantics (PR-167
+  item 5); the base table's +0x1c/+0x20 overrides (PR-167
+  item 2); the 0xa2e9c/0xa2ed4 view selection (PR-167 item
+  3); 0x53520 arg plumbing + [obj+0x95] reader; the 31-vs-
+  24 +0x14-slot delta; record verbs +0x2c/+0x30 bodies +
+  the second-view slots 0x559c0/0x45800; the 0x4fef0 pool
+  prelude; the walk return-value encoding (PR-161 item 1);
+  0x9c05c identity; 0x524xx rest; 0x446de; 0x57d30 modes;
+  FLAG +0x4c getter.
 - RIDES THE NEXT CODE PR (not a read): the three port
   comments citing the applier as 0x535a2 get the entry
   correction to 0x535a0 (ll_level.c:802,823, ll_play.c:209)
@@ -15785,8 +15792,8 @@ no port behaviour change)
   records from the LAST revision that carried them. Census
   recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
   `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD 643f13a carries all twenty (PR-150..
-  PR-169); HEAD is the last carrier.
+  pass's census: HEAD 0ce1036 carries all twenty-one (PR-
+  150..PR-170); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -20128,8 +20135,17 @@ close bracket)
 - FINDING 3, A MAIN KEY-BUILDER FAMILY IS FOUND - AND THE
   GUARD SIGN BECOMES KEY BITS. PR-167's +0x78 variant 0x54860
   (99 class tables - paired 1:1 with the +0x9c gate 0x549f0)
-  is the other main key-provider; its bodies include the one
-  read at 0x54900-0x549e6: a 32-bucket bitmap loop (`mov
+  is the other main key-provider [ROLE CORRECTED BY PR-171
+  F2: NOT a provider - a key-CONSUMING counter-DECAY verb
+  (the [obj+0xc2]/[obj+0xc6] pair set by control messages,
+  /3-decayed when the walked key bytes gate; for these 99
+  classes the key producer is referenced NOWHERE - the 0x54912
+  triple census negative: the standing family-B item)]; its
+  bodies include the one read at 0x54900-0x549e6 [ENTRY IG-
+  NORED BY PR-171 F1: the builder entry is 0x54912 (ninth
+  member of the one-byte listing-trap class) and its sign-
+  bit tail runs only on the [obj+0xba]==0 path]: a 32-bucket
+  bitmap loop (`mov
   ebx,0x20; idiv` + `shl/or` into [esp+edi]), then `cmp
   [obj+0xbe],0; jge -> or BYTE [key+4],0x20` and `cmp [obj+
   0xbe],0; jle -> or BYTE [key+4],0x40` - THE PARAMETER
@@ -20163,14 +20179,21 @@ close bracket)
   ZARIA.01 rows (the port's own fixtures show rows like
   '1,100/2,100' under control=BY_TIME - the '100' there vs
   the engine's constant 100 deserves one honest comparison
-  pass). (2) THE FULL KEY-BIT MAP of 0x54900 (the 32-bucket
-  bitmap loop + which other fields become key bits; this is
-  STILL where the 0x600000/0x800000 CHECK_LN/BASE_LN
-  constants must finally appear). (3) The param-clamp writer
+  pass). (2) THE FULL KEY-BIT MAP of 0x54900 [CLOSED BY
+  PR-171 F1: map COMPLETE - builder entry 0x54912, full bit
+  law in the PR-171 record; and PR-171 F5 proves the
+  0x600000/0x800000 CHECK_LN/BASE_LN constants DO NOT EXIST
+  in code (byte-table misalignment artifacts only) - the re-
+  derivation of PR-161's literals survives as the correction
+  item]. (3) The param-clamp writer
   family's full context (0x54a02-0x54b90: which params clamp
   to +-10/0 and why 5 is added at 0x54a4e) + the
   [paramblk+0xc] vs facing comparison semantics at 0x54a24
-  (the flip-bit lead). (4) The remaining +0x9c gate bodies
+  (the flip-bit lead) [CLOSED BY PR-171 F4: a DEADZONE PO-
+  SITION CONTROLLER - [pb+4] mode 1=x/4=y, threshold
+  [pb+0xc] vs the facing setne*15 (the flip-bit test NAMED),
+  snapshot dword +-5 window vs the authored param -> force
+  10/-10/0 per axis]. (4) The remaining +0x9c gate bodies
   (0x507e0 etc. per-class variants). CARRIED: PR-167 items
   (1)-(5) unchanged (chain store, base +0x1c override, view
   selection, +0x60 minority, [obj+0x99] readers); PR-166
@@ -20465,11 +20488,25 @@ wording is implicitly corrected)
   +0x10 bodies) and the generic controller ctor 0x1e0a0 are
   the remaining structural candidates; the walk's chain fields
   (+0x58 head slot, +0x34 next) are pinned, only the writer
-  is missing. (2) The [obj+0xd6] pair + [obj+0x102] 30-tick
+  is missing. [CORRECTED + ADVANCED BY PR-171 F3/F6: the
+  +0x10 hypothesis is DEAD - verb +0x10 is a CONTROL-MESSAGE
+  DISPATCHER (0x54560, 87/155 tables; the 0x54ed6 block is
+  msg {0,0x1b,0,0}); NEW load facts: the heads array is al-
+  loc'd+zeroed at pool-SLOT assignment ([c+0x40] is a SLOT
+  COUNTER, incremented per name group at 0x4ceb5) and POOLS
+  START EMPTY AT LOAD; the item re-points a THIRD time: the
+  +0x10 minority bodies (0x3dcb0 x27/0x3d8f0/0x50d60), the
+  unread msg arms (0x5460e/0x5463a), the family-B producer
+  hunt.] (2) The [obj+0xd6] pair + [obj+0x102] 30-tick
   field lifecycles (who reads the snapshot for what - the
   0x54efa delta math vs [obj+0x89]/[obj+0xda]; who clears
   +0x102 and what it gates beyond 0x502f0 - it looks like a
-  contact/interaction timeout, a lead for the contact work).
+  contact/interaction timeout, a lead for the contact work)
+  [FIRST HALF ANSWERED BY PR-171 F3: the snapshot CONSUMER
+  is the msg-0x1b flow at 0x54eb2 - a guarded RE-ANCHOR law,
+  pos := arg - [obj+0xd6] pair + [obj+0x89]/[obj+0xda], the
+  ride/re-anchor law; the [obj+0x102] clear/reader stays
+  open].
   CARRIED: PR-169 item (1) as re-pointed here, item (2)
   (partially ANSWERED: the boolean writer 0x238f0 found; the
   +0x08-product half stays), item (3); PR-168 items (1)-(4);
@@ -20506,6 +20543,210 @@ wording is implicitly corrected)
   manager IS the level controller; +0x68 returns a field
   pointer, not a chain handle; the store hunt re-pointed to
   verb +0x10/ctor 0x1e0a0).
+
+## PR-171 — THE KEY-BIT MAP IS COMPLETE (BUILDER ENTRY IS
+## 0x54912 - NOT 0x54900, NINTH MEMBER OF THE ONE-BYTE TRAP;
+## [obj+0xa5] STATE-FLAG BITS AND THE MOTION-PARAMETER
+## STATUS BYTE BECOME KEY BITS), 0x54860 IS NOT A KEY PROVIDER
+## BUT A KEY-CONSUMING COUNTER-DECAY VERB, VERB +0x10 IS A
+## CONTROL-MESSAGE DISPATCHER (THE [obj+0xc2]/[obj+0xc6]
+## COUNTERS ITS KEY VERB DECAYS ARE SET/ADDED/ZEROED BY
+## MESSAGE IDs; msg 0x1b's CALLER RE-ANCHORS POSITION FROM THE
+## [obj+0xd6] SNAPSHOT - PR-170's ITEM-(2) CONSUMER FOUND),
+## THE CLAMP FAMILY IS A DEADZONE POSITION CONTROLLER, THE
+## 0x600000/0x800000 "CONSTANTS" ARE PURE MISALIGNMENT
+## ARTIFACTS (DECISIVE NEGATIVE - PR-161's KEY LITERALS NEED
+## RE-DERIVATION), AND THE LOAD-TIME POOL PATH ENDS EMPTY
+## (heads allocated + zeroed, [c+0x40] is a SLOT COUNTER) -
+## THE CHAIN-STORE ITEM STAYS OPEN, RE-POINTED A THIRD TIME
+(READING + LEDGER CORRECTION; no code, no new test - the
+PR-138..170 precedent; PR-168 items (2) and (3) CLOSED; PR-
+170 item (2) half-CLOSED; PR-169/170 chain-store item stays
+open with a corrected lead)
+
+- WHY. The Next entry specced the key-bit map (PR-168 item
+  2: the full 0x54860-family body, "where the 0x600000/
+  0x800000 CHECK_LN constants must finally appear") merged
+  with PR-170's re-pointed chain-store lead (verb +0x10's
+  0x54ed6 call). Method: verbatim reads of every body in the
+  0x54860-0x54b90 family; raw-dword and code-immmediate
+  censuses for the two constants; the container-load
+  continuation 0x4ce52-0x4cf2c; the +0x10 slot census.
+
+- FINDING 1, THE MAIN KEY BUILDER IS AT 0x54912 AND ITS BIT
+  MAP IS NOW COMPLETE. Entry head 0x54912 (`push ebx/ecx/
+  esi/edi; sub esp,0x14` - PR-168's "0x54900" was interior
+  again: NINTH member of the one-byte listing-trap class).
+  Body: clear a 12-byte local + count byte (0x749a0), then
+  (a) `test BYTE [obj+0xa5],0x1 -> or BYTE [key+4],0x80`;
+  bit 0x10 -> `[key+5],0x01`; bit 0x20 -> `[key+6],0x20` -
+  the [obj+0xa5] STATE-FLAG field becomes key bits (its
+  producer stays open, F4 note); (b) if [obj+0xba] != 0:
+  `test BYTE [obj+0xb6],0x10; sete al; add al,0x23` -> index
+  35 or 36 -> set bit (index mod 32) of the local dword at
+  (index/32)*4 = key+4 - i.e. key[+4] |= 0x08 (status bit 4
+  SET) or 0x10 (clear) - the "32-bucket bitmap loop" is this
+  one-index idiom (`mov ebx,0x20; idiv; shl/or`), not an
+  iteration; (c) if [obj+0xba] == 0: the PR-168 F3 param-
+  sign bits at 0x5499d run (`jge -> key+4|0x20; jle ->
+  key+4|0x40` - both fire when [obj+0xbe] == 0, giving
+  key+4 = 0x60); then the standard 12+count copy-out. Note
+  the flow inversion: the sign bits only apply on the
+  ZERO-motion-parameter path. KEY LITERAL READING [HYPO-
+  THESIS, LABELED]: PR-161's "0x600000"/"0x800000" match
+  KEY-BYTE sequences (key+4 = 0x60 or 0x80 followed by zeros
+  in a hex-dump reading), not code constants - F5 shows the
+  latter do not exist.
+- FINDING 2, 0x54860 IS NOT A KEY-PROVIDER: IT IS A KEY-
+  CONSUMING COUNTER-DECAY VERB. The 99-table +0x78 value:
+  reads the CALLER'S buffer (edx): `test BYTE [key+2],0x4`
+  gates; then if [obj+0xc6] > 0 and `test BYTE [key],0x10`
+  and record-flag `test dh,0x10`: [obj+0xc6] += -2*[obj+
+  0xc6]/3 (idiv 3 decay at 0x5489f-0x548b4); other key bits
+  reset [obj+0xc2]/[obj+0xc6] to 0 (0x548f5). Its counters
+  are the message-set pair from F3 (0x54590 SETS them from
+  message block words +8/+0xc; 0x545a7 ADDS; 0x545f4
+  ZEROES). So the loop CLOSES: a control message loads the
+  counters, and this verb, called on the walk with the accu-
+  mulated key, decays them when the key says so - PR-167
+  F2b's premise ("+0x78 = key provider family") holds only
+  for the 0x552e0 family (78 tables); for the 99-table
+  family +0x78 CONSUMES the key. Who builds keys for those
+  classes: open (new item).
+- FINDING 3, VERB +0x10 IS A CONTROL-MESSAGE DISPATCHER -
+  NOT A CHAIN INSERT. Slot census over the 155 game-class
+  tables: 0x54560 (87), 0x3dcb0 (27), base 0xa2550 = 0x52bb0
+  (minority variants 0x3d8f0/0x50d60/0x1e130...). 0x54560
+  body: switch on DWORD [block+4] = MESSAGE ID: id <= 5 arms
+  set facing ([obj+0x6d] := [block+8], [obj+0x71] :=
+  [ecx+0xc]); other arms SET ([obj+0xc2]/[obj+0xc6] :=
+  [block+8]/[+0xc]), ADD (+= same), ZERO both, or status
+  bits (`or BYTE [obj+0xb6],0x4 / 0x8`); id 0x1b -> its own
+  arm at 0x5460e; default at 0x5463a. The 0x54ed6 caller
+  (function head 0x54eb2) sends block {0, 0x1b, 0, 0} to
+  SELF, then a gated re-location (guard: verb +0xbc zero /
+  [obj+0xb6] bits 0/2): position := arg - [[obj+0xd6],
+  [obj+0xd6+4]] + [[obj+0x89],[obj+0xda]] - i.e. the
+  snapshot pair is the ANCHOR ORIGIN for re-anchoring an
+  object with a moving base (the ride/re-anchor law, PR-98-
+  adjacent): PR-170 item (2)'s first half is ANSWERED, the
+  [obj+0x102] reader stays open. The [obj+0xb6] byte is a
+  STATUS-BIT FIELD (set by messages, test 0x10 picks the key
+  bucket, bits 0/2 gate re-anchoring) - a named field at
+  last.
+- FINDING 4, THE "PARAM CLAMP" FAMILY IS A DEADZONE POSITION
+  CONTROLLER (PR-168 ITEM 3 CLOSED). 0x54a02-0x54b90:
+  param-block mode word [pb+4] (1 = x axis, 4 = y), thresh-
+  old [pb+0xc] compared against the facing [obj+0x6d]
+  (`!= -> *15` via setne/shl/sub: 15 = 16-1 - the facing-
+  relative threshold, the flip-bit lead at 0x54a24 NAMED at
+  last: a deadzone sign test); the current snapshot dword
+  (via verb +0x68 = `add eax,0xd6` then [eax]/[eax+4],
+  +5 at 0x54a4e) vs the authored param [pb+8+idx]: outside
+  the +-5 window the param is forced to 10 (0x54a57),
+  -10 (0x54a82) or 0 (0x54a93) - per axis (x: [obj+0xba];
+  y: [obj+0xbe]). The flag update at 0x54bc1-0x54bd4:
+  clear bit 4 of a flag dword then set it from a computed
+  bit (setne<<4 | store); 0x54be6-0x54be9 stores [[ecx]+8]
+  (a table pointer) at [obj+0xa5] for one caller - the
+  [obj+0xa5] producer contract (PR-169 item 2 half) stays
+  open, but its CONSUMER (builder F1a) and one writer are
+  pinned.
+- FINDING 5, DECISIVE NEGATIVE - THE 0x600000/0x800000
+  CONSTANTS DO NOT EXIST AS CODE OR DATA. Raw-dword census
+  over the whole image: 0x600000 occurs ONCE (0xa8a86) and
+  0x800000 four times (0x7c404/0x7c42d/0xa9aaa) - every hit
+  is an alignment artifact inside BYTE tables: 0xa8a86 sits
+  in a character-map region (bytes 0x3b 0x27 0x60 0xff 0x5c
+  ...), 0x7c404/0x7c42d straddle a shift-pattern sequence
+  (0x80000/0x800000/0x8000000... = powers, not keys),
+  0xa9aaa straddles a byte-pair table (`01 80 00 c8`). NO
+  code immediate anywhere uses either value (0x80000000
+  sign-bit uses are unrelated). PR-161's CHECK_LN/BASE_LN
+  "constants" therefore were never code constants - they
+  need RE-DERIVATION from authored row data + F1's bit map
+  (the 0x60 = both sign bits, 0x80 = the [obj+0xa5] bit-0
+  mirror: F1's hypothesis).
+- FINDING 6, THE LOAD-TIME POOL PATH IS READ TO ITS END -
+  AND ENDS EMPTY (chain store still open, third re-point).
+  The container-load continuation 0x4ce52-0x4ceb5: a loop
+  over a parsed name table (count [ebp+0xe2]): 0x57c60
+  looks each name up; ON MISS: 0x4a910 obtains/creates the
+  object by name, `call 0x4dd50(container,[c+0x40])` (a
+  ctor-style initializer), register name 0x57a00. After the
+  loop `inc DWORD [c+0x40]` (0x4ceb5) - [c+0x40] is a
+  POOL-SLOT COUNTER handed out per parsed name group (pre-
+  cises PR-166 F2). At slot assignment: the heads array is
+  ALLOCATED ([poolObj+0x58] = 0x76a64(count*4) at 0x4cdf5-
+  0x4cdf8 - the store PR-169 counted as "alloc": CONFIRMED
+  allocation, storing a fresh zero buffer), ZERO-FILLED
+  (0x4ce0a-0x4ce24, count dwords), [poolObj+0x44] := count
+  (0x4ce3b). So POOLS START EMPTY AT LOAD; insertion is run-
+  time; the +0x10 candidate is DEAD (F3). Remaining candi-
+  dates: the +0x10 minority bodies (0x3dcb0 x27, 0x3d8f0,
+  0x50d60), the message-id arms not read (0x5460e 0x1b-arm,
+  0x5463a default), and the family-B key-producer hunt (F2)
+  which may carry the insert with it.
+- OPEN ITEMS COUNTED (2 new, 3 closed-or-narrowed). (1) THE
+  FAMILY-B KEY PRODUCER: for the 99 classes whose +0x78 is
+  the consumer 0x54860, nothing in the image references
+  0x54912 (no table slot, no direct call, no branch -
+  triple census negative) - the builder's reachability is a
+  named mystery (runtime table patching? computed call?);
+  the 0x3dcb0/0x552e0-variant bodies are the lead. (2) The
+  message-id semantics (0x5460e 0x1b arm, 0x5463a default,
+  the id-to-effect map) + the [obj+0x102] clear/reader
+  (F3). CLOSED HERE: PR-168 item (2) (the full map - F1;
+  with the literal re-derivation surviving as PR-161's
+  correction item), item (3) (F4 deadzone law); PR-170
+  item (2) FIRST HALF ([obj+0xd6] consumer = the 0x54eb2
+  re-anchor law). RE-SCOPED: the chain-store item (F6 facts
+  added; +0x10 hypothesis killed). CARRIED: PR-169 item (2)
+  half + item (3); PR-168 item (1) (the BY_TIME audit,
+  next PR); PR-168 item (4) (+0x9c per-class variants);
+  PR-170's remaining [obj+0x102] half; PR-166/167 items
+  unchanged; the ladder-gate data block; the pool-name
+  decode; the walk-return encoding; everything else un-
+  changed.
+- GATES. Docs-only per the PR-138..170 precedent; nothing
+  compiled. Every added prose line <= 79 cols; over-79
+  baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 72); no game
+  data or frames in git (scratch /tmp/opencode/pr171/);
+  .github/workflows/* untouched; the image unchanged (text.
+  bin sha256 edf19a12...). CI: PR-170's run (44506391251)
+  was queued at record time, PR-168's (44505316888) in_prog-
+  ress; PR-169 (643f13a), PR-167, PR-166, PR-165 all GREEN.
+- EVIDENCE. All reads from the pinned image: 0x54912 head +
+  bit-map verbatim (0x54912-0x5499a: the 0x749a0 clear, the
+  three [obj+0xa5] tests + the three `or BYTE [esp+N]`
+  stores, the 0x5495b-0x5499a sete/add 0x23/shr/idiv/shl/or
+  one-index idiom, the 12+count copy-out); 0x54860 verbatim
+  0x54862-0x54909 (key-byte tests, the /3 decay at 0x5489f-
+  0x548b4, the [obj+0xc2]/[obj+0xc6] resets) + its tail
+  bytes 0x548fa-0x54917 (padding + `pop/pop/pop/ret` before
+  a FRESH prologue at 0x54912 - the head split proven at
+  byte level); the reachability census of 0x54912 (raw
+  dword: zero table slots; grep: zero direct calls; branch
+  scan: zero real branches - one 0x74-byte false positive);
+  the +0x10 slot census (0x54560 x87/0x3dcb0 x27/base =
+  0x52bb0); 0x54560 body verbatim (the id switch, the
+  counter set/add/zero arms, the 0xb6 ORs, the facing arm);
+  0x54eb2-0x54f32 verbatim (the {0,0x1b,0,0} block, the
+  guards, the snapshot re-anchor arithmetic); the [pb+4]
+  mode/mode switch at 0x54a16-0x54a1e and the clamp arms
+  (PR-168's sites) + the flag-update tail 0x54bc1-0x54be9;
+  the constant censuses (raw dword + text.asm grep + con-
+  text dumps at all four sites); the load continuation
+  0x4cde3-0x4ceb5 verbatim (the 0x76a64 alloc store at
+  0x4cdf5-0x4cdf8 - which a wrong awk range had hidden from
+  earlier passes - the zero-fill loop, [poolObj+0x44], the
+  name loop and `inc [c+0x40]`); 0x52070 read and RULED
+  OUT (ENTER preamble: [obj+0x9d] := 0 + a WORD scale law,
+  no chain store). Ledger rule applied: census first - HEAD
+  0ce1036 carries PR-150..PR-170 (last carrier HEAD);
+  records re-spliced from it; 5 brackets (PR-168 F3 sentence
+  corrected; its items (2)/(3) closed; PR-170 items (1)/(2)
+  corrected/answered).
 
 ## Deferred big items (deliberately out of scope so far)
 
