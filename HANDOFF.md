@@ -3309,7 +3309,12 @@ writer as its open items.
      NO LOOP, and an IMAGE-WIDE census finds NO increment form
      for [rec+0x4] anywhere - so rows advance ONLY by authored
      transition row-outputs (0x53616), exactly PR-159's writer
-     law, now with the negative proof. THE WAIT LAW: the key
+     law, now with the negative proof [SUPERSEDED by PR-162:
+     the grep idiom missed the lea+store step in the helper's
+     tail (0x520c0 continues at 0x5211e; step at 0x521d4);
+     ordinary row progression is advance-on-threshold-pass -
+     the port's model corroborated; PR-107's old comment was
+     right all along]. THE WAIT LAW: the key
      test is an INTERSECTION test (0x495b0 over a 13-byte dword-
      wise OR merge, 0x49580); the wrapper verb +0xc (0x45870)
      returns a ZERO-FILLED key when the payload is NULL - an
@@ -3344,6 +3349,59 @@ writer as its open items.
      changed; ledger census run (HEAD = last carrier). Full
      record: the PR-161 section of NEXT_STEPS.md (scratch
      /tmp/opencode/pr161/).
+   - PR-162 (READING + LEDGER CORRECTION, no code - the PR-138.
+     .161 precedent): THE ROW CURSOR DOES STEP - PR-161'S NE-
+     GATIVE CENSUS GREPPED THE WRONG IDIOM. Grounding the AC_
+     TIME code pass against the port re-opened PR-107's conti-
+     nuing comment ("the row stepper 0x520c0 advances [rec+4]
+     (0x521d7) and wraps at the last row (0x521c5)") - and
+     the bytes PROVE IT: the helper verb 0x520c0 CONTINUES at
+     0x5211e (no prologue) into a row-step tail: a mode-6 que-
+     ry through entry verb +0x10 (0x458e0 forwarder) can SKIP
+     the step (0x52140-0x52145, exhausted-sequence semantics
+     open); forward = lea+store cursor+1 (0x521d4-0x521d7);
+     wrap at last-row-to-0 ORs value 4 into DWORD [[owner]+0]
+     (object vtable slot +0x4) at 0x521c1-0x521c5; reverse =
+     wrap 0-to-last with |= 8, or cursor-1 (0x5219a-0x521b1),
+     gated by flag bits 0x10/0x20 paired with position senti-
+     nels [[owner]+8]+0x70]/+0x71] == -1 (0x52158/0x52171).
+     THE CORRECTED LAW: the transition applier still SETS the
+     cursor only from authored row-outputs (PR-159 UNCHANGED),
+     but ORDINARY row progression is the STEPWISE advance in
+     the helper, reached ONLY on a threshold PASS (the walk's
+     paid path calls record verb +0x18 at 0x52338) - ADVANCE-
+     ON-THRESHOLD-PASS, i.e. the port's model (obj_row_tick)
+     CORROBORATED end to end; PR-100/101's measured law is
+     exactly right. Also corrected: PR-161's arm story - BOTH
+     arms reach the gate (the intersection path only does key-
+     merge bookkeeping; conditions never hold a row inert at
+     this level), so every row's threshold gates payment+step-
+     ping in practice (the practical WAIT-law conclusion stands).
+     SECOND MAJOR CLOSED: the COMPLETE control= flag-word map,
+     chain-traced arm-by-arm through 0x76a69 (je = skip own
+     store): flag window [rec+0x12..+0x15]; BY_X = NO FLAG (ac-
+     cepted-and-ignored); BY_Y=0x1, BY_TIME=0x2, BY_TX=0x3
+     (composite), BY_TY=0x4, FRAME_REV=0x8, SEQ_REV_X=0x10,
+     SEQ_REV_Y=0x20, CHECK_ANI=0x40, CHECK_ZW=0x80 (+0x12);
+     CHECK_LN=0x1, CHECK_ALL=WORD 0x1c0, CHECK_LEW=0x2, CHECK_
+     BASE_LN=0x40, SOLID=0x4, CH_DIR=0x8, INV_V=0x10, DANGER=
+     0x20, CHECK_ALL_PLANE=0x80 (all +0x13); ANTI_SOLID=+
+     0x14|0x1, ANTI_POCISK=+0x14|0x8; composites SOLID2=0x204
+     00, SEMI_SOLID=0x40400 (an unnamed +0x14 bit 0x4 sits in
+     side both composites - flagged). SE-
+     Q_REV_X/Y = 0x10/0x20 CONFIRMS PR-95's behavioral obser-
+     vation exactly; PR-160's "[+0x15] bit 0x8 = face-flip" is
+     RE-ATTRIBUTED (that bit = ANTI_POCISK; PR-108's flip BE-
+     HAVIOR stands, its bit attribution reopened - CH_DIR and
+     the reversed-step path are the leads). 5 new open items
+     incl. THE MECHANISM BOUNDARY (where is the transition ap-
+     plier 0x535a2 invoked from - the port's model depends on
+     it) and the port-enum-vs-engine-bit mapping; 2 old closes.
+     AC_TIME code-pass spec UNCHANGED and next up. Gates: docs-
+     only, nothing compiled; added lines <= 79; baselines UN-
+     CHANGED (71/72); image unchanged; ledger census run (HEAD
+     = last carrier). Full record: the PR-162 section of NEXT_
+     STEPS.md (scratch /tmp/opencode/pr162/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -5201,6 +5259,32 @@ pending the pool-contents read (now the NAMED edge of the K_
 GEN1 data blocker). ZARIA.01 output: UNCHANGED (docs-only PR,
 nothing compiled). PR-159 item-(3) + PR-160 items (1)/(2)
 closed; 4 new items counted; one earlier phrasing corrected.
+
+STATUS after PR-162 (the row model is fully corrected and the
+control= flag word is fully decoded): PR-161's "no incrementer
+exists" was the wrong grep idiom - the helper verb 0x520c0
+continues at 0x5211e into a row-step tail (step 0x521d4/0x521
+d7, wrap+|=4 at 0x521c1-0x521c5, reverse 0x521a1-0x521b1 via
+SEQ_REV bits paired with position sentinels, mode-6 skip), so
+ORDINARY row progression is advance-on-threshold-pass through
+the helper the walk calls on every paid row: the port's model
+(obj_row_tick advancing fi on threshold passes; PR-100/101's
+measured law) is now CORROBORATED end to end, while the tran-
+sition applier's authored-row-output SETS stand unchanged.
+Both walk arms reach the gate (conditions are key-merge book-
+keeping only at this level) - every row's threshold gates pay-
+ment+stepping in practice, so the practical WAIT law stands.
+The COMPLETE 21-name flag map is verbatim now (window [rec+
+0x12..+0x15]; BY_X has NO bit; SEQ_REV_X/Y = 0x10/0x20 con-
+firming PR-95 exactly; composites CHECK_ALL=0x1c0, SOLID2=
+0x20400, SEMI_SOLID=0x40400; the +0x15 bit-0x8 that PR-160
+called face-flip is the ANTI_POCISK bit - PR-108's flip beha-
+vior stands, its bit attribution reopened). The AC_TIME CODE
+pass spec is UNCHANGED and is PR-163. 5 new open items, most
+importantly the mechanism boundary: where the transition ap-
+plier is invoked from (the port's per-row transition model de-
+pends on it). ZARIA.01 output: UNCHANGED (docs-only, nothing
+compiled). Baselines 71/72 held; ledger census run.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

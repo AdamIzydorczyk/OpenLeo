@@ -15733,59 +15733,61 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-162'S FIRST READ: THE POOL AND WHAT ROW PAYLOADS ARE
-  (PR-161 item 2 - the K_GEN1 bridge's real edge now has a
-  name). The pool singleton is [[ds:0xcef40]+0x398] with last
-  result at ds:0xceff4 and the registration global ds:0xceff8
-  (PR-160 F2). Read the pool class: the +0x4 verb (register/
-  lookup entry point used by 'seq=' via 0x57d30 '%s' and by
-  row lines via '%ld'+strtol), and find WHO registers keys
-  the way ZARIA row lines ask for them (numeric IDs). The
-  extracted .MOV texts register only NAMES ('seq=drab'); if
-  the numeric-ID keys come from the encrypted main data, this
-  is where the sequence bodies (frame runs from drab.ani) live
-  - and the ZARIA.01 rows' NULL-payload reading (empty-key
-  WAIT rows, PR-161 F2) either stands as the ENGINE's own law
-  for this level (then the port's row model is CORROBORATED
-  end-to-end) or gains payloads. Settle the payload semantics
-  too (PR-161 item 4): the wrapper ctor 0x45770 stores class
-  0xa1000 while payloads found in the pool are records (class
-  0xa25d4/0xa260c view) - one pass over 0x457b0/0x457e0/
-  0x45800 and the payload-class 0xa1000 verb table closes it.
-- THEN the AC_TIME CODE pass (unchanged spec, PR-160/161 now
-  supply the LAST details): ENTER rolls rand(min,max) from the
-  parsed time= pair at state entry - and PR-161 F4 shows the
-  INITIAL state's ENTER runs AT PLACEMENT (0x539e6-0x539fb),
-  so the port must roll at spawn for state 1 too; count same-
-  state transition matches; raise LL_SIG_AC_TIME at count >=
-  roll; no time= line = never (ZARIA.01: zero time= lines -
-  output cannot change). Ship as a CODE PR with hand-derived
-  tests + mutation battery; check the single-value time=350
-  parse case both engine-side (the ',%hi' scanf leaves +0xa=0
-  when no comma - verify 0x49920's no-match behavior) and
-  port-side (PR-69 grammar).
-- THEN the named follow-ups (carried): the walk return-value
-  encoding + [rec+0xc]-view 13B block (PR-161 item 1); the
-  transition-LINE tail path owner (item 3); the completion
-  pass 0x52b92 (item 4); derived ENTER overrides 0x4fef0;
-  non-null +0x84 families; 0x9c05c identity + clone owner +
-  0x509aa/0x61279 + the +0x114 verb; 0x524xx/0x525xx rest;
-  0x446de; 0x57d30 modes; 0x49a10 consumption; FLAG +0x4c
-  getter; ds:0xcef40+0x388 vs time_scale. THE LADDER-GATE fi-
-  vs-state DECISION stays data-blocked on the param-token map
-  - do NOT touch the port's fi gate. NOTE PR-161 F3: param
-  entries and records share the 0x48-byte header layout and
-  the class-table views 0xa25d4/0xa260c - a sharpened lead
-  for the token map (the ANI2 param lines and the state-block
-  parse run through the same param-entry machinery per PR-157
-  F1's 0x53850 registration; the exact param-LINE grammar is
-  still unread).
+- PR-163 IS THE AC_TIME CODE PASS (unchanged spec, and PR-
+  162 changes nothing in it): on state ENTER (including AT
+  PLACEMENT for the initial record - 0x539e6/0x539fb) roll
+  rand(min,max) from the parsed time= pair; count same-state
+  transition matches; raise LL_SIG_AC_TIME when count >= roll;
+  no time= line = never. The port parses the pair already (ll_
+  play.c discards it today: only s->time_ms=t1 is kept, and
+  field_other counts); ZARIA.01 has ZERO time= lines so out-
+  put CANNOT change - hand-derived tests + mutation battery
+  prove the law fires where the corpus does not. Also carry:
+  the ll_level.c comment address fix (the row stepper is the
+  helper tail 0x520c0/0x521d4/0x521c5 - PR-162 F1 verified
+  the note's LAW, only the 0x520d7 address was a byte off)
+  and update that comment with the reverse/mode-6/wrap-flag
+  details + the corrected flag names (SEQ_REV_X=0x10, SEQ_
+  REV_Y=0x20 verified; BY_X has NO bit).
+- THEN the mechanism-boundary read (PR-162 item 5) - THE most
+  port-relevant open item now: WHERE is the transition applier
+  (0x535a2-0x5365c) invoked from? The per-tick call found so
+  far is the WALK (object +0x44 at 0x53b18); the applier's
+  driver is unpinned (PR-105 claimed object slot +0x14 = a
+  once-per-step pump call: 0x536f0 - the census should start
+  by finding +0x14's caller and testing whether it leads to
+  0x535a2 or to the walk). This decides how the port's obj_-
+  transition condition evaluation and the engine's two mecha-
+  nisms correspond, i.e. where the AC_TIME counter really in-
+  crements in port terms.
+- THEN the flag-consumer pass (PR-162 item 1): engine flag
+  bits BY_Y=+0x12|0x1, BY_TIME=|0x2, BY_TX=|0x3, BY_TY=|0x4,
+  FRAME_REV=|0x8, SEQ_REV_X=|0x10, SEQ_REV_Y=|0x20, CHECK_
+  ANI=|0x40, CHECK_ZW=|0x80, +0x13 CHECK_LN=0x1...ANTI_
+  POCISK=+0x14|0x8 (FULL MAP IN THE PR-162 RECORD). Re-ground
+  the port's LL_CTRL_* NAMES against the consumers (0x52158/
+  0x52171 = the SEQ_REV pair; find what FRAME_REV=0x8 vs the
+  port's row-reversal reading really drives; PR-108's face-
+  flip bit attribution is REOPENED - the +0x15 bit 0x8 is the
+  ANTI_POCISK bit; lead: the CH_DIR name or the flip lives in
+  the walk's reversed-step semantics at 0x5219a-0x521b1).
+- THEN carried reads: the pool contents + numeric-ID registra-
+  tions (the K_GEN1 edge, PR-161 item 2); the [owner+8]+0x70/
+  +0x71/+0xc8 getters + [owner+0x99] sentinel + the vtable-
+  slot-4 |=4/|=8 row-end signals (items 3); mode-6 skip +
+  0x47770 + 0x52750 bodies (item 4); the walk return-value
+  encoding (PR-161 item 1); transition-tail parse owner; de-
+  rived ENTER overrides 0x4fef0; non-null +0x84 families;
+  0x9c05c identity; 0x524xx rest; 0x446de; 0x57d30 modes;
+  FLAG +0x4c getter. THE LADDER-GATE fi-vs-state DECISION
+  stays data-blocked on the param-token map - do NOT touch the
+  port's fi gate.
 - LEDGER RULE (PR-158 F1): every Next-swap re-splices recent
   records from the LAST revision that carried them. Census
   recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
   `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD carries all eleven (PR-150..PR-160);
-  HEAD is the last carrier.
+  pass's census: HEAD 7bae5a1 carries all twelve (PR-150..PR-
+  161); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -18170,8 +18172,13 @@ FULL BUILD GATES RUN ANYWAY; PR-138..157 PRECEDENT)
   walk INDEXES - rows live in a pointer vector at [[rec]+0x2e]
   and the verb reads entry = [[rec+0x2e array][cursor]] (0x522
   21-0x52229); an incrementer for the cursor is still NOT
-  found (the entry/helper verbs are the candidates) so the
-  writer law above stands unchanged].
+  found (the entry/helper verbs are the candidates) [THE CAN-
+  DIDATE WAS RIGHT - PR-162 F1: the helper verb 0x520c0 CON-
+  TINUES at 0x5211e into a row-step tail (step 0x521d4-0x521
+  d7, wrap 0x521c1-0x521c5, reverse 0x521a1-0x521b1) reached
+  from the walk's PAID path (the +0x18 call at 0x52338)] so
+  the "no writer" part of the
+  writer law above stands only for the transition side].
   (ii) The cursor's BASE is the authored base: the
   only non-zero writer copies the authored (N) VERBATIM
   (0x52046 -> 0x53616), the authored (N) is 1-based (PR-86),
@@ -18462,7 +18469,11 @@ counted instead)
   it to the rows vector at
   [rec+0x2e] - named-sequence rows;
   control= -> the FULL flag enumeration (21 names, exact
-  strings): BY_X BY_Y BY_TIME BY_TX BY_TY FRAME_REV SEQ_REV_X
+  strings) [THE FULL BIT MAP DECODED BY PR-162 F1d: BY_X sets
+  NO bit; BY_Y=+0x12|0x1 ... SEQ_REV_X=0x10, SEQ_REV_Y=0x20
+  (PR-95 CONFIRMED); the flag window is +0x12..+0x15 - see
+  the PR-162 record]: BY_X BY_Y BY_TIME BY_TX BY_TY FRAME_REV
+  SEQ_REV_X
   SEQ_REV_Y CHECK_ZW CHECK_ANI CHECK_LN CHECK_ALL CHECK_LEW
   CHECK_BASE_LN SOLID CH_DIR INV_V DANGER CHECK_ALL_PLANE
   ANTI_SOLID SOLID2 SEMI_SOLID ANTI_POCISK; the error path
@@ -18504,7 +18515,10 @@ counted instead)
   (the entry/helper verbs are the candidates) [CLOSED BY PR-161
   F2: NEITHER writes it - an IMAGE-WIDE census finds no incre-
   ment form for [rec+0x4] at all; rows advance ONLY by au-
-  thored transition row-outputs] so the PR-159
+  thored transition row-outputs] [SUPERSEDED BY PR-162: the
+  grep idiom was wrong (no `inc`/`add ,0x1` forms exist BE-
+  CAUSE the step is lea+store); the HELPER does step the cur-
+  sor - advance-on-threshold-pass] so the PR-159
   writer law holds but its "never touches the cursor" phras-
   ing is refined here. (b) Row entries: [entry+0x0]=payload,
   [entry+0x4]=class; the base entry-class 0xa2638 is a WRAP-
@@ -18524,7 +18538,10 @@ counted instead)
   wise OR merge 0x49580); NO-intersection PROCEEDS to the gate
   arm, an intersection keeps the row inert; the keyed path
   fires when the entry key CROSSES the caller's set - cf PR-
-  87/88's law for the port's transitions]; the
+  87/88's law for the port's transitions] [ARM MODEL CORRECT-
+  ED BY PR-162 F2: BOTH arms run the gate - the intersection
+  path only adds key-merge bookkeeping; conditions do NOT hold
+  a row inert at this level]; the
   other path runs the per-row gate:
   the walk calls [[owner]+8]+0xa0] - WHICH IS 0x543A0, THE
   FRAME-ADVANCE MODE DISPATCHER (the 0x54380 switch feeding
@@ -18689,13 +18706,24 @@ counted instead)
   finds NO increment form for [rec+0x4] (no `inc DWORD PTR
   [reg+off+0x4]` and no `add ...,0x1` anywhere; the only reg-
   ister-form stores of a +0x4 field are the PR-159 writer-law
-  sites plus generic vector code at 0x1cxxx/0x300e6). THERE-
+  sites plus generic vector code at 0x1cxxx/0x300e6) [SUPER-
+  SEDED BY PR-162 F1: the step tail was OUTSIDE every window
+  the census read - the helper 0x520c0 continues at 0x5211e
+  and steps [rec+4] at 0x521d4-0x521d7, wrapping at 0x521c1-
+  0x521c5; the lea+store idiom is why the inc/add greps mis-
+  sed]. THERE-
   FORE the law is exact: a state stays on its current row un-
   til a TRANSITION entry fires and its authored row-output
   writes the cursor (0x53616) - rows advance ONLY by authored
-  transition row-outputs; the row line's own threshold never
+  transition row-outputs [CORRECTED BY PR-162 F2: ordinary
+  progression is the STEPWISE advance in the helper, reached
+  exactly on a THRESHOLD PASS (the paid path calls +0x18 at
+  0x52338) - advance-on-threshold-pass, the port's model];
+  the row line's own threshold never
   advances anything, it only gates the frame-advance accumu-
-  lator. The empty-key case CLOSES PR-159 item-(3): the walk's
+  lator [ALSO CORRECTED: the threshold pass IS what triggers
+  the step - via the helper].
+  The empty-key case CLOSES PR-159 item-(3): the walk's
   key test is an INTERSECTION test (0x495b0 on the merged
   caller-key OR entry-key; merged with 0x49580 = a 13-byte
   dword-wise OR over [0..0xc]) - NO intersection (an empty key
@@ -18817,6 +18845,214 @@ counted instead)
   0x539e6-0x539fb (ENTER at placement). Ledger rule applied:
   census first - HEAD carries PR-150..PR-160 (last carrier is
   HEAD); records re-spliced from it.
+
+## PR-162 — THE ROW CURSOR DOES STEP: PR-161'S NEGATIVE
+## CENSUS WAS THE WRONG IDIOM - THE INCREMENTER SITS IN THE
+## HELPER VERB'S OWN TAIL (0x520c0 CONTINUES AT 0x5211e; THE
+## STEP AT 0x521d4/0x521d7, WRAP+FLAG AT 0x521c1-0x521c5,
+## REVERSE VIA 0x521a1-0x521b1), SO PR-107'S CONTEMPORANEOUS
+## NOTE WAS RIGHT ALL ALONG AND THE TRUE LAW IS ADVANCE-ON-
+## THRESHOLD-PASS (THE PORT'S MODEL, CORROBORATED); THE COM-
+## PLETE 21-NAME control= FLAG-WORD MAP IS DECODED VERBATIM
+## (+0x12..+0x15) - SEQ_REV_X/Y = 0x10/0x20 EXACTLY AS PR-95
+## OBSERVED, AND PR-160's "+0x15 BIT 0x8 = FACE-FLIP" RE-
+## SOLVES TO THE ANTI_POCISK FLAG BIT
+(READING + LEDGER CORRECTION; no code, no new test - the
+PR-138..161 precedent; PR-161 F2's advance sentence and parts
+of PR-159/160's cursor phrasing are SUPERSEDED below)
+
+- WHY. The AC_TIME CODE pass was next and fully specced, but
+  grounding it in the port's code (ll_level.c's obj_transi-
+  tion/obj_row_tick) re-opened an old comment that cited "the
+  row stepper 0x520c0 advances [rec+4] (0x521d7) and wraps it
+  at the last row (0x521c5)" - exactly what PR-161 had just
+  declared impossible. One of the two had to be wrong, so the
+  bytes were re-read before writing any code.
+
+- FINDING 1, THE HELPER VERB IS LONGER THAN PR-160/161 READ
+  IT: 0x520c0 CONTINUES THROUGH 0x5211e (no prologue - the
+  bytes run straight on: 0x52118 `mov [eax+0xa1],edx`, 0x5211e
+  `xor eax,eax`, 0x52120 `mov [esp+0xc],eax`...). After the
+  payload/creation steps (PR-161 F2) the helper runs THE ROW
+  STEP ITSELF:
+  (a) SKIP TEST: [esp+0xc]=0, then entry verb +0x10 is called
+  with edx=6 (0x52138-0x5213d; the 0xa2638 wrapper forwards
+  via 0x458e0 to the payload's +0x10 getter family); if the
+  out-parameter comes back 6 (0x52140-0x52145) the helper re-
+  turns WITHOUT stepping (the payload mode verb 0x47770 shows
+  mode bit 0x4 clears a content record at 0xa0f14 - the candi-
+  date reading is sequence exhaustion; open item 3).
+  (b) FORWARD STEP: cursor+1 stored (0x521d4 `lea edi,[ecx+1]`
+  + 0x521d7); at the LAST row (cursor == [rows-vec+0x8]-1,
+  i.e. count-1, 0x521b6-0x521bf) it WRAPS to 0 and ORs value
+  4 into DWORD [[rec+0]+0] - [rec+0] is the owner, so that is
+  object vtable slot +0x4 (0x23850) - a row-end signal, half-
+  read (item 3).
+  (c) REVERSE: when cursor==0 it wraps to the LAST index and
+  ORs 8 into the same word (0x5219a-0x521a9); otherwise cur-
+  sor-1 (0x521ae-0x521b1). Which direction is gated by the
+  flag tests at 0x52158/0x52171 - [rec+0x12] bit 0x10 paired
+  with [[owner]+8]+0x70](rec) == -1 and bit 0x20 with +0x71
+  == -1, XORed with a [owner+0x99]==-1 term (0x52180-0x52193).
+  (d) THE COMPLETE control= FLAG MAP (the directive parser's
+  chain 0x51b0d-0x51d97, every arm chain-traced): each name
+  is compared by 0x76a69, `je <next arm>` skips ITS OWN store
+  on mismatch and `jmp 0x51dc3` ends on match - so every store
+  belongs to the arm whose name precedes it UNCONDITIONALLY.
+  The flag field is a 4-byte window [rec+0x12..+0x15]. Verba-
+  tim map: BY_X -> NO FLAG (the first compare at 0x51b49 is
+  skipped by its own je - accepted-and-ignored); BY_Y -> BYTE
+  +0x12 |0x1; BY_TIME -> |0x2; BY_TX -> |0x3 (BY_Y|BY_TIME: a
+  COMPOSITE); BY_TY -> |0x4; FRAME_REV -> |0x8; SEQ_REV_X ->
+  |0x10; SEQ_REV_Y -> |0x20; CHECK_ZW -> |0x80; CHECK_ANI ->
+  |0x40; CHECK_LN -> BYTE +0x13 |0x1; CHECK_ALL -> WORD +0x12
+  |0x1c0 (= +0x12 bits 6,7 + +0x13 bit 6 = CHECK_ANI|CHECK_
+  ZW|CHECK_BASE_LN - CHECK_LN (0x100) is NOT in it; "ALL"
+  names a specific authored set, not every check bit); CHECK_
+  LEW -> +0x13 |0x2; CHECK_BASE_LN ->
+  +0x13 |0x40; SOLID -> +0x13 |0x4; CH_DIR -> +0x13 |0x8;
+  INV_V -> +0x13 |0x10; DANGER -> +0x13 |0x20; CHECK_ALL_
+  PLANE -> +0x13 |0x80; ANTI_SOLID -> BYTE +0x14 |0x1; SOLID2
+  -> DWORD +0x12 |0x20400 (= CHECK_ALL_PLANE | SOLID | (+0x14
+  bit 0x4 = 0x40000)); SEMI_SOLID -> DWORD |0x40400 (= SOLID
+  | (+0x14 bit 0x4)); the +0x14 bit 0x4 has no authored name
+  of its own - reached only through the two composites (flag-
+  ged); ANTI_POCISK -> BYTE +0x14 |0x8.
+  CONFIRMATIONS: SEQ_REV_X/SEQ_REV_Y = 0x10/0x20 EXACTLY as
+  PR-95 observed behaviorally, and the reverse gates at 0x52158
+  (bit 0x10 + X-position sentinel [[owner]+8]+0x70] == -1) /
+  0x52171 (bit 0x20 + +0x71 == -1) pair X-with-X and Y-with-
+  Y; PR-160 F5's "bit 0x10 tested at 0x52158" is SEQ_REV_X ✓.
+  RE-ATTRIBUTION: PR-160 F5's "+0x15 bit 0x8 = face-flip-on-
+  transition (PR-108 corroborated)" - per this map [rec+0x15]
+  bit 0x8 is set ONLY by ANTI_POCISK (the anti-projectile
+  flag); a face-flip consumer of that bit has NOT been found;
+  PR-108's OBSERVED flip behavior stands, its bit attribution
+  gets a bracket and a re-derivation lead (item 4). NOTE: the
+  port's LL_CTRL_* enum numbering is its own and is NOT this
+  word; mapping the port enum to these engine bits (where the
+  port even has names the engine lacks, and vice versa) is
+  item (1).
+
+- FINDING 2, THE CORRECTED ROW-ADVANCEMENT LAW (supersedes
+  the PR-161 F2 sentence and refines PR-159 F1/PR-160 F4):
+  the transition applier writes the cursor only from authored
+  row-outputs (PR-159's law, UNCHANGED - its writer census
+  simply did not class the helper tail as a writer); ORDINARY
+  row progression is the STEPWISE advance inside the helper,
+  which runs ONLY on a threshold PASS: the walk's gate arm
+  pays the debt (acc -= threshold) and calls record verb
+  +0x18 = the helper (0x52338), and the helper steps the cur-
+  sor at its tail - so a row advances exactly when its thresh-
+  old is met, which IS the port's model (obj_row_tick advanc-
+  ing o->fi on threshold passes; PR-100/101's measured law
+  CORROBORATED structurally end to end. REFINEMENT of PR-161
+  F2's arm story: BOTH arms reach the gate - the intersect arm
+  at 0x5224b only adds KEY MERGING (the copies + the +0xc re-
+  call at 0x522fc feed the caller's merged key, which the tick
+  at 0x53b1b consumes); control then runs 0x52251-0x522f0
+  STRAIGHT INTO the gate arm - conditions do NOT hold a row
+  inert at this level (PR-161's "an intersection keeps the row
+  inert" was wrong). Only the PAID path steps. The mode-6
+  query at the helper's head can veto even a paid step (ex-
+  hausted-sequence semantics, open). Wrap: at the last row the
+  cursor
+  cycles to 0 with the [owner-vtable+0x4] |= 4 signal; at 0
+  going backwards it wraps to the last index with |= 8.
+  CONSEQUENCE FOR THE AC_TIME CODE PASS: unchanged (the match
+  counter and the ENTER roll spec stand); CONSEQUENCE FOR THE
+  LEDGER: PR-161's negative-census sentence, its HANDOFF/bul-
+  let echoes and the PR-159 "pure SET-POSITION" refinement note
+  are bracketed below; PR-107's ll_level.c comment (0x520d7 ->
+  really 0x521d4) needs a one-line address fix in the NEXT
+  CODE PR (not touched here).
+
+  0x495b0's test decides only the MERGE bookkeeping, NOT a
+  row gate: the no-intersection branch at 0x5224b `je 0x522fc`
+  skips ONLY the copy block (which ORs the caller key, the
+  owner live set [owner+0x6c] and the [rec+0xc] block into the
+  merged key), and BOTH paths then run the identical gate se-
+  quence. So every row's threshold gates payment and stepping
+  in practice - PR-161's practical WAIT-law conclusion stands,
+  its gating model corrected. OPEN TENSION: the transition
+  applier at 0x535a2-0x5365c (PR-139/157's condition match-
+  ing + the AC_TIME counter) and this per-row key-merge walk
+  are DIFFERENT mechanisms; which one feeds the port's per-
+  row transition evaluation is exactly the port's model bound-
+  ary - item (5).
+
+- FINDING 3, WHAT PR-161 GOT RIGHT STANDS UNCHANGED: the row-
+  line builder (0x51eb0/driver 0x52b80), the wrapper entries,
+  the single-shot-per-tick walk, the empty-key WAIT law, the
+  two-array dissolution and the two-VIEW class tables. The
+  walk's first verb call 0x52235 is entry verb +0x8 (0x45800
+  forwarder; payloads that are records answer through 0x52750,
+  a GETTER COMPOSITION calling record verbs +0x2c/+0x30 and
+  object getter [owner+8]+0xc8 - the key of a real sequence
+  payload is BUILT from live owner state, consistent with the
+  BY_* controls; half-read, item 3).
+
+- OPEN ITEMS COUNTED (5 new; 2 old CLOSED). (1) The port's
+  LL_CTRL_* enum vs this engine
+  word: the enum was derived behaviorally (PR-95's method); a
+  pass over the engine's flag CONSUMERS (which bit gates what,
+  e.g. 0x52158 = SEQ_REV_X) re-grounds the port's names and
+  also answers the port enum's BY_X=2 (the engine has NO BY_X
+  bit) - the enum values may need no change (internal names)
+  but the QUESTION is now exactly stated. (2) PR-108's face-
+  flip bit attribution: the behavior is observed, the [rec+
+  0x15] bit-0x8 = ANTI_POCISK attribution is not corroborated
+  by any consumer found - re-derive where the flip-on-transi-
+  tion really comes from (the engine flag word's +0x13 CH_DIR
+  bit 0x8, "change direction", is the lead). (3) [owner+8]+
+  0x70/+0x71/+0xc8 getter family + [owner+0x99] sentinel +
+  the vtable-slot-4 word ORs 4/8 semantics. (4) The mode-6
+  skip + 0x47770 exhaustion semantics + the 0x52750 getter
+  composition bodies. (5) The mechanism boundary: the transi-
+  tion applier (0x535a2-0x5365c - condition matching, the
+  AC_TIME counter, the cursor SETS) vs the per-row key-merge
+  walk - which drives the port's per-row transition evaluation,
+  and where the applier is INVOKED from (PR-105 called the
+  walk "one virtual method, object slot +0x14, once per step
+  from the level pump" - PR-162 found the +0x44 walk caller
+  instead; the applier's own driver is the open side). CLOSED
+  here: the control-flag bit map (F1d, verbatim) and PR-160's
+  "+0x15 bit 0x8" NAME question (it is the ANTI_POCISK bit;
+  the face-flip attribution bracketed). CARRIED unchanged: PR-161 items (1)
+  (the walk-return encoding: the 0x53b1d/0x53b2e bit tests are
+  re-read as testing bits of the record pointer per 0x52336 -
+  odd encoding, still open), (2) (pool contents), (4) (com-
+  pletion pass; NOTE its [entry+0x28] field is the SAME offset
+  as the param-header channel T-high per PR-160 F5 - relation
+  open), the AC_TIME CODE pass spec, and the older named ones.
+
+- GATES. No code touched (pure reading PR; ll_level.c NOT
+  touched this pass - the 0x520d7 address fix rides with the
+  next CODE PR) - docs-only per precedent, build gates not
+  required. Every added prose line <= 79 cols; over-79 base-
+  lines UNCHANGED (NEXT_STEPS 71, HANDOFF 72); no game data
+  or frames in git (scratch /tmp/opencode/pr162/); .github/
+  workflows/* untouched; the image unchanged (text.bin sha256
+  edf19a12...).
+
+- EVIDENCE. Verbatim re-reads: 0x52110-0x52158 raw BYTES +
+  disasm (continuation proof), 0x52158-0x521e0 (the whole step
+  tail), 0x520c0-0x52118 (the head, unchanged reading), 0x522f
+  c-0x5235c (the paid-path call at 0x52338 and the no-helper
+  intersection arm), 0x51b0d-0x51da8 (the control= chain: all
+  12 store constants + name loads printed; the BY_X -> 0x1 arm
+  traced verbatim through its 0x76a69 compare and next-arm
+  jump at 0x51b56-0x51b58), 0x458e0/0x45800/0x45870 (wrapper forwarders),
+  0x47770 (mode bits), 0x52750 (getter composition head),
+  table re-reads: 0xa2638 (+0x10=0x458e0), 0xa1000 (+0x10=
+  0x47770), 0xa25d4 (helper at record-view +0x18 = entry-view
+  +0x40 - the two views per PR-161 F3). The earlier "no inc
+  form" grep patterns (`inc DWORD PTR [..+0x4]`, `add ..+0x4],
+  0x1`) are quoted with the miss; the correct idiom (lea+store)
+  was in fact ALREADY in PR-159's text for the clone path.
+  Corpus: unchanged. Ledger rule applied: census first - HEAD
+  7bae5a1 carries PR-150..PR-161 (last carrier HEAD); records
+  re-spliced from it.
 
 ## Deferred big items (deliberately out of scope so far)
 
