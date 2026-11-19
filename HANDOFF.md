@@ -1899,6 +1899,43 @@ writer as its open items.
       unread, so the object-side hp/countdown law stays a named
       stand-in, and that the `.des damage=` grammar feeding `[obj+0xb1]`
       is unpinned. Full record: the PR-139 section of NEXT_STEPS.md.
+
+    - PR-140 RAN AND PINNED G-9'S TRAVERSE PROBE and corrected the
+      PR-131 wording. No behaviour change (no C touched): a new
+      data-backed `verify-play` leg runs ZARIA.01 for 12 s (300
+      iterations) with `LEO_PLAY_SOLID=1 LEO_PLAY_SCRIPT="1:FWD"` and
+      pins: the DRABINKA placement at its authored (180,510) with its
+      3 states, the tick-50 pinned SEMI push-out line, >=30
+      `solid LICHA ... SEMI` lines, the positions tick 91 = 180,
+      tick 200 = 435, tick 300 = 685 (A_WALK, grounded), and NO
+      damage or reaction-state line anywhere. Measured: the worms
+      answer the contact with the push-out ALONE across ticks 37..135
+      (70 lines) and that costs DELAY, not a stop (0.8 units/tick
+      pressed vs 2.5 unpressed, ~40 lost iterations). MUTATION
+      CONTROLS: C1 = the pre-PR-139 source reaches the SAME positions
+      while taking three 15-damage hits (ticks 37/67/109, energy
+      100 -> 55) - so the leg detects the old model ONLY through its
+      damage negatives, and the audit's "dies before x=180" wording
+      is retracted as a positional claim; C2 (no window required) and
+      C3 (SEMI push never moves the lion) are both detected; base
+      green before and after. THE LADDER CHAIN WAS READ end to end
+      except the answer bits: ANI2.DES places DRABINKA at 180,510
+      (with local ground lines `1 33,-3` / `23,30;53,160` / `30,50` -
+      G-13's remainder, instance named) and LINA at 125,292 and
+      525,525; drab/lina .MOV scripts idle at `1,0,WAIT K_GEN1` then
+      unroll downward (rows 500/400/300/200) and park at `WAIT
+      K_NEVER`; LEW.ZAR enters A_WSP/A_WSP_LIN via
+      `A_TURN_BACK(1)=K_UP,AC_DRAB_CATCH` then
+      `A_WSP(1)=AC_BREAK_NEXT,AC_DRAB` (air entries at row 3 =
+      `AC_DRAB_CATCH,AC_ONAIR`), and `A_FALL_DOWN(1)=!AC_DRAB` is
+      letting go. 8 new open items counted - above all who raises
+      AC_DRAB/AC_LINA and what fires K_GEN1 (the objects' answer
+      side, PR-141), the K_UP key (the port has no up/down key), and
+      the BY_TY `F=0,100 T=160,50` + SEQ_REV_Y feed law of A_WSP
+      (still PR-109's open law). Gates: make/make win zero warnings,
+      verify-play rc=0, verify-all 56 `(ok)` = PR-139's 55 + this
+      leg, fixture-free the same 23 named SKIPs. Full record: the
+      PR-140 section of NEXT_STEPS.md.
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2618,8 +2655,13 @@ writer as its open items.
     CLOSED by PR-139: an authored `damage=` hurts the lion only
     through the object's own ATC window behind the 0x550c0 clash
     rule, a bare touch costs nothing, and the hit countdown is 30,
-    not 14 - so the walking lion reaches x=180 and G-9's climb probe
-    runs; SURPRISE "?" firing (G-12); and the
+    not 14; and G-9's traverse probe RAN and is PINNED by PR-140 -
+    a plain walk reaches x=685 (the ladder column x=180 at tick 91)
+    at ZERO energy cost, the worms answer with the SEMI push-out
+    alone and cost delay, not a stop - but the CLIMB itself still
+    needs the K_UP key, the AC_DRAB/AC_LINA answer bits and the
+    K_GEN1 unroll trigger named in that record (PR-141); SURPRISE
+    "?" firing (G-12); and the
     ground SOURCE of the first screens (G-13, PR-136) IS DECIDED IN
     PR-138: the engine's ground records ARE the authored .PLT text,
     and the 7-51 offset was screen-x from false-matched
@@ -3098,14 +3140,28 @@ answered question 2 shows continuous climbing, so it could not answer
 that one, and it could not be tied to a level (the `[A_WSP]` block is
 identical in ZARIA.01/ZARIA.02/TUNGA.11, so the timing conclusion does
 not depend on which). Full wording in the PR-109 record.
-STATUS after PR-131: the ZARIA.01 ladder AT 180 is now confirmed
-usable in the original (ridden down at levels/ZARIA.01.mkv t=13.3-15.7
-and mid-climb at ZARIA.01_b.mkv t=200.0-200.7), and the port's own
-probe never reached it: the lion died at the LICHA worms around x~153
-because of the port's unconditional contact damage. G-5 IS CLOSED by
-PR-139 (a bare touch costs no energy at all; damage comes only through
-the object's own window), so the blocker is gone and the climb probe at
-x=180 runs as PR-140 (G-9).
+STATUS after PR-131 (superseded on the port side by PR-139/PR-140 -
+read the PR-140 record before quoting the old probe wording): the
+ZARIA.01 ladder AT 180 is confirmed usable in the original (ridden
+down at levels/ZARIA.01.mkv t=13.3-15.7 and mid-climb at
+ZARIA.01_b.mkv t=200.0-200.7). The old claim that the port's probe
+"dies at the LICHA worms around x~153" is NOT what the port does: on
+the pre-PR-139 source the same walk reached the SAME positions
+(tick 91 x=180, tick 300 x=685) while PAYING 15 per touch (three
+contact hits, energy 100 -> 55) - the old model blocked the traverse
+by energy cost, not by a position stop, and no probe configuration
+here reproduced a death before x=180. PR-140 runs the probe under the
+corrected model and pins it as a verify-play leg: a 12 s FWD walk
+crosses both worms and stands x=685 at tick 300 with ZERO damage,
+zero state changes outside A_WALK, and the worm answer being the SEMI
+push-out alone (cost: ~40 lost iterations, 0.8 vs 2.5 units/tick).
+The CLIMB at x=180 still does not work, and the blocker is named:
+the K_UP key condition (the port's input model has no up/down key),
+the AC_DRAB/AC_LINA (and AC_*_CATCH) answer bits their objects would
+raise, the object-side K_GEN1 unroll trigger, and the A_WSP feed law
+(BY_TY `F=0,100 T=160,50` + SEQ_REV_Y, still PR-109's open law).
+Reading order in the PR-140 record / Next entry; nothing was
+invented for any of it.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

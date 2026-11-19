@@ -13084,50 +13084,246 @@ no port behaviour change)
   log_c.txt/log_d.txt/log_s.txt (the re-run transcript above is from
   the shipped tree).
 
+## PR-140 — G-9's TRAVERSE PROBE RUNS: THE WALKING LION REACHES AND
+
+## CROSSES THE LADDER COLUMN AT x=180 AT ZERO ENERGY COST, the probe is
+
+## pinned as a new data-backed verify-play leg, the PR-131 "the probe
+
+## was blocked by the worm at x~153" framing is CORRECTED with the
+
+## pre-PR-139 measurement, and the ladder/rope chain is read from the
+
+## authored `.des` + `.MOV` pair end to end except for the answer bits
+
+- WHY. G-9 is the climb/traverse gap: the PR-131 stage audit could not
+  run its own traverse probe - "the probe was blocked by the worm at
+  x~153 (G-9)" - because the port's then-unconditional contact damage
+  drained energy on every bump, and the stage's first climb sits at the
+  ladder column x=180 (ANI2.DES places DRABINKA at 180,510). PR-139
+  removed that rule, so the probe can finally run. This PR does not
+  change behaviour - it runs the probe, measures it, pins it as a
+  data-backed regression leg in `verify-play` (the new
+  "play traverse probe" target inside the play legs), and records the
+  ladder chain it read. Per the PR-138 precedent a reading record needs
+  no hand-derived data-free test; here the shipped test IS the
+  data-backed leg, and its mutation controls are the named detectors.
+
+- FINDING 1, THE TRAVERSE MEASUREMENT (the leg's own run). Setup:
+  `LEO_LEVEL_SECS=12 LEO_PLAY_SOLID=1 LEO_PLAY_SCRIPT="1:FWD"` on
+  ZARIA.01 - 300 iterations at the 25/s iteration clock (LL_ITER_MS =
+  40, PR-110's pin). Result, all from /tmp/opencode/ly_trv.log: the
+  ONLY state ever entered is A_WALK; the lion stands the ladder column
+  x=180 at tick 91, x=435 at tick 200, x=685 at tick 300; damage lines
+  are ZERO everywhere (`hit by`, `ATTACKS through`, `lion energy` all
+  count 0), and no reaction state (A_DRAP / A_DOSTAL / A_FALL_DOWN /
+  A_JUMP / A_SITW) ever prints. Both LICHA placements answer the
+  contact with the SEMI push-out ALONE: 70 `solid LICHA/licha3.mov
+  SEMI` lines spanning ticks 37..135. That costs DELAY, not a stop:
+  the walk advances 0.8 units/tick while pressed (ticks 37..90)
+  against an unpressed 2.5 units/tick (ticks 136..200) - about 40
+  lost iterations across the zone. The first pinned push line is tick
+  50, `solid LICHA/licha3.mov SEMI at 179,669 push -2,0 (ret -10)
+  lion 157,648`. (The probe was first run at 8 s / 200 ticks,
+  /tmp/opencode/pr140_walk.log; the leg pins the 12 s run because it
+  also crosses the second worm and the whole second screen band.)
+
+- FINDING 2, THE PR-131 FRAMING CORRECTED (what the old model
+  actually did). With the pre-PR-139 source (HEAD~1's
+  `ported/ll_level.c`) the SAME script reaches the SAME positions -
+  x=180 at tick 91, x=685 at tick 300, still only A_WALK - but takes
+  three contact hits: ticks 37, 67, 109, `hit by LICHA/licha3.mov:
+  damage 15`, energy 100 -> 85 -> 70 -> 55
+  (/tmp/opencode/pr140_mut/log_c1b.txt at 8 s, log_c1_12.txt at
+  12 s). So the old model blocked the traverse by ENERGY COST, not by
+  a position stop, and this probe configuration does not reproduce
+  PR-131's "dies/turns back at the worms" wording as a positional
+  fact - that audit claim came from a different, longer probe
+  extrapolation. The new leg detects the old model ONLY through its
+  damage negatives, and the record says so plainly instead of
+  repeating the death claim. The video comparison stays what it was:
+  the original crosses that zone in the gallop state (A_RUN), which
+  the port has no path into (G-1(b)) - no video claim is made here,
+  and the A-clip cuts at 6.35-7.35 and 11.0-11.35 s are never
+  integrated across. Tier discipline: every position x >= 180 is
+  tier-2 territory (no two static landmarks are co-visible beyond
+  camera x 122, PR-136/138), and these numbers are port-vs-port
+  regression pins, not video matches.
+
+- FINDING 3, THE LADDER/ROPE CHAIN AS AUTHORED (verbatim, the part
+  that is readable today). Placement (ZARIA.01 ANI2.DES lines 6-14):
+  `DRABINKA,drab.ani,drab.mov,180,510` followed by its local block
+  `1 33,-3` / `23,30;53,160` / `30,50`; `LINA,lina.ani,lina.mov,
+  125,292` with `1 0,200` / `23,30;31,200` / `25,49`; and a second
+  `LINA,lina.ani,lina.mov,525,525` with no block. The port places all
+  three (`obj DRABINKA/drab.mov[mov]: art DRAB.SEQ, 3 state(s), bbox
+  42x48 at (180,510)`; `obj LINA/lina.mov[mov]: art LIN.SEQ, 3
+  state(s), bbox 24x68 at (125,292)` and `... at (525,525)`) and
+  counts the local blocks in its honest census ("10 polyline line(s)
+  (moving ground: needs the AC_* signal bus)") - it does not act on
+  them. The object scripts (`ZARIA.01_DRABINKA_DRAB.MOV`,
+  `ZARIA.01_LINA_LINA.MOV`, identical shape): states A_UP/A_DROP/
+  A_DOWN; `[A_UP] control=BY_TIME`, `A_DROP(1)=K_GEN1`, one row
+  `1,0,WAIT K_GEN1` - it hangs idle until a K_GEN1 signal; `[A_DROP]`
+  unrolls the ladder downward through rows of growing art
+  (`sample=6`, drab rows `2,500 3,400,smpauto 4,400 5,300 6,300
+  7,200 8,200 9,200 10,200`; lina rows 2..9) with
+  `A_DOWN(1)=AC_BREAK_NEXT`; `[A_DOWN]` row `11,0,WAIT K_NEVER` -
+  parked, never again. The LION's side (ZARIA.01 LEW.ZAR's script):
+  states A_WSP and A_WSP_LIN exist, `control=BY_TY|CHECK_ALL|
+  SEQ_REV_Y`, `F=0,100 T=160,50 G=0,0`, `seq=climb` / `seq=climb_r`
+  with rows `1,300` then 200-unit rows then `10,300` - the vertical
+  feed PR-109 named "direction and meaning unread". The entry/exit
+  law is plain text: from A_WALK and from A_DRAP,
+  `A_TURN_BACK(1)=K_UP,AC_DRAB_CATCH` (and the AC_LINA_CATCH twin),
+  and from A_TURN_BACK `A_WSP(1)=AC_BREAK_NEXT,AC_DRAB`; the air
+  entries sit at row 3 of A_JUMP / A_JUMP_S / A_FALL_DOWN as
+  `A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR`; letting go is
+  `A_FALL_DOWN(1)=!AC_DRAB` (and `!AC_LINA`); going up through the
+  edge is `A_PODCIAG(1)=AC_EDGE,K_UP`; down is
+  `A_TURN_BACK(1)=AC_DUP,K_DOWN`; the canopy state re-enters through
+  `A_SCIAG(1)=AC_BREAK_NEXT`. So the mechanism the stage shows -
+  walk under the ladder, hold the up key, climb - needs exactly three
+  things the port does not have: the K_UP key condition, the
+  AC_DRAB/AC_LINA "there is a rung here" answer bits (and their
+  AC_*_CATCH air variants), and the object-side trigger that fires
+  K_GEN1 to unroll the ladder. All three are open items, counted
+  below; nothing was invented for them.
+
+- FINDING 4, WHAT THE LEG PINS (the shipped test). A new
+  "play traverse probe" leg in `verify-play`, placed before the
+  render leg, asserting: the DRABINKA placement line above (authored
+  position 180,510 with its 3 states); the tick-50 pinned push-out
+  line; `test $(grep -c 'solid LICHA/licha3.mov SEMI' ...) -ge 30`
+  (the answer-only contact); the position pins tick 91 `pos 180,648`,
+  tick 200 `pos 435,648`, tick 300 `pos 685,648` (all `state A_WALK
+  ... grounded 1`); NO damage line of any kind; NO reaction state.
+  The positions/ticks are the port's own walk law output (PR-135's
+  F/T register law), pinned as a regression - not fitted to anything.
+  The leg adds no code and touches no `.github/workflows/*`; no game
+  data or frames in git.
+
+- OPEN ITEMS COUNTED (8 new; PR-139's 13 carry unchanged). (1) The
+  K_UP/K_DOWN key conditions are unimplemented in the port's input
+  model (PR-82's keys cover F/B/L/R/jump/attack only), so the
+  A_TURN_BACK-with-K_UP entry law cannot run even if the answer bits
+  existed. (2) Who RAISES AC_DRAB/AC_LINA and the AC_*_CATCH variants
+  is unread - presumably the DRABINKA/LINA objects' own answer entry
+  (the +0x78 family PR-139 censused but read only for the animal
+  base 0x97bc0); neither DRABINKA's nor LINA's class table was
+  located. (3) What fires K_GEN1 (the unroll trigger) is unpinned;
+  same for K_NEVER's role (an always-false condition, assumed).
+  (4) The A_WSP vertical feed law - BY_TY's `F=0,100 T=160,50` pair,
+  SEQ_REV_Y, and the 300/200 row feeding - is still PR-109's
+  "vertical feed, meaning unread"; the climb's motion law is
+  unknown, so no climb constants are claimed. (5) The local polyline
+  blocks (`1 33,-3` / `23,30;53,160` / `30,50` under DRABINKA) are
+  exactly G-13's named remainder - the objects' LOCAL ground lines:
+  the entity twin 0x34850's table at [obj+0x48]/+0x4c and the
+  MOVEPLAT-chain provider are unread (PR-138), and the port only
+  counts these lines. (6) No path into A_RUN (G-1(b)) still stands,
+  so the traverse cost stays a delay estimate against the port's own
+  walk, never a race against the video. (7) The A_WSP_LIN twin's
+  per-object differences (seq=climb_r, 8 rows vs 10, different
+  bboxes 24x68 vs 42x48, the second unanchored LINA at 525,525) are
+  unexplored. (8) Whether the ladder blocks or carries the lion
+  (SOLID/SEMI semantics for drab/lina art) is unread - the leg's
+  run shows the port's collision path never meets them (the walk
+  crosses the column untouched), which is consistent with the shipped
+  art's states carrying no SOLID flag, but the engine-side answer was
+  not read.
+
+- MUTATIONS (controls for the new leg; driver
+  /tmp/opencode/pr140_mut/run_mut.sh, transcript mut_12s.log - base
+  green before and after the whole run). C1, the pre-PR-139 source
+  (HEAD~1's ll_level.c restored): DETECTED - the leg's damage
+  negatives fire (three `hit by` lines); note the positions do NOT
+  differ, which is Finding 2's honest statement. C2, drop the window
+  requirement in the collision hit block (`if (1 && ...`): DETECTED,
+  same negatives. C3, make the SEMI push-out never move the lion
+  (`pl->p.x += 0`): DETECTED - the pinned tick-91/200/300 positions
+  fail. No survivors: every control for this leg is detected, and the
+  leg's only undetected-by-design axis is the position-equal case of
+  C1, which is why the damage negatives are its primary teeth.
+
+- GATES. `make` rc=0 and `make win` rc=0, zero warnings (no C change
+  this PR - `ported/` is untouched). `DATA=/tmp/opencode/iso_stage/
+  LEO HD=/tmp/opencode/hd_files make verify-play` rc=0, the new leg
+  green, zero FAILED. Full `make -k verify-all` with the same
+  fixtures: rc=0, "ALL TESTS PASSED (linux + windows + llrs)", 56
+  `(ok)` proofs - PR-139's 55 plus this leg - and zero FAILED.
+  Fixture-free (`DATA=/tmp/opencode/nope HD=/tmp/opencode/nope`):
+  rc=0 with the same 23 named SKIP lines. Logs:
+  /tmp/opencode/pr140_make.log, pr140_makewin.log, pr140_vp2.log,
+  pr140_vp3.log, pr140_va.log, pr140_va_nofix.log. The image
+  `build/leo/leo.img` (sha256 edf19a129e85efb8764457a0808e246ca4ba
+  f08a9111aa09be4ec99ce6b8c40e) is unchanged - this PR needed no
+  engine binary, only the authored texts already on disk.
+
+- HANDOFF UPDATED. Section 7 item 15's G-9 text now names the probe
+  as RUN and pinned (reaches x=685 at zero cost; the climb still
+  needs the K_UP + AC_DRAB chain), and section 8 T5's climb STATUS
+  paragraph carries the same correction (the old "dies at the worms"
+  wording replaced by Finding 2).
+
+- EVIDENCE. /tmp/opencode/pr140/ (add_leg.py, the leg-insertion
+  script, and run_mut.sh, the mutation driver); /tmp/opencode/
+  pr140_mut/ (a scratch build tree - Makefile + ported/ + tools/
+  copies, mut_12s.log the control transcript, log_c1b.txt and
+  log_c1_12.txt the pre-PR-139 8 s / 12 s runs, t*.ppm cut
+  material); /tmp/opencode/pr140_walk.log (the 8 s probe, first run)
+  and pr140_walk12.log (the 12 s probe the leg pins); the leg's own
+  log /tmp/opencode/ly_trv.log and its PPM /tmp/opencode/
+  ly_trv.ppm; the authored texts /tmp/opencode/pr139/des/
+  ZARIA.01_ANI2.DES (lines 6-14) and /tmp/opencode/mov/
+  ZARIA.01_DRABINKA_DRAB.MOV, ZARIA.01_LINA_LINA.MOV,
+  ZARIA.01_LEW.ZAR_LEW.MOV (the A_WSP/A_WSP_LIN blocks quoted
+  above).
+
 ## Next — pick from the Deferred list below
 
-- G-5 CLOSED BY PR-139 (read that record first): an authored
-  `damage=` reaches the LION only through the object's OWN attack
-  window (answer-C 0x55130 behind the 0x550c0 clash rule), that
-  window is the authored `atc_on` row directive (its applier 0x45c20
-  writes the very bit the collision path tests), the DANGER branch
-  delivers the level's `danger_power` which no shipped level authors
-  - so the receiver's own `damage == 0` gate answers "nothing" - and
-  the repeat-hit countdown is the 0x1e = 30 that the lion's own class
-  table 0x96960 ("TLewZaria") installs, not PR-89's 14, which belongs
-  to one other family (0x27260 via table 0x9a54c). A bump against a
-  resting animal costs no energy at all: that is what the two
-  re-pinned play legs now assert, and the 13 open items the record
-  counts are where the reading stops.
+- G-9's PROBE RUNS AND IS PINNED (read the PR-140 record first): a
+  12 s FWD walk crosses the worm zone and reaches x=685 with zero
+  damage and zero state changes; the worm answer is the SEMI push-out
+  alone and costs ~40 lost iterations (delay, not a stop); the
+  pre-PR-139 model is detected by the leg's damage negatives ONLY -
+  the old model reached the same positions while paying 15 per touch,
+  so do not repeat the "dies before x=180" wording. What still
+  blocks the CLIMB itself is named there: the K_UP key condition, the
+  AC_DRAB/AC_LINA answer bits (and their AC_*_CATCH air variants),
+  the K_GEN1 unroll trigger, and the A_WSP feed law (BY_TY
+  F/T + SEQ_REV_Y) - all open items, none invented.
 
-- NEXT PR (PR-140): G-9's climb probe, now UNBLOCKED. The stage audit
-  had the port's lion dying of contact damage around x=153-180, which
-  is exactly where the clip climbs, so the probe could not run. Re-run
-  it with the corrected model: start the lion west of the worms, walk
-  east, and measure whether he reaches the climb at x=180 and what the
-  first screens' ground and objects actually do to him, with the A-clip
-  edit cuts at 6.35-7.35 and 11.0-11.35 s as the comparison (never
-  integrated across). Every standing claim must name its tier: tier-1
-  is two DISTINCT static landmarks agreeing, first screen only, camera
-  x 1..122; anything mid-level is tier-2 by definition and must say
-  so. If the lion still stops at x=180, the next hole is step height
-  and ground, not contact - read it as G-13's remainder, never as a
-  fitted constant.
+- NEXT PR (PR-141): the ladder/rope CHAIN, in reading order. (a) Find
+  DRABINKA's and LINA's class tables the way PR-139 found `SEP`'s
+  (the .des token literal -> its constructor -> the table written at
+  [obj+8]) and read their +0x78 answer entry for what raises
+  AC_DRAB / AC_LINA / AC_DRAB_CATCH / AC_LINA_CATCH on the lion, and
+  what could fire K_GEN1 on the object; read the entity twin 0x34850
+  ([obj+0x48]/+0x4c) and its MOVEPLAT-chain provider at the same
+  time - that is also G-13's remainder and the local block under
+  DRABINKA (`1 33,-3` / `23,30;53,160` / `30,50`) is its concrete
+  instance in ZARIA.01. (b) Read the A_WSP feed: BY_TY's
+  `F=0,100 T=160,50` pair and SEQ_REV_Y against the row-feeding code
+  (start from the 0x54.. dispatchers PR-109/PR-134 mapped). (c) If
+  (a)+(b) pin a law, implement the entry (K_UP from A_WALK ->
+  A_TURN_BACK -> A_WSP behind AC_DRAB) and the vertical feed behind a
+  hand-derived, data-free test like `contact_model_selftest`, with
+  mutation controls; a K_UP key is a port input-model change (PR-82
+  has no up/down keys) and needs its own named decision. If any
+  answer stays unread, it becomes a counted open item, not a fitted
+  constant.
 
 - THEN, from the PR-131 gap list (the current text of every item is
   HANDOFF.md §7 item 15): G-8's HUD lives - both R3 clips start at
   "5" while the port prints a hard-coded 6, so map the STATUS.LEO
   fields instead (that is also the only way a "did this bump cost
-  life" question could ever become a video claim; G-5 made it moot on
-  the engine side); G-3's ZAR.BLK corridor and the KAMIEN sixth field
-  (1308/1218/1115 decreasing toward 1299..1620); G-13's remainder
-  exactly as the PR-138 record names it (the port places ani_plat=
-  objects but never parses their LOCAL ground lines - ANIPL2 KATAPULT/
-  PALMA - and engine-side the entity record table 0x34850
-  [obj+0x48]/+0x4c and its MOVEPLAT-chain provider are unread); then
-  G-7 (the water surface as a floor), G-12 (the SURPRISE "?" firing)
-  and G-10/G-11 (the level-end scene and the mid-level bird
-  sequences - no bird leaf exists in ZARIA.01's ANIMACJE tree).
+  life" question could ever become a video claim); G-3's ZAR.BLK
+  corridor and the KAMIEN sixth field (1308/1218/1115 decreasing
+  toward 1299..1620); then G-7 (the water surface as a floor), G-12
+  (the SURPRISE "?" firing) and G-10/G-11 (the level-end scene and
+  the mid-level bird sequences - no bird leaf exists in ZARIA.01's
+  ANIMACJE tree). G-13's remainder is folded into PR-141 (a) above.
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
 first item and PR-45 its second (the authored scene), PR-46 its third

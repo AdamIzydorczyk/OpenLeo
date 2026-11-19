@@ -1054,6 +1054,66 @@ ifeq ($(PX_DATA),1)
 	  || { echo "play enemy attack grep FAILED"; \
 	       grep -E 'DANGER:|ATTACKS|hit by|A_DOSTAL|A_DRAP' /tmp/opencode/ly_dgr.log \
 	       | head -8; exit 1; }
+# PR-140 (G-9's traverse probe): with PR-139's contact model in place a
+# 12-second walk (300 iterations at the 25/s iteration clock) runs from
+# the spawn to x=685 - past the worm zone, past the ladder column,
+# across the second screen's ground - at ZERO energy cost. A plain walk
+# all - the PR-131 stage audit could not run this probe, "the probe was
+# blocked by the worm at x~153 (G-9)". The positions/ticks below are the
+# port's OWN walk law output (PR-135's engine F/T register), not fitted
+# here; what the leg tests is that nothing on the way costs the lion
+# energy or changes his state. Pinned: the ladder object is placed at
+# its authored (180,510) with its 3 states; the worms answer the contact
+# with the SEMI push-out ALONE (>=30 of those lines; 70 of them span
+# ticks 37..135 across both placements) and that costs the walk DELAY,
+# not a stop: 0.8 units/tick while pressed (ticks 37..90) against an
+# unpressed 2.5 units/tick (136..200) - about 40 lost iterations. The
+# original crosses the same zone in the gallop state the port has no
+# path into,# G-1(b)); the lion reaches the ladder column x=180 on tick 91, x=435 on
+# tick 200 and x=685 on tick 300; and no damage line appears anywhere
+# ('hit by' was
+# PR-89's contact damage, 'ATTACKS through' the window hit, 'lion
+# energy' both), nor does he ever leave A_WALK. This also CORRECTS the
+# PR-131 audit's framing: on the pre-PR-139 source the SAME walk reaches
+# the SAME positions (x=685 at tick 300), but with three contact hits
+# (ticks 37/67/109, energy 100 -> 85 -> 70 -> 55) - the old model's
+# probe was blocked by DAMAGE COST, not by a position stop; the mutation
+# control C1 in the PR-140 record shows this leg fails on that build by
+# those damage negatives.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=12 LEO_PLAY_SOLID=1 \
+	  LEO_PLAY_SCRIPT="1:FWD" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_trv.ppm LEO_LEVEL_PPM_TICK=300 \
+	  ./ll_level $(DATA) ZARIA.01 --play --no-audio \
+	  > /tmp/opencode/ly_trv.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play traverse probe FAILED (rc=$$rc)"; \
+	    exit 1; fi
+	@grep -q 'obj DRABINKA/drab.mov\[mov\]: art DRAB.SEQ, 3 state(s), bbox 42x48 at (180,510)' \
+	  /tmp/opencode/ly_trv.log \
+	  && grep -q 'play tick 50: solid LICHA/licha3.mov SEMI at 179,669 push -2,0 (ret -10) lion 157,648' \
+	  /tmp/opencode/ly_trv.log \
+	  && test "$$(grep -c 'solid LICHA/licha3.mov SEMI' /tmp/opencode/ly_trv.log)" -ge 30 \
+	  && grep -q 'play tick 91: state A_WALK seq walk frame 10 pos 180,648 grounded 1' \
+	  /tmp/opencode/ly_trv.log \
+	  && grep -q 'play tick 200: state A_WALK seq walk frame 7 pos 435,648 grounded 1' \
+	  /tmp/opencode/ly_trv.log \
+	  && grep -q 'play tick 300: state A_WALK seq walk frame 1 pos 685,648 grounded 1' \
+	  /tmp/opencode/ly_trv.log \
+	  && ! grep -qE 'hit by|ATTACKS through|lion energy' /tmp/opencode/ly_trv.log \
+	  && ! grep -qE 'state A_(DRAP|DOSTAL|FALL_DOWN|JUMP|SITW)' /tmp/opencode/ly_trv.log \
+	  && echo "play traverse probe: 300 iterations walk the lion from the" \
+	     "spawn to x=685 at ZERO energy cost; the ladder object is placed" \
+	     "at its authored (180,510) and its column is reached on tick 91;" \
+	     "the worms answer the contact with the SEMI push-out ALONE (70 of" \
+	     "their lines span ticks 37..135; that costs DELAY, not a stop:" \
+	     "0.8 units/tick pressed vs 2.5 unpressed, ~40 lost iterations -" \
+	     "the original crosses that zone galloping, a state the port has" \
+	     "no path into, G-1(b)); no damage line of any kind appears and" \
+	     "the lion never leaves A_WALK (ok)" \
+	  || { echo "play traverse probe grep FAILED"; \
+	       grep -E 'DRABINKA|SEMI|pos 1[78][0-9],|hit by|ATTACKS' \
+	       /tmp/opencode/ly_trv.log | head -8; exit 1; }
+
 # render leg: SAME tick count, the only difference is the held key -
 # the frame delta is the lion walking (and the NONE run stays at spawn).
 # The tick-16 pair is derived arithmetic, not a reading: with no key his
