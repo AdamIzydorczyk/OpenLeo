@@ -8210,6 +8210,30 @@ SHIPPED - DOCS ONLY, NO T5 BEHAVIOUR CHANGED:
     them; the exit-word writer stays counted (re-measured
     across the whole manager verb set).
 
+(4) THE LAYER ABOVE THE LEVEL LOOP IS READ, AND THREE LABELS FALL
+    (PR-193): the 13 per-stage wrappers give the engine's OWN stage
+    order (zaria1, zaria2, ena1, ena2, lona, sades, kadmar1,
+    kadmar2, ran, kara, junction, tunga1, tunga2 - ZARIA.01 first,
+    the port roadmap); the driver 0x5d170 holds the ONLY call site
+    of the level loop 0x4abd0 and stores the pair (loop return,
+    [level+0x4]) into its caller's buffer; and the caller's split
+    is now read byte for byte: 3 = call the reset pair (0x5da60 +
+    0x5d050) and return 1 = run the same stage again, 2 = call the
+    queue runner 0x5d2f0, which opens status.leo and runs ONE
+    ds:0xcf464 queue entry through the stream run verb (returns 2
+    if one ran, 0 if the queue is empty), 4 = return 0 = stop the
+    chain, anything else = return 1 with no reset. Retracted by
+    re-measurement on this
+    machine: '0x5f310 = chunk interpreter' (it is the input flush +
+    int-0x0b pump), '0x4be20 = the level loop' (it is the class
+    +0x20 close verb, zero callers), '0xa2dd8 = the base stream
+    class' (a verb vector). The 'levels' config chain is CLOSED as
+    a named-entry lookup with the `Bledny wpis ` not-found leg.
+    T6's engine-side contract is therefore WRITTEN (PR-193 F2/F3)
+    and is PR-194's subject - a [PORT] change with its own test.
+    No T5 observable moved here either: no port file was touched,
+    so the ladder/vine/BY_TY/energy verdicts stand as (3) left them.
+
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
 (`AC_XCHG_LEVEL`), lives/energy persistence, game over. STATUS.LEO progress is

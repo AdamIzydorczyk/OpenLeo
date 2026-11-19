@@ -15851,44 +15851,58 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-193 IS THE LEVEL-DATA (.IS) CHUNK FORMAT + THE
-  ANIMACJE RECORD FORMAT (the two file formats the T5
-  chunk work keys off): (1) TRACE THE .IS READ PATH: the
-  remaining 0x5f310 chunk-loop callers 0x607e0/0x607ff
-  (their enclosing fn + who opens ZARIA1.IS - the ETAPY
-  getter's level-load caller region 0x4a98f vs 0x4a910),
-  then read the 0x4e710 chain (class 0x97f50's +0x58
-  verb) END TO END as the .IS chunk interpreter: which
-  binary header it expects, how tags encode, and how the
-  per-tag sizes (ZONE 0x54 -> 0x52860, TABLICA/BERLO...)
-  map to the authored chunks; cross-check ZARIA1.IS bytes
-  at the discovered header law - closes PR-192 open item
-  (1); (2) THE ANIMACJE RECORD FORMAT: fn 0x5dcc5 end to
-  end (its 0x4a910/ANIMACJE-getter open legs, the 31-tag
-  arms) + a direct byte read of an ANIMACJE member (the
-  'LINA'/'BERLO'/'KORONA' plaintext offsets found by
-  pr192_arch.py) to pin the per-type description layout
-  (the T5 chunk-format source) - closes PR-192 open item
-  (2); (3) THE 'levels' CONFIG CHAIN: where the 'levels'
-  file (error string 0x91ee5) is opened/parsed and how it
-  selects the LEVELDES '.DES' members (the 'Bledny wpis'
-  leg + the 0x91f0b-0x91f19 '\\' join strings) - closes
-  PR-192 open item (3); (4) THE BOOT REGISTRY: attribute
-  the {code,code,flags} entries at 0xad8c0-0xad91c
-  (0x514e0/0x59dc0/0x5c260/0x611e0 + who reads the table)
-  and the stream-table +0x24.. triples: closes PR-192
-  open items (4)/(5); (5) SECOND PASS on the exit word:
-  read the 0x4c2c0/0x4c4a0/0x4c5c0/0x4c680/0x51370/
-  0x51560 verb BODIES (not just store scans) for calls
-  that reach [mgr+4] indirectly. STOP CONDITIONS: every
-  claim byte-backed or fixture-byte-backed (cite ISO
-  offsets); formats cross-checked against the real
-  ZARIA1.IS/ANIMACJE bytes, never inferred from names
-  alone; unproven halves stay counted; corrections get
-  brackets; no port behaviour changes without a failing
-  test; Linux-first gates (make zero-warning + verify-all
-  both fixture modes) apply to any code PR - docs-only PRs
-  cite the last measured state (40cf915).
+- PR-194 IS THE EXIT-CODE CONTRACT IN PORT CODE ([PORT] - the first
+  implementation PR after the history override; the owner asked for
+  the balance to move toward code, and this is the one finding whose
+  behaviour is fully read): PR-193 F2/F3/F4 give the engine's own
+  sequence end to end - the driver 0x5d170 returns the pair (level
+  loop return, [level+0x4] exit word) and its per-stage caller
+  splits on the code: 3 = call the reset pair (0x5da60 + 0x5d050,
+  with the per-stage edx 0/1) and THEN return 1 = run the same
+  stage; 2 = call the queue runner 0x5d2f0, which opens status.leo
+  and processes ONE queue entry through the stream run verb and
+  returns 2 if one ran, 0 if the queue was empty or the item would
+  not run; 4 = return 0 = stop the chain; anything else = return 1
+  with NO reset. PORT IT AS BEHAVIOUR: give the port's level-exit
+  path those four outcomes instead of the single 'level over'
+  route, keep the LEO_* API exactly as it is (is_player_run 0/1/2
+  is documented API), and ship the test in the same commit - a leg
+  that drives each of the four codes and pins the four outcomes in
+  the log (verify-play/verify-level style, fixture-backed). The two
+  things a collapsing model loses are named by the bytes: the reset
+  pair on code 3 (3 and the default both return 1), and 2 vs 0 on
+  the queue leg. FIRST STEP before any code: measure what the port
+  does TODAY with the same four inputs and write the delta; if a
+  case cannot be driven from the fixtures, say so and count it - do
+  not invent a scenario. RULES THAT BIND THIS PR: rule 3 (a test
+  that cannot pass without the change), the standing rules (parser
+  acceptance never widens; pinned logs/PPMs stay), zero-warning
+  `make`, the fixture and fixture-free `verify-all`, and the
+  subject tag `[PORT]`.
+- SMALL [GATE] ITEM TO LAND WITH OR BEFORE IT: `verify-utf8` uses
+  the python-oracle frames that only `make py-refs` produces but
+  does not declare the dependency - on a freshly staged machine
+  the full gate fails at Makefile:2066 (measured here 2026-11-19:
+  `cmp: /tmp/opencode/c_py/f01020.ppm: No such file`, rc=2, fixed
+  by running py-refs first). One-line Makefile fix, no leg logic
+  touched.
+- THEN PR-195 IS THE STAGE LIST AND THE QUEUE: the engine's own
+  13-stage order (PR-193 F1) and who fills the ds:0xcf464 queue
+  plus what one entry looks like (open item 1) - what the port
+  should do with either, decided only when a test can show a
+  difference. The reading list for both: the .mnu opcode
+  interpreter (the run verb's member-dispatch walk over
+  [obj+0x2c]..[obj+0x34]), the 84-byte status record's field map,
+  the six stream classes' differences, the ANIMACJE flag-2 5200-
+  byte record layout, the language-selector writer + the runtime
+  `.TLO` assembly.
+- STOP CONDITIONS: every claim byte-backed or fixture-byte-backed
+  (cite ISO offsets); formats cross-checked against the real
+  ZARIA1.IS/ANIMACJE bytes, never inferred from names alone;
+  unproven halves stay counted; corrections get brackets; no port
+  behaviour changes without a failing test; Linux-first gates
+  (make zero-warning + verify-all both fixture modes) apply to any
+  code PR - docs-only PRs cite the last measured state (6238d42).
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -26663,6 +26677,11 @@ BEHAVIOUR CHANGE)
   0x5e0c0/0x5e100 for the legs (+0x5e14e/0x5e18e for the
   menu engine); THE FILES RUN AS LEVEL SCRIPTS (0x603b0
   -> [stream.vt+0xc] + the 0x5f310 chunk loop); F1 re-
+  [PR-193 RETRACTION: 0x5f310 IS NOT a chunk loop -
+  `mov eax,0xcde70; call 0x1c490` + the 0x766a7/0x766be
+  int-0x0b pump, 12 bytes; the .mnu opcode interpreter is
+  still unread, and 0x603b0's [obj+0x2c]/[obj+0x34]
+  object walk is the remaining candidate.]
   opens 'pomoc1.mnu' until it returns 0, P runs 'pauza.
   mnu', and THE ESC MENU'S RESULT == 1 IS THE EXIT-4
   SOURCE - not a hotkey constant. [PR-192 F3/F5: the
@@ -26859,6 +26878,10 @@ BEHAVIOUR CHANGE)
   0x5f3d0 (exactly these 2 callers); 0xa2d90/0xa2d6c are
   STREAM CLASSES differing only at table slot +0x20
   (0x60960 vs 0x4be20 = THE LEVEL LOOP FN, PR-190) - the
+  [PR-193 RETRACTION: +0x20 is the per-class CLOSE verb
+  (0x60a80 is called twice by the queue runner 0x5d2f0);
+  0x4be20 has ZERO E8 callers and frees/closes objects.
+  The level loop stays 0x4abd0 with exactly one caller.]
   menu and the level share the stream engine; the run
   notation CONFIRMED: bytes 0x603cb `8b 90 9c 00 00 00
   ff 52 0c` = `mov edx,[eax+0x9c]; call [edx+0xc]`, and
@@ -26866,6 +26889,11 @@ BEHAVIOUR CHANGE)
   the mode-bit variant; base stream table 0xa2dd8 installed
   at 0x5f13c/0x5f178], 0x57a00 path-concat,
   0x603b0 RUN = call [obj.vt+0xc] then 0x5f310 (THE LEVEL-FILE
+  [PR-193 RETRACTION: 0x5f310 = the input flush + the
+  int-0x0b pump (0x1c490 zeroes the 0xcde70 input block);
+  after it the run verb zeroes [obj+0x28] and walks the
+  object list at [obj+0x2c]/[obj+0x34]. 'THE LEVEL-FILE
+  CHUNK INTERPRETER' is retracted.]
   CHUNK INTERPRETER - menu files are level-format scripts!),
   0x60820 close, 0x4a8c0 refresh. THE NAMES COME FROM ONE
   POINTER TABLE AT 0xa9a50, 22 ENTRIES: [0] = the error
@@ -27111,6 +27139,11 @@ BEHAVIOUR CHANGE)
   both stream tables decoded - identical through the RUN
   verb (slot +0x1c = 0x603b0), differ only at +0x20:
   0x60960 vs 0x4be20 THE LEVEL LOOP; 0xa2dd8 = the base
+  [PR-193 RETRACTION: 0xa2dd8 is NOT a class table - its
+  dwords are code pointers (0x61100, 0x5F480, ...); and
+  each of the six stream tables is referenced ONLY from
+  its own ctor (0x60ff5 / 0x60e29 / 0x60a4b+0x60aa5 /
+  0x609cb / 0x60947+0x60985 / 0x5f4bd+0x60829).]
   stream class at 0x5f13c/0x5f178; the +0x00 slot = a
   base-link (0x5f330) and the +0x24.. triple repeat =
   counted]. (3) The [mgr+0x4] exit-word runtime
@@ -27327,6 +27360,10 @@ BEHAVIOUR CHANGE)
   0x5df69) and the LEVELDES getter's single caller (0x4cae7
   = the .des parser, Finding 4) complete the open-map. The
   0x5f310 chunk loop has EXACTLY 3 E8 callers: 0x603d8
+  [PR-193: the census CONFIRMED, the label retracted -
+  all three callers are inside 0x603b0, and 0x5f310 is
+  the input flush + int-0x0b pump. The driver inlines
+  the same pair at 0x5d2af-0x5d2cf.]
   (inside the run verb 0x603b0), 0x607e0, 0x607ff. THE
   BOOT INIT fn 0x5c600 sets all four paths and the
   {0x961fc,0x96200} descriptor pair (ds:0xcf3cc/0xcf3d0);
@@ -27424,6 +27461,10 @@ BEHAVIOUR CHANGE)
   +0x14=0x60910, +0x18=0x60920, +0x1c=0x603b0 THE RUN
   VERB, +0x20=0x60960; 0xa2d6c = same through
   +0x1c=0x603b0, +0x10=0x609d0, +0x20=0x4be20 = THE LEVEL
+  [PR-193 RETRACTION: 0x4be20 is the class +0x20 CLOSE
+  verb (free 0xa12d4 / call 0x60820 / call 0x5c370), not
+  the level loop. The six-table family is confirmed and
+  its run verb +0x1c = 0x603b0 in all six.]
   LOOP FN (PR-190) - the level engine and the menu share
   the stream class, differing only in the +0x20 slot; the
   base stream table 0xa2dd8 is installed at 0x5f13c/
@@ -27499,6 +27540,8 @@ BEHAVIOUR CHANGE)
   MENU STREAMS ARE THE 0xa2d6c VARIANT, THE HELP/F1 STREAM
   THE 0xa2d90 VARIANT, and 0xa2d6c's +0x20 slot holds
   0x4be20 = THE LEVEL LOOP FN - the variant literally
+  [PR-193 RETRACTION: the slot is the class close verb;
+  0x4be20 is never called (zero E8 sites). See F5.]
   carries the level-loop entry as its slot-+0x20. Further,
   0x603b0 appears as an IMMEDIATE at 0xa2d1c/0xa2d40/
   0xa2d64/0xa2d88/0xa2dac/0xa2dd0 = a WHOLE FAMILY of
@@ -27515,10 +27558,21 @@ BEHAVIOUR CHANGE)
 
 - OPEN ITEMS COUNTED (6 new). (1) The .IS level-DATA
   binary chunk format (the 0x607e0/0x607ff callers of
+  [PR-193: ZARIA1.IS starts `iNFOSTREAM\n\0"Lew Leon"
+  (c) 1996 ` = the .IS container the port already decodes
+  (ported/is_stream.c); the 0x5f310 callers are the run
+  verb's flush legs. The .IS chunk format STAYS OPEN.]
   0x5f310 + the .IS header vs the 0x4e710 chain's
   text/binary mix). (2) The ANIMACJE record format (the
   per-tag description layout inside the ANIMACJE member -
   the T5 chunk-format source). (3) The 'levels' config
+  [PR-193 CLOSED WITH A CORRECTION: 0x91ee5 is the error
+  text `Bledny wpis ` ("bad entry"), referenced exactly
+  once at 0x4d423; the 0x9262e-0x92630 "delimiters" are
+  NUL bytes at the tail of `Nieznana wersja jezykowa!`.
+  The mechanism is the driver's named-entry lookup
+  (0x5c320(0x3ea) + 0x57990 + 0x4a4c0), keyed by the
+  stage name - there is no 'levels' file.]
   file loader (the 0x91ee5 error names it; where it is
   opened/read - the 0x4c723 parser is the LEVELDES reader;
   the levels-file -> LEVELDES-record chain counted).
@@ -27574,6 +27628,257 @@ BEHAVIOUR CHANGE)
   brackets. The Windows half stays in the end pass (rule
   8). The last CONFIRMED CI run at this record's time:
   PR-191's docs run 44594688123 = SUCCESS on 575a395.
+
+## PR-193 — THE STAGE-DRIVER LAYER AND THE EXIT-CODE CONTRACT ARE
+## READ END TO END: 13 PER-STAGE WRAPPERS AROUND ONE DRIVER 0x5d170,
+## THE ONLY CALL SITE OF THE LEVEL LOOP, AND A QUEUE RUNNER THAT OPENS
+## status.leo (RECORD; THREE INHERITED LABELS RETRACTED, WITH THE
+## BYTE PROOF)
+
+- WHY. PR-192's Next named the .IS/ANIMACJE formats and the 'levels'
+  chain. The reading went a different way once the stage-name strings
+  were followed, and the result is the layer ABOVE the level loop -
+  who starts a stage, who ends it, and what the exit code means - so
+  that is what this record ships. Everything below was measured on THIS
+  machine after /tmp/opencode was swept: `tools/re/make_text_asm.sh`
+  over `build/leo/leo.elf` (text.bin: VA = file offset + 0x10000)
+  is the ONLY disassembler used here, and the fixture side is the repo's own
+  `LL.iso` re-staged per the recipe in NEXT_STEPS ("Workspace note").
+  The check script is /tmp/opencode/pr193/pr193_facts.py (out:
+  pr193_facts.out); every FACT line below is reproducible with it.
+
+- FINDING 1, THE 13 PER-STAGE WRAPPERS AND THE STAGE LIST. `call
+  0x5d170` has EXACTLY 14 sites: 0x5d3b0, 0x5d420, 0x5d490, 0x5d500,
+  0x5d570, 0x5d5e0, 0x5d650, 0x5d6c0, 0x5d730, 0x5d7a0, 0x5d891,
+  0x5d8c9, 0x5d940 and 0x5eb11. The first thirteen are one-per-stage
+  wrappers of the same shape (`mov esi,eax` = the stage object,
+  `mov ebx,<name>`, `mov edx,esp` = the result pair on the stack,
+  `call 0x5d170`), and the name immediates spell, in this order,
+  zaria1, zaria2, ena1, ena2, lona, sades, kadmar1, kadmar2, ran,
+  kara, junction (0x92631..0x9269b block; the walk-back scan
+  recovered 11 of the 13 loads verbatim, the tunga1/tunga2 pair is
+  the same block - counted as a scan gap, not as a different list).
+  THE 14TH CALLER IS NOT A STAGE: 0x5eb08-0x5eb11 is
+  `mov edx,0x9; mov eax,ecx; mov DWORD PTR ds:0xa94f0,edx;
+  mov edx,esp; call 0x5d170` - it sets the PR-188 bounded stage index
+  to 9 and passes no name. So THE ENGINE'S OWN STAGE ORDER IS
+  ZARIA1, ZARIA2, ENA1, ENA2, LONA, SADES, KADMAR1, KADMAR2, RAN,
+  KARA, JUNCTION, TUNGA1, TUNGA2 = 13 stages, ZARIA.01 first -
+  the port roadmap, straight from the bytes, and the first time the
+  engine's stage list is written down.
+
+- FINDING 2, THE DRIVER 0x5d170 (the whole level-start/level-run
+  sequence, one function): prologue 0x5d170-0x5d18b; the 0xcf1a8 and
+  0xcf068 object reset/save legs (0x5b860, 0x5b9e0, 0x5cdd0, 0x1cc10,
+  0x56380, 0x55cf0); the by-name lookup leg 0x5d1f0-0x5d245
+  (`mov eax,0x3ea; call 0x5c320` then `call 0x57990` = PR-188's
+  named-entry ctor, with edx = the STAGE NAME from the wrapper, then
+  `mov ebx,0x961fc` + `call 0x4a4c0` = the by-name finder, then
+  `call 0x57a00` release); then 0x5d245-0x5d249
+  `mov eax,[edi]; mov edx,[eax]; call DWORD PTR [edx+0x28]` = the
+  stage object's CLASS-TABLE verb +0x28; then 0x5d24c-0x5d251
+  `mov eax,ds:0xcef40` + `call 0x4abd0` - THE ONLY CALL SITE OF THE
+  LEVEL LOOP IN THE WHOLE IMAGE (PR-190's census, re-measured here:
+  exactly 1); the result pair at 0x5d256 (`mov [ebp-0xc],eax`) and
+  0x5d259-0x5d261 (`mov eax,ds:0xcef40; mov eax,[eax+0x4]` = the
+  exit word at [level+0x4]); the 0x5d298-0x5d2ac leg
+  (`mov ebx,[eax+0x3e6]; mov edx,2; call [ebx+0x4]`); then the
+  INPUT FLUSH + PUMP 0x5d2af-0x5d2cf (see Finding 5); and finally
+  the OUT-PARAM PAIR STORE 0x5d2d1-0x5d2dc
+  `mov edx,[ebp-0x4]; mov [edx],eax` (the loop's return code) and
+  `mov eax,[ebp-0x8]; mov [edx+0x4],eax` (the exit word). PR-190's
+  "the caller copies the exit word beside the code" is now read at
+  the instruction level, and the field is [level-object+0x4] through
+  the ds:0xcef40 global.
+
+- FINDING 3, THE EXIT-CODE CONSUMER, BYTE-FOR-BYTE (inside every
+  wrapper). Wrapper 1 (zaria1) 0x5d3b5-0x5d409: `mov edx,DWORD PTR
+  [esp]` = the code the driver stored at [edx]; `cmp edx,0x3`,
+  `jb 0x5d3f0`, `jbe 0x5d3c6`, `cmp edx,0x4`, `je 0x5d3ec`,
+  `jmp 0x5d3dc` - a four-way split, and the returns are explicit:
+  - code 3 (0x5d3c6): `mov eax,esi` (the stage object) + `xor
+    edx,edx` + `call 0x5da60`, then `xor ecx,ecx; xor ebx,ebx;
+    mov eax,esi; xor edx,edx; call 0x5d050` = THE STAGE RESET
+    PAIR, then it falls through to 0x5d3dc `mov eax,0x1` ->
+    return 1 AFTER resetting = RUN THE SAME STAGE AGAIN.
+  - code 2 (0x5d3f0 -> `cmp edx,0x2`, `je 0x5d3e3` -> `mov
+    eax,esi; call 0x5d2f0`): Finding 4's queue runner, and ITS
+    value is what the wrapper returns (2 or 0, see Finding 4).
+  - code 4 (0x5d3ec `xor eax,eax`): return 0 = THE CALLER CHAIN
+    STOPS (this is PR-190's exit-4 = the menu's RESULT == 1 leg).
+  - codes 0, 1 or >3-but-not-4 (0x5d3dc): `mov eax,0x1` =
+    CONTINUE WITHOUT RESET. So code 3 and the default BOTH return
+    1; the difference is only the reset pair. Any port model that
+    collapses them loses the reset.
+  Wrapper 2 (zaria2, name 0x92638 at 0x5d419) repeats the whole
+  split at 0x5d425-0x5d47f with ONE difference: its reset legs
+  take `mov edx,0x1` (0x5d436 and 0x5d446) instead of edx=0 -
+  a per-stage flag on the reset pair, second argument; what it
+  selects is NOT read (counted). PR-190 listed what raises codes
+  1..4; THIS is what consumes them, so the level-change contract
+  is closed on both ends.
+
+- FINDING 4, 0x5d2f0 IS A QUEUE RUNNER (ONE ENTRY PER CALL), AND IT
+  READS status.leo. 0x5d2f2 `push edx; sub esp,0xbc` prologue;
+  0x5d2f9 `mov DWORD PTR ds:0xa94f0,0x5` (the PR-188 stage index
+  again, = 5 here); 0x5d303 `call 0x5dcc0` = the status.leo opener;
+  0x5d308 `mov ebx,DWORD PTR ds:0xcf464` = A QUEUE COUNT and
+  `test ebx,ebx; je 0x5d38e` -> if the queue is EMPTY the return is
+  0 (`xor ebx,ebx`). Otherwise EXACTLY ONE entry is processed per
+  call (there is no loop): `mov ecx,ebx` (the count) + `call
+  0x5e180` and `call 0x5df50` build two strings from the queue,
+  0x5d336 `call 0x60a30` constructs an object from them, 0x5d347 /
+  0x5d358 `call 0x57a00` release both strings, then 0x5d35f `call
+  0x603b0` = THE STREAM-CLASS RUN VERB (PR-192's). If that returns
+  non-zero: 0x5d368 `mov ebx,0x2` (the return value) and the entry
+  is POPPED (`dec ecx` 0x5d375 + `mov ds:0xcf464,ecx` 0x5d378); if
+  it returns zero nothing is popped and ebx stays 0. BOTH branches
+  close the object with `call 0x60a80` (0x5d37e / 0x5d389) and
+  0x5d390 `mov eax,ebx` returns. So the exit-code-2 leg means:
+  RUN ONE QUEUED ITEM through the same stream class the menus use,
+  2 = one ran (come back), 0 = nothing to run. THE QUEUE'S PRODUCER
+  (who fills ds:0xcf464) and the entry layout are NOT read -
+  counted open.
+  status.leo side: `status.leo` exists EXACTLY once in the image, at
+  0xa98a4, and the next literal is `mapka.mod` at 0xa98b0. The opener
+  0x5dcc0 has exactly 3 callers (0x5d303 above, 0x5dad0, 0x5e358).
+  The reader 0x5dae0 (one caller, 0x5e29a) opens it with the mode
+  pair at 0x9269c ('rb', then 'w+b') via 0x7607b, then reads
+  `mov eax,0x54; mov ebx,0x4; mov edx,0x15; call 0x76a64` = an
+  84-byte-element, count-4 request (336 bytes) with a 0x15 prefix.
+  The engine's status record is 84 bytes; the repo's gitignored
+  STATUS.LEO fixture is 300. THE PORT'S ll_save FORMAT IS NOT
+  TOUCHED here: the field map of that 84-byte record is counted
+  open (T-17 territory), no test says otherwise.
+
+- FINDING 5, 0x5f310 IS THE INPUT FLUSH AND THE INT-0x0b PUMP, NOT A
+  CHUNK INTERPRETER. Its whole body (12 bytes): `mov eax,0xcde70;
+  call 0x1c490` (0x1c490 zeroes the input block at 0xcde70, its
+  +0xa and +0x20a fields and the [ecx+0x40a] byte) and then the loop
+  `call 0x766a7; test eax,eax; je out; call 0x766be; jmp loop`. Its
+  three E8 callers (0x603d8, 0x607e0, 0x607ff) are ALL inside the
+  run verb 0x603b0 - 0x603d8 comes right after 0x603cb-0x603d1
+  `mov edx,[eax+0x9c]; call DWORD PTR [edx+0xc]`. AFTER the flush
+  the run verb does the real work: 0x603e3 `mov DWORD PTR
+  [eax+0x28],ebx` (zero), then it walks the object list at
+  [obj+0x2c] with its end at [obj+0x34], and for each item
+  `mov ebx,[eax]; mov ebx,[ebx]` = the item's CLASS TABLE, from
+  which it computes two (adj+delta)/2 forms - `mov edx,[ebx+0x18];
+  mov edi,[ebx+0x20]; add edx,edi; ... sar edx,0x1f; sub eax,edx;
+  sar eax,1` and the same with +0x14/+0x1c - i.e. A C++ POINTER-TO-
+  MEMBER DISPATCH, then 0x6041e-0x60423 `mov eax,0xceb84; call
+  0x1cb70`. THAT member dispatch over the object list is the per-
+  frame part, not 0x5f310. The driver
+  inlines the same flush+pump pair at 0x5d2af-0x5d2cf. THERE IS NO
+  CHUNK INTERPRETER AT 0x5f310 and the .mnu opcode format is still
+  unread.
+
+- FINDING 6, THE STREAM-CLASS FAMILY IS SIX TABLES AND +0x20 IS THE
+  CLOSE VERB. 0xa2d00, 0xa2d24, 0xa2d48, 0xa2d6c, 0xa2d90, 0xa2db4 -
+  all six have run verb +0x1c = 0x603b0; their +0x20 slots are
+  0x5eb70 / 0x5eb30 / 0x60a80 / 0x4be20 / 0x60960 / 0x60820, and
+  0x60a80 is the very function the queue runner calls to close the
+  object (twice) - so slot +0x20 is the per-class close, not a level
+  loop. 0x4be20's body confirms it: free 0xa12d4 (test cl,0x4 leg,
+  0x74bc0/0x74be0) else `mov edx,1; call 0x60820`, then the cl,0x2
+  leg calls 0x5c370; and 0x4be20 has ZERO E8 callers whole-image.
+  Each table is referenced ONLY from its own ctor: 0xa2d00 <- 0x60ff5,
+  0xa2d24 <- 0x60e29, 0xa2d48 <- 0x60a4b/0x60aa5, 0xa2d6c <- 0x609cb,
+  0xa2d90 <- 0x60947/0x60985, 0xa2db4 <- 0x5f4bd/0x60829. 0xa2dd8 -
+  PR-192's 'base stream class' - is NOT a class table: its dwords are
+  code pointers (0x61100, 0x5F480, ...), i.e. a verb vector.
+
+- FINDING 7, THE 'levels' CHAIN IS A NAMED-ENTRY LOOKUP, NOT A FILE.
+  The string at 0x91ee5 is `Bledny wpis ` ("bad entry"), it is
+  referenced EXACTLY once - at 0x4d423, in the .des loader's
+  not-found leg (`push 0x91ee5; push eax; call 0x49660` at
+  0x4d422-0x4d429) - and the bytes 0x9262e-0x92630 that an earlier
+  pass read as delimiter strings are three NUL bytes at the tail of
+  the language error string `sja jezykowa!` (0x92614's full text is
+  `Nieznana wersja jezykowa!`). PR-192 open item (3) is CLOSED with
+  that correction: the driver's by-name leg (Finding 2) IS the
+  'levels' mechanism - a 0x5c320/0x57990/0x4a4c0 named-entry lookup
+  keyed by the stage name - and the error string is what it prints
+  when the entry is missing.
+  Language model, as far as it is read: `zaria1.is` is the head of
+  three lists at 0x92728 / 0x927b9 / 0x92873 (three per-language
+  stage lists - the PR-191 three-language model has a DATA home); the
+  `c7 05` immediate-store scan across the 0xa9a00-0xa9b00 globals
+  finds NOTHING, so the selector's writer uses another form and stays
+  counted; the `LEO_PL.TLO`-style names do NOT exist as plaintext in
+  the image (0 hits), so PR-193's draft claim about them is
+  retracted - they are assembled at runtime, mechanism counted open.
+
+- FINDING 8, THE ARCHIVE MEMBER HEADER LAW, CENSUSED ON THE REAL
+  FILES (the port already parses these containers in ported/llrs.c;
+  what is new is the field meaning + the census). All four CD roots
+  are 'llrs' v1 containers. The member header is a 14-byte
+  NUL-padded name field, then a u32 flag in {1,2}, then a u32 payload
+  offset, then a u32 size. Census (strict predicate: printable name
+  padded to 14, flag 1 or 2, offset after the header, size inside
+  the file): ANIMACJE 21,143,066 B -> 1587 headers = 1291 flag-1 +
+  296 flag-2, EVERY flag-2 size exactly 5200, 1287 of the names end
+  '.seq' and 274 are bare stems; ETAPY 20,100,773 B -> 468 headers =
+  454/14, flag-2 sizes again all exactly 5200, extensions .seq 369 /
+  .pcx 62 / .pcm 23; LEVELDES 431,636,667 B -> 71 headers = 67
+  flag-1 '.des' (which IS the 67-'plany=' population PR-192 found,
+  now through the header law) plus 4 flag-2 whose names are EXACTLY
+  ENG, GER, POL, POL.ORG = the language text blocks; SOUND -> 291
+  headers, .wav 269 + .mod 22, no flag-2 at all. So the flag-2
+  population is a fixed-5200 object-description block, and it is
+  where the PR-192 31-tag vocabulary lives. The u32 at container
+  offset 0x10 is NOT a name-length field (14 / 14 / 17 / 291 across
+  the four) - counted open, do not model it.
+
+- FINDING 9, ZARIA1.IS IS AN iNFOSTREAM FILE. It begins
+  `iNFOSTREAM\n\0"Lew Leon" (c) 1996 ` - the .IS movie container the
+  port already decodes (ported/is_stream.c, tools/is_decode.py), which
+  is why the 31 object tags appear ZERO times in it (PR-192's
+  observation, now with its container identified). The .IS
+  level-DATA chunk format is UNCHANGED as an open item; the 44-byte
+  block-chain claim from the draft is NOT repeated here (it came from
+  a different image copy and was not reproduced against this file).
+
+- OPEN ITEMS COUNTED (7 new). (1) Who fills the ds:0xcf464 queue and
+  with what records. (2) The .mnu opcode format and its interpreter -
+  0x5f310 is out, the run verb's member-dispatch walk over the
+  object list at [obj+0x2c]..[obj+0x34] is the
+  remaining candidate. (3) The 84-byte status record's field map
+  vs the port's ll_save codec (no test verdict yet). (4) The six
+  stream classes' identity: what differs at +0x04..+0x18 and which
+  file kind each carries. (5) The .IS level-DATA chunk format
+  (carried). (6) The ANIMACJE flag-2 5200-byte record layout, i.e.
+  the per-tag description layout (carried, now bounded: every
+  instance is 5200 bytes). (7) The language-selector writer and the
+  runtime assembly of the `.TLO` names (carried).
+
+- CORRECTIONS APPLIED IN THE OLDER RECORDS (9 bracket blocks: 1 in
+  PR-190, 3 in PR-191, 5 in PR-192, each inserted right after the
+  sentence it corrects): the '0x5f310 = chunk interpreter / chunk
+  loop' label x4 (at PR-192 the 3-caller CENSUS is confirmed and
+  only the label falls), the '0x4be20 = THE LEVEL LOOP' reading x3
+  (slot +0x20 is the class close verb), PR-191's '0xa2dd8 = the
+  base stream class' (a verb vector, not a class table), and
+  PR-192's open item (3) 'levels' config, CLOSED with a
+  correction. The '0x5f310 3-caller census' and the
+  '0x4abd0-one-caller' law are CONFIRMED unchanged.
+
+- GATES. Docs-only reading PR (the PR-138..PR-192 precedent): no port
+  file touched, so the build state cited is the one MEASURED ON THIS
+  MACHINE for the history-override record at 6238d42 - `make` ZERO
+  warnings; `make -k -j verify-all` with DATA=/tmp/opencode/
+  iso_stage/LEO HD=/tmp/opencode/hd_files rc=0 = 52 (ok); the same
+  target fixture-free (DATA=/tmp/opencode/nope HD=/tmp/opencode/
+  nope) rc=0 = 10 (ok) + the named data-SKIP legs (19 with `grep -c
+  'verify-[a-z0-9_-]*: SKIP'` on this run's log; earlier records
+  counted 18 with a narrower pattern - `git log` shows no Makefile
+  change since). The fixture trees and the disassembly were REBUILT
+  here from the repo's LL.iso + build/leo/leo.elf after /tmp was
+  swept; that re-stage also exposed a Makefile gap - verify-utf8
+  needs the python-oracle frames that only `make py-refs` produces,
+  and does not list it as a prerequisite (counted, NOT fixed here).
+  Added lines all <= 79 columns; width baselines held by line-set
+  diff. The Windows half stays in the end pass (rule 8).
 
 ## Deferred big items (deliberately out of scope so far)
 
