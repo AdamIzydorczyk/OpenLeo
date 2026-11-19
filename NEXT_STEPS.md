@@ -15733,45 +15733,43 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-167 IS THE POOL-INSERTION/ENTRY-CLASS READ (PR-166 item
-  1 - the last leg of the CHECK_* key law): find WHO inserts
-  placed objects into the container-attached pools (the con-
-  tainer load 0x4c720 region and its object-placement tail
-  are the lead; the pools demonstrably exist at load, the
-  inserts are unread), and WHICH entry class carries verb
-  +0x60 (membership predicate) and verb +0x78 (13-byte key
-  provider) and stores its class tag at [entry+0x24] (the
-  vtable scan idiom from PR-105 resolves indirect calls to
-  tables). Output: the complete CHECK_LEW/ANI/ZW law end to
-  end - which objects' keys reach a row's key bits - and the
-  engine-side meaning of CHECK_LN/CHECK_BASE_LN (the
-  0x600000/0x800000 key constants and the 0xa94e8 ani_plat
-  scan at 0x4b600/0x4b6ba, PR-166 item 4, are the leads).
-- THEN the feed-dispatcher arms (PR-165 item 1, PR-166 nar-
-  rowed): the BY_TIME arm's [[obj+0xa1]+0xc] dereference and
-  the [obj+0xba]/[obj+0xbe] guards; the BY_TY rate is NOW
-  LOCATED at [container+0x388] - its SETTER is the next
-  question; these arms touch the ladder-gate fi-vs-state
-  block (do NOT touch the port's fi gate until they read or
-  data does).
-- THEN the pool-name decode (PR-166 item 2, negative results
-  banked: not one-XOR, pair-like, position-independent, ad-
-  jacent to a fully readable name table): try pair-substi-
-  tution against the readable neighborhood names (same chars
-  encode identically - 'XtXoTm' shared prefix); a solved
-  name would also light the name-keyed path (0x4dcc0/0x4df10
-  contract, item 3).
+- PR-168 IS THE FEED-DISPATCHER ARMS READ (PR-165 item 1,
+  now best-lit: PR-167 F4 pinned [obj+0xa1] = the feed accu-
+  mulator ZEROED at ENTER): the BY_TIME arm's [[obj+0xa1]+
+  0xc] dereference (accumulator-as-pointer? a record read at
+  +0xc = the AC_TIME gate offset - LEAD, unproven), what
+  [obj+0xba]/[obj+0xbe] guard in the BY_TX/BY_TY arms, the
+  pool scalar [container+0x388] BY_TY rate SETTER. These arms
+  are where the engine's per-mode row-feed really lives and
+  they touch the ladder-gate fi-vs-state block (do NOT touch
+  the port's fi gate until they read or data does).
+- THEN the pool chain-insert read (PR-167 item 1): the real
+  +0xd8 bodies (0x507e0/0x3d6c0/0x3def0 family) and the
+  direct stores to pool chain heads ([poolObj+0x58]) or
+  [obj+0x34] links; plus the +0x60 minority (25 non-default
+  predicates - which categories exclude themselves, item 4).
+- THEN the key-provider internals (PR-167 item 2): the 0x53ae0
+  gate + class verb +0x9c + builder 0x55230 - the engine's
+  actual per-class KEY CONTENT (this is where the 0x600000/
+  0x800000 CHECK_LN/BASE_LN constants should FINALLY appear;
+  if they do not, PR-161's constants need re-derivation);
+  also the base table's own +0x1c/+0x20 overrides (0x52c70/
+  0x52a00) and the 0xa2e9c/0xa2ed4 view selection (item 3).
+- THEN the pool-name decode (PR-166 item 2, negatives banked:
+  not one-XOR, pair-like, position-independent, adjacent to a
+  fully readable name table): pair-substitution against the
+  readable neighborhood names; a solved name lights the
+  name-keyed path (0x4dcc0/0x4df10 contract, PR-166 item 3).
 - THEN carried reads (unchanged): the vtable+0-word OR 4/8
   row-end CONSUMER (PR-164 item 1 = ordering question (a));
-  the flip-bit owner (CH_DIR still no consumer); the
-  +0x70/+0x71 position sentinels + [owner+0x99]; 0x53520
-  arg plumbing + [obj+0x95] reader; the 31-vs-24 +0x14-slot
-  delta; record verbs +0x2c/+0x30 bodies + the second-view
-  slots 0x559c0/0x45800; the 0x4fef0 pool prelude side-
-  effects (container map now known, semantics open); the
-  walk return-value encoding (PR-161 item 1); 0x9c05c iden-
-  tity; 0x524xx rest; 0x446de; 0x57d30 modes; FLAG +0x4c
-  getter.
+  the flip-bit owner (CH_DIR still no consumer); [obj+0x99]
+  reader semantics now that ENTER writes it (PR-167 item 5);
+  0x53520 arg plumbing + [obj+0x95] reader; the 31-vs-24
+  +0x14-slot delta; record verbs +0x2c/+0x30 bodies + the
+  second-view slots 0x559c0/0x45800; the 0x4fef0 pool prelude
+  side-effects; the walk return-value encoding (PR-161 item
+  1); 0x9c05c identity; 0x524xx rest; 0x446de; 0x57d30 modes;
+  FLAG +0x4c getter.
 - RIDES THE NEXT CODE PR (not a read): the three port
   comments citing the applier as 0x535a2 get the entry
   correction to 0x535a0 (ll_level.c:802,823, ll_play.c:209)
@@ -15780,8 +15778,8 @@ no port behaviour change)
   records from the LAST revision that carried them. Census
   recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
   `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD 1c22089 carries all sixteen (PR-150..
-  PR-165); HEAD is the last carrier.
+  pass's census: HEAD c00c1ce carries all seventeen (PR-150..
+  PR-166); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -19577,7 +19575,9 @@ its port-name DECISION stays open as a new item; PR-162 item
   +0x78, class filter [entry+0x24]==[obj+0x24] with the
   0x8000 CHECK_ALL_PLANE cross-class switch) vs own-list
   intersect-and-copy (0x4bd30); the wrappers are stack-arg
-  adapters]. (4) The 0x4fef0/
+  adapters. PR-167 F1/F2 ADD: the walk verbs are the object
+  class's own slots - the entries are the objects]. (4) The
+  0x4fef0/
   0x50040 pre/post pool side-effect semantics ([pool+0x3a0]/
   [pool+0x3a8], ds:0xcf068 family). (5) The record verbs
   +0x2c (0x52680) and +0x30 (0x2b4d0) bodies - what key
@@ -19785,7 +19785,15 @@ are CORRECTED with brackets)
   the insert site unread) and which entry class carries verbs
   +0x60 (predicate) / +0x78 (key provider) and stores its
   class tag at +0x24. THE top lead for PR-167 - it completes
-  the CHECK_* key law end to end. (2) The 14 pool-name
+  the CHECK_* key law end to end [CLOSED BY PR-167: the
+  entries ARE the game objects - +0x60 is the object class
+  table's own slot (`return [entry+0x2c]` in 130/155 class
+  tables) and +0x78 the per-class key-provider family (default
+  0x552e0 gate-then-build, always a 13-byte out); the adder
+  is the per-class verb +0xd8 called from factory chains at
+  load (no-op for most classes = PR-60's category model at
+  the verb level); the chain-link STORE itself stays open as
+  PR-167's item 1]. (2) The 14 pool-name
   decode (negative results above; next lead: the adjacent
   readable name table and a pair-substitution hypothesis,
   since same chars encode identically across strings). (3)
@@ -19836,6 +19844,172 @@ are CORRECTED with brackets)
   PR-165 (last carrier HEAD); records re-spliced from it;
   3 brackets (PR-165 F3 argument roles, F5 class-id sample,
   open item 3 CLOSED).
+
+## PR-167 — THE POOL ENTRIES ARE THE GAME OBJECTS THEMSELVES:
+## THE WALK'S VERBS +0x60/+0x78 ARE THE OBJECT CLASS TABLE'S OWN
+## SLOTS (PREDICATE = `return [entry+0x2c]` IN 130/155 CLASSES;
+## KEY PROVIDER = A THREE-VARIANT FAMILY, DEFAULT 0x552e0 =
+## GATE-THEN-BUILD, ALWAYS A 13-BYTE OUT), THE ADDER IS THE
+## PER-CLASS VERB +0xd8 CALLED FROM FACTORY CHAINS AT LOAD
+## (NO-OP FOR MOST CLASSES - PR-60's CATEGORY MODEL AT THE VERB
+## LEVEL), AND THE BASE OBJECT CLASS TABLE IS AT 0xa2550 - ITS
+## ENTER (0x52360) ZEROES THE FEED ACCUMULATOR [obj+0xa1],
+## WRITES [obj+0x99]=1, AND OWNS THE SEQ_REV ROW-CURSOR ARM
+(READING + LEDGER CORRECTION; no code, no new test - the
+PR-138..166 precedent; PR-166 open item (1) is CLOSED - one
+half stays as a new item; PR-166's own F1 gets a strengthening
+bracket and its item (3) bracket gains F1's fact)
+
+- WHY. PR-166 closed the query bodies but left the last leg:
+  who inserts placed objects into the container pools, and
+  what entry class carries verbs +0x60 (predicate) / +0x78
+  (key provider). Method: census the 155 class tables that
+  hold the feed dispatcher at +0xa0 (PR-165) for their +0x60/
+  +0x78 slots; find the pool manager's own table by anchoring
+  the known slots (+0x14 = the walk 0x523f0); read the base
+  ENTER body field by field.
+
+- FINDING 1, ONE TABLE CARRIES THE GENERIC VERB FAMILY AT ITS
+  EXACTLY PREDICTED OFFSETS - THE BASE OBJECT CLASS, 0xa2550.
+  Slot census: +0x08 = 0x23e00, +0x14 = 0x23c70, +0x1c =
+  0x52c70, +0x20 = 0x52a00, +0x24 = 0x52a50, +0x28 = 0x52a90,
+  +0x34 = 0x23c30, +0x44 = 0x23bf0, +0x54 = 0x23bb0, +0x60 =
+  0x23b80, +0x70 = 0x23b40, +0x78 = 0x23b10, +0x9c = 0x520c0,
+  +0xa0 = 0x52360, +0xd8 = 0x52360, +0xe4 = 0x52470 - every
+  value PR-162..166 derived from CALL SITES (the walk, the
+  position getters at +0x70/+0x71, ENTER 0x52360, the base
+  LEAVE 0x52470) sits exactly where the call-site arithmetic
+  said. 71 slots; the 0x23bxx/0x23cxx bodies are the generic
+  one-instruction getters/setters (0x23b80 = `mov eax,[eax+
+  0x2c]; ret`; 0x23b90 = `mov [eax+0x24],edx; ret` - the
+  class-id setter for F3's location). This is the base class
+  every game object inherits (its verbs are the defaults
+  census-confirmed across PR-100's family). Two cautions: the
+  base table's own +0x1c/+0x20 are 0x52c70/0x52a00, NOT the
+  base ENTER/LEAVE - some class overrides (semantics open,
+  item 2); and +0x24 on the base is NOT the class-id getter -
+  0x52a50 computes a midpoint distance via the manager
+  [ds:0xcef40+0x394] verb +0x68; the CLASS-ID getter is
+  0x23e00 at +0x08 ([obj+0x24] read matches F3).
+
+- FINDING 2, THE WALK'S VERBS ARE THE OBJECT CLASS TABLE'S
+  OWN SLOTS - THE ENTRIES ARE THE OBJECTS. (a) THE PREDICATE:
+  of the 155 class tables that carry the feed dispatcher at
+  +0xa0, 130 hold the SAME function at +0x60: 0x23b80 =
+  `return [entry+0x2c]`. So membership = the WORD at [obj+
+  0x2c] (the class's +0x60 is overridable; 25 classes use
+  other bodies). (b) THE KEY PROVIDER at +0x78: three
+  dominant variants - 0x552e0 (78 tables) = the DEFAULT:
+  clear a 13-byte local (0x749a0), call 0x53ae0(entry, owner,
+  buf) as GATE; if true, call the class verb +0x9c as a
+  second gate; if true, call 0x55230 to BUILD the key; then
+  emit EXACTLY the 13-byte key (12 bytes + count byte at
+  +0xc) - the shape PR-166's callers expect; 0x3df00 (23);
+  0x50f80 (15); class-specific others. (c) THE CONFIRMATION:
+  the walk follows [entry+0x34] and 0x4b500's self-skip
+  compares entry to the owner - with +0x60/+0x78 shown to BE
+  object-class slots, pool entries ARE the game objects
+  themselves, linked through a field at [obj+0x34] (the store
+  site unread, item 1). PR-166's bracket gains this fact.
+
+- FINDING 3, THE ADDER IS A PER-CLASS VERB, +0xd8, CALLED AT
+  LOAD FROM THE FACTORY/CLASS CHAINS. Direct census: `call
+  DWORD [reg+0xd8]` sites cluster inside factory-chain code
+  (0x249b0, 0x24a86, 0x24b63, 0x24cdb - the ENA region;
+  0x288f4, 0x2fcc6, 0x2fd17, 0x2ff19, 0x3010c, 0x3055c). The
+  +0xd8 slot is PER-CLASS and many classes carry a NO-OP
+  (0x40f90 in dozens of tables; base 0xa2550 +0xd8 = 0x52360
+  = ENTER, matching PR-166's observation that 0x51120 calls
+  manager verb +0xd8) while the pooling classes carry real
+  bodies (0x3def0, 0x507e0, 0x3d6c0, 0x3def0-family...).
+  0x3def0's neighbor 0x3df00 PROPAGATES: it calls the same
+  +0xd8 on a related object (0x3df16) - group-style recursive
+  registration. This is PR-60's placement-category model at
+  the VERB LEVEL: which objects enter the pools is a property
+  of their class. NEGATIVE honestly stated: the no-op verb
+  bodies do not show the chain-link store, and no direct
+  store to a pool chain head or [obj+0x34] was found outside
+  constructors (which init +0x34 = 3) - item 1 stays open.
+
+- FINDING 4, THE BASE ENTER BODY, FIELD BY FIELD (0x52360) -
+  THREE FIELD IDENTITIES PINNED. Head 0x52361 (push ebx - the
+  one-byte listing class again); body: call 0x52070; [obj+
+  0xa1] := 0 (THE FEED ACCUMULATOR - the dispatcher's target
+  from PR-165 F2 - ENTER ZEROES IT: PR-163's counter-clear
+  reading gains its engine twin for the feed); [obj+0x99] := 1
+  (PR-166's carried "[owner+0x99] sentinel" - the WRITER is
+  now known: ENTER sets it at every entry); then the row half:
+  if edx >= 0, test BYTE [rec+0x12] bits 0x10/0x20 (SEQ_REV_X
+  /Y - third independent sighting inside ENTER), compute via
+  the +0x70 getter and [x+0x71], and either [row+0x4] := (row
+  + 8) - edx (reversed) at 0x523c5 or [row+0x4] := edx at
+  0x523cb ([obj+0x4]-style cursor arithmetic through the
+  record back-pointer [ebx+0x2e]+8 = the +0x3c row vector -
+  PR-162's row-cursor law CONFIRMED inside ENTER).
+
+- FINDING 5, NON-FACTORIED RECORD VIEWS EXPLAINED (PARTIAL).
+  The tables with +0x1c = 0x52360 are exactly four: 0xa25d4,
+  0xa260c (PR-100's named views) plus 0xa2e9c/0xa2ed4 - both
+  in PR-100's 16-table census, both with +0x08 = 0x52750 (the
+  key builder) and +0x20 = 0x52660 (the LEAVE body): a THIRD
+  and FOURTH record-view pair, same verb family; their +0x44
+  step slot differs (0x521f0 vs 0x12000) and slot0 = 0x52590.
+  Identity/read of these two views: open (item 3), but their
+  existence no longer looks like a factory gap: PR-100's
+  census already listed them.
+
+- OPEN ITEMS COUNTED (5 new). (1) THE CHAIN-LINK STORE: the
+  direct insert code writing the pool chain heads ([poolObj+
+  0x58] array, F1 of PR-166) or [obj+0x34] next-links is
+  still unread (census negative outside constructors); the
+  real +0xd8 bodies (0x507e0, 0x3d6c0, 0x3def0...) are the
+  lead. (2) The base table's own +0x1c/+0x20 (0x52c70/
+  0x52a00) - why the BASE class overrides ENTER/LEAVE with
+  different bodies; the 0x53ae0 gate and class verb +0x9c in
+  the default key provider (F2b) are also unread. (3) The
+  0xa2e9c/0xa2ed4 views: which objects install which record
+  table (the `mov [rec+0x44],TABLE` census covered installed
+  tables; the selection code is unread). (4) The +0x60
+  minority: 25 classes with non-default predicates - list and
+  read a sample (which categories exclude themselves). (5)
+  [obj+0x99]'s READER semantics now that ENTER writes it
+  (PR-139/100's reads: what tests it and clears it).
+  CLOSED: PR-166 item (1) - entry class = the object classes
+  themselves (bracketed); its adder half continues as item
+  (1) here. CARRIED unchanged: PR-166 items (2)-(6); PR-165
+  item (1) (F4's [obj+0xa1]:=0 at ENTER narrows the BY_TIME
+  arm's accumulator lifecycle - the deref itself unread);
+  PR-164 items; the flip-bit owner; the ladder-gate data
+  block; the walk-return encoding; the +0x70/+0x71/+0xc8
+  contents (F4 shows ENTER itself calls +0x70 and reads
+  [x+0x71] - use confirmed, values unread).
+
+- GATES. Docs-only per the PR-138..166 precedent; nothing
+  compiled. Every added prose line <= 79 cols; over-79
+  baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 72); no game
+  data or frames in git (scratch /tmp/opencode/pr167/);
+  .github/workflows/* untouched; the image unchanged (text.bin
+  sha256 edf19a12...). CI: PR-166's run (44503746523) was
+  queued at record time; PR-165 (1c22089), PR-163 (2e43bc1),
+  PR-164 (0509ce9) and the PR-161 rerun all confirmed GREEN.
+
+- EVIDENCE. All reads from the pinned image: the 155-table
+  census (tables carrying 0x543a0 at +0xa0) +0x60/+0x78 slot
+  census (Counter output: 0x23b80 x130; 0x552e0 x78,
+  0x3df00 x23, 0x50f80 x15); 0xa2550 full slot dump + slot
+  count 71; 0x23b80/0x23b90 verbatim; 0x552e0 verbatim
+  0x552e0-0x55359 (the 0x53ae0 gate, +0x9c gate, 0x55230
+  builder, the 12+1 copy-out); 0x53ae0 head; 0x3def0/0x3df00
+  propagation head; the +0xd8 direct-call census (10 sites);
+  0x52360-0x523d0 verbatim (the [obj+0xa1] zero, [obj+0x99]
+  := 1, the SEQ_REV arms, both cursor stores); the +0x1c =
+  0x52360 table census (4 tables) and the 0xa2e9c/0xa2ed4
+  slot checks; the PR-100 sixteenth-record cross-reference
+  (NEXT_STEPS line naming all 16 tables). Ledger rule
+  applied: census first - HEAD c00c1ce carries PR-150..PR-166
+  (last carrier HEAD); records re-spliced from it; 2 brackets
+  (PR-166 item (1) CLOSED; its F3 item bracket gains the
+  entries-are-objects fact).
 
 ## Deferred big items (deliberately out of scope so far)
 

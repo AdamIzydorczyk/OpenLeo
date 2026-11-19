@@ -3606,6 +3606,53 @@ writer as its open items.
      unchanged; ledger census run (HEAD 1c22089 = last carr
      ier). Full record: the PR-166 section of NEXT_STEPS.md
      (scratch /tmp/opencode/pr166/).
+   - PR-167 (READING + LEDGER CORRECTION, no code - the PR-
+     138..166 precedent): THE POOL ENTRIES ARE THE GAME OB-
+     JECTS THEMSELVES - the last leg of the CHECK_* key law
+     closes at the CLASS-VERB level. (1) ONE TABLE CARRIES THE
+     GENERIC VERB FAMILY AT THE EXACT PREDICTED OFFSETS: the
+     base object class at 0xa2550 (71 slots) - +0x08 class-id
+     getter 0x23e00, +0x14 the walk, +0x24 midpoint-distance
+     helper via the manager, +0x60 the predicate, +0x70/+0x71
+     the position getters, +0x9c the key gate, +0xa0/+0xd8 =
+     ENTER 0x52360, +0xe4 = base LEAVE 0x52470; every value
+     PR-162..166 derived from call sites sits exactly where
+     the arithmetic said; the 0x23bxx bodies are one-instruction
+     getters/setters (0x23b80 = `return [eax+0x2c]`, 0x23b90 =
+     the class-id setter). Caution kept: the base table's own
+     +0x1c/+0x20 are 0x52c70/0x52a00, NOT the base ENTER/
+     LEAVE (open). (2) THE WALK'S VERBS ARE THE CLASS TABLE'S
+     OWN SLOTS: 130/155 class tables hold 0x23b80 at +0x60 -
+     membership = [obj+0x2c]; +0x78 = a three-variant key-
+     provider family (default 0x552e0: clear 13-byte local,
+     0x53ae0 gate, class verb +0x9c gate, 0x55230 builder,
+     emit EXACTLY 12+count bytes; 0x3df00 x23, 0x50f80 x15).
+     Entries are the objects, linked at [obj+0x34] (store site
+     unread = the one open half). (3) THE ADDER IS THE PER-
+     CLASS VERB +0xd8 CALLED FROM FACTORY CHAINS AT LOAD
+     (0x249b0..0x3055c census): no-op 0x40f90 in dozens of
+     classes, real bodies (0x3def0/0x507e0/0x3d6c0) in the
+     pooling ones, and 0x3df00 PROPAGATES registration to
+     related objects - PR-60's placement-category model at the
+     verb level. (4) THE BASE ENTER BODY FIELD-BY-FIELD:
+     [obj+0xa1] (the FEED ACCUMULATOR) ZEROED at ENTER - PR-
+     163's counter-clear gains its engine twin for the feed;
+     [obj+0x99] := 1 (the writer of the carried sentinel);
+     the SEQ_REV arms + BOTH cursor stores to the row vector
+     ((row+8)-edx reversed / edx plain) - PR-162's row-cursor
+     law CONFIRMED inside ENTER. (5) The +0x1c=0x52360 census
+     = exactly 4 tables: PR-100's two named views + 0xa2e9c/
+     0xa2ed4 (already in PR-100's 16-table census - the non-
+     factored-view gap narrows to selection-code). 5 new items
+     (chain-link store; 0x53ae0/+0x9c internals = where the
+     0x600000/0x800000 CHECK_LN constants must appear; the
+     base +0x1c override; the 25-class +0x60 minority; [obj+
+     0x99] readers). CLOSED with brackets: PR-166 item 1; its
+     F3 bracket gains entries-are-objects. ZARIA.01 output:
+     UNCHANGED (docs-only). Gates: added lines <= 79; baselines
+     held (71/72); image unchanged; ledger census run (HEAD
+     c00c1ce = last carrier). Full record: the PR-167 section
+     of NEXT_STEPS.md (scratch /tmp/opencode/pr167/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -5646,6 +5693,45 @@ s 0x546d7/0x54719). 6 new open items (headline: WHO inserts
 ; ds:0xcef58/0xcef40 writers; manager slots). PR-165 item 3
 CLOSED, its F3/F5 corrected with brackets. ZARIA.01 output:
 UNCHANGED (docs-only). Baselines 71/72 held; census run; no
+code built.
+
+STATUS after PR-167 (the pool subsystem's last leg closes at the
+class-verb level: the pool entries ARE the game objects): the
+walk's verbs are the OBJECT CLASS TABLE's own slots - 130/155
+class tables carry 0x23b80 at +0x60 (`return [entry+0x2c]`:
+membership = the word at [obj+0x2c]) and +0x78 is a three-
+variant key-provider family (default 0x552e0 = clear a 13-byte
+local, gate via 0x53ae0, gate via class verb +0x9c, build via
+0x55230, emit EXACTLY 12 bytes + count byte). THE BASE OBJECT
+CLASS TABLE IS AT 0xa2550 (71 slots): every generic verb the
+PR-162..166 call-site readings predicted sits at its predicted
+offset (class-id getter 0x23e00 at +0x08, the walk at +0x14,
+ENTER 0x52360 at +0xa0/+0xd8, base LEAVE 0x52470 at +0xe4);
+the 0x23bxx bodies are one-instruction accessors. THE ADDER IS
+THE PER-CLASS VERB +0xd8 CALLED FROM FACTORY CHAINS AT LOAD -
+no-op (0x40f90) for most classes, real bodies (0x3def0 family,
+which PROPAGATES registration to related objects) for the
+pooling ones: PR-60's placement-category model exists at the
+VERB level. FIELD IDENTITIES PINNED from the ENTER body (ver-
+batim 0x52361-0x523d0): [obj+0xa1] = the feed accumulator and
+ENTER ZEROES IT (PR-163's gate/counter clear gains its engine
+twin for the feed side); [obj+0x99] := 1 at every ENTER (the
+writer of the long-carried sentinel); the SEQ_REV pair plus
+BOTH row-cursor stores (reversed (row+8)-edx at 0x523c5, plain
+edx at 0x523cb) - PR-162's row-cursor law CONFIRMED inside
+ENTER. The +0x1c=0x52360 census = exactly 4 tables: PR-100's
+two named views + 0xa2e9c/0xa2ed4, already in PR-100's 16-
+table census - what remains is the view-SELECTION code, not a
+missing class. One open half stays honest: the chain-link/
+head STORE is still uncensored (constructors init +0x34=3; no
+direct chain store found) - the real +0xd8 bodies are the
+lead. 5 new items (chain store; 0x53ae0/+0x9c key internals -
+where the 0x600000/0x800000 CHECK_LN constants MUST appear, or
+PR-161's constants get re-derived; the base table's own +0x1c/
++0x20 overrides 0x52c70/0x52a00; the 25-class +0x60 minority;
+[obj+0x99] reader semantics). PR-166 item 1 CLOSED with a
+bracket; its F3 bracket strengthened. ZARIA.01 output: UN-
+CHANGED (docs-only). Baselines 71/72 held; census run; no
 code built.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
