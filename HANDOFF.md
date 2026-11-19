@@ -3173,7 +3173,10 @@ writer as its open items.
      (PR-100/101, re-ground verbatim: [rec-class]+0x18 iter-
      ates entries by pointer chain, reading [entry+4] class,
      [cls+0xc] set-OR into the key, threshold vs [obj+0xa1])
-     and NEVER touches the cursor. THEREFORE the cursor's base
+     and NEVER touches the cursor [NOT a chain and no loop -
+     PR-161 F2 re-read the walk: single-shot per tick via the
+     object-verb +0x44 at 0x53b18; and no [rec+0x4] increment
+     form exists anywhere in the image]. THEREFORE the cursor's base
      IS the authored 1-based (N) (verbatim copy; 0 = the init
      value) - PR-157 F4's consumer-6 row resolves to the
      `3,6` line; the gate-6/threshold-6 numeric coincidence is
@@ -3283,6 +3286,64 @@ writer as its open items.
      (71/72); image unchanged; ledger census run (HEAD = last
      carrier). Full record: the PR-160 section of NEXT_STEPS.
      md (scratch /tmp/opencode/pr160/).
+   - PR-161 (READING, no code, no new test - the PR-138..160
+     precedent): THE ROW-LINE PARSER IS FOUND AND THE ROW MO-
+     DEL CLOSES END TO END. The state-block parse driver is
+     0x52b80 (param-entry verb +0x14 = 0x51eb0, then a +0x00
+     edx=2 completion pass if [entry+0x28]). The 0x51eb0 loop
+     tokenizes every line with ' %[^[=,( ]' and dispatches:
+     numeric first token (0x57db0 = sscanf "%ld") -> THE ROW
+     LINE PATH: row lines are ID,THRESHOLD pairs - the ID is
+     resolved with strtol (0x57fd0; the isdigit routine 0x76fa3
+     is a class-table member at 0xa68b4) through the pool
+     singleton's result slot ds:0xceff4, and an 0x18-byte WRAP-
+     PER entry (ctor 0x515e0, class 0xa2638: +0x0 payload, +4
+     class, +8/+c reserved, +0x10 threshold, +0x14; the ctor's
+     0x3e8 arg = the record's CURRENT time_scale default) is
+     appended to the rows vector [rec+0x2e] (count +0x36).
+     PR-160's 's NAME,N' was the NAMED variant of the SAME
+     builder. Non-numeric lines -> record verb +0x00 (the F/T/
+     G handler 0x52590 delegating to the 0x51910 directive
+     parser). THE WALK IS SINGLE-SHOT PER TICK: called via the
+     OBJECT-CLASS +0x44 from the tick at 0x53b18, its body has
+     NO LOOP, and an IMAGE-WIDE census finds NO increment form
+     for [rec+0x4] anywhere - so rows advance ONLY by authored
+     transition row-outputs (0x53616), exactly PR-159's writer
+     law, now with the negative proof. THE WAIT LAW: the key
+     test is an INTERSECTION test (0x495b0 over a 13-byte dword-
+     wise OR merge, 0x49580); the wrapper verb +0xc (0x45870)
+     returns a ZERO-FILLED key when the payload is NULL - an
+     unresolvable row ID is ALWAYS an always-passing entry, so
+     its threshold gates the mode-dispatcher-fed accumulator
+     every tick and same-state matches keep counting toward the
+     AC_TIME roll. PR-159 item-(3) and PR-160 items (1)/(2)
+     CLOSED. THE 21-BYTE LAYOUT TENSION DISSOLVES: rows are
+     pointer slots at [rec+0x2e], transitions are 0x15-byte
+     nodes at [rec+0x1a] - two distinct arrays; and the class
+     tables live at TWO VIEWS (0xa25d4 record view / 0xa260c
+     entry view at -0x28: +0x14 = this row builder, +0x28 =
+     the record factory 0x518f0 which stores view-2 class at
+     0x51851) - every earlier slot-arith discrepancy came from
+     mixing views. ZARIA.01 grounding: its rows (1,0,WAIT /
+     2,500 / ...) register no pool names (only 'seq=drab' re-
+     gistrations exist), so their payloads are NULL there -
+     the port's threshold-gated row model stands corroborated
+     end-to-end IF the pool holds no numeric-ID keys (item 2:
+     the pool read is now the named edge of the K_GEN1 data
+     blocker). BONUS LAW: the placement ctor runs ENTER on the
+     initial record at 0x539fb - the AC_TIME rand roll fires
+     AT SPAWN for state 1 (feeds the specced CODE pass). Also
+     corrected: PR-159/160's "entries iterated by pointer
+     chain" phrasing - no chain exists; the no-intersection
+     path re-dispatches the same entry's verb. 4 new open
+     items (walk return-value encoding + the [rec+0c] 13B view
+     block; pool contents/registrations; transition-tail parse
+     owner; completion-pass + payload-class 0xa1000 semantics)
+     + closures. Gates: docs-only, nothing compiled; added
+     lines <= 79; baselines UNCHANGED (71/72); image un-
+     changed; ledger census run (HEAD = last carrier). Full
+     record: the PR-161 section of NEXT_STEPS.md (scratch
+     /tmp/opencode/pr161/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -5117,6 +5178,29 @@ decider for the 21-byte layout and the WAIT-key question),
 the walk-arm attribution, and derived ENTER overrides. ZARIA.
 01 output: UNCHANGED (docs-only PR, nothing compiled). PR-159
 items 2/3 close (half of 3), F4 closes; 3 new items counted.
+
+STATUS after PR-161 (the row model is CLOSED end to end): the
+row-line parser is found (param-entry verb +0x14 = 0x51eb0 via
+driver 0x52b80) - row lines are ID,THRESHOLD pairs resolved
+through the sequence pool into 0x18-byte wrapper entries appen-
+ded to [rec+0x2e]; the walk verb is SINGLE-SHOT per tick (via
+object-verb +0x44 at 0x53b18) and the image has NO row-cursor
+incrementer - rows advance exactly and only by authored transi-
+tion row-outputs (PR-159's writer law with a negative proof);
+an unresolvable row ID means an EMPTY KEY that always passes
+the intersection test - the WAIT law - so its threshold gates
+the accumulator every tick and matches keep counting toward the
+AC_TIME roll (PR-159 item-3 closed). The transition-vs-row la-
+yout tension dissolved (two distinct arrays) and the two-VIEW
+class tables (0xa25d4/0xa260c) explain every earlier slot dis-
+crepancy. The placement ctor ENTERs the initial record at
+0x539fb - the AC_TIME roll fires at spawn, the last detail the
+specced CODE pass needed. ZARIA.01: rows register no pool names,
+so the port's threshold-gated row model stands corroborated,
+pending the pool-contents read (now the NAMED edge of the K_
+GEN1 data blocker). ZARIA.01 output: UNCHANGED (docs-only PR,
+nothing compiled). PR-159 item-(3) + PR-160 items (1)/(2)
+closed; 4 new items counted; one earlier phrasing corrected.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
