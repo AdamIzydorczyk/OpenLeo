@@ -3545,6 +3545,67 @@ writer as its open items.
      (71/72); image unchanged; ledger census run (HEAD
      0509ce9 = last carrier). Full record: the PR-165 section
      of NEXT_STEPS.md (scratch /tmp/opencode/pr165/).
+   - PR-166 (READING + LEDGER CORRECTION, no code - the PR-
+     138..165 precedent): THE POOL CONTENTS ARE READ - THEY
+     ARE THE LEVEL'S OWN PLACED OBJECTS. The pools the CHECK_
+     * queries hit ATTACH TO THE CONTAINERS AT LOAD BY THEIR
+     PR-60 SOURCE NAMES: the level loader (0x4cd6c-0x4cdca)
+     case-insensitively compares the container name against
+     'zwierzaki'/'animacje'/'ani_plat' (0x91dda/0x91de4/
+     0x91ded) and stores the container's pool INDEX field
+     [container+0x40] into ds:0xcef44/0xa94ec/0xa94e8 - the
+     CHECK_ZW/ANI pool handles PR-165 found. The container IS
+     the pool array base: the container's own cleanup (0x4ce0a
+     -0x4ce24) uses the identical layout ([[c]+0x40]*4+c+0x58
+     chain heads), and ds:0xcef40 at query time = the current
+     container. QUERY BODIES CLOSED (PR-165 item 3): 0x4b500
+     = walk chain heads at [poolObj+0x58] ([poolObj+0x44]
+     count), entry predicate verb +0x60, CLASS FILTER [entry+
+     0x24]==[owner+0x24] OR the pushed 0x8000 CHECK_ALL_PLANE
+     switch (CONFIRMED semantics), verb +0x78 BUILDS the en-
+     try's 13-byte key, OR-merged via 0x49580; 0x4bd30
+     (CHECK_LEW) instead walks the OWNER's own list at [obj+
+     0x64] and INTERSECTS with the object key (0x495b0) and
+     COPIES the matching entry key out, no OR. The wrappers
+     0x4b870/0x4b88f are stack-arg adapters (entry 0x4b88f -
+     sixth one-byte misalignment). CLASS ID LOCATION CONFIRMED
+     AT [obj+0x24]. THE STARTUP REGISTRY FULLY TRANSCRIBED:
+     14 registrations (type 0x14 + 0x51120), class ids 6,6,
+     11,(11),7,3,5,12,2,9,8,10,11,(11) (two inherit), names
+     0x9201c-0x920e4, handles ds:0xcefbc..0xceff0 - and a
+     NEGATIVE: NONE of those handle globals is read anywhere;
+     the queried handles are the load-time ones. NAME DECODE
+     STILL OPEN with negatives banked: no single-byte XOR key
+     works (256-key scan), pairs position-independent ('XtXoTm'
+     prefix shared by two names), and the block sits EXACTLY
+     after the readable LEVELS.DES keys + factory-name table
+     ('ANITAB'...'BERLO') in .rodata. NAME-KEYED ACCESS IS
+     REAL: 0x4dcc0(ds:0xcef40, name) tokenizes (' %[^,
+     \r\n] , ') and calls 0x4df10 (its head special-cases
+     'ANITAB', creates type 0xa5); the factory clone path
+     stores the result at [obj+0x120] (PR-104's prototype
+     cache); the row resolver's result slot ds:0xceff4 is the
+     very next global after the registry's last - ds:0xcef40.
+     .0xceff4 is ONE pool-singleton block: PR-161's sequence
+     pool and today's container pools are ONE subsystem. ZARIA
+     .01 rows still resolve NULL - the K_GEN1 data block
+     STANDS, now precisely narrowed (key-path pools need no
+     names at all). SIDE: pool manager singleton at [contai-
+     ner+0x394] (verbs +0xd8 register/+0xe4), BY_TY rate at
+     [container+0x388] (setter unread), 0x4b600 = the ani_
+     plat pool position/velocity scan (0x4b6ba; callers 0x546
+     d7/0x54719) = platform-ground lead; 0x749a0 = the 13-byt
+     e-local memset. 6 new items (adder side + the +0x60/+0x7
+     8 entry class = PR-167's headline; name decode; 0x4dcc0
+     contract; 0x4b600; ds:0xcef58/what writes ds:0xcef40; p
+     ool-manager slots). 3 brackets in the PR-165 record (F3
+     argument roles - LEW is OWN-LIST INTERSECT not pool-OR;
+     F5 class-id sample corrected to the full sequence; item
+     3 CLOSED). ZARIA.01 output: UNCHANGED (docs-only).
+     Gates: added lines <= 79; baselines held (71/72); image
+     unchanged; ledger census run (HEAD 1c22089 = last carr
+     ier). Full record: the PR-166 section of NEXT_STEPS.md
+     (scratch /tmp/opencode/pr166/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -5539,6 +5600,53 @@ name decode, 0x4b500 body, +0x2c/+0x30 bodies, the 0x4fef0
 pool side-effects, the second-view slots); PR-162 items 1
 and 4 CLOSED with brackets. ZARIA.01 output: UNCHANGED
 (docs-only). Baselines 71/72 held; census run; no code built.
+
+STATUS after PR-166 (the pool subsystem is READ THROUGH and it
+is the level's own placed objects, not an abstract sequence
+store): the CHECK_* key queries hit CONTAINER-ATTACHED POOLS.
+The loader names them at load by the PR-60 source keys - 'zwy
+erzaki'/'animacje'/'ani_plat' comparisons at 0x4cd6c-0x4cdca
+store the container's pool INDEX [container+0x40] into ds:0x
+cef44/0xa94ec/0xa94e8, and the container object IS the pool
+array base (its own cleanup uses the identical layout at 0x4c
+e0a-0x4ce24; ds:0xcef40 at query time = the current contain-
+er). QUERY BODIES CLOSED: 0x4b500 = chain-head walk ([poolOb
+j+0x44] count, +0x58 heads, [entry+0x34] next), predicate v
+erb +0x60, CLASS FILTER [entry+0x24]==[owner+0x24] with the
+pushed 0x8000 CHECK_ALL_PLANE cross-class switch (confirmed
+meaning), key-provider verb +0x78, OR-merge via 0x49580 into
+the 13-byte key; 0x4bd30 (CHECK_LEW) = the OWNER's own list
+at [obj+0x64], INTERSECT (0x495b0 idiom) + copy-out, no OR.
+Class id field CONFIRMED at [obj+0x24]. Wrappers 0x4b870/0x4
+b88f = stack-arg adapters (0x4b890 listing misaligned again)
+. The STARTUP REGISTRY is fully transcribed - 14 type-0x14 p
+ools, class ids 6,6,11,(11),7,3,5,12,2,9,8,10,11,(11), name
+s 0x9201c-0x920e4, handles ds:0xcefbc..0xceff0 - and NONE o
+f those handles is read by any code (negative): the registra
+tion is startup plumbing; the QUERYED pools are the load-tim
+e ones. Pool names: decode still open, negatives banked (no
+ single-byte XOR works; pairs position-independent; block si
+ts right after the readable LEVELS.DES keys + 'ANITAB'..'BE
+RLO' factory-name table). NAME-KEYED ACCESS REAL: 0x4dcc0(ds
+:0xcef40,name) -> 0x4df10 ('ANITAB' special case creates ty
+pe 0xa5) -> factory clone path stores the result at [obj+0x1
+20] (PR-104's prototype cache); the row resolver's result sl
+ot ds:0xceff4 abuts the registry globals - ds:0xcef40..0xcef
+f4 is ONE pool-singleton block, so PR-161's sequence pool an
+d the container pools are ONE subsystem. ZARIA.01 rows still
+ resolve NULL - the K_GEN1 data block STANDS but is precisely
+ narrowed (the key-path pools need no names). SIDE FACTS: po
+ol manager singleton at [container+0x394] (verb +0xd8 regist
+ers, +0xe4); BY_TY feed rate = [container+0x388] (setter un
+read - narrows PR-165 item 1); 0x4b600/0x4b6ba = the ani_pl
+at pool position/velocity scan (platform-ground lead, caller
+s 0x546d7/0x54719). 6 new open items (headline: WHO inserts
+ into the container pools + the entry class carrying verbs +
+0x60/+0x78 = PR-167; name decode; 0x4dcc0 contract; 0x4b600
+; ds:0xcef58/0xcef40 writers; manager slots). PR-165 item 3
+CLOSED, its F3/F5 corrected with brackets. ZARIA.01 output:
+UNCHANGED (docs-only). Baselines 71/72 held; census run; no
+code built.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

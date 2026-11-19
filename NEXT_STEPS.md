@@ -15733,39 +15733,45 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-166 IS THE POOL-CONTENTS READ (PR-161 item 2 narrowed
-  by PR-165 F3/F5 - the K_GEN1 data-blocker edge and the
-  CHECK_* key-bit source in one): read the pool query body
-  0x4b500 and the wrapper contract of 0x4b870/0x4b890/0x4bd30
-  (what a query returns INTO the key buffer, and the 0x8000
-  CHECK_ALL_PLANE sub-mode); decode the obfuscated pool
-  REGISTRATION names at 0x9209a... (try XOR/case-shift - the
-  shapes 'XzXbZiIgBnIi`' look single-byte obfuscated); walk
-  what the startup registry (0x4fe02, 0x5c320(0x14)+0x51120)
-  actually registers per class id, and how authored .MOV rows
-  land in those pools (PR-161's 0x18-byte wrapper entries).
-  If the pool KEY model closes, the keyed-row semantics of
-  PR-101/161 get their engine-side completion bar.
-- THEN the feed-dispatcher arms (PR-165 item 1 - the largest
-  new behaviour question): the BY_TIME arm's [[obj+0xa1]+0xc]
-  dereference (accumulator-as-pointer? a record read where
-  +0xc = the AC_TIME gate offset is a LEAD, unproven), the
-  [obj+0xba]/[obj+0xbe] guards in the BY_TX/BY_TY arms, and
-  the pool scalar [pool+0x388] BY_TY rate - these three arms
-  are where the engine's per-mode row-feed really lives and
-  they touch the ladder-gate fi-vs-state block (do NOT touch
-  the port's fi gate until this reads land or data does).
+- PR-167 IS THE POOL-INSERTION/ENTRY-CLASS READ (PR-166 item
+  1 - the last leg of the CHECK_* key law): find WHO inserts
+  placed objects into the container-attached pools (the con-
+  tainer load 0x4c720 region and its object-placement tail
+  are the lead; the pools demonstrably exist at load, the
+  inserts are unread), and WHICH entry class carries verb
+  +0x60 (membership predicate) and verb +0x78 (13-byte key
+  provider) and stores its class tag at [entry+0x24] (the
+  vtable scan idiom from PR-105 resolves indirect calls to
+  tables). Output: the complete CHECK_LEW/ANI/ZW law end to
+  end - which objects' keys reach a row's key bits - and the
+  engine-side meaning of CHECK_LN/CHECK_BASE_LN (the
+  0x600000/0x800000 key constants and the 0xa94e8 ani_plat
+  scan at 0x4b600/0x4b6ba, PR-166 item 4, are the leads).
+- THEN the feed-dispatcher arms (PR-165 item 1, PR-166 nar-
+  rowed): the BY_TIME arm's [[obj+0xa1]+0xc] dereference and
+  the [obj+0xba]/[obj+0xbe] guards; the BY_TY rate is NOW
+  LOCATED at [container+0x388] - its SETTER is the next
+  question; these arms touch the ladder-gate fi-vs-state
+  block (do NOT touch the port's fi gate until they read or
+  data does).
+- THEN the pool-name decode (PR-166 item 2, negative results
+  banked: not one-XOR, pair-like, position-independent, ad-
+  jacent to a fully readable name table): try pair-substi-
+  tution against the readable neighborhood names (same chars
+  encode identically - 'XtXoTm' shared prefix); a solved
+  name would also light the name-keyed path (0x4dcc0/0x4df10
+  contract, item 3).
 - THEN carried reads (unchanged): the vtable+0-word OR 4/8
   row-end CONSUMER (PR-164 item 1 = ordering question (a));
-  the flip-bit owner (PR-162 item 2 - CH_DIR still has NO
-  consumer, negative result stands); the +0x70/+0x71
-  position sentinels + [owner+0x99]; 0x53520 arg plumbing +
-  [obj+0x95] reader; the 31-vs-24 +0x14-slot delta; record
-  verbs +0x2c/+0x30 bodies + the second-view slots
-  0x559c0/0x45800 (PR-165 item 5/6); the 0x4fef0 pool
-  side-effects (item 4); the walk return-value encoding
-  (PR-161 item 1); 0x9c05c identity; 0x524xx rest; 0x446de;
-  0x57d30 modes; FLAG +0x4c getter.
+  the flip-bit owner (CH_DIR still no consumer); the
+  +0x70/+0x71 position sentinels + [owner+0x99]; 0x53520
+  arg plumbing + [obj+0x95] reader; the 31-vs-24 +0x14-slot
+  delta; record verbs +0x2c/+0x30 bodies + the second-view
+  slots 0x559c0/0x45800; the 0x4fef0 pool prelude side-
+  effects (container map now known, semantics open); the
+  walk return-value encoding (PR-161 item 1); 0x9c05c iden-
+  tity; 0x524xx rest; 0x446de; 0x57d30 modes; FLAG +0x4c
+  getter.
 - RIDES THE NEXT CODE PR (not a read): the three port
   comments citing the applier as 0x535a2 get the entry
   correction to 0x535a0 (ll_level.c:802,823, ll_play.c:209)
@@ -15774,8 +15780,8 @@ no port behaviour change)
   records from the LAST revision that carried them. Census
   recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
   `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD 0509ce9 carries all fifteen (PR-150..
-  PR-164); HEAD is the last carrier.
+  pass's census: HEAD 1c22089 carries all sixteen (PR-150..
+  PR-165); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -19502,7 +19508,15 @@ its port-name DECISION stays open as a new item; PR-162 item
   the key via 0x49580, a COUNT byte is written at key+0xc,
   and the 13-byte result is copied to the caller (0x52840-
   0x52850 = the same 13-byte key-set shape the pump merges
-  at [obj+0x60..0x6c]). So CHECK_* rows do not gate inside
+  at [obj+0x60..0x6c]) [ARGUMENT ROLES + SPLIT CORRECTED BY
+  PR-166 F1: the calls pass eax = ds:0xcef40 (the CURRENT
+  CONTAINER - the pools are container-attached), ebx = [rec+
+  0] = the owner back-pointer, edx = the key buffer, ecx =
+  the 0x8000 mask (LEW direct) or the pool INDEX via the
+  wrappers; 0x4bd30/CHECK_LEW is NOT a pool query - it walks
+  the object's own list at [obj+0x64] and INTERSECTS
+  (0x495b0) and COPIES the match out, no OR; only ANI/ZW
+  OR-merge]. So CHECK_* rows do not gate inside
   the engine: they ADD POOL-DERIVED KEY BITS - the engine's
   side of the port's keyed-row model. The three query heads
   0x4b870/0x4b890 are one-liners tailing a common 0x4b500
@@ -19531,7 +19545,12 @@ its port-name DECISION stays open as a new item; PR-162 item
 - FINDING 5, THE POOLS HAVE A STARTUP REGISTRY (the
   pool-contents edge, lit from the registration side).
   0x4fe02-0x4fee5, for each class id ebx in {2,9,8,10,11,
-  ...}: call 0x5c320(eax=0x14), then 0x51120(ecx=1,
+  ...} [FULLY TRANSCRIBED BY PR-166: FOURTEEN type-0x14
+  registrations, ids 6,6,11,(11),7,3,5,12,2,9,8,10,11,(11)
+  (two inherit ebx), stores ds:0xcefbc..0xceff0 - and NONE
+  of those handle globals is READ anywhere; the queried han-
+  dles are load-time container-index stores, not these]:
+  call 0x5c320(eax=0x14), then 0x51120(ecx=1,
   ebx=class id, edx = a NAME pointer 0x9209a...), storing
   the handle into ds:0xcefdc/0xcefe0/0xcefe4... - the same
   pool-family globals F3's queries consume (0xcef40/0xcef44/
@@ -19551,7 +19570,14 @@ its port-name DECISION stays open as a new item; PR-162 item
   touch the ladder-gate fi-vs-state block. (2) The
   obfuscated pool REGISTRATION names at 0x9209a... (decode).
   (3) The pool query bodies: 0x4b500 + the 0x4b870/0x4b890/
-  0x4bd30 wrappers' argument contract. (4) The 0x4fef0/
+  0x4bd30 wrappers' argument contract [CLOSED BY PR-166:
+  bodies read - container-attached pools; class-filtered
+  chain-walk with OR-merge (0x4b500: count [poolObj+0x44],
+  chain heads +0x58, predicate verb +0x60, key-provider verb
+  +0x78, class filter [entry+0x24]==[obj+0x24] with the
+  0x8000 CHECK_ALL_PLANE cross-class switch) vs own-list
+  intersect-and-copy (0x4bd30); the wrappers are stack-arg
+  adapters]. (4) The 0x4fef0/
   0x50040 pre/post pool side-effect semantics ([pool+0x3a0]/
   [pool+0x3a8], ds:0xcf068 family). (5) The record verbs
   +0x2c (0x52680) and +0x30 (0x2b4d0) bodies - what key
@@ -19597,6 +19623,219 @@ its port-name DECISION stays open as a new item; PR-162 item
   PR-150..PR-164 (last carrier HEAD); records re-spliced
   from it; 2 brackets (PR-162 item (1) answered, item (4)
   0x52750 body CLOSED).
+
+## PR-166 — THE POOL CONTENTS ARE READ AND THEY ARE THE
+## LEVEL'S OWN PLACED OBJECTS: THE QUERIED POOLS ATTACH TO THE
+## CONTAINERS AT LOAD BY THEIR PR-60 SOURCE NAMES (zwierzaki/
+## animacje/ani_plat -> ds:0xcef44/0xa94ec/0xa94e8); THE
+## QUERY BODIES CLOSE PR-165 ITEM 3 (0x4b500 = class-filtered
+## key MERGE over the container's pool chains, 0x4bd30 = the
+## object's OWN list with an INTERSECT-and-copy); THE CLASS ID
+## SITS AT [obj+0x24]; THE STARTUP REGISTRY IS FULLY
+## TRANSCRIBED - 14 TYPE-0x14 POOLS - AND ITS HANDLES ARE
+## READ BY NO CODE ANYWHERE (NEGATIVE); THE 14 NAMES RESIST A
+## 256-KEY XOR SCAN (STILL OPEN)
+(READING + LEDGER CORRECTION; no code, no new test - the
+PR-138..165 precedent; PR-165 open item (3) is CLOSED below,
+its F3 LEW/ANI/ZW argument list and its F5 class-id sample
+are CORRECTED with brackets)
+
+- WHY. PR-165 closed the flag-consumer pass but left the
+  engine's biggest un-read subsystem: its pool queries. The
+  Next entry specced the read: the query bodies 0x4b500 /
+  0x4bd30 and wrapper contracts, the pool-name decode, the
+  0x4fe02 registry walk, and how authored rows land in pools
+  - the K_GEN1 data-blocker edge.
+
+- FINDING 1, THE QUERY BODIES (PR-165 ITEM 3 CLOSED). The
+  key-builder arms at 0x527b3/0x527e1/0x5280b load: eax =
+  ds:0xcef40 (the CURRENT CONTAINER - F2), ecx = DWORD
+  [rec+0x12..15] AND 0x8000 (the CHECK_ALL_PLANE bit), ebx =
+  [rec+0] = the OWNER back-pointer, edx = the 13-byte output
+  key buffer. The wrappers 0x4b870 and 0x4b88f (entry 0x4b88f
+  - the listing's 0x4b890 is misaligned again, sixth member
+  of the class) save edx, PUSH the 0x8000 mask as the stack
+  arg that 0x4b500 reads at [esp+0x54], and set ecx to the
+  pool INDEX globals ds:0xcef44 (CHECK_ZW) / ds:0xa94ec
+  (CHECK_ANI) before tailing 0x4b500; 0x4bd30 (CHECK_LEW)
+  is called directly with the mask still in ecx.
+  0x4b500 body: poolObj = base + index*4; COUNT at
+  [poolObj+0x44]; chain heads at [poolObj+0x58] + 4*idx
+  deref, walk via [entry+0x34]; per entry: verb +0x60
+  predicate, then CLASS FILTER - accept iff [entry+0x24] ==
+  [ebx+0x24] (the OWNER's class id: the class-ID field is
+  at [obj+0x24] - CONFIRMED location, supports PR-139's
+  class-id dispatches) OR the pushed 0x8000 mask is nonzero
+  (so CHECK_ALL_PLANE = the cross-class accept switch, its
+  semantics CONFIRMED), and self-match is skipped; verb
+  +0x78 then BUILDS that entry's 13-byte key (edx = a local
+  buffer, ebx = owner) and 0x49580 OR-merges it; the final
+  12 bytes + count byte at +0xc are copied to the caller's
+  key buffer (ret 0x4).
+  0x4bd30 is NOT a pool-array query: it walks the OWNER's
+  own list at [obj+0x64] (PR-105's object list slots), same
+  verb +0x60 predicate + class filter with the mask switch
+  (at [esp+0x2c] here), but after verb +0x78 builds the
+  entry key it runs the PR-162 intersection idiom 0x495b0 -
+  and ON A MATCH copies THAT KEY OUT and stops (0x4bdb2-
+  0x4bde8: movs dwords + byte, then the output copy). So
+  CHECK_LEW = "match against my own list's keys", CHECK_
+  ANI/ZW = "OR the class-filtered keys of the level's
+  placed objects" - the two shapes PR-165 guessed at are
+  now separated exactly.
+
+- FINDING 2, WHAT THE POOLS ARE: THE LOADED CONTAINERS
+  THEMSELVES. The level loader at 0x4cd6c-0x4cdca compares
+  the container's name ([ebp+0x3a], case-insensitive via
+  0x76d20) against the three literals 0x91dda 'zwierzaki',
+  0x91de4 'animacje', 0x91ded 'ani_plat' - EXACTLY the
+  PR-60 placement source keys - and on a match stores the
+  container's pool INDEX field [container+0x40] into
+  ds:0xcef44 / 0xa94ec / 0xa94e8 respectively: the ZW pool
+  IS the 'zwierzaki' container's object pool, the ANI pool
+  the 'animacje' one, the third the 'ani_plat' one. The
+  layout claim is INDEPENDENTLY verified at the container's
+  own cleanup (0x4ce0a-0x4ce24): [[container]+0x40]*4 +
+  container + 0x58 = the same chain-head array zeroed over
+  a count at [ebp+0xe2] - the container object IS the pool
+  array base, and ds:0xcef40 at query time = the current
+  container. So CHECK_* key bits are computed FROM THE
+  LEVEL'S OWN PLACED OBJECTS of a source category, filtered
+  by the requesting object's class id: the engine-side
+  grounding of the port's PR-60 source model is now NAME-
+  EXACT. The ani_plat pool's other consumer sits at
+  0x4b6ba, inside 0x4b600 - a position/velocity scan
+  (reads [obj+0xca]/+0xce speeds, [obj+0xa9]) called from
+  0x546d7/0x54719 near the feed dispatcher: the platform-
+  ground check lead (item 4).
+
+- FINDING 3, THE STARTUP REGISTRY, FULLY TRANSCRIBED - AND A
+  NEGATIVE. All fourteen registrations at 0x4fccd-0x4fee5
+  share the shape 0x5c320(eax=0x14) THEN 0x51120(ecx=1,
+  ebx=class id, edx=name), storing the returned handle into
+  consecutive globals ds:0xcefbc..0xceff0. The full class-id
+  sequence (two entries inherit the previous ebx - PR-165's
+  sample was head-truncated): 6,6,11,(11),7,3,5,12,2,9,8,
+  10,11,(11). The name table is 0x9201c-0x920e4. NEGATIVE:
+  NONE of those fourteen handle globals is READ anywhere in
+  the image (grep census over all of text.asm) - the
+  startup-registered pools have no direct consumer; the
+  QUERIED pool handles are the F2 load-time ones. 0x5c320
+  itself = generic pool-by-type-id creator (manager via
+  0x7521f; type ids 0x14 here, 0xa5 seen in F4); 0x51120 =
+  an adapter reading [creator+0xc]/+0x10 and calling the
+  pool MANAGER verb +0xd8 at [[ds:0xcef40]+0x394]+0x8. The
+  preceding 0x44350 call stores ds:0xcef58 (adjacent slot,
+  semantics open, item 5).
+  THE NAME DECODE - still open, with evidence: the 14
+  strings are referenced ONLY by this registry; a 256-key
+  single-byte XOR scan finds NO key making ANY of them
+  printable (so not one-XOR); the structure is pair-like
+  (upper/lower alternating; 'CxHxUxJxOxZxAx' is all 'x'-
+  pairs), position-INDEPENDENT (0x9204b and 0x9207e share
+  their first three pairs 'XtXoTm'); decoded lengths would
+  be 6-11 chars. The .rodata neighborhood contextualizes
+  them hard: right before them sit the LEVELS.DES top-level
+  keys ('demolist','belka','paleta','pozycja','plany',
+  'dir','intro','lew_rect','maski', error 'Bledny wpis w
+  pliku levels: %s.') and readable internal class names
+  'ANITAB','PLANT','GRABOBJ','DEMOTEXT','ANIBACK','MOVEPLAT',
+  'MOVERECT','RECT','DRECT','DRECT2','KATPLAT','DZWIGNIA',
+  'WODOSPAD','ZWIERZ','GRUPA','PICT','POCISK','IDPOCISK',
+  'GRABG','GWIAZDKI','NIESP','ZONE','KORONA','SURPRISE',
+  'BAL','DNGANI','TRASA','TRASA2','LINA','TABLICA','BERLO'
+  (PR-104's factory-name families) - the obfuscated block
+  sits exactly where that table would continue.
+
+- FINDING 4, NAME-KEYED POOL ACCESS IS REAL - ONE SUBSYSTEM.
+  0x4dcc0(ds:0xcef40, name): tokenizes the name through the
+  scanf format ' %[^,\r\n] , ' (0x91f2a via 0x57a40), calls
+  0x4df10(pool, token) - whose head compares the token
+  against 'ANITAB' (0x91f3d) and creates type 0xa5 for it -
+  then splits on '\\'. The object factory's clone path
+  0x1ed92-0x1edad stores the result at [obj+0x120] -
+  PR-104's named clone PROTOTYPE cache: the engine really
+  does look objects up by name in the pool family. And the
+  row-line resolver's result slot ds:0xceff4 (PR-161 F1:
+  the pool singleton's LAST RESULT) is the global RIGHT
+  AFTER the registry's last slot 0xceff0 - the whole block
+  ds:0xcef40..0xceff4 is ONE pool-singleton area, so PR-
+  161's "sequence pool" and today's container pools are the
+  same subsystem. ZARIA.01's rows still resolve NULL
+  against the extracted texts - the K_GEN1 data block STANDS
+  but is now precisely narrowed: nothing in the ZARIA.01
+  corpus names any pool entry; the key-path pools need no
+  names at all (they are container-attached, F2).
+
+- FINDING 5, SIDE FACTS. (a) The class id field is [obj+
+  0x24] (both query bodies read it) - the location PR-139's
+  class-id dispatch facts implied; (b) the pool manager
+  singleton slots on the container: +0x394 manager (verbs
+  +0xd8 register, +0xe4 with a 0 arg), +0x388 = the BY_TY
+  feed scalar (PR-165 F2), +0x390 read at 0x54458 (a walk
+  through [x+0x1c]), +0x3b0 written at 0x51187 - one map,
+  semantics open; (c) 0x749a0 = the fill/memset helper used
+  to clear the 13-byte key locals (ebx=count 0xc, edx=0) -
+  the key-buffer shape everywhere is 12 bytes + count byte
+  at +0xc, again the 13-byte set.
+
+- OPEN ITEMS COUNTED (6 new). (1) THE ADDER SIDE: which code
+  inserts placed objects into the container pools (the
+  container load inserts - F2 proves the pools exist at load;
+  the insert site unread) and which entry class carries verbs
+  +0x60 (predicate) / +0x78 (key provider) and stores its
+  class tag at +0x24. THE top lead for PR-167 - it completes
+  the CHECK_* key law end to end. (2) The 14 pool-name
+  decode (negative results above; next lead: the adjacent
+  readable name table and a pair-substitution hypothesis,
+  since same chars encode identically across strings). (3)
+  0x4dcc0/0x4df10 full contract (does the lookup CREATE on
+  miss beyond the ANITAB arm?). (4) 0x4b600: the ani_plat
+  pool position/velocity scan ([obj+0xca]/+0xce/+0xa9,
+  callers 0x546d7/0x54719) - the platform-ground/ani_plat
+  contact lead, adjacent to the feed-dispatcher family.
+  (5) ds:0xcef58 (the 0x44350 store) and what writes
+  ds:0xcef40 (the current-container global). (6) The pool
+  manager slot semantics (+0x390 walk, +0x3b0 writer).
+  CLOSED: PR-165 item (3) (query bodies + wrapper contract).
+  CARRIED unchanged: PR-165 items (1) BY_* arm semantics
+  (the BY_TY scalar is now located at [container+0x388], its
+  SETTER unread - narrows the item but does not close it),
+  (4) the 0x4fef0 pool prelude side-effects ([pool+0x3a0]/
+  [0x3a8] are container-relative - same map, still open),
+  (5) record verbs +0x2c/+0x30 bodies, (6) second-view
+  slots; PR-164 items (1)-(4); the flip-bit owner; the
+  ladder-gate data block; the walk-return encoding.
+
+- GATES. Docs-only per the PR-138..165 precedent; nothing
+  compiled. Every added prose line <= 79 cols; over-79
+  baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 72); no game
+  data or frames in git (scratch /tmp/opencode/pr166/);
+  .github/workflows/* untouched; the image unchanged
+  (text.bin sha256 edf19a12...). CI: PR-165's run
+  (44501716987) was queued at record time; PR-164 (0509ce9)
+  and the PR-161 rerun confirmed GREEN; PR-163's run pending
+  at record time.
+
+- EVIDENCE. All reads from the pinned image: 0x52790 head +
+  arms verbatim (0x527b3-0x5282f); 0x4b500-0x4b5f8 verba-
+  tim; 0x4bd30-0x4be00 verbatim (incl. the 0x495b0 inter-
+ section + sete idiom and the copy-out); 0x4b870/0x4b88f
+  wrapper bodies with the alignment proof (51 = push ecx at
+  0x4b88f); the full 0x4fccd-0x4fee5 registry transcription
+  (every mov ebx/edx/store pair); the 0xcefbc..0xceff0
+  READ census (zero hits outside the stores); the 0x91f2a/
+  0x91f3d/0x91dda/0x91de4/0x91ded string pulls; 0x4cd6c-
+  0x4cdbd (the container-name comparisons + index stores)
+  and 0x4ce0a-0x4ce29 (the container-side pool cleanup)
+  verbatim; 0x4dcc0/0x4df10 heads; 0x1ed92-0x1edad (the
+  clone-prototype path, PR-104's, re-read); 0x5c320 head;
+  the 256-key XOR scan over all 14 names (no printable key;
+  script run inline); the 'XtXoTm' prefix sharing. Ledger
+  rule applied: census first - HEAD 1c22089 carries PR-150..
+  PR-165 (last carrier HEAD); records re-spliced from it;
+  3 brackets (PR-165 F3 argument roles, F5 class-id sample,
+  open item 3 CLOSED).
 
 ## Deferred big items (deliberately out of scope so far)
 
