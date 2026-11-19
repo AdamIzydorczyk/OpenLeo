@@ -2990,7 +2990,10 @@ writer as its open items.
      lead); state 0x12 with field <= 0x19 -> the kind-0x10
      AC_DRAB record; with 0x1edb0/0x1eee0 this is the FOURTH
      independent engine reading of state-indexed row arrays by
-     field +4 - PR-152's model stands. F4 THE SECOND PLACE-
+     field +4 - PR-152's model stands [PR-157 F3: the +4 word
+     is the state record's ROW CURSOR - the law stands as a
+     ROW-INDEX gate; PR-152's field reading corrected]. F4
+     THE SECOND PLACE-
      MENT CHAIN (0x1ed00..0x20000, 23 branches) places DRA-
      BINKA (0xd9, stores the LADDER pair at 0x1f94d), ZARIA's
      own controllers (TLewZaria 0x96960, TLewZariaB 0x97a98/
@@ -3000,7 +3003,10 @@ writer as its open items.
      TABLICA branch (token 0x4e89f) stores the LADDER pair at
      0x4e8c4 then OVERWRITES it with 0xa1dfc/0xa1df4 at con-
      struction (method note: token-vs-store positions - the
-     LINA/TABLICA attribution was corrected in-pass); 'LINA'
+     LINA/TABLICA attribution was corrected in-pass) [CORREC-
+     TED AGAIN by PR-157 F6: the branch IS LINA's (token
+     0x4e822) writing its OWN final pair 0xa1dfc/0xa1df4;
+     TABLICA starts at 0x4e8e4]; 'LINA'
      (0xd9, base-ctor 0x531f0, main 0x97f50) SHARES size+base
      ctor with DRABINKA - the character embeds the same lad-
      der block. F5 ANI2.DES IS PLAINTEXT (corrects PR-152's
@@ -3023,6 +3029,69 @@ writer as its open items.
      red EXCERPTS quoted only); image unchanged. Full record:
      the PR-156 section of NEXT_STEPS.md (scratch /tmp/openge
      de/pr156/).
+   - PR-157 (READING, no code, no new test - the PR-138..156
+     precedent): THE ROW-STATE MACHINE IS BUILT AT PLACEMENT
+     AND THE ROW-GATE WORD IS A ROW CURSOR (PR-152 ITEM 7
+     CLOSED). WHY: PR-156's row-gate SPEC questions. F1 THE
+     +0x7C CLASS SLOT (0x537f0) IS THE STATE-MACHINE CTOR -
+     present on EVERY base-family class (141 slots; direct ta-
+     ble reads confirm TLewZaria/TLewZariaB/LINA 0xa1dfc/LAD-
+     DER 0x97cdc/BAL 0xa17dc all carry +0x7C=0x537f0, +0x2c=
+     0x53d80); base-ctor 0x531f2 leaves [obj+0x50]=0 and sets
+     [obj+0x5c]=1 (PR-70's start state, named); 0x537f0 reads
+     the placement tail with the class format ' %[^,], %[^,],
+     %d,%d' via the custom scanf 0x49920, registers the object's
+     own PARAMETER ENTRIES, then BUILDS the rows: count from
+     the entry list, alloc via 0x76a64, per-entry KEY from the
+     name (' %[^[\r
+] ' + ' [%[^]]]' grammar) looked up in the
+     ds:0xceff8 record registry (0x31f20) - rows[i] := the au-
+     thored state RECORD, bound BY NAME, consumed as bound.
+     F2 THE REGISTRY IS FILLED BY 'seq' KEY HANDLING in the
+     main-.des chain ('sample'/'time_scale'/'seq' - the 's'
+     branch reads a NAME and inserts) - 'seq' = ZERO in every
+     extracted file: ZARIA's sequences are in the encrypted
+     main data (the next big decode project). F3 THE GATE WORD
+     [state record+4] IS THE ROW CURSOR: 0x53520 composes the
+     transition key from the object's own LIVE SET, walks the
+     current state's 21-byte transition table at [rec+0x1a]
+     (0x52000 - entry +0xd = STATE INDEX, +0x11 = ROW INDEX,
+     PR-101's law now grounded), 0x535a2 applies: same state =
+     `mov [rec+4],rowB` + verb +0xac; different = EXIT verb,
+     ENTER verb, [obj+0x5c] := recA (the ONLY state-index wri-
+     ter), + a step counter [obj+0x9d]. All gate consumers
+     (0x287ea==6, 0x2881d<=0x19, 0x1edb0 0/6, 0x28af2 state-4)
+     test CURSOR VALUES, not authored fields. F4 THE "6 COIN-
+     CIDENCE" RESOLVES: A_WALK's rows at INDEX 6/7 ARE the
+     `4,6,GEN AC_TIME`/`5,6,...` poses (cycle 10,11,12,1,..) -
+     the threshold-6 reading (PR-100) and the row index 6 ha-
+     ppen to match; PR-152's static "holds the value 6" claim
+     is superseded. F5 THE PARAM-STREAM LAW: the ANI2.DES
+     param lines ARE the object's own stream read through the
+     [obj+0x1] getter by the scanf family (0x49870/0x49920/
+     0x49950 - ' %1[;]' is the ';' list stepper; ENA2's ' pos
+     = '/' dist = %d' reads use the SAME mechanism). F6 COR-
+     RECTION: the 0x4e8c4-d9 ladder-pair-then-overwrite stores
+     are in the LINA branch (token 0x4e822, ret 0x4e8e0), NOT
+     TABLICA (starts 0x4e8e4, alloc 0x40) - LINA's final pair
+     = 0xa1dfc/0xa1df4 (PR-156's label corrected; the restore
+     question CLOSED: no restore needed); DRABINKA's final =
+     LADDER pair via [obj+0xc5]-0xbd stores. F7 the [obj+0x5c]
+     writer census: 1 initial, 55 stamp, 0x82 clamp, 0x300dd
+     resets a state's ROW CURSOR - the "reset row 1" idiom.
+     8 new open items (the +0x7C invoker, the 'seq' source,
+     param-line token mapping, 0x524xx/0x525xx + [obj+0x58]
+     dual role, initial cursor, 0x446de, 0x57d30 modes, con-
+     sumption semantics). CLOSED: PR-152 item 7, the [rec+4]
+     identity question (cursor for state records), PR-156 F4's
+     label + its 0xa1dfc item, the "states 4/0x12" framing.
+     NEXT: the WAIT row-gate CODE pass is FULLY SPECCED (cursor
+     + row-targeted transitions + gate tests; ZARIA.01 output
+     must not change) - then the encrypted-pool 'seq' decode.
+     Gates: docs-only; every added line <= 79; baselines un-
+     changed (NEXT_STEPS 71, HANDOFF 72); no game data in git;
+     image unchanged. Full record: the PR-157 section of
+     NEXT_STEPS.md (scratch /tmp/opencode/pr157/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -4733,6 +4802,28 @@ independent methods - PR-150 item 6's UNMODELLED gate field
 becomes a parseable, feedable field once the row-builder and
 ANI-STATE reader (PR-157) names the format. ZARIA.01 output
 unchanged (no code). 7 new open items counted.
+
+STATUS after PR-157 (docs-only; the row-gate is now a COM-
+PLETE ENGINE SPEC, not a question): the tested word is the
+current state's ROW CURSOR [record+4], written only by the
+transition applier 0x535a2 (same-state: cursor := rowB; new
+state: EXIT/ENTER verbs + [obj+0x5c] := recA); rows [[obj+
+0x50] are per-state authored RECORDS bound BY NAME at place-
+ment (slot +0x7C, 0x537f0) from the object's own parameter
+entries through the ds:0xceff8 registry, which is fed by au-
+thored 'seq NAME,...' lines - present in NO extracted file,
+so ZARIA's controller rows exist only inside the encrypted
+main data. The K_GEN1 bridge keeps its one unbound link for
+the honest reason: the controller object whose A_WALK cursor
+the hand-off machinery would test is never instantiated in
+anything readable. For T5 the practical consequence: the WAIT
+row-gate CODE pass can be written NOW (cursor + row-targeted
+transitions + the (key,recA,rowB) transition-table law ground-
+ed at 0x52000/0x535a2) with ZARIA.01 output required un-
+  changed - a pure model-correctness pass, no visible beha-
+  vior risk. PR-152 open item 7 and the [rec+4] identity are
+CLOSED (cursor; the "authored 6" coincidence resolves to row
+INDEX 6 = the `4,6,GEN AC_TIME` pose). 8 new open items.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
