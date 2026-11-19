@@ -4185,6 +4185,51 @@ writer as its open items.
      Next -> PR-177 = the +0x78 singleton family pass. Full
      record: PR-176 section of NEXT_STEPS.md (scratch /tmp/
      opencode/pr176/).
+   - PR-177 (READING; no port code, no behaviour change):
+     THE +0x78 SLOT IS THE RELATIONSHIP-KEY PROVIDER. Its
+     call sites are EXACTLY FOUR (0x4b5be pool-walk-by-id
+     fn 0x4b500; 0x4bda9+0x4be09 walk fn 0x4bd30 - called
+     from the BASE +0x8c getter 0x52750 gated by
+     [rec+0x12]&0x8000, NEW fact, with a global fallback
+     via [mgr+0x394]; 0x55421 inside the child-aggregator
+     0x553e0 = OR of children +0x78 at [obj+0x3c]/[obj+
+     0x40]); a fifth consumer, the bounds test 0x4b430 (in
+     LION +0xac 0x546a0), returns AC_BLOK (byte 0 bit 0)
+     on an [obj+0x70]-array hit vs a ctx bounds rect.
+     CENSUS CORRECTED (bracket): inside the 178, +0x78 has
+     9 SHARED values x122 tables + 56 singletons (NOT
+     "~76", and NOT the 99-passive-lineage - third time
+     two populations were conflated; that item is CLOSED).
+     ALL NINE shared providers read whole and classified:
+     zero (0x23b10); relation merges onto PR-173's known
+     bridge (0x552e0 x65: 0x53ae0 && +0x9c, fill 0x55230;
+     0x3df00 x19 prefix +0xd8/0x45320; 0x3e500 x2 sets
+     K_GEN1 INTO THE LIVE SET [obj+0x66]|=0x40 when
+     record #1 + ctx gates pass); enemy/facing (0x50f80
+     x15 = LION's own, 0x53c90, 0x3d990: +0xd0 verbs,
+     0x55130 energy key, AC_ENEMY byte0|=0x80 ALWAYS and
+     AC_ENEMY_ATC on the contact arm - PR-175's energy
+     reading reproduced IN the providers); decor-rect
+     (0x3d440: point-in-rect vs the 0x23a20 format, the
+     CAMEL table 0x98278 HARDCODED at 0x3d49d/0x28b47,
+     0x98274 at 0x4b441 - PR-176's camel bracket updated);
+     child-aggregator (0x553e0); consumer (the 99's
+     0x54860, PR-171's decay confirmed). The named lead
+     singleton 0x28af0 whole: its table 0x9a36c is a full
+     ACTIVE pump class; record-#4 gate, one-time 0x28bf0
+     init via [obj+0xf6], rect test, then merges K_GEN1
+     into [self+0x60]. ZARIA.01 GROUNDING, no port gap:
+     the .MOVs gate on exactly these bits (AC_ENEMY_ATC/
+     AC_BLOK in ZAR_LEW; K_GEN1/K_LEW/K_LN in KAMIEN/
+     BALONIK/KATAPULT/KORONA) and the port already models
+     those tokens - every shipped raise rule now has its
+     engine counterpart NAMED. 5 new open items; 1 closed;
+     docs: 3 brackets, 0 port lines, baselines 71/71 held;
+     NEW OWNER GATE truth recorded (rule 8): make clean,
+     parallel verify-all rc=0 = 52 (ok) fixtures / 10 (ok)
+     + 18 named SKIPs fixture-free. Next -> PR-178 = the
+     BY_TY feed pass. Full record: PR-177 section of
+     NEXT_STEPS.md (scratch /tmp/opencode/pr177/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -6629,6 +6674,47 @@ two closed (PR-175 F6 twelve-identity; PR-173 item (e)).
 Gates: docs-only (PR-138..171, PR-175 precedent); added lines
 <= 79; baselines 71/72 held; PR-174's binary+verify state
 stands (56 ok / 10 ok + 23 named SKIPs).
+
+STATUS after PR-177 (the RELATIONSHIP-KEY PROVIDER pass;
+docs reading - ZERO port lines changed, the ZARIA.01 output
+image is byte-identical to PR-176's, and the build state is
+the OWNER GATE of 2026-11-19: make clean + parallel
+verify-all rc=0 both ways, 52 (ok) fixtures / 10 (ok) +
+18 named SKIPs fixture-free).
+
+What this pass GROUNDS for T5 (nothing shipped changed, so
+no new test was required; the payoff is that every shipped
+raise rule now has its engine counterpart named):
+(1) THE GENERATED SIGNALS ZARIA.01 ACTUALLY USES - K_GEN1
+    (KAMIEN1-3, BALONIK, DRABINKA, KATAPULT, KORONA),
+    AC_ENEMY_ATC/AC_ENEMY, AC_BLOK (ZAR_LEW) - all flow
+    through the class +0x78 provider slots, driven by the
+    base +0x8c getter 0x52750 (gated by [rec+0x12]&0x8000,
+    new fact tying the record-flag law of PR-159/160 to
+    signal raising), the pump's +0xac hook (LION's 0x546a0
+    calls the bounds test 0x4b430 and the pool query
+    0x4b600), and child aggregation 0x553e0.
+(2) PR-175's energy/AC_ENEMY reading is REPRODUCED inside
+    the providers themselves (AC_ENEMY always ORed,
+    AC_ENEMY_ATC on the contact arm) - the key law holds
+    end to end, now with the raising code named.
+(3) The census is CORRECTED (9 shared x122 + 56 singletons
+    inside the 178, disjoint from the 99 passive lineage -
+    the THIRD conflation of those two populations closed by
+    bracket), so any future claim about "+0x78 families"
+    has exact numbers.
+(4) The decor tables from the camel item (0x98278/0x98274)
+    are REFERENCED INSIDE the provider code (0x3d49d,
+    0x28b47, 0x4b441) - the camel reachability item
+    updates again, still data-blocked, now with concrete
+    code contact points.
+Five new open items are counted in the record (relation-
+helper bodies; unread provider tails; the other 55
+singletons; the array/field producers; entry-boundary
+honesty); one closed (PR-173 item (3)).
+Gates: docs-only (PR-138..171, PR-175, PR-176 precedent);
+added lines <= 79; baselines 71/71 held; the Windows half
+stays in the end pass (rule 8).
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

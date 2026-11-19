@@ -15762,35 +15762,30 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-177 IS THE +0x78 SINGLETON FAMILY PASS (the natural
-  next lead: PR-173 item (3) says the ~76 remaining +0x78
-  singletons are a DISJOINT passive lineage whose +0x14 is
-  0x23920 returning the [rec+0x12] control-flags word; the
-  census named 0x28af0 as the lead singleton). Method:
-  re-derive the singleton census from the 178 marker tables
-  (tables WITHOUT the 0x23b80 pump marker), then read 0x23920
-  whole, then 0x28af0 whole, then 3-4 more singletons to fix
-  the family shape; check what consumes the flags word (the
-  [rec+0x12] law from PR-159/160), and whether any ZARIA.01
-  row lives in this lineage (if yes it feeds the port's row
-  matching; if no, count it as a settled negative). THEN, in
-  this order when data allows: the BY_TY feed read 0x543a0's
-  mode arm (PR-166 carried); the msg-id arms 0x5460e/0x5463a
-  + id map + [obj+0xa9] semantics (the 24-site map from
-  PR-175 F7b narrows this); the player-side same-state row
-  seek (PR-174 item (2) - the 20 lion lines keyed AC_TIME x2/
-  AC_DUP/K_ANY/K_FIRE,K_GEN2/AC_RECT,K_GEN1 that the player
-  path models none of); PR-176's five new controller items
-  (the five unnamed TLew class tables; [obj+0xee] >= 10
-  writers; the [obj+0xd2] queue producers + the +0xf8/+0x3c
-  verbs + [obj+0x106]; the [obj+0xa5/a6/a7] button-bit map
-  vs the input model; the ds:0xcef5c value source + the
-  decor-class 0x98278 format reads + the rec-class 0x98e7c
-  pair + 0x524e0). Carried reads unchanged: the +0x54 hook
-  families 0x53df0/0x3ddf0, 0x550c0's body, the 0x55130 tail
-  from 0x551b8, the pool-name decode, the +0x4c/+0x1c 0x23a20
-  slot recount, the 73 dead-0x54910 tables, 0x546a0's full
-  body, everything else in the ledger's CARRIED list.
+- PR-178 IS THE BY_TY FEED PASS (the port-side gap carried
+  highest since PR-172: FOUR shipped ZARIA.01 states use
+  control=BY_TY with rows gated 200/300, and the port runs
+  them as plain time states). Read the feed dispatcher
+  0x543a0's mode arm for the BY_TY token (PR-166's +0x14
+  map), and its relation to the [obj+0xba]/[obj+0xbe] pair
+  and the record's [rec+0x12] flag word (PR-159/160) - if
+  the answer exposes a code-visible rule, ship the fix with
+  its hand-derived test + mutation battery per the standing
+  rules; else count it with its data. THEN, in order: the
+  msg-id arms 0x5460e/0x5463a + id map + [obj+0xa9]
+  semantics (the 24-site map from PR-175 F7b narrows it);
+  the player-side same-state row seek (PR-174 item (2));
+  0x546a0's full body (PR-177 NAMED its +0x78-area call
+  sites - 0x4b430/0x4b600/0x4b7f0 - but the verb body
+  itself stays unread and is the +0xac law's home); the
+  relation-helper bodies 0x52eb0/0x52cc0/0x534e0/0x45620
+  + the unread provider tails (PR-177 items (1)/(2)); the
+  other 55 +0x78 singletons as census (PR-177 item (3));
+  PR-176's five controller items. Carried reads unchanged:
+  the +0x54 hook families 0x53df0/0x3ddf0, 0x550c0's body,
+  the 0x55130 tail from 0x551b8, the pool-name decode, the
+  +0x4c/+0x1c 0x23a20 slot recount, the 73 dead-0x54910
+  tables, everything else in the ledger's CARRIED list.
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -21162,7 +21157,15 @@ table now verified 68/68)
   getter runs through any read map, so the camel/0_0 K_*
   rows CANNOT be reached by the twelve controllers; what
   remains is that decor class's own verb layout, unread,
-  still T6+ data-blocked.]
+  still T6+ data-blocked.] [FURTHER UPDATED BY PR-177 F3/F4:
+  the decor tables are REFERENCED INSIDE the relation
+  providers' code - 0x98278 hardcoded at 0x28b47 and
+  0x3d49d, 0x98274 at 0x4b441 - and those providers' rect
+  tests consume EXACTLY the 0x23a20 (+0x4c-default) buffer
+  format of PR-175 F7c: decor classes and the provider
+  family touch in code after all; nothing read yet runs a
+  +0x14 pump or +0x8c getter for a CAMEL object, so the
+  K_*-rows question stands.]
 
 - FINDING 6, THE 0x600000/0x800000 LITERALS ARE A LEDGER
   ARTIFACT — CLOSED WITH PROVENANCE. git -S over all blobs:
@@ -21209,6 +21212,20 @@ table now verified 68/68)
   OPEN: 0x550c0's body, 0x55130's tail from 0x551b8.] (3) the ~76
   per-class +0x78 singleton providers as a family (the bit-54
   raiser 0x28af0 now slot-identified; the census tool exists).
+  [CLOSED BY PR-177: the family is READ and the CENSUS
+  CORRECTED - inside the 178 the +0x78 slot has NINE shared
+  values spanning 122 tables (0x552e0 x65, 0x3df00 x19,
+  0x50f80 x15, 0x53c90 x10, 0x3d990 x4, 0x23b10 x3,
+  0x3d440 x2, 0x553e0 x2, 0x3e500 x2) PLUS 56 SINGLETONS
+  (122+56=178 exactly) - "~76" was wrong, and the singletons
+  are NOT the 99 passive lineage (zero overlap): the THIRD
+  conflation of those two populations, closed for good. All
+  nine shared providers read whole and classified (PR-177
+  F3); 0x28af0 read whole - its table 0x9a36c is a full
+  ACTIVE pump class raising K_GEN1 into the live set; the
+  slot's contract = RELATIONSHIP-KEY provider with EXACTLY
+  FOUR call sites (PR-177 F1). The other 55 singleton bodies
+  stay open as a census (PR-177 item (3)).]
   (4) KADMAR camel/0_0 K_*-keyed object rows: reachability of
   synthesized or message-raised bits for THOSE at their stage
   (T6+; not ZARIA.01). [UPDATED BY PR-176 F4: the twelve
@@ -21865,7 +21882,9 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   identity (bracket - resolved as F3); PR-173 item (e)'s
   0x9c05c identity (PURCHAWA). UPDATED: the camel item (F4).
   CARRIED unchanged: PR-173 item (3) (the ~76 +0x78 single-
-  tons, 0x28af0 lead); the BY_TY feed read; the msg-id arms
+  tons, 0x28af0 lead - CORRECTED AND CLOSED BY PR-177: 56
+  singletons + 9 shared, family read, see that record); the
+  BY_TY feed read; the msg-id arms
   0x5460e/0x5463a + id map + [obj+0xa9] semantics (the site
   map from PR-175 F7b); PR-174 item (2) (player-side seek);
   0x546a0's full body; 0x550c0's body; the 0x55130 tail;
@@ -22193,6 +22212,242 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   duplicate note, comment re-indent), HANDOFF s3 (the MOD correction
   and the gate-on-rc note). Nothing under ported/ or tools/ changed.
 
+## PR-177 — THE +0x78 SLOT IS THE RELATIONSHIP-KEY PROVIDER:
+## ALL NINE SHARED PROVIDERS READ WHOLE, THE CENSUS CORRECTED
+## TO 9-SHARED+56-SINGLETON, THE FAMILY CLASSIFIED, AND THE
+## GENERATED SIGNALS OF ZARIA.01 (K_GEN1, AC_ENEMY, AC_
+## ENEMY_ATC, AC_BLOK) NOW HAVE THEIR ENGINE MECHANISM NAMED
+## (READING, NO PORT CODE, NO BEHAVIOUR CHANGE)
+
+- WHY. PR-176's Next named this pass. Method: dword censuses
+  over the data segment (marker 0x23b80 at +0x60 = the 178;
+  value 0x54860 at +0x78 = the 99 - sets DISJOINT, ledger
+  numbers reproduced EXACTLY); the +0x78 slot's call sites
+  found by exhaustive xref (exactly FOUR); objdump ranges
+  (-D -b binary --adjust-vma=0x10000 --start/stop-address on
+  /tmp/opencode/text.bin) because the linear text.asm
+  DESYNCS over the provider cluster - stated so future PRs
+  do not re-trip; every shared provider value read end to
+  end; the named lead singleton 0x28af0 read whole; the
+  authored ZARIA.01 .MOV texts grepped for the signal
+  tokens. Docs only: nothing shipped moves.
+
+- FINDING 1, THE +0x78 CONTRACT AND ITS FOUR CALL SITES.
+  +0x78 = a per-class KEY PROVIDER for the RELATION
+  between self and a context object: eax = self, ebx = ctx,
+  ecx = aux; the result is delivered by filling the
+  caller's buffer (edx) or by returning a key-buffer
+  pointer;
+  callers merge via the standard 0x49580. Call sites,
+  exhaustive: (a) 0x4b5be inside the walk function entered
+  at 0x4b500 - walks pool chains ([x+0x58] table / [x+0x34]
+  chain), FILTERS candidates by their +0x60 verb truth and
+  an ID compare ([x+0x24] == [ctx+0x24]), skips self, calls
+  each match's +0x78 (edx = local key), merges all answers
+  via 0x49580 (0x4b5c5); the caller buffer is [esp+0x30]
+  (saved at 0x4b50a) and the merged key is delivered
+  through that epilogue at 0x4b5cc+ (its exact copy shape
+  not re-read - counted); (b) 0x4bda9 and (c) 0x4be09
+  inside one walk
+  function entered at 0x4bd30 - chain walk via [x+0x64],
+  same +0x60 + id filter, plus a GLOBAL FALLBACK: manager
+  ds:0xcef40's [+0x394] object's +0x78 is called when the
+  walk finds nothing (0x4bdf6-0x4be16); 0x4bd30 is CALLED
+  AT 0x527cb FROM THE BASE CLASS +0x8c GETTER 0x52750
+  (PR-173 F4's base getter), gated by `[rec+0x12] & 0x8000`
+  (the record control-flags word from PR-159/160 - NEW
+  fact: the base getter's relation-merge arm is
+  flag-gated), result merged via 0x49580 at 0x527d6;
+  (d) 0x55421 inside 0x553e0 (below). A FIFTH consumer is
+  NOT a +0x78 call but the same pool machinery's bounds
+  half: 0x4b430 (called from the LION +0xac verb 0x546a0
+  at 0x546f0/0x54732): builds a rectangle from ctx's
+  bounds pair [ctx+0xca]/[ctx+0xce] plus half-extents from
+  0x534e0 (descriptor carrying table 0x98274), tests the
+  entries of the [obj+0x70] array ([obj+0x7c] count,
+  stride 0x14) via 0x45620, and on a hit returns a key
+  with BYTE 0 BIT 0 = AC_BLOK (bit 0) - the collision
+  signal, at last, has its engine mechanism.
+
+- FINDING 2, CENSUS CORRECTED: PR-173 ITEM (3)'S "~76" IS
+  WRONG - INSIDE THE 178 MARKER TABLES THE +0x78 SLOT HAS
+  65 DISTINCT VALUES: NINE SHARED spanning 122 tables -
+  0x552e0 x65, 0x3df00 x19, 0x50f80 x15, 0x53c90 x10,
+  0x3d990 x4, 0x23b10 x3, 0x3d440 x2, 0x553e0 x2, 0x3e500
+  x2 - PLUS 56 SINGLETON tables (122+56=178 exactly). The
+  99 0x54860 tables are the SEPARATE passive lineage (zero
+  overlap, all +0x14 = 0x23920 = "return [rec+0x12] of the
+  current record", all +0x8c = 0x23870) - so the item-(3)
+  wording "singletons ARE that lineage" conflated two
+  populations a third time (bracket). 0x23920 itself read
+  whole: `mov edx,[obj+0x5c]; mov eax,[obj+0x50]; mov eax,
+  [eax+edx*4]; mov eax,[eax+0x12]` - [obj+0x50] = record
+  array, [obj+0x5c] = record index: the law for WHICH
+  record the flag word comes from is now pinned.
+
+- FINDING 3, THE FAMILY CLASSIFIED - ALL NINE SHARED
+  PROVIDERS READ (shape-first; helpers named):
+  (i) ZERO: 0x23b10 (x3) fills a zero key into the caller
+  buffer via 0x749a0 and returns it.
+  (ii) RELATION MERGES onto the known contact/flag bridge:
+  0x552e0 (x65 DOMINANT): gate 0x53ae0(self,ctx) (contact,
+  PR-173 F5) && class verb +0x9c; filler 0x55230 (PR-173's
+  ANTI_POCISK/DANGER flag->key builder); copy to caller
+  buffer, return it. 0x3df00 (x19): same as a prefix - if
+  ctx != self AND ctx class verb +0xd8 truthy, reads chain
+  entry 2 at &[self+0xee] via 0x45320 - then 0x552e0.
+  0x3e500 (x2): if [obj+0x5c]==1 (record #1) AND ctx +0x3c
+  AND 0x52eb0(self,ctx) AND ctx verb +0xf4 AND self verb
+  +0xd8: SETS [obj+0x66] |= 0x40 DIRECTLY INTO THE LIVE
+  SET ([obj+0x60] 13 bytes) = byte 6 bit 6 = BIT 54 =
+  K_GEN1 (PR-155/156's raiser, law-confirmed), with the
+  0x52cc0 side effect - then 0x552e0.
+  (iii) ENEMY/FACING providers (the 0x50f80 x15 = LION's
+  own, 0x53c90 x10, 0x3d990 x4): gate 0x53ae0; +0x9c;
+  +0x40 truth -> call ctx class verb +0xd0 (facing/
+  relation, ebx = [self+0xb1] or manager [+0x54] or 0);
+  0x50f80 additionally runs 0x55130 (ecx = [self+0xee])
+  when [obj+0x40] verb is true and merges its energy key,
+  and calls +0xd0 when [self+0x11a]==7; 0x53c90 calls +0xd0
+  again when +0x44 & 0x80000. ALL THREE then OR byte 0 |=
+  0x80 = AC_ENEMY (bit 7) into the local key, 0x3d990 ALSO
+  byte 2 bit 0 = AC_ENEMY_ATC (bit 16) on its +0x40 arm -
+  PR-175's "AC_ENEMY always ORed / AC_ENEMY_ATC on the
+  greater-energy side" reading now REPRODUCED INSIDE THE
+  PROVIDERS themselves; +0x44 flag bits 0x20/0x80000 are
+  the extra gates.
+  (iv) DECOR-RECT K_GEN1 providers: 0x3d440 (x2): delegates
+  to 0x552e0 unless [obj+0x5c]==1, and for record #1 runs
+  the ctx +0x3c truth + ctx +0x68 position + point-in-
+  RECTANGLE test against the ctx +0x4c (0x23a20) buffer -
+  the SAME rectangle format as 0x23e00 (PR-176) - with the
+  CAMEL class table 0x98278 loaded as an IMMEDIATE
+  (0x3d49d); tails 0x3d687/0x3d6ab unread (counted).
+  (v) CHILD AGGREGATOR 0x553e0 (x2): builds a zero key,
+  loops the [obj+0x3c] COUNT of child pointers at
+  [obj+0x40], ORs each child's +0x78 answer (0x55421) -
+  NOTE: object FIELDS +0x3c/+0x40 read here as a group
+  list (the +0x3c-as-owner reading from PR-175 F7 is about
+  a different access; both facts recorded, the field's full
+  story counted). Direct callers (not via the slot):
+  0x1eba0 (constructor-region helper: calls it then TESTS
+  byte 6 bit 0x40 = K_GEN1 of the merged result) and the
+  0x380f5 helper paired with the 0x45320 chain read.
+  (vi) THE 99's slot 0x54860 RE-READ whole, PR-171's decay
+  law CONFIRMED with exact gates: skip when caller key byte
+  [2] & 4; with [rec+0x12] & 0x10 AND key byte[0] & 0x10:
+  [obj+0xc6] := -2*[obj+0xc6]/3 (idiv 3); key byte[3] & 2
+  or byte[0] & 2 zero it; byte[0] & 1 zeroes [obj+0xc2].
+
+- FINDING 4, THE NAMED LEAD SINGLETON 0x28af0 READ WHOLE
+  (of 56): its table is 0x9a36c - a MARKER table (+0x60 =
+  0x23b80) with +0x14 = 0x550a0 (the pump step) and
+  +0x8c = 0x54910 (the motion getter): a full ACTIVE class,
+  not a passive one. Flow: only for record #4 ([obj+0x5c]
+  == 4); one-time init 0x28bf0 guarded by [obj+0xf6] (that
+  walk touches [obj+0xee]/[obj+0xf2] object links + class
+  verbs +0x70/+0x4/+0x80 and ds:0xa94ec - NEW fields,
+  counted); ctx class +0x3c truth; self +0x68 position;
+  point-in-rect test of (x, y-0x14) vs the ctx +0x4c
+  buffer; 0x52b10(ctx, self, 3, 0xf); then a BUILT KEY
+  with byte 6 |= 0x40 (K_GEN1) merged into [self+0x60] -
+  the live set - not the caller buffer; otherwise a zero
+  key to the caller. Hardcoded `mov ebx,0x98278` (the
+  CAMEL class table) at 0x28b47: the third hard-coded
+  CAMEL-table reference in this family (0x3d49d, 0x4b441
+  the 0x98274 variant) - the decor tables of PR-176 sit INSIDE
+  the relationship providers' code.
+
+- FINDING 5, ZARIA.01 GROUNDING - NO PORT GAP. The authored
+  ZARIA.01 texts gate rows on exactly these GENERATED
+  signals: ZAR_LEW carries AC_ENEMY_ATC/AC_BLOK/AC_RECT/
+  AC_STONE/... ; KAMIEN1-3 gate on K_ANI/K_LEW/K_LN/K_
+  GEN1/K_GEN2; BALONIK, DRABINKA, KATAPULT, KORONA gate on
+  K_GEN1. The engine RAISES those bits through the +0x78
+  provider slots, driven from three doors: the base +0x8c
+  getter 0x52750 (flag-gated 0x4bd30 walk), the pump's
+  +0xac hook (LION 0x546a0 -> 0x4b430/0x4b600), and child
+  aggregation 0x553e0. The port ALREADY models these tokens
+  (the ll_cond signal tables + its own raise rules) and
+  ZARIA.01 is green against frames - so no port-side gap is
+  exposed and NO port code changes. What this pass supplies
+  is GROUNDING: every shipped raise rule now has its engine
+  counterpart named, class-by-class.
+
+- OPEN ITEMS COUNTED (5 new). (1) Bodies of the relation
+  helpers 0x52eb0/0x52cc0/0x534e0/0x45620 and the chain
+  readers 0x45320/0x45620 entry-index semantics. (2) Unread
+  tails: 0x3d440 at 0x3d687/0x3d6ab, 0x3d990's [obj+0x5c]
+  ==1 arm at 0x3da9d, the +0xf4/+0xd8/+0x3c verbs on the
+  decor side, [self+0x11a]/[self+0xb1] semantics, [obj+
+  0xc2]/[obj+0xc6] readers beyond PR-171. (3) the other 55
+  singleton bodies (the census tool is in EVIDENCE; 0x28af0
+  read as the lead). (4) [obj+0x70]/[obj+0x7c] array
+  producers, [mgr+0x394], the [obj+0x2c] store at 0x1eb9a
+  (class verb +0x8's result), caller context of 0x1eba0/
+  0x380f5. (5) entry-boundary honesty inside 0x4b4xx-
+  0x4bexx: 0x4b500's function has only in-region branch
+  entries in the xref scan (a data/entry artifact to
+  re-verify), and the walk functions were read as data-flow
+  stories, not CFG proofs. CLOSED: PR-173 item (3) (brack-
+  et: corrected counts + family classified + 0x28af0 whole).
+  UPDATED: PR-176's carried "~76" line (bracket) and the
+  PR-176 camel bracket (bracket: the decor tables are
+  referenced INSIDE the providers). CARRIED unchanged:
+  0x546a0's full body (its +0x78-area call sites 0x4b430/
+  0x4b600/0x4b7f0 are now NAMED but the verb body itself
+  stays unread), the msg-id arms 0x5460e/0x5463a + id map +
+  [obj+0xa9] semantics, the BY_TY feed 0x543a0 mode arm,
+  the player-side seek, PR-176's five controller items, the
+  pool-name decode, 0x550c0's body, the 0x55130 tail, the
+  +0x54 hook families, the 73 dead-0x54910 tables, the
+  +0x4c/+0x1c 0x23a20 recount, the ladder-gate data block,
+  everything else unchanged.
+
+- GATES. Docs-only reading PR (PR-138..171, PR-175, PR-176
+  precedent): no port file touched; the build state is the
+  OWNER GATE of 2026-11-19 (HANDOFF rule 8) - `make` ZERO
+  warnings and `make -k -j"$(nproc)" verify-all` re-run on
+  this HEAD: WITH fixtures rc=0 = 52 (ok) (the only other
+  SKIP is the pre-existing "no-regression: SKIP" noise; the
+  old 56 included the four verify-win/verify-mod oks now
+  moved to the end pass), FIXTURE-FREE rc=0 = 10 (ok) + the
+  same 18 named verify-SKIPs (was 23 with the windows legs;
+  the owner's suite-speed round fdbd42b changed no verdict
+  count). The `make win` half is NOT a per-PR gate any more
+  (owner ruling; the end-of-implementation pass runs
+  `make -k verify-windows` + ci-windows). CI truth at this
+  record's time: HEAD 7b4d736 run 44541651358 = SUCCESS on
+  the NEW linux-only ci.yml; the owner's CI-bootstrap round
+  had two honest failures first (44535351029, 44536198608)
+  fixed by a851eff/bc14cfc/08a596a; ci-windows 44536359825
+  = SUCCESS (manual); my own prior chain unchanged. This
+  docs push queues its own run. Added .md lines <= 79 cols;
+  over-79 baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 71 -
+  the owner's rule-8 reflow moved HANDOFF 72->71 and their
+  OWNER records are included in the HEAD snapshot); no game
+  data or frames in git (scripts under /tmp/opencode/pr177/);
+  .github/workflows/* untouched; the image is unchanged.
+
+- EVIDENCE. slot78_census.py (the 178/99 set census, the
+  disjointness proof, the 9-shared/56-singleton split, the
+  0x28af0 -> 0x9a36c table lookup); obj_range.sh (the
+  re-synced objdump recipe used for every whole read in this
+  record - the linear text.asm desyncs are recorded at
+  0x28ae5-0x28b00, 0x54855-0x54862, 0x53d0f); cluster_
+  xrefs.py (the four-call-site proof and the cluster entry
+  table incl. 0x4b430 <- 0x546f0/0x54732 and 0x4bd30 <-
+  0x527cb); provider_dump notes under /tmp/opencode/pr177/
+  (0x552e0/0x3df00/0x50f80/0x53c90/0x3d990/0x23b10/
+  0x553e0/0x3d440/0x3e500/0x54860/0x23920/0x28af0 with
+  tails); the ZARIA.01 token grep (per-file AC_*/K_* sets
+  from /tmp/opencode/mov/ZARIA.01_*). Ledger: records
+  re-spliced from HEAD (census: HEAD carries PR-150..PR-176
+  (27 records) PLUS the four OWNER 2026-11-19 records
+  (name, gate ruling, CI, suite-speed), last carrier); 3
+  brackets (PR-173 item (3) CLOSED corrected; PR-176's
+  carried count line corrected; PR-176's camel bracket
+  updated with the in-code CAMEL-table references).
 
 ## Deferred big items (deliberately out of scope so far)
 
