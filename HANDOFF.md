@@ -4757,6 +4757,67 @@ writer as its open items.
      input-stack completion + flag-remainder pass. Full
      record: PR-187 section of NEXT_STEPS.md (scratch
      /tmp/opencode/pr187/).
+   - PR-188 (READING; no port code, no behaviour change):
+     THE INPUT STATE MACHINE, THE KEY->FLAG LAW, THE DEMO
+     SYSTEM. 0x58690 IS A THREE-LEG MACHINE on [dev+0xb]
+     (PR-106 item (1) CLOSED end to end): state != 2 =
+     LIVE CAPTURE (0x582f0 zeroes the block + presence
+     probes, 0x58010 reads the ports: buttons 0x10/0x20/
+     0x40/0x80 -> bits 0x1/0x20, axis one-shots -> steps
+     -0x14/+0x14 vs the calibration words [sub+0x00..0xc]
+     - the +/-20 model at its producer); state == 1 =
+     RECORDING, run-length coded: 0x57fe0 dedups against
+     the last 16-byte record, match -> `inc [rec+0xc]`
+     (0x5872b), else capacity-check (0x225a0 growth) +
+     4x movs append - [rec+0xc] IS THE REPEAT COUNT, not
+     a stride (PR-106 guess corrected); state == 2 = DEMO
+     PLAYBACK walking [dev+0x2b] records, [dev+0x2f]
+     mod [rec+0xc]. DEMO AUTHORING: level start 0x4d890
+     builds a record NAME ('%s\%s' + '%d' at 0x91f19 via
+     0x4a910), 0x56250 registers it into the 0xcf068
+     subsystem table + 0x57a00 x3 probes -> [level+0x3ac]
+     := 1, pumped by the frame loop through 0x561a0
+     (registry [[0xcf068]+0x48], [entry.vt+0x0], edx=2)
+     then zeroed. CORRECTION x3 (brackets): the capture/
+     record legs live in 0x58690, NOT in 0x585e2 - 0x585e2
+     is the open/enumerate entry (0x49b20 list builder +
+     driver vtable+0x20); 'capture, not playback' was
+     half right, BOTH run per state. [dev+0xb] := 1/2:
+     NO writer in .text (full store-form scan) - external
+     entry, counted; 0xa97c0 is a never-read shutdown
+     counter (dead lead). KEY->FLAG LAW (PR-187 item (1)
+     CLOSED): a Kadmar-2 arm tests LIVE KEY WORDS [obj+
+     0x66],0x40 / [obj+0x67],0x08 / [obj+0x64],0x02 ->
+     flag [obj+0x12a] := 2/1/0 + [obj+0x12e] toggle
+     (0x2c27x); verb-3 handler 0x27300 INCREMENTS the
+     WORD flag (throw counter) then calls 0x52c80(0x80,
+     0xff,0x21)+0x50e60 - the 'patrz zrodla kad-1/2/3'
+     strings are throw-limit errors; the 31-store flag
+     setter census shows NO value >= 8, so the decorated
+     getter's >=10 ordinal arm has no static [obj+0x12a]
+     producer. QUERY CODES (PR-187 item (6) half-closed):
+     0x1c530(9) = scancode&0x7f -> [0xcde70+edx*4+0xa]
+     key-state table -> OR [block+8],8 ('any key down');
+     the 0x808 leg is DEAD CODE - 0x58550 is an xor-eax
+     stub. ds:0xa94f0 FULL CENSUS (PR-147 item (2)
+     closed at setter level): a stage/player index bounded
+     1..9 by its own 7 stores (inc/clamp, dec/clamp, :=5,
+     :=9, dec-at-death); zero -> the frame loop skips the
+     input push. CLASS-STORE CENSUS (PR-187 item (9)
+     closed): 316 [obj+8],TABLE stores, exactly 14 cou-
+     pled to the 0x500b0 allocator (providers + the re-
+     class blocks + wrapped-class factories); the other
+     302 are constructor bodies entered by the generic
+     spawner.
+     +0x100 VERB = PAIR/CONTACT/CARRY (0x50c70 for all 10
+     controllers; fields [0x112]/0x118/0xe0/0xb1==0x14
+     energy-copy/[other+0xee]:=self/ds:0xa94ec pair via
+     0x531b0) - new counted law. PORT VERDICT unchanged.
+     9 new items (+0x100 field law; registry law; level-
+     meta tables; live-key producers; ...). Next ->
+     PR-189 = the interaction-verb + subsystem-registry
+     pass. Full record: PR-188 section of NEXT_STEPS.md
+     (scratch /tmp/opencode/pr188/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -7657,6 +7718,57 @@ HW bottom. 9 new items counted (the 0x585e2 entry +
 sample rings are live input or recordings, PR-106's old
 question).
 Gates: docs-only (PR-138..186 precedent); added lines <=
+79; baselines 71/71 held; the Windows half stays in the
+end pass (rule 8).
+
+STATUS after PR-188 (the input-stack completion pass;
+docs reading - ZERO port lines changed, the ZARIA.01
+output image is byte-identical to PR-187's; build state =
+the OWNER GATE (rule 8) measured on 7b4d736, only docs
+moved since).
+
+What this pass GROUNDS for T5:
+(1) THE INPUT LAWS ARE CLOSED AS A SYSTEM (PR-106 item (1)
+    CLOSED): 0x58690 runs capture (live port read with
+    the +/-20 calibration steps), run-length recording and
+    demo playback off [dev+0xb]; input RECORDS are 16-byte
+    RLE records ([rec+0xc] = repeat count). For T5 this
+    means: the demo legs of the level flow are FILE
+    PLAYBACK of authored records (names built with
+    '%s\%s'+'%d'), and live play is the state-0/1 chain -
+    the port's key-bit channel stays the correct shim
+    either way.
+(2) THE KEY->FLAG LAW FEEDS THE ORDINAL QUESTION (PR-187
+    item (1) CLOSED): the signal flag is fed by LIVE KEY
+    WORDS [obj+0x60..0x67] bits (a Kadmar arm) and by a
+    verb-3 THROW COUNTER - not by a button combo; the
+    31-store census shows no flag >= 8, so the decorated
+    getter's >=10 arm has no static flag producer: T5's
+    K_F11/K_F12 leg keeps ONLY the PR-185 wrapper path.
+    T5's key-bit reading gains the word layout lead
+    (0x64.02/0x66.40/0x67.08 named at the consumer).
+(3) THE 'ANY KEY DOWN' BIT: [block+8] bit 8 comes from
+    the 0xcde70 key-state table via 0x1c530(9); the
+    0x808 sibling leg is DEAD CODE (stub 0x58550) - a
+    future port must NOT emulate it.
+(4) ds:0xa94f0 IS THE BOUNDED STAGE/PLAYER INDEX (its
+    own writers clamp 1..9): the frame loop's input-push
+    gate and the getter index read it. T5's stage rows
+    get a named global; the death path's dec is named.
+SELF-CORRECTION SHIPPED WITH DATA: 4 brackets - 3 fix
+the PR-186 F3 / PR-187 F3+F4 ring-fill attribution (the
+legs are in 0x58690, not 0x585e2; capture AND playback
+are both real), 1 fixes PR-147's "replays the PREVIOUS
+record / merges via 0x225a0" sentence (it is DEDUP +
+capacity GROWTH; [rec+0xc] is the run count).
+Closures: PR-106 item (1), PR-147 item (2)
+(setter census), PR-187 items (1) (key->flag), (9) (the
+316-store class census: 14 allocator-coupled stores, the
+rest spawner-driven constructors), (6) half (0x1c530 read;
+0x1c550 stays). 9 new items counted (the +0x100
+pair/carry-verb field law and the 0xcf068 subsystem-
+registry law are FIRST).
+Gates: docs-only (PR-138..187 precedent); added lines <=
 79; baselines 71/71 held; the Windows half stays in the
 end pass (rule 8).
 

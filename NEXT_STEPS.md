@@ -7365,10 +7365,33 @@ pointing at 0x4bb30" is instruction bytes (`mov esi,[eax]` at
   PR-187 F3: port I/O - the game-port one-shot timing
   (`in eax,0x50` clock, `mov dx,0x201; out/in` legs in
   0x1ded4/0x1df34) + the 0xcde70 scancode key layer;
-  the rings are filled by 0x57fe0 sample pulls inside
-  the 0x585e2 open body. Capture, not playback. The
-  entry into that body (no static refs) + the [dev+0xb]
-  state writer stay this item's remainder.]
+  [CORRECTED BY PR-188 F1: the 0x582f0 -> 0x58010 ->
+  0x57fe0 sequence is NOT inside 0x585e2 - that entry
+  enumerates the drivers (0x49b20 list-builder + driver
+  vtable+0x20 calls); the capture/record calls run in
+  0x58690's own state legs. 'Capture, not playback' was
+  half right: BOTH are real, selected by [dev+0xb].]
+  [CLOSED BY PR-188 F1, END TO END: 0x58690 is a
+  three-leg machine - state != 2: LIVE capture (block
+  zeroed + presence legs, then 0x58010 reads the ports:
+  button bits 0x10/0x20/0x40/0x80 -> block bits 0x1/
+  0x20; one-shot axis timings -> steps of -0x14/+0x14
+  against calibration words [sub+0x00..0xc]); state ==
+  1: the block is RECORDED as run-length-coded 16-byte
+  records (0x57fe0 dedups vs the last record: match ->
+  `inc [rec+0xc]` - THE REPEAT COUNT, not a stride;
+  difference -> growth (0x225a0) + append at count+1);
+  state == 2: DEMO PLAYBACK walks [dev+0x2b] records,
+  [dev+0x2f] mod the run length. DEMO AUTHORING: level
+  start 0x4d890 builds a record NAME ('%s\%s' + '%d' at
+  0x91f19 via 0x4a910), opens it into the 0xcf068
+  subsystem table (0x56250), probes three sub-records
+  (0x57a00 x3), sets [level+0x3ac] := 1; the frame loop
+  pumps it (0x4a9f0 -> 0x56360(10) + 0x561a0 over the
+  registry [[0xcf068]+0x48], [entry.vt+0x0]) and zeroes
+  it. Remainders COUNTED: the 0x585e2 entry (no static
+  refs - settled) and the [dev+0xb] := 1/2 writers (NO
+  store form in .text; only 0x585cc zeroes - settled).]
  (2) The real-hardware frame time: 55 ms clock granularity
   vs a 70 Hz PIT vs the 70.08 Hz mode-13h retrace - the three
   numbers are machine-verified individually, their combination on a
@@ -14914,7 +14937,15 @@ no port behaviour change)
   call 0x582f0) plus 0x58010 on [x+0x33]; when [x+0xb] == 1 it
   also replays the PREVIOUS record through 0x57fe0 (0x58708..
   0x58728) and merges via 0x225a0 (0x5875f) - the merge's
-  internals are open item 3.
+  internals are open item 3. [CORRECTED + CLOSED BY
+  PR-188 F1: 0x57fe0 replays NOTHING - it DEDUPLICATES
+  (match -> `inc [rec+0xc]`, difference -> append), and
+  0x225a0 is the CAPACITY-GROWTH call when count == cap,
+  not a merge - item 3's merge question dissolves. The
+  '12-byte input block + length word' IS right: records
+  are 16B = the 3 played words + the run count [rec+
+  0xc]; playback reads only the first three (PR-106
+  record CLOSED by PR-188 F1).]
 
 - FINDING 3, THE INTENT WORDS AND THE THREE-KIND CONTACT CHAIN,
   WITH THEIR WRITE CENSUSES. 0x549f0 (entry 0x549f2): 0x549f7/
@@ -15034,7 +15065,19 @@ no port behaviour change)
   position pair and an answer set, which the 0x1d allocation does
   not obviously fit. (2) The frame-loop gate global ds:0xa94f0:
   who sets it, and what "return 2" from the level loop means to
-  the caller (the loop entry 0x4ae53 arm at 0x4ae8b). (3) The
+  the caller (the loop entry 0x4ae53 arm at 0x4ae8b).
+  [CLOSED AT SETTER-CENSUS LEVEL BY PR-188 F4: ds:
+  0xa94f0 = 16 refs = 7 loads + 9 stores. Writers:
+  inc + `cmp ecx,9` + clamp (0x507fb-0x50818, a 0x507b0
+  jump-table arm), dec + `cmp eax,1` + clamp (0x50821-
+  0x5083c), := 5 before `call 0x5dcc0` (0x5d2f9), :=
+  eax (0x5dc00), := ebx (0x5e3fb), := 9 (0x5eb09), and
+  load-dec-store at DEATH (0x503ee-0x50406 beside
+  [obj+0xb5] := 0 + [obj+0xad] := 0x64). A STAGE/
+  PLAYER INDEX bounded 1..9 by its own writers; loads =
+  the frame gate (zero -> ebx := 2, input push SKIPPED)
+  + the getter chain [[obj+0x7c]+8]+idx*4 (0x446e4).
+  'return 2' caller semantics stay.] (3) The
   input singleton's remaining fields: the merge helper 0x225a0's
   semantics, [x+0x33] with 0x58010, the second cursor [x+0x8]
   (0x58764..0x58771), and the keyed device object 0x1c530/
@@ -15787,73 +15830,47 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-188 IS THE INPUT-STACK COMPLETION + FLAG-REMAINDER PASS
-  (PR-187's items (5)/(1)/(6) first, then PR-186's signal
-  remainders): (1) THE DEVICE-MANAGER ENTRY AND STATE LAW:
-  who enters the open/poll body at 0x585e2 (zero relative
-  callers, zero aligned-dword refs anywhere - trace the
-  consumers of ds:0xa97c0 (written at 0x5c651/0x5c65c
-  around the 0x58580 shutdown; likely a device-pointer
-  global used by the Win-side glue or a per-frame thunk),
-  who writes the [dev+0xb] state transitions 0 -> 1 -> 2
-  (scan writes to [reg+0xb] near the 0x58xxx cluster),
-  and re-derive the per-frame schedule: is 0x585e2 re-run
-  per frame (rings live) or once per level-open (rings as
-  clips)? THIS DECIDES THE PR-106 'input-record playback'
-  QUESTION FINALLY - if once-open, the sample rings ARE
-  recordings and the port's input-model note must say so;
-  (2) THE FLAG/ORDINAL SEMANTICS (PR-187 item (1)): who
-  raises [obj+0x12a] to >= 8 (the 0x27280 decoration
-  makes it the K_F11/K_F12 ordinal - ties to PR-176
-  item (2)'s remaining arm reachability), the key-bit
-  0x10 + ee==6 leg names in 0x27280, the word-vs-dword
-  mix, and the 0x27170 +0x90 verb body + 0x27470 +0x10
-  msg-handler body for the Kadmar family + the 0x99500
-  sibling identity (PR-187 item (2)); (3) THE 0xcde70
-  KEYBOARD LAYER FORMAT: the 128-entry key-state tables
-  ([+0xa]/[+0x20a]), the ds:0x96364/0x96368 scan queues +
-  xlat 0x9636c, the 0x1c550 device-code map (0x13b,
-  0x202..0x2xx bits at [drv+0x8/0x9]) - then check
-  whether any engine consumer of raw keys reads THIS layer
-  (the port's keyboard mapping note may need a sentence);
-  (4) THE RECLASS CENSUS (PR-187 item (9)): every [obj+8]
-  store site OUTSIDE the class-table factories (modrm
-  C7 40 08 / C7 80 08 census minus factory windows) - the
-  class-switch-on-object family 0x2bfc2 joins; who calls
-  such sites (death/lifecycle transitions) is the law;
-  (5) THE FLAG-BLOCK REMAINING fields [obj+0x116]/[0x118]/
-  [0x120]/[0x124] producers + the id-17 ==2 arm 0x241cd
-  body + id-19 consumer law (0x365f0) (PR-186 items (3)/
-  (5)); (6) the 0x3edaf +0x90 dispatch family (PR-186
-  item (2)). THEN, in order: the wrapped-class names +
-  id-13/15/21/23 deep arms (PR-185 items (2)/(5)); the
-  LINK/GROUP fields [obj+0x112]/[obj+0x30] + ds:0xcef8c
-  (PR-184 item (2) remainder); the relation-helper BODIES
-  (PR-177 item (1)); the class-byte value map (PR-181
-  item (2)); 0x45380's list builder + the 13-byte record
-  layout + 0x455a0 (PR-181 item (3)); the +0x240/+0x2cc
-  computed dispatch (PR-180 item (1)); the token->family
-  bookkeeping map (PR-184 item (3)); PR-176 items (1)
-  remainder (TLewEna/TLewSades/TLewLona/TLewTunga2) and
-  (3). Carried reads unchanged: the energy-signal/energy-
-  init video check (PR-186 item (6)); per-level gate-word
-  enumeration (item (11)); the sample axes-vs-buttons
-  naming (PR-187 item (8)); the [obj+0xf6] authoring map
-  (item (7)); the 0x270d0 third sub-table semantics (part
-  of item (6)); the id-9 FEED sender (PR-183 item (4));
-  the targeted-arm bodies (PR-184 item (4)); the byte-form
-  raise bit-numbering (PR-184 item (5)); the [rec+4]
-  guards + ds:0xcec70 semantics; the id-25 pair pools; the
-  player-side same-state row seek (PR-174 item (2),
-  frames-blocked); the energy class-range rule (PR-181
-  item (4)); the 0x2c670 placement model; the ratio-law
-  study (PR-180 item (2), video-gated); the other +0xcc
-  drivers' bodies; the state-copy helper; the [obj+0xb6]
-  bit-2 setter; the ds:0xcf2c8 registry; the CFG windows;
-  the +0x54 hook bodies; 0x550c0; the 0x55130 tail; the
-  +0x4c/+0x1c recount; the 73 dead-0x54910 tables; the
-  +0xa0 census oddities; everything else in the ledger's
-  carried list.
+- PR-189 IS THE INTERACTION-VERB + SUBSYSTEM-REGISTRY PASS
+  (PR-188's items (2)/(3) first, then the level-meta and
+  flag remainders): (1) THE +0x100 VERB FIELD LAW: read
+  the 0x50c70 body against its writers - what fills
+  [obj+0x112] (the no-partner fallback), the semantics of
+  calling [other.vt+0x118] and [other.vt+0xe0], the
+  [other+0xb1] == 0x14 energy-copy rule (0xb1 = the
+  energy-class byte? reconcile against PR-186's [obj+
+  0xb1]=0x14 init), [other+0xee] := self (the
+  controller's key-ordinal field on the PARTNER - the
+  ride/lead law?), the [obj+0xb5] byte copy, and WHO
+  READS the ds:0xa94ec pair written through 0x531b0;
+  (2) THE SUBSYSTEM REGISTRY LAW: enumerate every 0x57990
+  caller's registration (the +0x2c offsets, the entry
+  shape at [[0xcf068]+0x48]) - which subsystems exist
+  (input/demo is one), what the 0x56360 event codes
+  (edx=2 at pump, 10 at level start) dispatch to, and the
+  0x56150/0x55e00 open contract; (3) THE LEVEL-META
+  TABLES: the 0x961fc descriptor-table format (list head
+  at 0x5c60f/0x585f2/0x4a920), the 0x4d91a [level+0x3b8]
+  builder, and the authoring of [level+0x398]/[0x3a0]/
+  [0x3b0] (0x4ff49:=1, 0x51187) - the demo-vs-playable
+  level selection law; (4) THE LIVE-KEY PRODUCERS: what
+  writes [obj+0x60..0x67] (the 0x4ae92-0x4aeca push
+  chain - 0x222d0/0x4b970/0x4ba90 targets) and the key-
+  bit layout per word (the PR-188 F2 test bits 0x64.02/
+  0x66.40/0x67.08 named); (5) PR-186 item (5): the
+  flag-block other fields [obj+0x116] beyond mode 9,
+  [obj+0x118]/[0x120]/[0x124] producers; (6) PR-186
+  item (3): the id-17 ==2 arm 0x241cd and the id-19
+  consumer 0x365f0; (7) PR-187 item (2): the 0x27170
+  signal-verb body, the 0x27470 (+0x10) msg handler,
+  0x99500's identity, and the 0x3edaf +0x90 dispatch
+  family; the wrapped-class names 0x9f668/0xa0624
+  (their class-store sites 0x3a455/0x3b22d are in the
+  PR-188 F5 census - name-block proximity near those
+  blocks). STOP CONDITIONS: every claim byte-backed;
+  the spawner-dispatch split (PR-188 item (6)) stays
+  counted unless a dispatch table turns up; [dev+0xb]
+  entry stays counted (scan-settled); do NOT change port
+  fi/BY_TY/energy values.
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -21993,7 +22010,14 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   cases 10/11 reachable by flag state, no button combo);
   it also clears key byte bit 0x10 always and sets it
   iff [obj+0xee] == 6. Which setters drive [obj+0x12a]
-  to >= 8 is counted (PR-187 item (1)).] (3) the queue
+  to >= 8 is counted (PR-187 item (1)).] [EXTENDED BY
+  PR-188 F2: THE FLAG SOURCE IS READ - LIVE KEY-WORD
+  bits ([obj+0x66],0x40 / [obj+0x67],0x08 / [obj+0x64],
+  0x02 -> 2/1/0 at 0x2c27x) and the verb-3 THROW
+  COUNTER increment (0x27300 flag+1 -> the effect pair
+  0x52c80/0x50e60) - NOT a button combo; the 31-store
+  census bounds flag <= 3, so THIS producer's flag+2
+  ordinals reach only 2..5.] (3) the queue
   block: producers of [obj+0xd2] entries, the [obj+0xe6]/
   [0xea] pair's role beyond 0x550a0's per-step zero, the
   +0xf8 / +0x3c verbs, the [obj+0x106] flag; [PART-CLOSED
@@ -24765,13 +24789,18 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   `sti`; 0x1df34 = `in al,0x201` buttons; boot 0x58560
   = 0x582d0 (keyboard-layer flush 0x1c4d0 + key-state
   memsets 0x1c490 over the 0xcde70 128-entry layer) +
-  0x58130 joystick-presence probes; rings are filled in
-  the 0x585e2 open body: 0x582f0 ctor zeroes [drv+0..8]
-  + device presence probes 0x1c550(0xcde70, 0x13b/
-  0x202..) -> bits [drv+0x8/0x9], 0x58010 opens the
-  joystick sub-record, 0x57fe0 sample pulls -> `inc
-  [drv+0xc]` + 16-byte ring writes (0x5872b/0x5876f-
-  0x5877b). NOT a recording system - HARDWARE CAPTURE.
+  0x58130 joystick-presence probes; [CORRECTED BY
+  PR-188 F1: the fill sequence quoted inside the rest of
+  this bracket is NOT in 0x585e2 (that is the OPEN/
+  ENUMERATE entry - 0x49b20 list-builder + driver vtable
+  +0x20); the quoted calls run in 0x58690's STATE LEGS,
+  the 'ring' is the record ARRAY at dev+0xf {[ptr,
+  count,cap]}, and `inc [drv+0xc]` + 16B writes are
+  RUN-LENGTH RECORD upkeep: match -> `inc [rec+0xc]`
+  (0x5872b), difference -> growth (0x225a0) + append
+  (0x58778-0x5877b).] HARDWARE CAPTURE - and its
+  capture RECORDS are the demo input records after all
+  (PR-106 item (1) CLOSED by PR-188 F1).
   The entry into 0x585e2 (zero refs anywhere) and who
   writes [dev+0xb] stay counted.] (5) The
   0x106..0x132 block's REMAINING fields' producers
@@ -25048,11 +25077,21 @@ BEHAVIOUR CHANGE)
   0xcde70, code)` for codes 0x13b, 0x202..0x2xx and sets
   bits [drv+0x8/0x9] - the 0xcde70 registry knows which
   devices exist; then 0x58010(dev+0x33) opens the joystick
-  sub-record, and 0x57fe0 PULLS A SAMPLE: when it returns
-  changed, `inc [drv+0xc]` (0x5872b - the ring COUNT the
-  frame read 0x58690 takes mod) and a 16-byte copy into
-  [[drv]+0]+idx*0x10 (`add edi,edx; mov [esi+8],idx+1;
-  4x movs` at 0x5876f-0x5877b). So the chain is: PORT
+  sub-record, and 0x57fe0 DEDUPLICATES the block against
+  the LAST record: match -> `inc [rec+0xc]` (0x5872b -
+  THE RUN LENGTH the playback walk takes mod); diffe-
+  rence -> growth when full (0x225a0) + a 16-byte append
+  at count+1 (`add edi,edx; mov [esi+8],idx+1; 4x movs`
+  at 0x58778-0x5877b). [CORRECTED BY PR-188 F1: EVERY
+  site quoted in this paragraph - 0x582f0/0x58010/
+  0x57fe0/0x5872b/0x58778 - sits in 0x58690's legs (its
+  prologue is at 0x58690); 0x585e2 is the separate
+  enumerate entry and does NOT run to ~0x5878d; the
+  'per-driver sample ring' is the record ARRAY at
+  dev+0xf, not [[drv]+0]; and the real chain is PORT ->
+  0x58690's state!=2 leg (0x58010 fills the block) ->
+  the state==1 leg records it -> state==2 replays.] So
+  the chain is: PORT
   I/O (0x1ded4/0x1df34) -> 0x580xx/0x581xx sample methods
   -> 0x57fe0 pull -> per-driver sample ring -> 0x58690
   frame read -> [esp+0x1f0]/[esp+0x1e4] -> the +0xcc
@@ -25075,7 +25114,20 @@ BEHAVIOUR CHANGE)
 - OPEN ITEMS COUNTED (9 new). (1) The flag/ordinal DOUB-
   LING semantics: what raises [obj+0x12a] to >= 8, the
   word-vs-dword width mix, the key-bit 0x10 and ee==6
-  law (0x27280's decoration - names of those legs). (2)
+  law (0x27280's decoration - names of those legs).
+  [CLOSED BY PR-188 F2: THE FLAG IS KEY-FED - a
+  Kadmar-2-family arm tests the LIVE KEY WORDS ([obj+
+  0x66],0x40 / [obj+0x67],0x08 / [obj+0x64],0x02 ->
+  flag := 2/1/0 at 0x2c27x, paired [0x12e] 0/1 via
+  0x2c285/0x2c348) - plus the verb-3 handler 0x27300
+  INCREMENTS the WORD flag: THE KADMAR THROW COUNTER
+  (0x27410 := 3 is the throw-start arm; the 'Blad przy
+  rzucie patrz zrodla kad-1/2/3' strings ARE the throw-
+  limit errors). 31-store census: observed values only
+  -1..3, NO setter >= 8 -> the >= 10 ordinal arm has no
+  static flag producer; width mix answered (WORD forms
+  only in the 0x9a54c paths 0x27035/0x2731d/0x27410).
+  Key-bit 0x10/ee==6 names stay.] (2)
   The 0x27170 signal-verb body and the 0x27470 (+0x10)
   msg-handler body for the Kadmar class; the 0x99500
   sibling class identity (its +0x8c is PR-184's wrapped
@@ -25088,11 +25140,29 @@ BEHAVIOUR CHANGE)
   states 0/1/2. (6) The 0x1c550 device-code map (0x13b,
   0x202..0x2xx) and the 0xcde70 key-table format + xlat
   0x9636c; the third sub-table imm at 0x270d0 (0x9a85c).
+  [0x1c530 READ BY PR-188 F3: test dh,0x2 -> (clear)
+  remap `[edx*4+0xce284]` -> and 0x7f -> DWORD
+  [0xcde70+edx*4+0xa] = THE 128-entry KEY-STATE TABLE
+  (one DWORD per scancode, break-bit stripped) - code 9
+  = 'any key down' -> OR [block+8],8; and its sibling
+  0x808 leg is DEAD CODE (0x58550 = `xor eax,eax;ret`).
+  0x1c550's map + xlat 0x9636c + 0x9a85c stay.]
   (7) The [obj+0xf6] authoring map 1500/10000 (0x45200
   counts per stage). (8) Which sample ring fields are
   axes vs buttons (PR-186 item (8) renamed). (9) The
   reclass-site family: other sites like 0x2bfc2 (the
-  census of [obj+0x8] stores OUTSIDE factories). CLOSED:
+  census of [obj+0x8] stores OUTSIDE factories).
+  [CLOSED BY PR-188 F5: census = 316 [reg+8],TABLE
+  stores; exactly 14 coupled to a preceding `call
+  0x500b0` - fresh-object providers (0x1e0a6/0x269xx/
+  0x2703e/0x31ff5/0x35240/0x360xx), RECLASS BLOCKS
+  (0x2bfd6/0x2dc79 allocate-then-re-store) and wrapped-
+  class stores (0x3a455/0x3a489/0x3a545/0x3a5f5); 3
+  allocator calls feed no adjacent store (0x24112/
+  0x2df62/0x3b181). The other 302 are constructor
+  bodies of the generic spawner (PR-176 F3/F4 law);
+  full role split needs the spawner's dispatch table -
+  counted.] CLOSED:
   PR-186 items (7) (0x9a54c = TLewKadmar1's controller),
   (9) (no header - alias law), (4) to the hardware bottom
   (port I/O + 0xcde70 keyboard layer); PR-176 item (1)
@@ -25174,6 +25244,380 @@ BEHAVIOUR CHANGE)
   F1 CORRECTED; PR-186 items (4)/(7)/(9); PR-176 items
   (1)/(2); PR-106 item (1); the 0x53480 +0x84 owner-hook
   paragraph EXTENDED).
+
+## PR-188 — THE INPUT STATE MACHINE 0x58690 RUNS THREE
+## LEGS: LIVE PORT CAPTURE (state 0), RUN-LENGTH-CODED
+## RECORDING OF 16-BYTE INPUT RECORDS (state 1, dedup via
+## 0x57fe0, `inc [rec+0xc]`), AND DEMO PLAYBACK (state 2,
+## walk [dev+0x2b]/[dev+0x2f] mod [rec+0xc]); THE DEMO-
+## START LAW: level start 0x4d890 builds a demo-record
+## NAME ('%s\%s' + '%d' + 0x4a910), opens it through the
+## 0xcf068 registry (0x56250), probes three sub-records
+## (0x57a00 x3, edx=1) and sets [level+0x3ac] := 1, which
+## the frame loop pumps (0x4a9f0 -> 0x56360(10)/0x561a0)
+## and zeroes; THE KEY->FLAG LAW: a Kadmar-2 arm maps the
+## LIVE KEY WORDS - test [obj+0x66],0x40 / [obj+0x67],0x08
+## / [obj+0x64],0x02 -> flag [obj+0x12a] := 2/1/0 (paired
+## with [obj+0x12e] := 0/1), and the +0xfc handler verb-3
+## arm increments the WORD flag as a THROW COUNTER (0x27300
+## -> 0x52c80(0x80,0xff,0x21) + 0x50e60), which explains
+## the 'Blad przy rzucie patrz zrodla kad-1/2/3' strings;
+## THE QUERY-CODE TAIL: 0x1c530(9) = scancode&0x7f ->
+## DWORD [0xcde70+edx*4+0xa] key-state probe -> OR
+## [block+0x8],8, while the 0x808 leg is DEAD CODE (the
+## 0x58550 probe is `xor eax,eax; ret`); ds:0xa94f0 gets
+## its FULL CENSUS - a bounded stage/player index, stores
+## only: clamped inc/dec legs, immediates 1/5/9, two
+## register stores, dec-at-death; of 316 class-table stores
+## exactly 14 self-allocate via 0x500b0 (17 such calls in
+## all), the rest receive the object in a register per the
+## 176-F3 spawn law. CORRECTIONS x4: 3 RING-FILL texts
+## (186 F3 + 187 F3/F4) + 147's replay/merge sentence;
+## item (1) of PR-106 CLOSED; item (2) of 147 CLOSED AT
+## THE SETTER CENSUS; items (1)/(6-half)/(9) of 187
+## CLOSED) (READING, NO PORT CODE, NO BEHAVIOUR CHANGE)
+
+- WHY. PR-188's Next specced the input-stack completion +
+  flag-remainder pass: (1) the device-manager entry and
+  [dev+0xb] state law; (2) the flag/ordinal semantics
+  behind PR-187's decorated getter (who raises [obj+
+  0x12a]); (3) the 0xcde70 layer + the query codes called
+  per frame; (4) the reclass census (PR-187 item (9));
+  (5) the flag-block remainders; (6) the 0x3edaf family.
+  Method: whole-image imm scans (0xa97c0, 0xa2bc0,
+  0xa94f0, 0xcf42b/f, device method addrs); a complete
+  modrm store census of [obj+0x12a] (dword + 66-prefixed
+  WORD forms) and of every [reg+0xb] store form; obj-
+  range reads of 0x585e2, 0x58690 (whole), 0x58010,
+  0x58550, 0x1c530, 0x2c27x, 0x27300, 0x27410, 0x4d890-
+  0x4d907, 0x4ae82, 0x503f0/0x507f0-0x5083c, 0x5d2f0,
+  0x5eb00, 0x2c360, the 0x50c70 body and 0x5c600-
+  0x5c660; the class-store census over marker-derived
+  table sets with an allocator-call structural filter;
+  E8-caller censuses for the registry/pump/demo helpers.
+  pr188_evidence.py re-runs every count and byte-check.
+  Docs only.
+
+- FINDING 1, THE INPUT STATE MACHINE: CAPTURE, RECORD,
+  PLAYBACK (PR-106 item (1) CLOSED; PR-187 F3 ATTRIBUTION
+  CORRECTED). The frame call `mov eax,0xcf400; call
+  0x58690` is a THREE-LEG state machine on [dev+0xb]
+  (0x5869c loads the state, 0x586a2 `cmp edx,2`):
+  (a) state != 2 (0x586e4): zero the block's flag dword
+  (`mov [ebx+8],0`), call 0x582f0(dev,block) - the PR-
+  187-F3 zero + 0x1c550 presence-probe chain - then
+  `lea eax,[dev+0x33]; call 0x58010`: THE LIVE PORT READ
+  (0x58010 body): with calibration words [sub+0x10]/
+  [sub+0x14] nonzero it calls 0x1df34 (buttons: bits
+  0x10/0x20 -> OR [block+8],0x1/0x20; second form
+  [sub+0x18]: bits 0x40/0x80) and 0x1ded4 (axis one-
+  shot timings), then converts: raw < [sub+0x00] ->
+  [block] := -0x14, raw > [sub+0x04] -> +0x14 (y the
+  same on [sub+0x08]/[sub+0x0c]) - THE +/-20 STEP MODEL
+  (PR-145 F1's 'the input path's constant is 20' re-
+  confirmed at the producer). (b) state == 1 (the leg
+  continues, 0x586fc `cmp [ecx+0xb],1`): RECORDING.
+  0x57fe0(dev-block, last-record) DEDUPLICATES: on a
+  match, `inc [rec+0xc]` (0x5872b) - INPUT RECORDS ARE
+  RUN-LENGTH COMPRESSED, [rec+0xc] is the repeat count,
+  NOT a stride as PR-106 guessed; on a difference it
+  appends: 16-byte temp {dx,dy,flags,run=1}, capacity
+  check [count]==[cap] -> 0x225a0 growth, then
+  `[esi+8]=count+1` + 4x movs at 0x58778-0x5877b. The
+  record array struct is at dev+0xf: {[0]=ptr, [8]=count,
+  0xc=cap}. (c) state == 2 (0x586a7): DEMO PLAYBACK -
+  12 bytes copied from record[[dev+0x2b]] (3x movs),
+  then [dev+0x2f] walks +1, wrapping against the CURRENT
+  record's [rec+0xc] run-length, advancing [dev+0x2b]:
+  THE PLAYBACK UNCOMPRESSES THE RLE. (d) tail 0x5877c
+  (Finding 3). DEMO AUTHORING/START: level start 0x4d890
+  (guard ds:0xcf074 zero): 0x4a910 builds the demo-record
+  NAME with format strings 0x91f19 '\\', 0x91f1c '%s',
+  0x91f27 '%d' (stage-dir + sub-name + index); 0x57a70
+  resolves the record; 0x56250 = `add eax,0x2c; call
+  0x57990` (register into the 0xcf068 subsystem table) +
+  0x56150 + 0x55e00(open); then 0x57a00(x,1) x3 probes
+  the three sub-records and 0x4d8fd sets [level+0x3ac]
+  := 1. THE FRAME LOOP PUMPS IT: 0x4ae6e `call 0x4a9f0`
+  -> 0x4aa07 `call 0x56360(edx=10)` + 0x4aa11 `call
+  0x561a0` then zeroes [level+0x3ac] (0x4aa16); 0x561a0
+  iterates the registry entries at [[0xcf068]+0x48] and
+  calls [entry.vt+0x0] with edx=2. So PR-106's 'input-
+  record playback' IS the game's DEMO SYSTEM, end to end.
+  CORRECTION (3 brackets, PR-186 F3 / PR-187 F3 / PR-187
+  F4): the capture/record sequence 0x582f0 -> 0x58010 ->
+  0x57fe0 runs in 0x58690's legs, NOT in 0x585e2; 0x585e2
+  (gated [dev+0xb]==1) is the OPEN/ENUMERATE entry - a
+  0x49b20 list-builder over the driver array + driver
+  vtable+0x20 calls, ending at ~0x5865x (a separate
+  prologue sits at 0x58690). And 'Capture, not playback'
+  was half right: BOTH legs are real, per state.
+  [dev+0xb] WRITE CENSUS (settled): a full modrm scan of
+  EVERY store form (89/88/C6/C7/80/81/83/08/09/28/29/30/
+  31/38/39/3A/3B/F6/F7, mod=01 disp8, plus SIB mod=01/
+  mod=10 disp 0xb) finds ONE writer in the device cluster
+  (0x585cc, `mov [eax+0xb],0` inside 0x58580 - the state
+  RESET); NO writer of 1 or 2 anywhere in .text. The
+  state transitions are entered through C glue / external
+  entry - counted, NOT re-mined. The frame tail at
+  0x4aec3 stays +0xcc-only (PR-17x law); the new element
+  there is the 0x4ae82 gate (Finding 4). PORT VERDICT
+  UNCHANGED: the port's keyboard -> ll_play_keys channel
+  is equivalent at the key-bit layer; the engine's extra
+  analogue+RLE-demo machinery has no ZARIA.01 port-side
+  observable difference (demos are authored data, not
+  simulation).
+
+- FINDING 2, THE KEY->FLAG LAW AND THE THROW COUNTER
+  (PR-187 item (1) CLOSED). FLAG-STORE CENSUS: every
+  [obj+0x12a] store form in .text (dword + 66-WORD,
+  deduped) = EXACTLY 31 store sites; the full match set
+  was 36 lines but 3 are COMPARE-only legs (0x1e27f/
+  0x241b7/0x24605) and 2 were WORD-prefix double-matches.
+  The >1 writers sit in ONE Kadmar-2-family arm block:
+  test BYTE [obj+0x66],0x40 -> [0x12a] := 2 + [0x12e] :=
+  0 (0x2c277->0x2c285/0x2c28f); test BYTE [obj+0x67],
+  0x08 -> := 1 (0x2c29e->0x2c2ac); test BYTE [obj+0x64],
+  0x02 -> := 0 (0x2c2bb->0x2c2c8); a reset sibling at
+  0x2c348 does flag := 0 + [0x12e] := 1; the same [eax+3],0x08 test
+  shape reappears at 0x2e889/0x3e06a (other families,
+  counted). [obj+0x60..0x67] are the LIVE KEY WORDS (the
+  frame-loop input push writes them - producer chain
+  counted as item (5)); so the flag IS key-fed: the two
+  words' bits map to throw-state values 2/1/0, paired
+  with the [obj+0x12e] toggle. THE SECOND MECHANISM IS
+  VERB-3: the 0x9a54c slot+0xfc handler 0x27300: `cmp
+  ebx,3` (handler arg = 3) -> WORD [obj+0x12a] := flag+1
+  (0x2730f-0x2731d: movsx, inc, WORD store) -> then
+  0x52c80(0x80,0xff,0x21) + 0x50e60 (the effect/aim
+  helpers); 0x27410 sets WORD := 3 in a throw-start arm.
+  THE FLAG IS THE KADMAR THROW/STATE COUNTER, and PR-187
+  F1's getter rewrite `ee := movsx(WORD [obj+0x12a]) + 2`
+  maps it to SYNTHETIC KEY ORDINALS flag+2 - the 'Blad
+  przy rzucie patrz zrodla kad-1/2/3' error strings at
+  the 0x27420 dispatcher match exactly the throw-count
+  limits. WIDTH MIX RESOLVED: the field is dword-sized
+  but the class-0x9a54c paths use WORD writes (0x27035
+  :=0, 0x2731d inc, 0x27410 :=3) and a WORD read - the
+  flag values stay in 0..3 everywhere observed; NO setter
+  reaches 8, so the getter's >=10 ordinal arm has NO
+  statically-reachable producer from [obj+0x12a] - the
+  PR-176 K_F11/K_F12 question stays via the wrapper path
+  only (settled by the 31-site store census). Re-confirmations:
+  the -1 writers (0x2ba15/0x2bfc2/0x2dc65) are the
+  DEATH-LATCH/reclass markers (PR-186/187 law intact);
+  zero-writers dominate the controller providers (fresh-
+  object init). Bonus: 0x2c360 = the k2dead.mod loader
+  (same shape as the PR-187 kadmdead block: module load
+  through 0x562e0 + [[0xcef40]+0x394]+0x106 := 1 re-arm)
+  - the Kadmar-2 death module, class-store pair at
+  0x2dc79 adjacent.
+
+- FINDING 3, THE QUERY-CODE TAIL: KEY-STATE PROBE + A
+  DEAD LEG (PR-187 item (6) HALF-CLOSED). 0x58690's tail
+  (0x5877c) runs after any leg: `call 0x58550` -> TEST ->
+  `or WORD [block+0x8],0x808` at 0x58787 - but 0x58550
+  IS `xor eax,eax; ret` (3 bytes): THE 0x808 LEG IS DEAD
+  CODE in the engine itself. Then `mov edx,9; mov eax,
+  0xcde70; call 0x1c530` -> TEST -> `or BYTE [block+8],8`
+  (0x587a0). 0x1c530 body: `test dh,0x2` (release bit of
+  the code arg) -> remap via table [edx*4+0xce284] ->
+  `and edx,0x7f` -> `mov eax,[eax+edx*4+0xa]`: CODE 9 =
+  RAW KEY-DOWN QUERY over the 0xcde70+0xa 128-entry KEY-
+  STATE TABLE (the PR-187 F3 memset'd table - format now
+  pinned: one DWORD per scancode, break-bit stripped via
+  the 0xce284 remap). So [block+8] bit 8 = 'any key
+  down' at frame end; the 0x1c550 device-code map and
+  xlat 0x9636c stay (item (8)).
+
+- FINDING 4, ds:0xa94f0 FULL CENSUS - A BOUNDED STAGE/
+  PLAYER INDEX (PR-147 item (2) CLOSED AT THE SETTER
+  LEVEL). Whole-image scan: 16 references = 7 loads + 9
+  stores: inc-then-store with `cmp ecx,9`/clamp-to-9
+  (0x507fb-0x50818, inside a 0x507b0 jump-table arm),
+  dec-then-store with `cmp eax,1`/clamp-to-1 (0x50821-
+  0x5083c), `:= 5` before `call 0x5dcc0` (0x5d2f9),
+  `:= 9` before the code-9 helper chain (0x5eb09), two
+  register stores in the menu/result chain (0x5dc00 :=
+  eax after the 0x5dbxx block, 0x5e3fb := ebx before a
+  pop/ret tail), and the DEATH path: load, dec, store
+  (0x503ee-0x50406, next to [obj+0xb5] := 0 and
+  [obj+0xad] := 0x64). The
+  LOADS: the frame-loop gate 0x4ae82 (zero -> ebx := 2,
+  loop tail 0x4ae53 - input push SKIPPED), the getter
+  chain `[[obj+0x7c]+8]+idx*4` (0x446e4 - index), HUD/
+  menu readers (0x5d..., 0x5e...). So it is a game-level
+  index bounded 1..9 by its own writers; the ZARIA.01
+  stage getter reads it, the death path decrements it.
+  REMAINDER (counted): what 'return 2' means to the
+  level-loop CALLERS (the 0x4a857/0x4ae6e frame context
+  treats ebx=2 as the loop result register; no new
+  consumer found beyond the skip).
+
+- FINDING 5, CLASS-STORE CENSUS AND THE SPAWN LAW (PR-187
+  item (9) CLOSED). Over all marker-derived class tables:
+  `C7 [reg+8],TABLE` stores = EXACTLY 316 sites (132
+  distinct tables); EXACTLY 14 have a immediately-preced-
+  ing `call 0x500b0` (the full-image count of 0x500b0
+  CALL SITES is 17 - 3 feed no adjacent store). The 14
+  allocator-coupled stores are the fresh-object PROVIDERS
+  AND THE RECLASS BLOCKS: 0x1e0a6 (the lion provider),
+  0x269c2/0x26a75, 0x2703e (the Kadmar-1 factory),
+  0x2bfd6/0x2dc79 (the Kadmar reclass pair - they
+  allocate then re-store), 0x31ff5/0x35240/0x360c3/
+  0x3624d, 0x3a455/0x3a489/0x3a545/0x3a5f5 (wrapped-
+  class 0x9f540/0x9f668 stores). The other 302 receive
+  the object in a register - they ARE the constructor
+  bodies the generic loader/spawner drives (PR-176 F3/F4
+  law), not standalone factories; an exhaustive static
+  split of 'second constructor vs reclass' is NOT res-
+  olvable without the spawner's dispatch table (counted,
+  item (6)). DEMONSTRATED RECLASS SITES STAY the flag-
+  adjacent pairs 0x2bfd6/0x2dc79 (flag -1 + re-store of
+  the Kadmar-2 pair 0x9b4d4) plus the dispatcher re-store
+  inside 0x27420 (0x2743f). The name-proximity filter is
+  useless here (the 0x76a53 name-match is called from
+  shared gate code, 2 sites near stores) - the allocator
+  filter above is the working instrument.
+
+- FINDING 6, THE +0x100 VERB IS PAIR/CONTACT/CARRY (NEW
+  COUNTED LAW). Full 178-table census: ALL 178 class
+  tables have a nonzero +0x100 slot; body distribution:
+  0x3fcc0 x24, 0x52a00 x16, 0x23aa0 x15, 0x453d0 x11,
+  0x50c70 x10 - and the 10 controllers (incl. 0x9a54c)
+  all use 0x50c70. 0x50c70 body (eax=self, ebx=other):
+  if other == 0 use the [self+0x112] fallback; else
+  call [other.vt+0x118]; copy energy when [other+0xb1]
+  == 0x14; [other+0xee] := self; [self+0xb5] byte copy;
+  call [other.vt+0xe0]; ds:0xa94ec pair-store via
+  0x531b0. Bodies 0x24440/0x2e2c0/0x36810 (0x988ec/
+  0x9c958/0x9f170) follow the same shape. THE INTERACTION
+  VERB - contact, carry and the pair-write; its full
+  field law is item (2).
+
+- FINDING 7, DEAD THREADS CLOSED BY SCAN (no more digging).
+  ds:0xa97c0 = a SHUTDOWN-STAGE COUNTER: whole-elf refs
+  are exactly 3 stores (:=1 at 0x5c62e, 2/3 at 0x5c653/
+  0x5c65e inside the 0x5c600 exit chain) - NEVER READ:
+  not a poll-state variable, PR-188 Next item (1)'s first
+  lead is dead. ds:0xa2bc0 holds 0xcf400 as raw data with
+  ZERO code references anywhere (unaligned 'hits' are the
+  string/bytes around 0x58580). 0xcf42b/0xcf42f/0xcf40b/
+  0xcf40f have ZERO imm sites. 0x4d91a builds a
+  DESCRIPTOR list at [level+0x3b8] from the 0x961fc table
+  (0x961fc is a TABLE, not a string - it is the list
+  head referenced by 0x5c60f/0x585f2/0x4a920; format =
+  item (4)). The 0x56250/0x561a0/0x56360 caller sets are
+  tiny (1/2/2) - the demo pump has exactly the frame-
+  loop entry and one module-open path.
+
+- OPEN ITEMS COUNTED (9 new). (1) Who enters 0x585e2 and
+  who writes [dev+0xb] := 1/2 - SETTLED BY SCAN as
+  external/C entry (kept, not re-mined). (2) The +0x100
+  verb FIELD LAW: [obj+0x112], [obj+0x118]/[0xe0]
+  verb slots on the partner, the 0x14 energy-pair test,
+  [other+0xee] := self, the [obj+0xb5] byte, and what
+  the ds:0xa94ec pair (0x531b0) feeds. (3) The subsystem
+  registry law: WHO registers into 0xcf068 via 0x57990
+  (+0x2c offsets; the 0x105xx/0x21cxx/0x3xxxx caller
+  families), the 0x56360 event codes (edx=2/10), the
+  [entry.vt+0x0] pump contract. (4) The 0x961fc
+  descriptor-table format + the [level+0x3b8]/[0x3a0]/
+  [0x3b0]/[0x398] authoring (demo/level meta). (5) The
+  producers of the live key words [obj+0x60..0x67] (the
+  0x4ae92-0x4aeca push chain targets). (6) The
+  302 non-allocating class stores' exhaustive role split
+  (spawner-dispatch dependent). (7) The flag values 4..7
+  and the 0x27410 :=3 arm's trigger. (8) The 0x1c550
+  device-code map + xlat 0x9636c format (PR-187 item (6)
+  remainder). (9) The 'return ebx=2' caller semantics
+  (PR-147 item (2) remainder). CLOSED: PR-106 item (1)
+  (the demo/input-record law end to end: three legs,
+  RLE, demo authoring - with 3 correction brackets);
+  PR-147 item (2) (setter census + bounded-index role);
+  PR-187 item (1) (key->flag law + throw counter + width
+  mix + >=8 unreachable); PR-187 item (9) (the census
+  above); PR-187 item (6) HALF (0x1c530 closed; 0x1c550
+  stays); PR-186 item (4) stays closed (bracket COR-
+  RECTED). CORRECTED x4 + EXTENDED: the 3 ring-fill
+  attributions (PR-186 item (4) bracket, PR-187 F3/F4,
+  the PR-187-bracket inside PR-106 item (1)) + PR-147's
+  'replays the PREVIOUS record / merges via 0x225a0'
+  sentence (dedup + capacity-growth, PR-188 F1);
+  PR-176 item (2) EXTENDED (flag source = live key bits
+  + throw counter, not a button combo). CARRIED
+  unchanged: the flag-block other fields [0x116]/[0x118]/
+  [0x120]/[0x124]; id-17 ==2 arm 0x241cd + id-19
+  consumer 0x365f0; the 0x3edaf +0x90 family; 0x99500;
+  the wrapped-class names 0x9f668/0xa0624; id-13/15/21/
+  23 arms; the [obj+0x240]/[0x2cc] computed dispatch;
+  the energy video checks; everything else in the
+  ledger's carried list.
+
+- GATES. Docs-only reading PR (PR-138..187 precedent): no
+  port file touched; build state = the OWNER GATE (rule 8)
+  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
+  SKIPs) - only docs moved since. CI truth at this
+  record's time: PR-187's docs run 44570032820 = SUCCESS
+  on f74b37d; the chain (PR-186 44566740263, PR-185
+  44563439495, PR-184 44560356006, PR-183 44557634130)
+  SUCCESS unchanged. This docs push queues its own run.
+  Added .md lines <= 79 cols; over-79 baselines UN-
+  CHANGED (NEXT_STEPS 71, HANDOFF 71); no game data or
+  frames in git (scripts under /tmp/opencode/pr188/);
+  .github/workflows/* untouched; the image is unchanged.
+
+- EVIDENCE. pr188_evidence.py (45 True byte/scan checks:
+  the 31-site flag-store census + the 3 compare-only
+  legs (0x1e27f/0x241b7/0x24605) + the WORD forms at
+  0x27035/0x2731d/0x27410; the key-test bytes 0x2c277/0x2c29e/
+  0x2c2bb and their flag stores 0x2c28f/0x2c2ac/0x2c2c8;
+  the verb-3 inc bytes at 0x2730a-0x2731d + the
+  0x52c80(0x80,0xff,0x21)/0x50e60 call legs + the
+  0x27410 WORD :=3 arm; the 0x58690 state gate bytes
+  (8B 50 0B / 83 FA 02) + the state-2 playback leg
+  ([dev+0x2b]<<4, 3x movs) + the capture leg (mov
+  [ebx+8],0; E8->0x582f0; lea [ecx+0x33]; E8->0x58010)
+  + the state-1 gate (83 FE 01) + 0x57fe0 dedup call +
+  the match inc ff 44 02 0c + the append leg (cap cmp,
+  E8->0x225a0, mov [esi+8],eax+1, 4x a5); the 0x58550
+  stub bytes 31 C0 C3 + the dead OR WORD 808 + the code-
+  9 prologue ba 09/b8 0xcde70 + OR byte 8; the 0x1c530
+  body bytes (f6 c6 02, [edx*4+0xce284], and 0x7f,
+  [eax+edx*4+0xa]); the 0x58010 calibration gates
+  (83 78 10 00 / 83 78 14 00), button OR legs and the
+  -0x14/+0x14 stores vs [esi+0..c]; the 0x586e4 leg
+  order bytes; the demo chain (0x4d8cb 0xcf068 imm, E8->
+  0x56250, c7 81 ac 03 00 00 01 at 0x4d8fd, zero at
+  0x4aa16/0x4a595, cstrs '\\','%s','%d', 0x56250 = add
+  eax,0x2c + E8->0x57990; 0x4a9f0 callers exactly
+  0x4a857/0x4ae6e; 0x561a0/0x56360 caller sets = 2/2);
+  the ds:0xa94f0 store census = exactly 9 of 16 refs +
+  the frame-gate bytes a1/bb 02 00 00 00 + the death dec
+  at 0x503fb + the clamp legs; the class-store census
+  316 + the 0x500b0 call census 17 with the 14/3 cou-
+  pling split; the reclass bytes 0x2bfc2/
+  0x2bfd6/0x2dc65/0x2dc79; the [reg+0xb] full-form store
+  scan = one device-cluster writer (0x585cc C7 40 0B 00);
+  0xa97c0 exactly-3-store census (zero loads); 0xa2bc0
+  zero-ref + dword=0xcf400; the +0x100 census (178
+  nonzero, 0x50c70 x10 incl. 0x9a54c); the k2dead.mod
+  string + 0x2c360 prologue. obj_range.sh (the whole
+  reads: 0x585e2-0x587ac, 0x58010, 0x58550, 0x1c530,
+  0x2c260-0x2c3c0, 0x27300/0x27410, 0x4d890-0x4d930,
+  0x4a910, 0x4ae82-0x4aecf, 0x4ac40, 0x56250, 0x56150,
+  0x503f0, 0x507f0-0x50840, 0x5d2f0, 0x5eb00, 0x5c600-
+  0x5c660, 0x50c70, 0x2c360, 0x446d0). Ledger: records
+  re-spliced from HEAD (census: HEAD carries PR-150..
+  PR-187 (38 records) PLUS the four OWNER 2026-11-19
+  records, last carrier); 9 brackets - 4 CORRECTIONS (the
+  3 ring-fill texts: PR-186 item (4), PR-187 F3/F4, the
+  PR-187-bracket in PR-106 item (1); + PR-147's replay/
+  merge sentence) + CLOSURES/EXTENSIONS at PR-106 (1)
+  CLOSED, PR-147 (2) CLOSED, PR-176 (2) EXTENDED,
+  PR-187 (1) CLOSED, (6) HALF-CLOSED, (9) CLOSED,
+  PR-106's 12-byte-record note CONFIRMED+EXTENDED).
 
 ## Deferred big items (deliberately out of scope so far)
 
