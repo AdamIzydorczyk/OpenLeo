@@ -2632,7 +2632,19 @@ writer as its open items.
      outside GEN row tails and kind-9 messages; ZARIA's tables
      hold the BASE +0x100 (0x50c70) with no visible raise
      (counted), and the two call sites (0x50c2a, 0x41b6a) are
-     unread: a LEAD with named bodies, not an answer. F5:
+     unread: a LEAD with named bodies, not an answer.
+     [PR-152 read the hand-off's WHEN: it is gated by TWO
+     per-class getters - a +0x104 row window (ZARIA: row
+     POSITIONS 7-8 only; base classes: NEVER) and a +0x108
+     constant match against the current row-record's +0x4
+     word (ZARIA: the value 6, which is EXACTLY the field-2
+     value on LEW.MOV's A_WALK/A_ZABLOK rows 7-8, the same
+     gate field PR-100 measured). And 0x4dcc0/the query were
+     mis-framed here: it is a placement-line name reader and
+     a KEY-REGISTRY resolution (the sub-line factory, cf.
+     ZWIERZ1's POCISK/PICT children) - ZARIA statically names
+     NO companion; which object resolves is a runtime
+     question.] F5:
      PR-129's "0x52cc0 ... all with edx=9" CORRECTED - the
      list (14 sites, recorded) is right, 0x3f77e passes
      edx=[self+0x4c]; its method 0x3f760 (from the table
@@ -2646,6 +2658,69 @@ writer as its open items.
      then the y-force/0xcf400 block path; then the WAIT law.
      Full record: the PR-151 section of NEXT_STEPS.md (scratch
      at /tmp/opencode/pr151/, kept out of git).
+   - PR-152 (READING, no code, no new test - the PR-138..151
+     precedent): THE COMPANION HAND-OFF GATES ARE NOW NAMED -
+     A PER-CLASS +0x104 ROW WINDOW (ZARIA: row POSITIONS 7-8,
+     which in LEW.MOV are exactly the `4,6,GEN AC_TIME` lines
+     of A_WALK and `4,6`/`5,6` of A_ZABLOK) AND A +0x104
+     CONSTANT MATCH (ZARIA -6, i.e. the record word equal to
+     6 = that same field value; SADES -4; base/ENA2 +1 via
+     [obj+0x9d]; TUNGA2 -14; ENA computed), and the base
+     pair's +0x104 is `xor eax,eax` - NO hand-off for plain
+     base classes, a per-level feature. WHY: PR-151's lead (b)
+     ("what makes +0x100 fire"). F1: 0x4dcc0 is PR-103's
+     placement-line name reader (PR-151's "level-object
+     SEARCH" was wrong, bracketed) - the sub-line children in
+     ZWIERZ1.DES (`POCISK,jajo.ani...` under SEP, `PICT,
+     panc.seq...` under NOSOROG) are exactly its one-line
+     input. F2: the ZARIA ctor "query" is a token-list builder
+     over an EMPTY name; resolution is by KEY REGISTRY -
+     [ds:0xcef14] is the static singleton built at 0x5bf10
+     over the descriptor root 0x961fc, whose first descriptor
+     is (0x1034c, 0x57a00) with 0x1034c an EXECUTABLE match
+     stub IN .data (the "SQV" bytes are code); the list's
+     later entries are signal-number/bit triples (0x9627c:
+     5/K_F5 with 0x10000/0x70000 = AC_RECT bits). So ZARIA
+     names its companion NOTHING statically. Negative while
+     hunting: 'LEWPL' is absent from the whole image - "class
+     LEWPL" was always a session label for the player's own
+     .MOV. ZARIA1.DES read whole (`lew=` = the controller
+     class + LEW.ZAR + lew.mov + lew.des, no sub-lines).
+     F3: the hand-off machinery 0x50b30..0x50c2c read end to
+     end + the getter censuses (constants above); the scan
+     compares the current row-record's +0x4 word; on match +
+     [obj+0x112]!=0 + reentry-flag ds:0xcef4c==0 it sets the
+     flag, calls +0x110 (ZARIA's = a bare `ret`) and +0x100;
+     no companion or [ds:0xa94f4]!=0 instead ZEROES the
+     (out1,out2) pair (PR-151 item 9 answered in part).
+     F4: the base +0x100 tail = companion +0x118 (ZARIA's =
+     0x50c50: enqueue to the global message queue 0x52b10
+     carrying the controller's FACING; "type 5" in PR-151 was
+     my misread of the enqueue's edx) + the 0xb1/20 copy +
+     [companion+0xee] in {2,3} branch + [[companion+8]+0xe0]
+     or 0x531b0([ds:0xa94ec],...) ELSE the companion's +0x80
+     (ZARIA: 0x501e0 -> 0x4aa60([ds:0xcef40],arg), unread).
+     F5: THE SIX-LINK CANDIDATE CHAIN to K_GEN1, all links
+     now named (rows 7-8 -> scan -> hand-off -> queue node ->
+     receiver 0x50d60 whose type-9 arm 0x50df4 is PR-70's
+     bit-54 setter -> ladder A_UP(1)=K_GEN1 / player climb
+     rows); the deciding unknowns are the record layout (is
+     [record+4] the row line's second field?) and the queue
+     consumer + node type. The dead 0x1e132 handler pairs
+     with live code for the first time: its type-5 arm bumps
+     [ds:0xa94f4], which is exactly the counter that DISABLES
+     hand-offs (0x50b6a). 8 open items counted (queue
+     consumer + node type; the key-chain slots +0xc/+0x14,
+     0x57d30, 0x9620c.. entries, the stub's code-range
+     branch; 0x52b10 head; 0x4aa60 / +0xe0; the [obj+0x160]
+     machine; the type-9..21 arms; the record layout + which
+     states reach rows 7-8; the 0x50b30.. method entry).
+     NEXT: the chain trace (record layout first), then the
+     WAIT row-gate law - now DOUBLY load-bearing since field
+     2 = 6 IS the hand-off constant - then the y-force path.
+     Full record: the PR-152 section of NEXT_STEPS.md
+     (scratch incl. the LL.iso LEVELDES extraction at
+     /tmp/opencode/pr152/, kept out of git).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -4189,6 +4264,34 @@ ZARIA.01 output unchanged (no code). Next: the K_GEN1 arm
 reading pass with the companion-query grammar FIRST, then the
 +0x100 bodies, then the 0x52cc0 sites; then the y-force/
 0xcf400 block path, then the WAIT law. 9 open items counted.
+STATUS after PR-152 (docs-only; the K_GEN1 chain now has SIX
+NAMED LINKS): the hand-off that runs +0x100 is gated per
+class by TWO getters now read - a +0x104 row-cursor window
+(TLewZaria: true only at row POSITIONS 7-8; ENA 5-6; SADES
+29-30; TUNGA2 7/9; the BASE class getter is `xor eax,eax` -
+plain base classes NEVER hand off) - and a +0x108 constant
+(ZARIA -6, SADES -4, base/ENA2 +1 via [obj+0x9d], TUNGA2
+-14): the current row's transition-record array is scanned
+for a record whose +0x4 word equals the constant 6 - and in
+LEW.MOV the row lines AT POSITIONS 7-8 of A_WALK/A_ZABLOK
+are exactly `4,6,GEN AC_TIME`/`5,6,GEN AC_TIME` and `4,6`/
+`5,6` - the SAME field-2 = 6 gate PR-100 measured for every
+A_WALK pose (the unmodelled WAIT row-gate field, PR-150 item
+6, IS the hand-off match constant). The chain: those rows ->
+scan fires -> +0x100 resolves the companion (a KEY-REGISTRY
+resolution, [obj+0x112], no authored name - the 0x497b0/
+0x4dcc0 "search" was mis-framed, corrected; 0x4dcc0 is the
+sub-line factory reader, cf. ZWIERZ1's POCISK/PICT children)
+-> ZARIA's +0x118 enqueues to the global message queue
+0x52b10 with the controller's facing -> the receiver 0x50d60's
+type-9 arm 0x50df4 is PR-70's bit-54 (K_GEN1) setter -> the
+ladder's `A_UP(1)=K_GEN1` and the player's climb rows. THE
+TWO DECIDING GAPS: the record layout (is [record+4] the row
+line's second field?) and the queue consumer + the posted
+node's type. ZARIA.01 output unchanged (no code). Next: the
+chain trace (record layout first, then the queue consumer),
+then the WAIT law DOUBLY load-bearing now, then the y-force
+path. 8 open items counted.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

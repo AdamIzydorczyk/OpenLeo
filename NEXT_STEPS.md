@@ -15703,65 +15703,45 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- THE KIND-4 y-OVERRIDE STUDY IS DEFERRED, AND THE NEXT ENTRY
-  SHIPPED WITH PR-150 IS CORRECTED (PR-151 F1-F3). The
-  premise "the answer path can now PLANT a kind-4 node" was
-  wrong: answers plant kind-2 nodes (PR-149 F1 - 0x53f50 is
-  the answer-COPYING builder), and kind-4 nodes are planted
-  ONLY by the per-class post-transition hook +0x90 - a method
-  ZARIA's tables never supply (TLewZaria's hook 0x1e250 is a
-  transition redirector; the ZARIA-base hook 0x61670 is the
-  tiny bit-0x40 force; only the ENA hook 0x245b0 builds the
-  kind-4 zones, from the runtime array [obj+0x136] whose only
-  writer is the SADES hook 0x2e6a0). ZARIA.01 therefore
-  supplies NO kind-4 contact, and modelling the override there
-  would be dead code. The kind-4 CODE pass returns when the
-  port reaches an ENA/SADES/TUNGA-era controller - the
-  producer and consumer are both fully read now (producer
-  0x245b0/0x24612..0x24688, consumer 0x54aa2..0x54b4e), so
-  that future PR is implementation, not reading.
-- THE K_GEN1 ARM READING PASS IS THE READING PR NOW (PR-152) -
-  still THE named blocker: until something raises K_GEN1 at a
-  ladder, no shipped level's ladder reaches the answer row
-  (PR-146/149/150). PR-151 replaced the blank with a named
-  lead list, in order: (a) FIRST, the companion query: the
-  ZARIA ctor 0x1e1a2..0x1e1db builds `0x4dcc0(<level>,
-  &0x497b0-built query{flags 0x400, seed ptr at
-  [ds:0x961fc] -> 0x1034c})` into [obj+0x112]; read the
-  0x497b0 grammar and the seed at 0x1034c and NAMED objects
-  are named - the hand-off method +0x100 resolves that link
-  and its ENA variant 0x24440 raises K_GEN1 (set byte 6 bit
-  6) into the RESOLVED COMPANION's live set - the first
-  bit-54 raiser this project has found outside GEN row tails
-  and kind-9 messages; (b) the two +0x100 call-site bodies
-  (0x50c2a inside the 0x50bxx method with the +0x110 call,
-  0x41b6a inside the [obj+0x160] mode machine at 0x41ac3+)
-  and the base +0x100 0x50c70 tail past the 0xb1/20 copy -
-  what makes them fire, and whether the ZARIA tables' base
-  +0x100 ever raises anything; (c) the remaining 12 of the
-  14 0x52cc0 sites (list in PR-151 F5; 0x3f77e's method
-  0x3f760 - reached from the class-table dword 0xa0790 - is a
-  type-0x1c message receiver that posts with edx=[self+0x4c]:
-  name the receiver class and the message-type vocabulary);
-  (d) whether ZARIA's [obj+12a] can ever arm (no live
-  ZARIA-path writer found; PR-151 open item 2).
-- THEN THE y-FORCE / INPUT-BLOCK PATH (the other half of
-  M9/M10, PR-98/108 read the consumer only): the caller-side
-  block 0x58690 + the 0xcf400 singleton (PR-106 open item 1 -
-  who fills those three dwords), then 0x549f0's seeding of
-  [obj+0xba]/[obj+0xbe] from it, then the 0x54250 velocity
-  law `([blk]*force)/20` (0x542cd) - what the same word does
-  beyond the row clock.
-- THEN THE WAIT ROW-GATE LAW (`1,0,WAIT K_GEN1` /
-  `WAIT K_NEVER` still unmodelled, PR-150 item 6).
+- THE K_GEN1 CHAIN TRACE IS THE READING PR NOW (PR-153) -
+  PR-152 turned the blank into a six-link named chain whose
+  two decisive gaps are: (a) THE RECORD LAYOUT: the hand-off
+  scan compares [record+0x4] against the per-class constant
+  6, and the authored value 6 sits at the SECOND field of the
+  gated row lines (`4,6,GEN AC_TIME`) - verify the record
+  builder (the 0x524xx/0x525xx parse PR-100 read as "row
+  field 2 = 6") produces that word at +0x4; if yes, the
+  ZARIA hand-off is authored to fire from A_WALK/A_ZABLOK
+  rows 7-8; (b) THE QUEUE CONSUMER: who drains the message
+  queue 0x52b10 and runs the receiver 0x50d60, and what type
+  field the hand-off's node (posted by 0x50c50 via 0x52b10)
+  carries - the type-9 arm 0x50df4 is PR-70's bit-54 setter,
+  so if the node type is 9 the chain CLOSES: A_WALK rows 7-8
+  -> hand-off -> queue -> bit 54 -> the ladder's A_UP(1)=
+  K_GEN1 exit and the player's climb rows. Also on this
+  pass: 0x4aa60 (the +0x80 delegate the base hand-off calls)
+  and the [[companion+8]+0xe0] test; the [obj+0x160] mode
+  machine around the second +0x100 site (0x41b6a, table
+  0x41a40); which states reach A_WALK/A_ZABLOK row positions
+  7-8 in ZARIA.01 gameplay (the port rig can answer this
+  part with data).
+- THEN THE WAIT ROW-GATE LAW, now DOUBLY load-bearing: the
+  field-2 = 6 gate value IS the hand-off match constant
+  (PR-152 F3) - model the gate and the hand-off together or
+  not at all. THEN THE y-FORCE / INPUT-BLOCK PATH (the
+  0x58690 + 0xcf400 block source, 0x549f0's seeding, the
+  0x54250 velocity law - M9/M10's other half).
 - THEN the small studies: the BY_TIME guard 0x543f2, the
   scene-side BY_TY mirror, the dead-region 0x50252 follow-up,
-  the 20-vs-10 force scale question.
-- READING LEADS with addresses, still the user's call: PR-151's
-  counted items (the base hook 0x61670 body; the +0x90
-  per-table census; globals ds:0xcef4c/0xcef64/0xcef68; the
-  message-type vocabulary and the 0xa0790 class; the 0x2e6a0
-  array cadence; who zeroes (out1,out2) on no-match); and the
+  the 20-vs-10 force scale question; PR-152's counted items
+  (the key-registry chain +0xc/+0x14 slots, 0x57d30, the
+  0x9620c.. entries, the stub's code-range branch, the
+  type-9..21 receiver arms, the 0x50b30..0x50c2c method
+  entry, the +0x7c factory tail).
+- THE kind-4 CODE PASS stays DEFERRED to an ENA/SADES/TUNGA-
+  era controller (PR-151); the y-override and the 20-vs-10
+  scale questions return with it.
+- READING LEADS with addresses, still the user's call: the
   standing PR-150 items (authored rectangle format; the
   LINA-family class table; object-asked answers; the
   [obj+0xa5]/[self+0x66] flag feature; the 0x238e4/0x98274
@@ -15771,290 +15751,248 @@ no port behaviour change)
   the TRASA pair as leads).
 
 
-## PR-151 — THE POST-TRANSITION HOOK IS THE PER-LEVEL BEHAVIOUR
-## LAYER: THE kind-4 CONTACT SUPPLY IS A LION-CONTROLLER HOOK
-## FEATURE (ENA/SADES-ERA CLASSES ONLY), THE ZARIA HOOK IS A
-## TRANSITION REDIRECTOR, THE COMPANION LINK +0x112 IS THE
-## STRONGEST K_GEN1 LEAD YET, AND THE NEXT ENTRY'S kind-4
-## FRAMING IS CORRECTED (READING RECORD - NO CODE CHANGE;
-## PR-138..149 PRECEDENT)
+## PR-152 — THE COMPANION HAND-OFF IS AN AUTHORED, GATED
+## FEATURE: A PER-CLASS +0x104 ROW WINDOW (ZARIA: ROW
+## POSITIONS 7-8 = THE `4,6,GEN AC_TIME` LINES OF A_WALK), A
+## SIGNAL-FIELD MATCH ON THE CONSTANT 6, A KEY-REGISTRY
+## COMPANION RESOLUTION (NOT A NAME SEARCH), AND THE FULL
+## CANDIDATE CHAIN TO K_GEN1 NAMED LINK BY LINK (READING
+## RECORD - NO CODE CHANGE; PR-138..151 PRECEDENT)
 
-- WHY. The Next entry shipped with PR-150 named "the kind-4
-  contact node and its +/-10 y-override" as the next CODE pass
-  and claimed "the answer path can now PLANT a node". Before
-  writing a line of code this pass checked that premise against
-  the bytes, and it is wrong in one specific, checkable way:
-  the answers of PR-150 plant kind-2 nodes (PR-149 F1 - the
-  kind-2 builder 0x53f50 is the answer-COPYING one, and PR-150's
-  own code note quotes that correctly), while the kind-4 nodes
-  that the +/-10 y-override consumes are planted by something
-  else entirely: a class-method hook at slot +0x90 that this
-  project had never read. With the supply pinned, the ZARIA
-  verdict is that ZARIA.01 supplies NO kind-4 contact at all -
-  the third consecutive PR whose feature ZARIA data does not
-  reach - so the kind-4 model code is deferred (see the new
-  Next), and this pass ships as the reading record that closes
-  the supply question and corrects the framing. The engine image
-  is unchanged throughout (text.bin sha256 edf19a129e85efb8764
-  457a0808e246ca4baf08a9111aa09be4ec99ce6b8c40e).
+- WHY. PR-151's Next put the K_GEN1 arm reading pass first and
+  named its lead order: (a) the companion-query grammar and the
+  seed, (b) the two +0x100 call-site bodies, (c) the 0x52cc0
+  sites, (d) the [obj+0x12a] arm. This pass read (a) and (b)
+  and found the engine's answer to PR-151's open question
+  "what makes +0x100 fire" - plus a correction to this
+  session's own PR-151 framing of 0x4dcc0. The image is
+  unchanged (text.bin sha256 edf19a129e85efb8764457a0808e24
+  6ca4baf08a9111aa09be4ec99ce6b8c40e).
 
-- FINDING 1, THE HOOK: THE CONTROLLER PIPELINE CALLS A
-  PER-CLASS METHOD AFTER THE TRANSITION SCAN AND BEFORE THE
-  LIVE-SET CLEAR. PR-132/133 read the compositor 0x536f0 end to
-  end (the +0x8c key provider, the record key 0x523f0, the
-  0x52000 transition scan with its (out1,out2) outputs, the
-  0x535a0 record/row switch) but skipped what sits in the
-  middle, and the port's model needs it. The full order now,
-  0x53520..0x5359a verbatim: (a) copy the live set - [obj+0x60
-  ..0x6b] plus the flag byte [obj+0x6c] - to a stack buffer
-  (rep movs pair, 0x53531..0x53557); (b) evaluate the CURRENT
-  row record's transition list [[obj+0x50]+[obj+0x5c]*4]
-  against that copy through 0x52000 (PR-150 F1b), writing the
-  matched (row, N) pair to the caller's two out slots; (c) call
-  `[[obj+8]+0x90]` with (eax = self, edx = &out1, ebx = &out2)
-  - THE HOOK; (d) 0x535a0 applies the (possibly rewritten) pair
-  (PR-133's record/row switch); (e) 0x749a0 zeroes the 12/13-
-  byte live set at [obj+0x60] (0x53583..0x5358e, the buffer
-  address came from [esp+0x10] = [obj+0x60]). (d)+(e) confirm
-  the port's shipped ordering (PR-88/150's window: transitions
-  evaluate, then p->sig zeroes, later passes re-raise) - the
-  engine clears only AFTER the scan and the hook. THE HOOK'S
-  IMAGE-WIDE CALL SITES are exactly two: 0x5357d (this
-  pipeline) and 0x3edaf (inside 0x3ed70, a method of another
-  object family - reads [obj+0x40], calls +0x28/+0x84 first;
-  unread, counted). Every class table has its own +0x90 slot,
-  so the hook is the per-level behaviour layer. Read here: the
-  base-chain hook 0x61670 (only its first arm, counted: if bit
-  0x40 of the object's flag byte at [obj+0x0] is set, force
-  (out1,out2) = (2,0) and clear [obj+0xb5]); the ZARIA-class
-  hook (Finding 2); the ENA-class hook (Finding 3); the
-  SADES-class hook 0x2e6a0 (Finding 3, two stores read by
-  PR-108, body not read here). The per-table census of +0x90
-  across all 24+ tables was NOT taken this pass (counted).
+- FINDING 1, WHAT 0x4dcc0 IS (CORRECTING PR-151'S "LEVEL-
+  OBJECT SEARCH" - PR-103'S READING WAS RIGHT). Re-read whole
+  (0x4dcc0..0x4dd32+): 0x57a40 initializes a line-reader state
+  (zeroes [st+0], sets [st+4] to the descriptor-list end
+  0x96200 then to the root 0x961fc), then ONE comma-delimited
+  token is read with the scanf-style format at 0x91f2a =
+  ' %[^,\r\n] , ', and that token goes to the PLACEMENT
+  FACTORY 0x4df10 (0x4dcdc) - exactly PR-103's "the readers of
+  the placement grammar, the token is the line's first field".
+  Then the rest of the line is split on '\' (literal 0x91f36),
+  two 0x57a00 calls over the parsed parts, and the created
+  object's +0x7c is called with the parsed x,y - PR-103's
+  unread +0x7c, still unread. So PR-151 F4's "a level-object
+  SEARCH" was WRONG (its F6-era wording, bracketed in place).
+  THE AUTHORED PATTERN THIS SERVES: ZWIERZ1.DES (ZARIA.01, at
+  /tmp/opencode/pr138/des/, re-read) carries SUB-LINES under
+  animal placements - `POCISK,jajo.ani,jajo.mov,0,0` under
+  both SEP2 and SEP, `PICT,panc.seq,20,29` under NOSOROG -
+  and "read one line and run the factory on it" IS 0x4dcc0:
+  the sub-line child-creation mechanism (the port joins these
+  lines but never instantiates their children).
 
-- FINDING 2, ZARIA'S HOOK IS A TRANSITION REDIRECTOR, READ
-  WHOLE (0x1e250..0x1e2ef). The TLewZaria tables hold it at
-  +0x90 (TLewZaria 0x96960 + 0x90 = 0x1e250; TLewZariaB's base
-  0x97970 holds 0x61670, the base hook; ZARIA OVERRIDES it).
-  With (out1,out2) at (edx,ebx), verbatim and in order:
-  (a) if out1 == 4 and [obj+0x10e] * [obj+0x6d] > 0, call
-  0x53670 - PR-108's facing flipper (it negates the facing
-  [obj+0x6d] only when the state record's byte +0x15 has bit
-  0x8, then invalidates); (b) if the current row [obj+0x5c]
-  != 0xa and out1 == 0xa, subtract 0x1e = 30 from [obj+0xad] -
-  the same field the ZARIA base ctor defaults to 0x1f4 = 500
-  (PR-129): a per-redirect countdown bite; (c) if the armed
-  flag [obj+0x12a] != 0, REWRITE the transition: out1 = 9,
-  out2 = 0, clear [obj+0x12a] (a one-shot redirect of whatever
-  transition just fired, to row 9 line 0 - the same field
-  PR-145 quoted as armed by a type-0xc record in 0x52cc0's
-  context; see Finding 5's correction); (d) if [obj+0x5c] == 9
-  and set bit 2 (byte 0 bit 0x4 of [obj+0x60]) is set in the
-  just-copied live set, set [obj+0x116] = 1 - the flag PR-70
-  named from the kind-21 message and PR-104's death path reads;
-  (e) if out1 == 0xc and global ds:0xcef64 == 0, or out1 ==
-  0xb and ds:0xcef68 == 0, CANCEL the transition (out1 = the
-  current row, out2 = 0); other values pass; (f) tail-call the
-  base hook 0x61670. What ds:0xcef64 / ds:0xcef68 mean and who
-  writes them is un-read (counted); [obj+0x10e] is written at
-  0x24ce5/0x283d3 (regions unread, counted). The hook reads
-  and rewrites the SAME pair 0x52000 wrote, so "row 9", "row
-  10", "row 11/12" here are positions in this controller's own
-  state script - a per-level veto layer over the state machine,
-  in CODE, not in the .MOV.
-  [ARMS THE REDIRECT: within the ZARIA region, 0x1e132 is a
-  record handler (unreferenced as a table slot - reached how?
-  counted) whose record+0x4 TYPE field dispatches: type 5 runs
-  a static counter [ds:0xa94f4]++, [[ds:0xcef40]+0x38c] and
-  0x44900, then posts through 0x52cc0 with edx = 9 (PR-129's
-  dead +0x10 handler, read there); type 0xc writes [obj+0x12a]
-  = 1 - THE ARM. Other [obj+0x12a] writers exist at
-  0x2419d (ENA region), 0x2c28f/0x2c2ac (values 2/1) and -1
-  writers at 0x2ba15/0x2bfc2 (KADMAR era); the ZARIA ctor
-  zeroes it (0x1e0ba). No live ZARIA-path writer was found
-  this pass - the only ZARIA-region arm store sits in the
-  dead handler - so whether ZARIA's hook ever runs branch (c)
-  at runtime is an OPEN question, counted as item 2.]
+- FINDING 2, THE ZARIA CONSTRUCTOR CALL IS A KEY-REGISTRY
+  RESOLUTION, NOT A NAMED-OBJECT LOOKUP. The ctor-region call
+  (0x1e1a2..0x1e1db): a 0x18-byte state buffer is built with
+  EVERYTHING ZERO except a pointer field at +0x9 = 0x961fc and
+  a flag field at +0xb = 0x400; 0x497b0 is a token-list
+  builder over a string at [q+5] (0x49a10 pre-fills via
+  [[0xcef14]+0x14] when q[+1] != 0, 0x57990 appends NUL-
+  delimited tokens): with the string NULL the name test at
+  0x497c6..0x497de PASSES AS EMPTY, then [[0xcef14]+0xc] is
+  called with edx=&q and its result stored at q[+1]; a zero
+  result tail-calls 0x49620 - a GLOBAL last-query cache at
+  ds:0xceedc that runs the descriptor's match routine,
+  string-compares with 0x751b8 against the literal 0x91c68
+  ('Second throw! %s\n' - an engine debug trace) and installs
+  the state globally. And [ds:0xcef14] IS THE KEY-REGISTRY
+  SINGLETON: 0x5c8c3 sets it to the static object at 0xcf3d8,
+  whose initializer 0x5bf10 builds a descriptor list from the
+  ROOT 0x961fc - whose first entry is (0x1034c, 0x57a00): an
+  EXECUTABLE MATCH STUB AT 0x1034c IN .data (the "SQV" bytes
+  at that address are code - `push ebx; sub esp,0x18; test
+  cl,0x4; ...` - hand-written, decoded this pass with objdump
+  on raw bytes because objdump's listing boundary hid it);
+  bit 0x04 of its edx flag byte selects code-range tables
+  (0x961c4, called through 0x74bc0/0x74be0) vs the name/
+  registry branch (0x96138 control block + 0x57a00). THE
+  DESCRIPTOR VOCABULARY IS THE SIGNAL VOCABULARY: the list
+  continues at 0x9620c as 3-dword entries (-12, -10, -10, 1,
+  ...), and 0x9627c holds (5, 0, 0x10000, 0x70000) - 5 =
+  K_F5, 0x10000 = bit 16 = AC_RECT, 0x70000 = bits 16..18
+  (PR-147's word model) in one entry. VERDICT for lead (a):
+  ZARIA names its companion NOTHING in authored bytes - the
+  name field is empty and the resolution is by key registry at
+  runtime; "which object" cannot be answered statically (it
+  needs the receiver-consumer trace, Finding 5's open item).
+  Side negative while looking for the companion name: the
+  literal LEWPL exists NOWHERE in the image (byte scan; only
+  'LEW\0' name tokens) - "class LEWPL" in PR-134's text is
+  the session's label for the player's OWN .MOV text, not a
+  factory name. ZARIA1.DES itself (extracted from the full-CD
+  LEVELDES in LL.iso, now at /tmp/opencode/pr152/ld/) was
+  read whole: the `lew=` line is `TLewZaria,LEW.ZAR,lew.mov,
+  lew.des` (controller class, .ani block, controller script)
+  and there are NO sub-lines under it.
 
-- FINDING 3, THE kind-4 CONTACT SUPPLY IS THE ENA-CLASS HOOK,
-  AND THE SADES HOOK WRITES ITS ARRAY: PR-108/149's "chain at
-  0x24678" IS FINDING 1'S HOOK. The TLewEna table 0x988ec +
-  0x90 = 0x245b0 (the table identities now pinned: 0x988ec is
-  TLewEna's, from PR-129's pair census; the slot arithmetic
-  cross-checks - TLewEna + 0xcc = 0x989b8 = 0x50340, the +0xcc
-  contact walker PR-108 recorded in "14 tables"). Its body,
-  re-read: branch on the flag dword [self+0x0] (> 0x640) and a
-  row-cursor window ([obj+0x5c] in 0xa..0xe, or == 0x11) that
-  forces (out1,out2) = (1,0); then the zone pass, gated by
-  [obj+0x12e] == 0 AND [obj+0x12a] != 0: read the array at
-  [obj+0x136] (entry dwords 0/4/8; the third non-zero), take
-  the LION SINGLETON ([ds:0xcef40]+0x394), write [lion+0x106]
-  = 0, and for each entry build a kind-4 contact on the LION's
-  list exactly as PR-108 recorded (builder 0x53eb0 with
-  `add ecx,0xd2`, then the kind-4 patches [rec+4]=4,
-  [rec+0x1d]=entry dword[2], x from entry dword[0]). THE
-  ARRAY'S WRITER: the only [obj+0x136..0x13e] writer found is
-  a per-level hook itself - 0x2e6a0, the TLewSades +0x90 slot
-  (TLewSades 0x9c958 + 0x90), which PR-108 read setting the
-  count to 1 and a value at [obj+0x13a]. So the array is
-  RUNTIME state that per-level controller code maintains, not
-  instantiated .des placement/attach data: PR-108's open
-  question ("whether that [obj+0x136] array is the authored
-  attach/child data ... PR-93's 0,0 entries") is ANSWERED -
-  NO. And the ZARIA-era hooks never build kind-4 contacts:
-  TLewZaria's hook (Finding 2) has no zone pass, and the
-  ZARIA-base slot 0x61670 is the tiny flag-force hook. VERDICT
-  for the port: no ZARIA-era controller plants a kind-4 node
-  on the lion, so the +/-10 override has no supply at ZARIA -
-  the model would be a no-op there, exactly as the ladder
-  answer was, but WITHOUT a data path that could ever light it
-  up in this level. The kind-4 code pass is therefore deferred
-  to when the port reaches an ENA/SADES/TUNGA-era controller
-  (the new Next). What the kind-4 contact MEANS at those
-  levels (it pulls the lion's [obj+0xba]/[obj+0xbe] force
-  pair +/-10 toward its stored x/y with the +/-8 dead band -
-  PR-98/108 read that consumer exactly; its producer is now
-  read too) stays a design note, not a ZARIA claim.
+- FINDING 3, THE HAND-OFF MACHINERY AND ITS TWO PER-CLASS
+  GATES. The block sequence 0x50af0..0x50c2c (entry head not
+  pinned - counted) contains, after a live-set bit-0x04 clear
+  and the [obj+0x116] set at a byte flag (0x50af0..0x50b08,
+  the [obj+0x67] bit 0x20 - the PR-104-era draw flag), TWO
+  entry-shaped blocks that both start by calling the
+  `[[self.vt+0x104](self, [self+0x5c])` GATE GETTER:
+  0x50b30 (if the gate is TRUE, flow continues into the
+  scan) and 0x50b85 (if the gate is FALSE, inert exit
+  0x50c30). THE +0x104 GATE IS A PER-CLASS ROW-CURSOR WINDOW,
+  read verbatim: TLewZaria 0x1e200 = true iff the row cursor
+  is 7 or 8; TLewEna 0x24270: 5 or 6; TLewSades 0x2e190:
+  0x1d/0x1e (29/30); TLewTunga2 0x612f0: 7 or 9; the base
+  pair's 0x26f30 = `xor eax,eax; ret` = FALSE (no base-class
+  hand-off). THEN the scan (0x50bb4..): `call
+  [self.vt+0x108]` - A SECOND per-class getter - and when its
+  value M is negative the CURRENT row's transition-record
+  array [[obj+0x50]+[obj+0x5c]*4] is scanned for a record
+  whose +0x4 DWORD equals -M (`neg edx; mov eax,[record+4];
+  cmp eax,edx`, 0x50bdd..0x50be4); when M is non-negative the
+  check is instead [obj+0x9d] == M (0x50bc8). On a match,
+  with [self+0x112] != 0 and the re-entry flag ds:0xcef4c
+  == 0, set ds:0xcef4c=1, call [self.vt+0x110](self,
+  [self+0x5c]) (0x50c0a), and call [self.vt+0x100] (0x50c2a).
+  If the companion is absent or the global counter [ds:0xa94f4]
+  != 0, the (out1,out2) pair is ZEROED instead (0x50b61..
+  0x50b7f) - part of PR-151 open item 9. THE +0x108 CENSUS,
+  verbatim: TLewZaria and TLewZariaB `mov eax,0xfffffffa;
+  ret` = -6 (match constant 6); SADES -4 (match 4); ENA2 and
+  the BASE pair 0xa2218 +1 ([obj+0x9d] test); TUNGA2 -14
+  (match 14); TLewEna a computation over the row cursor
+  (`lea eax,[edx-5]; cmp eax,4; ...`, body unread). THE
+  PORT'S SIGNAL ENUM maps those constants to NAMES (the
+  ll_play.h enum: 6 = AC_DEADDUP, 4 = AC_DUP, 14 = AC_STONE,
+  1 = AC_BLOK_Y) - but the enum names are the session's own
+  best-guess tokens, so the HONEST claim is the NUMBER 6.
+  AND 6 IS AN AUTHORED VALUE IN EXACTLY THE GATED ROWS:
+  ZARIA's gate opens only at row POSITIONS 7-8 (the +0x104
+  window), and in LEW.MOV (the ZARIA controller script,
+  /tmp/opencode/mov/ZARIA.01_LEW.ZAR_LEW.MOV) the row lines
+  AT POSITIONS 7-8 of the multi-row states carry exactly 6 as
+  their second field: `[A_WALK]` pos 7 = `4,6,GEN AC_TIME`,
+  pos 8 = `5,6,GEN AC_TIME`; `[A_ZABLOK]` pos 7/8 = `4,6` /
+  `5,6` - the same 6 that PR-100 found gating EVERY A_WALK
+  pose ("row field 2 = 6", the row-gate field PR-150 item 6
+  left UNMODELLED). Whether the record's +0x4 word IS that
+  second field is the record-layout question (open item 7) -
+  but the coincidence of the per-class constant with the
+  authored field value, AT THE PER-CLASS ROW WINDOW, is now
+  the session's strongest K_GEN1 lead: at ZARIA the hand-off
+  is designed to fire from the A_WALK/A_ZABLOK rows whose
+  gate field is 6.
 
-- FINDING 4, THE COMPANION LINK [obj+0x112] AND THE HAND-OFF
-  METHOD +0x100 - THE STRONGEST K_GEN1 LEAD FOUND SO FAR. The
-  ZARIA controller's ctor region (0x1e1a2..0x1e1db, inside the
-  0x1e0a0 ZARIA ctor chain PR-129 read) LINKS a companion: it
-  builds a query buffer (0x497b0, flags 0x400, seed pointer at
-  [ds:0x961fc] = 0x1034c - the seed's format is unread,
-  counted) and stores `0x4dcc0(<level singleton>, &query)` - a
-  level-object SEARCH - into [obj+0x112]. Which named object
-  ZARIA links this way is the first thing the next K_GEN1 pass
-  should read (the seed format at 0x497b0's grammar decides
-  it). The link's readers: the base +0x100 method 0x50c70
-  (which the TLewZaria and TLewZariaB tables hold at +0x100,
-  and the base pair 0xa2218 too) resolves it as `[[obj+0x112]]
-  ` then `[[that+8]+0xdc]` (a per-class getter - the same
-  getter slot PR-149 counted unread at 0x3f1cf's +0x3c family
-  neighbourhood), and 0x50be6 guards a call path on
-  [obj+0x112] != 0. THE HAND-OFF ITSELF: the ENA variant
-  0x24440 (+0x100 at TLewEna) does the same resolution, then
-  builds a 12-byte set with `or bl,0x40` into BYTE 6 = SET BIT
-  54 = K_GEN1 (0x24492..0x2449f - the port's own LL_SIG_K_
-  GEN1 number, PR-147's map) and 0x49580-ORs it into the
-  RESOLVED OBJECT's live set [esi+0x60] (0x244a2..0x244a5),
-  THEN tail-calls the base 0x50c70 (which calls slot +0x118
-  with the companion, copies [self+0xb1] into [companion+0xb1]
-  when the latter holds 0x14 = 20, and continues into [obj+
-  0xee]/0xb5/0xe0/0x531b0 - partially read, counted). THIS IS
-  THE FIRST RAISER OF K_GEN1 OUTSIDE the row GEN tails
-  (PR-69) and the kind-9 messages (PR-70; PR-147's closed
-  poster census) that this project has found - and it targets
-  a named companion by construction, not the asker. Two
-  cautions keep it a LEAD, not an answer: the ZARIA tables
-  hold the BASE +0x100 (the K_GEN1 raise sits in the ENA
-  variant's preamble, not in the base body - no ZARIA-path
-  raise visible this pass); and the +0x100 method's two call
-  sites (0x50c2a, inside a method guarded by [obj+0x112] != 0
-  and the re-entry flag ds:0xcef4c, right after slot +0x110
-  was called at the row cursor's value; and 0x41b6a, inside a
-  method whose head dispatches on [obj+0x160] - an ENA-era
-  mode switch) were not read to the point of naming WHEN they
-  fire (both bodies counted, item 5). The K_GEN1 arm of
-  PR-146/149/150 stays OPEN and named as the blocker - but its
-  open list now has the companion query and the two +0x100
-  bodies at the top, above the 0x238e4/0x52607 leads PR-150
-  added.
+- FINDING 4, WHAT THE HAND-OFF ACTUALLY DOES TO THE
+  COMPANION (base +0x100 0x50c70 tail, read whole): after
+  resolving the companion through its +0xdc getter it calls
+  `[[self+8]+0x118](self, companion)` - for ZARIA tables
+  +0x118 = 0x50c50, which is the QUEUE NODE APPEND:
+  `edx=5; ebx=[self+0x6d] (THE FACING); call 0x52b10` (the
+  global message queue - PR-139 flagged it at the 0x1ef4c
+  0x1d-allocation site) - so the hand-off posts a queue node
+  whose payload includes the controller's FACING (PR-151's
+  "type 5" wording was careless: 5 is the enqueue's edx arg;
+  the node's fields come from 0x52b10's stores - open item
+  3); then the [companion+0xb1]==0x14 copy, the [companion+
+  0xee] in {2,3} test, the byte [self+0xb5] copy, the
+  [[companion+8]+0xe0] call, and on true
+  `0x531b0(global [ds:0xa94ec], self, companion)` (unread -
+  counted), ELSE `[[companion+8]+0x80](self=eax,
+  companion=edx)` (0x50d05..0x50d12) - for ZARIA +0x80 =
+  0x501e0, a two-instruction tail: `0x4aa60(global [ds:
+  0xcef40], ecx)` - PR-103's unread 0x4aa60, counted.
 
-- FINDING 5, A CORRECTION TO PR-129'S SHIPPED CENSUS SENTENCE,
-  AND A NEW LEAD AT THE LADDER NEIGHBOURHOOD. PR-129 wrote:
-  "0x52cc0 is the message-posting helper: 14 direct calls from
-  per-level code, all with edx=9." The call-site list is right
-  (14 sites; recorded below); "all with edx=9" is wrong - the
-  two sites read this pass: 0x1e185 (ZARIA's dead +0x10
-  handler) does pass edx=9, but 0x3f77e passes edx=[self+0x4c]
-  - a field, not the literal. The second site lives inside
-  method 0x3f760, reached from a class-table dword at
-  0xa0790 (the TLewTunga2 region, 0xa0624 pair - a different
-  table base nearby, which class not pinned, counted): its
-  body is a MESSAGE RECEIVER for message TYPE 0x1c (28) - if
-  the received record's type dword [msg+4] == 0x1c and its
-  third field is non-zero, it posts through 0x52cc0 with
-  edx=[self+0x4c] (and 0x52bb0 first, unread). A class near
-  the ladder's own code (the ladder answer method 0x3f1c0 ends
-  at 0x3f37a; the TUNGA-era KLINA linals use the same .MOV
-  shape - PR-150 F5) that receives type-28 messages and posts
-  kind-9-shaped ones is squarely on the K_GEN1 road: counted
-  as a lead, not read. The 14 sites for the future pass:
-  0x1e185, 0x2475a, 0x247aa, 0x24807, 0x274b1, 0x33ee7,
-  0x373f0, 0x374a9, 0x3dc5f, 0x3e54a, 0x3e727, 0x3f77e,
-  0x45aed, 0x45b10 (the last two in the atc_on action region
-  PR-139 mapped). PR-129's sentence is corrected in place in
-  its section.
-
-- WHAT THIS DOES NOT CHANGE. No port code touched; ZARIA.01's
-  rendered output is byte-identical by construction (this is a
-  docs-only pass). The PR-150 code note's kind-2 wording was
-  already right; only the PR-150 NEXT ENTRY carried the kind-4
-  conflation, and that entry is replaced by this PR's.
-
-- OPEN ITEMS COUNTED (new for this PR). (1) The base hook
-  0x61670 beyond its first arm (the bit-0x40 -> (2,0) branch
-  was read; the body before/after is not). (2) Whether ZARIA's
-  hook branch (c) can ever fire: no live ZARIA-path writer of
-  [obj+0x12a] found (the only ZARIA-region arm store is in a
-  dead handler), while the -1 writers at 0x2ba15/0x2bfc2 and
-  the 1/2 writers at 0x2c28f/0x2c2ac belong to other eras -
-  unresolved, counted. (3) The +0x90 per-table census across
-  all 24+ tables (four hooks read: base, ZARIA, ENA, SADES -
-  ENA2/base-default 0x50970/0x50c70 noted, others unread).
-  (4) Globals ds:0xcef4c, ds:0xcef64, ds:0xcef68: semantics
-  and writers unread. (5) The two +0x100 call-site bodies
-  (the [obj+0x160] machine at 0x41ac3+; the 0x50bxx method
-  with the +0x110 call) and the base +0x100 tail past the
-  0xb1/20 copy. (6) The 0x497b0/0x4dcc0 query format and the
-  seed [ds:0x961fc] -> 0x1034c: the named-object grammar that
-  names ZARIA's companion (FIRST READ of the next K_GEN1
-  pass). (7) The message-type vocabulary (what type 0xc and
-  0x1c are, which parser emits them, which tokens author them)
-  and the class holding the 0xa0790 slot. (8) The SADES hook
-  body 0x2e6a0 (array write cadence). (9) Who zeroes (out1,
-  out2) when 0x52000 finds no match (the +0x54 slot method is
-  unread; the PR-133-era note said 0x52000 "only writes on
-  match"). CLOSED or NARROWED here: PR-108's "[obj+0x136] =
-  PR-93's attach data?" - ANSWERED NO for the observed writer;
-  PR-129's "all with edx=9" - CORRECTED at one of two read
-  sites; PR-150's Next premise that the answer path plants the
-  kind-4 node - CORRECTED (answers plant kind-2 nodes; kind-4
-  comes from the ENA-era controller hook); the kind-4 supply
-  question PR-149 left open (which data feeds [obj+0x136]) -
-  its writer is now named.
-
-- GATES. Docs-only: no ported/, Makefile, tools/ or
-  .gitignore line touched, so the build gates do not apply
-  (PR-138..149 precedent); no build run for this commit. Every
-  added prose line <= 79 columns (checked); the over-79
-  baselines of the two docs are UNCHANGED (NEXT_STEPS 71,
-  HANDOFF 72 - the pre-existing table/pin lines, not this
-  record's); no game data or frames in git (all disassembly
-  quotation stays in the record, scratch under
-  /tmp/opencode/pr151/ stays out); .github/workflows/*
-  untouched; the image is unchanged (text.bin sha256 edf19a12
-  9e85efb8764457a0808e246ca4baf08a9111aa09be4ec99ce6b8c40e).
-  Note for reproducibility: /tmp/opencode/text.bin (the exact
-  image above, 816,848 bytes) is the byte source for every
-  dword/rel32 census quoted here; vis/text.asm's byte columns
-  wrap across lines, which silently breaks substring byte
-  greps - use the .bin for word scans (this pass hit that
-  trap once and switched).
-
-- EVIDENCE. rng.py byte dumps quoted verbatim: 0x53520..0x535
-  9a whole; 0x1e250..0x1e2ef whole; 0x245b0..0x24632 head and
-  the PR-108 tail census; 0x50c70..0x50cfe; 0x24440..0x244b5;
-  0x3f760..0x3f786; 0x52cc0 head; 0x1e1a2..0x1e1db; 0x1e132.
-  dw32/rel32 scans over text.bin: slot tables around
-  0x98940..0x98a5c read as dwords (the TLewEna table body);
-  the +0x90/+0x100 call-site censuses (exactly two each);
-  the [obj+0x112]/[obj+0x12a]/[obj+0x10e] store censuses
-  (lists quoted); the 0x52cc0 caller list (14 sites, quoted).
-  Docs: in-place correction brackets at PR-129's edx=9
-  sentence (Finding 5), PR-108's attach-data question
-  (Finding 3), and a pointer at PR-149's kind-4 chain note.
+- FINDING 5, THE CANDIDATE CHAIN TO K_GEN1 IS NOW SIX NAMED
+  LINKS (THE PASS'S REAL PRODUCT). (1) the controller is AT
+  row positions 7-8 (the +0x104 ZARIA window - the
+  `4,6,GEN AC_TIME`/`5,6,GEN AC_TIME` lines of A_WALK, the
+  `4,6`/`5,6` lines of A_ZABLOK) and its record array holds
+  the value 6 at the word the scan reads; (2) 0x50bb4 scan
+  fires; (3) the +0x100 hand-off resolves [obj+0x112] and
+  runs the companion's +0x118/+0x80; (4) the +0x118 body
+  posts a node to the global message queue 0x52b10 carrying
+  the facing; (5) the base message receiver 0x50d60's table
+  arms types 9..21 - and its type-9 arm (0x50df4) is PR-70's
+  bit-54 (K_GEN1) setter (PR-70's reading, not re-verified
+  this pass); (6) K_GEN1 in the right live set drives
+  the ladder's `A_UP(1)=K_GEN1` (PR-150's authored row) and
+  the player's own climb rows. THE GAPS THAT DECIDE IT
+  (named, in order): who consumes queue 0x52b10 and runs
+  0x50d60 on which object, and WHAT type field the hand-off's
+  node carries (is it 9?); what 0x4aa60 (the +0x80 delegate)
+  does; the record-layout confirmation of item 7 (is the
+  scanned +0x4 word the row line's second field?). NOTE:
+  the 0x1e12f/0x1e132 handler PR-129 named dead is
+  ZERO-REFERENCED again this pass (dword + rel32 censuses
+  clean), and the LIVE base receiver 0x50d60 passes types <9
+  (incl. 5 and 0xc) to its inert tail - which strengthens
+  PR-151's finding that nothing on the live +0x10 path ever
+  arms [obj+0x12a]; but the SAME counter [ds:0xa94f4]
+  appears in the dead handler's type-5 arm ([0xa94f4]++) AND
+  as the guard at 0x50b6a that DISABLES hand-offs when
+  non-zero - the first concrete functional pairing found for
+  that dead handler (what enables it is open item 1).
+- OPEN ITEMS COUNTED (8 new for this PR). (1) Who runs the
+  receiver 0x50d60 (which dispatcher of queue 0x52b10) and
+  what type field the hand-off node gets. (2) The key-chain:
+  the level singleton's +0xc/+0x14 slots ([ds:0xcef14] ->
+  static 0xcf3d8), 0x57d30, 0x49620's string-match semantics,
+  the 0x9620c.. entry fields, the stub's 0x74bc0/0x74be0
+  branch, 0x96138/0x961b4. (3) 0x52b10's head (misaligned
+  disassembly entry) and its node's +8 field. (4) 0x4aa60 and
+  the [[companion+8]+0xe0] call. (5) the second +0x100 site:
+  the [obj+0x160] mode machine (0x41a40 jump table). (6) the
+  type-9..21 receiver arms (only 11/15/21 skimmed: +0xd8
+  delegation and [obj+0x116]=1) and why the range starts at
+  9 while the kinds are 53+. (7) THE RECORD LAYOUT: is the
+  scanned [record+0x4] word the authored row line's SECOND
+  field (the 6 in `4,6,GEN AC_TIME`) or the first signal
+  index? Verify the record builder (the 0x524xx/0x525xx-side
+  parsing PR-100 read: "row field 2 = 6") against this scan,
+  then trace which controller state reaches positions 7-8 of
+  A_WALK/A_ZABLOK in ZARIA.01 play. (8) the +0x54 slot (0x55070)
+  vs this block sequence - which method owns 0x50b30..0x50c2c.
+  CLOSED or NARROWED here: PR-151's item 5 largely (the
+  0x50bxx body's hand-off half is read end to end - its WHEN
+  is now TWO named per-class gates: the +0x104 row window and
+  the +0x108 constant match); PR-151's item 4 narrowed
+  (ds:0xcef4c is THE hand-off re-entry flag; ds:0xa94f4
+  guards hand-offs); PR-151's item 6 (the companion query
+  grammar) ANSWERED at the structural level: it is a key
+  registry, not a name search; PR-151 F4's "level-object
+  search" corrected (Finding 1); the "+0x110 ZARIA body"
+  question closed (a `ret`); the base +0x100 tail closed
+  (Finding 4).
+- GATES. Docs-only (PR-138..151 precedent): no ported/,
+  Makefile, tools/ or .gitignore line touched; no build run.
+  Every added prose line <= 79 columns; the over-79 baselines
+  UNCHANGED (NEXT_STEPS 71, HANDOFF 72); no game data or
+  frames in git (scratch: /tmp/opencode/pr152/, pr152_des/,
+  the LL.iso extraction at /tmp/opencode/pr152/, all out of
+  git; LL.iso itself already sits untracked at the repo root,
+  untouched); .github/workflows/* untouched; the image
+  unchanged (text.bin sha256 above).
+- EVIDENCE. rng.py dumps: 0x4dcc0 whole, 0x497b0/0x49a10/
+  0x49620/0x49820 (context), 0x57990/0x57a40, 0x5bf10/
+  0x5c8b7, 0x50af0..0x50c2c block sequence, 0x50c50,
+  0x50c70 tail, 0x50d60 head + its cs-table at 0x50d20
+  (dumped as dwords), 0x50dae, 0x52b10, 0x52cc0 whole,
+  0x501e0, 0x1e220/0x1e240 (objdump on raw bytes for the two
+  boundary-hidden one-liners). Census tables: the +0x108
+  getters (6 tables, verbatim constants), the +0x54 slot
+  (0x55070 in all five), 0x1e132/0x1e12f zero references,
+  0x44900/0x52b10 caller lists, 0xcef14 write site, the
+  0x961fc..0x96284 descriptor dwords, LEWPL byte scan (zero
+  hits). Authored side: LL.iso -> LEO/LEVELDES full extract
+ (13 .DES + 4 text), ZARIA1.DES whole, ZWIERZ1/2.DES whole,
+  mov/ZARIA.01_LEW.ZAR_LEW.MOV (AC_BREAK_NEXT record lines
+  59/770/790/808), ll_play.h signal enum cited verbatim.
 
 ## Deferred big items (deliberately out of scope so far)
 
