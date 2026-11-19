@@ -29112,6 +29112,19 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
   byte-identical): the moves touch no indexed address, field token
   or name - verified, not assumed.
 
+- FIX-FORWARD, RECORDED BECAUSE CI CAUGHT WHAT THE LOCAL GATE
+  COULD NOT: the first CI run on this PR (44632489921) FAILED in
+  verify-docs - not on the rule's judgment but on its instrument:
+  P5's plain `git ls-files` hit git's safe.directory protection on
+  the runner ("fatal: detected dubious ownership in repository at
+  '/__w/open-leo/open-leo'") because the checkout and the step
+  process do not share a uid. Locally the guard never trips (the
+  repo is owned by the invoking user) - the classic "works on the
+  developer's machine" split, visible only because nothing else in
+  the suite ever invoked git. Fixed in the same PR's follow-up: P5
+  invokes `git -c safe.directory=*`, git's documented escape hatch,
+  scoped to that one read-only call. Everything else about the run
+  matched the local gate (same counts up to P5).
 - RISK: LOW. No code touched; every test count is unchanged by
   construction (verify-docs remains ONE leg - P5 prints inside it,
   no new (ok) line); the moved files are read by no leg, and the

@@ -248,11 +248,21 @@ def check_template(lines, starts, heads, bad):
 def check_inventory(bad):
     """P5 (PR-200): the tracked .md set must equal the standard. Uses
     git ls-files (the repo, not the argv), so vendored/untracked
-    material is out of scope by definition."""
+    material is out of scope by definition. Measured on the FIRST CI
+    run (PR-200): a CI checkout trips git's safe.directory guard -
+    "fatal: detected dubious ownership in repository at
+    /__w/open-leo/open-leo" - because the runner's checkout and the
+    step process do not share a uid, so plain git REFUSES to run
+    there. Listing tracked paths is read-only and confined to this
+    repository, so git is invoked with -c safe.directory='*', the
+    documented escape hatch for exactly this case; it widens nothing
+    outside this one call."""
     import subprocess
     try:
-        out = subprocess.run(['git', 'ls-files', '-z', '--', '*.md'],
-                             capture_output=True, text=True, timeout=20)
+        out = subprocess.run(
+            ['git', '-c', 'safe.directory=*',
+             'ls-files', '-z', '--', '*.md'],
+            capture_output=True, text=True, timeout=20)
     except (OSError, subprocess.SubprocessError) as e:
         bad.append('P5 cannot list tracked .md files (%s)' % e)
         return

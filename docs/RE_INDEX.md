@@ -42,7 +42,7 @@ whether an uncorrected claim still stands means reading its records.
 
 # entries: 635 address keys (>=3 records) = 3435/7198 (47%)
 # of all address mentions; 144 field tokens (>=3) = 64%
-# of field mentions; 224 authored names (all of them). Built from 185 records.
+# of field mentions; 225 authored names (all of them). Built from 185 records.
 
 
 ## Addresses
@@ -4119,6 +4119,10 @@ whether an uncorrected claim still stands means reading its records.
 ### detect_leaks= - 1 record
         mentions: PR-27
         latest mention: PR-27
+
+### directory= - 1 record
+        mentions: PR-200
+        latest mention: PR-200
 
 ### disp= - 1 record
         mentions: PR-189
