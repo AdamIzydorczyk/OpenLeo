@@ -805,7 +805,7 @@ int main(int argc, char **argv)
             printf(usage_text, argv[0]);
             return 0;
         } else if (strcmp(argv[i], "--version") == 0) {
-            printf("OpenLeo ll_cutscene %s\n", LEO_VERSION);
+            printf("open-leo ll_cutscene %s\n", LEO_VERSION);
             return 0;
         } else if (argv[i][0] == '-' && argv[i][1]) {
             /* FIX-13 (X-12): unknown flags used to become FILE.IS. A

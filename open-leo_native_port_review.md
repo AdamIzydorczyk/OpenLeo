@@ -1,7 +1,7 @@
-# OpenLeo – Native Linux/Windows Port Review (AI-consumable work order)
+# open-leo – Native Linux/Windows Port Review (AI-consumable work order)
 
 > **Audience:** another AI coding agent that will implement fixes.
-> **Repo:** https://github.com/AdamIzydorczyk/OpenLeo (snapshot commit `a428cef`, "Lew Leon (1997) native port - public snapshot").
+> **Repo:** https://github.com/AdamIzydorczyk/open-leo (snapshot commit `a428cef`, "Lew Leon (1997) native port - public snapshot").
 > **Format:** each finding has a stable ID, a severity, its location, evidence, root cause, a fix (with a code sketch), and verification steps. IDs are referenced by the roadmap in §6.
 > Line numbers refer to commit `a428cef`. Re-locate them by symbol name if the code has moved.
 
@@ -123,7 +123,7 @@ make win XC=x86_64-w64-mingw32-gcc
 ### P-06 [MEDIUM] Windows `-mwindows` hides all diagnostics
 - **Where:** `Makefile` win target, plus every `fprintf(stderr, ...)` and `printf`.
 - **Issue:** fatal errors such as "cannot open data/…" are invisible. The exe just exits.
-- **Fix:** (a) on fatal paths call `SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Lew Leon", msg, NULL)`. (b) Log to `SDL_GetPrefPath("OpenLeo","LewLeon")/log.txt`, or use `SDL_LogSetOutputFunction`. (c) Add a `--console` flag on Windows: `if (AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole()) { freopen("CONOUT$","w",stdout); freopen("CONOUT$","w",stderr); }`. (d) Optionally add a `make win-console` target without `-mwindows`.
+- **Fix:** (a) on fatal paths call `SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Lew Leon", msg, NULL)`. (b) Log to `SDL_GetPrefPath("open-leo","LewLeon")/log.txt`, or use `SDL_LogSetOutputFunction`. (c) Add a `--console` flag on Windows: `if (AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole()) { freopen("CONOUT$","w",stdout); freopen("CONOUT$","w",stderr); }`. (d) Optionally add a `make win-console` target without `-mwindows`.
 
 ### P-07 [MEDIUM] Windows: non-ASCII paths and 32-bit `long` file offsets
 - **Issue:** the binary links **msvcrt** (verified via objdump), so `fopen` uses the ANSI code page. A UTF-8 path from SDL_main argv or `SDL_GetBasePath()` (e.g. `C:\Users\Łukasz\...`) fails. `ftell`/`fseek` use `long`, which is 32-bit on Win64. That is OK for the current file sizes, but it is fragile.

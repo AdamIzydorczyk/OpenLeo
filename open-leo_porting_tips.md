@@ -1,7 +1,7 @@
-# OpenLeo – Porting Tips for Modern Windows & Linux (AI-consumable guide)
+# open-leo – Porting Tips for Modern Windows & Linux (AI-consumable guide)
 
-> **Audience:** an AI or a developer continuing the native port of *Lew Leon* (1997, LongSoft, DOS) in https://github.com/AdamIzydorczyk/OpenLeo (commit `a428cef`).
-> **Companion document:** `OpenLeo_native_port_review.md` covers concrete bugs (IDs P-xx, E-xx, M-xx). This guide covers **how to port well**: patterns, pitfalls, and design advice derived from the code base. References to the review use its IDs.
+> **Audience:** an AI or a developer continuing the native port of *Lew Leon* (1997, LongSoft, DOS) in https://github.com/AdamIzydorczyk/open-leo (commit `a428cef`).
+> **Companion document:** `open-leo_native_port_review.md` covers concrete bugs (IDs P-xx, E-xx, M-xx). This guide covers **how to port well**: patterns, pitfalls, and design advice derived from the code base. References to the review use its IDs.
 > Each tip has an **evidence** section (what the code does today) and a **recommendation** section (what to do), and some include a code sketch.
 
 ---

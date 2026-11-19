@@ -19,13 +19,13 @@ BEGIN
     BEGIN
         BLOCK "040904B0"   /* en-US, Unicode codepage */
         BEGIN
-            VALUE "CompanyName",      "OpenLeo (Adam Izydorczyk)"
+            VALUE "CompanyName",      "open-leo (Adam Izydorczyk)"
             VALUE "FileDescription",  "Lew Leon - native port"
             VALUE "FileVersion",      "0.1.0.0"
             VALUE "InternalName",     "ll_cutscene"
             VALUE "LegalCopyright",   "Lew Leon (C) 1998 Adventure International / Longsoft"
             VALUE "OriginalFilename", "ll_cutscene.exe"
-            VALUE "ProductName",      "OpenLeo - Lew Leon"
+            VALUE "ProductName",      "open-leo - Lew Leon"
             VALUE "ProductVersion",   "0.1.0.0"
         END
     END

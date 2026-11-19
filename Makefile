@@ -2241,8 +2241,58 @@ else
 	@echo "verify-golden: SKIP (the port pose-dump half needs game data $(DATA); without a pose dump the golden contract cannot be exercised)"
 endif
 
-verify-all: verify verify-is-synth verify-skip verify-win verify-llrs verify-pcx verify-seq verify-pcm verify-mod verify-level verify-play verify-help verify-menu verify-sel verify-quit verify-save verify-music verify-utf8 verify-fuzz verify-platform verify-userdir verify-arch verify-golden verify-cmake
-	@echo "ALL TESTS PASSED (linux + windows + llrs)"
+# ---------------------------------------------------------------------------
+# OWNER RULING 2026-11-19 (recorded in HANDOFF.md section 2 rule 8): the
+# day-to-day gate is the LINUX suite. The Windows version is not tested
+# during implementation; it is tested ONCE, at the end of implementation,
+# as `make -k verify-windows` (below). Nothing is deleted - the legs and the
+# .exe rules stay exactly as they were, they are just out of the loop.
+#
+# Measured reason (2026-11-19, fixtures staged, per-leg wall times, all
+# legs EXIT=0): the full suite is 307 s and verify-win alone is 164.8 s -
+# 53.7% of it - because it is 23 cold wine starts plus five replays of the
+# same menu/movie chain. The remaining 22 legs sum to ~142 s and are
+# mutually independent. Porting risk lives in the shared C code, which the
+# Linux legs already cover end to end; the Windows legs prove the same code
+# builds and runs on the second target, which is a build-target question and
+# does not change while the port changes.
+#
+# Not yet switched off (stated honestly): the wine/.exe HALVES inside the
+# mixed legs (verify-skip, verify-music, verify-menu, verify-pcm,
+# verify-help, verify-cmake) still run as part of verify-all. They are the
+# next candidates; the end-of-implementation pass runs them either way.
+#
+# The Linux suite is also run IN PARALLEL, and that is safe: `make -k
+# -j"$(nproc)" verify-all`. Measured 2026-11-19: serial 124-159 s, -j22
+# 29-40 s, -j4 38 s, all rc=0 over identical 93-verdict sets. The legs'
+# scratch paths are disjoint (the one shared file is the read-only py-refs
+# oracle frame, built by a prerequisite). Do NOT parallelise the Windows
+# half: verify-win and verify-mod share one WINEPREFIX.
+#
+# WINTEST=1 puts the Windows legs back into verify-all for anyone who wants
+# the single old command: `make -k verify-all WINTEST=1` == the pre-2026-11-19
+# gate, byte for byte.
+ifeq ($(WINTEST),1)
+  WIN_LEGS := verify-win verify-mod
+else
+  WIN_LEGS :=
+endif
+
+verify-all: verify verify-is-synth verify-skip verify-llrs verify-pcx \
+            verify-seq verify-pcm verify-level verify-play verify-help \
+            verify-menu verify-sel verify-quit verify-save verify-music \
+            verify-utf8 verify-fuzz verify-platform verify-userdir \
+            verify-arch verify-golden verify-cmake $(WIN_LEGS)
+	@echo "ALL TESTS PASSED (linux half; Windows legs are deferred by the"
+	@echo "2026-11-19 ruling - the end pass is 'make -k verify-windows')"
+
+# The end-of-implementation Windows pass. One command, the complete old
+# suite: cross-build parity + everything proven under wine.
+verify-windows: verify-win verify-mod
+	@echo "WINDOWS PASS OK (verify-win + verify-mod; build 'make win' too)"
+
+verify-all-windows: verify-all verify-windows
+	@echo "FULL SUITE OK (linux + windows + llrs)"
 
 clean:
 	rm -rf dist
@@ -2257,5 +2307,6 @@ clean:
 .PHONY: py-refs verify-is-synth run win verify verify-skip verify-win verify-llrs verify-pcx \
         verify-seq verify-pcm verify-mod verify-level verify-play verify-help verify-menu \
         verify-sel verify-quit verify-save verify-music verify-utf8 verify-fuzz \
-        verify-platform verify-userdir verify-cmake verify-all level clean package package-win package-linux \
+        verify-platform verify-userdir verify-cmake verify-all verify-windows \
+        verify-all-windows level clean package package-win package-linux \
         verify-golden verify-arch golden_rig golden_rig_cd golden_rig_ddir

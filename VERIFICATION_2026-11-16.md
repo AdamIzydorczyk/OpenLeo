@@ -1,4 +1,4 @@
-# Full verification — OpenLeo port at `dfb2bf2` (after PR-46), 2026-11-16
+# Full verification — open-leo port at `dfb2bf2` (after PR-46), 2026-11-16
 
 Scope: the build, the whole test suite from a **fresh clone**, sanitizers on
 real data, a review of `tools/` and of every document, and a frame-capture

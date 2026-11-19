@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity version="0.1.0.0" name="OpenLeo.LewLeon" type="win32"/>
-  <description>Lew Leon - OpenLeo native port</description>
+  <assemblyIdentity version="0.1.0.0" name="open-leo.LewLeon" type="win32"/>
+  <description>Lew Leon - open-leo native port</description>
   <!-- P-14 (review): DPI awareness fixes blurry/tiny output on scaled
        displays (P-10 groundwork); the UTF-8 active code page makes the
        ANSI CRT APIs (fopen/fprintf) speak UTF-8, which is what the port

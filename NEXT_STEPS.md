@@ -1,12 +1,12 @@
-# OpenLeo native port — next steps
+# open-leo native port — next steps
 
 > **Start with HANDOFF.md** (the current map, rules, estimates, open
 > questions and the ordered task list). This file is the per-PR history:
 > each `## PR-nn` heading is one step with its evidence; the newest are at
 > the end, just before `## Next`. Numbering continues at PR-75.
 
-Working plan derived from `OpenLeo_native_port_review.md` (P/E/M) and
-`OpenLeo_porting_tips.md` (T). Update the status lines here as items
+Working plan derived from `open-leo_native_port_review.md` (P/E/M) and
+`open-leo_porting_tips.md` (T). Update the status lines here as items
 land; the review/tips files stay as the detailed work orders.
 
 ## Status as of 2026-11-14 (through PR-19, all pushed; later PRs have their own
@@ -803,7 +803,7 @@ ll_view/ll_audio as backend-private helpers).
   (83a5d740...38ff2, computed from the exact official libsdl.org URL;
   a deliberately broken pin fails the job - acceptance criterion).
   Both target sets are uploaded via actions/upload-artifact@v4 (name
-  openleo-<sha>, if-no-files-found: error). All 19 artifact names are
+  open-leo-<sha>, if-no-files-found: error). All 19 artifact names are
   built by `make`/`make win`/verify-leg dependencies even when legs
   SKIP - verified against the PR-26 CI log's target list.
 - NEW windows-smoke job (windows-latest, msys2/setup-msys2@v2 MINGW64):
@@ -1097,7 +1097,7 @@ ll_view/ll_audio as backend-private helpers).
   console; the A/B proves the ordering half deterministically.
 - Item 4 (CLI surface): ONE usage_text at file scope (extended with
   --skip-at/--help/--version; 'usage:' prefix kept - the smoke
-  greps it). --help/-h -> stdout exit 0; --version -> 'OpenLeo
+  greps it). --help/-h -> stdout exit 0; --version -> 'open-leo
   ll_cutscene 0.1.0' via new LEO_VERSION in ll_config.h (synced to
   the .rc's FILEVERSION 0,1,0,0, not the spec's 'dev' - an existing
   version string DOES exist there); unknown '-' args -> 'main:
@@ -21909,6 +21909,24 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   UPDATED; PR-173's item-(4) camel text UPDATED again).
 
 ## Deferred big items (deliberately out of scope so far)
+
+- **WINDOWS TESTING DEFERRED** (owner ruling, 2026-11-19 - full text in
+  HANDOFF section 2 rule 8). Implementation is Linux-first. `make -k
+  verify-all` now covers the LINUX legs only; the pure-Windows legs
+  `verify-win` and `verify-mod` moved into `make -k verify-windows`, to be
+  run ONCE at the end of implementation together with `make win`
+  warning-free and `.github/workflows/ci-windows.yml` (Actions "Run
+  workflow", or push a `windows-gate-*` tag). `make -k verify-all
+  WINTEST=1` still expands to the old full gate, and nothing about a
+  Windows leg was edited or deleted. Measured reason (2026-11-19, every
+  leg timed, fixtures staged): the suite is 307 s and `verify-win` alone
+  is 164.8 s = 53.7 %. It is not wine machinery (a wine start measures
+  0.1 s, the .exe decode of 1020 frames 0.1 s) - it is real-time-paced
+  demo/menu/level playback. Every engine path those legs exercise lives in
+  the one shared codebase and is covered by the Linux legs, so what they
+  add is second-target build proof. Do NOT fold them back into a per-PR
+  gate: they belong to the end pass, where the (gitignored) fixtures make
+  the byte-exact frame proofs under wine real.
 
 - P-03 single window + single SDL lifecycle - DONE for both: PR-10
   (ll_view session) + PR-12 (ll_audio session). The device itself is

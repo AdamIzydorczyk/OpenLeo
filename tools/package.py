@@ -30,7 +30,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIST = os.path.join(ROOT, "dist")
 
 README_SHARED = """\
-Lew Leon - OpenLeo native port {version} (built {date})
+Lew Leon - open-leo native port {version} (built {date})
 ========================================================
 
 This is a clean-room native recompile of the engine parts of Lew Leon
@@ -74,7 +74,7 @@ NOTES
 - Windows SmartScreen may warn "unknown publisher": the builds here
   are unsigned.
 - Game data remains copyright Adventure International / Longsoft
-  (1998); engine code here is the OpenLeo project source.
+  (1998); engine code here is the open-leo project source.
 """
 
 

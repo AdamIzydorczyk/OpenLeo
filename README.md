@@ -6,7 +6,7 @@ files stay out of day-to-day development (user-supplied CD, see
 vendored core under `data/` (see below) - never add more copyrighted
 game data.
 
-Layout (mirrors the upstream repo at github.com/AdamIzydorczyk/OpenLeo):
+Layout (mirrors the upstream repo at github.com/AdamIzydorczyk/open-leo):
 
 - `ported/` — the whole native codebase, shared by every target:
   `.IS` codec (`is_stream.*`, byte-exact vs `tools/is_decode.py`),
@@ -109,22 +109,29 @@ confirms, t/n/x are direct keys.
 
 ## Tests (both platforms)
 
+Day-to-day the gate is the **Linux** half only (`make verify-all`); the
+Windows legs are run ONCE at the end of implementation - owner ruling
+2026-11-19, recorded as HANDOFF.md section 2 rule 8. The legs themselves
+are unchanged and still exist; `make -k verify-all WINTEST=1` reproduces
+the old single-command gate.
+
 ```
-make verify-all
+make verify-all           # the Linux gate (day-to-day)
+make -k verify-windows    # the deferred Windows pass: verify-win + verify-mod
 # verify       linux --ppm frame 1020 == python reference (byte-exact)
 # verify-is-synth  data-free movie codec test: a synthesised .IS checked
 #              against hand-derived values (LUT1 polarity, palette-only
 #              redraws) - cannot pass by the twins agreeing
 # verify-skip  linux ESC-skip final frame == python reference
-# verify-win   same two proofs for the .exe, run under wine
+# verify-win   [Windows pass] same two proofs for the .exe, run under wine
 # verify-llrs  ported/llrs.c == tools/llrs_unpack.py on all 4 containers
 # verify-pcx   ported/ll_pcx.c == tools/pcx_dump.py on all 65 container PCX payloads
 # verify-seq   ported/ll_seq.c == tools/seq_parse.py on EVERY container .SEQ
 #              payload (grammar walk + patch rows + element shape geometry)
 # verify-pcm   ported/ll_pcm.c == tools/verify_pcm.py on all 23 PCM parallax layers
-# verify-mod   MOD player: parse of all 22 tracks == an independent
-#              spec-derived python summary; render deterministic linux == wine
-#              (determinism only - there is no independent mixer oracle)
+# verify-mod   [Windows pass] MOD player: parse of all 22 tracks == an
+#              independent spec-derived python summary; render deterministic
+#              linux == wine (determinism only - no independent mixer oracle)
 # verify-level level scene: .DES wiring + .SEQ/.MOV anims + scroll camera
 # verify-play  playable prototype (M4-B): real LEW.MOV physics + the level's
 #              own ground (.plt, or the sub-.des that carries the same
@@ -273,6 +280,6 @@ modern hardware).
   counts); section 8h covers the level scene.
 - `VERIFICATION_2026-11-16.md` - the full-suite audit behind PR-47..PR-51.
 - `TEST_REPORT.md`, `IMPROVEMENTS.md`, `PORT_DEEP_DIVE_2026-11.md`,
-  `IMPLEMENTATION_PLAN.md`, `OpenLeo_native_port_review.md`,
-  `OpenLeo_porting_tips.md` - historical work orders and snapshots; each
+  `IMPLEMENTATION_PLAN.md`, `open-leo_native_port_review.md`,
+  `open-leo_porting_tips.md` - historical work orders and snapshots; each
   carries a banner saying what superseded it.

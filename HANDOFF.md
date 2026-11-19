@@ -60,6 +60,8 @@ Section 8 lists them as tasks.
    -> EXIT=0 with named SKIPs); a new `LEO_*` hook is documented in README; a
    record in NEXT_STEPS.md (what was found, what was ported, what is
    estimated, what is open); push; check CI (`gh run list --workflow=ci.yml`).
+   NOTE (2026-11-19): the Windows halves of this gate - `make win`, the
+   wine legs - are deferred to the end-of-implementation pass by rule 8.
    EXCEPTION (owner, 2026-11-17): for a **pure-docs commit** - only `.md`
    files, nothing under `.gitignore`, `Makefile`, `tools/`, `ported/` or
    `.github/` - `make`, `make win`, `make ll_level` and `verify-all` are
@@ -81,6 +83,37 @@ Section 8 lists them as tasks.
    the port. (`windows-handheld` / `win` is different and stays in use:
    ADAM-HANDHELD is where the WASAPI audio measurement of PR-34/35 was
    taken.)
+8. **Linux-first: the Windows version is not part of the day-to-day gate**
+   (owner ruling, 2026-11-19). Implementation targets Linux; the Windows
+   target is verified ONCE, at the end of implementation, deliberately:
+
+   - end-of-implementation pass: `make -k verify-windows` (the Makefile
+     moved the pure-Windows legs - `verify-win`, `verify-mod` - out of
+     `verify-all` and into that target; `make -k verify-all WINTEST=1`
+     still expands to the old full gate, byte for byte), plus `make win`
+     warning-free and the `.exe`/MSYS2 job in
+     `.github/workflows/ci-windows.yml` ("Run workflow", or push a
+     `windows-gate-*` tag). `make -k verify-all-windows` = both at once.
+   - per-PR gate that REMAINS: `make` warning-free; `make -k
+     -j"$(nproc)" verify-all` EXIT=0 with the fixtures AND fixture-free
+     (parallel measured 2026-11-19: 124-159 s serial -> 29-40 s, identical
+     verdict sets; the Windows/wine half stays serial); `ci.yml` (now
+     `linux` + `asan` only) stays green. This rule supersedes the
+     `make win` and Windows-leg halves of rule 4 for day-to-day work.
+
+   Measured reason (2026-11-19, fixtures staged, every leg timed, all
+   EXIT=0 except as noted): the local suite is 307 s and `verify-win`
+   alone is 164.8 s = 53.7 % of it. The cost is neither the compiler nor
+   wine machinery - a wine start measures 0.1 s and the .exe decode of
+   1020 frames 0.1 s - it is real-time-paced demo/menu/level playback.
+   The port is ONE shared codebase, so every engine path those legs
+   exercise is already exercised by the Linux legs; what the Windows half
+   adds is second-target build proof, which does not change while the
+   port changes. Honest note on the same run: one full-gate run failed at
+   `Makefile:139` (the wine `--skip-at 10` half of `verify-win`), a leg
+   that had passed ~25 min earlier when run on its own - it is the
+   suite's most expensive and wall-clock-paced leg, which is itself an
+   argument for running it on purpose, once, instead of per PR.
 
 ## 3. Machine layout and commands
 
@@ -498,13 +531,40 @@ wording):
 in `reference/video/` on disk; if they are ever lost, the `yt-dlp` lines
 under "Reference captures" rebuild them (pip install yt-dlp).
 
-Build and test:
+Build and test (day-to-day, Linux-first - rule 8):
 
     make                      # ll_cutscene (linux);  make ll_level  builds the level tool
-    make win                  # Windows .exe (MinGW, static)
-    make -k verify-all DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files
+    make -k -j"$(nproc)" verify-all \
+         DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files
     make -k verify-all DATA=/tmp/opencode/nope HD=/tmp/opencode/nope   # fixture-free
     make verify-play verify-level ...                                 # single legs
+
+The day-to-day gate is run IN PARALLEL (owner, 2026-11-19, measured):
+serial 124-159 s vs `-j22` 29-40 s and `-j4` 38 s, every run rc=0 with
+the SAME 93 verdicts. Safe because the legs' scratch paths are disjoint -
+the one shared file is the read-only py-refs oracle frame, produced by a
+prerequisite. Caveat stated honestly: raw log TEXT is not bit-reproducible
+under load (one music-pump verdict line prints a wall-clock-derived
+duration; its assertions, e.g. peak=12706, do not move), so gate on rc and
+the `(ok)` counts, which is what this project has always done. The Windows
+half stays SERIAL: verify-win and verify-mod share one WINEPREFIX.
+
+The Windows pass, run ONCE at the end of implementation (rule 8, owner
+ruling 2026-11-19 - not part of the day-to-day gate):
+
+    # staging the pass needs: verify-mod reads three MOD records out of the
+    # SOUND container; without them it prints its named SKIP and proves
+    # nothing (measured 2026-11-19: verify-mod alone = 0.2s, zero verdicts).
+    M="$DATA/SOUND"; for m in TUNGA.MOD RAN.MOD ENA2.MOD; do
+      python3 tools/pull_record.py "$M" "$m" "$M/$m"; done
+    make win                                        # cross build, warning-free
+    make -k verify-windows DATA=... HD=...          # verify-win + verify-mod,
+                                                    # WITH the game data
+    make -k verify-all-windows                      # both halves at once
+    make -k verify-all WINTEST=1                    # the old full gate
+    # CI side of the same pass: .github/workflows/ci-windows.yml (cross .exe
+    # build + the MSYS2 native smoke), run from Actions or by pushing a
+    # windows-gate-* tag. ci.yml itself is linux + asan only now.
 
 Headless run of a level (CI style; frames are dumped as PPM at the logical
 320x200):
@@ -6628,9 +6688,14 @@ Measuring on the reference video (episodes 1-11 of the playlist
 - [ ] one logical step, evidence recorded (machine code address / data file /
       timestamp), estimates named in code AND in NEXT_STEPS
 - [ ] data-free hand-derived test + mutation check
-- [ ] `make`, `make win` warning-free
-- [ ] `make -k verify-all` EXIT=0 with fixtures and fixture-free - not run
-      for a pure-docs commit (section 2 rule 4's exception, 2026-11-17)
+- [ ] `make` warning-free (`make win` and the wine legs belong to the
+      end-of-implementation Windows pass, section 2 rule 8)
+- [ ] `make -k -j"$(nproc)" verify-all` EXIT=0 with fixtures and
+      fixture-free (serial is fine too; the Windows/wine legs stay serial) -
+      not run for a pure-docs commit (section 2 rule 4's exception,
+      2026-11-17)
+- [ ] end-of-implementation only: `make win` warning-free,
+      `make -k verify-windows`, and ci-windows.yml green
 - [ ] README hook list updated if a `LEO_*` variable was added
 - [ ] NEXT_STEPS.md record; this file's sections 1, 6, 7, 8 updated
 - [ ] commit "PR-NN: ..." ; `git push`; `gh run list --workflow=ci.yml` green
