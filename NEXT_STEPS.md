@@ -15762,57 +15762,59 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-185 IS THE CONTROLLER/INPUT HALF OF THE EVENT SYSTEM
-  (PR-176's two live controller items, now paired with the
-  event alphabet PR-182..184 built): (A) PR-176 item (4) -
-  the [obj+0xa5/a6/a7] BUTTON-BIT fields vs the port's
-  input model (the controller class reads hardware bits;
-  pair them with the ids the controller SENDS: the id 1/2/
-  13 senders from the PR-183 histogram at 0x36xxx/0x28xxx/
-  0x45cxxx sit inside provider clusters - name which ones
-  are the player-controller path); (B) PR-176 item (2)'s
-  remainder - WHO WRITES [obj+0xee] >= 10 (jump-table
-  cases 10/11 = K_F11/K_F12 unreachable): THREE contexts
-  for [obj+0xee] are now known (the controller jump-table
-  index PR-176 F?; the id-25 gate `cmp [obj+0xee],0 /
-  [obj+0xf2]` in the 0x2f460 family; the 0x3dcb0 wrapper
-  passing obj+0xee to 0x45200 - a record-array handle
-  {base [obj+0xf2], count [obj+0xf6]}) - scan every
-  [obj+0xee]/[obj+0xf2]/[obj+0xf6] writer and settle it;
-  (C) THEN the quick data-half: the deeper consumer-form
-  scan (`mov reg,[node+4]` then
-  `cmp reg,imm` - the 0x54560/0x1e130 style) to close ids
-  17/29/30 (PR-184 item (1)). IF any of these lands a
-  code-visible rule the port lacks (the button-bit law is
-  the prime candidate - the port HAS an input model, PR-
-  15x-era), ship the fix with its hand-derived test +
-  mutation battery per the standing rules; else count.
-  THEN, in order: the LINK/GROUP field semantics [obj+
-  0x112]/[obj+0x30]/[obj+0x3c/40]/[obj+0xee/f2] + ds:
-  0xcef8c (PR-184 item (2)); the relation-helper bodies
-  0x52eb0/0x534e0/0x45620 (PR-177 item (1) remainder);
-  the class-byte value map + the 31 family-name -> class-
-  table mapping (PR-181 item (2)); 0x45380's list builder
-  + the 13-byte record layout + 0x455a0's distance
-  formula (PR-181 item (3)); the +0x240/+0x2cc computed-
-  dispatch mechanism (shared PR-180 item (1)); the token->
-  family bookkeeping map (PR-184 item (3)); PR-176 items
-  (1)/(3)-remainder/(5). Carried reads unchanged: the id-9
-  FEED sender (PR-183 item (4)); the id-7/18/19/26/28/31/
-  32 arm bodies beyond the decode sites (PR-184 item (4));
-  the byte-form raise bit-numbering (PR-184 item (5));
-  the [rec+4] guards + ds:0xcec70 semantics (PR-183 item
-  (3) remainder); the player-side same-state row seek
-  (PR-174 item (2), frames-blocked); the energy class-
-  range rule (PR-181 item (4)); the 0x2c670 placement
-  model; the ratio-law behaviour study (PR-180 item (2),
-  video-gated); the other +0xcc drivers (PR-180 item (3));
-  the state-copy helper (PR-180 item (4)); the [obj+0xb6]
-  bit-2 setter; the ds:0xcf2c8 registry; the CFG windows;
-  the +0x54 hook bodies; 0x550c0's body; the 0x55130
+- PR-186 IS THE LION-FLAG/INPUT-SOURCE FOLLOW-UP (PR-185's
+  five new items, in order): (1) the LION FLAG FAMILY
+  [obj+0x12a]/[obj+0x12e]/[obj+0x132] - consumers and
+  readers of the three flags (setters read: id-12 (PR-183),
+  id-29 (PR-185), id-18+guard (0x241aa)); the id-17 arm
+  body at 0x241e2; these fields live in the same 0x106..
+  0x132 block as [obj+0x106] (PR-176 queue flag) and
+  [obj+0x11a]/[obj+0x116]/[obj+0x11e] (PR-179 mode enum) -
+  map the whole block as the LION STATE BLOCK (mode +
+  flags), then join to the port's state model and rule on
+  any gap; (2) the INPUT-SOURCE IDENTITY: who is the object
+  whose +0x8 dword the 0x54910 tail copies into [obj+
+  0xa5..a8] (0x54be6 - trace ecx's producer up; test the
+  ds:0xcef40[+xxx] hypothesis) and who writes THAT field
+  (the hardware/BIOS hook) - settles the input-model
+  bottom; (3) the exact per-level gate values: trace the
+  providers that call the 0x1e0dc/0x50162/0x2dfe9 tails
+  with edx (create-record arguments; ZARIA.01's words =
+  ds:0xcef5c/0xcef60 - pin what the ZARIA provider passes
+  and where the value comes from in the HD/level data);
+  (4) the class NAMES of the 2 wrapped-getter tables
+  0x9f668/0xa0624 (joins PR-181 item (2): their provider
+  clusters + the name-block); (5) the id-13/15/21/23
+  deep-form arms (owners unverified). IF any of these lands
+  a code-visible rule the port lacks (the LION-state block
+  is the prime candidate), ship the fix with its
+  hand-derived test + mutation battery per the standing
+  rules; else count. THEN, in order: the LINK/GROUP fields
+  [obj+0x112]/[obj+0x30] + ds:0xcef8c (PR-184 item (2)
+  remainder); the relation-helper BODIES (PR-177 item (1)
+  remainder - now known as controller methods 0x45250/
+  0x452d0/0x453d0); the class-byte value map (PR-181 item
+  (2)); 0x45380's list builder + the 13-byte record layout
+  + 0x455a0 (PR-181 item (3)); the +0x240/+0x2cc computed
+  dispatch (PR-180 item (1)); the token->family
+  bookkeeping map (PR-184 item (3)); PR-176 items (1)/(3)
+  remainders. Carried reads unchanged: the id-9 FEED sender
+  (PR-183 item (4)); the targeted-arm bodies beyond decode
+  sites (PR-184 item (4)); the byte-form raise
+  bit-numbering (PR-184 item (5)); the [rec+4] guards +
+  ds:0xcec70 semantics; the id-25 pair pools (verify the
+  shared [obj+0xf2] arrays); the player-side same-state row
+  seek (PR-174 item (2), frames-blocked); the energy
+  class-range rule (PR-181 item (4)); the 0x2c670 placement
+  model; the ratio-law study (PR-180 item (2), video-
+  gated); the other +0xcc drivers; the state-copy helper;
+  the [obj+0xb6] bit-2 setter (NOTE: the 0x54910 tail
+  writes its bit 4 from [obj+0xba]*[obj+0x6d] < 0 - read
+  the rest of that tail); the ds:0xcf2c8 registry; the CFG
+  windows; the +0x54 hook bodies; 0x550c0; the 0x55130
   tail; the +0x4c/+0x1c recount; the 73 dead-0x54910
-  tables; the +0xa0 census oddities; everything else in
-  the ledger's carried list.
+  tables; the +0xa0 census oddities; everything else in the
+  ledger's carried list.
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -21917,7 +21919,17 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   is a record-array handle {base [obj+0xf2], count
   [obj+0xf6]}, so there the sender IS the record-array
   owner); the 'who writes >= 10' question is now PR-185's
-  (B).] (3) the queue
+  (B).] [CLOSED BY PR-185 F3: the >=10 writer IS
+  a getter WRAPPER - exactly 2 tables (0x9f668/0xa0624,
+  also +0x14=0x550a0) install +0x8c = 0x613d0, whose four
+  arms (0x613f0/0x6141b/0x61446/0x61471) pre-set [obj+
+  0xee] := 10/11 from button bits ([obj+0xa6] 0x02/0x01/
+  0x40, [obj+0xa7] 0x04) gated by the NEW words ds:
+  0xcef84/0xcef88, clear the bits, then `call 0x504e0`
+  (the chain may override by priority) - cases 10/11 =
+  K_F11/K_F12 REACHED; those words are armed only by the
+  signal-pair combo handler 0x6149f (K_F4+K_F9 -> 0xcef84;
+  K_F5+K_F3 -> 0xcef88).] (3) the queue
   block: producers of [obj+0xd2] entries, the [obj+0xe6]/
   [0xea] pair's role beyond 0x550a0's per-step zero, the
   +0xf8 / +0x3c verbs, the [obj+0x106] flag; [PART-CLOSED
@@ -21925,8 +21937,23 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   IS the relationship selector's candidate + distance law
   (see PR-181 F2); the queue producers, the +0xf8/+0x3c
   verbs and the 0x106 flag stay.] (4) [obj+0xa5/
-  a6/a7] button-bit assignment vs the port input model; (5)
-  the ds:0xcef5c..0xcef80 value source, and the decor class
+  a6/a7] button-bit assignment vs the port input model;
+  [CLOSED BY PR-185 F2: the bytes ARE the hardware input
+  state - the 0x54910 motion-synth tail (0x54be6-0x54be9)
+  copies `[obj+0xa5..a8] := [[input obj]+8]' per call;
+  the getter chain is exactly 11 F6 tests (10 legs + the
+  [obj+0xa5] bit-0x2 queue gate); PORT VERDICT: the port's
+  ll_play_keys keyword channel = the synthesized-keys half
+  (PR-173 F4), the gated ordinal half adds signal names by
+  level authoring - no rule missing, no port change.] (5)
+  the ds:0xcef5c..0xcef80 value source [PART-CLOSED BY
+  PR-185 F2: all 12 gate words are STATIC 0 with ONLY
+  level-provider writers - tails at 0x1e0dc/0x1e0e4 (the
+  ZARIA provider cluster!), 0x50162, 0x3b1f2 (`mov edx,1`
+  right before), 0x2dfe9, xor/or-imm 0x39e33/0x39e68/
+  0x3b4dc, plus runtime self-clears 0x614ca/0x61505; the
+  exact per-level VALUES (the create-record argument)
+  stay], and the decor class
   0x98278's third-format verb layout + the 0x23ed0/0x23ea0/
   0x23e00 reads + the rec-class 0x98e7c pair semantics (the
   A_DEAD block at 0x240d0 also calls 0x524e0 - in PR-167's
@@ -22455,7 +22482,12 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   implementations, 89 distinct pairs; singleton BEHAVIOURS
   named where their consumer bodies were read (the id-25
   seven-family set, id-7/28/31/32 arms).] (4) [obj+0x70]/[obj+0x7c] array
-  producers, [mgr+0x394], the [obj+0x2c] store at 0x1eb9a
+  producers, [mgr+0x394] [PART-CLOSED BY PR-185 F1:
+  mgr+0x394 = the manager's TRACKED object, read by the
+  controller sensor verbs +0x20/+0x24: 0x52a00 = Manhattan
+  distance self-vs-tracked via 0x52d30; 0x52a50 calls
+  [class(tracked)+0x68]; the field's writer stays], the
+  [obj+0x2c] store at 0x1eb9a
   (class verb +0x8's result), caller context of 0x1eba0/
   0x380f5. (5) entry-boundary honesty inside 0x4b4xx-
   0x4bexx: 0x4b500's function has only in-region branch
@@ -23822,7 +23854,10 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   families guard on link equality/small codes and byte-
   raise [obj+0x64..] key bits); ids 17/29/30 remain (no
   static consumer under the cmp[reg+4],imm8 form) - moved
-  to PR-184 item (1).] (2) The semantics
+  to PR-184 item (1).] [CLOSED WHOLLY BY PR-184 F1 +
+  PR-185 F3: every id on this list now has its consumer
+  named (17/29 in the controller tables) or dissolved
+  (id 30).] (2) The semantics
   of the [obj+0xc2]/[0xc6] pair and [obj+0x6d]/[0x71]
   pair under SET/ADD/CLR (PR-171 fields - the raw law is
   here, the meaning not). (3) The [rec+4] guard values
@@ -24003,7 +24038,14 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   KEY-BIT RAISES in the [obj+0x64] live-set neighborhood
   (PR-17x). id 25 = a PAIR/ATTACHMENT SYNC SIGNAL: the
   sender broadcasts with its [f2]-link as the parameter;
-  objects sharing the link react + gate themselves. The
+  objects sharing the link react + gate themselves.
+  [EXTENDED BY PR-185 F3: an EIGHTH id-25 arm exists in
+  the deeper mov+cmp form - consumer 0x2e8e0 (the +0x10 of
+  controller table 0x9c958) delegates to 0x50d60 then
+  decodes 25 (0x2e8ed) into an energy/[obj+0xad] arm; the
+  SEVEN count was FORM-partial (the 83/[reg+4] scan misses
+  that form, also used by 0x24170/0x32130); the pair-sync
+  LAW stands for the seven byte-identified ones.] The
   id-decode scan also
   pins: id 7 -> 0x1ec90/0x1f110 (which the SAME-cluster
   providers 0x1ec46/0x1ec5f SEND via 0x4bc40 with edx =
@@ -24063,7 +24105,13 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 
 - OPEN ITEMS COUNTED (5 new). (1) The deeper consumer-form
   scan (mov reg,[node+4] then cmp reg,imm8/imm32) to close
-  ids 17/29/30 (and re-verify id 20's owner). (2) The
+  ids 17/29/30 (and re-verify id 20's owner). [CLOSED BY
+  PR-185 F3: the deeper-form scan (`mov reg,[node+4]` then
+  `cmp reg,imm`) lands id 17 -> 0x24170 (the +0x10 of
+  controller table 0x988ec) and id 29 -> 0x32130 (table
+  0x9d338); id 30 DISSOLVES - its every hit is position/
+  audio arithmetic, not an event; no consumer of id 30
+  exists.] (2) The
   LINK/GROUP field semantics: [obj+0x112] (forward link),
   [obj+0xee]/[obj+0xf2]/[obj+0xf6] (id-25 gate + the
   0x45200 record array {base [f2], count [f6]} - the two
@@ -24075,7 +24123,12 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   [obj+
   0x40] (count/array - children in 0x55720, index into ds:
   0xcef8c in 0x3db50!), [obj+0x30] (relay target, PR-183
-  id-15 setter), ds:0xcef8c; the 0x40ca0 0x3c-block
+  id-15 setter), ds:0xcef8c [PART-BY PR-185 F4: [obj+
+  0xee] is FAMILY-MULTIROLE - controller ordinal (the 12+2
+  getter classes), record-array handle (0x45200), id-25
+  pair-sync gate flag; store-form writer census 127/47/32
+  for [ee]/[f2]/[f6] in EVIDENCE; the link fields [obj+
+  0x112]/[obj+0x30] and ds:0xcef8c stay]; the 0x40ca0 0x3c-block
   arithmetic. (3) The full token->family map (135 globals
   x 17 runs x containing functions) - now only a book-
   keeping map (the magic question dissolved). (4) The id-7
@@ -24151,6 +24204,236 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   last carrier); 8 brackets (PR-183 F3 x3 CORRECTED; PR-
   183 items (1)/(3) PART-CLOSED; PR-177 item (3) PART-
   CLOSED; PR-176 items (2)/(3) EXTENDED/PART-CLOSED).
+
+## PR-185 — THE CONTROLLER IS THE STAGE LION (12 CLASS TABLES
+## INSTALL THE +0x8c KEY GETTER 0x504e0, 2 MORE INSTALL THE
+## PRE-SEEDING WRAPPER 0x613d0 THAT SETS [obj+0xee] := 10/11 =
+## THE K_F11/K_F12 ANSWER - PR-176 ITEM (2) CLOSED; THE
+## BUTTON BYTES ARE THE RAW HARDWARE INPUT DWORD COPIED AT THE
+## 0x54910 MOTION-SYNTH TAIL - PR-176 ITEM (4) CLOSED), THE
+## GATE WORDS ARE LEVEL-AUTHORED, AND THE id-17/29 CONSUMERS
+## SIT IN THE CONTROLLER TABLES WHILE id 30 DISSOLVES
+## (PR-184 ITEM (1) CLOSED) (READING, NO PORT CODE, NO
+## BEHAVIOUR CHANGE)
+
+- WHY. PR-184's Next specced the controller/input half: (A)
+  PR-176 item (4) (the [obj+0xa5/a6/a7] button-bit fields vs
+  the port's input model) + naming which of the id 1/2/13
+  senders are the player-controller path; (B) PR-176 item
+  (2)'s remainder (who writes [obj+0xee] >= 10); (C) the
+  deeper consumer-form scan for ids 17/29/30 (PR-184 item
+  (1)). Method: the elf dword-scan of the 178 marker tables
+  at slot +0x8c; the 74-method map of the Zaria table
+  0x96960 cross-matched against all 0x52b10/0x4bc40 call
+  sites; the byte scan for F6 bit-tests at [reg+0xa5..a7];
+  the packed-dword occurrence scan for the gate globals; the
+  mov-form consumer scan (`mov reg,[node+4]` (8B mod=01
+  disp8=4, plus the SIB shape) then `cmp reg,imm` via
+  83/81 /7 - the 0x54560/0x1e130 style PR-183 read, and the
+  form PR-184's 83/[reg+4] census misses); a store-form
+  writer census for [reg+0xee]/[f2]/[f6].
+  controller_evidence.py re-runs every count. Docs only.
+
+- FINDING 1, THE CONTROLLER IS THE STAGE LION. Exactly 12
+  class tables install the getter at +0x8c = 0x504e0:
+  0x96960, 0x97970, 0x97a98, 0x988ec, 0x98f34, 0x9b4d4,
+  0x9c958, 0x9d338, 0x9e134, 0x9f170, 0x9f540, 0xa2218 -
+  the TWELVE identified by PR-176 F3 (stage LIONS and their
+  death-module doubles). All 12 share +0x14 = 0x550a0 (the
+  per-step [obj+0xe6]/[0xea] zero - installed as the PUMP
+  verb, PR-182's slot), +0x3c = 0x230a0, +0x78 = 0x50f80;
+  79 of 178 tables carry +0x14 = 0x550a0. The ZARIA.01 one
+  is 0x96960 (its immediate-loads sit at 0x1ff18/0x20498
+  inside the 0x1dff-0x204xx provider cluster = the ZARIA
+  registration/init cluster whose token-init run PR-184
+  counted at 0x1dfc0 x21). Its vtable: 74 distinct method
+  bodies - INCLUDING the PR-181 relation/selector machinery
+  (0x45250/0x452d0/0x45320/0x453d0/0x45400/0x45120 sit at
+  slots +0xbc..0x124 region and again at +0x2bc..0x2d4 -
+  the multi-subtable class record PR-177's structure): the
+  relation helpers ARE controller methods. THE CONTROLLER
+  EVENT-SEND CENSUS (the (A) pairing asked): across all 74
+  method ranges exactly ONE enqueue-helper call exists -
+  0x50c60 (slot +0x118 0x50c50): `mov edx,5; mov
+  ebx,[obj+0x6d]; xor ecx,ecx; call 0x52b10` - the LION
+  enqueues id 5 ONCE, with the sender taken from its OWN
+  [obj+0x6d] link field (PR-183's id-6/13 pair field) -
+  and ZERO 0x4bc40 broadcasts. So the id 1/2/13 literal
+  senders (0x36xxx/0x28xxx/0x45cxxx) ARE NOT the controller
+  path: the player-controller object sends exactly id 5. THE
+  [mgr+0x394] ANSWER (PR-177 item (4) part): slots +0x20 =
+  0x52a00 reads ds:0xcef40[+0x394] and calls 0x52d30 twice,
+  then |tracked.x - self.x| + |tracked.y - self.y| (the
+  abs form 29/cdq/xor/sub) - MANHATTAN DISTANCE from the
+  manager's TRACKED object (the player anchor); +0x24 =
+  0x52a50 fetches the same tracked object and calls
+  [class(tracked)+0x68]. The controller's sensor verbs.
+
+- FINDING 2, THE BUTTON BYTES ARE THE HARDWARE INPUT DWORD
+  AND THE GATE WORDS ARE LEVEL-AUTHORED (PR-176 item (4)
+  CLOSED; item (5) PART). At the 0x54910 MOTION SYNTHESIZER
+  tail (0x54be6-0x54be9, byte-exact): `mov eax,[ecx+0x8];
+  mov [ebx+0xa5],eax` - the object's button bytes
+  [obj+0xa5..a8] ARE a COPY of the input object's state
+  dword at +0x8, refreshed on every motion-synth call (the
+  x115 PR-173 census = every mover consults it). The getter
+  chain contains exactly 11 F6 bit-tests at [ebp+0xa5/a6/
+  a7] (0x50504-0x50610): 10 priority-chain legs (PR-176 F1
+  exact) + the first-gate test [obj+0xa5] bit 0x2 that
+  routes the event queue to 0x551f0 (PR-176 F2). The ten
+  chain-gate words ds:0xcef5c..0xcef80 (and the two new
+  ones, F3 below) have STATIC VALUE 0 in the image; their
+  only writers are LEVEL PROVIDER functions - the tails at
+  0x1e0dc/0x1e0e4 (the ZARIA provider cluster!), 0x50162,
+  0x3b1f2 (with `mov edx,1` right before - a hard-set),
+  0x2dfe9, the xor-imm sites 0x39e33/0x39e68, the or-imm
+  0x3b4dc - plus runtime self-clears (0x614ca/0x61505).
+  WHICH WORDS A LEVEL AUTHORS = WHICH K_F* SIGNAL ORDINALS
+  EXIST IN THAT LEVEL (each leg fires only on button bit
+  AND its global non-zero). PORT NOTE: the port's
+  ll_play_keys feeds the keyword conditions directly
+  (ll_play.c's cond table + the K_* names parsed from the
+  state rows) - that channel corresponds to the SYNTHESIZED
+  KEYS half of the getter merge (PR-173 F4's motion legs,
+  0xa5 bit 0 -> K_FIRE bit 39 etc.); the ordinal/K_F half
+  adds signal-VOCABULARY names gated by level authoring, and
+  the walkthrough's ZARIA.01 weapon keys work - so Zaria's
+  gate words are authored non-zero. The port models no gate
+  word; at ZARIA.01 that changes nothing observable (the
+  K_F* signal rows are keyword-name rows either way).
+  Verdict: no rule the port lacks; no port change.
+
+- FINDING 3, K_F11/K_F12 - THE PRE-SEEDING WRAPPER (PR-176
+  item (2) CLOSED). Exactly 2 more class tables install
+  +0x8c = 0x613d0: 0x9f668, 0xa0624 (both also carry
+  +0x14 = 0x550a0 - the controller shape). 0x613d0
+  (byte-exact, 0x613d2-0x6148f): FOUR arms -
+  [obj+0xa6] & 0x02 with ds:0xcef84 != 0 -> `mov
+  [obj+0xee],0xa` and clear the bit; [obj+0xa7] & 0x04 same
+  gate -> ee := 10; [obj+0xa6] & 0x01 with ds:0xcef88 != 0
+  -> `mov [obj+0xee],0xb`, clear; [obj+0xa6] & 0x40 same
+  -> ee := 11; THEN `call 0x504e0` - the chain may
+  OVERWRITE ee with a lower-numbered (higher-priority)
+  winner, else 10/11 stand and the jump table ORs bits
+  41+ee = K_F11/K_F12 (PR-176 F1's table, cases 10/11 now
+  REACHED). The new gate words ds:0xcef84/0xcef88: armed
+  only by 0x6149f, a SIGNAL-PAIR COMBO handler - if
+  ds:0xcef68 AND ds:0xcef7c (the K_F4/K_F9 leg words) are
+  both set it zeroes them, sets 0xcef84 := 1 and calls
+  0x44910 (edx=10, from mgr[+0x38c]); the mirrored pair
+  0xcef6c+0xcef64 (K_F5/K_F3) arms 0xcef88 (edx=11). The
+  deep-form consumer scan additionally resolves PR-184
+  item (1): id 17 -> 0x24170, the +0x10 of table 0x988ec
+  (one of the 12): `mov ebx,[node+4]` then id 18 with
+  sender=0 AND arg=0 -> `[obj+0x12a] := 1` (PR-183's LION
+  id-12 field!), gated by [obj+0x5c] NOT in {22,23};
+  [obj+0x12a] != 0 -> `[obj+0x132] := 1`; id 17's own arm
+  at 0x241e2 (body untraced, counted); id 29 -> 0x32130,
+  the +0x10 of table 0x9d338 (another of the 12): id == 29
+  -> `[obj+0x12e] := 1`, else delegates to 0x50d60 (the
+  PR-183 family-B consumer); id 30 DISSOLVES - every
+  deep-form hit is arithmetic noise, not an event: 0x2f92e
+  compares position-x deltas against [obj+0xee] (distance)
+  and on success sets [obj+0xad] := -1 (energy kill!),
+  0x69axx/0x6a4xx are audio volume constants (50/75/85/
+  100). No engine domain consumes an event id 30. THE
+  FORM-PARTIAL CORRECTION: an EIGHTH id-25 arm exists in
+  the mov-form - consumer 0x2e8e0, the +0x10 of controller
+  table 0x9c958, delegates to 0x50d60 then `mov edx,
+  [node+4]; cmp edx,25` (0x2e8ed) into an energy/[obj+
+  0xad] arm: PR-184's 'SEVEN families' under-counted (its
+  83/[reg+4] scan misses the mov+cmp shape used by
+  0x24170/0x32130/0x2e8e0); the pair-sync pairing law
+  stands for the seven byte-identified ones.
+
+- FINDING 4, [obj+0xee] IS FAMILY-MULTIROLE (PR-184 item
+  (2) part). Store-form writer census: 127 writes at
+  [reg+0xee], 47 at [f2], 32 at [f6] - the field means
+  per-family: the controller ordinal (the 12+2 getter
+  classes), the record-array handle ({base [f2], count
+  [f6]} via 0x45200, PR-184 F1), the id-25 pair-sync gate
+  flag (0x2f46x sets :=1 right after broadcasting; 0x3c220
+  sets [f6] := 1). No cross-family interference at
+  ZARIA.01 (the families here are the ZARIA LION + the
+  decor physics pairs).
+
+- OPEN ITEMS COUNTED (5 new). (1) The EXACT per-level gate
+  values: the provider callers that pass edx into 0x1e0dc/
+  0x50162/0x2dfe9 (create-record argument tracing; ZARIA.
+  01's own words 0xcef5c/0xcef60). (2) The class NAMES of
+  the 2 wrapped tables 0x9f668/0xa0624 (joins PR-181 item
+  (2)'s class-byte/name map). (3) The LION FLAG FAMILY
+  [obj+0x12a]/[obj+0x12e]/[obj+0x132]: setters read
+  (id-12/id-29/id-18 arms + the 0x241aa gate), consumers
+  and the id-17 arm 0x241e2 un-read. (4) The input-object
+  IDENTITY: whose object's +0x8 is the source at 0x54be6
+  (who is ecx at the 0x54910 tail; the ds:0xcef40[+xxx]
+  guess) + who writes IT (hardware/BIOS hook). (5) The
+  id-13/15/21/23 deep-form arms the same scan revealed
+  (id 13 at 0x1e582/0x2c543, id 15 x11, id 21/23 singles)
+  - unverified owners. CLOSED: PR-176 item (2) (the >=10
+  writer = 0x613d0, 2 classes); PR-176 item (4) (the
+  hardware-input-dword law + port verdict); PR-184 item
+  (1) (ids 17/29 NAMED, id 30 dissolved); PR-183 item (1)
+  now CLOSED WHOLLY (with PR-184 F1). PART-CLOSED: PR-176
+  item (5) (writer law found; values stay); PR-177 item
+  (4) ([mgr+0x394] = the tracked-object sensor anchor;
+  producers/0x1eb9a stay); PR-184 item (2) (the [ee]/[f2]/
+  [f6] role map + census; [obj+0x112]/[obj+0x30]/ds:
+  0xcef8c stay). EXTENDED (1 correction bracket): PR-184
+  F1's seven-family id-25 count (the 8th mov-form arm).
+  CARRIED unchanged: the exact singleton BEHAVIOURS
+  remainder; the relation-helper BODIES (now known as
+  controller methods); the class-byte map; 0x45380/0x455a0;
+  the energy class-range rule; the 0x2c670 placement; the
+  [rec+4]/ds:0xcec70 semantics; the +0x240/+0x2cc computed
+  dispatch; the ratio-law study (video-gated); the other
+  +0xcc drivers; the state-copy helper; the [obj+0xb6]
+  bit-2 setter; the ds:0xcf2c8 registry; the player-side
+  row seek (frames-blocked); the CFG windows; the +0x54
+  hook bodies; 0x550c0; the 0x55130 tail; the +0x4c/+0x1c
+  recount; the 73 dead-0x54910 tables; the +0xa0 census
+  oddities; the id-9 FEED sender; the targeted-arm bodies;
+  the byte-form raise bit-numbering; PR-176 items (1)/(3)
+  remainders; everything else in the ledger's carried list.
+
+- GATES. Docs-only reading PR (PR-138..184 precedent): no
+  port file touched; build state = the OWNER GATE (rule 8)
+  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
+  SKIPs) - only docs moved since. CI truth at this
+  record's time: PR-184's docs run 44560356006 = SUCCESS on
+  2014852; the chain (PR-183 44557634130, PR-182
+  44554963180, PR-181 44553528506, PR-180 44549075152)
+  SUCCESS unchanged. This docs push queues its own run.
+  Added .md lines <= 79 cols; over-79 baselines UNCHANGED
+  (NEXT_STEPS 71, HANDOFF 71); no game data or frames in
+  git (scripts under /tmp/opencode/pr185/); .github/
+  workflows/* untouched; the image is unchanged.
+
+- EVIDENCE. controller_evidence.py (every count: 178 tables;
+  12 direct-getter tables + the 2 wrapped [0x9f668,0xa0624];
+  79 tables with +0x14=0x550a0; 74 methods of 0x96960; the
+  method-region send census ['0x50c60'] / zero broadcasts +
+  the edx=5 ctx check True; 11 getter F6 legs; the 4
+  wrapper ee:=10/11 writes [0x613f0,0x6141b,0x61446,0x61471];
+  all 12 gate globals static 0 with occurrence counts;
+  deep-scan id17 ['0x24172'] / id29 ['0x32131'] / id30
+  noise list, and the table joins 0x988ec +0x10 = 0x24170,
+  0x9d338 +0x10 = 0x32130; writer census 127/47/32; the
+  0x54be9 input-copy bytes True; the 0x2e8e0 delegate+
+  deep-id-25 prefix bytes True). obj_range.sh (the whole
+  reads: 0x96960 vtable dump, 0x50c50-0x50c67,
+  0x52a00-0x52ab5, 0x1e0d0-0x1e0f0, 0x50150-0x50175,
+  0x2dfe0-0x2e000, 0x3b1e0-0x3b200, 0x613c0-0x61570,
+  0x54b80-0x54bf2, 0x24170-0x241d0, 0x32130-0x32190,
+  0x2f900-0x2f960, 0x2e8e0-0x2e910, 0x28800-0x28830;
+  table scans by elf dword-scan). Ledger: records re-spliced
+  from HEAD (census: HEAD carries PR-150..PR-184 (35
+  records) PLUS the four OWNER 2026-11-19 records, last
+  carrier); 8 brackets (PR-176 items (2)/(4) CLOSED + item
+  (5) PART; PR-184 item (1) CLOSED + item (2) PART + F1
+  EXTENDED; PR-183 item (1) CLOSED; PR-177 item (4) PART).
 
 ## Deferred big items (deliberately out of scope so far)
 

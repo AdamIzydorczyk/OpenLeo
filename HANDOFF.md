@@ -4546,6 +4546,74 @@ writer as its open items.
      who writes [obj+0xee]>=10) + the ids-17/29/30 deeper-
      form scan. Full record: PR-184 section of NEXT_STEPS.
      md (scratch /tmp/opencode/pr184/).
+   - PR-185 (READING; no port code, no behaviour change):
+     THE CONTROLLER IS THE STAGE LION. 12 class tables
+     install the +0x8c getter 0x504e0 (= PR-176 F3's twelve;
+     all share +0x14=0x550a0 (79/178 tables carry it),
+     +0x3c=0x230a0, +0x78=0x50f80); the ZARIA.01 one is
+     0x96960 (imm-loads at 0x1ff18/0x20498 inside the
+     0x1dff-0x204xx ZARIA provider cluster). Its vtable =
+     74 methods INCLUDING the PR-181 relation/selector
+     helpers - the relation machinery IS controller methods.
+     THE CONTROLLER SENDS EXACTLY ONE EVENT: 0x50c60
+     enqueues id 5 with sender := its own [obj+0x6d] link;
+     ZERO broadcasts - so the id 1/2/13 literal senders are
+     NOT the player-controller path (answered). THE
+     [mgr+0x394] ANSWER: +0x20/+0x24 verbs = sensors
+     reading the manager's TRACKED object via 0x52d30:
+     0x52a00 = Manhattan distance self-vs-tracked, 0x52a50
+     = call [class(tracked)+0x68]. PR-176 ITEM (4) CLOSED:
+     the button bytes ARE hardware state - the 0x54910
+     motion-synth tail (0x54be6-0x54be9) copies `[obj+
+     0xa5..a8] := [[input obj]+8]` every call; the getter
+     has exactly 11 F6 bit-tests (10 chain legs + the
+     bit-0x2 queue gate to 0x551f0). The 12 gate words ds:
+     0xcef5c..0xcef88 are static 0 and written ONLY by
+     level-provider functions (ZARIA's own 0xcef5c/60 set
+     at 0x1e0dc/0x1e0e4 in its provider cluster; hard-set
+     1 at 0x3b1f2; xor/or-imm at 0x39e33/0x3b4dc...) =
+     PER-LEVEL AUTHORING of which K_F* signal ordinals
+     exist. PORT VERDICT: no rule missing, no change (the
+     port's ll_play_keys keyword channel = the engine's
+     synthesized-keys half; the gated ordinal half adds
+     signal names; ZARIA's weapon keys are authored on).
+     PR-176 ITEM (2) CLOSED: the >=10 writer is a getter
+     WRAPPER, +0x8c=0x613d0 on exactly 2 classes
+     (0x9f668/0xa0624, also controller-shaped): four arms
+     pre-set [obj+0xee] := 10/11 from button bits
+     ([a6]&0x02/0x01/0x40, [a7]&0x04) gated by NEW words
+     ds:0xcef84/0xcef88, clear the bits, then call the
+     chain (which may override with a higher-priority
+     ordinal); K_F11/K_F12 become reachable. Their arming
+     0x6149f = a signal-PAIR COMBO handler (K_F4+K_F9 ->
+     arm 0xcef84; K_F5+K_F3 -> arm 0xcef88; zeroes the
+     pair words, calls 0x44910 edx=10/11). PR-184 ITEM (1)
+     CLOSED via the deeper-form scan (`mov reg,[node+4]` +
+     `cmp reg,imm` - the form PR-184's 83-scan misses):
+     id 17 -> 0x24170 (+0x10 of table 0x988ec: id-18 with
+     sender=arg=0 sets [obj+0x12a]:=1 - the PR-183 LION
+     id-12 field - gated by [obj+0x5c] not in {22,23},
+     then [obj+0x132]:=1), id 29 -> 0x32130 (+0x10 of
+     0x9d338: [obj+0x12e]:=1, else delegates 0x50d60);
+     id 30 DISSOLVES (all hits are distance/audio
+     arithmetic - no event consumer of id 30 exists).
+     CORRECTION (1 bracket on PR-184 F1): an EIGHTH id-25
+     arm in that form - 0x2e8e0 (+0x10 of controller table
+     0x9c958) delegates 0x50d60 then decodes 25 into an
+     energy arm; the seven-family COUNT was form-partial
+     (the pairing LAW stands). [obj+0xee] is family-
+     multirole: ordinal / record-array handle / pair-sync
+     gate (writer census 127/47/32 for [ee]/[f2]/[f6]).
+     PR-183 item (1) now CLOSED WHOLLY; PR-176 item (5)
+     PART (writer law found, per-level values open),
+     PR-177 item (4) PART ([mgr+0x394] half), PR-184 item
+     (2) PART. 5 new items (LION flag family [obj+0x12a/
+     12e/132] + the whole 0x106..0x132 state block; input-
+     source identity; exact gate values per level; the 2
+     wrapped classes' names; the id-13/15/21/23 arms).
+     Next -> PR-186 = the LION-flag/input-source follow-up.
+     Full record: PR-185 section of NEXT_STEPS.md (scratch
+     /tmp/opencode/pr185/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -7313,6 +7381,46 @@ PR-176 items (2)/(3) part-closed/extended.
 Gates: docs-only (PR-138..183 precedent); added lines <=
 79; baselines 71/71 held; the Windows half stays in the
 end pass (rule 8).
+
+STATUS after PR-185 (the controller-is-the-LION pass; docs
+reading - ZERO port lines changed, the ZARIA.01 output image
+is byte-identical to PR-184's; build state = the OWNER GATE
+(rule 8) measured on 7b4d736, only docs moved since).
+
+What this pass GROUNDS for T5:
+(1) THE INPUT PATH IS ENGINE-SETTLED END TO END: hardware
+    state dword -> [obj+0xa5..a8] (the 0x54910 tail copy,
+    per motion-synth call) -> the 11-bit getter chain +
+    queue gate -> merged synthesized+signal key set for the
+    LION's state machine. The port's ll_play_keys channel
+    corresponds to the synthesized-keys half EXACTLY (PR-
+    173 F4 legs); the signal-ordinal half (K_F*) is level-
+    authored by gate words the port need not model (ZARIA's
+    are authored ON; no ZARIA.01 row consumes an ordinal-
+    only signal). NO port change.
+(2) THE CONTROLLER = THE STAGE LION is now the grounded
+    model for the per-level 'director': the 12 tables are
+    PR-176 F3's twelve LION classes; their vtables carry
+    the relation/selector machinery (PR-181), the sensors
+    (mgr+0x394 tracked-object distance), and the event-
+    queue block (PR-176 F2). T5's LION work (feed, energy,
+    modes) now has its full class map.
+(3) THE EVENT ALPHABET IS CLOSED: every id ever observed
+    sent now has a NAMED consumer or is dissolved (id 30;
+    ids 17/29 -> the 0x988ec/0x9d338 controller tables;
+    id 5 is the ONE LION controller send, sender := its
+    [obj+0x6d] link). PR-183 item (1) CLOSED wholly.
+SELF-CORRECTION SHIPPED WITH DATA: 1 bracket extends PR-
+184's id-25 census (8th arm 0x2e8e0 via the deeper form;
+the 83-form count was form-partial - law unchanged). 5 new
+items counted (LION flag family/state block; input-source
+identity; per-level gate values; the 2 wrapped classes'
+names; the id-13/15/21/23 arms); PR-176 items (2)/(4) and
+PR-184 item (1) closed; PR-176 (5), PR-177 (4), PR-184 (2)
+part-closed.
+Gates: docs-only (PR-138..184 precedent); added lines <=
+79; baselines 71/71 held; the Windows half stays in the end
+pass (rule 8).
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
