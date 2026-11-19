@@ -15733,45 +15733,55 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-164 IS THE MECHANISM-BOUNDARY READ (PR-162 item 5, now
-  PR-163 item 1 too - THE most port-relevant open item):
-  WHERE is the transition applier (0x535a2-0x5365c) invoked
-  from? The per-tick call found so far is the WALK (object
-  +0x44 at 0x53b18); the applier's driver is unpinned (PR-105
-  claimed object slot +0x14 = a once-per-step pump call:
-  0x536f0 - the census starts by finding +0x14's CALLER and
-  testing whether it leads to 0x535a2 or to the walk). This
-  decides how the port's single obj_transition corresponds to
-  the engine's two mechanisms, WHERE the AC_TIME counter real-
-  ly increments in engine terms, and whether an IN-WALK raise
-  is visible to later lines of the same list - the port's in-
-  call reading (PR-163 F5) is pinned as a MODEL CHOICE until
-  this read lands.
-- THEN the flag-consumer pass (PR-162 item 1, unchanged): re-
-  ground the port's LL_CTRL_* names against the engine flag
-  bits (FULL MAP IN THE PR-162 RECORD; consumers 0x52158/
-  0x52171 = the SEQ_REV pair; find what FRAME_REV=0x8 really
-  drives vs the port's row-reversal reading; PR-108's flip-bit
-  attribution REOPENED - leads: the CH_DIR name or the walk's
-  reversed-step tail 0x521a1-0x521b1).
-- THEN carried reads (PR-162's list, unchanged): the pool con-
-  tents + numeric-ID registrations (the K_GEN1 edge); the +0x70/
-  +0x71/+0xc8 getters + [owner+0x99] sentinel + vtable-slot-4
-  |=4/|=8 row-end signals; the mode-6 skip + 0x47770 + 0x52750
-  bodies; the walk return-value encoding (PR-161 item 1);
-  derived ENTER overrides (0x4fef0 and friends - PR-163 makes
-  ENTER a REAL behaviour, so which classes override the +0x1c
-  body, and whether an override keeps the row half, now mat-
-  ters to the port reading); 0x9c05c identity; 0x524xx rest;
-  0x446de; 0x57d30 modes; FLAG +0x4c getter. THE LADDER-GATE
-  fi-vs-state DECISION stays data-blocked on the param-token
-  map - do NOT touch the port's fi gate.
+- PR-165 IS THE FLAG-CONSUMER PASS (PR-162 item 1, carried;
+  the most port-relevant open read now): re-ground the port's
+  LL_CTRL_* names against the engine's real flag bits (FULL
+  MAP IN THE PR-162 RECORD: window [rec+0x12..+0x15], BY_X
+  has NO bit, SEQ_REV_X/Y=+0x12|0x10/0x20...). Method: for
+  each bit, find its CONSUMERS - start from the two known
+  (0x52158/0x52171 = the SEQ_REV pair) and byte-scan every
+  `[reg+0x12..0x15]` read in 0x5xxxx. THE FLIP QUESTION FIRST
+  (PR-162 item 2): PR-108's observed face-flip-on-transition
+  has no bit owner since the +0x15 bit-0x8 re-attribution to
+  ANTI_POCISK - the leads are the +0x13 CH_DIR bit 0x8 and
+  the walk's reversed-step tail 0x521a1-0x521b1; also WHAT
+  FRAME_REV=+0x12|0x8 really drives vs the port's row-reversal
+  reading (0x521d4 vs 0x521ae-0x521b1). Output: a consumer-
+  grounded table, and ONLY THEN decide whether any LL_CTRL_*
+  value/name changes (the enum is port-internal; the question
+  is names and behaviours, not wire formats).
+- THEN the row-end ordering read (PR-164 narrows): the walk's
+  list-end signal is the OR of 4/8 into the OWNER vtable+0
+  WORD (0x521c1-0x521c5, PR-162 F1b) - find its CONSUMER (and
+  whether the pump's [[obj+8]+0x8c] key getter at 0x536ff re-
+  ads it: that decides ordering question (a), i.e. whether a
+  row-end lands in the SAME step's transitions (engine) or the
+  NEXT step (port brk_arm); the port's model stands unless a
+  ZARIA.01-visible difference appears). Also 0x53520's arg
+  plumbing ([esp+0x20] vs [esp+0x24], [[obj+8]+0x54]/+0x90
+  writers) and [obj+0x95]'s reader; and the 31-vs-24 +0x14-
+  slot delta (dword occurrences that are NOT class-table slots
+  - classify them).
+- THEN carried reads (unchanged): the pool contents + numeric-
+  ID registrations (the K_GEN1 edge); the +0x70/+0x71/+0xc8
+  getters + [owner+0x99] sentinel; the mode-6 skip + 0x47770 +
+  0x52750 bodies; the walk return-value encoding (PR-161 item
+  1); derived ENTER overrides (0x4fef0 and friends - which
+  classes override the +0x1c body and whether an override kee-
+  ps the row half; PR-163 made ENTER a real behaviour, so
+  this now MATTERS); 0x9c05c identity; 0x524xx rest; 0x446de;
+  0x57d30 modes; FLAG +0x4c getter. THE LADDER-GATE fi-vs-
+  state DECISION stays data-blocked on the param-token map -
+  do NOT touch the port's fi gate.
+- RIDES THE NEXT CODE PR (not a read): the three port comments
+  citing the applier as 0x535a2 get the entry correction to
+  0x535a0 (ll_level.c:802,823, ll_play.c:209) - PR-164 F2.
 - LEDGER RULE (PR-158 F1): every Next-swap re-splices recent
   records from the LAST revision that carried them. Census
   recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
   `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD 033c12d carries all thirteen (PR-150..
-  PR-162); HEAD is the last carrier.
+  pass's census: HEAD 2e43bc1 carries all fourteen (PR-150..
+  PR-163); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -18999,7 +19009,12 @@ of PR-159/160's cursor phrasing are SUPERSEDED below)
   and where the applier is INVOKED from (PR-105 called the
   walk "one virtual method, object slot +0x14, once per step
   from the level pump" - PR-162 found the +0x44 walk caller
-  instead; the applier's own driver is the open side). CLOSED
+  instead; the applier's own driver is the open side [CLOSED
+  BY PR-164: PR-105's OWN record already decomposed 0x536f0
+  end to end - LOOKUP 0x53520 at 0x5373c, APPLY at 0x5374b
+  with ENTRY 0x535a0 (the 0x535a2 listing start is a byte
+  misalignment) - and PR-106 closed the pump's driver; item 5
+  was a ledger regression]). CLOSED
   here: the control-flag bit map (F1d, verbatim) and PR-160's
   "+0x15 bit 0x8" NAME question (it is the ANTI_POCISK bit;
   the face-flip attribution bracketed). CARRIED unchanged: PR-161 items (1)
@@ -19231,6 +19246,154 @@ verify-all modes staying at their counts.)
   from it, zero brackets this pass (Finding 1 verified no
   older record needs superseding: PR-107 item 2 already shows
   the 0x52070 call inside the row-setter).
+
+## PR-164 — THE MECHANISM BOUNDARY IS CLOSED, AND THE CLOSE
+## IS A LEDGER CORRECTION: PR-105'S OWN RECORD ALREADY DECOM-
+## POSED THE PUMP (slot +0x14 -> 0x550a0 -> 0x536f0: walk at
+## 0x5371c, transition LOOKUP 0x53520 at 0x5373c, APPLY
+## 0x535a0 at 0x5374b) AND PR-106 CLOSED ITS DRIVER - PR-162
+## item 5 WAS A REGRESSION. THE RE-READ ADDS TWO REAL FACTS:
+## THE APPLIER'S ENTRY IS 0x535a0, NOT the objdump-listing's
+## misaligned 0x535a2 (a one-byte trap like 0x543a0/0x52360),
+## AND ITS ARMS CONFIRM PR-163'S SHIPPED LAW VERBATIM, DOWN TO
+## live-set bit 9 = [obj+0x61] |= 2 (READING + LEDGER CORRECTION; no code, no
+new test - the PR-138..163 precedent; PR-162's open item (5)
+is CLOSED below, and its "0x535a2" phrasing gets the entry
+correction; PR-163's open item (1) is NARROWED, not closed)
+
+- WHY. PR-163 had just shipped the AC_TIME counter and raise,
+  and both its model choice (in-call visibility of a raise to
+  later lines of one obj_transition call) and PR-135's older
+  model choice (transition before vs after the row step) hang
+  on WHERE the applier runs. PR-162 item 5 asked exactly that.
+  The census to run: find +0x14's caller chain and test
+  whether it reaches 0x535a2 or the walk.
+
+- FINDING 1, THE BOUNDARY - AND THE LEDGER REGRESSION. The
+  boundary is ONE virtual slot: implementations at class-table
+  +0x14 (and its second view [[obj+0xc]+0xc] per PR-105's two-
+  view fact) chain through wrappers - the LION BASE 0x550a0
+  (`zero [obj+0xe6],[obj+0xea]; call 0x536f0; ret` at
+  0x550a0-0x550b9, found in ~98 table slots tonight), the DE-
+  FAULT WRAPPER 0x400b0, per-class wrappers - into 0x536f0,
+  whose body (independent byte read tonight, matching PR-105's
+  decomposition line for line): owner hook [[obj+8]+0x8c];
+  key merge 0x49580 on [obj+0x60]; WALK = call 0x523f0 at
+  0x5371c on the CURRENT record [[obj+0x50]+[obj+0x5c]*4]
+  (the vector+index = the object's LIVE STATE: [obj+0x5c] is
+  the state index, [obj+0x50] the record vector - the engine's
+  o->sti); merge result key into [obj+60]; hook [[obj+8]+0x54]
+  (0x53733/0x53755); LOOKUP 0x53520 (0x5373c - copies the 13-
+  byte LIVE key set [obj+0x60..0x6c], runs PR-102's table
+  walk via 0x52000 on the current record, then [[obj+8]+0x90]
+  writes the match: target-record index + authored row); APPLY
+  0x535a0 (0x5374b); hook [[obj+8]+0x28]; ret. PR-105 ALREADY
+  had ALL of this - including the right entry "0x535a0 (PR-
+  100's apply...)" and the pump 0x4bb30 whose item loop calls
+  [[item+8]+0xc] = the state step - and PR-106 closed the
+  frame-loop caller (0x4c8a0). PR-162 item 5 ("the applier's
+  driver is unpinned") contradicted the closed ledger; this
+  pass re-read the bytes independently and found PR-105/106
+  CORRECT. The regression and its fix are bracketed in the
+  PR-162 record.
+
+- FINDING 2, THE ENTRY IS 0x535a0 - THE ONE-BYTE TRAP AGAIN.
+  The disassembly listing starts the applier at 0x535a2 (`push
+  edi`) because objdump aligned one byte late: 0x535a0/0x535a1
+  are 51 56 = `push ecx; push esi` - the prologue is FOUR
+  pushes 0x535a0-0x535a3 (51 56 57 55) - and the applier's
+  OWN returns pop four in order (`pop ebp; pop edi; pop esi;
+  pop ecx; ret` at 0x535fd-0x53601 and 0x5365c-0x53660), so
+  entry = 0x535a0. (The neighbouring function 0x53520 opens
+  with the identical bytes 51 56 57 55 at its own entry and
+  closes 0x53593-0x5359a - a second copy of the shape, useful
+  as a control.) Same trap class as 0x543a0 (PR-99/100) and
+  0x52360 (PR-107). PR-101/102's records cite BOTH forms;
+  PR-159/160/162 drifted to 0x535a2 alone. Every interior
+  address (0x535c2, 0x53616, 0x53626-0x5365c) is unaffected;
+  the port's code comments citing "0x535a2" as the method
+  (ll_level.c:802,823, ll_play.c:209) get the entry fix in
+  the next CODE PR (a docs PR does not compile).
+
+- FINDING 3, THE ARMS CONFIRM THE SHIPPED PORT LAW VERBATIM.
+  Applier args: eax=obj, edx=target record index, ebx=authored
+  row (+ key arg); 0x535a8 makes edx=ebx from the prologue on.
+  CROSS path (idx != [obj+0x5c]): current record's class verb
+  +0x20 (the LEAVE hook, PR-105), 0x535c2 ZEROES [obj+0x9d]
+  WITHOUT COUNTING, [obj+0x95]=1 (new field, item 3), hook
+  +0xa4, NEW record's +0x1c = the unified ENTER + row-set (re-
+  confirms PR-163 F1), [obj+0x5c] := idx (THE state change,
+  0x535ed), notify hook +0xac. SAME-index path (0x53602): if
+  the authored row equals [rec+0x4] the SET and the notify are
+  SKIPPED but 0x53626 - the count arm - STILL RUNS (0x53614
+  `je`): a self-transition that sets the SAME row counts as a
+  match - the engine-side proof that a WAIT-line self-match
+  counts every step it matches. Count arm 0x53626-0x53660:
+  [obj+0x9d]+=1; ax = WORD [rec+0xc] sign-extended (the
+  ENTER-rolled gate); gate==0 -> skip; gate > count -> skip;
+  ELSE [obj+0x61] |= 2 = LIVE-SET BIT 9 - the exact bit PR-163
+  shipped as LL_SIG_AC_TIME (9), the exact predicate `gate &&
+  count >= gate`, at [obj+0x60] = the 13-byte live key set
+  (0x495b0 family). Cross matches NOT counting is ENGINE-con-
+  firmed: PR-163's survivor M10 (count cross matches too) is
+  now an engine-WRONG shape, not just unobservable.
+
+- FINDING 4, PORT-MODEL EQUIVALENCE AT THE STEP LEVEL. The
+  pump IS one object step (PR-105, PR-135's shape reconfirmed):
+  engine order = walk THEN lookup THEN apply; the port's obj_-
+  advance runs apply THEN step. The differences the two orders
+  can produce are exactly TWO, neither observable in shipped
+  content or current tests: (a) a row-end raised by step N's
+  WALK is in the engine's apply on step N (live set), while
+  the port arms brk_arm for step N+1; the engine's own row-end
+  signal is the vtable+0-word OR 4/8 (PR-162 F1b, consumer un-
+  known, item 1); (b) in-call visibility of the AC_TIME raise
+  to later lines of one match pass - structurally mirrored by
+  the pump (the apply reads the live set the walk just
+  merged). PR-135's MODEL-CHOICE bracket gets this grounded
+  sentence; the port's shape stays (it matches PR-100/101's
+  MEASURED laws), and PR-163's open item (1) narrows to (a)
+  and (b) only. CLOSED: PR-162 item (5). NARROWED: PR-163
+  item (1).
+
+- OPEN ITEMS COUNTED (4 new). (1) The [[owner]+0] vtable-word
+  OR 4/8 row-end consumer (still PR-162 item 3 - now THE key
+  to ordering question (a)). (2) 0x53520's arg plumbing: which
+  of [[obj+8]+0x54]/+0x90 fills [esp+0x20] vs [esp+0x24], and
+  the exact edx value reaching the +0x1c call at 0x535ea (the
+  +0xa4 hook between may set it). (3) [obj+0x95]=1 set by the
+  cross-apply path - writer known, reader unknown. (4) Tonight-
+  style raw-dword scans find 31 slots holding bare 0x000536f0
+  vs PR-105's "24 tables + wrappers" - the delta is unex-
+  plained (extra tables vs non-table data); the wrapper CHAIN
+  itself is PR-105's and stands. CARRIED unchanged: the rest
+  of PR-163's items (LCG scope, max=min lerp reading, M11 un-
+  reachability), PR-162 items (1)-(4), PR-161 (1)/(2), the
+  ladder-gate data block, the flip-bit re-attribution.
+
+- GATES. Docs-only per the PR-138..163 precedent; nothing
+  compiled. Every added prose line <= 79 cols; over-79 base-
+  lines UNCHANGED (NEXT_STEPS 71, HANDOFF 72); no game data
+  or frames in git (scratch /tmp/opencode/pr164/); .github/
+  workflows/* untouched; the image unchanged (text.bin sha256
+  edf19a12...). CI: PR-163's run watched this pass (status at
+  record time: in progress; PR-160's RERUN GREEN, PR-161's RE-
+  RUN pending at record time).
+
+- EVIDENCE. Tonight's independent reads, all from the pinned
+  image: call-site census - `call 0x536f0` unique at 0x550b4;
+  raw dword scan 0x000536f0 -> 31 table slots (0x96c4c...
+  0xa24ac), 0x000535a2 -> ZERO, 0x000550a0 -> ~98 slots (in-
+  cluding 0x96974 = 0x96960+0x14 - the LION TABLE slot, and
+  the full wrapper set PR-105 named); 0x536f0 body 0x536f0-
+  0x53766 verbatim; applier 0x535a0-0x53660 verbatim (incl.
+  the four-push prologue bytes 51 56 57 55 and the epilogue
+  pops); 0x53520 body 0x53520-0x5359a (the live-key copy +
+  0x52000 + [[obj+8]+0x90]); 0x550a0-0x550b9 verbatim; the
+  indirect `call [reg+0x14]` site census (20+ listed). Ledger
+  rule applied: census first - HEAD 2e43bc1 carries PR-150..
+  PR-163 (last carrier HEAD); records re-spliced from it; 1
+  bracket (PR-162 item 5 CLOSED).
 
 ## Deferred big items (deliberately out of scope so far)
 

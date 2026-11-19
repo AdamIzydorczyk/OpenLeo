@@ -3440,6 +3440,56 @@ writer as its open items.
      install hangs - gh run rerun issued; PR-162's run is CONF-
      IRMED GREEN. Full record: the PR-163 section of NEXT_
      STEPS.md (scratch /tmp/opencode/pr163/).
+   - PR-164 (READING + LEDGER CORRECTION, no code - the PR-
+     138..163 precedent): THE MECHANISM BOUNDARY IS CLOSED,
+     AND THE CLOSE CORRECTS THE LEDGER. PR-162 item 5 ("the
+     applier's driver is unpinned") REGRESSED PR-105's own re-
+     cord: the state-step chain was CLOSED end to end by PR-
+     105/106 - class-table slot +0x14 (two views: [[obj+8]+
+     0x14], [[obj+0xc]+0xc]) chains through wrappers (LION
+     BASE 0x550a0 = `zero [obj+0xe6],[obj+0xea]; call
+     0x536f0`; DEFAULT WRAPPER 0x400b0; per-class wrappers)
+     into ONE pump method 0x536f0 whose body tonight's inde-
+     pendent byte read matches line for line: key getter +0x8c
+     + merge 0x49580 -> WALK 0x523f0 at 0x5371c on the CURRENT
+     record [[obj+0x50]+[obj+0x5c]*4] (= the object's LIVE
+     STATE: vector + state index, the engine's o->sti) -> key
+     merge -> hook +0x54 -> LOOKUP 0x53520 (13-byte live-key
+     copy, PR-102's 0x52000 table walk, [[obj+8]+0x90] writes
+     target-row+row args) -> APPLY 0x535a0 at 0x5374b -> hook
+     +0x28. PR-106's pump (0x4bb30 via 0x4c8a0) stands. NEW
+     FACT 1: THE APPLIER'S ENTRY IS 0x535a0, NOT the objdump-
+     listing 0x535a2 - prologue 51 56 57 55 at 0x535a0-0x535a3
+     (four pushes), own returns pop four (0x535fd-0x53601,
+     0x5365c-0x53660) - the one-byte trap class again (0x543a0,
+     0x52360); interior addresses unaffected; the three port
+     comments citing 0x535a2 ride the NEXT code PR. NEW FACT 2
+     (the big one): the applier's ARMS CONFIRM PR-163'S SHIP-
+     PED LAW VERBATIM - cross path zeroes [obj+0x9d] WITHOUT
+     counting (so M10 is now ENGINE-WRONG, not just unobserv-
+     able) then NEW record +0x1c (unified ENTER+row-set, re-
+     confirming PR-163 F1) then [obj+0x5c]:=idx = the state
+     change; same-index path: authored row == current row SKIP-
+     PS the set but STILL reaches the count arm (0x53614 je ->
+     0x53626: WAIT self-matches count every match); count arm
+     = [obj+0x9d]+=1; gate=WORD [rec+0xc] sign-extended; skip
+     iff gate==0 or gate>count; ELSE [obj+0x61] |= 2 = LIVE-
+     SET BIT 9 - the exact bit LL_SIG_AC_TIME(9) and the exact
+     `gate && count>=gate` predicate. Port-model: pump order =
+     walk-then-apply vs the port's apply-then-walk - the only
+     two observable differences (same-step vs next-step row-end
+     via the vtable+0-word OR 4/8 whose consumer is unknown;
+     in-call raise visibility) are exactly PR-163 open item (1)
+     NARROWED, neither observable in shipped content - the
+     port's shape stands (it matches PR-100/101's measured
+     laws). 4 new open items (vtable+0-word consumer; 0x53520
+     arg plumbing; [obj+0x95] reader; 31-vs-24 +0x14-slot delta);
+     PR-162 item 5 CLOSED with a bracket in its record. ZARIA.01
+     output: UNCHANGED (docs-only, nothing compiled). Gates:
+     added lines <= 79; baselines UNCHANGED (71/72); image un-
+     changed; ledger census run (HEAD 2e43bc1 = last carrier).
+     CI: PR-160's RERUN GREEN. Full record: the PR-164 section
+     of NEXT_STEPS.md (scratch /tmp/opencode/pr164/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -5360,6 +5410,38 @@ mov/play selftests rc=0, verify-all BOTH modes unchanged (56
 / 10+23), no over-79 added, baselines 71/72 held. CI note:
 PR-160/161's cancelled runs re-issued via gh run rerun; PR-
 162's run confirmed green.
+
+STATUS after PR-164 (the mechanism boundary is CLOSED, with a
+ledger correction to PR-162): PR-105/106 ALREADY had the whole
+chain - slot +0x14 (two views) -> wrappers (LION BASE 0x550a0:
+zero [obj+0xe6]/[obj+0xea], call 0x536f0) -> pump 0x536f0 =
+key getter/merge, WALK 0x523f0 at 0x5371c on the current re-
+cord of [[obj+0x50]+[obj+0x5c]*4] (the object's live state
+vector+index), LOOKUP 0x53520 (live-key copy + 0x52000 walk),
+APPLY at 0x5374b, hooks around - and PR-162 item 5 re-opened
+what was closed. Tonight's independent byte reads CONFIRM it
+and add two facts. (1) The applier's ENTRY is 0x535a0 (four-
+push prologue 51 56 57 55 at 0x535a0, own four-pop returns) -
+"0x535a2" is the objdump misalignment, the one-byte trap class
+again; three port comments cite it and ride the next code PR.
+(2) The applier's arms CONFIRM PR-163's shipped law VERBATIM:
+cross path zeroes [obj+0x9d] WITHOUT counting (M10 is engine-
+wrong), runs the new record's +0x1c (unified ENTER+row-set -
+re-confirming PR-163 F1) and writes [obj+0x5c]=idx (the state
+change); same-index path counts even when the authored row is
+already current (0x53614 je into the count arm - the WAIT-law
+count confirmed), and the arm is EXACTLY [obj+0x9d]+=1; gate
+= WORD [rec+0xc]; skip iff gate==0 or gate>count; else [obj+
+0x61] |= 2 = live-set bit 9 = LL_SIG_AC_TIME. The port's ob-
+ject-state model (o->sti/o->act_*) is now structurally GROUN-
+DED ([obj+0x50]+[obj+0x5c] = the engine's state vector+index).
+apply-before-walk vs walk-before-apply reduces to TWO unob-
+servable-now differences (the vtable+0-word OR 4/8 consumer;
+in-call raise visibility) = PR-163 item (1) narrowed; the port
+shape stands. 4 new items (word consumer, 0x53520 arg plumbing,
+[obj+0x95] reader, 31-vs-24 slot delta); PR-162 item 5 CLOSED
+(bracketed in its record). ZARIA.01 output: UNCHANGED (docs-
+only). Baselines 71/72 held; census run; PR-160's rerun green.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
