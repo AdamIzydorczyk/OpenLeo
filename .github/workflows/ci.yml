@@ -80,14 +80,45 @@ jobs:
       # (the old "Install toolchain" step is what the image replaced -
       # 4m07s of apt + 149 MB of archives; the pull hits the layer cache)
 
+      - name: Provision SDL2 for the Windows target
+        # WHY a Linux-only job still needs the MINGW SDL2 (measured, run
+        # 44536198608: "fatal error: SDL2/SDL.h: No such file or
+        # directory" then "make: *** [Makefile:78: ll_cutscene.exe]
+        # Error 1"): the mixed legs declare their .exe targets as MAKE
+        # PREREQUISITES - Makefile:1744 is `verify-menu: ll_cutscene
+        # ll_cutscene.exe` - so make cross-builds the .exe even though
+        # that leg then prints its documented SKIP on a runner without
+        # game data. The ruling defers Windows TESTING; it does not
+        # remove those prerequisites. Options are keeping this step
+        # (measured ~2s) or making the Makefile's .exe prerequisites
+        # conditional; keeping the step is cheaper and leaves every leg
+        # identical to the local one.
+        # Ubuntu apt has no mingw SDL2; the Makefile's SDL_WIN points at
+        # the vendored layout, so CI unpacks the SAME official SDL2 mingw
+        # devel tarball (zlib-licensed OSS, not game data) into vendor/.
+        # Identical version to the local gitignored copy keeps the two
+        # builds equal.
+        # Pin: sha256 of https://www.libsdl.org/release/SDL2-devel-2.32.10-mingw.tar.gz
+        # (computed 2026-11-15 from that exact URL; bump together with
+        # the version - deliberately breaking this line must fail).
+        run: |
+          mkdir -p vendor
+          curl -fsSLo /tmp/sdl.tar.gz \
+            https://www.libsdl.org/release/SDL2-devel-2.32.10-mingw.tar.gz
+          echo "83a5d74012311edc3c0d40ea6faecbe57ad692aa033fa5dc273cc937e3938ff2  /tmp/sdl.tar.gz" \
+            | sha256sum -c -
+          tar -xzf /tmp/sdl.tar.gz -C vendor
+
       - name: Python tools compile check (the suite's oracles are Python)
         run: python3 -m compileall -q tools
 
       - name: Build the native target
-        # Ruling 2026-11-19 (HANDOFF s2 r8): the per-push path is Linux-only.
-        # The `make win` cross build and the vendor/SDL2 mingw provisioning
-        # that it needed moved to ci-windows.yml; the Makefile's verify-cmake
-        # windows half now prints its documented SKIP here (no $(SDL_WIN)).
+        # Ruling 2026-11-19 (HANDOFF s2 r8): the per-push path builds and
+        # tests the LINUX target. The `make win` aggregate and the wine
+        # legs moved to ci-windows.yml; where a Linux leg's prerequisite
+        # chain cross-compiles a .exe (see the step above), that build
+        # still happens here, and the data-backed halves print their
+        # documented SKIPs.
         run: make -j"$(nproc)"
 
       - name: Suite (Linux legs; data-backed legs print clean SKIPs)
