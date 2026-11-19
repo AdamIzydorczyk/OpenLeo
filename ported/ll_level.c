@@ -722,7 +722,18 @@ static void obj_draw(const lvl_obj *o, unsigned char *canvas, int cw,
  * tails or by gameplay code like the PR-70 balloon pop); AC_TIME
  * (a timed wait, `time=min,max`, unit unresolved) is APPROXIMATED as "at the
  * end of the frame list" so a waiting state never freezes - OR a raised
- * AC_TIME bit; what still stays false (keys, AC_ONAIR, AC_ENEMY_ATC ...)
+ * AC_TIME bit. PR-159 read the engine's REAL self-raiser: the
+ * transition pipeline's same-state arm counts its OWN matches
+ * in [obj+0x9d] (zeroed at state change 0x535c2 / ctor 0x538c3
+ * / list-parent 0x52077) and when a WORD in the CURRENT STATE
+ * record ([rec+0xc], itself COMPUTED by 0x52072 from WORDs
+ * +0x8/+0xa - authoring source open) is nonzero and <= that
+ * count it ORs live-set bit 9 = AC_TIME in (0x53626-0x5365c):
+ * self-transition MATCHES, not a timer - so this approximation
+ * is directionally right; the exact gate is blocked on the
+ * [rec+0xc] authoring chain (and on whether a WAIT entry re-
+ * matches every step, which would make it an effective step-
+ * timer). What still stays false (keys, AC_ONAIR, AC_ENEMY_ATC ...)
  * needs the lion/world signals feeding this set (open). First-match order
  * as the player's transitions; PR-88 aligned the grammar with the engine
  * too: the clause parser at 0x47d60 folds a ',' run into ONE node bit
@@ -3879,8 +3890,11 @@ static int clash_suppressed(const play_ctx *pl, int lx, int ox)
  *   (0x539e6-0x539fb); the transition applier stores the
  *   TARGET RECORD INDEX at 0x535ed - the only functional
  *   writer the PR-157 census found in transition/action code
- *   (0x300dd's idiom RESETS the field to 1 and zeroes
- *   rows[1]'s cursor - a state restart, PR-157 F7). The
+ *   (the 0x300d7-0x300e6 window is NOT a "state restart"
+ *   idiom after all: PR-159 read its full context 0x30083-
+ *   0x300f8 - alloc + 0x54030 ctor + field copies + class
+ *   pair store - and its tail is CLONE/Ctor INITIALIZATION
+ *   of a NEW object: index 1, rows[1]'s row cursor 0). The
  *   +0x44 getter 0x23920 indexes records with the field -
  *   PR-147/150 read that part right; what PR-150 got wrong is
  *   the field's UNITS: it does NOT count rows, and the

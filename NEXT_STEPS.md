@@ -15733,45 +15733,53 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-159'S FIRST READ: THE ROW-ADVANCEMENT PATH OF [[rec]+4]
-  (PR-158 item 2). WHO advances a state record's row cursor
-  while playback runs - the applier only SETS it from the au-
-  thored (N) (0x53616) and 0x300dd zeroes it as a restart;
-  nobody increments it in the windows read so far. The owner
-  decides the cursor's 0/1-BASED nature and settles PR-157
-  F4's row-identity caveat (1-based would move consumer 6 to
-  the `3,6` line; the gate-6/threshold-6 numeric coincidence
-  survives either way). Read the 0x300d7 caller (the reset
-  idiom's owner), the 0x53626-0x53640 tail after the
-  [obj+0x9d] step-counter INC, and the compositor 0x536f0's
-  row
-  handling (PR-132/133's region, now with the cursor ques-
-  tion). THE LADDER-GATE FIELD DECISION (state slots vs row
-  positions, PR-158 item 1) waits for THIS plus the record-
-  pool decode - do NOT touch the port's fi gate before both;
-  ZARIA.01 output stays identical meanwhile (PR-158's legs
-  hold under both readings).
-- THEN the 'seq' data question (carried): ZARIA's state re-
-  cords are authored as 'seq NAME,...' lines - zero in every
-  extracted file; the loader is 0x51a4e.., the source inside
-  the encrypted main data (LEVELDES/ANIMACJE decode = the big
-  reading project). PR-157 item 3 (the ANI2 param-line token
-  mapping - DRABINKA's `1 33,-3`, `23,30;53,160`, `30,50`)
-  is the NEAR side of the same question: it names the row-
-  array BINDING ORDER the ladder gate needs.
-- THEN the named follow-ups (carried): who invokes class slot
-  +0x7C and where the param stream attaches ([obj+0x1] get-
-  ter); the state-record ENTER verbs ([[rec+0x44]+0x1c] - the
-  INITIAL cursor, PR-157 item 5); the 0x524xx/0x525xx field
-  family + the [obj+0x58] dual role; the 0x446de family;
-  0x57d30's modes; the 0x49a10 consumption semantics; the
-  FLAG-branch +0x4c getter (PR-158 item 3).
-- LEDGER RULE (PR-158 F1): every Next-swap must re-splice
-  the recent record sections from the LAST revision that car-
-  ried them. Audit recipe: `git log --format=%H main --
+- PR-160'S FIRST READ: THE ROW-WALK VERB BODY AND THE ENTRY-
+  KIND DECISION (PR-159 item 1). The walk loop head sits at
+  0x522c1-ish inside a method invoked as [[rec-class]+0x18];
+  locate the record-class vtable by scanning for dwords equal
+  to that method's head (the +0x44-class pattern from PR-150
+  F1: records carry their class at +0x44 - and the ladder
+  records' class tables were already named in PR-156/157 work,
+  e.g. the 0x97cdc family). DECIDE: does the verb iterate the
+  SAME 0x15-stride transition entries (then the +0x10 thresh-
+  old read contradicts the +0xd/+0x11 out-slots and PR-139's
+  entry map needs a carve-out) or a separate row-line array
+  (then find where it hangs off the record - and PR-101's
+  "threshold = authored row field 2" gets its mechanism).
+  While there: the [[owner]+8]+0xa0] call at 0x52317 whose
+  result is dropped - find the base-class body and check the
+  PR-159 F4 candidate "its side effect computes [entry+0x10]"
+  (item 2's near side).
+- THEN the [rec+0xc] authoring chain (PR-159 item 2): the
+  .MOV/state-block DIRECTIVE parser is the 0x51910 family and
+  it reads the AUTHORED TEXT (control=, seq=, time_scale are
+  plain-text directives - 'seq NAME' in a state block is the
+  sequence registration the PR-157 item 3 question hunted;
+  the pool itself is still the encrypted main data). Trace
+  what lands in record +0x8/+0xa WORDs (a `time=` pair is the
+  obvious candidate given AC_TIME's step-gate reading) and
+  what 0x76bcc computes; then re-check 0x47e40 against an
+  EMPTY entry key (item 3: does a WAIT entry re-match every
+  step, making [rec+0xc] an effective step-timer - which
+  would make the port's AC_TIME approximation replaceable by
+  the real law).
+- THEN the named follow-ups (carried): the +0x84/+0x88 re-
+  cord-fetch verbs; 0x9c05c/0x9c054 identity and the clone
+  law's owner (0x30083's caller, the [[cls]+0x4] copy verb);
+  0x509aa/0x61279 contexts and the hand-off +0x114 verb; the
+  0x524xx/0x525xx family; 0x446de; 0x57d30 modes; the 0x49a10
+  consumption semantics; the FLAG-branch +0x4c getter (PR-158
+  item 3). THE LADDER-GATE fi-vs-state DECISION stays data-
+  blocked (pure param-token mapping now - PR-159 F3/F1 closed
+  every numeric/base question): do NOT touch the port's fi
+  gate before the ANI2 token map or the 'seq' pool decode.
+- LEDGER RULE (PR-158 F1): every Next-swap must re-splice the
+  recent record sections from the LAST revision that carried
+  them. Audit recipe: `git log --format=%H main --
   NEXT_STEPS.md`, then `git show <rev>:NEXT_STEPS.md |
   grep -c '^## PR-1'` per revision - HEAD may already have
-  lost records (PR-150/151 had).
+  lost records (PR-150/151 had; this pass's census confirms
+  HEAD 9c29656 carries all nine).
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -16505,8 +16513,18 @@ no port behaviour change)
   value M is negative the CURRENT row's transition-record
   array [[obj+0x50]+[obj+0x5c]*4] is scanned for a record
   whose +0x4 DWORD equals -M (`neg edx; mov eax,[record+4];
-  cmp eax,edx`, 0x50bdd..0x50be4); when M is non-negative the
-  check is instead [obj+0x9d] == M (0x50bc8). On a match,
+  cmp eax,edx`, 0x50bdd..0x50be4) [REFINED BY PR-159 F5: it
+  is NOT a scan - no loop. It loads the CURRENT STATE RECORD
+  [[obj+0x50]+[obj+0x5c]*4] (0x50bd4-0x50bda) and compares
+  ITS ROW CURSOR, [record+4], ONCE against -M (0x50be2) -
+  the direct consumer PR-158 sought: the cursor can only ever
+  hold an authored (N) written by a transition match (PR-159
+  F1), so TLewZaria's -6 matches a state whose transition set
+  (6). And there is a step (0) before this window: 0x50b9b
+  tests [obj+0x9d] == 1 and on true calls [self.vt+0x114]
+  (edx = the caller's [ebp-0x4] slot), falling through either
+  way]; when M is non-negative the check is instead [obj+
+  0x9d] == M (0x50bc8). On a match,
   with [self+0x112] != 0 and the re-entry flag ds:0xcef4c
   == 0, set ds:0xcef4c=1, call [self.vt+0x110](self,
   [self+0x5c]) (0x50c0a), and call [self.vt+0x100] (0x50c2a).
@@ -17681,7 +17699,20 @@ no port behaviour change)
   = a bracket suffix), lookup 0x31f20 (registry 0xceff8 via
   [[ds:0xcef40]+0x398]'s class verb +0x4 / 0x10598 list-off-
   set walk, 8-byte entries); rows[i++] := the FOUND RECORD;
-  [obj+0x58] := count; then [[cls]+0x2c] (context), the entry
+  [obj+0x58] := count [BINDING REFINED BY PR-159 F3: the
+  store runs inside the helper 0x53480 - record := class verb
+  +0x84, class verb +0x88 when that returns null (0x534a4-
+  0x534b1); store INDEX := 0x53440(name): a scan of the ob-
+  ject's OWN parameter-entry list [obj+0x3c] (count +8,
+  stride 8, compare 0x76a69) with the position counter IN-
+  CREMENTED BEFORE comparing (0x53460) -> 1-BASED position,
+  0 if not found - the loop counter and the store index are
+  different things; the row-builder loop (0x539aa-0x539cd)
+  builds the key via 0x57d30 in mode edx=2 with the 0x922ba
+  format. With (count+1)*4 zeroed: rows[0]=NULL and initial
+  [obj+0x5c]=1 = the FIRST BOUND PARAM ENTRY - the state-
+  index base is PROVEN 1-based]; then [[cls]+0x2c] (context),
+  the entry
   rows[[obj]+0x5c] gets ITS class verb [[rec+0x44]+0x1c](rec)
   (ENTER), and the keys are consumed/marked (0x57a00 edx=1).
   So ROWS[STATE] = THE AUTHORED STATE RECORD, bound BY NAME AT
@@ -17712,15 +17743,33 @@ no port behaviour change)
   0x53616) + class verb +0xac; DIFFERENT state -> [[rec+0x44]
   +0x20] EXIT, [[newrec+0x44]+0x1c] ENTER, [obj+0x5c] := re-
   cord index (0x535ed - THE ONLY state-index writer found in
-  action code [the 0x300dd state-restart writes 1 again AND
-  zeroes rows[1]'s cursor - cf F7; no row-advancement writer
-  was found in any window], verb +0xac. [CONFIRMED AT A GATE
+  action code [the 0x300dd tail writes 1 and zeroes rows[1]'s
+  cursor - cf F7. [PR-159 F1 CLOSED the question and CORRECTS
+  both framings: NO row-advancement writer exists anywhere;
+  0x30083-0x300f8 is a CLONE/ctor path (alloc 0x5c320, ctor
+  0x54030, field copies, class pair 0x9c05c/0x9c054) whose
+  tail initializes the NEW object - index 1, rows[1] cursor
+  0. The complete writer law of [[rec]+4] is: a transition
+  match (0x53616, verbatim authored (N), skipped when equal)
+  or that initialization. Row progress inside a state never
+  touches the cursor - the threshold/accumulator entry-walk
+  (PR-100/101) iterates entries by pointer chain]],
+  verb +0xac. [CONFIRMED AT A GATE
   ITSELF by PR-158 F2: the ladder answer method reads
   [ecx+0x5c] with ecx = SELF (0x3f1c6/0x3f1dc) and compares
   1/2 - value 1 = the initial state answers NOTHING, value 2
   = the transition target is the ONLY answering state.] [obj+
-  0x9d] is a per-state step counter (inc 0x53636). EVERY row-
-  gate consumer therefore
+  0x9d] is a per-state step counter (inc 0x53636) [THE GATE
+  ITSELF READ BY PR-159 F2: after EVERY same-state match -
+  even one where the 0x53612 compare skips the cursor write
+  and the +0xac verb - steps++ and if WORD [[obj+0x50]+
+  [obj+0x5c]*4]+0xc != 0 and <= steps, live-set byte [obj+
+  0x61] |= 2 = bit 9 = AC_TIME (0x53626-0x5365c; PR-145 bit
+  law) - the engine's REAL AC_TIME self-raiser: self-trans-
+  ition MATCH COUNT since state entry vs a per-state record
+  word, NOT a timer; zeroers 0x535c2/0x538c3/0x52077; con-
+  sumers censused in PR-159 F5]. EVERY row-gate consumer
+  therefore
   tests THE CURRENT ROW INDEX OF THE CURRENT STATE: 0x287ea
   (assoc's state cursor == 6 -> type-4 message), 0x2880b/0x28
   81d (own state 0x12, cursor <= 0x19 -> kind-0x10 AC_DRAB),
@@ -17745,6 +17794,12 @@ no port behaviour change)
   the decider and is unread - PR-158 item 2, PR-159's first
   read. The numeric gate-6/threshold-6 coincidence stands on
   either reading: every A_WALK pose line carries field-2 6].
+  [RESOLVED BY PR-159 F1: the ONLY non-zero writer copies the
+  authored (N) VERBATIM and 0 is exactly the clone-init value
+  - the cursor's base IS the authored base, 1-based per PR-86
+  - so consumer 6 names POSITION 6, the `3,6` line; no row-
+  advancement writer exists at all (complete writer law: the
+  transition match 0x53616 or the clone/ctor tail 0x300e6).]
   The static claim
   "the record array holds the value 6" is superseded: at run-
   time [obj+0x50] entries are bound RECORD POINTERS, and the
@@ -17784,7 +17839,13 @@ no port behaviour change)
 - FINDING 7, THE [obj+0x5c] VALUE CENSUS (state-index writ-
   ers, complete disp8 scan): 1 = initial (0x5321e base-ctor,
   0x538ab, and 0x300dd - which ALSO zeroes rows[1]'s CURSOR,
-  the "reset a state's row" idiom); 0 = cleared list-objects
+  the "reset a state's row" idiom [RE-IDENTIFIED BY PR-159
+  F1: the whole 0x30083-0x300f8 block is the CLONE/Ctor path
+  (0x5c320 alloc, 0x54030 ctor, +0xee/+0xf2/+0xf6/+0xfa field
+  copies, class pair 0x9c05c/0x9c054 - a base-family table
+  with the +0x2c=0x53d80/+0x7c=0x537f0 pair); the tail is
+  NEW-OBJECT INITIALIZATION, not a mid-game restart]);
+  0 = cleared list-objects
   (0x524c8, 0x44582); 0x37=55 = the 'none' stamp sink (0x44910,
   PR-154 - "beyond every authored state" now explained: the
   stamped object has NO rows); 0x82=130 = a clamp (0x52600/
@@ -17914,7 +17975,10 @@ FULL BUILD GATES RUN ANYWAY; PR-138..157 PRECEDENT)
   transition applier stores the TARGET RECORD INDEX at
   0x535ed - the only functional writer the PR-157 census
   found in transition/action code; 0x300dd RESETS it to 1 and
-  zeroes rows[1]'s row cursor (a state restart); no row-
+  zeroes rows[1]'s row cursor (a state restart) [CORRECTED BY
+  PR-159 F1: the 0x30083-0x300f8 window is the CLONE/Ctor
+  path; its tail is NEW-OBJECT initialization, not a restart];
+  no row-
   advancement writer exists in the census. So the gate as the
   bytes read it is a STATE test: 1 = the initial state (first
   bound record, A_UP's role) -> no answer; 2 = the state
@@ -17971,7 +18035,13 @@ FULL BUILD GATES RUN ANYWAY; PR-138..157 PRECEDENT)
   applier window does; the row-advance path (the 0x300d7
   caller, the 0x53626-0x53640 tail after the [obj+0x9d] step-
   counter INC, the compositor 0x536f0's row handling) is
-  PR-159's first read.
+  PR-159's first read. [ANSWERED BY PR-159 F1/F2: NO incre-
+  menter exists - 0x300d7 is clone-init; the 0x53626 tail is
+  the AC_TIME self-raiser, not a cursor writer; row progress
+  runs in the entry-chain walk (PR-100/101) with the cursor
+  uninvolved. The base resolves to the authored 1-BASED (N):
+  consumer 6 = the `3,6` line. Complete writer law: 0x53616
+  or 0x300e6.]
 
 - OPEN ITEMS COUNTED (3 new + 1 process). (1) The ladder-gate
   FIELD-vs-fi divergence, blocked on DATA: the gate's value
@@ -17981,7 +18051,10 @@ FULL BUILD GATES RUN ANYWAY; PR-138..157 PRECEDENT)
   then; ZARIA.01 is unaffected meanwhile (Finding 2/3's legs).
   (2) The row-ADVANCEMENT writer of [[rec]+4]: the cursor's
   increment owner and its 0/1-based nature; 0x300dd's caller
-  (the reset idiom's owner) is the near side. (3) The class
+  (the reset idiom's owner) is the near side. [CLOSED BY
+  PR-159 F1: no incrementer; writer law 0x53616 (transition,
+  verbatim authored (N)) or 0x300e6 (clone-init); base = au-
+  thored 1-based.] (3) The class
   slot +0x4c (the asker getter called at 0x3f1e9, FLAG-
   branch child-list root) - PR-150 item 5 narrowed to one
   slot. PROCESS (not an item): the Next-swap re-splice rule,
@@ -18032,6 +18105,229 @@ FULL BUILD GATES RUN ANYWAY; PR-138..157 PRECEDENT)
   157's and PR-150's own evidence, not re-derived. NEXT
   names the row-advancement cursor writer (Finding 4's de-
   cider) as PR-159's first read.
+
+## PR-159 — THE ROW CURSOR HAS NO INCREMENTER: ITS COMPLETE
+## WRITER LAW IS CLOSED (a transition match at 0x53616, or the
+## tail of the CLONE/ctor path at 0x300e6 - the 0x300d7 site
+## that PR-157 F7 called a restart idiom IS object creation);
+## ROW PROGRESS LIVES IN THE THRESHOLD/ACCUMULATOR ENTRY-WALK
+## (PR-100/101) AND NEVER TOUCHES THE CURSOR; THE CURSOR'S
+## BASE THEREFORE IS THE AUTHORED 1-BASED (N) - PR-157 F4's
+## consumer-6 row shifts to the `3,6` line; A NEW LAW: THE
+## TRANSITION PIPELINE SELF-RAISES AC_TIME FROM A PER-STATE
+## MATCH-COUNT AGAINST A RECORD WORD (0x53626-0x5365c); THE
+## rows[] BINDING HELPER PROVES THE STATE-INDEX SPACE 1-BASED
+(READING; no code, no new test - the PR-138..158 precedent)
+
+- WHY. PR-158's Next named the first read: WHO advances a
+  state record's row cursor [[rec]+4] while playback runs -
+  the applier only SETS it from the authored (N) and nobody
+  increments it in any window read so far. The answer decided
+  two open questions (the cursor's 0/1-based nature; PR-157
+  F7's reset framing) and exposed a new engine law (a real
+  AC_TIME mechanism) plus the rows[] binding helper.
+
+- FINDING 1, THE COMPLETE WRITER LAW OF [[rec]+4] (the record
+  = [[obj+0x50]+[obj+0x5c]*4], the current state's row-array
+  entry): exactly TWO writers exist in every window read, and
+  NEITHER is an incrementer. (a) The transition applier's
+  same-state arm, re-read whole (0x53602-0x53626): it loads
+  [[obj+0x50]+[state]*4], reads the record's +4 cursor,
+  compares it with the matched entry's row out-value
+  (0x53612 `cmp esi,edx`), and when they DIFFER writes it
+  (0x53616) and runs the class verb +0xac; when equal BOTH
+  are skipped (0x53614 -> 0x53626). (b) 0x300d7-0x300e6 -
+  the window PR-157 F7 called the "reset a state's row"
+  idiom - is the TAIL OF A CLONE/CONSTRUCT PATH (0x30083-
+  0x300f8): 0x5c320 alloc, 0x54030 ctor, four field copies
+  (+0xee/+0xf2/+0xf6/+0xfa), a class pair store 0x9c05c/
+  0x9c054 (0x300bf/0x300c6 - 0x9c05c is a base-family table:
+  direct read gives +0x2c = 0x53d80 and +0x7c = 0x537f0,
+  PR-157 F1's universal pair), and only THEN the tail:
+  [esi+0x5c] := 1, rows[1]'s +4 cursor := 0, then a copy
+  verb [[cls]+0x4] at 0x300fe. That is NEW-OBJECT INITIAL-
+  IZATION, not mid-game state restart. Meanwhile row progress
+  inside a state runs entirely in the threshold/accumulator
+  entry-walk (PR-100/101's law at 0x522c1-0x5235c, re-ground
+  verbatim this pass): the state record's class verb
+  [[rec-class]+0x18] iterates entries by POINTER chain (the
+  loop body 0x522fc-0x52336 reads the entry's class at
+  [entry+4], gets a set via [entry-class+0xc], ORs it into
+  the key through 0x49580, reads a threshold and gates on
+  [obj+0xa1]) - the cursor is NEVER consulted. CONSEQUENCES:
+  (i) PR-158 item 2 and its F4 question CLOSE: no row-
+  advancement writer exists; the cursor is a pure SET-POSITION
+  register. (ii) The cursor's BASE is the authored base: the
+  only non-zero writer copies the authored (N) VERBATIM
+  (0x52046 -> 0x53616), the authored (N) is 1-based (PR-86),
+  and 0 is exactly the init value ("before any authored row",
+  as PR-150's gate table observed). So consumer 6 (Finding 5,
+  0x50be2) matches POSITION 6 = the `3,6` line of A_WALK, NOT
+  index 6 (`4,6`): PR-157 F4's row-identity caveat resolves
+  to the 1-based side; the numeric gate-6/threshold-6 coinci-
+  dence (every A_WALK pose line carries field-2 6) is un-
+  touched either way. (iii) PR-157 F7's "reset a state's row
+  idiom" label and PR-158's restatements of it are corrected
+  by brackets.
+
+- FINDING 2, THE AC_TIME SELF-RAISER - A NEW ENGINE LAW
+  (0x53626-0x5365c, verbatim): AFTER every same-state transi-
+  tion match - including matches where 0x53612 skipped the
+  cursor write - the applier reads rec = [[obj+0x50]+
+  [obj+0x5c]*4], increments the OBJECT's step counter
+  [obj+0x9d] (0x53629/0x53636/0x5363a), loads WORD [rec+0xc]
+  (0x53643), and when it is nonzero AND <= the counter, sets
+  live-set byte [obj+0x61] bit 1 - bit index 9 of the object
+  signal set, i.e. AC_TIME (PR-145's bit-index = LL_SIG_*
+  law; cross-checked against ll_play.h). The counter is zeroed
+  on a STATE CHANGE (0x535c2, the different-state arm before
+  its ENTER verb) and at construction (0x538c3) and by a list-
+  parent path (0x52077, part of F4's 0x52072 function). So
+  the engine's AC_TIME is NOT a timer: it counts SELF-TRANS-
+  ITION MATCHES since state entry against a per-state record
+  word. The port's PR-69 approximation ("end of the frame
+  list") was directionally right (both read as "eventually
+  true") but the real gate is match-count vs [rec+0xc]. THE
+  WORD'S SOURCE: 0x52072 (same window family) COMPUTES it -
+  if WORD [self+0xa] = 0 then [self+0xc] := WORD [self+8],
+  else an interpolation [self+8] + ([self+0xa]-[self+8]) *
+  f(0x76bcc) / 0x7fff (0x52081-0x520b0); and the same func-
+  tion zeroes [[self+0]+0x9d] - self+0 is the OWNER BACK-
+  POINTER, the same back-pointer the row-walk reads at
+  0x52311/0x5231d ([entry+0] -> owner -> [owner+8] vtable).
+  What authored directive feeds [rec+0x8]/+0xa (a `time=`
+  pair? `time_scale`?) and what 0x76bcc computes are open
+  (item 2); a WAIT-style always-matching entry would make
+  this "fire N steps after state entry" - the candidate read-
+  ing, unproven until the entry-key semantics are re-checked
+  (item 3).
+
+- FINDING 3, THE rows[] BINDING HELPER - THE STATE-INDEX
+  SPACE IS PROVEN 1-BASED. The row-builder loop PR-157 F1
+  described (0x5399c-0x539cd) runs once per authored para-
+  meter entry: it builds the key token from the entry's name
+  (0x57d30 at 0x539b7 with mode edx=2 and the 0x922ba
+  ' [%[^]]]' bracket-suffix format - PR-157's "edx=3" belongs
+  to a different call site, not this loop) and calls the
+  helper 0x53480, which (a) gets the record via class verb
+  +0x84, falling back to class verb +0x88 when that returns
+  null (0x5348d-0x534b1), (b) computes the STORE INDEX via
+  0x53440 - a scan of the object's OWN authored parameter-
+  entry list ([obj+0x3c], count at +0x8, entries stride 8,
+  name compare via 0x76a69) that INCREMENTS the position
+  counter BEFORE comparing (0x53460) -> returns the 1-BASED
+  position, 0 when not found (0x53471) - and (c) stores
+  rows[idx] := record (0x534b3-0x534b6). With the builder's
+  (count+1)*4 zeroed allocation, rows[0] = NULL and initial
+  [obj+0x5c] = 1 = the FIRST BOUND PARAMETER ENTRY. This
+  PROVES the state-index base (the ladder-gate's unit question
+  from PR-158 F2 needs no numeric correction: 1 = first bound
+  record stands) and REFINES PR-157 F1's "rows[i++]" wording:
+  the loop counter and the store index are different things.
+  WHICH param entries and in what order (DRABINKA's `1 33,-3`
+  / `23,30;53,160` / `30,50` candidate order) still needs the
+  ANI2 token mapping - the ladder-gate data blocker is UN-
+  CHANGED.
+
+- FINDING 4, THE ENTRY-KIND QUESTION (recorded, NOT resolved -
+  an honest open item). The row-walk's entries carry a CLASS
+  POINTER at [entry+0x4] and a threshold at DWORD [entry+0x10]
+  (0x522fc/0x52320); the transition entries at 0x52000 (stride
+  0x15, PR-139/157: key +0..0xc, +0xd record out, +0x11 row
+  out) have NO class at +4 (that is the row out-value's low
+  half in that layout) - so EITHER the [rec-class]+0x18 verb
+  walks a DIFFERENT array (row-line records - which matches
+  PR-101's measured law that the threshold is the authored row
+  field 2) and the contradiction dissolves, OR the layouts
+  overlap and PR-139's transition-entry map needs a carve-
+  out. The verb body is unread. Related observation kept
+  honest: right before the threshold read, [[owner]+8]+0xa0]
+  is called (0x52311-0x52317, eax = the record's owner back-
+  pointer) and its RESULT IS DROPPED (0x5231d reloads the
+  back-pointer) - the candidate reading is that this call's
+  SIDE EFFECT computes [entry+0x10] (the same lerp-style pat-
+  tern as F2's [rec+0xc] computation); unproven until the
+  +0xa0 body is found.
+
+- FINDING 5, THE [obj+0x9d] CONSUMER CENSUS + THE HAND-OFF
+  CHAIN REFINED. The text.asm census gives 11 code sites (21
+  raw hits minus 10 unrelated [eax-0x9d] string-table writes):
+  the F2 gate (0x53629/0x5363a); zeroers 0x535c2/0x538c3/
+  0x52077; clone copy 0x53399/0x5339f; 0x509aa `cmp [esi+
+  0x9d],0x32` (context unread); 0x61279 `== 1` (TUNGA-era,
+  class not instantiated at T5); and the PR-152 hand-off win-
+  dow: 0x50b9b tests [obj+0x9d] == 1 and on true calls
+  [self.vt+0x114] (edx = the caller's [ebp-0x4]) before fall-
+  ing through - a step (0) PR-152 missed. THE BIG ONE: PR-152
+  called 0x50bb4.. a SCAN of the transition-record array; the
+  bytes 0x50bd4-0x50be4 show NO loop: it loads the CURRENT
+  STATE RECORD [[obj+0x50]+[obj+0x5c]*4] and compares ITS
+  ROW CURSOR [record+4] ONCE against -M. That is the direct
+  consumer F1 was sought for: for TLewZaria's -6 to ever
+  match, the cursor must hold the AUTHORED row value - which
+  F1's writer law now says it can only do via a transition
+  entry authored (6). No port-side action: the +0x104 gate's
+  base pair is FALSE (0x26f30) and the ZARIA-era classes are
+  not instantiated at T5 (PR-156 F5/158 F3 stand).
+
+- OPEN ITEMS COUNTED (5 new + 1 narrowed). (1) The [rec-
+  class]+0x18 walk-verb BODY and the row-walk entry-kind call
+  (+0x10 threshold vs the 0x15-stride transition layout; the
+  entry-layout census). (2) The [rec+0xc] authoring chain: the
+  +0x8/+0xa WORD sources (a `time=` pair? `time_scale`?) and
+  0x76bcc's function, plus the base-class body of the
+  [[obj]+8]+0xa0] pre-scale. (3) Whether a WAIT-style entry
+  key re-matches every step (would make [rec+0xc] an effective
+  step-timer) - re-check 0x47e40 against empty keys. (4) The
+  record-fetch verbs +0x84/+0x88 bodies (registry vs authored
+  record creation). (5) 0x9c05c/0x9c054's class IDENTITY and
+  the full clone law (0x30083's caller, the [[cls]+0x4] copy
+  verb); plus 0x509aa's and 0x61279's contexts and the
+  hand-off's +0x114 verb. NARROWED: PR-158 item 1 (the gate
+  unit question) is no longer numeric/base-blocked - F1/F3
+  settled bases; it is PURELY data-blocked on the param-entry
+  token mapping. CLOSED here: PR-158 item 2 (writer law +
+  0/1-based nature, F1); PR-157 F4's caveat resolved to 1-
+  based; PR-157 F7's idiom label corrected; PR-152 chain
+  steps (0)/(2) refined. CARRIED unchanged: PR-157's other
+  items, PR-158 item 1's data blocker and item 3, the older
+  named ones.
+
+- GATES. No code changed (reading PR): make and make win not
+  required for semantics, but ll_level.c DID get comment-only
+  edits (the 0x300dd "state restart" clause corrected to the
+  clone/ctor-init fact per F1(b); the AC_TIME approximation
+  comment annotated with F2's real self-raiser law) - full
+  gates ran anyway per the PR-158 precedent: make and make
+  win ZERO warnings; make ll_level relinked; make -k verify-
+  all rc=0 BOTH modes - with fixtures (DATA=/tmp/opencode/
+  iso_stage/LEO HD=/tmp/opencode/hd_files) 56 (ok); fixture-
+  free (DATA=/tmp/opencode/nope HD=/tmp/opencode/nope) 10
+  (ok) + the same 23 named SKIPs. No new test/mutation bat-
+  tery: zero behaviour change (comment diff audit: no non-
+  comment line changed). Every added prose line <= 79 cols;
+  over-79 baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 72);
+  no game data or frames in git (scratch /tmp/opencode/
+  pr159/); .github/workflows/* untouched; the image unchanged
+  (text.bin sha256 edf19a12...).
+
+- EVIDENCE. Raw windows read this pass (rng.py + text.asm):
+  0x535d0-0x53660 (the full applier tail: EXIT/ENTER arm, the
+  same-state cmp/store/verb, the step-counter + AC_TIME gate);
+  0x522c1-0x5235c and 0x522a0-0x522c1 (the whole row-walk
+  including its key-prep head); 0x52072-0x520b7 (the [rec+
+  +0xc] computer + owner-zero); 0x53440-0x534bd and 0x53974-
+  0x539cd (binding helper, name scan, row-builder loop);
+  0x30083-0x30101 (the clone path); 0x50b80-0x50c30 (the
+  hand-off window incl. the missed step (0)); 0x52338-0x5235c
+  (the walk's tail: [cls+0x18] re-entry, the +0xa4 call, the
+  [obj+0x95] latch); 0x543c6-0x543f1 (the accumulator feeders
+  re-ground); direct table reads of 0x9c05c +0x2c/+0x7c; the
+  [obj+0x9d] text.asm census (11 code sites, listed above);
+  ll_play.h bit-9 cross-check. Ledger rule applied: the re-
+  vision census before surgery (HEAD 9c29656 carries all nine
+  PR-150..158 records - last carrier is HEAD; records re-
+  spliced from it).
 
 ## Deferred big items (deliberately out of scope so far)
 

@@ -3088,7 +3088,13 @@ writer as its open items.
      question CLOSED: no restore needed); DRABINKA's final =
      LADDER pair via [obj+0xc5]-0xbd stores. F7 the [obj+0x5c]
      writer census: 1 initial, 55 stamp, 0x82 clamp, 0x300dd
-     resets a state's ROW CURSOR - the "reset row 1" idiom.
+     resets a state's ROW CURSOR - the "reset row 1" idiom
+     [RE-IDENTIFIED by PR-159 F1: 0x30083-0x300f8 is the
+     CLONE/Ctor path; its tail is new-object INITIALIZATION
+     (index 1, rows[1] cursor 0), not a mid-game restart;
+     and no row-advancement writer exists at all - the com-
+     plete writer law is a transition match (0x53616) or
+     that initialization (0x300e6).]
      8 new open items (the +0x7C invoker, the 'seq' source,
      param-line token mapping, 0x524xx/0x525xx + [obj+0x58]
      dual role, initial cursor, 0x446de, 0x57d30 modes, con-
@@ -3139,7 +3145,10 @@ writer as its open items.
      reset all point that way), PR-157 F4's consumer-6 row
      identity shifts to the `3,6` line (the numeric gate-6/
      threshold-6 coincidence unaffected) - PR-159's first
-     read; the ladder-gate fi-vs-state decision waits for
+     read [CLOSED by PR-159 F1: no incrementer exists; base
+     = authored 1-BASED proven; consumer 6 IS the `3,6` line;
+     0x300dd is clone/ctor-init, not a restart]; the ladder-
+     gate fi-vs-state decision waits for
      DRABINKA's binding order (record-pool decode); the
      FLAG-branch +0x4c getter. PROCESS RULE: Next-swaps re-
      splice records from the LAST revision that carried them
@@ -3150,6 +3159,68 @@ writer as its open items.
      CHANGED (71/72); image unchanged. Full record: the
      PR-158 section of NEXT_STEPS.md (scratch /tmp/opencode/
      pr158/).
+   - PR-159 (READING, no code, no new test - the PR-138..158
+     precedent): THE ROW CURSOR'S COMPLETE WRITER LAW IS
+     CLOSED - [[rec]+4] has EXACTLY TWO writers and NO incre-
+     menter: a transition match writes it verbatim (0x53616;
+     0x53612 skips the write + the +0xac verb when unchanged),
+     or the CLONE/ctor path initializes it (0x300d7-0x300e6 -
+     the window PR-157 F7 called a "state restart" idiom is
+     actually object CREATION: alloc + 0x54030 ctor + field
+     copies + class pair 0x9c05c/0x9c054, a base-family table
+     with the +0x2c/+0x7c pair). Row progress inside a state
+     runs entirely in the threshold/accumulator entry-walk
+     (PR-100/101, re-ground verbatim: [rec-class]+0x18 iter-
+     ates entries by pointer chain, reading [entry+4] class,
+     [cls+0xc] set-OR into the key, threshold vs [obj+0xa1])
+     and NEVER touches the cursor. THEREFORE the cursor's base
+     IS the authored 1-based (N) (verbatim copy; 0 = the init
+     value) - PR-157 F4's consumer-6 row resolves to the
+     `3,6` line; the gate-6/threshold-6 numeric coincidence is
+     untouched. PR-158 item 2 and its F4 question CLOSED; F7's
+     idiom label corrected in ledger/HANDOFF. NEW ENGINE LAW:
+     the same-state arm SELF-RAISES AC_TIME - every match
+     (even write-skipped) increments [obj+0x9d] (zeroed at
+     state change/ctor/list-parent 0x535c2/0x538c3/0x52077),
+     and WORD [current-state-record+0xc] != 0 && <= count ORs
+     live-set bit 9 (0x53626-0x5365c; PR-145 bit law +
+     ll_play.h cross-check). Not a timer: SELF-TRANSITION
+     MATCHES since state entry, vs a record word COMPUTED by
+     0x52072 as an interpolation of WORDs +0x8/+0xa (authoring
+     source = open; a WAIT-style always-matching entry would
+     make it an effective step-timer - the port's PR-69 frame-
+     list approximation was directionally right). BINDING
+     HELPER 0x53480: record via class verb +0x84 (fallback
+     +0x88), store index via 0x53440 = name scan of the ob-
+     ject's own [obj+0x3c] param-entry list, INC BEFORE com-
+     pare -> 1-BASED, 0 = not found; with (count+1)*4 zeroed
+     alloc: rows[0]=NULL, [obj+0x5c]=1 = first bound param
+     entry - THE STATE-INDEX SPACE PROVEN 1-BASED (PR-158
+     F2's gate needs no unit correction; the fi-vs-state de-
+     cision is now PURELY data-blocked on the param-token
+     map). RECORDS HAVE OWNER BACK-POINTERS AT +0 (0x52072
+     zeroes [[self]+0x9d]; the walk reads [entry+0]->[owner+8]
+     at 0x52311) - and an entry-kind tension stays OPEN: the
+     walk's threshold DWORD [entry+0x10] vs the 0x15-stride
+     transition layout's +0xd/+0x11 out-slots - resolved only
+     by the unread [cls+0x18] body (PR-160's first read); the
+     [[owner]+8]+0xa0] call right before the threshold read
+     DROPS its result (candidate: side-effect computes the
+     threshold). [obj+0x9d] consumer census: 11 sites - and
+     the PR-152 hand-off "scan" is NOT a loop: 0x50bd4-0x50be4
+     compares the CURRENT record's cursor [record+4] ONCE
+     against -M (the direct consumer proving the cursor holds
+     authored (N)s), plus a missed step (0): 0x50b9b tests
+     steps==1 then calls +0x114. 5 new open items counted + 1
+     narrowed (ladder-gate no longer base-blocked); PR-158
+     item 2 closed. ll_level.c edits are COMMENT-ONLY (the
+     0x300dd "state restart" clause corrected; the AC_TIME
+     approximation comment annotated with the real self-
+     raiser law); full gates anyway: ZERO-warning builds, ll_
+     level relinked, verify-all 56 / 10+23 both modes; added
+     .md lines <= 79; baselines UNCHANGED (71/72); image un-
+     changed. Full record: the PR-159 section of NEXT_STEPS.
+     md (scratch /tmp/opencode/pr159/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -4886,7 +4957,11 @@ INDEX 6 = the `4,6,GEN AC_TIME` pose). 8 new open items.
 based (the (N)-verbatim + "0 = before any admit" + 0x300dd
 zero-reset readings), consumer 6 names the `3,6` line and the
 row-identity sentence shifts; the numeric coincidence stands
-either way.]
+either way.] [RESOLVED by PR-159 F1/F3: the base IS the au-
+thored 1-based (N) - the only non-zero writer copies it ver-
+batim, rows[] binding scans names with inc-before-compare,
+and 0 is exactly the clone-init value; consumer 6 = the `3,6`
+line.]
 
 STATUS after PR-158 (ledger recovered; the row-gate CODE
 question CLOSED as a question, by inventory): PR-150's and
@@ -4911,10 +4986,45 @@ read: WHO advances [[rec]+4] during ordinary row playback
 owner is known the cursor's 0/1-based nature is unresolved,
 PR-157 F4's row-identity arithmetic is flagged, and the lad-
 der-gate fi-vs-state decision waits on the record-pool de-
-code. ZARIA.01 output: UNCHANGED (the ll_level.c edits are
+code. [CLOSED by PR-159 F1/F3: no incrementer exists - the
+writer law is a transition match (0x53616) or the clone/ctor
+initialization (0x300e6, the 0x300dd window CORRECTED from a
+"restart" to object creation); the base = the authored 1-
+based (N), and rows[] binding is name-position-based and 1-
+based; only the param-token mapping stays data-blocked.]
+ZARIA.01 output: UNCHANGED (the ll_level.c edits are
 comment/diagnostic-string only; full gates pass - 56 with
 fixtures, 10 + the same 23 SKIPs without). 3 new open items
 counted + 1 process rule; PR-150 item (6) closed.
+
+STATUS after PR-159 (the row-cursor question CLOSED as a law,
+and a new engine law counted): [[rec]+4] has NO incrementer -
+its complete writer set is a transition match (0x53616, ver-
+batim from the authored (N), skipped-when-equal at 0x53612)
+or the CLONE/ctor initialization at 0x300d7-0x300e6 (the
+"state restart" reading was wrong; it is object creation,
+class pair 0x9c05c). Row progress lives in the threshold/
+accumulator walk (PR-100/101) and never reads the cursor, so
+the cursor's base IS the authored 1-based (N): PR-157 F4's
+consumer-6 row resolves to the `3,6` line and PR-158 item 2
+closes. The transition pipeline itself raises AC_TIME: self-
+transition matches counted in [obj+0x9d] against WORD [state-
+record+0xc] set live-set bit 9 (0x53626-0x5365c) - the port's
+frame-list approximation was directionally right; the exact
+gate waits on the [rec+0xc] authoring decode. The rows[] bind-
+ing helper (0x53480/0x53440) PROVES the state-index space
+1-based (rows[0]=NULL, init=first param entry): the ladder
+gate's unit reading stands, and the fi-vs-state decision is
+now purely data-blocked on the param-token map. The PR-152
+hand-off scan is a ONE-SHOT cursor compare (0x50be2), which
+corroborates the whole law; its base-class gate stays FALSE
+at T5 so no port action is due. One tension stays honestly
+open: the walk's threshold [entry+0x10] vs the transition-
+entry layout - the [cls+0x18] body is PR-160's first read.
+ZARIA.01 output: UNCHANGED (comment-only ll_level.c edits;
+full gates pass - 56 with fixtures, 10 + the same 23 SKIPs
+without). 5 new open items counted + 1 narrowed; PR-158 item
+2 and the F4 base question closed.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
