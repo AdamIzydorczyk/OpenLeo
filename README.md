@@ -200,6 +200,19 @@ grid `LEO_LEVEL_PPM`/`LEO_LEVEL_PPM_TICK` dump frames on, so CI frames
 are deterministic); in a live window the arrows drive the lion directly.
 `ll_level --play-selftest` runs the hermetic .plt/.MOV/player checks
 (no data needed).
+Stage-driver hook (PR-194, used by verify-stage): `LEO_LEVEL_EXIT=
+"<tick>:<code>[,...]"` states that the level ENDED at that tick with that
+exit code, and the play leg then answers it the way the engine's per-stage
+caller does (the contract with every address is in `ported/ll_stage.h`; the
+read is PR-193 F2/F3/F4): 3 resets the stage to its authored start and runs
+on, 2 takes the queue leg - with no queue producer in the port that is the
+engine's OWN empty-queue answer, stop -, 4 stops, any other value runs on
+with NO reset. The port claims no producer for the code: the authored .MOV
+directive `end_level <n>` is the candidate the data names and its runtime
+executor is unread. Without the variable the driver prints nothing and
+changes no byte, which is why every existing play pin is untouched.
+`./stage_selftest` (built by `make stage_selftest`) pins the table itself
+with no data at all.
 Scene hooks (M4-C, PR-45, used by verify-level): the level preview now
 runs the level's OWN authored scene - the .MOV scripts of the objects
 its .des placement files (zwierzaki=/animacje=/ani_plat=) name, drawn

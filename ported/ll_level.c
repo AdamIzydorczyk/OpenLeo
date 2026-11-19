@@ -39,6 +39,7 @@
 #include "ll_pcm.h"
 #include "ll_play.h"
 #include "ll_seq.h"
+#include "ll_stage.h"
 #include "llrs.h"
 #include "ll_mod.h"
 #include "platform.h"
@@ -5886,6 +5887,122 @@ static void play_claim_leaf(lvl_obj *objs, int *nobj, const play_ctx *pl)
     *nobj = w;
 }
 
+/* PR-194: THE STAGE-DRIVER EXIT CONTRACT IN THE PLAY LEG.
+ *
+ * The engine's level loop ends and its per-stage caller acts on the code;
+ * ported/ll_stage.h states the contract with every address, and PR-193
+ * F2/F3/F4 is the read behind it. The port has no exit-word PRODUCER:
+ * the authored `.MOV` directive `end_level <n>` (26 lines in the HD
+ * ANIMACJE members, values 1 and 2; the engine parses it at
+ * 0x46bbd-0x46c01 into a node of class 0xa1048) is the candidate the
+ * data names, but its runtime executor was never read. So the only
+ * honest way to run the four outcomes is to INJECT the code, which is
+ * what LEO_LEVEL_EXIT does: a comma list of "<tick>:<code>", meaning
+ * "the level ended at that tick with that code". With the variable
+ * absent nothing is printed and nothing changes, so every existing pin
+ * stays byte-identical.
+ *
+ * What each outcome does here, and where the port stays honest about not
+ * knowing (the log lines say the same, so a test can pin them):
+ *   code 3  reset, then run again. The engine calls its reset pair
+ *     (0x5da60 + 0x5d050) whose internals are NOT read, so the port's
+ *     reset is a NAMED ESTIMATE (rule 1): every object returns to what
+ *     the placement parser authored (anchor position, declared start
+ *     state, frame 0, row clock and signal pulses cleared, authored
+ *     facing) and the lion goes back through play_spawn. The combat
+ *     fields (hp / hit_cd / atc / dead) are NOT reset - no reading says
+ *     whether the pair touches them.
+ *   code 2  the queue leg. The port has no queue (ll_stage_queue_len()
+ *     returns 0), which is also the engine's own empty-queue answer
+ *     (0x5d38e -> return 0), so the answer is stop, and the line names
+ *     that instead of hiding it.
+ *   code 4  stop (0x5d3ec).
+ *   any other value  run on, with NO reset (0x5d3dc).
+ *
+ * The code is checked AFTER the tick has been advanced, because that is
+ * what makes the legs comparable: a run that stops at tick N has then
+ * done exactly the work of a run of N ticks, so the leg can cmp its PPM
+ * against the N-tick frame byte for byte.
+ */
+#define STAGE_MAX_INJ 8
+typedef struct { int tick, code; } stage_inj;
+
+static int stage_inj_parse(const char *spec, stage_inj *at)
+{
+    int n = 0;
+    while (spec && *spec && n < STAGE_MAX_INJ) {
+        int t = 0, c = 0;
+        const char *p = spec;
+        while (*p == ' ' || *p == ',')
+            p++;
+        if (!*p)
+            break;
+        if (sscanf(p, "%d:%d", &t, &c) != 2 || t < 1) {
+            fprintf(stderr, "ll_level: stage driver: LEO_LEVEL_EXIT value"
+                            " '%s' is not <tick>:<code> - the rest of the"
+                            " list is ignored\n", p);
+            break;
+        }
+        at[n].tick = t;
+        at[n].code = c;
+        n++;
+        while (*p && *p != ',')
+            p++;
+        spec = p;
+    }
+    return n;
+}
+
+/* the reset half of code 3 - the ESTIMATE described above */
+static void stage_reset_to_authored(lvl_obj *objs, int nobj, play_ctx *pl)
+{
+    for (int k = 0; k < nobj; k++) {
+        lvl_obj *o = &objs[k];
+        o->sti = (o->sc && o->sc->mov) ? o->sc->mov->start_st : 0;
+        o->fi = 0;
+        o->face = 1;
+        o->row_t = 0;
+        o->brk_arm = 0;
+        o->sig = 0;
+        o->x = o->bx;
+        o->y = o->by;
+    }
+    if (pl && pl->have)
+        play_spawn(pl);
+}
+
+/* One exit code, as the engine's wrapper answers it. Returns 1 to keep
+ * ticking (AGAIN / QUEUED) or 0 to stop the play leg (STOP). */
+static int stage_apply(int code, int tick, lvl_obj *objs, int nobj,
+                       play_ctx *pl)
+{
+    int did_reset = 0;
+    int out = ll_stage_outcome(code, ll_stage_queue_len(), &did_reset);
+
+    if (did_reset) {
+        printf("ll_level: stage driver: exit %d at tick %d: RESET to the"
+               " authored start and run again (ESTIMATE: the engine's pair"
+               " 0x5da60+0x5d050 is unread; combat fields are not"
+               " touched)\n", code, tick);
+        stage_reset_to_authored(objs, nobj, pl);
+    } else if (out == LL_STAGE_QUEUED) {
+        printf("ll_level: stage driver: exit %d at tick %d: the queue ran"
+               " ONE item and the engine returns 2 - not reachable in the"
+               " port, ll_stage_queue_len() is 0\n", code, tick);
+    } else if (out == LL_STAGE_STOP && code == 2) {
+        printf("ll_level: stage driver: exit %d at tick %d: queue leg with"
+               " an EMPTY queue (the port has no producer) - the engine's"
+               " own empty-queue leg 0x5d38e answers stop\n", code, tick);
+    } else if (out == LL_STAGE_STOP) {
+        printf("ll_level: stage driver: exit %d at tick %d: STOP (the"
+               " engine's 0x5d3ec)\n", code, tick);
+    } else {
+        printf("ll_level: stage driver: exit %d at tick %d: run on, NO"
+               " reset (the engine's 0x5d3dc)\n", code, tick);
+    }
+    return out != LL_STAGE_STOP;
+}
+
 /* PPM dump of the composited scene (CI hook, LEO_LEVEL_PPM; the parent
  * directory must already exist - CI recipes use /tmp/opencode directly) */
 static void scene_ppm(const char *path, int w, int h, const unsigned char *idx,
@@ -8555,11 +8672,25 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
             const char *scr = getenv("LEO_PLAY_SCRIPT");
             if (!scr)
                 scr = "1:FWD";
+            /* PR-194: the stage-driver contract, inert unless
+             * LEO_LEVEL_EXIT names codes (see the block at
+             * stage_apply: for the reading and the honest gaps). */
+            stage_inj inj[STAGE_MAX_INJ];
+            int ninj = stage_inj_parse(getenv("LEO_LEVEL_EXIT"), inj);
             for (int tk = 1; tk <= ticks; tk++) {
                 ll_play_keys keys = script_keys(scr, tk);
                 play_advance(&pl, &keys, LL_ITER_MS, 1, tk, objs, nobj);
                 for (int k = 0; k < nobj; k++)
                     obj_advance(&objs[k], LL_ITER_MS);
+                int code = 0;
+                for (int k = 0; k < ninj; k++)
+                    if (inj[k].tick == tk)
+                        code = inj[k].code;
+                if (code && !stage_apply(code, tk, objs, nobj, &pl)) {
+                    printf("ll_level: stage driver: the play leg ended at"
+                           " tick %d of %d\n", tk, ticks);
+                    break;
+                }
             }
             camy = follow_camy(&pl, ch, cam_ymax);
         } else {

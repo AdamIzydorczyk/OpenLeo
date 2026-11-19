@@ -8250,6 +8250,32 @@ leaf (PTAK.MOV exists only in KADMAR.07/PTAK, TUNGA2.12/PTAKPLAT,
 RAN.01/GPTAK_RA): the scenes are a scripted chain reaching into
 other levels' leaves, or engine code - find which (G-10/G-11).
 
+STATUS after PR-194: the CONTRACT half of T6 is now in port code, and
+    the data names the producer half of it. (1) The split itself (3 = the
+    reset pair then run again, 2 = the queue runner, 4 = stop, anything
+    else = continue with no reset) lives in ported/ll_stage.[ch] as a
+    pure table plus the counted unknowns, and the play leg answers it
+    under LEO_LEVEL_EXIT; verify-stage pins all four outcomes at BYTE
+    level (a stop at tick 50 gives the 50-tick frame, the default leg
+    changes no byte at all, and 50 ticks after a reset at tick 50 are
+    byte-identical to 50 ticks with no reset - that is what "the reset
+    restored the authored state" means when it is proved). (2) The
+    authored producer: `end_level` exists EXACTLY ONCE in the image
+    (0x9198e, in the .MOV directive vocabulary) and is parsed at EXACTLY
+    one site (0x46bbd-0x46c01, a node of class 0xa1048 carrying the
+    number); in the fixtures all 26 `end_level <n>` rows are in the
+    LION's own LEW.MOV, in 3 of its 12 members - two carry 12 rows of
+    `end_level 1` inside state `A_EXIT`, one carries `A_TUNGA1` -> 1 and
+    `A_TUNGA2` -> 2. The level ends from the lion's walk-off script, and
+    the TUNGA pair asks with two different values; the port knows A_EXIT
+    only as a name in a comment today. (3) What still blocks T6's
+    behaviour half, all counted: the runtime that EXECUTES a parsed
+    directive node (0xa1048 and its siblings 0xa1030/0xa1060/0xa11c8),
+    whether that number is the loop's return, the exit word [level+0x4]
+    or a level index, and who writes [level+0x4] - the easy shape was
+    measured and ruled out (no ds:0xcef40 load pairs with a [reg+0x4]
+    store nearby). PR-195 is that read.
+
 **T7. RAN's balloon mode.** Episode 9 of the video shows it (you fly right,
 birds attack the canopy, vulture boss throws bombs). Lion states with scripted
 gravity (`G=400`), the `BAL_RAN`/`GPTAK_RA`/`SEP_RAN`/`PIOR_RAN` objects. Until

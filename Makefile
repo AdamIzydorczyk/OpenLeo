@@ -26,12 +26,12 @@ PYREF    ?= tools/is_decode.py
 SRC      := ported/main.c ported/is_stream.c ported/platform_sdl/is_player.c \
             ported/platform_sdl.c ported/platform_common.c \
             ported/llrs.c ported/ll_pcx.c ported/ll_menu.c ported/ll_level.c ported/ll_play.c \
-            ported/ll_seq.c \
+            ported/ll_seq.c ported/ll_stage.c \
             ported/ll_pcm.c ported/ll_mod.c ported/ll_save.c ported/fs_ci.c ported/ll_view.c \
             ported/ll_audio.c ported/ll_paths.c
 HDRS     := ported/ll_config.h ported/is_stream.h ported/platform_sdl/is_player.h \
             ported/platform.h \
-            ported/llrs.h ported/ll_pcx.h ported/ll_menu.h ported/ll_level.h ported/ll_play.h ported/ll_seq.h \
+            ported/llrs.h ported/ll_pcx.h ported/ll_menu.h ported/ll_level.h ported/ll_play.h ported/ll_seq.h ported/ll_stage.h \
             ported/ll_pcm.h ported/ll_mod.h ported/ll_save.h ported/fs_ci.h ported/ll_view.h \
             ported/ll_audio.h ported/ll_paths.h
 
@@ -293,13 +293,13 @@ endif
 ll_level.exe: tools/ll_level.c ported/ll_level.c ported/ll_play.c ported/llrs.c ported/ll_pcx.c \
             ported/ll_pcm.c ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c \
             ported/ll_view.c ported/platform_sdl.c ported/platform_common.c \
-            ported/ll_audio.c \
+            ported/ll_audio.c ported/ll_stage.c \
             ported/ll_seq.h ported/ll_pcm.h ported/ll_mod.h ported/ll_config.h ported/fs_ci.h ported/ll_view.h ported/ll_audio.h ported/platform.h \
-            ported/ll_play.h ported/llrs.h ported/ll_pcx.h
+            ported/ll_play.h ported/llrs.h ported/ll_pcx.h ported/ll_stage.h
 	$(XC) $(XCFLAGS) $(XLD) -o $@ tools/ll_level.c ported/ll_level.c \
 	    ported/ll_play.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c ported/ll_seq.c ported/ll_mod.c \
 	    ported/fs_ci.c ported/ll_view.c ported/platform_sdl.c \
-	    ported/platform_common.c ported/ll_audio.c $(XLIBS)
+	    ported/platform_common.c ported/ll_audio.c ported/ll_stage.c $(XLIBS)
 
 # ported/ll_pcm.c byte-for-byte agreement with tools/verify_pcm.py on every
 # PCM layer payload in ETAPY (transparent tile-opcode layers, ll_pcm.h).
@@ -344,17 +344,28 @@ pcm_selftest.exe: tools/pcm_selftest.c ported/ll_pcm.c ported/ll_pcm.h
 	$(XC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ \
 	    tools/pcm_selftest.c ported/ll_pcm.c
 
+# PR-194: the stage-driver exit contract (ported/ll_stage.h). No game data,
+# no window, no SDL: the decision table only, so it runs in the
+# fixture-free half of the gate as well.
+stage_selftest: tools/stage_selftest.c ported/ll_stage.c ported/ll_stage.h
+	$(CC) -O1 -g -std=gnu11 -Wall -Wextra $(SAN) \
+	    -Iported -o $@ tools/stage_selftest.c ported/ll_stage.c
+
+stage_selftest.exe: tools/stage_selftest.c ported/ll_stage.c ported/ll_stage.h
+	$(XC) -O1 -std=gnu11 -Wall -Wextra -Iported -o $@ \
+	    tools/stage_selftest.c ported/ll_stage.c
+
 # ll_level: level-scene viewer - prints a level's .DES wiring, composites
 # its tlo= PCX background + ANIMACJE leaf .SEQ object sprites driven by the
 # HD-install .MOV state machines (LEO_HD_DIR=<dir with ANIMACJE/ETAPY>).
 ll_level: tools/ll_level.c ported/ll_level.c ported/ll_play.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c \
-        ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c ported/ll_view.c ported/ll_audio.c \
+        ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c ported/ll_view.c ported/ll_audio.c ported/ll_stage.c \
         ported/platform_sdl.c ported/platform_common.c \
         ported/ll_seq.h ported/ll_pcm.h ported/ll_mod.h ported/ll_config.h ported/fs_ci.h ported/ll_view.h ported/ll_audio.h ported/platform.h \
-        ported/ll_play.h ported/llrs.h ported/ll_pcx.h
+        ported/ll_play.h ported/llrs.h ported/ll_pcx.h ported/ll_stage.h
 	$(CC) -O2 -std=gnu11 -Wall -Wextra -Iported $(CFLAGS) -o $@ \
 	    tools/ll_level.c ported/ll_level.c ported/ll_play.c ported/llrs.c ported/ll_pcx.c ported/ll_pcm.c \
-	    ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c ported/ll_view.c ported/ll_audio.c \
+	    ported/ll_seq.c ported/ll_mod.c ported/fs_ci.c ported/ll_view.c ported/ll_audio.c ported/ll_stage.c \
 	    ported/platform_sdl.c ported/platform_common.c $(LIBS)
 
 ll_save: tools/ll_save.c ported/ll_save.c ported/ll_save.h ported/fs_ci.c
@@ -2051,6 +2062,81 @@ else
 	@echo "verify-music: SKIP (needs $(DATA)/ETAPY/1/MUSIC.SSEQ; see the restaging recipe in NEXT_STEPS.md"
 endif
 
+# PR-194: THE STAGE-DRIVER EXIT CONTRACT AS BEHAVIOUR (ported/ll_stage.h,
+# the read is PR-193 F2/F3/F4). TWO HALVES.
+#   (a) fixture-free: the decision table itself (./stage_selftest, 11
+#       cases) - runs in every configuration, fixtures or not.
+#   (b) fixture-backed: the four codes driven through the real RAN.01 play
+#       leg with LEO_LEVEL_EXIT="<tick>:<code>", which states "the level
+#       ended at that tick with that code". The port does NOT invent a
+#       producer for the code: the authored `.MOV` directive `end_level <n>`
+#       is the candidate the data names and its runtime executor is unread
+#       (the note above stage_apply: in ported/ll_level.c says the same).
+# The frame equalities are the point of this leg, and they are exact:
+#   exit 4 stops the loop (the engine's 0x5d3ec), and exit 2 with an EMPTY
+#     queue stops through the engine's OWN empty-queue leg (0x5d38e), so a
+#     100-tick run that stops at tick 50 is byte-identical to a 50-tick run;
+#   exit 1 is the default leg (0x5d3dc): run on with NO reset, so the frame
+#     is byte-identical to the run with no code injected at all;
+#   exit 3 resets, and the strongest form of that is the byte-level one: 50
+#     ticks AFTER a reset at tick 50 are byte-identical to the 50 ticks of
+#     the same script with no reset - and not to the unreset 100-tick frame.
+# A run WITHOUT LEO_LEVEL_EXIT prints no driver line at all: the contract is
+# inert, which is why every pre-existing play pin is untouched.
+verify-stage: stage_selftest ll_level
+# (a) the contract, no data and no window
+	@timeout 30 ./stage_selftest
+ifeq ($(PX_DATA),1)
+# (b) the four outcomes, driven
+	@rm -f /tmp/opencode/stg_*.ppm /tmp/opencode/stg_*.log; \
+	run() { env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	          LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	          LEO_PLAY_SCRIPT="1:FWD" \
+	          LEO_LEVEL_PPM=/tmp/opencode/stg_$$1.ppm LEO_LEVEL_PPM_TICK=$$2 \
+	          $${3:+LEO_LEVEL_EXIT=$$3} \
+	          ./ll_level $(DATA) RAN.01 --play --no-audio \
+	          > /tmp/opencode/stg_$$1.log 2>&1 \
+	          || { echo "stage leg $$1 FAILED (rc=$$?)"; \
+	               cat /tmp/opencode/stg_$$1.log; exit 1; }; }; \
+	run base 100 ""; run t50 50 ""; run stop4 100 "50:4"; run stop2 100 "50:2"; \
+	run again1 100 "50:1"; run reset3 100 "50:3"
+	@! grep -q 'stage driver:' /tmp/opencode/stg_base.log \
+	  && echo "stage driver INERT without LEO_LEVEL_EXIT: no line, no byte of the" \
+	     "scene changed (ok)" \
+	  || { echo "stage leg: a run without LEO_LEVEL_EXIT printed a driver line"; \
+	       exit 1; }
+	@grep -q 'stage driver: exit 4 at tick 50: STOP' /tmp/opencode/stg_stop4.log \
+	  && grep -q 'the play leg ended at tick 50 of 100' /tmp/opencode/stg_stop4.log \
+	  && cmp /tmp/opencode/stg_stop4.ppm /tmp/opencode/stg_t50.ppm \
+	  && echo "exit 4 = stop (the engine 0x5d3ec): the 100-tick run that stops at" \
+	     "tick 50 is BYTE-IDENTICAL to a 50-tick run (ok)" \
+	  || { echo "exit-4 leg FAILED"; cat /tmp/opencode/stg_stop4.log; exit 1; }
+	@grep -q 'exit 2 at tick 50: queue leg with an EMPTY queue' \
+	     /tmp/opencode/stg_stop2.log \
+	  && cmp /tmp/opencode/stg_stop2.ppm /tmp/opencode/stg_t50.ppm \
+	  && echo "exit 2 + an empty queue = the engine's own empty-queue answer" \
+	     "(0x5d38e): the same stop, the same bytes (ok)" \
+	  || { echo "exit-2 leg FAILED"; cat /tmp/opencode/stg_stop2.log; exit 1; }
+	@grep -q 'exit 1 at tick 50: run on, NO reset' /tmp/opencode/stg_again1.log \
+	  && cmp /tmp/opencode/stg_again1.ppm /tmp/opencode/stg_base.ppm \
+	  && echo "exit 1 = the default leg (0x5d3dc): runs on with NO reset, the frame" \
+	     "identical to the run with no code at all (ok)" \
+	  || { echo "exit-1 leg FAILED"; cat /tmp/opencode/stg_again1.log; exit 1; }
+	@grep -q 'exit 3 at tick 50: RESET to the authored start' \
+	     /tmp/opencode/stg_reset3.log \
+	  && ! cmp -s /tmp/opencode/stg_reset3.ppm /tmp/opencode/stg_base.ppm \
+	  && cmp /tmp/opencode/stg_reset3.ppm /tmp/opencode/stg_t50.ppm \
+	  && echo "exit 3 = reset THEN run again: 50 ticks after a reset at tick 50 are" \
+	     "BYTE-IDENTICAL to 50 ticks of the same script with no reset, and NOT the" \
+	     "unreset 100-tick frame - the reset restored the authored state exactly" \
+	     "(ok)" \
+	  || { echo "exit-3 leg FAILED"; cat /tmp/opencode/stg_reset3.log; exit 1; }
+else
+	@echo "verify-stage: SKIP the four driven legs (needs $(DATA) + LEO_HD_DIR" \
+	  "fixtures; see the restaging recipe in NEXT_STEPS.md); the contract half" \
+	  "above ran"
+endif
+
 # P-07 end-to-end: game data + output paths through a non-ASCII
 # directory (the review's "C:\Gry\Łódź\" case).  Linux proves the
 # engine itself is path-encoding agnostic; the wine runs prove the
@@ -2322,6 +2408,7 @@ verify-all: verify verify-is-synth verify-skip verify-llrs verify-pcx \
             verify-seq verify-pcm verify-level verify-play verify-help \
             verify-menu verify-sel verify-quit verify-save verify-music \
             verify-utf8 verify-fuzz verify-platform verify-userdir \
+            verify-stage \
             verify-arch verify-golden verify-cmake $(WIN_LEGS)
 	@echo "ALL TESTS PASSED (linux half; Windows legs are deferred by the"
 	@echo "2026-11-19 ruling - the end pass is 'make -k verify-windows')"
@@ -2342,11 +2429,11 @@ clean:
 	      pcx_selftest pcx_selftest.exe seq_selftest seq_selftest.exe \
 	      seq_patchdump seq_patchdump.exe seq_shapedump seq_shapedump.exe pcm_selftest pcm_selftest.exe \
 	      mod_selftest mod_selftest.exe ll_level ll_level.exe \
-	      ll_save ll_save.exe *.o *.obj
+	      ll_save ll_save.exe stage_selftest stage_selftest.exe *.o *.obj
 
 .PHONY: py-refs verify-is-synth run win verify verify-skip verify-win verify-llrs verify-pcx \
         verify-seq verify-pcm verify-mod verify-level verify-play verify-help verify-menu \
         verify-sel verify-quit verify-save verify-music verify-utf8 verify-fuzz \
         verify-platform verify-userdir verify-cmake verify-all verify-windows \
         verify-all-windows level clean package package-win package-linux \
-        verify-golden verify-arch golden_rig golden_rig_cd golden_rig_ddir
+        verify-golden verify-arch verify-stage golden_rig golden_rig_cd golden_rig_ddir

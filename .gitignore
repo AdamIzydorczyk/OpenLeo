@@ -50,6 +50,8 @@ mod_selftest
 mod_selftest.exe
 fuzz
 platform_selftest
+stage_selftest
+stage_selftest.exe
 *.o
 *.obj
 

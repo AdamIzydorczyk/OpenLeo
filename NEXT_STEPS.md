@@ -15851,58 +15851,53 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-194 IS THE EXIT-CODE CONTRACT IN PORT CODE ([PORT] - the first
-  implementation PR after the history override; the owner asked for
-  the balance to move toward code, and this is the one finding whose
-  behaviour is fully read): PR-193 F2/F3/F4 give the engine's own
-  sequence end to end - the driver 0x5d170 returns the pair (level
-  loop return, [level+0x4] exit word) and its per-stage caller
-  splits on the code: 3 = call the reset pair (0x5da60 + 0x5d050,
-  with the per-stage edx 0/1) and THEN return 1 = run the same
-  stage; 2 = call the queue runner 0x5d2f0, which opens status.leo
-  and processes ONE queue entry through the stream run verb and
-  returns 2 if one ran, 0 if the queue was empty or the item would
-  not run; 4 = return 0 = stop the chain; anything else = return 1
-  with NO reset. PORT IT AS BEHAVIOUR: give the port's level-exit
-  path those four outcomes instead of the single 'level over'
-  route, keep the LEO_* API exactly as it is (is_player_run 0/1/2
-  is documented API), and ship the test in the same commit - a leg
-  that drives each of the four codes and pins the four outcomes in
-  the log (verify-play/verify-level style, fixture-backed). The two
-  things a collapsing model loses are named by the bytes: the reset
-  pair on code 3 (3 and the default both return 1), and 2 vs 0 on
-  the queue leg. FIRST STEP before any code: measure what the port
-  does TODAY with the same four inputs and write the delta; if a
-  case cannot be driven from the fixtures, say so and count it - do
-  not invent a scenario. RULES THAT BIND THIS PR: rule 3 (a test
-  that cannot pass without the change), the standing rules (parser
-  acceptance never widens; pinned logs/PPMs stay), zero-warning
-  `make`, the fixture and fixture-free `verify-all`, and the
-  subject tag `[PORT]`.
-- SMALL [GATE] ITEM TO LAND WITH OR BEFORE IT: `verify-utf8` uses
-  the python-oracle frames that only `make py-refs` produces but
-  does not declare the dependency - on a freshly staged machine
-  the full gate fails at Makefile:2066 (measured here 2026-11-19:
-  `cmp: /tmp/opencode/c_py/f01020.ppm: No such file`, rc=2, fixed
-  by running py-refs first). One-line Makefile fix, no leg logic
-  touched.
-- THEN PR-195 IS THE STAGE LIST AND THE QUEUE: the engine's own
-  13-stage order (PR-193 F1) and who fills the ds:0xcf464 queue
-  plus what one entry looks like (open item 1) - what the port
-  should do with either, decided only when a test can show a
-  difference. The reading list for both: the .mnu opcode
+- PR-195 IS THE PRODUCER'S LAST STEP: THE .MOV ACTION RUNTIME. PR-194
+  F-(a)/(b) left exactly one link missing between authored data and an
+  exit code: the parser turns `end_level <n>` into a node of class
+  0xa1048 (0x46bbd-0x46c01), and nobody has read the interpreter that
+  EXECUTES such a node. Read that, and answer the one question that
+  decides the port's next code change: is the authored number the level
+  loop's RETURN value, the exit word [level+0x4], or a level index?
+  Where to start: the parse legs and their sibling directive classes
+  (0xa1030, 0xa1060, 0xa11c8 - the same shape, other words), the verb
+  slots of those tables, and the row walk the port already models
+  (ported/ll_play.c). Rules: text.asm only (tools/re/make_text_asm.sh),
+  no invented semantics, an unproven half stays counted. IF the runtime
+  says the number reaches the loop's return or the exit word, the next
+  PR ([PORT]) replaces LEO_LEVEL_EXIT's injected codes with the real
+  `A_EXIT` rows of a level's own LEW.MOV - the fixture then drives the
+  engine's own end-of-level walk, which is the whole point of the
+  injection hook being separate.
+- THEN, IN THIS ORDER: (2) who fills the engine's ds:0xcf464 queue and
+  what one entry looks like (the port's ll_stage_queue_len() is 0 until
+  that is read and wanted); (3) what the reset pair 0x5da60/0x5d050 does
+  and what the per-stage edx 0/1 selects, so the port's reset can stop
+  being an ESTIMATE; (4) whether `end_level 1/2` in A_TUNGA1/A_TUNGA2 IS
+  the TUNGA I <-> II exchange (T6), mechanism first; (5) the .mnu opcode
   interpreter (the run verb's member-dispatch walk over
-  [obj+0x2c]..[obj+0x34]), the 84-byte status record's field map,
-  the six stream classes' differences, the ANIMACJE flag-2 5200-
-  byte record layout, the language-selector writer + the runtime
-  `.TLO` assembly.
+  [obj+0x2c]..[obj+0x34]); (6) the 84-byte status record vs the port's
+  ll_save codec; (7) the six stream classes' differences; (8) the
+  ANIMACJE flag-2 5200-byte record layout; (9) the language-selector
+  writer + the runtime `.TLO` assembly.
+- ALSO OPEN, DOCUMENT-WORK (the owner asked for it, and it is scheduled
+  after PR-194 landed): an audit of the ENGINE documentation - the
+  HANDOFF sections 4/5/6/7/8 plus the per-PR records in NEXT_STEPS -
+  for duplicated findings, for fields that make the text hard to SEARCH
+  (findings reachable only by PR number, addresses in prose with no
+  index entry, corrections that live only in brackets), and for a better
+  organisation. The audit ships as a written map + a concrete proposal
+  BEFORE any file is reorganised; a restructure is its own [DOCS]/[GATE]
+  PRs with the width and heading-census invariants re-derived, never
+  mixed with a reading or a port.
 - STOP CONDITIONS: every claim byte-backed or fixture-byte-backed
   (cite ISO offsets); formats cross-checked against the real
   ZARIA1.IS/ANIMACJE bytes, never inferred from names alone;
   unproven halves stay counted; corrections get brackets; no port
   behaviour changes without a failing test; Linux-first gates
   (make zero-warning + verify-all both fixture modes) apply to any
-  code PR - docs-only PRs cite the last measured state (6238d42).
+  code PR - docs-only PRs cite the last measured state, which is the
+  GATES section of the newest record (PR-194's: 58 (ok) with fixtures,
+  11 (ok) + 20 named SKIPs fixture-free).
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -27879,6 +27874,184 @@ BEHAVIOUR CHANGE)
   and does not list it as a prerequisite (counted, NOT fixed here).
   Added lines all <= 79 columns; width baselines held by line-set
   diff. The Windows half stays in the end pass (rule 8).
+
+## PR-194 — THE EXIT-CODE CONTRACT BECOMES BEHAVIOUR: A PURE STAGE-DRIVER
+## TABLE (ported/ll_stage.[ch]) + THE FOUR OUTCOMES DRIVEN THROUGH THE REAL
+## RAN.01 PLAY LEG AND PINNED AT BYTE LEVEL; THE `.MOV end_level` PRODUCER
+## CENSUSED (26 ROWS, ALL OF THEM IN THE LION'S OWN LEW.MOV, 3 OF 12
+## MEMBERS: A_TUNGA1->1, A_TUNGA2->2, A_EXIT->12x1); NO PRODUCER IS CLAIMED
+
+- WHY. PR-193 left one finding whose behaviour is fully read, and the
+  owner asked for the balance to move toward implementation: the
+  stage-driver split (3 = reset + run again, 2 = the queue runner, 4 =
+  stop, else continue). This PR is the first `[PORT]` of the new era and
+  it ports exactly that, with its test in the same commit.
+
+- THE DELTA, MEASURED BEFORE ANY CODE (what the port did with the four
+  codes before this PR): NOTHING. Concretely -
+  (a) the level harness is a bounded tick loop
+      (`for (tk = 1; tk <= ticks; tk++)`, the LEO_LEVEL_PPM/
+      LEO_LEVEL_PPM_TICK play leg in ported/ll_level.c); no value from a
+      finished level is read anywhere;
+  (b) the vocabulary knows the WORDS but nothing consumes them:
+      `AC_LEAVE` is one row of the LL_SIG name table (ported/ll_play.c
+      263, the enum in ll_play.h 242) and no code sets or tests that bit;
+      `end_level` appears in the port only inside the parser's "these
+      directives are counted, not acted on" message text;
+  (c) there is no queue, no stage list and no exit word in the port.
+  So the honest statement is: the contract had no counterpart at all, and
+  what could be ported without inventing an engine fact was the SPLIT
+  plus its observable effects.
+
+- WHAT SHIPPED.
+  (1) `ported/ll_stage.h` + `ported/ll_stage.c` - the contract as a PURE
+      function `ll_stage_outcome(exit_code, queue_len, *did_reset)` and
+      `ll_stage_queue_len()`. The header carries the whole model with the
+      addresses (wrapper split 0x5d3b5-0x5d409, reset pair 0x5da60 +
+      0x5d050, queue runner 0x5d2f0 with its 0x5d368 / 0x5d375-0x5d378 /
+      0x5d38e legs, exit-4 at 0x5d3ec, default at 0x5d3dc) AND the list
+      of what is not known, so nobody fills it in later from imagination.
+      `did_reset` is part of the answer on purpose: codes 3 and the
+      default BOTH return 1, so a table that returns only the value loses
+      the reset.
+  (2) `tools/stage_selftest.c` - 11 cases over that table, no data, no
+      window, no SDL; it runs in BOTH fixture modes.
+  (3) The play leg in `ported/ll_level.c` gains `LEO_LEVEL_EXIT=
+      "<tick>:<code>[,...]"` ("the level ended at that tick with that
+      code") and `stage_apply:`, which prints what the engine would do and
+      does it: code 3 resets the stage to its authored start and runs on,
+      code 2 takes the queue leg, code 4 stops, anything else runs on with
+      no reset. The check is placed AFTER the tick is advanced, which is
+      what makes the byte-level pins below possible. Without the
+      environment variable nothing is printed and no byte changes.
+      The reset is a NAMED ESTIMATE (rule 1): `stage_reset_to_authored`
+      restores what the placement parser authored (declared start state
+      via `mov->start_st`, frame 0, facing 1, row clock and signal pulses
+      cleared, position back to the authored anchor `bx/by`) and puts the
+      lion back through `play_spawn`; the combat fields (hp / hit_cd /
+      atc / dead) are NOT touched, because no reading says the engine's
+      pair touches them.
+  (4) Makefile + CMake: `stage_selftest` / `stage_selftest.exe`, a
+      `verify-stage` leg (in `verify-all`, .PHONY and `clean`), and
+      `ported/ll_stage.c` added to `SRC`/`HDRS` and to the CMake source
+      list. That last part was found BY THE GATE, not by the leg: the
+      first full run failed with `undefined symbol: ll_stage_queue_len` at
+      `ll_cutscene` / `ll_cutscene.exe` / the CMake build, because those
+      link `ported/ll_level.c` (which now calls the module). Re-built
+      clean afterwards, including the cross builds (`ll_cutscene.exe`,
+      `stage_selftest.exe`) - zero warnings, and the Windows run itself
+      stays in the end pass (rule 8).
+  (5) README documents `LEO_LEVEL_EXIT` (rule 4: a new LEO_* hook).
+
+- FINDING, THE PRODUCER SIDE, CENSUSED ON BOTH SIDES (the data says who
+  ends a level; the engine says where the word is parsed; the last step
+  stays open).
+  (a) In the engine image `end_level` exists EXACTLY ONCE, at 0x9198e,
+      inside the .MOV directive vocabulary (the run
+      `pos / goto / goto rel / goto o_rel / I / F / IC / FC / M / MOVE /
+      GEN / Wait / end_level`, then the error text `Bledna komo...`), and
+      it is referenced EXACTLY ONCE: 0x46bbd-0x46c01 compares the parsed
+      word (`mov edx,0x9198e; ... call 0x76a69`) and on a match builds a
+      node - `mov eax,0xc; call 0x5c320`, `mov DWORD PTR [eax+0x4],
+      0xa1048`, payload formatted with the ' %i ' string at 0x91998, i.e.
+      the number after the directive. The class table 0xa1048 (verbs
+      0x476b0, 0x45750, ..., 0x47830, 0x47650, 0x45d10) and its other
+      two references (0x476fe, 0x4784f) are parser/copy/compare legs; the
+      RUNTIME that executes such a node was NOT found in this pass.
+  (b) In the fixtures (HD `ANIMACJE`, 1,961,080 B) there are EXACTLY 26
+      `end_level <n>` lines, values 25 x `1` and 1 x `2`. All 26 are in
+      members named `LEW.MOV` - the LION's own script, the very script the
+      port already runs for the player - and only 3 of the 12 `LEW.MOV`
+      members carry any:
+        hdr@1705058 (payload 1,420 B, ~5 states): state `A_TUNGA1` one
+          row `end_level 1`, state `A_TUNGA2` one row `end_level 2`;
+        hdr@1800357 (12,608 B, ~37 states): 12 rows inside state
+          `A_EXIT`, all `end_level 1`;
+        hdr@1947201 (12,190 B, ~34 states): 12 rows inside `A_EXIT`, all
+          `end_level 1`.
+      The other 9 lion scripts have none; the CD-side containers (both
+      ANIMACJE and both ETAPY) have ZERO `end_level` lines; and the port
+      knows `A_EXIT` only as a name in a comment (ported/ll_play.c 2427).
+      So the SHAPE the data gives is: the level ends from the lion's own
+      walk-off state (`A_EXIT`), and the TUNGA pair asks for two different
+      values (1 and 2) from its two exchange states. Whether those numbers
+      are the loop's return, the exit word, or a level index is NOT read -
+      counted, and it is the first question of the next reading step.
+  (c) The exit-word WRITER is still not identified. This pass did rule
+      out the easy shape: of the 261 code sites that mention ds:0xcef40
+      and the 918 stores of the form `mov DWORD PTR [reg+0x4], ...`,
+      none pairs a ds:0xcef40 load with a store into the level object's
+      +0x4 within 30 instructions (the tempting 0x24681
+      `mov DWORD PTR [eax+0x4],0x4` stores into an object a `call
+      0x53eb0` had just constructed, not into the level object). Stated
+      so the next pass does not repeat the search.
+
+- THE TEST, AND WHY THE PINS ARE EXACT (`verify-stage`). Both halves in
+  one leg; the contract half always runs, the driven half is fixture-
+  guarded like every other data leg. Six runs of the real RAN.01 play
+  leg (`LEO_PLAY_SCRIPT="1:FWD"`, LEO_LEVEL_PPM dumps):
+    base   100 ticks, no code      -> NO `stage driver:` line at all.
+                                       This is the "the contract is inert"
+                                       pin: every pre-existing play pin is
+                                       untouched because the hook is off.
+    t50     50 ticks, no code      -> the 50-tick reference frame.
+    stop4  exit 4 at tick 50      -> the STOP line + `the play leg ended
+                                       at tick 50 of 100`, and the dump is
+                                       BYTE-IDENTICAL to t50.
+    stop2  exit 2 at tick 50      -> the queue line ("an EMPTY queue ...
+                                       the engine's own empty-queue leg
+                                       0x5d38e answers stop"), same bytes
+                                       as t50.
+    again1 exit 1 at tick 50      -> the "run on, NO reset" line, and the
+                                       dump is BYTE-IDENTICAL to base: the
+                                       default leg changes nothing.
+    reset3 exit 3 at tick 50      -> the RESET line, and the dump is NOT
+                                       base but IS byte-identical to t50:
+                                       50 ticks after a reset at tick 50
+                                       are exactly the 50 ticks of the
+                                       same script with no reset. That is
+                                       the strongest form of "the reset
+                                       really restored the authored state"
+                                       the harness can show.
+  Measured frames (sha256, /tmp/opencode/stg_*.ppm): base == again1 =
+  373a3e44ebce1d43...; t50 == stop4 == stop2 == reset3 =
+  80f3573f8477b124...; base != t50 (the 100-tick and 50-tick frames
+  differ, so the equality above is not a collapse of the test).
+
+- GATES. Full gate measured on this commit's tree: `make` ZERO warnings;
+  `make -k -j$(nproc) verify-all DATA=<iso> HD=<hd>` rc=0 with
+  58 (ok); the same target fixture-free (`DATA=/tmp/opencode/nope
+  HD=/tmp/opencode/nope`) rc=0 with 11 (ok) + the named data-SKIP legs
+  (20 by `grep -c 'verify-[a-z0-9_-]*: SKIP'`). The counts move HERE for
+  a legitimate reason: verify-stage's contract half runs in both modes, so
+  the fixture-free (ok) count rises by one, and the fixture-free named
+  SKIP lines rise by one (the driven half's SKIP). PR-193's record's
+  52 / 10 + 19 are the numbers BEFORE this leg; the earlier records' 18
+  is the same count under a narrower grep. This commit touches ported/,
+  tools/, Makefile, CMakeLists.txt and README, so the pure-docs
+  exception does not apply and the whole gate was run. The Windows half
+  stays in the end pass (rule 8); its build halves
+  (`ll_cutscene.exe`, `stage_selftest.exe`, the extended `ll_level.exe`
+  line) were compile-checked here and passed.
+
+- OPEN ITEMS, COUNTED (1 closed by this PR, 5 carried/named).
+  CLOSED: "the port has no exit-code path at all" - the split now exists
+  in port code with a test in both fixture modes.
+  (1) The .MOV action RUNTIME: what executes a parsed directive node
+      (class 0xa1048 for `end_level`) and where it puts the value - the
+      loop's return, the exit word [level+0x4], or a level index. That is
+      the producer's missing last step, and with it the port could drive
+      real codes from A_EXIT / A_TUNGA rows instead of injected ones.
+  (2) The exit-word writer inside the level loop (search space narrowed by
+      the ruled-out shape above).
+  (3) What the reset pair 0x5da60 / 0x5d050 does, and what the per-stage
+      edx 0/1 (wrapper 1 at 0x5d3c8, wrapper 2 at 0x5d436) selects. Until
+      then the port's reset stays the named ESTIMATE it is.
+  (4) Who fills the engine's ds:0xcf464 queue and what one entry looks
+      like; and whether the port ever should have one.
+  (5) Whether `end_level`'s 1/2 in A_TUNGA1/A_TUNGA2 is the TUNGA I <->
+      II exchange of T6 (`AC_XCHG_LEVEL`) - the data shape matches, the
+      mechanism is unread.
 
 ## Deferred big items (deliberately out of scope so far)
 

@@ -35,6 +35,7 @@ add_executable(ll_cutscene
     ported/ll_level.c
     ported/ll_play.c
     ported/ll_seq.c
+    ported/ll_stage.c
     ported/ll_pcm.c
     ported/ll_mod.c
     ported/ll_save.c
