@@ -28915,9 +28915,15 @@ CORRECTS: PR-194's block comment in ported/ll_level.c, "The port has
   of the HD ANIMACJE parsed by ll_mov_parse itself, 0 unreadable;
   exactly 3 members carry the tail and 26 rows total - 25 with value
   1, 1 with value 2, confirming PR-194 F(a) by an independent route.
+  The members are LEVEL BLOCKS of the container, so the counts read
+  per block: JUNCTION 1 `.MOV` member / 2 rows, TUNGA.11 48/12,
+  TUNGA2.12 49/12 (the per-level `.MOV` counts sum to 777 - one
+  member sits directly in a level block rather than under a leaf,
+  and the census counts it too, never through a structure guess).
   Every row is named in the log: JUNCTION/LEW.JUN state 2 [A_TUNGA1]
-  row 41 (authored frame 42, threshold 200) end_level 1; JUNCTION
-  state 3 [A_TUNGA2] row 81 (frame 82, threshold 200) end_level 2;
+  row 41 (authored frame 42, threshold 200) end_level 1;
+  JUNCTION state 3 [A_TUNGA2] row 81 (frame 82, threshold 200)
+  end_level 2;
   TUNGA.11/LEW.TUN state 9 [A_EXIT] rows 0-11 and
   TUNGA2.12/LEW.TUN state 32 [A_EXIT] rows 0-11, all `frame,6` -
   2 + 12 + 12 = the 26. And the levels every play leg DOES run
