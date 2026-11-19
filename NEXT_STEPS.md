@@ -13928,60 +13928,253 @@ no port behaviour change)
   /tmp/opencode/pr139/rng.py over /tmp/opencode/vis/text.asm
   (203,343 lines, unchanged).
 
+## PR-144 — THE LION'S OWN OBJECT SIDE IS READ: LewZaria's CLASS
+
+## TABLES (0x96960, +0x78 = THE GENERIC CONTACT HANDLER 0x50f80),
+
+## THE PLAYER'S CLASS-TABLE SWAPPING AT RUNTIME, THE CONTACT-PAIR
+
+## PROBE 0x4bd32 THAT INVOKES BOTH MEMBERS' +0x78 AND AGGREGATES
+
+## THEIR SIGNAL SETS, AND THE COMPLETE CENSUS OF DIRECT WRITES INTO
+
+## LIVE SETS (READING RECORD - NO CODE CHANGE; PR-138..143
+
+## precedent)
+
+- WHY. PR-143's Next item (a): the delivery mechanism, the
+  evaluation trigger and the answer-chain gate are read, but the
+  AC_DRAB INSTANCE for the lion is not, and the LION's own +0x10
+  receive entry was not located (PR-143 open item 4). This PR
+  reads the lion's object side: its class tables, its receive and
+  contact entries, and the machinery that invokes both parties'
+  contact handlers in one pass - and censuses every direct write
+  into a live set in the image. No behaviour change.
+
+- FINDING 1, THE PLAYER CLASS TABLES. The token `LewZaria` is at
+  0x9078b (0x9078c with the length byte; the factory branch at
+  0x1fef2 was PR-139's), and 0x1ff15/0x1ff1c write
+  [obj+0x8] = 0x96960, [obj+0xc] = 0x96958 - the same pair
+  pattern as DRABINKA (0x97cdc/0x97cd4, offset by 8: the second
+  table is the same table read from its +8, PR-141). The sibling
+  tokens LewZariaB (0x90795), LewEna, LewEna2, LewKadmar1/2,
+  LewSades, LewRan (0x908b4..0x90fe7) build the per-game player
+  classes the same way. THE TABLE 0x96960 (first 0x90 slots):
+  +0x10 = 0x1e130 (the lion's OWN receive entry - PR-143 open
+  item 4 CLOSED: the slot value differs per family exactly as the
+  PR-143 mechanism predicted), +0x1c = 0x50380, +0x74 = 0x50320,
+  +0x78 = 0x50f80 (PR-142's contact handler IS the lion's contact
+  entry), +0x7c = 0x537f0, +0x80 = 0x501e0, +0x84 = 0x1e0f0,
+  +0x8c = 0x504e0, and the standard window (0x23860)/row-flags
+  (0x23920) getters. 0x50f80 appears in 15 class tables
+  (0x969d8..0xa2290) - the generic contact handler shared by the
+  player and many object classes; the ladder's 0x3f1c0 and this
+  0x50f80 are the SAME SLOT (+0x78) on the two sides of one
+  contact.
+  * CLASS SWAPPING: the player's own code WRITES its class-table
+    pair at runtime - 0x1ec36/0x1ec3f (inside the branch that
+    also broadcasts bit 7, AC_ENEMY, x2 at 0x1ec46/0x1ec5f):
+    `[esi+0x8]=0x978dc; [esi+0xc]=0x978d4` - the lion changes
+    its whole behaviour class (receive entry included) by state
+    (the area is the health/death handling: `cmp
+    [obj+0xad],0x64` guards at 0x50df4 too). This is a new engine
+    mechanism the port does not model and has no need of - counted
+    as open item 3 (0x1ec36..0x1ec3f is the exact range), and it
+    explains why the receive-slot
+    census found 23 identical 0x53770 slots but the lion has its
+    own.
+
+- FINDING 2, THE LION'S RECEIVE ENTRY 0x1e130. It dispatches
+  parameter records on [rec+0x4]: type 5 (`jb 0x1e153` arm:
+  calls the payload object's [vt+0x0](2) when the payload is
+  non-null, bumps a global counter at 0xa94f4, calls 0x44900
+  with the world's +0x38c field, then `edx=9; 0x52cc0` - the
+  meaning of the 9 unread, item 4), type 0xc (sets
+  [obj+0x12a] := 1); types below 5 go to 0x50d60 - the lion's
+  FALLBACK receiver - and the tail past 0xc at 0x1e18d also
+  reaches 0x50d60 for unlisted types (`jne` at 0x1e144 falls to
+  0x1e18d; 0x1e18f). So the lion receives through a
+  family-specific front door with its own arms (5, 0xc) plus
+  the generic 0x50d60 tail (which itself contains 0x49580
+  live-set merges at 0x50ab7/0x50e24 - the Finding 4 census) -
+  and the bit-raise branch for the exact type-0x10+magic form
+  lives in the shared 0x53770 pattern which the lion's own
+  entry does NOT contain: the lion's live-set signal path is
+  thus 0x50d60, not 0x53770 (this is the concrete per-family
+  difference PR-143 item 4 predicted; its arms' meanings are
+  open item 4).
+
+- FINDING 3, THE CONTACT-PAIR PROBE 0x4bd32 - THE CALLER OF THE
+  +0x78 ENTRIES. Four sites in the image invoke the +0x78 slot
+  (0x4b5be, 0x4bda9, 0x4be09, 0x55421); the one at 0x4bda9 is
+  the pair machinery: 0x4bd32 (a 4-register+stack-arg entry:
+  eax/edx/ecx + one stack parameter) builds a zeroed 13-byte
+  result set, then walks the world chain ([0xcef40]+0x64 ->
+  +0x34 links), per object: its [vt+0x60]() gate ("participates"
+  - slot meaning unread, open item 5), a filter on [obj+0x24] vs
+  a parameter (a kind/layer match; with [esp+0x2c] as an "all"
+  override), skipping self, then calls [other.vt+0x78](other,
+  self, &result) - the SAME slot whose ladder instance is 0x3f1c0
+  and whose lion instance is 0x50f80, so ONE pass gives BOTH
+  members of a pair their contact turn against the other - then
+  ANY-BIT (0x495b0) on the result; if signals were raised, the
+  whole 13-byte result is copied to the caller's output
+  ([esp+0x20], the stop-at-zero repnz idiom again, 0x4bdd4..
+  0x4bde8). THE 0x50f80 CONTACT-CONSUMER PUZZLE RESOLVES PARTLY:
+  PR-142/143's "collision caller's buffer" is this result set -
+  the union of both members' answer/contact outputs - handed to
+  0x4bd32's CALLER. 0x4bd32 itself has NO direct reference
+  anywhere in the image - the exact same situation as the queue
+  drain 0x52b52 (PR-143 item 2): the two per-object dispatch
+  passes (contact pairs, queue drain) are both entered by means
+  this disassembly does not show as a call/jmp/dword - one shared
+  mechanism, kept as open item 1, named precisely. The other
+  three +0x78 call sites are separate callers: 0x55421 iterates a
+  record's item array [edi+0x3c]/[edi+0x40] with a fresh result
+  set per item (0x553f1..0x55421), 0x4b5be and 0x4be09 sit in
+  the same 0x4b5xx..0x4be0x cluster as the pair walk.
+
+- FINDING 4, THE COMPLETE LIVE-SET WRITE CENSUS. Scanning every
+  `call 0x49580` (69 sites) for the `eax = <reg>+0x60` argument
+  form gives FOURTEEN sites that OR a mask directly into a live
+  set: 0x244a5, 0x244ea, 0x2451e, 0x24552, 0x26738, 0x27f7d,
+  0x28bc7, 0x2fbf0, 0x36cf8, 0x3dfbb, 0x50ab7, 0x50e24 (all
+  in/near the lion health/contact families - 0x50e24 is guarded
+  by `cmp [ecx+0xad],0x64`, the HP byte against 100), 0x537d4
+  (the signal-record raise, PR-142/143) and 0x54b84 (the state-
+  machine cluster). NOTE: 0x26738 is a SECOND INSTANCE of the
+  bit-raise idiom (movsx/shr/idiv 0x20/shl/or + merge at
+  0x26704..0x26738, [edi+0x60]) inside a function around 0x266xx
+  whose index comes from a call to 0x26670 (0x266f0) instead of
+  a record byte - a twin of 0x53770's raise in an unread
+  context, counted as part of open item 2, not interpreted. The
+  other sites' bit masks were NOT resolved individually (the
+  masks are built through register chains, not immediates - open
+  item 2). With this census, every known way a bit enters a
+  live set is enumerated: (a) the signal-record raise at
+  0x537d4 (+ its twin 0x26738); (b) the other 12 direct
+  merges; (c) nothing else (the standing-bits provider is zero,
+  PR-142). What remains for the AC_DRAB story is exactly ONE
+  link, stated plainly: which of the 12 direct merges runs when
+  a lion-ladder contact answers, with bits 10/12 in the mask -
+  the pair-probe hands both members' outputs into one union
+  set, but the union set's consumer (0x4bd32's caller) is the
+  unresolved entry from item 1. No fitted constants.
+
+- WHAT THIS CLOSES. PR-143 item 4 (the LION +0x10 receive entry):
+  CLOSED - 0x96960 +0x10 = 0x1e130, the lion's own front door,
+  generic tail 0x50d60; the "23 identical slots" census never
+  claimed the player, and the player class-swap mechanism
+  (Finding 1) explains the difference. PR-143 item 1 (the AC_DRAB
+  instance): NARROWED to one named missing link - the 0x4bd32
+  entry's caller and the 12 direct merges' masks - everything else
+  (both contact entries, the pair pass, the union aggregation, the
+  live-set write sites) is read. PR-142/143's "collision caller's
+  buffer" is now identified as the pair-probe's union result.
+  PR-139's "caller of the +0x78 entries": FOUND for the contact
+  pass (0x4bd32/0x4bda9, plus the record-item iteration at
+  0x55421) - the ENTRY into that pass stays open (item 1).
+
+- OPEN ITEMS COUNTED (5 new; carry: PR-139's 13, PR-140's 7,
+  PR-141's 4, PR-142's 7 (item 8 now narrowed further: the slot
+  differs per family, lion = 0x1e130), PR-143's 5 minus item 4
+  CLOSED = 4). (1) The entry into the per-object dispatch passes:
+  0x4bd32 (contact pairs) and 0x52b52 (queue drain) have NO
+  direct reference in the disassembly - a shared dynamic-call
+  convention not yet found (PR-134/135's tick dispatcher is the
+  place to look). (2) The per-site masks of the 12 other
+  direct live-set merges (register-built) and the unread
+  context of the raise-twin at 0x26738/0x26670. (3) The player CLASS-SWAP
+  mechanism ([obj+0x8]/[obj+0xc] rewritten at 0x1ec36..0x1ec3f,
+  the
+  0x978dc pair) - which states swap to which pairs, and the port
+  needs no such thing but the fact is named. (4) The lion
+  receive-entry arms: types 5 and 0xc and the 0x50d60 tail's
+  meaning. (5) The [obj.vt+0x60]() participation gate and the
+  [obj+0x24] layer filter in the pair walk.
+
+- MUTATIONS. None: no code and no test changed (reading record,
+  PR-138..143 precedent). The censuses (4 +0x78 invokers, 14
+  live-set writes, 15 tables carrying 0x50f80, 23 slots carrying
+  0x53770, 22 broadcasts) are enumerated over the whole image,
+  not sampled; negatives are stated as negatives.
+
+- GATES. No code touched: `make` rc=0, `make win` rc=0, zero
+  warnings; `make -k verify-all` with the standard fixtures rc=0
+  with 56 `(ok)` and zero FAILED; fixture-free rc=0 with the same
+  23 named SKIP lines - all unchanged since the PR-142 gate logs
+  (/tmp/opencode/pr142_make.log, pr142_makewin.log, pr142_va.log,
+  pr142_va_nofix.log; no source or Makefile byte changed since).
+  The image is unchanged (sha256 edf19a129e85efb8764457a0808e246
+  ca4baf08a9111aa09be4ec99ce6b8c40e). No game data or frames in
+  git; no .github/workflows/* touched.
+
+- HANDOFF UPDATED. Section 7 item 15's G-9 line and section 8 T5's
+  STATUS: the LION side is read (its tables, its receive front
+  door, the pair-probe that gives both contact members their
+  turn); what the climb still needs narrows to ONE named link -
+  the per-object dispatch entry (0x4bd32/0x52b52, open item 1)
+  plus the merge masks (item 2) - and the K_UP feed and the A_WSP
+  feed law. Item 13 gains the PR-144 bullet.
+
+- EVIDENCE. /tmp/opencode/pr144/lion_map.txt (the LION table
+  dump, the pair-probe map, the full live-set-write census with
+  all 14 addresses, and the slot/occurrence counts). Ranges
+  quoted verbatim: 0x1fef2..0x1ff25 (the LewZaria factory),
+  0x1ec02..0x1ec46 (class swap + the AC_ENEMY broadcasts),
+  0x1e130..0x1e196 (the lion receive entry), 0x50d60 (its tail,
+  heads only), 0x4bd32..0x4bdf2 (the pair probe), 0x553f1..
+  0x55421 (the record-item +0x78 iteration), the table dumps of
+  0x96960/0x96958 and the 0x50f80 occurrence list (0x969d8..
+  0xa2290). All reproducible with
+  /tmp/opencode/pr139/rng.py over /tmp/opencode/vis/text.asm
+  (203,343 lines, unchanged).
+
 ## Next — pick from the Deferred list below
 
-- THE SIGNAL MACHINERY IS READ (read the PR-143 record first):
-  signals travel as records - broadcast globally by 0x4bc40 (the
-  full 22-site census: only bits 7/16/18/19/25/26 - NO key bits,
-  NO AC_DRAB/AC_DRAB_CATCH are ever broadcast), queued per object
-  (0x52b10 pushes onto the list at [obj+0x10]), drained by 0x52b52
-  which calls the class +0x10 entry (0x53770) that raises the bit
-  into [obj+0x60]; record TYPE numbers share the condition index
-  space (0x52bb0's arms 0xe/0xf/0x21, the AC_KILO arm moves x/y).
-  THE EVALUATION TRIGGER: 0x53520 copies [obj+0x60] VERBATIM as
-  the scan's caller key and is called only from inside the
-  compositor right after the recompose - signal raise and
-  transition test are ONE pass; 0x535a0 is the row-switch
-  executor (target != current -> old-record exit vt+0x20,
-  [obj+0x95] := 1, new-record entry vt+0x1c, store [obj+0x5c]).
-  The answer chain entry IS the collision path (0x50f80 ->
-  0x53ae0), gated on row flags 0x4000 = the port's
-  LL_CTRL_CHECK_ANI (ZARIA.01 ladder rows carry none - PR-140's
-  untouched-column run is consistent); answer/contact result bits
-  flow to the COLLISION CALLER's buffer, provably never into a
-  live set.
+- THE LION SIDE IS READ (read the PR-144 record first): the
+  player's class tables are 0x96960/0x96958 (token LewZaria
+  0x9078b, factory 0x1fef2); the lion's receive entry is its own
+  0x1e130 (arms types 5 and 0xc; generic tail 0x50d60 - the
+  per-family difference PR-143 predicted); its contact entry
+  +0x78 IS 0x50f80, the same slot the ladder answers through
+  (0x3f1c0), and the pair-probe 0x4bd32 gives BOTH members their
+  contact turn in one walk and aggregates their 13-byte outputs
+  into one union set. The player class-table pair is rewritten at
+  runtime at 0x1ec36..0x1ec3f. Bits enter any live set ONLY
+  through the raise idiom (0x537d4 + an unread twin at 0x26738)
+  or the 12 other direct 0x49580 merges (all 14 sites
+  enumerated). THE ONE MISSING LINK is named: the entry into the
+  per-object dispatch passes - 0x4bd32 (contact pairs) AND
+  0x52b52 (queue drain) have zero direct references in the image.
 
-- NEXT PR (PR-144), in order: (a) the AC_DRAB INSTANCE hunt - of
-  the ~40 bit-10/12 mask merges via 0x49580 and the state-gated
-  posts, find (or honestly fail to find) the site that feeds the
-  LION's live set from a ladder/rope contact; the practical route:
-  read the LION class table (find LEW.ZAR's token + factory the
-  way PR-141 found DRABINKA's) and its +0x10 receive entry and
-  the collision path's other callers of 0x53ae0/0x50f80 (who
-  consumes the 13-byte collision output, and whether any of it
-  reaches [obj+0x60] for the player object). (b) The K_UP feed:
-  search for posts of bits 35-38/53 or writes of key masks into
-  the player's live set (the [vt+0xc](0x13) lead at 0x34a35 and
-  the input/keyboard code are the places); also the '!' complement
-  representation (PR-142 item 2). (c) The A_WSP feed law (BY_TY
-  F=0,100 T=160,50, SEQ_REV_Y vs the 0x543a2 family, with the
+- NEXT PR (PR-145), in order: (a) FIND THE DISPATCH ENTRY -
+  how 0x4bd32 and 0x52b52 get called (start at PR-134/135's
+  tick-dispatcher family 0x543a2 and the object tick loops;
+  look for indirect-call conventions that a linear disassembly
+  shows as data, e.g. thunk tables or register-loaded
+  addresses); while there, resolve the 13 direct merges' masks
+  (0x26738's twin context too). A negative is allowed - count
+  it. (b) The K_UP feed: posts/writes of bits 35-38/53 into the
+  PLAYER's live set (the 12-merge census is the place to check
+  masks first now), and the '!' complement representation
+  (PR-142 item 2). (c) The A_WSP feed law (BY_TY F=0,100
+  T=160,50 + SEQ_REV_Y vs the 0x543a2 family, with the
   [rec+0x10] vs [obj+0xa1]+[0xcef40]+0x388 threshold from
-  PR-142 Finding 4). Only when (a)+(b) land does the climb-entry
-  implementation become decidable (hand-derived test + mutations);
-  count, do not fit, anything unread.
+  PR-142 Finding 4). Only after (a)+(b) does the climb-entry
+  implementation become decidable (hand-derived test +
+  mutations, behaviour-PR rule); count, do not fit.
 
 - THEN, from the PR-131 gap list (HANDOFF.md §7 item 15 is the
-  current text of every item): G-8's HUD lives - map the STATUS.LEO
-  fields (both R3 clips start at "5", the port prints 6); G-3's
-  ZAR.BLK corridor and the KAMIEN sixth field (1308/1218/1115
-  toward 1299..1620 - note the magic-filtered AC_ENEMY_ATC posts
-  at 0x2c5e6.. gate on [obj+0x5c] and a global flag: that family
-  is where KAMIEN's behaviour lives too); then G-7 (the water
-  surface as a floor), G-12 (the SURPRISE "?" firing - its whole
-  delivery mechanism is now read, find its posting site) and
-  G-10/G-11 (the level-end scene and the mid-level bird
-  sequences). G-13's local-lines remainder unchanged (the
-  [obj+0xb1..0xbd] provider).
+  current text of every item): G-8's HUD lives - map the
+  STATUS.LEO fields (both R3 clips start at "5", the port
+  prints 6); G-3's ZAR.BLK corridor and the KAMIEN sixth field
+  (1308/1218/1115 toward 1299..1620); then G-7 (the water
+  surface as a floor), G-12 (the SURPRISE "?" firing - the
+  whole delivery + instance machinery is now read, find its
+  posting site) and G-10/G-11 (the level-end scene and the
+  mid-level bird sequences). G-13's local-lines remainder
+  unchanged (the [obj+0xb1..0xbd] provider).
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
 first item and PR-45 its second (the authored scene), PR-46 its third

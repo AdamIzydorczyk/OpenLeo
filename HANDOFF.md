@@ -2078,6 +2078,59 @@ writer as its open items.
       misgrouping correction is recorded rather than hidden. Full
       record: the PR-143 section of NEXT_STEPS.md (sig_map.txt
       carries the delivery map + full censuses).
+
+    - PR-144 READ THE LION'S OWN OBJECT SIDE (reading record, no
+      code change: PR-138..143 precedent). THE PLAYER'S CLASS
+      TABLES: token 'LewZaria' 0x9078b (a length-prefixed token,
+      byte 0x84 = 8 chars), factory branch 0x1fef2 -> alloc
+      0x12e, ctor 0x1e0a0, [obj+0x8]=0x96960, [obj+0xc]=
+      0x96958 (the same +8-alias table pair as DRABINKA);
+      sibling per-game player tokens LewZariaB/LewEna/LewEna2/
+      LewKadmar1/2/LewSades/LewRan (0x90795..0x90fe7). Table
+      0x96960: +0x10 = 0x1e130 (PR-143 item 4 CLOSED - the
+      lion's OWN receive front door: arms for type 5 and 0xc,
+      generic tail 0x50d60 which itself holds live-set merges
+      0x50ab7/0x50e24; the type-0x10+magic bit-raise lives in
+      the shared 0x53770 pattern the lion does NOT use), +0x78 =
+      0x50f80 = PR-142's contact handler (the same +0x78 slot
+      the ladder answers through with 0x3f1c0; 0x50f80 appears
+      at +0x78 in 15 class tables). NEW MECHANISM, not modelled
+      by the port and not needed: the player REWRITES its class-
+      table pair at runtime (0x1ec36..0x1ec3f: [obj+0x8]=
+      0x978dc/[obj+0xc]=0x978d4, in the health/death branch that
+      also broadcasts AC_ENEMY). THE CONTACT-PAIR PROBE: 4 sites
+      invoke +0x78 in the whole image (0x4b5be, 0x4bda9,
+      0x4be09, 0x55421); 0x4bda9 belongs to 0x4bd32 - it walks
+      the world chain, per object gates on [vt+0x60]() and a
+      [obj+0x24] layer filter, skips self, then calls
+      [other.vt+0x78](other, self, &result): ONE pass gives
+      BOTH members of a contact pair their turn, aggregates
+      their 13-byte outputs into one union set, ANY-BIT tests
+      it (0x495b0) and copies the union to its caller. PR-142/
+      143's "collision caller's buffer" IS this union. THE
+      LIVE-SET WRITE CENSUS: of the 69 0x49580 call sites,
+      exactly 14 OR into a <obj>+0x60 live set - 0x244a5,
+      0x244ea, 0x2451e, 0x24552, 0x26738, 0x27f7d, 0x28bc7,
+      0x2fbf0, 0x36cf8, 0x3dfbb, 0x50ab7, 0x50e24, 0x537d4
+      (the signal raise, PR-142) and 0x54b84; 0x26738 is a
+      TWIN of the raise idiom in an unread function (index from
+      0x26670). Combined with PR-142 (standing bits = zero):
+      those are the ONLY ways a bit enters a live set. THE ONE
+      MISSING LINK is named precisely: 0x4bd32 AND PR-143's
+      queue drain 0x52b52 have ZERO direct references anywhere
+      in the image - one shared, not-yet-found entry convention
+      for the per-object dispatch passes (PR-134/135's tick
+      dispatcher is where to look). 5 new open items counted
+      (the dispatch entry; the 12 merge masks + the 0x26738
+      twin; the class-swap pairs; the lion receive arms; the
+      [vt+0x60] participation gate), PR-143 item 4 CLOSED,
+      PR-143 item 1 narrowed to that one link. No mutants (no
+      behaviour changed); all counts are whole-image (4 +0x78
+      invokers, 14 live-set writes, 15 contact tables, 23
+      receive slots, 22 broadcasts), and one scan slip (a 13-vs-
+      14 address list) was caught by self-check and corrected
+      before shipping. Full record: the PR-144 section of
+      NEXT_STEPS.md (lion_map.txt carries the tables + censuses).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2816,10 +2869,20 @@ writer as its open items.
     the recompose), 0x535a0 is the row-switch executor, and the
     answer chain runs only from rows flagged 0x4000 =
     LL_CTRL_CHECK_ANI (ZARIA.01 ladder rows: none - the untouched
-    column in PR-140's run is consistent). What the CLIMB still
-    needs: the AC_DRAB post INSTANCE for the lion, the
+    column in PR-140's run is consistent). PR-144 then read the
+    LION SIDE: its class tables are 0x96960/0x96958 (token
+    LewZaria 0x9078b), its receive entry is its own 0x1e130
+    (generic tail 0x50d60), and its contact entry +0x78 IS
+    0x50f80 - the same slot the ladder answers through - with
+    the pair-probe 0x4bd32 giving both contact members their
+    turn and unioning their 13-byte outputs; the only ways bits
+    enter a live set are now fully enumerated (14 sites). What
+    the CLIMB still
+    needs: ONE named link - the entry into the per-object
+    dispatch passes (0x4bd32/0x52b52 have zero direct
+    references) plus the merge masks - the
     key-bit/K_UP posting path, and the
-    A_WSP feed law (PR-144); SURPRISE
+    A_WSP feed law (PR-145); SURPRISE
     "?" firing (G-12); and the
     ground SOURCE of the first screens (G-13, PR-136) IS DECIDED IN
     PR-138: the engine's ground records ARE the authored .PLT text,
@@ -3330,16 +3393,19 @@ dispatcher not a lookup, and an authored condition matches by
 condition model (a confirmation, no port change). Signals enter the
 live set through the class +0x10 entry 0x53770 (signal record, bit
 index at its byte +0xc), so K_GEN1's MECHANISM is found and only
-its POSTER is open. What remains for the climb, named: the
-AC_DRAB post INSTANCE for the lion (PR-143's honest negative: no
-broadcast posts bits
-10/12, and answer/contact packets provably reach only the
-collision caller's buffer - the ~40 direct bit-12 mask merges have
-no identified lion-destination site yet), the posting path of the
+its POSTER is open. What remains for the climb now narrows to
+ONE named missing link plus two feeds (PR-144): the ENTRY into
+the per-object dispatch passes - the contact-pair probe 0x4bd32
+and the queue drain 0x52b52 have ZERO direct references in the
+image, one shared not-yet-found entry convention (PR-134/135's
+tick dispatcher is where to look) - the per-site masks of the
+12 direct live-set merges (all 14 write sites are enumerated:
+0x244a5, 0x244ea, 0x2451e, 0x24552, 0x26738 (a twin of the
+signal-raise idiom, context unread), 0x27f7d, 0x28bc7, 0x2fbf0,
+0x36cf8, 0x3dfbb, 0x50ab7, 0x50e24, 0x537d4, 0x54b84), the
+posting path of the
 K_* key bits (K_UP is bit 37 - that map is PR-88's; no broadcast
-posts key bits either), the K_GEN1 poster (its mechanism is
-found: a queued signal record raised through the class +0x10
-entry), and the
+posts key bits either), and the
 A_WSP feed law (BY_TY `F=0,100 T=160,50` + SEQ_REV_Y, still
 PR-109's open law). CLOSED by PR-143 additionally: the answer-
 chain entry gate (row flags 0x4000 = the port's
@@ -3347,8 +3413,21 @@ LL_CTRL_CHECK_ANI; ZARIA.01's drab/lina rows carry none, so the
 ladder answering nothing in PR-140's run matches the engine's
 law), the row-switch executor 0x535a0 (exit/entry/index-store),
 and the scan's caller key = a verbatim copy of [obj+0x60]
-evaluated in the same pass as the signal raise. Reading order in
-the PR-143 Next entry; nothing was invented for any of it.
+evaluated in the same pass as the signal raise. CLOSED by
+PR-144 additionally: the LION's own side - class tables
+0x96960/0x96958 (token LewZaria 0x9078b, factory 0x1fef2), its
+receive front door 0x1e130 with generic tail 0x50d60 (PR-143's
+item 4: the +0x10 slot DOES differ per family), its contact
+entry +0x78 = 0x50f80 (15 tables carry it; the ladder's 0x3f1c0
+is the same slot on the other side), the pair-probe 0x4bd32
+that gives BOTH members their contact turn and unions their
+outputs (the "collision caller's buffer" of PR-142/143 IS this
+union), and the exhaustive live-set-write census above - the
+AC_DRAB instance hunt is down to one link, not a search. The
+player also rewrites its class-table pair at runtime
+(0x1ec36..0x1ec3f) - named, not modelled, not needed. Reading
+order in
+the PR-144 Next entry; nothing was invented for any of it.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
