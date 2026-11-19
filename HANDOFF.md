@@ -4686,6 +4686,77 @@ writer as its open items.
      controller-family pass (0x9a54c, the class-record
      header, the capture hook). Full record: PR-186 section
      of NEXT_STEPS.md (scratch /tmp/opencode/pr186/).
+   - PR-187 (READING; no port code, no behaviour change):
+     THE 15TH CONTROLLER IS THE KADMAR-STAGE LION; THE
+     INPUT HARDWARE BOTTOM IS RAW PORT I/O. 0x9a54c =
+     TLewKadmar1's controller class (PR-186 item (7)
+     CLOSED; PR-176 item (1) PART-CLOSED - the unresolved
+     name was TLewKadmar1): factory 0x29b00 = the SECOND
+     COMPARE FORM PR-176 suspected (`mov edx,'TLewKadmar1'
+     call 0x76a69` THEN 0x5c320(0x12c) record-presence
+     check) -> 0x27030 creates class pair 0x9a54c/0x9a544,
+     WORD [obj+0x12a] := 0, [obj+0xf6] := 1500 (the
+     0x45200 count, like TLewZariaB's 10000); the loader
+     0x26ff4 loads 'kadmdead.mod' (via 0x562e0) just
+     before the factory + re-arms [[0xcef40]+0x394]+0x106
+     := 1; create-dispatcher
+     0x27420 branches on cl bit 4 to sibling class 0x99500
+     (whose getter is PR-184's wrapped 0x3dcb0) with the
+     'patrz zrodla kad-1/2/3' error strings between. ITS
+     GETTER 0x27280 IS THE ONLY DECORATED ONE: call the
+     standard chain 0x504e0, then if [obj+0xee] >= 3:
+     [obj+0xee] := movsx(WORD [obj+0x12a]) + 2 - THE PR-186
+     FLAG DOUBLES AS THE KEY ORDINAL (flag >= 8 -> ee >=
+     10 = the K_F11/K_F12 cases: a SECOND >=10 writer,
+     PR-176 item (2) EXTENDED); clears key bit 0x10, sets
+     it iff ee==6. +0x14 = 0x550a0, +0xcc = the same
+     0x50340 input wrapper - the gate law is NOT ZARIA-
+     specific. THE +0x84 owner hooks ARE NOW READ (2
+     examples): state-name record ctors matching A_DEAD/
+     A_LOOKUP/A_LOOKDOWN by name (two string blocks),
+     requiring the 0x60 record type, creating via 0x524e0,
+     storing state SUB-TABLES at [rec+0x44] (0x9b5f4/
+     0x9a8cc/0x9a894; 0x9a8cc/0x9a894/0x9a85c). CLASS
+     SWITCH-ON-OBJECT IS REAL via reclass sites like
+     0x2bfc2 ([obj+0x12a] := -1, [obj+0x12e] := 1, pair
+     := 0x9b4d4/0x9b4cc). THE [obj+0xc] PAIR-STORE IS AN
+     ALIAS NOT A HEADER (PR-186 item (9) CLOSED): base-8/
+     base-4 are that class's OWN method slots in all six
+     sampled tables; ZERO dispatch sites through [obj+0xc]
+     (5 scan hits, all 3-dword field-copy false positives
+     hitting the CAMEL tables at 0x98274). PR-186 F1
+     CORRECTED (1 bracket): 0x988ec (looser.mod/ZARIA) vs
+     0x9d338 (ran1.mod/RAN) = same-role classes of
+     DIFFERENT stages (20 slot-diffs, provider clusters
+     0x241xx vs 0x31fxx) - NOT one object's life/death
+     pair; flags are PER-OBJECT; cross-class flag semantics
+     via shared handler code (0x24170 -> 0x32130) and
+     reclass sites. HARDWARE BOTTOM (PR-186 item (4)
+     closed to HW level; PR-106 item (1) answered in kind):
+     boot 0x4d769 -> 0x58560 = keyboard-layer init 0x582d0
+     (flush loop 0x1c4d0 + key-state memsets 0x1c490 over
+     the 0xcde70 layer, 128-entry tables + xlat ds:0x9636c)
+     + joystick presence probe 0x58130(dev+0x33); the
+     sample readers are PORT I/O: 0x1ded4 = `in eax,0x50`
+     (8253 counter clock) + `mov dx,0x201; out dx,al` PPI
+     one-shot + `cli` `in al,dx` axis-timing loop (masks
+     [ebp+0x10]/[0x14], cap 0x3fff) `sti`; 0x1df34 =
+     `in al,0x201` button byte. The rings are FILLED in
+     the 0x585e2 open body: ctor 0x582f0 zeroes [drv+0..8]
+     + device presence probes 0x1c550(0xcde70, codes
+     0x13b/0x202..) -> bits [drv+0x8/0x9]; 0x58010 opens
+     the joystick sub-record; 0x57fe0 pulls samples ->
+     `inc [drv+0xc]` + 16-byte ring writes (0x5872b/
+     0x5876f-0x5877b). HARDWARE CAPTURE, not playback -
+     but the ENTRY to 0x585e2 is unresolved (zero refs
+     anywhere; ds:0xa97c0 device-pointer global written at
+     shutdown - PR-188 item (1)). PORT VERDICT unchanged.
+     9 new items (device-mgr entry + state law; flag/
+     ordinal semantics; 0xcde70 format + 0x1c550 codes;
+     reclass census; 0x99500; ...). Next -> PR-188 = the
+     input-stack completion + flag-remainder pass. Full
+     record: PR-187 section of NEXT_STEPS.md (scratch
+     /tmp/opencode/pr187/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -7539,6 +7610,55 @@ header pair law; the capture hook; ...).
 Gates: docs-only (PR-138..185 precedent); added lines <=
 79; baselines 71/71 held; the Windows half stays in the end
 pass (rule 8).
+
+STATUS after PR-187 (the hardware-bottom/controller-family
+pass; docs reading - ZERO port lines changed, the ZARIA.01
+output image is byte-identical to PR-186's; build state =
+the OWNER GATE (rule 8) measured on 7b4d736, only docs
+moved since).
+
+What this pass GROUNDS for T5:
+(1) THE INPUT STACK IS NOW TRACED END TO END FROM SILICON:
+    port 0x201 PPI one-shot axis timings (against the 8253
+    counter, `in eax,0x50`) + the 0xcde70 scancode layer ->
+    0x57fe0 sample pulls -> per-driver rings -> 0x58690
+    frame read -> the +0xcc INPUT-APPLY chain with the
+    0x50340 gate. The port's keyboard channel remains
+    equivalent at the key-bit layer. The engine's own
+    player input is JOYSTICK-shaped (analogue axis
+    timings + button byte) - a T5 reading lead, not a port
+    change (ZARIA playback uses the synthesized keys).
+(2) FLAG/ORDINAL DOUBLING: at the Kadmar class the getter
+    rewrites the key ordinal from the signal flag ([ee] :=
+    flag+2 when ee >= 3) - T5's K_F11/K_F12 leg reading
+    now has a second, flag-driven producer. Which flags
+    raise it to >= 8 is a counted item.
+(3) THE +0x84 OWNER HOOKS ARE STATE-NAME RECORD CTORS
+    (A_DEAD/A_LOOKUP/A_LOOKDOWN -> sub-table stores):
+    T5's state-name rows now have their construction law
+    read, including the 0x60 record-type gate.
+(4) CORRECTION THAT TOUCHES T5's DEATH READING: the
+    flag/state block is PER-OBJECT; the PR-186
+    life/death-class-pair sharing claim is wrong as
+    written (0x988ec=ZARIA-death vs 0x9d338=RAN-death).
+    Where T5 needs state survival across a class switch,
+    the mechanism is RECLASS-ON-OBJECT (0x2bfc2-style
+    [obj+0x8/0xc] rewrites) or a NEW controller OBJECT
+    (the Kadmar factory form) - both with their own flag
+    initializations (-1/1 vs 0). Death at ZARIA.01 is
+    unaffected (no reclass sites read there yet).
+SELF-CORRECTION SHIPPED WITH DATA: 1 bracket corrects
+PR-186 F1's pairing claim; extensions at PR-176 items
+(1)/(2), the +0x84 owner-hook paragraph, PR-106 item (1)
+and PR-186 items (4)/(7)/(9). Closures: PR-186 items (7)
+(TLewKadmar1's class), (9) (alias, no header), (4) to the
+HW bottom. 9 new items counted (the 0x585e2 entry +
+[dev+0xb] state law is FIRST - it decides whether the
+sample rings are live input or recordings, PR-106's old
+question).
+Gates: docs-only (PR-138..186 precedent); added lines <=
+79; baselines 71/71 held; the Windows half stays in the
+end pass (rule 8).
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
