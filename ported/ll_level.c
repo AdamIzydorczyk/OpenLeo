@@ -487,7 +487,11 @@ typedef struct {                     /* one placement of a script        */
     int sti, fi;                     /* state / frame cursor             */
     unsigned row_t, row_rem;     /* PR-110: the row clock, 1/100-iteration
                                   * units + the iteration carry (mirrors
-                                  * [obj+0xa1] and ll_player.row_t) */
+                                  * [obj+0xa1] and ll_player.row_t; PR-
+                                  * 172: the engine's one register is
+                                  * zeroed at EVERY state change by the
+                                  * record ENTER at [[rec+0x44]+0x1c] -
+                                  * see obj_transition and obj_hit) */
     unsigned brk_arm;            /* PR-135: the "row list ended" bit of the
                                   * engine walk: at the wrap it ORs 4 at
                                   * 0x521c1-0x521c5 (PR-162 F1b; reach
@@ -799,7 +803,8 @@ static int obj_cond_true(const lvl_obj *o, int brk, const ll_mov_tr *tr)
  * 0x53520 inside the key compositor 0x536f0) walks 21-byte entries at
  * [rec+0x1a] - a 13-byte key, a record index at +0xd, a row index at
  * +0x11 - calling 0x47e40 with the object's composed key for each, and
- * 0x535a2 applies the first match as "go to record A, row B" (its
+ * 0x535a0 (the entry; 0x535a2 is listed one byte in) applies
+ * the first match as "go to record A, row B" (its
  * same-index path is just `cmp esi,[rec+4]; mov [rec+4],edx`). So the
  * engine's transition is a keyed lookup that also picks the starting
  * row, and the key it looks up is the OR of the attribute-node chains
@@ -820,8 +825,8 @@ static int obj_cond_true(const lvl_obj *o, int brk, const ll_mov_tr *tr)
  * is tried against `"%ld"` (0x57db0) and read with strtol then `dec`
  * (0x57fd0, 0x51e3b), while an absent or non-numeric token stores -1
  * (0x51e3e). That value really is a row: the transition apply step
- * 0x535a2 (what PR-101 called "the switch") writes the int it was handed
- * into the state record's live row counter at rec+0x4 on its same-index
+ * 0x535a0 (what PR-101 called "the switch") writes the int it was
+ * handed into the state record's live row counter at rec+0x4 on its same-index
  * path (0x53616), and rec+0x4 IS that counter - the
  * row stepper helper 0x520c0 advances it (lea+store 0x521d4 - PR-162
  * F1b, one byte off PR-107's 0x521d7) and wraps last->0 at
@@ -923,6 +928,18 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
          * around stays turned around when it changes state */
         o->facc = 0.0;
         o->xa = 0.0;
+        o->row_t = 0;            /* PR-172: the engine's state-change
+                                  * applier (entry 0x535a0) calls the NEW
+                                  * record's ENTER at [[rec+0x44]+0x1c]
+                                  * = 0x4fef0, which tail-calls base
+                                  * ENTER 0x52360 - and that zeroes the
+                                  * feed accumulator [obj+0xa1] (PR-167
+                                  * F4). One register, fresh per state;
+                                  * a match that KEEPS the state (the
+                                  * 0x53626 arm) calls no ENTER and
+                                  * carries it - see obj_rowzero_selftest
+                                  * (obj_state_selftest's stale-mutant
+                                  * leg already pins the facc half). */
         o->sig = 0;
         o->atc = 0;                  /* PR-89: an attack window belongs to
                                       * the state that opened it           */
@@ -1057,6 +1074,11 @@ static int obj_hit(lvl_obj *o, int damage)   /* 0 = no hit, 1 = hurt,
             }
             o->facc = 0.0;
             o->xa = 0.0;
+            o->row_t = 0;        /* PR-172: the forced change runs the
+                                  * same applier ENTER (obj_enter below),
+                                  * so the feed register is zeroed here
+                                  * too - the engine zeroes [obj+0xa1]
+                                  * on every state change */
             o->sig = 0;
             o->atc = 0;             /* PR-90: same window rule as the     */
             o->atc_hit = 0;         /* transition table's own             */
@@ -1310,7 +1332,14 @@ static void obj_walk(lvl_obj *o, const ll_mov_st *s)
  * and there obj_walk's `facc` is the port's copy of it (PR-98's
  * distance law). The scriptless-container branch below keeps ticking
  * it: those objects have no walk feed at all, and the engine's
- * accumulator runs for them too. */
+ * accumulator runs for them too. PR-172 completes that model: the
+ * engine's ONE register is ZEROED at every state change (the applier
+ * 0x535a0 calls the new record's ENTER at [[rec+0x44]+0x1c] = the
+ * wrapper 0x4fef0, whose tail call 0x52360 writes [obj+0xa1] := 0),
+ * and a same-state match (0x53626) does not. A register is therefore
+ * fresh at every state entry and mode-fixed within one - which is
+ * exactly what row_t/facc zeroed at the applier arms give: the split
+ * is observationally identical to the single register. */
 static unsigned obj_row_tick(lvl_obj *o, unsigned dt_ms)
 {
     unsigned n = 0;
@@ -1384,7 +1413,13 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
         obj_walk(o, start);
     else {
         o->row_t += 100;        /* one iteration = the engine's constant
-                                 * feed of 100 (0x4c8b7) */
+                                 * feed of 100 (0x4c8b7); PR-172: the
+                                 * engine feeds its ONE register [obj+
+                                 * 0xa1] and zeroes it at EVERY state
+                                 * change (the record ENTER at [[rec+
+                                 * 0x44]+0x1c] = 0x4fef0 -> 0x52360),
+                                 * so a fresh state starts at 0 there -
+                                 * see the applier arms above */
         o->facc = 0.0;
         o->xa = 0.0;
     }
@@ -2769,6 +2804,173 @@ out:
     return rc;
 }
 
+/* PR-172: the row-clock zeroing law (engine applier entry 0x535a0:
+ * the state-change arm calls the NEW record's ENTER at
+ * [[rec+0x44]+0x1c] - the real class tables carry the wrapper 0x4fef0
+ * there, whose tail call 0x52360 zeroes the ONE feed accumulator
+ * [obj+0xa1], PR-167 F4; the same-state match arm 0x53626 calls NO
+ * ENTER, so the accumulator CARRIES). The feed is the constant 100
+ * per iteration (0x4c8b7), and the authored ZARIA.01 BY_TIME thresh-
+ * olds include NON-multiples of 100 - 1, 40, 75, 80, 120, 150, 225
+ * across 114 states / 1128 rows - so a leftover value is OBSERVABLE
+ * at the new state's first row: a fresh register and a carried one
+ * open rows at different steps. This fixture (gates 70/240 in
+ * [A_ONE], 120 in [A_TWO], 150 in [A_DEAD] - no gate is a multiple
+ * of 100, every number below is hand-derived) pins all three arms:
+ * the subtract-remainder carry within a state, carry across a SAME-
+ * STATE match, zeroing at a keyed transition, and zeroing at the
+ * forced A_DEAD hit. */
+static int obj_rowzero_selftest(void)
+{
+    static const char rz[] =
+        "A_ONE\nA_TWO\nA_DEAD\n\n[A_ONE]\ncontrol=BY_TIME\n"
+        "A_TWO(1)=K_GEN1\nA_ONE(1)=K_GEN2\n1,70\n2,240\n\n"
+        "[A_TWO]\ncontrol=BY_TIME\n1,120\n\n[A_DEAD]\n"
+        "control=BY_TIME\n1,150\n";
+    int rc = 1, r = 0;
+    ll_mov_t *m = calloc(1, sizeof *m);
+    obj_script sc;
+    lvl_obj a;
+
+    if (!m)
+        goto out;
+    memset(&sc, 0, sizeof sc);
+    sc.mov = m;
+    if (ll_mov_parse(rz, m) != 3) {
+        fprintf(stderr, "object rowzero selftest: FAILED parse\n");
+        goto out;
+    }
+    memset(&a, 0, sizeof a);
+    a.sc = &sc;
+    obj_advance(&a, 0);                   /* placement ENTER only:    */
+    if (a.row_t != 0u || a.act_gate != 0u) {   /* zero steps, no gate  */
+        fprintf(stderr, "object rowzero selftest: FAILED a fresh"
+                        " object (gate %u t %u)\n", a.act_gate,
+                a.row_t);
+        goto out;
+    }
+    /* LEG 1 (the carry WITHIN a state): row 1 of [A_ONE] gates at
+     * 70. One iteration feeds 100, the row opens, the remainder 30
+     * carries - exactly the effect the non-multiple authored gates
+     * make in the engine. Rows stay held at 130, 230 under gate
+     * 240, then 330 opens row 2 with remainder 90; the admit of the
+     * LAST row wraps fi to 0 in that same step (the PR-135 clamp). */
+    obj_advance(&a, LL_ITER_MS);
+    if (a.sti != 0 || a.fi != 1 || a.row_t != 30u) {
+        fprintf(stderr, "object rowzero selftest: FAILED the first"
+                        " row of gate 70 (state %d fi %d t %u want"
+                        " fi 1 t 30)\n", a.sti, a.fi, a.row_t);
+        goto out;
+    }
+    obj_advance(&a, LL_ITER_MS);
+    obj_advance(&a, LL_ITER_MS);
+    if (a.fi != 1 || a.row_t != 230u) {
+        fprintf(stderr, "object rowzero selftest: FAILED the carry"
+                        " under gate 240 (fi %d t %u want fi 1 t"
+                        " 230)\n", a.fi, a.row_t);
+        goto out;
+    }
+    obj_advance(&a, LL_ITER_MS);
+    if (a.fi != 0 || a.row_t != 90u) {
+        fprintf(stderr, "object rowzero selftest: FAILED row 2 of"
+                        " gate 240 (fi %d t %u want fi 0 t 90)\n",
+                a.fi, a.row_t);
+        goto out;
+    }
+    /* LEG 2 (a SAME-STATE match CARRIES): the engine's 0x53626 arm
+     * bumps the AC_TIME counter and calls no ENTER. gate 0 (no
+     * time= line) can never raise, and the register keeps its 90 -
+     * the half a zero-at-match mutant loses. K_GEN2 is the same-
+     * state line's token so this call matches ONLY that one. */
+    a.sig = 1ull << LL_SIG_K_GEN2;
+    r = obj_transition(&a, m, 0);
+    a.sig = 0;                 /* the real step clears the set at its  */
+    if (r != 0 || a.sti != 0 || a.act_n != 1u || a.row_t != 90u) {
+                               /* top; a direct call must not leak it */
+        fprintf(stderr, "object rowzero selftest: FAILED the same-"
+                        "state match (r %d state %d n %u t %u want"
+                        " r 0 n 1 t 90)\n", r, a.sti, a.act_n,
+                a.row_t);
+        goto out;
+    }
+    /* And the carry is USED: the next iteration feeds on from 90 -
+     * 190 opens row 1 (gate 70) again, remainder 120. A zero-at-
+     * match mutant would land 30. (The step's own key pre-pass
+     * finds nothing: the K_GEN1/K_GEN2 bits are clear, and the
+     * wrap bit c4 armed tests only numeric conditions.) */
+    obj_advance(&a, LL_ITER_MS);
+    if (a.sti != 0 || a.fi != 1 || a.row_t != 120u) {
+        fprintf(stderr, "object rowzero selftest: FAILED the carry"
+                        " across a same-state match (fi %d t %u want"
+                        " fi 1 t 120)\n", a.fi, a.row_t);
+        goto out;
+    }
+    /* LEG 3 (the TRANSITION zeroes): the applier's state-change arm
+     * runs ENTER on the new record - row_t must be 0 there (the
+     * carried 120 is the M1 mutant, caught here and again below). */
+    a.sig = 1ull << LL_SIG_K_GEN1;
+    r = obj_transition(&a, m, 0);
+    a.sig = 0;
+    if (r != 1 || a.sti != 1 || a.fi != 0 || a.row_t != 0u ||
+        a.act_n != 0u || a.act_gate != 0u) {
+        fprintf(stderr, "object rowzero selftest: FAILED the keyed"
+                        " transition (r %d state %d fi %d t %u n %u"
+                        " want r 1 state 1 fi 0 t 0 n 0)\n", r,
+                a.sti, a.fi, a.row_t, a.act_n);
+        goto out;
+    }
+    /* Observable at the new state's FIRST row: [A_TWO] gates at
+     * 120. A carried 120 would open it at once (220 >= 120); the
+     * fresh register holds at 100 and opens one step later (the
+     * last row, so fi wraps back to 0 with remainder 80). */
+    obj_advance(&a, LL_ITER_MS);
+    if (a.sti != 1 || a.fi != 0 || a.row_t != 100u) {
+        fprintf(stderr, "object rowzero selftest: FAILED the first"
+                        " row of the NEW state (state %d fi %d t %u"
+                        " want fi 0 t 100)\n", a.sti, a.fi,
+                a.row_t);
+        goto out;
+    }
+    obj_advance(&a, LL_ITER_MS);
+    if (a.fi != 0 || a.row_t != 80u) {
+        fprintf(stderr, "object rowzero selftest: FAILED row 1 of"
+                        " gate 120 (fi %d t %u want fi 0 t 80)\n",
+                a.fi, a.row_t);
+        goto out;
+    }
+    /* LEG 4 (the forced A_DEAD change runs the same ENTER): the
+     * lethal hit lands with 80 still in the register and must
+     * zero it; [A_DEAD]'s gate of 150 makes that observable - a
+     * carried 80 would open the corpse's first row at once (180
+     * >= 150). Fresh, it holds at 100 and opens next step (50). */
+    if (obj_hit(&a, 30) != 2 || a.sti != 2 || a.fi != 0 ||
+        a.row_t != 0u) {
+        fprintf(stderr, "object rowzero selftest: FAILED the forced"
+                        " A_DEAD change (state %d fi %d t %u want"
+                        " state 2 fi 0 t 0)\n", a.sti, a.fi,
+                a.row_t);
+        goto out;
+    }
+    obj_advance(&a, LL_ITER_MS);
+    if (a.fi != 0 || a.row_t != 100u) {
+        fprintf(stderr, "object rowzero selftest: FAILED the first"
+                        " row after death (fi %d t %u want fi 0 t"
+                        " 100)\n", a.fi, a.row_t);
+        goto out;
+    }
+    obj_advance(&a, LL_ITER_MS);
+    if (a.fi != 0 || a.row_t != 50u) {
+        fprintf(stderr, "object rowzero selftest: FAILED row 1 of"
+                        " gate 150 (fi %d t %u want fi 0 t 50)\n",
+                a.fi, a.row_t);
+        goto out;
+    }
+    rc = 0;
+out:
+    free(m);
+    return rc;
+}
+
 static int obj_motion_selftest(void)
 {
     static const char run[] =
@@ -3769,6 +3971,7 @@ int ll_mov_selftest(void)
         seq_shape_selftest() != 0 || seq_push_selftest() != 0 ||
         obj_layer_selftest() != 0 || obj_state_selftest() != 0 ||
         obj_actime_selftest() != 0 ||
+        obj_rowzero_selftest() != 0 ||
         obj_motion_selftest() != 0 || contact_model_selftest() != 0 ||
         ladder_answer_selftest() != 0 || place_grammar_selftest() != 0) {
         free(sc.mov);

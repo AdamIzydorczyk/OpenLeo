@@ -7655,7 +7655,13 @@ first thing to check and it is `eax/edx/ebx`, not the 64-bit form.
   lines with a row: the engine's same-index path DOES write them (0x53616);
   the port's object path skips self-target lines entirely and its player
   path deliberately keeps the state running (PR-86). Neither side applies
-  those rows today. (3) The owner side of the row-set method. `[rec+0]` is
+  those rows today. [UPDATED BY PR-172: after PR-163 the object
+  path no longer SKIPS those lines - its same-state arm COUNTS
+  them (the AC_TIME leg) - but still never applies their row
+  seek; the engine re-seeks on EVERY same-state match (0x53616,
+  inline, no ENTER). Candidate small code PR once the entry-
+  token census of the 101 lines is done; now on the Next list.]
+  (3) The owner side of the row-set method. `[rec+0]` is
   the owner: 0x52369 and 0x52663 both read it and 0x5266c then clears bit
   0x20 of `[owner+0xb6]`, the byte PR-98 read the drag floor in - so
   leaving a state clears that bit, and what that costs is unread. The pair
@@ -15733,67 +15739,69 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-172 IS THE BY_TIME EQUIVALENCE AUDIT (PR-168 item 1,
-  narrow, docs or code): does the port's BY_TIME row-gating
-  match the engine's constant-100/tick accumulator feed for
-  shipped rows (the port's fixtures literally show '1,100/
-  2,100' rows under control=BY_TIME - one honest comparison,
-  then a labeled divergence or a pinned test + mutation con-
-  trols if the port changes). PR-171 F1/F3 help: the engine
-  also DECAYS counters [obj+0xc2]/[obj+0xc6] (/3 per key
-  hit) and re-anchors positions via the [obj+0xd6] snapshot
-  - check whether the port's row-step model consumes any
-  equivalent counter. DO NOT touch the port's fi gate (still
-  data-blocked; PURELY fi-vs-state parameter selection).
-- THEN the KEY-LITERAL RE-DERIVATION (concrete now): PR-
-  171 F5 proved the 0x600000/0x800000 CHECK_LN/BASE_LN
-  "constants" do not exist in code - re-derive PR-161's key
-  law against the REAL bit map (F1: [obj+0xa5] flag bits ->
-  key+4|0x80/key+5|0x01/key+6|0x20; motion-param status ->
-  key+4|0x08/0x10; param sign -> key+4|0x20/0x40 only when
-  [obj+0xba]==0) and the authored row data; the labeled hy-
-  pothesis (0x60/0x80 = key+4 BYTES in a hex-dump reading)
-  should be tested first. The port's 15-byte key model
-  (ll_level.c) gets audited against this map in the same
-  pass; any divergence = labeled item or a code PR.
+- PR-173 IS THE KEY-LITERAL RE-DERIVATION (carried from PR-
+  171's Next, unchanged in scope): PR-171 F5 proved the
+  0x600000/0x800000 CHECK_LN/BASE_LN "constants" do not exist
+  in code - re-derive PR-161's key law against the REAL bit
+  map (PR-171 F1: [obj+0xa5] flag bits -> key+4|0x80/key+
+  5|0x01/key+6|0x20; motion-param status -> key+4|0x08/0x10;
+  param sign -> key+4|0x20/0x40 only when [obj+0xba]==0) and
+  the authored row data; the labeled hypothesis (0x60/0x80 =
+  key+4 BYTES in a hex-dump reading) gets tested first. The
+  port's 15-byte key model (ll_level.c) is audited against
+  this map in the same pass; any divergence = labeled item or
+  a code PR (PR-172 shows the audit-then-fix path works).
+- THEN the SAME-STATE ROW SEEK code PR (PR-172 F2/updated
+  item): the engine's match arm writes the authored start row
+  into the CURRENT state's row counter inline (0x53616) on
+  EVERY same-state match; the port's object arm counts the
+  match (PR-163) but never re-seeks, and its player side
+  deliberately keeps running (PR-86). Census first: how many
+  of the 101 shipped self-target lines carry a row token, and
+  which rows (the /tmp/opencode/mov scratch answers it);
+  then the fix + a hand-derived test + mutation battery if
+  shipped rows can reach it.
+- THEN the BY_TY FEED READ (PR-172 new item): 4 shipped
+  ZARIA.01 states use control=BY_TY (rows gated 200/300);
+  the port runs them as plain time states. Read the feed
+  dispatcher 0x543a0's mode arm for that token (PR-166's
+  slot table +0x14 is the map) and its relation to the
+  parameter pair [obj+0xba]/[obj+0xbe]; a labeled model note
+  or a feed implementation follows.
 - THEN the FAMILY-B KEY PRODUCER + MESSAGE-ID MAP (PR-171
   items 1-2): the 99 classes whose +0x78 CONSUMES the key
   have NO statically-referenced builder (0x54912: zero table
-  slots/calls/branches) - hunt the reachability (runtime
-  table patching? computed call?) and read the +0x10 minor-
-  ity bodies (0x3dcb0 x27, 0x3d8f0, 0x50d60) + the unread
-  message arms (0x5460e 0x1b, 0x5463a default). This likely
-  carries the CHAIN-STORE answer (third re-point: pools
-  start EMPTY at load; heads alloc'd+zeroed at slot assign-
-  ment, [c+0x40] is a slot counter; runtime insert only).
-  Also: the [obj+0x102] 30-tick clear/reader (contact lead),
-  the [obj+0xa5] producer contract remainder.
+  slots/calls/branches) - hunt the reachability (runtime table
+  patching? computed call?) and read the +0x10 minority bodies
+  (0x3dcb0 x27, 0x3d8f0, 0x50d60) + the unread message arms
+  (0x5460e 0x1b, 0x5463a default). This likely carries the
+  CHAIN-STORE answer (pools start EMPTY at load; heads alloc'
+  ed+zeroed at slot assignment, [c+0x40] is a slot counter;
+  runtime insert only). Also: the [obj+0x102] 30-tick clear/
+  reader, the [obj+0xa5] producer contract remainder.
 - THEN the pool-name decode (carried, PR-166 item 2, nega-
   tives banked) and the name-keyed path (0x4dcc0/0x4df10,
   PR-166 item 3).
 - THEN carried reads (unchanged): the +0x60 conditional mi-
   nority (PR-169 item 3); the vtable+0-word OR 4/8 row-end
-  CONSUMER (PR-164 item 1); the flip-bit owner (NOW NAMED:
-  the 0x54a24 deadzone test - confirm its consumers before
-  closing the item); [obj+0x99] reader semantics (PR-167
-  item 5); the base table's +0x1c/+0x20 overrides (PR-167
-  item 2); the 0xa2e9c/0xa2ed4 view selection (PR-167 item
-  3); 0x53520 arg plumbing + [obj+0x95] reader; the 31-vs-
-  24 +0x14-slot delta; record verbs +0x2c/+0x30 bodies +
-  the second-view slots 0x559c0/0x45800; the 0x4fef0 pool
-  prelude; the walk return-value encoding (PR-161 item 1);
-  0x9c05c identity; 0x524xx rest; 0x446de; 0x57d30 modes;
-  FLAG +0x4c getter.
-- RIDES THE NEXT CODE PR (not a read): the three port
-  comments citing the applier as 0x535a2 get the entry
-  correction to 0x535a0 (ll_level.c:802,823, ll_play.c:209)
-  - PR-164 F2.
+  CONSUMER (PR-164 item 1); [obj+0x99] reader semantics (PR-
+  167 item 5); the base table's +0x1c/+0x20 overrides (PR-
+  167 item 2); the 0xa2e9c/0xa2ed4 view selection (PR-167
+  item 3); 0x53520 arg plumbing + [obj+0x95] reader; the 31-
+  vs-24 +0x14-slot delta; record verbs +0x2c/+0x30 bodies +
+  the second-view slots 0x559c0/0x45800; the +0x9c per-class
+  gate variants (PR-168 item 4); the walk return-value encod-
+  ing (PR-161 item 1); 0x9c05c identity; 0x524xx rest; 0x446de;
+  0x57d30 modes; FLAG +0x4c getter. The 0x4fef0 side-effect
+  SEMANTICS ([pool+0x3a0]/[0x3a8], ds:0xcf068) stay open as
+  PR-170 item (4) (its ROLE is now named - the record ENTER
+  wrapper, PR-172 F1).
 - LEDGER RULE (PR-158 F1): every Next-swap re-splices recent
   records from the LAST revision that carried them. Census
   recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
   `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD 0ce1036 carries all twenty-one (PR-
-  150..PR-170); HEAD is the last carrier.
+  pass's census: HEAD 2872f45 carries all twenty-two (PR-
+  150..PR-171); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -19557,6 +19565,8 @@ its port-name DECISION stays open as a new item; PR-162 item
   call; side effects around [pool+0x3a0]/[pool+0x3a8] and
   the ds:0xcf068 family via 0x56380/0x56310 - semantics
   open, item 4) ending in a TAIL CALL of the base 0x52360
+  [CORRECTED BY PR-172 F1: a plain CALL at 0x4ff6b, epilogue
+  pop/ret after - the zeroing law itself unchanged]
   with the same edx; 0x50040: calls 0x52360 then writes
   vtable-slot tag +0xfa = 0x46; 0x9a894 +0x20 = 0x50060
   likewise WRAPS the LEAVE verb 0x52660. PR-163's question
@@ -19845,7 +19855,10 @@ are CORRECTED with brackets)
   all three arms read and corrected - PR-165's item (1)
   closed there],
   (4) the 0x4fef0 pool prelude side-effects ([pool+0x3a0]/
-  [0x3a8] are container-relative - same map, still open),
+  [0x3a8] are container-relative - same map, still open)
+  [ROLE NAMED BY PR-172 F1: this IS the record ENTER - the
+  class tables install it at +0x1c (0x97c9c etc. re-cited)
+  and the applier calls it at EVERY state change],
   (5) record verbs +0x2c/+0x30 bodies, (6) second-view
   slots; PR-164 items (1)-(4); the flip-bit owner; the
   ladder-gate data block; the walk-return encoding.
@@ -19981,7 +19994,10 @@ bracket and its item (3) bracket gains F1's fact)
   one-byte listing class again); body: call 0x52070; [obj+
   0xa1] := 0 (THE FEED ACCUMULATOR - the dispatcher's target
   from PR-165 F2 - ENTER ZEROES IT: PR-163's counter-clear
-  reading gains its engine twin for the feed); [obj+0x99] := 1
+  reading gains its engine twin for the feed) [ACTED ON BY
+  PR-172: the port now zeroes row_t at BOTH applier arms -
+  the register is fresh at every state entry and obj_rowzero-
+  selftest pins the whole law]; [obj+0x99] := 1
   (PR-166's carried "[owner+0x99] sentinel" - the WRITER is
   now known: ENTER sets it at every entry); then the row half:
   if edx >= 0, test BYTE [rec+0x12] bits 0x10/0x20 (SEQ_REV_X
@@ -20702,8 +20718,10 @@ open with a corrected lead)
   item (2) FIRST HALF ([obj+0xd6] consumer = the 0x54eb2
   re-anchor law). RE-SCOPED: the chain-store item (F6 facts
   added; +0x10 hypothesis killed). CARRIED: PR-169 item (2)
-  half + item (3); PR-168 item (1) (the BY_TIME audit,
-  next PR); PR-168 item (4) (+0x9c per-class variants);
+  half + item (3); PR-168 item (1) (the BY_TIME audit
+  [CLOSED BY PR-172: audited - the divergence was real (the
+  port zeroed facc but not row_t); the fix + hand-derived
+  test shipped]); PR-168 item (4) (+0x9c per-class variants);
   PR-170's remaining [obj+0x102] half; PR-166/167 items
   unchanged; the ladder-gate data block; the pool-name
   decode; the walk-return encoding; everything else un-
@@ -20747,6 +20765,181 @@ open with a corrected lead)
   records re-spliced from it; 5 brackets (PR-168 F3 sentence
   corrected; its items (2)/(3) closed; PR-170 items (1)/(2)
   corrected/answered).
+
+## PR-172 — THE BY_TIME AUDIT LANDS ON A REAL PORT DIVERGENCE:
+## THE ENGINE ZEROES ITS ONE FEED REGISTER AT EVERY STATE CHANGE
+## (THE APPLIER 0x535a0 CALLS THE NEW RECORD'S ENTER AT
+## [[rec+0x44]+0x1c]; THE ZARIA CLASS TABLES INSTALL THE WRAPPER
+## 0x4fef0 THERE AND ITS BODY CALLS 0x52360 AT 0x4ff6b, WHICH
+## WRITES [posobj+0xa1] := 0 AT 0x5236b - THE ROW-SET WRITE AND
+## THE ACCUMULATOR ZEROING ARE ONE METHOD; THE SAME-STATE MATCH
+## ARM INLINES ONLY THE ROW WRITE (0x53616), SO THE CARRY
+## SURVIVES MATCHES), THE AUTHORED ZARIA.01 THRESHOLD CENSUS
+## MAKES THE ZEROING OBSERVABLE (SEVEN OF TWELVE DISTINCT
+## PLAIN-BY_TIME GATES ARE NOT MULTIPLES OF 100), AND THE PORT
+## SHIPPED THE ZEROING (row_t = 0 AT BOTH APPLIER ARMS) WITH
+## A HAND-DERIVED TEST - obj_rowzero_selftest, FIVE MUTANTS
+## KILLED AT THEIR EXACT LEGS, ONE HONEST SURVIVOR - AND PAID
+## THE RIDE OF PR-164'S ENTRY-COMMENT FIX (0x535a2 ->
+## 0x535a0, THREE SITES)
+(CODE PR + TEST + DOCS; PR-168 item (1) CLOSED; the PR-164
+ride item CLOSED; the PR-107 self-target row item UPDATED)
+
+- WHY. The Next entry specced the BY_TIME equivalence audit
+  (PR-168 item 1): does the port's row gate (feed row_t += 100
+  per iteration, hold while row_t < thresh, subtract-carry)
+  match the engine's constant-100 feed law for shipped rows?
+  Method: re-read the port's model (obj_row_tick/obj_advance,
+  the applier arms), a CENSUS of the authored ZARIA.01 .MOV
+  texts (the extracted scratch set /tmp/opencode/mov - never
+  in git), and the engine's applier tail 0x535c2-0x5365c, the
+  record-table +0x1c census, 0x4fef0 and 0x52360 verbatim.
+
+- FINDING 1, THE FEED AND GATE LAWS AGREE - THE MISSING HALF
+  IS THE REGISTER'S ZEROING AT TRANSITIONS. The port's feed
+  (100 per record step, 0x4c8b7), its hold gate and its
+  subtract-carry are the engine's law as PR-110/115/135
+  pinned them. What the port did NOT have: the engine's ONE
+  register [obj+0xa1] is ZEROED at every state change. The
+  applier's state-change arm (entry 0x535a0): :535b9-0x535bf
+  LEAVE ([rec_old+0x44]+0x20 = 0x52660 on the class tables),
+  :535c2 [obj+0x9d] := 0 (PR-163's counter reset), :535d1
+  class +0xa4 (the gate roll), then :535e1-0x535ea rec_new =
+  [[obj+0x50]+new*4] and call [[rec_new+0x44]+0x1c] - THE
+  ENTER - with edx STILL holding the line's authored start row
+  (:535a8 `mov edx,ebx` moved it in and no call clobbers it).
+  The slot census of the class record tables (PR-170 read the
+  family; re-confirmed here at 0x97c9c/0x98e7c/0x99338/0x9a85c
+  with +0x1c = 0x4fef0, +0x20 = 0x52660, +0x18 = 0x520c0; the
+  variants 0x50000 at 0x9a8cc, 0x50040 at 0x9a894, 0x52c70 at
+  0x96b88, 0x45400 at 0x9905c stand as PR-170 saw them): the
+  0x4fef0 body runs its controller preamble (ds:0xcef40 +0x394,
+  verb +0xe4(0), owner verb +0x4 with 200, 0x54f40, 0x4ab70,
+  flags [pool+0x3a0]/[0x3a8], 0x56380/0x56310 on ds:0xcf068)
+  and then CALLS the row-set method 0x52360 at 0x4ff6b - a
+  call, NOT the tail call PR-170's wording suggested (the
+  pop/ret epilogue at 0x4ff70 follows). 0x52360 (entry,
+  prologue calls the 0x52070 preamble): 0x5236b `mov DWORD
+  PTR [eax+0xa1],0x0` - THE FEED ACCUMULATOR ZEROED - 0x52377
+  [posobj+0x99] := 1, and the row-index write PR-100 read
+  (edx < 0 skips it). THE ROW-SET AND THE ZEROING ARE ONE
+  METHOD: entering a state re-rows AND re-zeros, always.
+- FINDING 2, THE SAME-STATE ARM CALLS NO ENTER - THE CARRY
+  SURVIVES MATCHES. The match arm 0x53602-0x5365c bumps
+  [obj+0x9d] (PR-163's AC_TIME count) and writes the start
+  row INLINE at rec+0x4 (0x53616) without calling +0x1c at
+  all - so the row seek happens but the accumulator ZEROING
+  does not. A same-state match carries [obj+0xa1] on.
+- FINDING 3, THE OBSERVABILITY CENSUS (AUTHORED DATA,
+  SCRATCH). Control tokens over ZARIA.01's .MOV texts:
+  BY_TIME on 114 states, BY_X on 15, BY_TY on 4. The plain-
+  BY_TIME bucket's 1128 row lines carry 12 distinct gates:
+  0(22), 1(4), 40(3), 75(12), 80(5), 100(62), 120(5), 150(8),
+  200(286), 225(6), 300(330), 400(248) - SEVEN of the twelve
+  (1/40/75/80/120/150/225) are NOT multiples of the 100-per-
+  step feed, and every state that exits mid-row leaves a
+  NON-ZERO remainder. So the zeroing is OBSERVABLE on shipped
+  data: with a carried remainder the new state's first row
+  opens an iteration EARLY; zeroed, it does not. (The FRAME_REV
+  buckets are all 100-multiples; BY_X gates are movement units
+  {4,5,6,7,15} - the walk path is untouched.) THE PORT'S
+  AUDIT: obj_transition and the forced A_DEAD path zero facc/
+  xa but did NOT zero row_t - a real divergence on exactly
+  these lines. FIX SHIPPED: `o->row_t = 0;` at both applier
+  arms with the engine law cited. The port's two-register
+  split (row_t for time modes, facc for distance modes) stays
+  OBSERVATIONALLY IDENTICAL to the engine's one register: the
+  register is fresh at every state entry (F1) and its feed
+  source is mode-fixed within one state (0x543a0 dispatch), so
+  no within-state carry can cross the two and both-zero-at-
+  entry gives the single-register behavior exactly.
+- FINDING 4, THE TEST AND THE MUTATION BATTERY. New
+  obj_rowzero_selftest (ll_level.c, wired after obj_actime):
+  fixture gates 70/240 in [A_ONE], 120 in [A_TWO], 150 in
+  [A_DEAD] - no gate is a multiple of 100; K_GEN2 marks the
+  same-state line so each direct obj_transition call matches
+  exactly one line; every number is hand-derived (30, 130,
+  230, 90, 120, 100, 80, 100, 50). Legs: L1 the subtract-
+  remainder carry within a state; L2 a SAME-STATE match
+  carries (and the next iteration FEEDS ON from 90 - the M2
+  zero-at-match mutant lands 30); L3 the keyed transition
+  zeroes AND the new state's first row of 120 holds at 100
+  (a carried 120 would open it at once); L4 the forced A_DEAD
+  hit zeroes (80 -> 0) and the corpse's first row of 150
+  holds at 100. Battery: M1 no zero at the applier arm ->
+  killed at L3; M2 zero at the same-state arm -> killed at
+  L2; M3 no zero at the death force -> killed at L4; M4 no
+  subtract-remainder (zero at admit) -> killed at L1; M5 zero
+  at the row-list wrap -> killed at L1's last leg (want t 90);
+  M6 ALSO zero row_rem at the applier arm SURVIVES - stated,
+  not hidden: every fixture call is exactly LL_ITER_MS so the
+  ms carry is 0 whenever an applier runs, and row_rem is the
+  port's ms-splitter with no engine counterpart (the engine
+  has no sub-iteration notion), so this is a labeled, accepted
+  un-pin, not a behavior gap.
+- FINDING 5, THE PR-164 RIDE IS PAID. The three comments
+  citing the applier as 0x535a2 now cite 0x535a0 with the
+  one-byte-listing note (ll_level.c x2, ll_play.c x1) -
+  PR-164 item as specced, nothing else touched.
+- OPEN ITEMS COUNTED (1 new, 2 updated, 2 closed). NEW: (1)
+  BY_TY's FEED IS UNMODELLED: 4 shipped ZARIA.01 states carry
+  control=BY_TY (their 36 row lines gate at 200/300); the
+  port runs them as plain time states (anything not BY_X is
+  wall-fed) - the engine's feed source for that mode (the
+  dispatcher 0x543a0's mode arm, possibly the parameter pair
+  [obj+0xba]/[obj+0xbe]) is unread. UPDATED: (2) the PR-107
+  self-target row item: after PR-163 the port's object path
+  no longer SKIPS self-target lines (it counts them) but
+  still never applies their authored row seek - the engine
+  writes rec+0x4 inline on every same-state match (0x53616,
+  F2); a small code PR candidate once the entry-token census
+  of the 101 shipped self-target lines is done. (3) PR-170's
+  "TAIL CALL" wording at 0x4fef0 corrected to a call at
+  0x4ff6b (F1). CLOSED: PR-168 item (1) (the BY_TIME audit -
+  audited, divergence real, fixed); the PR-164 ride item
+  (F5). CARRIED: PR-171 items (1)/(2); the BY_TIME-adjacent
+  [obj+0x102] reader half; PR-169/170 items unchanged; the
+  KEY-LITERAL re-derivation (next PR); the ladder-gate data
+  block; the pool-name decode; the walk return encoding;
+  everything else unchanged.
+- GATES. CODE PR: full `make` after clean = ZERO warnings;
+  `make win` = ZERO warnings; `make ll_level` force-relinked;
+  `./ll_level --mov-selftest` rc=0 (all selftests incl. the
+  new one); `make -k verify-all` with the staged fixtures
+  (DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files)
+  rc=0 with 56 (ok); fixture-free (DATA=/tmp/opencode/nope
+  HD=/tmp/opencode/nope) rc=0 with 10 (ok) + the same 23
+  named SKIPs; the fix shifts NO shipped frame comparison (all
+  level/golden checks pass unchanged - ZARIA.01's pinned
+  outputs did not move). Every added code and prose line <=
+  79 cols; over-79 baselines UNCHANGED (NEXT_STEPS 71,
+  HANDOFF 72); no game data or frames in git (the .MOV census
+  ran on the scratch /tmp/opencode/mov; artifacts in
+  /tmp/opencode/pr172/); .github/workflows/* untouched; the
+  image unchanged (text.bin sha256 edf19a12...). CI: PR-171's
+  run (44507890653) GREEN (confirmed at this record's time);
+  this PR's run queues at push.
+- EVIDENCE. All engine reads from the pinned image: 0x535a2-
+  0x5365c verbatim (the LEAVE call, the [obj+0x9d] reset, the
+  gate-roll call, the ENTER at :535ea and the edx=start-row
+  plumbing from :535a8, the [obj+0x5c] := new-state store at
+  :535ed, the class +0xac call, and the inline rec+0x4 write
+  in the match arm); the +0x1c slot census at 0x97c9c/0x98e7c/
+  0x99338/0x9a85c (+0x1c 0x4fef0 / +0x20 0x52660 / +0x18
+  0x520c0) and the four variants; 0x4fef0 whole (0x4fef0-
+  0x4ff74: the preamble calls and flag writes, the call to
+  0x52360 at 0x4ff6b, the epilogue); 0x52362-0x5237e verbatim
+  (the [eax+0xa1] := 0 store, the [eax+0x99] := 1 store);
+  the census over the authored texts (per-token control counts,
+  per-bucket gate-value histograms with multiplicities - the
+  numbers quoted in F3). Port side: the model re-read of
+  obj_row_tick/obj_advance/obj_transition/obj_hit; the new
+  selftest transcript (failing first run pinpointed the in-
+  step row-list wrap - the test was corrected to the port's
+  PR-135 law, not the reverse); the battery table in F4.
+  Ledger rule applied: census first - HEAD 2872f45 carries
+  PR-150..PR-171 (last carrier); records re-spliced from it;
+  5 brackets.
 
 ## Deferred big items (deliberately out of scope so far)
 

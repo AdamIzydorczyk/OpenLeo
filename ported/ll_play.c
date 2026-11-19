@@ -206,9 +206,10 @@ int ll_mov_find(const ll_mov_t *m, const char *name)
  * transition entry's row field at +0x11, and it reaches the live row
  * counter of the TARGET state record by both of the engine's paths. The
  * walk 0x52000 hands it out (0x52046-0x5204d) to the transition apply
- * step 0x535a2, which takes the target state index in edx and the start
- * row in ebx: a same-index line writes the row into the current record
- * straight out (0x53616, and only if it differs - 0x53612 skips the
+ * step 0x535a0 (0x535a2 is listed one byte in), which takes the
+ * target state index in edx and the start row in ebx: a same-index
+ * line writes the row into the current record straight out (0x53616,
+ * and only if it differs - 0x53612 skips the
  * write otherwise); a cross-state line reaches the same field through
  * the state record's method table, because every record stores the fixed
  * table 0xa25d4 at rec+0x44 (its constructors, 0x524cf and 0x52508) and

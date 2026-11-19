@@ -3855,6 +3855,54 @@ writer as its open items.
      72); image unchanged; ledger census run (HEAD 0ce1036 =
      last carrier). Full record: the PR-171 section of
      NEXT_STEPS.md (scratch /tmp/opencode/pr171/).
+   - PR-172 (CODE PR + TEST): THE BY_TIME AUDIT (PR-168 item
+     1) FOUND A REAL PORT DIVERGENCE AND FIXED IT. The port's
+     feed (100/iteration, 0x4c8b7), hold-gate and subtract-
+     carry ARE the engine's law; what was missing is the
+     register's zeroing at transitions: the applier's state-
+     change arm (entry 0x535a0) calls the NEW record's ENTER at
+     [[rec+0x44]+0x1c] (the ZARIA class tables install the
+     wrapper 0x4fef0 there - 0x97c9c/0x98e7c/0x99338/0x9a85c
+     re-cited, variants stand - and its body CALLS the row-set
+     method 0x52360 at 0x4ff6b, which zeroes [obj+0xa1] at
+     0x5236b and sets [obj+0x99] := 1: ROW WRITE AND ACCUMU-
+     LATOR ZEROING ARE ONE METHOD, always run on entry). The
+     same-state match arm writes rec+0x4 INLINE (0x53616) and
+     calls no ENTER - the carry SURVIVES matches. OBSERVABI-
+     LITY CENSUS (authored texts, scratch): plain-BY_TIME's
+     1128 ZARIA.01 rows carry 12 distinct gates and SEVEN
+     (1/40/75/80/120/150/225) are not multiples of 100 - a
+     mid-row exit leaves a non-zero remainder and the new
+     state's first row would open an iteration early. The
+     port zeroed facc but NOT row_t at the applier arms:
+     `o->row_t = 0;` shipped at BOTH (obj_transition + the
+     forced A_DEAD in obj_hit), engine law cited at each site;
+     the two-register split stays observationally identical to
+     the one register (fresh at entry + mode-fixed feed within
+     a state). NEW TEST obj_rowzero_selftest: gates 70/240/
+     120/150 (no multiples of 100), hand-derived timeline,
+     legs = carry-within-state, same-state-match CARRY (and
+     the next iteration feeding on from 90), transition zero-
+     ing observable at the first row of 120, death-force zero-
+     ing observable at 150; battery M1-M5 killed at their
+     exact legs; ONE SURVIVOR stated (M6 zero row_rem too:
+     row_rem is the port's ms-splitter, always 0 at an applier
+     in this fixture, no engine counterpart - accepted un-
+     pin). RIDE PAID: the three 0x535a2 comments -> 0x535a0
+     (PR-164 item CLOSED). NEW ITEM: BY_TY feed unmodelled (4
+     shipped states, port runs them as plain time - the 0x543a0
+     mode arm unread). UPDATED: the PR-107 self-target row
+     item (the object path now counts those lines but still
+     never applies their row seek - small code PR candidate
+     after the entry-token census); PR-170's "tail call" at
+     0x4fef0 corrected to a call at 0x4ff6b. CLOSED with
+     brackets: PR-168 item (1); the ride item. 5 brackets.
+     ZARIA.01 output: pinned frame checks ALL pass unchanged.
+     Gates: make/make win ZERO warnings, ll_level re-linked,
+     verify-all 56 (ok) with fixtures / 10 (ok)+23 SKIP with-
+     out, rc=0 both; baselines held (71/72); census run (HEAD
+     2872f45 = last carrier). Full record: the PR-172 section
+     of NEXT_STEPS.md (scratch /tmp/opencode/pr172/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -6093,6 +6141,43 @@ items (family-B reachability; msg-id map + [obj+0x102] read-
 er); CLOSED with brackets: PR-168 items (2) and (3); PR-170
 item (2) half; 5 brackets total. ZARIA.01 output: UNCHANGED
 (docs-only). Baselines 71/72 held; census run; no code built.
+
+STATUS after PR-172 (a real BY_TIME divergence found and fixed
+- the audit PR became a code PR): THE FEED AND GATE LAWS WERE
+ALREADY RIGHT (100/iteration, hold-while-below, subtract-carry);
+what the port lacked is the engine's ZEROING of its one feed
+register [obj+0xa1] at EVERY state change - the applier (entry
+0x535a0) calls the new record's ENTER at [[rec+0x44]+0x1c]
+(the class tables install the 0x4fef0 wrapper there; its body
+calls the row-set method 0x52360 at 0x4ff6b - a call, not the
+tail call PR-170 said - and 0x5236b writes [obj+0xa1] := 0),
+while the same-state match arm writes rec+0x4 inline (0x53616)
+and calls no ENTER, so a match CARRIES the register. Row-write
+and zeroing are ONE method; registers are fresh at every state
+entry. OBSERVABILITY PROVEN ON AUTHORED DATA: seven of the
+twelve distinct plain-BY_TIME gates in ZARIA.01 (1/40/75/80/
+120/150/225 across 1128 rows) are not multiples of 100 - mid-
+row exits leave non-zero remainders. The port zeroed facc but
+not row_t at its applier arms; `o->row_t = 0;` now ships at
+BOTH (keyed transition + forced A_DEAD), and the row_t/facc
+split remains observationally identical to the engine's single
+register (mode-fixed feed within a state + fresh at entry).
+NEW TEST obj_rowzero_selftest (hand-derived, gates 70/240/120/
+150): five targeted mutants killed at their exact legs (no-
+zero-at-transition, zero-at-match, no-zero-at-death, no-sub-
+tract-remainder, zero-at-wrap); one honest survivor (M6, zero
+row_rem too - the ms carry has no engine counterpart and is
+always 0 at an applier in this fixture). THE PR-164 RIDE IS
+PAID (0x535a2 -> 0x535a0 at the three comment sites). CLOSED:
+PR-168 item (1) (the BY_TIME audit). NEW ITEM: the BY_TY mode
+feed is unmodelled (4 shipped states; the 0x543a0 mode arm is
+the lead). UPDATED: the self-target row item (engine writes
+the authored row on every same-state match - the object path
+counts but never re-seeks; candidate code PR after the entry-
+token census). ZARIA.01 output: the pinned frame comparisons
+ALL pass UNCHANGED with the fix in. Gates: zero warnings both
+platforms, verify-all 56 (ok) / 10 (ok)+23 SKIP rc=0 both
+modes; baselines 71/72 held.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
