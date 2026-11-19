@@ -2059,7 +2059,14 @@ endif
 # the ANSI fast path UTF-8; ll_fopen_ci's _wfopen fallback covers
 # environments without that manifest.  Do NOT run the wine legs under
 # LC_ALL=C: wine mangles non-ASCII argv before the app sees it.)
-verify-utf8: ll_cutscene ll_cutscene.exe
+verify-utf8: ll_cutscene ll_cutscene.exe py-refs
+# py-refs is a prerequisite, not a courtesy: this leg cmp's BOTH of its
+# PPMs against /tmp/opencode/c_py/f01020.ppm, which ONLY `make py-refs`
+# produces. Measured on a freshly staged machine 2026-11-19: without it
+# the leg failed at the first cmp (`cmp: /tmp/opencode/c_py/f01020.ppm:
+# No such file`, rc=2) while every other consumer of that file
+# (verify:110, verify-skip:127, verify-win:143, verify-cmake:2143,
+# verify-golden:2251) already lists it. No leg logic changed.
 ifeq ($(PX_DATA),1)
 	@mkdir -p "/tmp/opencode/Gry/Łódź" && \
 	  ln -sfn "$(DATA)" "/tmp/opencode/Gry/Łódź/LEO"
