@@ -1936,6 +1936,43 @@ writer as its open items.
       verify-play rc=0, verify-all 56 `(ok)` = PR-139's 55 + this
       leg, fixture-free the same 23 named SKIPs. Full record: the
       PR-140 section of NEXT_STEPS.md.
+
+    - PR-141 READ THE LADDER'S OWN ANSWER SIDE (a reading record, no
+      code change - PR-138 precedent). The condition vocabulary is
+      NOT new - PR-88 read that same parser and the port's LL_SIG_*
+      matches it (0..68, keys in one bit space); this re-read
+      confirmed it end to end and added only the parser's node-op
+      constants (K_ANY zeroes the record set then ORs 0x2001f8 into
+      [rec+4]; K_NEVER ORs 0x60 at 0x4806f). What is new: the
+      DRABINKA factory branch 0x1f8ac (literal 0x906ff) builds class
+      table 0x97cdc - +0x40 is the CONSTANT-ZERO window getter, so
+      a ladder can never have an ATC window, and the constructor
+      defaults a 1x1 RECT at [obj+0xb1..0xbd] - and its answer
+      entry 0x3f1c0 is the raise site PR-140 hunted: gated on the
+      ladder's own current row ([obj+0x5c] = the K_GEN1-admitted
+      unroll rows 1/2), it probes that rectangle via the arithmetic
+      helper 0x49fb0 with n=70, asks the toucher [vt+0x8], and
+      writes into the toucher's 13 bytes (flag at +0xc): bit 8
+      AC_EDGE when it does not fit, bit 10 AC_DRAB alone (branch B,
+      0x3f355), or AC_DRAB | AC_DRAB_CATCH (bits 10|12) merged
+      through 0x49580 and copied by a repnz-movs that STOPS AT THE
+      FIRST ZERO WORD. PR-140 open item 2 is CLOSED for DRAB.
+      Plain `LINA` has NO class-name token (0x910ca unreferenced) -
+      the "climbable variant" family is K-prefixed (KLINA, KDRABINA
+      ... at 0x910a7..0x910fb, matching AC_DRABK=11 and ZARIA.02's
+      DRABK.MOV); which class a plain LINA gets is open. 7 new open
+      items counted, the first two being the engine's oldest open
+      mechanism - the transition EVALUATOR and what the 13-byte
+      key/set actually is (PR-88 labelled [obj+60] a TEventSet,
+      PR-101 read it as the object's identity key: PR-142 picks up
+      PR-101's chain 0x536f0/0x523f0/0x47e40/0x52251) - then
+      K_GEN1's raiser, LINA's class path, the [obj+0x66] bit-6 /
+      probe units, the ladder's receiver pair 0x3e5e0/0x53d80, and
+      the answer-chain slots [vt+0x3c/0x4c/0x68/0x8]. No mutants:
+      no behaviour changed; the honesty mechanism here is
+      attribution (PR-88's prior claim is named, not hidden). Full
+      record: the PR-141 section of NEXT_STEPS.md (cond_map.txt
+      carries the re-derived table with every parser block address).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2658,9 +2695,13 @@ writer as its open items.
     not 14; and G-9's traverse probe RAN and is PINNED by PR-140 -
     a plain walk reaches x=685 (the ladder column x=180 at tick 91)
     at ZERO energy cost, the worms answer with the SEMI push-out
-    alone and cost delay, not a stop - but the CLIMB itself still
-    needs the K_UP key, the AC_DRAB/AC_LINA answer bits and the
-    K_GEN1 unroll trigger named in that record (PR-141); SURPRISE
+    alone and cost delay, not a stop - and PR-141 FOUND the
+    AC_DRAB/AC_DRAB_CATCH raise site (the ladder's own answer
+    entry 0x3f1c0 writes them into the toucher); what the CLIMB
+    still needs is named there: the EVALUATOR/key mechanism (what
+    the 13-byte set is - PR-88 vs PR-101's identity-key reading), the
+    runtime K_* feed (K_UP = bit 37), the K_GEN1 raiser, and the
+    A_WSP feed law (PR-142); SURPRISE
     "?" firing (G-12); and the
     ground SOURCE of the first screens (G-13, PR-136) IS DECIDED IN
     PR-138: the engine's ground records ARE the authored .PLT text,
@@ -3156,12 +3197,19 @@ crosses both worms and stands x=685 at tick 300 with ZERO damage,
 zero state changes outside A_WALK, and the worm answer being the SEMI
 push-out alone (cost: ~40 lost iterations, 0.8 vs 2.5 units/tick).
 The CLIMB at x=180 still does not work, and the blocker is named:
-the K_UP key condition (the port's input model has no up/down key),
-the AC_DRAB/AC_LINA (and AC_*_CATCH) answer bits their objects would
-raise, the object-side K_GEN1 unroll trigger, and the A_WSP feed law
-(BY_TY `F=0,100 T=160,50` + SEQ_REV_Y, still PR-109's open law).
-Reading order in the PR-140 record / Next entry; nothing was
-invented for any of it.
+the EVALUATOR/KEY mechanism (which 13-byte field a transition
+condition ANDs against - PR-88 called [obj+0x60] a TEventSet, PR-101
+read it as the object's identity key; PR-142 picks up PR-101's chain
+0x536f0/0x523f0/0x47e40/0x52251), the runtime feed of the K_* bits
+(K_UP is bit 37 of the SAME 69-bit space as the AC_* signals - that
+map is PR-88's), the object-side K_GEN1 unroll trigger (bit 54,
+raiser unknown), and the A_WSP feed law (BY_TY `F=0,100 T=160,50` +
+SEQ_REV_Y, still PR-109's open law). CLOSED by PR-141:
+the AC_DRAB/AC_DRAB_CATCH answer bits themselves - DRABINKA's own
+answer entry 0x3f1c0 raises exactly those into the toucher, gated on
+its unroll rows, and the ladder's +0x40 getter is constant-zero (no
+ATC window, ever). Reading order in the PR-141 Next entry; nothing
+was invented for any of it.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

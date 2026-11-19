@@ -13280,50 +13280,219 @@ no port behaviour change)
   ZARIA.01_LEW.ZAR_LEW.MOV (the A_WSP/A_WSP_LIN blocks quoted
   above).
 
+## PR-141 — DRABINKA'S CLASS TABLE AND ITS ANSWER ENTRY ARE READ: THE
+
+## LADDER ITSELF RAISES AC_DRAB/AC_DRAB_CATCH AT THE TOUCHER (PR-140
+
+## OPEN ITEM 2 CLOSED FOR DRAB), THE LADDER CAN NEVER HAVE AN ATC
+
+## WINDOW, PLAIN `LINA` HAS NO CLASS-NAME TOKEN, AND THE SIGNAL
+
+## VOCABULARY IS RE-DERIVED FROM THE CODE (A READING RECORD - NO CODE
+
+## CHANGE; PR-138 precedent)
+
+- WHY. PR-140's Next item (a): find DRABINKA's and LINA's class
+  tables and read their answer entries for who raises
+  AC_DRAB/AC_LINA/AC_*_CATCH and what fires K_GEN1. Attribution up
+  front, because it matters: the CONDITION VOCABULARY IS NOT NEW -
+  PR-88 read the same parser ("the name->bit function is 0x48000",
+  the literals 0x919ec..0x91c40, "AC_BLOK 0 ... AC_EV_MAX 68 ->
+  3-dword masks", K_ANY/K_NEVER "node ops, not bits"), and the port
+  has carried the exact LL_SIG_* enum since PR-88. What this PR adds
+  is (i) the first ANSWER ENTRY of a non-animal family read end to
+  end, which is where the AC_DRAB signals actually live, and (ii)
+  the constructor/factory chain that pins the ladder's class table -
+  neither had ever been read, and PR-139's census had left the
+  DRABINKA/LINA families unmapped.
+
+- FINDING 1, DRABINKA'S FACTORY AND CLASS TABLE. The literal
+  `DRABINKA` is at 0x906ff (between SEP2 and RYBA in the
+  class-name region); its factory branch is 0x1f8ac, inside the same
+  token chain that names TLewZaria (PR-139). Verbatim
+  0x1f8c0..0x1f951: allocate 0xd9 = 217 bytes, base constructor
+  0x531f0, then [obj+0xa5]=0, [obj+0xa9]=0, [obj+0xad]=0x97f50 (an
+  attribute-table pointer, sibling of the ZWIERZ-base table 0x97f64
+  PR-139 named), then [obj+0xb1] = [obj+0xb5] = [obj+0xb9] =
+  [obj+0xbd] = 1 — a 1x1 default RECTANGLE in the four dwords the
+  answer below reads — then [obj+0xc1]=0x98274 (a data table), and
+  finally [obj+0x8] = 0x97cdc, [obj+0xc] = 0x97cd4. Table 0x97cdc:
+  +0x40 = 0x23c00, one of the 64 CONSTANT-ZERO window getters
+  PR-139 censused — THE LADDER CAN NEVER HAVE AN ATC WINDOW, which
+  removes any doubt about whether ladders can hurt through the
+  PR-139 path; +0x44 = 0x23920 (standard row-flags getter); +0x78 =
+  0x3f1c0 (Finding 2); +0x9c = 0x23a40 (standard filter); +0xd0 =
+  0x3e5e0, +0xe4 = 0x53d80 (receiver/arm pair — unread, open item
+  6). PLAIN LINA HAS NO TOKEN: the literal `LINA` at 0x910ca has
+  zero code references, and the token regions instead name a
+  K-prefixed CLIMBABLE FAMILY, 0x910a7..0x910fb: KSOWA, KZABA,
+  SZCZURK, SZCZURS, KSMOK, KLINA, KMIOTLA, KDRABINA, KDYBY, KWINDA,
+  KBLOK, KGARNEK, KMAG — matching the AC_DRABK bit (11) and
+  ZARIA.02's DRABK.MOV. The ZARIA.01 `LINA,lina.mov` placements
+  therefore come from some generic construction path (open item 4);
+  the BRECT/BICZRECT/WSPRECT tokens at 0x90a40..0x90a4f sit next to
+  the RECT bit family — suggestive only, not claimed.
+
+- FINDING 2, THE LADDER'S ANSWER ENTRY 0x3f1c0 IS THE AC_DRAB RAISE
+  SITE. Entry: eax = the ladder, edx (kept at [esp+0x34], ebx) =
+  the toucher; [self.vt+0x3c] gates ("still active"); the body
+  branches on [self+0x5c], the CURRENT ROW INDEX — so the ladder
+  answers only from its unroll rows (drab.mov's `2,500` is row 1,
+  `3,400,smpauto` is row 2 — exactly the rows A_UP's K_GEN1
+  transition admits through A_DROP):
+  * row == 1: [toucher.vt+0x4c], then 0x44ec0 on [self+0xa5]; on
+    true `or ah,0x40` sets bit 6 of [self+0x66] — the same bit
+    0x1e540 sets alongside every authored damage (PR-139 open item
+    12), here raised by an object with no damage at all; meaning
+    still unread (open item 5).
+  * row == 2: the four rectangle dwords [self+0xb1..0xbd] are read
+    into a parameter block ([esp+0x10] = the 0x98274 table) and
+    probed through 0x49fb0 with edx = 0x46 = 70 — 0x49fb0 is NOT a
+    record builder: it is arithmetic (`(t-a)*n`, `idiv 100`,
+    halving — 0x49fb6..0x49fd7), a percentage probe of the authored
+    rectangle. Its result is answered by the TOUCHER's
+    [toucher.vt+0x8](record), and there are three outcomes, two of
+    them SIGNAL WRITES:
+    - does-not-fit branch A (0x3f237..0x3f24d): the 12 bytes at the
+      toucher are memset to 0, the flag byte at [toucher+0xc] is
+      written 0, then `or BYTE PTR [toucher+0x1],0x1` — bit 8 =
+      AC_EDGE. A ladder the toucher does not fit answers "edge".
+    - merge branch (0x3f2bc..0x3f333): build set A with `or dh,0x10`
+      at byte 1 = bit 12 = AC_DRAB_CATCH; build set B with
+      `or bh,0x4` at byte 1 = bit 10 = AC_DRAB; merge through
+      0x49580 (the OR-INTO of the TEventSet family, PR-88/100) and
+      copy the result to the toucher — flag byte at [toucher+0xc],
+      then `repnz movs` from the toucher's byte +0x0: `repnz` on
+      movs STOPS AT THE FIRST ZERO WORD, so a {bit 10, bit 12}
+      packet writes word 0 (+ word 1 zeroed) and leaves the bytes
+      past it untouched. THE HOLD/CATCH SIGNALS ARE EXACTLY
+      AC_DRAB | AC_DRAB_CATCH — PR-140's open item 2 is CLOSED for
+      DRAB (and PR-139's "the caller of the +0x78 entries" stays
+      open, unchanged).
+    - does-not-fit branch B (0x3f33f..0x3f355): `or BYTE PTR
+      [toucher+0x1],0x4` — bit 10 = AC_DRAB alone, no CATCH.
+  The 13-byte write target (+0x0..+0xb set, flag at +0xc) is the
+  same shape PR-92 recorded for answer-A's packet copy and the same
+  13-byte shape PR-101 read at [obj+0x60] as the object's identity
+  key ("fills a 13-byte key out of the record class, the step, the
+  owner and the frame ... ORs into [obj+0x60]"). PR-101's
+  "what that key is" is STILL the open mechanism; what is now
+  pinned is that a placed ladder's answer writes those 13 bytes on
+  the toucher, with bit numbers from PR-88's table (AC_EDGE 8,
+  AC_DRAB 10, AC_DRAB_CATCH 12). The row-1/row-2 gate also explains
+  drab/lina's `1,0,WAIT K_GEN1` from PR-140: the answer is inert
+  until the ladder unrolls — the K_GEN1 RAISER is still unknown
+  (open item 3).
+
+- FINDING 3, THE VOCABULARY RE-DERIVED, PLUS WHAT THIS PASS ADDS TO
+  PR-88'S. Re-reading the chain 0x48009..0x49541 confirmed PR-88's
+  table end to end (every index from the parser's own immediates —
+  the full dump is /tmp/opencode/pr141/cond_map.txt, and the port's
+  LL_SIG_* enum needs NO change: it already matches at 0..68). New
+  specifics: the bit store sequence verbatim (`shr 5`, `idiv 0x20`,
+  `shl 1,cl`, `or` — e.g. 0x492e9..0x4931c for AC_XCHG_LEVEL, the
+  parser's own immediate 0x3d); the AC_EV_MAX sentinel block 0x494f4
+  carries immediate 0x44 = 68 (PR-88's note said "AC_EV_MAX 68"
+  from the range — now from the constant itself); the two node ops'
+  actual record words: K_ANY zeroes the record's 12-byte set then
+  ORs 0x2001f8 into [rec+4] (0x48029..0x48043), K_NEVER ORs 0x60
+  into the same word at [rec+8] (0x4806f..0x4807d) — PR-88 knew
+  they were node ops; the constants are new; and the parser's
+  unknown-name exit is 0x49543 (the path PR-69's port code takes).
+  No behaviour change: this whole section CONFIRMS the shipped enum.
+
+- OPEN ITEMS COUNTED (7 new; PR-139's 13 and PR-140's 8 carry
+  unchanged; PR-140's item 2 CLOSED for DRAB). (1) The 13-byte key/
+  set mechanism: which 13-byte field a transition test ANDs against,
+  and the relation between a toucher's +0x0..+0xc answer target,
+  the [obj+0x60] key PR-101 read, and the port's `o->sig` — the
+  mechanism PR-88's §6 line already called OPEN ("pulse-vs-latch +
+  cross-object routing"), now with a concrete ladder instance.
+  (2) The transition EVALUATOR is still not read (PR-88's open
+  item). (3) Who fires K_GEN1 (bit 54) — for DRABINKA's A_UP. (4)
+  Which class a plain `LINA,lina.mov` placement gets (no token).
+  (5) The row==1 branch ([obj+0xa5], 0x44ec0, [obj+0x66] bit 6)
+  and the 0x46=70 rectangle-probe units through 0x49fb0. (6) The
+  ladder's receiver/arm pair +0xd0 = 0x3e5e0, +0xe4 = 0x53d80.
+  (7) The answer-chain slot meanings: [vt+0x3c], [vt+0x4c],
+  [vt+0x68], [vt+0x8] as the "does-it-fit" answer.
+
+- MUTATIONS. None: no code and no test changed, so there is no new
+  behaviour to detect (PR-138 precedent). What keeps this honest is
+  attribution, not mutants — the one CLAIM that would have been
+  wrong without the re-check is "the vocabulary is new": PR-88
+  already shipped it, and this record says so.
+
+- GATES. No code touched: `make` rc=0, `make win` rc=0, zero
+  warnings, unchanged; `make -k verify-all` with the standard
+  fixtures rc=0 with 56 `(ok)` — the same count PR-140 shipped —
+  and zero FAILED; fixture-free rc=0 with the same 23 named SKIP
+  lines. The image is unchanged (sha256 edf19a129e85efb8764457a080
+  8e246ca4baf08a9111aa09be4ec99ce6b8c40e — every address here is
+  that same binary). No game data or frames in git; no
+  `.github/workflows/*` touched.
+
+- HANDOFF UPDATED. Section 7 item 15's G-9 line: the AC_DRAB raise
+  site is FOUND; the remaining named blockers are the evaluator/
+  key mechanism, the K_* runtime feed, K_GEN1, and the A_WSP feed
+  law. Item 13 gains the PR-141 bullet; section 8 T5's climb
+  STATUS names the same corrected blocker list.
+
+- EVIDENCE. /tmp/opencode/pr141/: cond_map.txt (the full
+  index->name table with the parser block addresses and the
+  immediates this PR re-read), cond_disp.txt/cond_disp2.txt/
+  cond3.txt/cond4.txt/cond5.txt (raw ranges 0x47f00..0x49560); the
+  ranges quoted above (0x1f870..0x1f963; table slots of
+  0x97cdc/0x97cd4/0x97f50/0x98274; 0x3f1c2..0x3f363; 0x49fb0;
+  0x51053..0x51077 for the PR-92 comparison) are reproducible with
+  /tmp/opencode/pr139/rng.py over /tmp/opencode/vis/text.asm
+  (203,343 lines, unchanged).
+
 ## Next — pick from the Deferred list below
 
-- G-9's PROBE RUNS AND IS PINNED (read the PR-140 record first): a
-  12 s FWD walk crosses the worm zone and reaches x=685 with zero
-  damage and zero state changes; the worm answer is the SEMI push-out
-  alone and costs ~40 lost iterations (delay, not a stop); the
-  pre-PR-139 model is detected by the leg's damage negatives ONLY -
-  the old model reached the same positions while paying 15 per touch,
-  so do not repeat the "dies before x=180" wording. What still
-  blocks the CLIMB itself is named there: the K_UP key condition, the
-  AC_DRAB/AC_LINA answer bits (and their AC_*_CATCH air variants),
-  the K_GEN1 unroll trigger, and the A_WSP feed law (BY_TY
-  F/T + SEQ_REV_Y) - all open items, none invented.
+- THE LADDER'S ANSWER SIDE IS READ (read the PR-141 record first):
+  DRABINKA's class table 0x97cdc (+0x40 = the constant-zero getter:
+  ladders never have an ATC window), its answer entry 0x3f1c0 gated
+  on the ladder's own unroll rows, and its three outcomes - AC_EDGE
+  when the toucher does not fit, AC_DRAB alone (branch B), and
+  AC_DRAB | AC_DRAB_CATCH merged through 0x49580 and copied by the
+  stop-at-zero repnz-movs into the toucher's 13 bytes. PR-88's
+  vocabulary re-derived exactly (LL_SIG_* needs no change; new only
+  the node-op record words 0x2001f8 / 0x60 and the K_ANY memset).
+  Plain LINA has no class-name token - the K-prefix KLINA/KDRABINA
+  family is the "climbable variant" one; that path is open item 4.
 
-- NEXT PR (PR-141): the ladder/rope CHAIN, in reading order. (a) Find
-  DRABINKA's and LINA's class tables the way PR-139 found `SEP`'s
-  (the .des token literal -> its constructor -> the table written at
-  [obj+8]) and read their +0x78 answer entry for what raises
-  AC_DRAB / AC_LINA / AC_DRAB_CATCH / AC_LINA_CATCH on the lion, and
-  what could fire K_GEN1 on the object; read the entity twin 0x34850
-  ([obj+0x48]/+0x4c) and its MOVEPLAT-chain provider at the same
-  time - that is also G-13's remainder and the local block under
-  DRABINKA (`1 33,-3` / `23,30;53,160` / `30,50`) is its concrete
-  instance in ZARIA.01. (b) Read the A_WSP feed: BY_TY's
-  `F=0,100 T=160,50` pair and SEQ_REV_Y against the row-feeding code
-  (start from the 0x54.. dispatchers PR-109/PR-134 mapped). (c) If
-  (a)+(b) pin a law, implement the entry (K_UP from A_WALK ->
-  A_TURN_BACK -> A_WSP behind AC_DRAB) and the vertical feed behind a
-  hand-derived, data-free test like `contact_model_selftest`, with
-  mutation controls; a K_UP key is a port input-model change (PR-82
-  has no up/down keys) and needs its own named decision. If any
-  answer stays unread, it becomes a counted open item, not a fitted
-  constant.
+- NEXT PR (PR-142): the KEY/CONDITION MECHANISM AT LAST, picking up
+  the strongest lead the repo already has - PR-101's chain: 0x536f0
+  (composes the object's 13-byte key into [obj+0x60] via 0x49580),
+  0x523f0 (fills a 13-byte key from "record class, step, owner,
+  frame"), the 0x47e40 lookup ("null = no match"), and the two
+  branches at 0x52251/0x522fc (empty key: OR the caller's key with
+  [obj+0x60] and look that up; non-empty key: a different path).
+  Read those and answer ONE question with machine code: is an
+  authored transition condition ("A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR")
+  matched by that key lookup (i.e. the "key" IS the condition-set
+  identity), or by a separate AND against a live set? That closes
+  PR-88's oldest §6 open ("pulse-vs-latch + cross-object routing")
+  and names where the K_* bits and the answer copies must enter.
+  THEN (b) read the A_WSP feed law (BY_TY `F=0,100 T=160,50`,
+  SEQ_REV_Y) against the 0x543a2 dispatcher family, and only then
+  (c) decide the port step for the climb entry (behind a
+  hand-derived test + mutations, per the behaviour-PR rule). If any
+  step stays unread, count it, do not fit it.
 
 - THEN, from the PR-131 gap list (the current text of every item is
-  HANDOFF.md §7 item 15): G-8's HUD lives - both R3 clips start at
-  "5" while the port prints a hard-coded 6, so map the STATUS.LEO
-  fields instead (that is also the only way a "did this bump cost
-  life" question could ever become a video claim); G-3's ZAR.BLK
-  corridor and the KAMIEN sixth field (1308/1218/1115 decreasing
+  HANDOFF.md §7 item 15): G-8's HUD lives - map the STATUS.LEO
+  fields (both R3 clips start at "5", the port prints 6); G-3's
+  ZAR.BLK corridor and the KAMIEN sixth field (1308/1218/1115
   toward 1299..1620); then G-7 (the water surface as a floor), G-12
   (the SURPRISE "?" firing) and G-10/G-11 (the level-end scene and
   the mid-level bird sequences - no bird leaf exists in ZARIA.01's
-  ANIMACJE tree). G-13's remainder is folded into PR-141 (a) above.
+  ANIMACJE tree). G-13's local-lines remainder is now down to a
+  concrete named field: DRABINKA's rectangle [obj+0xb1..0xbd] (the
+  constructor default is 1,1,1,1) is what the authored local block
+  feeds - the provider that fills it from the .des text is still
+  unread.
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
 first item and PR-45 its second (the authored scene), PR-46 its third
