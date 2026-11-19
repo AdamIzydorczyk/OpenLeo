@@ -26,6 +26,10 @@ on:
 
 permissions:
   contents: read
+  packages: read
+  # The line above is needed to pull the CI toolchain image below (a
+  # private GHCR package reads as "not found" without it - see the note
+  # in ci.yml, same measurement).
 
 jobs:
   cross:
@@ -34,6 +38,11 @@ jobs:
     # cross toolchain and windres, which is exactly what this job needs
     container:
       image: ghcr.io/adamizydorczyk/open-leo-ci:ci
+      # same private-package auth as ci.yml (the image carries the mingw
+      # cross toolchain and windres, which is what this job needs)
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4

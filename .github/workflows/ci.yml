@@ -44,6 +44,13 @@ on:
 
 permissions:
   contents: read
+  packages: read
+  # The line above is REQUIRED for the container: pulls below. Measured on
+  # 2026-11-19: with contents:read only, GHCR answers the pull of a
+  # private package as "ghcr.io/adamizydorczyk/open-leo-ci:ci: not found"
+  # (a 404, not a 403 - GHCR hides what the token cannot see), which
+  # reads like a missing image and sent me debugging the image builder
+  # twice. The image was published and pullable the whole time.
 
 jobs:
   linux:
@@ -58,6 +65,14 @@ jobs:
       # the note there - GHCR names are lower-case and a job-level
       # container: cannot be computed by an expression/step).
       image: ghcr.io/adamizydorczyk/open-leo-ci:ci
+      # Explicit registry auth. The package is private (GHCR's default for
+      # a new one); an unauthenticated/under-scoped pull of a private
+      # package reports "not found", not "unauthorized" - that is the
+      # misleading 404 this workflow hit on 2026-11-19. GITHUB_TOKEN of
+      # THIS repository reads its own packages (needs packages: read).
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -121,6 +136,10 @@ jobs:
     # the previous runs proved).
     container:
       image: ghcr.io/adamizydorczyk/open-leo-ci:ci
+      # same private-package auth as the linux job (see the note there)
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
