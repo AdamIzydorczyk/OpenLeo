@@ -26,7 +26,7 @@ What exists and works (all verified by `make verify-all`, section 3):
 | level scene | 320x200 world view shown 2x; world size from `back_rect` or the reference layer; per-layer parallax (`speed=`, `main_back=`) for PCM layers, the PCX backdrop and every object; HUD from `BELKA*.DES` |
 | objects | 827+ placements, art by each state's `seq=`, `.MOV` state machines (loop until a transition fires; `GEN K_GENn`, `AC_BREAK_NEXT`); PR-93: the 3-comma static image lines (`<LEAF>,<name>.seq,x,y` -> that CD leaf's `.SEQ`, drawn at the authored x,y behind the actors) and the 0,0 entries = attached children (joined+counted, never instantiated at the world origin); PR-107: a `TARGET(N)=<cond>` line carries an authored START ROW and the target state is entered at that row (same rule for the lion and scene objects) |
 | lion (play mode) | walks on the level's own ground (`.PLT`) with his current ANIMATION's shape-box bottom as the contact line (PR-97: `ll_player.contact`, `ll_seq_shape_contact`, `mov_state_contact`), runs the engine's OWN velocity law once per 50 ms iteration - `v -= T*v/100` then `v += F*s/100` with the key intent `s` = ±10 (PR-135, replacing the fitted target-velocity model) - and his row list admits AT MOST ONE row per iteration, fed by travelled distance in a BY_X state and by the engine's constant 100 otherwise; jumps (ESTIMATED units), keys facing-relative (Model M, PR-85), camera follows (lead 100/220 - PR-136's absolute camera read CONFIRMS the right lead at 95-108; PR-137 APPLIED the grounded anchor at 128 + the world clamp (the 175..180 band was the clamp, not the anchor), pinned hermetically by `ll_level --follow-selftest`), HUD shows energy/lives |
-| collision | push-out ported from the machine code (`FUN_00042de0/42cf0`), solid/semi-solid response, enemy contact damage from the placement files, the enemy's own ATC-window attack when armed (PR-90, off unless `LEO_PLAY_DANGER=1`), balloon pickup; ON by default except RAN.01 |
+| collision | push-out ported from the machine code (`FUN_00042de0/42cf0`), solid/semi-solid response, damage from an enemy ONLY through its own ATC window (the authored `atc_on` rows) and the 0x550c0 clash rule - a bare touch never hurts the lion (PR-139 deleted the port's unconditional contact damage); the enemy's own ATC-window attack when armed (PR-90, off unless `LEO_PLAY_DANGER=1`), balloon pickup; ON by default except RAN.01 |
 
 What does NOT exist yet (the real gap to "a playable game"): combat
 motion beyond the hits (the lion's attack landed in PR-89 and enemies
@@ -709,10 +709,10 @@ Walk speed: the `.MOV` caps (T=90) match a measured ~75-125 units/s on video.
 | SOLID push polarity | `obj_shape_elem` | shape uses the DRAW polarity incl. CH_DIR facing | consistency, not decompile-pinned (PR-81) |
 | player facing model | ll_play.c `face`, ll_level.c `play_draw/play_collide` | face follows walkdir only in CH_DIR states; draw/shape = authored XOR face, face sticks | flags real (LEW census, PR-82); the always-XOR rule for no-CH_DIR states is a model-consistency choice, NOT decompile- or video-pinned (HANDOFF Q0) |
 | K_FWD/K_BKWD key model | ll_play.c `cond_true` (MODEL CHOICE note) | facing-relative: K_FWD = arrow along current face; walkdir = the literal arrow; a left-facing turn settles via the state pair or A_TURN+AC_BREAK | PR-85; forced by data (one A_WALK, no BKWD-walk state); NOT yet confirmed on video |
-| lion attack damage / object hit rule | ll_level.c `LL_LION_HIT_DAMAGE` 30, `obj_hit`, `LL_OBJ_HIT_CD` 14, `ll_play.h` `atc`/`atc_hit` | damage 30 = the 0x34103 dispatcher default; hp<0 forces A_DEAD by name; energy -1 never hit-able; countdown 14 (0x27264), ITERATIONS not ms, and PR-135 pins its RATE too (7 of the 14 still running at step 7, and a hit there still refused); window open from `ATC_ON` until `ATC_OFF`, one hit per window, cleared on state change for the 18 blocks that never close it | addresses verified; the 30 stays until the factory-template id array (0x44350 -> ds:0xcecf0..0xced04; the proportional hit at 0x34037 is energy*30/100+10, NOT *45 — see PR-96) maps to a .des type; the window-clear rule and the corpse-deal-contact rule are model choices (PR-89) |
-| enemy attack (T3 st. 1) | ll_level.c `obj_arm_atak`, `play_collide` window block; `ll_play.h` `LL_CTRL_DANGER` | a current state carrying the authored DANGER flag arms the script's OWN A_ATAK by name when the lion is inside abs(dx) < 40 AND abs(dy) < 50 (strict); the enemy lands ONE hit through its own ATC window (authored damage=, 30-tick lion lock) before/instead of the contact block; OFF unless LEO_PLAY_DANGER=1 | the box numbers are RE-pinned FOR THE CLASS "LICHA" (class chosen from the .des token at 0x616d0; box at 0x61b6e) - the flag-as-precondition, A_ATAK-by-name entry and window-hit mirror are the port's stand-in (engine driver open, §7 item 10) (PR-90) |
-| AC_ENEMY_ATC raiser | ll_level.c `obj_hit`, `play_collide` window block | the hit raises it on the HIT object's own set (PR-88 mechanism) so its `A_DOSTAL(1)=AC_ENEMY_ATC` line fires; PR-91 mirrors the raise onto the LION for the enemy's WINDOW hit (never contact) - his authored A_DOSTAL chain then runs itself | INFERENCE (0 of 279 shipped GEN lines raise it; the combat code must be the raiser); NOW PINNED (PR-94): answer-C 0x55130 raises bit 16 (byte2 |= 1, 0x5518c) exactly when the routed hit reduced the target's hp, and bit 7 (0x551b0) when it did not; answer-A/B merge {bit 7} unconditionally (0x51050/0x52be). The plain contact method (0x50ed0) raises NO signal - matching the port's "contact does not raise bit 16" |
-| AC_ENEMY raiser (PR-92) | ll_level.c `obj_touch_enemy`, called from `play_collide` (solid loop + post-loop non-solid pass) | the lion's touch raises bit 7 on the TACHED object's own set and its OWN table reacts (raise-consume like the balloon path); gated by `hit_cd` (the [obj+0x102] countdown), default-on like contact | PINNED raise sites (PR-94 verbatim): answer-A 0x51050 and answer-B 0x52be merge {bit 7} unconditionally into a 13-byte answer packet (12-byte set + flag byte) copied to the answer buffer ARGUMENT (0x51062..0x51083); the answer handlers 0x50f80/0x55232/0x55130 are separate functions reached only through family vtables (0x50ed0 rets at 0x50f79 and raises nothing); which object's head finally reads the buffer is OPEN, so feeding the object's own set is MODEL, the second non-solid pass is data-forced (no consumer state carries SOLID); a pure touch NOT setting hit_cd=14 is an open item (item 10) |
+| lion attack damage / object hit rule | ll_level.c `LL_LION_HIT_DAMAGE` 30, `obj_hit`, `LL_OBJ_HIT_CD` 30, `ll_play.h` `atc`/`atc_hit` | damage 30 = the fixed `mov ebx,0x1e` of the stomp branch (0x34103, reached ONLY when the attacker's class id is ds:0xced04 - 0x340c8/0x340db; PR-139 read the whole receiver 0x34020, and its default at 0x340ce forwards the incoming damage UNCHANGED); hp<0 forces A_DEAD by name; energy -1 never hit-able; the COUNTDOWN IS 0x1e = 30, NOT 14 (PR-139): `[obj.vt+0xe4]` is 0x50300 in 14 of the 15 answer-A tables and 0x50300 is `edx ? [obj+0x102]=0x1e : [obj+0x102]=edx` (0x50300..0x50315); the lion's own class table 0x96960 ("TLewZaria", factory 0x1fef2) is one of them, so `pl->lock = 30` is exact, while PR-89's 14 is 0x27260 - reached by exactly one +0xe4 slot (table 0x9a54c); the RATE (one per record step, 0x50720) stays PR-135's pin; the window bit IS bit 5 of `[obj+0xb6]`, written only by the authored `atc_on` record through its applier 0x45c20 (parser 0x4636e -> vtable 0xa10f0+4), and the getter 0x23860 is the +0x40 slot of 155 sane class tables while 64 others return a constant 0; one hit per ARMED episode, `atc_hit` consumed only when a hit lands, and 0x550c0 cancels the object's hit exactly while the lion's own window is open AND he is turned toward it (equal x does not cancel) | addresses verified; the 30 stays until the factory-template id array (0x44350 -> ds:0xcecf0..0xced04; the proportional hit at 0x34037 is energy*30/100+10, NOT *45 - see PR-96) maps to a .des type; what the engine really passes is `[deliverer+0xb1]` (its only setter 0x1e540) and the .des `damage=` grammar into it is unpinned; the OBJECT-side countdown for ZWIERZ-family animals is a NAMED stand-in (their +0xd0/+0xe4 pairs are 0x1ecd0/0x4ffb0 for `SEP`, 0x41c30/0x41460 for the ZWIERZ base, and neither writes 0x1e); the window-clear rule and the corpse-deal-contact rule stay model choices (PR-89) |
+| enemy attack (T3 st. 1) | ll_level.c `obj_arm_atak`, `play_collide` window block; `ll_play.h` `LL_CTRL_DANGER` | a current state carrying the authored DANGER flag arms the script's OWN A_ATAK by name when the lion is inside abs(dx) < 40 AND abs(dy) < 50 (strict); the enemy lands ONE hit through its own ATC window (authored damage=, 30-step lion lock) and NOTHING otherwise - the engine's DANGER damage is the level's global `danger_power` (`[ds:0xcef40+0x54]`, read at 0x55290/0x5529f in the animal answer 0x55230 and at 0x5102d in answer-A), which no shipped level authors, so the receiver's `damage == 0` gate (0x50eef) answers "nothing"; OFF unless LEO_PLAY_DANGER=1 | the box numbers are RE-pinned FOR THE CLASS "LICHA" (class chosen from the .des token at 0x616d0; box at 0x61b6e) - the flag-as-precondition, A_ATAK-by-name entry and window-hit mirror are the port's stand-in (engine driver open, §7 item 10) (PR-90). PR-139 names where the engine reads that authored flag: `[obj.vt+0x44]` = 0x23920 returns the CURRENT row record's flag word `[[obj+0x50]+[obj+0x5c]*4]+0x12`, and both answers test its 0x2000 bit (0x5528b / 0x51019); the same word's 0x80000 bit makes the animal call the hit with damage 0 (0x55245) |
+| AC_ENEMY_ATC raiser | ll_level.c `obj_hit`, `play_collide` window block | the hit raises it on the HIT object's own set (PR-88 mechanism) so its `A_DOSTAL(1)=AC_ENEMY_ATC` line fires; PR-91 mirrors the raise onto the LION for the enemy's WINDOW hit (never contact) - his authored A_DOSTAL chain then runs itself | PINNED, no longer an inference: answer-C 0x55130 saves `[obj+0xad]` at 0x55140 and compares it at 0x5516a - hp DROPPED -> bit 16 (`or bl,0x1` 0x5518c), unchanged -> bit 7 (`or dl,0x80` 0x551ad), read verbatim again by PR-139 together with the delivery itself (0x5514f..0x55164 call the receiver's `[+0xd0]` with `[deliverer+0xb1]` as the damage); the answer entries merge the plain bit for any shape meet (PR-92/94). PR-139 corrects which family owns which answer: answer-A 0x50f80 is in 15 tables only, the animals' entry is answer-B 0x552e0 -> 0x55230 (78 tables), and BOTH reach the same answer-C |
+| AC_ENEMY raiser (PR-92) | ll_level.c `obj_touch_enemy`, called from `play_collide` (solid loop + post-loop non-solid pass) | the lion's touch raises bit 7 on the TACHED object's own set and its OWN table reacts (raise-consume like the balloon path); gated by `hit_cd` (the [obj+0x102] countdown), default-on like contact | PINNED raise sites (PR-94 verbatim): answer-A 0x51050 and answer-B 0x52be merge {bit 7} unconditionally into a 13-byte answer packet (12-byte set + flag byte) copied to the answer buffer ARGUMENT (0x51062..0x51083); the answer handlers are reached through family vtables (PR-139: the entry slots are +0x78 = 0x50f80 in 15 tables and 0x552e0 in 78; 0x50ed0 is a RECEIVER at +0xd0, rets at 0x50f79 and raises nothing); which object's head finally reads the buffer is OPEN, so feeding the object's own set is MODEL, the second non-solid pass is data-forced (no consumer state carries SOLID); a pure touch NOT setting the hit_cd countdown is still an open item (item 10) |
 | static image draw + order (PR-93) | ll_level.c `obj_static_get`, `objs_draw` (two-pass) | frame-one draw: first patch-art element of the named .SEQ at the authored x,y through the element's anchor; statics compose BEFORE animated objects | the join and positions are RE (census in the code comment); frame-one (no motion data exists) and the behind-actors order (matches the ZARIA footage) are model choices; whether the original animated any static is open (item 11) |
 | shape payloads for lion-vs-object tests | ll_seq.c `ll_seq_shape_push2`, ll_level.c `play_collide` | each element's margin lists read from its OWN .SEQ payload (paired form) | model choice: how the original resolved two elements into its single-payload routine is unpinned; same-payload pairings stay byte-identical (selftest-pinned, PR-89) |
 
@@ -1865,6 +1865,40 @@ writer as its open items.
       the fact that every artefact was REGENERATED after /tmp was
       wiped mid-session. Full record: the PR-138 section of
       NEXT_STEPS.md.
+    - PR-139 CLOSED G-5, THE CONTACT-DAMAGE GAP, AND CHANGED THE
+      BEHAVIOUR. The port had run since PR-89 on the rule that a lion/
+      object shape contact deals damage; the engine has no such rule.
+      What an authored `damage=` goes through is the OBJECT's own attack
+      window: the animal answer entry `[obj.vt+0x78]` is 0x552e0 (78
+      tables) -> 0x55230, whose body is exactly three branches - a
+      damage-0 hit when the current row record's flag word carries
+      0x80000, answer-C 0x55130 only while the window bit is set, and
+      the level's global `danger_power` (`[ds:0xcef40+0x54]`) when that
+      word carries 0x2000. Answer-A 0x50f80 (15 tables only, not
+      "every family" as PR-96 shorthand had it) is the same two laws at
+      0x50ff1/0x51011. The window bit is bit 5 of `[obj+0xb6]`, and the
+      only writer found is the authored `atc_on` row record's applier
+      0x45c20 - which closes PR-90's open item about the missing
+      consumer of `atc_on`. Answer-C's hit call passes
+      `[deliverer+0xb1]` as the damage behind the 0x550c0 clash rule
+      (suppressed exactly while the LION's own window is open and he is
+      turned toward the object; equal x is not suppression), and the
+      receiver 0x50ed0 then gates on `[+0x11a]`, damage == 0,
+      `[+0x126]`, the window-pairing rule and its countdown before
+      0x54550 subtracts `[obj+0xad]`. The countdown arm is `[+0xe4]` =
+      0x50300 writing 0x1e = 30, and the LION's own class table 0x96960
+      ("TLewZaria", matched by the factory 0x1fef2) carries exactly
+      that pair - so PR-89's 14 is corrected to 30 and the 14 is
+      identified as 0x27260, reached by one +0xe4 slot (0x9a54c). The
+      port's unconditional block is deleted, `clash_suppressed()` is
+      added, `atc_hit` is consumed only when a hit lands, the two play
+      legs are re-pinned (a bump now asserts NO damage at any tick), and
+      a data-free `contact_model_selftest` covers the truth table.
+      13 open items counted - the biggest being that an ANIMAL's own
+      receiver/arm pair (0x1ecd0/0x4ffb0, 0x41c30/0x41180/0x41460) is
+      unread, so the object-side hp/countdown law stays a named
+      stand-in, and that the `.des damage=` grammar feeding `[obj+0xb1]`
+      is unpinned. Full record: the PR-139 section of NEXT_STEPS.md.
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2580,9 +2614,12 @@ writer as its open items.
     RAN.01/GPTAK_RA) - scripted chain reusing other levels' leaves,
     or engine code; find which (G-10/G-11); HUD lives: both R3
     clips start at "5", the port prints a hard-coded 6 - map the
-    STATUS.LEO fields instead (G-8); contact-damage reality vs the
-    port's SEMI-push + 15/30-tick model, which kills a walking
-    lion before x=180 (G-5); SURPRISE "?" firing (G-12); and the
+    STATUS.LEO fields instead (G-8); contact-damage reality (G-5),
+    CLOSED by PR-139: an authored `damage=` hurts the lion only
+    through the object's own ATC window behind the 0x550c0 clash
+    rule, a bare touch costs nothing, and the hit countdown is 30,
+    not 14 - so the walking lion reaches x=180 and G-9's climb probe
+    runs; SURPRISE "?" firing (G-12); and the
     ground SOURCE of the first screens (G-13, PR-136) IS DECIDED IN
     PR-138: the engine's ground records ARE the authored .PLT text,
     and the 7-51 offset was screen-x from false-matched
@@ -2904,8 +2941,9 @@ that chasm as the reference until re-watched; T1's zax37 ~315 s
 running jump is a separate jump (and the zax37 player does walk the
 water surface at 305-307). The measurement windows are named in
 §7 item 13's PR-131 bullet. The port's own probe walks die to LICHA
-contact damage long before x=408 (G-5) - fix the contact model or
-start the probe east of the worms.
+contact damage long before x=408 (G-5, CLOSED by PR-139 - the
+corrected contact model is what lets him reach x=180). The probe is run
+again as PR-140.
 
 **T2. The lion's attack and enemy energy.**
 Goal: kill the first LICHA. Where: `LEW.MOV` states `A_FIGHT*`, `A_FG_PACKA*`
@@ -3063,9 +3101,11 @@ not depend on which). Full wording in the PR-109 record.
 STATUS after PR-131: the ZARIA.01 ladder AT 180 is now confirmed
 usable in the original (ridden down at levels/ZARIA.01.mkv t=13.3-15.7
 and mid-climb at ZARIA.01_b.mkv t=200.0-200.7), and the port's own
-probe never reaches it - the lion dies/turns back at the LICHA worms
-around x~153 (G-5); re-run the climb probe once that is fixed or the
-script starts east of the worms (G-9).
+probe never reached it: the lion died at the LICHA worms around x~153
+because of the port's unconditional contact damage. G-5 IS CLOSED by
+PR-139 (a bare touch costs no energy at all; damage comes only through
+the object's own window), so the blocker is gone and the climb probe at
+x=180 runs as PR-140 (G-9).
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

@@ -508,10 +508,14 @@ typedef struct {                     /* one placement of a script        */
      * placement's `energy=`; hp < 0 = not hit-able (the engine writes
      * [obj+0xad] = -1 for its never-dying types at 0x340f5/0x54478 and
      * tests death as `energy < 0` at 0x544a5). hit_cd = the hit
-     * countdown at [obj+0x102] (FUN_000502f0 asks "invulnerable?" by
-     * testing it non-zero; 0x27264 arms the generic default 0xe = 14).
+     * countdown at [obj+0x102]: the engine's gate FUN_000502f0 tests
+     * it non-zero to drop a hit, and 0x50f67/0x50300 arms exactly 30
+     * on EVERY landed hit (PR-139; its own decrement by 1 is 0x50720,
+     * run once per state step from 0x5371c).
      * atc = the object's own attack-connect window (PR-90: the ENEMY
-     * hits the LION through it, the mirror of the lion's own). */
+     * hits the LION through it, the mirror of the lion's own; PR-139:
+     * this is the ONLY path an authored damage= takes - the engine has
+     * no unconditional contact damage, 0x50f80's gate at 0x50ff1). */
     int hp, hit_cd;
     unsigned char atc;
     unsigned char atc_hit;          /* PR-90: this object's window has    *
@@ -872,10 +876,26 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
  * .des authors any lion damage number, so 30 is the only value the shipped
  * data points to; the proportional types stay unreachable here.
  *
- * Rejection: FUN_00050ed0 is gated by FUN_000502f0 "invulnerable?", which
- * tests the countdown at [obj+0x102]; 0x27264 is the generic setter with
- * the DEFAULT 14 (the lion's own is 30 at 0x50304, already ported as
- * pl->lock). Objects get the same countdown here: 14.
+ * Rejection: the receiver method 0x50ed0 - installed at [obj.vt+0xd0] by
+ * the 15 tables that hold the answer-A dword 0x50f80 - is gated by
+ * FUN_000502f0 "invulnerable?", which tests the countdown at
+ * [obj+0x102]: 0x50f54 calls it, 0x50f59 drops the hit. On "not
+ * invulnerable" 0x50f67 runs [obj.vt+0xe4](1) - 0x50300 for those
+ * tables, which is `edx ? mov [obj+0x102],0x1e : mov [obj+0x102],edx`
+ * (0x50300..0x50315) - and only then 0x54550 subtracts the hp. THE LION
+ * IS ONE OF THOSE TABLES: the factory 0x1fef2 matches the class-name
+ * literal "TLewZaria" (0x9078b) and writes 0x96960 at [obj+8], and
+ * 0x96960 carries +0xd0 = 0x50ed0 and +0xe4 = 0x50300 - so the lion's
+ * own countdown (the port's pl->lock, PR-89) is exactly 30, and 0x50720
+ * decrements it once per state step (0x536f0 -> 0x523f0 -> [.vt+0xa8]).
+ * Objects get the same law here, as a NAMED stand-in: an animal's own
+ * class table (SEP's is 0x97bc0, written at 0x62e59) installs 0x1ecd0 at
+ * +0xd0 and 0x4ffb0 at +0xe4, the ZWIERZ base 0x97f64 installs
+ * 0x41c30/0x41460, and neither writes 0x1e. The 14 at
+ * 0x27264 belongs to a different helper, `edx ? [obj+0x102]=14 :
+ * [obj+0x102]=0` at 0x27260, referenced by exactly one +0xe4 slot, table
+ * 0x9a54c (its factory name is not pinned) - its role is an OPEN item,
+ * counted in the PR-139 record.
  *
  * The hit reaction is an INFERENCE, flagged as such: every animal script
  * and every lion state carries "A_DOSTAL(1)=AC_ENEMY_ATC" ("got hit" on
@@ -889,10 +909,18 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
  * A_WALK/A_DRAP/A_FIGHT... carry "A_DOSTAL(1)=AC_ENEMY_ATC", and ZARIA's
  * lion A_DOSTAL is a full authored reaction (BY_TIME 9x200 ms, seq=hit,
  * frame 1 `I -320,-250` pullback, exit A_DRAP(1)=AC_BREAK_NEXT at the
- * list end). Contact hits do NOT raise it (model choice + open question:
- * the token names the enemy's ATtack, and a passive touch has no window;
- * raising on every touch would make every bump a reaction - the engine's
- * raiser is still unpinned, so the narrower reading stays).
+ * list end). The raise itself is now read verbatim, not inferred:
+ * answer-C 0x55130 saves the toucher's [toucher+0xad] at 0x55140 and
+ * its tail at 0x5516a compares it back: hp DROPPED -> the ATC variant
+ * of the AC_ENEMY token (0x5518c `or bl,0x1`), unchanged -> plain
+ * AC_ENEMY (0x551ad `or dl,0x80`); and 0x50f80's own tail at
+ * 0x51036..0x51059 merges plain AC_ENEMY for any shape meet (PR-92,
+ * already ported). So a landed window hit raises AC_ENEMY_ATC and a
+ * dropped one still raises AC_ENEMY - which is exactly what the port
+ * does. (PR-139 removed the port's unconditional contact damage, so
+ * the "contact hit" case whose raise was an open question no longer
+ * exists: the engine has no damage path without the window - see the
+ * play_collide comment and the PR-139 record.)
  *
  * Death enters the script's own state BY NAME because the engine forces
  * it: 340 of the 413 scripts that have an A_DEAD state have NO
@@ -904,8 +932,22 @@ static int obj_transition(lvl_obj *o, ll_mov_t *mov, int brk)
  * The dead object stops hurting the lion (model choice: its A_DEAD art
  * stays in place; whether the engine's corpse still deals contact
  * damage is not pinned). */
-#define LL_LION_HIT_DAMAGE 30   /* 0x34103: the dispatcher's default hit */
-#define LL_OBJ_HIT_CD      14   /* [obj+0x102] default countdown, 0x27264 */
+#define LL_LION_HIT_DAMAGE 30   /* the fixed 0x1e of the stomp branch:
+                                 * the receiver 0x34020 (table 0x9e134)
+                                 * takes 30 when the attacker's class id
+                                 * is ds:0xced04 (0x340c8/0x340db,
+                                 * PR-89); what the engine really passes
+                                 * is [lion+0xb1] (its only setter is
+                                 * 0x1e540), unread here - open item,
+                                 * PR-139 */
+#define LL_OBJ_HIT_CD      30   /* [obj+0x102] = 0x1e, armed by the
+                                 * answer-A family's [obj.vt+0xe4] =
+                                 * 0x50300 at 0x50f67 (the lion's own
+                                 * class 0x96960 among them); the
+                                 * animals' +0xe4 methods (0x4ffb0,
+                                 * 0x41460) are different, so the
+                                 * object-side use is a named stand-in,
+                                 * counted as an open item */
 
 static int obj_hit(lvl_obj *o, int damage)   /* 0 = no hit, 1 = hurt,
                                               * 2 = hurt AND killed      */
@@ -979,7 +1021,13 @@ static int obj_hit(lvl_obj *o, int damage)   /* 0 = no hit, 1 = hurt,
  * The engine's per-class AI stays open; this gate is the port's
  * stand-in, off unless LEO_PLAY_DANGER=1, exactly like the PR-59 solid
  * gate. What the armed attack drives (charge motion, TURN behaviors) is
- * T3 stage 2. */
+ * T3 stage 2.
+ * PR-139 names where the engine reads that same authored flag:
+ * [obj.vt+0x44] is 0x23920, which returns the flag word of the object's
+ * CURRENT animation row record, [[[obj+0x50]+[obj+0x5c]*4]+0x12], and
+ * the animal answer 0x5528b tests its 0x2000 bit before taking the
+ * danger_power branch (0x55290..0x552a2). The row flag's other bit this
+ * PR read is 0x80000 (0x55245), which calls the hit with damage 0. */
 static void obj_arm_atak(lvl_obj *o, int lx, int ly, int verbose, int tick)
 {
     ll_mov_t *mov = (o->sc && o->sc->mov) ? o->sc->mov : NULL;
@@ -1935,9 +1983,10 @@ static int obj_state_selftest(void)
      * A_DOSTAL (exactly the LICHA3 wiring); the engine's death gate is
      * energy < 0, and since no shipped script has a transition INTO
      * A_DEAD (340 of 413), the dead object enters it BY NAME, forced;
-     * the [obj+0x102] countdown (14, 0x27264) rejects a second hit
-     * inside it and expires tick by tick; `energy = -1` is the
-     * never-hit-able marker (0x340f5). */
+     * the [obj+0x102] countdown (30 armed by the landed hit itself -
+     * 0x50f67/0x50300, PR-139) rejects a second hit inside it and
+     * expires exactly one per state step (0x50720, PR-135);
+     * `energy = -1` is the never-hit-able marker (0x340f5). */
     {
         static const char hitt[] =
             "A_RUN\nA_DOSTAL\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\n"
@@ -1970,13 +2019,14 @@ static int obj_state_selftest(void)
                                 " the [obj+0x102] countdown was taken\n");
             else {
                 /* PR-135 pins the RATE of the countdown, not only its
-                 * end: half of it (7 of the 14 steps) must still be
+                 * end: half of it (15 of the 30 steps armed by the hit,
+                 * 0x50300) must still be
                  * running. Before this the leg only asked that the
                  * counter be gone after LL_OBJ_HIT_CD steps, which a
                  * countdown running TWICE as fast also satisfies -
                  * PR-135's mutation run proved it (hit_cd -= 2 passed
-                 * every leg in the repo). 14 steps at the exact 50 ms
-                 * grid = 700 ms; A_DOSTAL's one 100-unit row closes
+                 * every leg in the repo). 30 steps at the exact 50 ms
+                 * grid = 1500 ms; A_DOSTAL's one 100-unit row closes
                  * and wraps on step 1 and its own AC_BREAK_NEXT exit
                  * takes step 2, so the state is back in A_RUN long
                  * before the countdown is over, and the half-way hit
@@ -3224,6 +3274,7 @@ out:
 }
 
 static int obj_layer_selftest(void);
+static int contact_model_selftest(void);
 
 /* FIX-13 (X-11) selftest, test-only entry point (ll_level.h): proves the
  * two .MOV duration invariants without any window or game data:
@@ -3383,7 +3434,7 @@ int ll_mov_selftest(void)
     if (seq_codec_selftest() != 0 || seq_anchor_selftest() != 0 ||
         seq_shape_selftest() != 0 || seq_push_selftest() != 0 ||
         obj_layer_selftest() != 0 || obj_state_selftest() != 0 ||
-        obj_motion_selftest() != 0 ||
+        obj_motion_selftest() != 0 || contact_model_selftest() != 0 ||
         place_grammar_selftest() != 0) {
         free(sc.mov);
         free(m);
@@ -3761,6 +3812,32 @@ static void obj_touch_enemy(lvl_obj *o, int verbose, int tick)
  * collision loops behind FUN_00053c90 and the CHECK_LEW/CHECK_ALL gating)
  * is not resolved yet, and with it on RAN.01's invisible EDGE0046 stops the
  * lion at x~135 - unverified against the original, so not the default. */
+/* PR-139 (G-5): FUN_000550c0, verbatim. Answer-C (0x55130) asks it
+ * before calling the hit: 0x550cf tests the TOUCHER's own window
+ * predicate ([toucher.vt+0x40] = bit 5 of [toucher+0xb6]); when it is
+ * NOT set the answer is "no suppression" (0x5511b). When it is,
+ * 0x550db reads the toucher's facing getter ([toucher.vt+0x70] =
+ * [toucher+0x6d] in 95 of the 111 class tables; the other 12 return a
+ * constant 1), 0x550e6/0x550f1 take both positions through the level
+ * provider's position getter 0x52d30 (its camera offsets are the same
+ * function of the same layer, so they cancel between the pair),
+ * 0x550f6..0x55108 build sign(toucher.x - self.x), 0x5510d multiplies
+ * by the facing, and 0x55112..0x55119 return 1 - "skip this hit" -
+ * only for a strictly negative product. So a window hit that the
+ * object answers to the lion is cancelled exactly while the lion's
+ * OWN window is open and the lion is turned toward the object (the
+ * lion's attack wins the clash); turned away, at the same x (product
+ * 0), or with the lion's window closed, the object's hit lands. */
+static int clash_suppressed(const play_ctx *pl, int lx, int ox)
+{
+    int sd;
+
+    if (!pl->p.atc)
+        return 0;
+    sd = lx > ox ? 1 : lx < ox ? -1 : 0;
+    return sd * (int)pl->p.face < 0;
+}
+
 static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                          int verbose, int tick)
 {
@@ -3875,7 +3952,28 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
             /* PR-89: the lion's attack window is open and the shapes
              * just met (same contact as the push-out above; the engine's
              * touch pipeline runs the push-out and then the hit effects
-             * - 0x552e0 -> 0x55230). One hit per opened window. */
+             * - 0x552e0 -> 0x55230). One hit per opened window.
+             * PR-139 read the receiver too and one of its gates is a
+             * no-op HERE: 0x50f04..0x50f1a drop the hit when the
+             * RECEIVER's window is open and the TOUCHER's is not
+             * (`o->atc && !pl->p.atc`), and pl->p.atc is this block's
+             * own precondition. That gate does bite on the answer
+             * entries the port does not model (0x55245's 0x80000-row
+             * damage-0 hit, the [receiver+0x11a]==6/7 branch) - counted
+             * as an open item. The port's obj_hit keeps the 0x50ed0
+             * law: hp < 0 is not hit-able, hit_cd > 0 is the countdown
+             * drop at 0x50f59, and a landed hit arms 0x1e at
+             * 0x50f67/0x50300. NAMED APPROXIMATION, PR-139: that chain
+             * is verified for the answer-A family (the 15 tables that
+             * hold 0x50f80, the lion class 0x96960 among them - the
+             * lion's own +0xe4 IS 0x50300, so the 30 the port keeps on
+             * pl->lock is exact), but an animal's receiver is a
+             * different method: 0x97bc0 (SEP) installs 0x1ecd0 at +0xd0
+             * and 0x4ffb0 at +0xe4, the ZWIERZ base 0x97f64 installs
+             * 0x41c30 (which ends in 0x41180 and a float from
+             * [obj+0x107]) and 0x41460, and neither writes 0x1e. The
+             * object-side hp/countdown law for animals is therefore a
+             * stand-in; it is counted as an open item, not hidden. */
             int hh = obj_hit(o, LL_LION_HIT_DAMAGE);
             if (hh) {
                 pl->p.atc_hit = 1;
@@ -3887,31 +3985,69 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                            hh == 2 ? " (dead)" : "");
             }
         }
-        if (o->atc && !o->atc_hit && o->damage > 0 && pl->lock == 0) {
-            /* PR-90: an enemy whose OWN attack window is open (its
-             * A_ATAK frames carry the ATC_ON/ATC_OFF pair: ZARIA's
-             * LICHA3 opens its window at frame -4 and closes it at
-             * -8) lands through it on the lion. One hit per armed
-             * state episode, exactly like the lion's own (o->atc_hit
-             * resets only on a state change). The numbers are the
-             * ones the contact path already uses: the authored
-             * damage= (the engine delivers [obj+0xb1], 0x55130) and
-             * the lion's 30-tick hurt lock (0x50304). What the
-             * window adds over the contact model: the hit is the
-             * object's ACTIVE attack (and it runs BEFORE the contact
-             * block, so while a window is open the touch answers as
-             * the attack, not as an extra contact hit). MODEL: the
-             * engine's consumer of the atc_on window is still not
-             * pinned (NEXT_STEPS PR-90 record). */
+        if (o->atc && !o->atc_hit && o->damage > 0 && pl->lock == 0 &&
+            !clash_suppressed(pl, lx, o->x)) {
+            /* PR-90 + PR-139: this is the ONLY path an authored
+             * damage= reaches the LION. Engine chain, verbatim, for
+             * the family ZARIA's animals belong to: the authored 'SEP'
+             * token builds its object at 0x62e59 with the class table
+             * 0x97bc0, whose answer entry [obj.vt+0x78] is 0x552e0;
+             * that needs a real shape meet (0x53ae0) plus the
+             * [obj.vt+0x9c] filter and then calls 0x55230, whose body
+             * IS the law: a damage-0 hit when the current row's flag
+             * word (0x55242 = [obj.vt+0x44] = 0x23920, which reads
+             * [[[obj+0x50]+[obj+0x5c]*4]+0x12] - the row record
+             * itself) carries 0x80000 (0x55245..0x55257, and the
+             * receiver drops a 0-damage hit), answer-C 0x55130 ONLY
+             * while the object's window bit is set (0x5525d..0x55267,
+             * [obj.vt+0x40] = 0x23860 = bit 5 of [obj+0xb6] - set
+             * ONLY by the authored atc_on row directive: the parser
+             * 0x4636e matches the literal 0x918f2 and 0x46398 writes
+             * the action record's vtable 0xa10f0 with its +8 flag,
+             * and the apply method at slot +4, 0x45c20, is exactly
+             * `and [obj+0xb6],~0x20` + `or [obj+0xb6],(flag&1)<<5`),
+             * and else the LEVEL's global danger_power as the damage
+             * when that row word carries 0x2000 (0x55283..0x552a2).
+             * Answer-C saves the receiver's [obj+0xad] at 0x55140,
+             * asks 0x550c0 (see clash_suppressed) and on "no
+             * suppression" calls the receiver's hit method with the
+             * toucher's [toucher+0xb1] as the damage at
+             * 0x5514f..0x55164. For the lion that hit lands at
+             * 0x54550 (`sub [eax+0xad],ebx` - the energy counter)
+             * behind ITS OWN receiver: the factory 0x1fef2 matches the
+             * class-name literal "TLewZaria" (0x9078b) and writes the
+             * lion's class table 0x96960 at [obj+8], whose +0xd0 IS
+             * 0x50ed0 and whose +0xe4 is 0x50300; 0x50ed0's gates are
+             * damage==0 -> return (0x50ef1), the pairing rule
+             * (0x50f04..0x50f1a), the countdown drop (0x50f59) - then
+             * 0x50f67 arms the next 0x1e = 30 steps; the port's
+             * pl->lock is that same countdown, PR-89. The other answer
+             * family, answer-A 0x50f80, is installed by the 15 tables
+             * that hold that dword (the lion class 0x96960 among them, NOT
+             * the ZWIERZ-derived animals); its window gate 0x50ff1 and
+             * its DANGER branch 0x51011..0x51033 are the same two
+             * laws, so the port models ONE window rule. (Corrects
+             * PR-94/96's reading of [obj.vt+0x40] as an is-enemy flag
+             * and any earlier wording that every answering family
+             * installs 0x50f80.) One landed hit per armed episode: the
+             * engine's repeat-drop is the lion's own 30-countdown, and
+             * the atc_hit flag below is consumed ONLY when the hit
+             * lands - a window cancelled by 0x550c0 stays armed and
+             * can land after the lion's own window closes. The window
+             * still has to be ARMED: LICHA's A_RUN rows carry no
+             * atc_on; only A_ATAK's do (opened by its row -4, closed
+             * by -8), and the port arms A_ATAK only through the PR-90
+             * DANGER stand-in (LEO_PLAY_DANGER), never by default. */
             pl->energy -= o->damage;
             pl->lock = 30;
             o->atc_hit = 1;
-            /* PR-91: and the hit raises AC_ENEMY_ATC on the LION's own
-             * set (the mirror of what the lion's attack does to the
-             * object). The reaction is then pure authored data: the
-             * .MOV's "A_DOSTAL(1)=AC_ENEMY_ATC" lines, the seq=hit art
-             * and the frame-1 pullback impulse all landed with PR-74/
-             * PR-86/PR-88; nothing here is new mechanism. */
+            /* PR-91: and the landed hit raises AC_ENEMY_ATC on the
+             * LION's own set - 0x5516a compares the saved hp and
+             * picks the ATC variant exactly when it dropped (0x5518c
+             * `or bl,0x1`). The reaction is then pure authored data:
+             * the .MOV's "A_DOSTAL(1)=AC_ENEMY_ATC" lines, the
+             * seq=hit art and the frame-1 pullback impulse all landed
+             * with PR-74/PR-86/PR-88; nothing here is new mechanism. */
             pl->p.sig |= 1ull << LL_SIG_AC_ENEMY_ATC;
             if (verbose)
                 printf("ll_level: play tick %d: %s/%s ATTACKS through"
@@ -3919,17 +4055,21 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                        tick, o->sc->leaf, o->sc->movname, o->damage,
                        pl->energy);
         }
-        if (o->damage > 0 && pl->lock == 0 && !o->dead) {
-            /* FUN_00050ed0 / 00054550: a touched enemy hits with ITS OWN
-             * damage (the .des `damage=` of the placement); the lion's hurt
-             * lock is 30 ticks (0x50304: [+0x102] = 0x1e) */
-            pl->energy -= o->damage;
-            pl->lock = 30;
-            if (verbose)
-                printf("ll_level: play tick %d: hit by %s/%s: damage %d ->"
-                       " energy %d\n", tick, o->sc->leaf, o->sc->movname,
-                       o->damage, pl->energy);
-        }
+        /* PR-139 (G-5): the unconditional contact-damage block that
+         * used to stand here is DELETED. The engine has no rule that a
+         * touched enemy hurts the lion: an animal's answer 0x55230 has
+         * exactly two damage paths besides the window - the row-flag
+         * 0x80000 hit, which it calls with ebx = 0 (0x55255), and the
+         * DANGER branch at 0x55283..0x552a2, which delivers the
+         * LEVEL's global danger_power ([ds:0xcef40+0x54], read at
+         * 0x55290/0x5529f) as the damage; answer-A 0x50f80 has the
+         * same pair at 0x51011..0x51033. No shipped level authors
+         * danger_power above 0 (PR-90), and the lion's receiver returns
+         * the moment the damage is 0 (0x50ed0: test ebx,ebx at
+         * 0x50eef). A bump against a resting animal therefore answers
+         * with the push-out and the AC_ENEMY raise only. (Corrects
+         * PR-94/96's reading of [obj.vt+0x40] as an "is-enemy"
+         * predicate: it is the window bit.) */
         /* PR-92: the same touch answers with the AC_ENEMY raise too (the
          * engine's 0x50ed0 tail builds its packet after the damage and
          * DANGER branches, and this loop's shapes have just met). */
@@ -3985,6 +4125,134 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
             obj_touch_enemy(o, verbose, tick);
         }
     }
+}
+
+/* PR-139 (G-5) selftest: the contact/damage reality, hand-derived from
+ * the machine code quoted in play_collide - no game data, no video.
+ * Case 1: the 0x550c0 truth table. 0x550cf tests the toucher's window
+ * (closed -> answer 0 at 0x5511b, whatever the geometry), 0x55105/
+ * 0x55108 build sign(toucher.x - self.x) - EQUAL positions give 0, not
+ * +/-1 - 0x5510d multiplies by the toucher's facing and 0x55112..0x55119
+ * return 1 only for a STRICTLY negative product. The lion is the
+ * toucher; ll_player.face +1 = right, -1 = left (PR-82).
+ * Case 2: the receiver's arm. 0x50f54 calls 0x502f0 and 0x50f59 drops
+ * the hit inside the countdown; on "not invulnerable" 0x50f67 runs
+ * [obj.vt+0xe4](1) - 0x50300, which with a non-zero argument is
+ * `mov [obj+0x102],0x1e` = 30 - and only then 0x54550 subtracts. The
+ * next 0x50ed0 lands inside the countdown and is dropped without
+ * touching hp. That arm is what the LION carries: its own class table
+ * 0x96960 (the factory 0x1fef2 names it "TLewZaria") has +0xd0 =
+ * 0x50ed0 and +0xe4 = 0x50300; the animals install other +0xd0/+0xe4
+ * pairs, which is why the port's object-side use of the same constant
+ * is named a stand-in in obj_hit's comment and counted as an open item.
+ * The countdown's rate (one per state step, 0x50720) is PR-135's leg in
+ * obj_state_selftest and is not re-pinned here.
+ * Case 3: the engine drops a zero-damage hit before anything else
+ * (0x50eef `test ebx,ebx je 0x50f76`) - that is why the port needs no
+ * code for the DANGER branch: the level's danger_power ([ds:0xcef40
+ * +0x54], read at 0x5102d for answer-A and at 0x55290/0x5529f for the
+ * animals' 0x55230) is never authored above 0 by any shipped level
+ * (PR-90 census), so that hit answers as "nothing" by the engine's own
+ * first gate. */
+static int contact_model_selftest(void)
+{
+    play_ctx pl;
+    int bad = 0;
+
+    memset(&pl, 0, sizeof pl);
+    pl.p.atc = 0;
+    pl.p.face = 1;
+    if (clash_suppressed(&pl, 120, 100) || clash_suppressed(&pl, 80, 100)) {
+        fprintf(stderr, "contact selftest: FAILED case 0/1 (a closed"
+                        " lion window must never suppress)\n");
+        bad = 1;
+    }
+    pl.p.atc = 1;
+    if (clash_suppressed(&pl, 120, 100)) {          /* lion right, facing */
+        fprintf(stderr, "contact selftest: FAILED case 2 (lion right of"
+                        " the object, facing right: product +1, the hit"
+                        " must land)\n");
+        bad = 1;
+    }
+    pl.p.face = -1;
+    if (!clash_suppressed(&pl, 120, 100)) {         /* lion right, toward */
+        fprintf(stderr, "contact selftest: FAILED case 3 (lion right of"
+                        " the object, facing left: product -1, the hit"
+                        " must be suppressed)\n");
+        bad = 1;
+    }
+    if (clash_suppressed(&pl, 80, 100)) {           /* lion left, away    */
+        fprintf(stderr, "contact selftest: FAILED case 4 (lion left of"
+                        " the object, facing left: product +1, the hit"
+                        " must land)\n");
+        bad = 1;
+    }
+    pl.p.face = 1;
+    if (!clash_suppressed(&pl, 80, 100)) {          /* lion left, toward  */
+        fprintf(stderr, "contact selftest: FAILED case 5 (lion left of"
+                        " the object, facing right: product -1, the hit"
+                        " must be suppressed)\n");
+        bad = 1;
+    }
+    if (clash_suppressed(&pl, 100, 100)) {          /* same x: product 0  */
+        fprintf(stderr, "contact selftest: FAILED case 6 (equal x: the"
+                        " 0x55105 setg answers 0, NOT -1: the hit must"
+                        " land)\n");
+        bad = 1;
+    }
+    {   /* the receiver's arm (0x50300) and its drop (0x502f0/0x50f59) */
+        static const char cmv[] =
+            "A_RUN\n\n[A_RUN]\ncontrol=BY_TIME\n1,100\n";
+        ll_mov_t *mm = calloc(1, sizeof *mm);
+        obj_script sm;
+        lvl_obj o;
+        int r;
+
+        if (!mm) {
+            fprintf(stderr, "contact selftest: FAILED allocation\n");
+            return 1;
+        }
+        memset(&sm, 0, sizeof sm);
+        memset(&o, 0, sizeof o);
+        ll_mov_parse(cmv, mm);
+        sm.mov = mm;
+        o.sc = &sm;
+        o.x = o.bx = 300;
+        o.y = o.by = 100;
+        o.hp = 20;
+        r = obj_hit(&o, 15);
+        if (r != 1 || o.hp != 5 || o.hit_cd != 0x1e) {
+            fprintf(stderr, "contact selftest: FAILED the landed hit did"
+                            " not arm exactly 30 (r %d hp %d cd %d, want"
+                            " 0x1e at 0x50304)\n", r, o.hp, o.hit_cd);
+            bad = 1;
+        } else if (obj_hit(&o, 15) != 0 || o.hp != 5) {
+            fprintf(stderr, "contact selftest: FAILED a hit inside the"
+                            " armed countdown was taken (hp %d)\n", o.hp);
+            bad = 1;
+        } else {
+            o.hit_cd = 0;
+            r = obj_hit(&o, 10);
+            if (r != 2 || o.hp != -5 || !o.dead) {
+                fprintf(stderr, "contact selftest: FAILED the hit after"
+                                " the countdown was not taken (r %d hp %d"
+                                " dead %d)\n", r, o.hp, o.dead);
+                bad = 1;
+            } else if (obj_hit(&o, 15) != 0) {
+                fprintf(stderr, "contact selftest: FAILED an hp < 0"
+                                " object was hit again\n");
+                bad = 1;
+            }
+        }
+        free(mm);
+    }
+    if (!bad)
+        printf("contact selftest: the 0x550c0 table (closed window never"
+               " suppresses, toward-facing strictly-negative products do,"
+               " equal x does not) + the landed hit arms exactly 0x1e and"
+               " the next hit is dropped untouched + hp < 0 is not"
+               " hit-able (ok)\n");
+    return bad;
 }
 
 /* one fixed step + the shared logging (transition lines always; per-tick

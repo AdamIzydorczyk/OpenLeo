@@ -853,24 +853,40 @@ ifeq ($(PX_DATA),1)
 # From the touch onward his logged x is the SEMI push-back, not the law
 # (the solid lines from tick 37 on), so no later position in this leg is a
 # pure-law number - what stays derived is the row phase (fed by TRAVELLED
-# distance, which no push changes) and the second hit: 37 + 30 = 67 is the
-# hurt lock, 0x50304 [+0x102] = 0x1e. This leg's script arms no A_ATAK
+# distance, which no push changes). This leg's script arms no A_ATAK
 # (LEO_PLAY_DANGER is off), and the worm's A_RUN rows carry no ATC flag,
-# so the touch answers as contact damage and the AC_ENEMY raise only.
+# so since PR-139 the touch answers with the push-out and the AC_ENEMY
+# raise ONLY - no damage: the engine's only authored-damage path from an
+# object to the lion is answer-C 0x55130, reached exclusively behind the
+# object's own window bit (0x50ff1), and 0x50f80's other branch (the
+# DANGER one, 0x51011..0x51033) delivers the level's danger_power as the
+# damage - which ZARIA never authors (the run's own report line reads
+# `danger_power=(not authored)`) and which 0x50ed0's first real gate at
+# 0x50eef (`test ebx,ebx je`) drops the moment it is 0. Energy stays 100.
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SOLID=1 \
 	  LEO_PLAY_SCRIPT="1:FWD" LEO_LEVEL_PPM=/tmp/opencode/ly_hit.ppm \
 	  LEO_LEVEL_PPM_TICK=80 ./ll_level $(DATA) ZARIA.01 --play --no-audio \
 	  > /tmp/opencode/ly_hit.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "play hit FAILED (rc=$$rc)"; exit 1; fi
-	@grep -q 'play tick 37: hit by LICHA/licha3.mov: damage 15 -> energy 85' \
+	@grep -q 'play tick 37: first touch raises AC_ENEMY on LICHA/licha3.mov' \
 	    /tmp/opencode/ly_hit.log \
-	  && grep -q 'play tick 37: first touch raises AC_ENEMY on LICHA/licha3.mov' \
+	  && grep -q 'play tick 37: solid LICHA/licha3.mov SEMI at 165,669' \
 	    /tmp/opencode/ly_hit.log \
-	  && grep -q 'play tick 67: hit by LICHA/licha3.mov: damage 15 -> energy 70' \
-	    /tmp/opencode/ly_hit.log \
-	  && echo "play enemy contact: ZARIA.01's LICHA deals its authored damage=15 (energy 100 -> 85 at tick 37 at the two position laws above), and the repeat is the engine's 30-iteration hurt lock at 67 (0x50304); the same touch raises AC_ENEMY on it (PR-92: the object's own A_* lines decide the reaction - this script has none, so it stays)" \
-	  || { echo "play enemy contact grep FAILED"; grep 'hit by' /tmp/opencode/ly_hit.log | head -3; exit 1; }
+	  && ! grep -q 'hit by' /tmp/opencode/ly_hit.log \
+	  && ! grep -q 'ATTACKS through' /tmp/opencode/ly_hit.log \
+	  && echo "play enemy contact: PR-139's G-5 reality at the first bump -" \
+	       "the meeting at 37 is the two position laws above (133,648 vs" \
+	       "165,669), and it answers with the SEMI push and the AC_ENEMY" \
+	       "raise and NO damage: no window is open here (LEO_PLAY_DANGER" \
+	       "off), and the engine has no other authored-damage path (the" \
+	       "DANGER branch's level danger_power is un-authored in this level" \
+	       "and 0x50ed0 drops a 0-damage hit at 0x50eef); the energy stays" \
+	       "100 to the end (RE-PIN NOTE: this leg's two 'hit by ... damage" \
+	       "15' pins at 37 and 67 were the port's old unconditional" \
+	       "contact rule, which the machine code does not support)" \
+	  || { echo "play enemy contact grep FAILED"; grep -E 'hit by|ATTACKS' \
+	       /tmp/opencode/ly_hit.log | head -3; exit 1; }
 # PR-89: the lion's own attack. K_FIRE,K_F1 (PR-87) enters A_FIGHT; the
 # .MOV's ATC_ON/ATC_OFF frame flags open and CLOSE the attack window; the
 # first LICHA is killed inside it. The numbers are from the placement and
@@ -912,7 +928,7 @@ ifeq ($(PX_DATA),1)
 	  && echo "play lion attack: the A_FIGHT window opens at its 18th row" \
 	       "feed, entry+17 = 77, and lands exactly one hit THERE (one per" \
 	       "opened window), the engine-forced A_DEAD gate answers" \
-	       "at hp < 0, and the killed worm stops dealing contact damage (ok)" \
+	       "at hp < 0, and the killed worm never attacks again (ok)" \
 	  || { echo "play lion attack grep FAILED"; grep -E 'lion (hits|KILLS)|hit by|A_FIGHT' \
 	       /tmp/opencode/ly_atk.log | head -6; exit 1; }
 # PR-90 (T3 stage 1): the ENEMY attacks. There is no transition INTO
@@ -926,47 +942,69 @@ ifeq ($(PX_DATA),1)
 # of the CURRENT positions. The port's stand-in (LEO_PLAY_DANGER=1, OFF
 # by default like the PR-59 solid gate): a DANGER-flagged current state
 # arms the script's OWN A_ATAK by name when the lion enters that box;
-# the enemy then lands one hit through its OWN frames' ATC_ON window -
-# the exact mirror of the lion's attack (one hit per armed state, the
-# flag resets on state change only). The model pins are the port's
-# stand-in, not the engine's driver; PR-135 re-times them on the iteration
-# grid and does not touch the class box: the MAIN box is entered at 31
-# (dx 39, dy 21) and again at 80 (dx 37, dy 22) by the two position laws
-# the legs above derive (lion 2.5 px per iteration at his authored T=20
-# cap, worm 1.25 px per iteration), and the first touch is 38, the
-# iteration after the law's x reaches 132.5 at n = 37.
-# The window arithmetic is one line long now, and that is the point:
-# ZARIA.01's real [A_ATAK] runs eight rows of 400 units with ATC_ON on
-# the 4th and ATC_OFF on the 8th; the object's row machine is fed the
-# same 100 units per iteration and admits at most one row per iteration,
-# so 4 x 400 = 1600 units open the window on iteration entry+15 and
-# 8 x 400 = 3200 units close it at entry+31. The
-# worm's second arming (80) therefore closes it at 111, and the hit this
-# leg names IS that close: 111 is also 81 + 30, the hurt lock of the
-# contact hit at 81 - the two 30-iteration clocks land on the same
-# iteration here, which is why the run answers with the window attack and
-# not with a third contact hit (while a window is open the touch answers
-# as the attack). The default legs (above) are unchanged: with the flag
-# off no arming runs.
-# PR-91 adds the reaction: the window hit raises AC_ENEMY_ATC on the LION,
-# and the lion's authored A_DOSTAL (seq=hit, entry row 1, frame-1 pullback
-# impulse) fires on the very next tick (112) and ends at its own frame-
-# list wrap through A_DRAP(1)=AC_BREAK_NEXT (130, seq=idle entry row 1).
+# the enemy then lands its authored damage= through its OWN frames'
+# ATC_ON window - the engine's answer-C path (0x50ff1 -> 0x51003 ->
+# 0x55130, PR-139); 0x55130's 0x550c0 gate looks at the LION's window
+# and facing, and this script never opens the lion's, so nothing
+# suppresses it here (the PR-139 selftest pins that gate's table).
+# The model pins are the port's stand-in, not the engine's driver;
+# PR-135 re-times them on the iteration grid and does not touch the
+# class box: the MAIN box of the FIRST placement (`LICHA@120
+# bounds=100,180`) is entered at 31 (dx 39, dy 21) and the first
+# touch is 38, the iteration after the law's x reaches 132.5 at 37
+# (the two position laws the legs above derive); the SECOND placement
+# (`LICHA@250 bounds=230,320`) is armed at 98 at the same box numbers
+# (dx 39, dy 21) when the lion reaches it, and its first touch is
+# 105. (Worm #1 stays in its A_ATAK after that - the state's rows
+# carry no DANGER flag, and PR-114: a non-BY_X state's list wrap
+# re-occupies the placement anchor, so it never meets the lion again
+# in this leg. The lion's x after 48 is model-owned anyway: the
+# A_DOSTAL pullback below is in the way.)
+# The window arithmetic, PR-139: ZARIA.01's real [A_ATAK] runs eight
+# rows of 400 units with ATC_ON on the 4th and ATC_OFF on the 8th;
+# the object's row machine is fed the same 100 units per iteration and
+# admits at most one row per iteration, and a state forced by the
+# DANGER stand-in admits its FIRST row on the NEXT iteration (PR-135's
+# record step), so row k is admitted at arm+4k: the window OPENS at
+# arm+16 - 31+16 = 47 and 98+16 = 114, exactly the two hits this leg
+# names - and closes at arm+32 (63 and 130). That the hit lands on
+# the opening tick is arithmetic too: after PR-139 no earlier bump
+# hurt (the contact leg above pins exactly that, and so do the nine
+# contact ticks 105..113 of worm #2 inside this leg), so the lion's
+# 30-iteration countdown at 0x50300 is CLEAN when a window opens, and
+# the shapes already meet (38 for worm #1, 105 for worm #2, the SEMI
+# push-back owning both positions from there), so the first tick that
+# satisfies window AND contact AND clean countdown IS the opening
+# tick. No repeat lands inside a window because the hit itself arms
+# the countdown - it drops every later answer through 47+30 = 77,
+# past that window's close at 63; the engine's repeat-drop is its own
+# countdown at 0x50f52, not any port flag. (The old pins - contact
+# hits at 38/81 and a window hit at the contrived "two 30-clocks land
+# together" tick 111 - were the removed unconditional rule.)
+# PR-91 adds the reaction: the window hit raises AC_ENEMY_ATC on the LION
+# (answer-C's own tail: 0x55140 saves the lion's hp, 0x5516a raises the
+# ATC variant exactly when it dropped), and the lion's authored A_DOSTAL
+# (seq=hit, entry row 1, frame-1 pullback impulse) fires on the very
+# next tick (48) and ends at its own frame-list wrap through
+# A_DRAP(1)=AC_BREAK_NEXT (66, seq=idle entry row 1).
 # The exit mechanism is PR-83's and is pinned unchanged: the list wrap
 # raises the signal and the NEXT iteration's own A_DRAP(1)=AC_BREAK_NEXT
 # line reads. The pacing inside it is the same arithmetic: A_DOSTAL is
 # not BY_X either, so its accumulator takes 100 units per iteration and
-# the authored nine rows of 200 units close two iterations apart - nine
-# rows, eighteen iterations, the list wrapping at 112+17 = 129 and the
-# hand-over on the next iteration at 130, exactly the trace. This leg runs
-# to PPM tick 152 to see the whole chain.
+# the authored nine rows of 200 units close two iterations apart -
+# nine rows, eighteen iterations, the list wrapping at 48+17 = 65 and
+# the hand-over on the next iteration at 66, exactly the trace. The
+# second window repeats the whole chain: hit 114, A_DOSTAL 115, wrap
+# 132, A_DRAP 133; the leg runs to PPM tick 152 to see both.
 # PR-92 adds the object-side touch raise: the first contact (38 here and
 # 37 in the contact leg above) also raises AC_ENEMY (bit 7) on the WORM -
 # the engine packet bit (0x51050 `or dh,0x80`). licha3.mov carries no
-# AC_ENEMY line, so no state here can change and every PR-90/91 pin stays
-# byte-identical; the raise IS pinned as a log line, and the consumption
-# (touched objects' own A_ATAK/A_DEAD lines) is pinned data-faithfully in
-# the --mov-selftest fixture with the shipped RBLOK/GPTAK chains.
+# AC_ENEMY line, so no state here changes and the 31/38 pins stay
+# byte-identical; the other pins moved with PR-139's model (RE-PIN
+# NOTE), and the raise IS still pinned as a log line, and the
+# consumption (touched objects' own A_ATAK/A_DEAD lines) is pinned
+# data-faithfully in the --mov-selftest fixture with the shipped
+# RBLOK/GPTAK chains.
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 LEO_PLAY_SOLID=1 \
 	  LEO_PLAY_DANGER=1 LEO_PLAY_SCRIPT="1:FWD" \
@@ -979,25 +1017,40 @@ ifeq ($(PX_DATA),1)
 	    /tmp/opencode/ly_dgr.log \
 	  && grep -q 'play tick 38: first touch raises AC_ENEMY on LICHA/licha3.mov' \
 	    /tmp/opencode/ly_dgr.log \
-	  && grep -q 'play tick 111: LICHA/licha3.mov ATTACKS through its window' \
+	  && ! grep -q 'hit by' /tmp/opencode/ly_dgr.log \
+	  && test "$$(grep -c 'ATTACKS through' /tmp/opencode/ly_dgr.log)" \
+	       -eq 2 \
+	  && grep -q 'play tick 47: LICHA/licha3.mov ATTACKS through its window' \
 	    /tmp/opencode/ly_dgr.log \
-	  && grep -q 'window: damage 15 -> lion energy 55' \
+	  && grep -q 'window: damage 15 -> lion energy 85' \
 	    /tmp/opencode/ly_dgr.log \
-	  && grep -q 'play tick 112: state A_DOSTAL seq hit frame 1' \
+	  && grep -q 'play tick 48: state A_DOSTAL seq hit frame 1' \
 	    /tmp/opencode/ly_dgr.log \
 	  && grep -q 'A_DOSTAL -> A_DRAP' /tmp/opencode/ly_dgr.log \
-	  && grep -q 'play tick 130: state A_DRAP seq idle frame 1' \
+	  && grep -q 'play tick 66: state A_DRAP seq idle frame 1' \
+	    /tmp/opencode/ly_dgr.log \
+	  && grep -q 'play tick 98: LICHA/licha3.mov DANGER: lion within the class' \
+	    /tmp/opencode/ly_dgr.log \
+	  && grep -q 'play tick 114: LICHA/licha3.mov ATTACKS through' \
+	    /tmp/opencode/ly_dgr.log \
+	  && grep -q 'window: damage 15 -> lion energy 70' \
+	    /tmp/opencode/ly_dgr.log \
+	  && grep -q 'play tick 133: state A_DRAP seq idle frame 1' \
 	    /tmp/opencode/ly_dgr.log \
 	  && ! grep -q 'DANGER: lion' /tmp/opencode/ly_hit.log \
 	  && echo "play enemy attack: the DANGER/MAIN-box stand-in arms A_ATAK" \
-	       "at the pinned LICHA 40x50 gate, the worm stands there and its" \
-	       "OWN ATC window closes at entry+31 = 111, where it lands exactly" \
-	       "one hit; the hit raises" \
+	       "at the pinned LICHA 40x50 gate (both placements answer at dx" \
+	       "39 dy 21); the window opens at arm+16 = 47, and the worm" \
+	       "lands its authored damage=15 THERE (the opening tick: no prior" \
+	       "bump hurt, so the lion's countdown is clean - PR-139), then" \
+	       "the second placement at 98+16 = 114; each hit raises" \
 	       "AC_ENEMY_ATC and the lion's OWN authored A_DOSTAL (hit art +" \
-	       "pullback) reacts on the next tick and recovers through A_DRAP" \
-	       "at its wrap; the same contact raises AC_ENEMY on the worm" \
-	       "(PR-92, the engine packet's or-dh-0x80 bit; this script" \
-	       " consumes nothing so it stays); the default runs are unaffected (ok)" \
+	       "pullback) reacts on the next tick (48/115) and recovers at" \
+	       "its 18-iteration wrap (66/133); no bump without a window ever" \
+	       "hurt the lion (the 'hit by' negative - G-5), the same contact" \
+	       "raises AC_ENEMY on the worm (PR-92, the engine packet's" \
+	       "or-dh-0x80 bit; this script consumes nothing so it stays);" \
+	       "the default runs are unaffected (ok)" \
 	  || { echo "play enemy attack grep FAILED"; \
 	       grep -E 'DANGER:|ATTACKS|hit by|A_DOSTAL|A_DRAP' /tmp/opencode/ly_dgr.log \
 	       | head -8; exit 1; }

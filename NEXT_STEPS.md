@@ -12765,26 +12765,369 @@ no port behaviour change)
   series); the PR-126 .des dump rebuilt for the ANI2.DES balloon
   lines; and the regenerated pr137_mut transcripts.
 
+## PR-139 — G-5 CLOSED: AN AUTHORED `damage=` HURTS THE LION ONLY THROUGH
+
+## THE OBJECT'S OWN ATTACK WINDOW - the port's unconditional
+
+## contact-damage block is DELETED, the engine's clash gate 0x550c0 is
+
+## ported as a named helper, the window latch is the authored `atc_on`
+
+## directive at last (its apply method 0x45c20), and PR-89's hit
+
+## countdown 14 is corrected to the 0x1e = 30 that the lion's own class
+
+## table installs
+
+- WHY. G-5 is the gap that decides how far the stage can be walked:
+  the port has carried, since PR-89, a rule that a lion/object shape
+  contact deals damage on first touch - 15 for the worm, 30 by the
+  stomp default - and that rule kills a walking lion around x=153-180,
+  which is exactly where the stage's first climb sits (G-9's probe was
+  blocked by it). The A-clip cannot settle the question either way:
+  the 6.35-7.35 s contact shows the push-out, but no HUD is read (the
+  lives are G-8), so "did the lion lose life on that bump" is not a
+  decidable video claim. The two engine claims underneath the rule had
+  never been read either: what `[obj.vt+0x40]` tests (PR-94/96 called
+  it an is-enemy predicate) and what a hit RECEIVER does with the
+  damage. Both are read now; both change behaviour, so this is a
+  behaviour PR with a hand-derived test.
+
+- WHAT SHIPPED. `ported/ll_level.c`: the unconditional contact-damage
+  block in `play_collide` is deleted (a comment names what replaced
+  it); the object's window block keeps the authored damage and gains
+  the engine's clash gate as `clash_suppressed()` (0x550c0);
+  `LL_OBJ_HIT_CD` moves 14 -> 30; the `atc_hit` flag is now consumed
+  only when a hit lands, so a window cancelled by 0x550c0 stays armed;
+  every comment that carried the old reading is rewritten with the
+  addresses this PR read. A new `--mov-selftest` case,
+  `contact_model_selftest`, pins the law with no game data and no
+  video. `Makefile`: the two pinned play legs are re-pinned with an
+  in-file RE-PIN NOTE. No `.github/workflows/*` touched, no game data
+  or frames in git.
+
+- WHICH ANSWER ENTRY EACH FAMILY INSTALLS (the census that rewrites
+  PR-96's wording). Method: the image blob `build/leo/leo.img`
+  (sha256 `edf19a129e85efb8...c40e`, byte-identical to the copy the
+  disassembly was made from) scanned for four-aligned dword
+  occurrences of each method, treated as vtable slots, then each
+  candidate checked for an in-image +0xd0 pointer ("N slots, M
+  sane"). Answer-A 0x50f80: 15 slots, 15 sane. Answer-B 0x552e0: 78,
+  78. The window-bit getter 0x23860 at +0x40: 156, 155 (one
+  candidate is not a vtable); the constant-0 getter 0x23c00: 64, 61.
+  The face getter 0x239f0 at +0x70: 186, 186. Over the 155 sane
+  window-bit tables the +0x9c filter slot is 0x23a40 in 150 and
+  0x3d980 in 5. So "every answering family installs 0x50f80"
+  (PR-96's shorthand) is FALSE, and it matters: the animals ZARIA
+  places are in the answer-B set. The authored `SEP` token compares
+  at 0x616a4 (literal 0x9320b) and its constructor 0x62e40 writes
+  `[obj+8] = 0x97bc0` at 0x62e59 - a table with +0x40 = 0x23860,
+  +0x78 = 0x552e0, +0xd0 = 0x1ecd0, +0xe4 = 0x4ffb0. `LICHA`
+  (0x9321c, ctor 0x61890) and `PAJAK` (0x93222, ctor 0x626c0) chain
+  into sub-factories that this PR did not resolve - counted below.
+
+- THE ANIMAL ANSWER IS THE WHOLE LAW (0x552e0 -> 0x55230, verbatim).
+  0x552e0 needs a real shape meet (`call 0x53ae0` at 0x55308) and the
+  `[obj.vt+0x9c]` filter (0x55318), then calls 0x55230 at 0x55328.
+  0x55230 (push ecx/esi/edi at 0x55230; the body the disassembler
+  enters at 0x55232) has three branches and nothing else:
+  (a) 0x55242 reads `[obj.vt+0x44]` - 0x23920, which returns the flag
+  word of the object's CURRENT animation row record,
+  `[[[obj+0x50]+[obj+0x5c]*4]+0x12]` - and if it carries 0x80000 it
+  calls the other side's `[+0xd0]` with `ecx=0, ebx=0`, i.e. a
+  DAMAGE-0 hit (0x55245..0x55257); (b) if the object's window bit is
+  set (0x5525d..0x55267) it calls answer-C 0x55130 (0x5526f); (c)
+  else if that same row word carries 0x2000 (`test ah,0x20` at
+  0x5528b) it reads the LEVEL's global `danger_power`
+  (`[ds:0xcef40+0x54]`, 0x55290/0x5529f) and calls the hit with THAT
+  as the damage (0x552a2). Answer-A 0x50f80 is the same two laws for
+  the 15-table family - its window gate is 0x50ff1 and its DANGER
+  branch 0x51011..0x51033, reading the same global at 0x5102d. There
+  is no fourth path: an authored `damage=` reaches the lion only
+  through (b). The port models exactly (b) plus the (c)-is-nothing
+  consequence, and no code for (c): no shipped level authors
+  `danger_power` (PR-90 census; the port's own level dump prints
+  `danger_power=(not authored)`), and a 0-damage hit is dropped by the
+  receiver's own first gate.
+
+- THE WINDOW LATCH, AND THE OPEN ITEM PR-90 LEFT (now closed). The
+  bit 0x23860 tests is bit 5 of `[obj+0xb6]`
+  (`mov eax,[eax+0xb6]; shl eax,0x1a; shr eax,0x1f`). Its only
+  writer found in the image is the action-record applier at 0x45c20
+  (the function the disassembler shows from 0x45c22): `and
+  [obj+0xb6],~0x20` then `or [obj+0xb6],([rec+8]&1)<<5`
+  (0x45c2d..0x45c45). The records it applies are built by the row
+  directive parser: 0x4636e matches the literal `atc_on` (0x918f2)
+  case-insensitively (0x76a69), allocates 12 bytes (0x46383), writes
+  the vtable 0xa10f0 at `[rec+4]` (0x46398) and the flag 1 at
+  `[rec+8]` (0x4639f); `atc_off` (0x918f9) is the same record with
+  flag 0. 0xa10f0's slot +4 IS 0x45c20, so an authored `ATC_ON` row
+  is exactly what opens the window the collision path tests. PR-90's
+  open item "no pinned consumer of `atc_on` in the hit path" is
+  CLOSED by this. (The authored `lock` directive is the sibling
+  record, vtable 0xa10d8, same applier slot -> 0x45c50.)
+
+- ANSWER-C 0x55130, VERBATIM (the hit delivery). At entry eax/ebx are
+  the pair; 0x55140 saves `[obj+0xad]` (the energy counter - see
+  0x54550 below); 0x55146 asks 0x550c0; on "no suppression" 0x5514f
+  ..0x55164 call the RECEIVER's `[+0xd0]` with the deliverer's
+  `[deliverer+0xb1]` in `ebx` as the damage; 0x5516a compares the
+  saved value with the live one and, only if it DROPPED, sets the ATC
+  variant bit (`or bl,0x1` at 0x5518c) instead of the plain one
+  (`or dl,0x80` at 0x551ad). Its third argument `ecx` is the CALLER's
+  choice: 0 from the animal path (0x5526f), `[obj+0xee]` from
+  answer-A (0x50ffd) - open item 13. PR-91's "a landed hit raises
+  AC_ENEMY_ATC, a dropped one raises plain AC_ENEMY" - which the port
+  has run since PR-91 as an inference - is now machine code.
+
+- THE CLASH GATE 0x550c0 (ported as `clash_suppressed`). 0x550cf
+  calls `[toucher.vt+0x40]` on the toucher; a CLOSED window answers
+  "no suppression" (0x550d2/0x550d4 -> 0x5511b). Otherwise 0x550db
+  takes the toucher's face (`[toucher.vt+0x70]` = 0x239f0), 0x550e6/
+  0x550f1 take both positions through the level position getter
+  0x52d30 (camera terms are the same function of the same layer, so
+  they cancel between the pair), 0x550f6..0x55108 build
+  sign(toucher.x - self.x) - `setg` answers 0 for EQUAL x, not +1 -
+  0x5510d multiplies by the face and 0x55112..0x55119 answer 1 only
+  for a STRICTLY negative product. In answer-C the "toucher" is the
+  LION, so an object's window hit is cancelled exactly while the
+  lion's own window is open AND he is turned toward the object;
+  turned away, at equal x, or with his window closed, it lands.
+
+- THE RECEIVER 0x50ed0, GATES IN ORDER (this is what G-5's "and then
+  what" question was). `eax` = receiver, `edx` = deliverer, `ebx` =
+  the damage. Drop rules, in the order the code tests them:
+  `[receiver+0x11a]` is 6 or 7 (0x50ed7..0x50ee9); the damage is 0
+  (0x50eef `test ebx,ebx; je 0x50f76`); `[receiver+0x126] != 0`
+  (0x50ef7); the pairing rule - if the RECEIVER's window bit is set
+  the deliverer's must be too (0x50f04..0x50f1a). Then it records
+  `[receiver+0x10a]` = the deliverer's class token (`[+0xc]`) and
+  `[receiver+0x10e]` = its face (0x50f1c..0x50f38), drains the
+  `[receiver+0xd2]` chain through 0x551f0, calls 0x502f0 (0x50f54)
+  which tests `[obj+0x102]` and drops a repeat hit at 0x50f59, then
+  0x50f67 runs `[receiver.vt+0xe4](1)` - and only then 0x54550
+  `sub [eax+0xad],ebx` subtracts the energy.
+
+- THE ARM VALUE: 30, NOT 14 (PR-89's constant corrected).
+  `[obj.vt+0xe4]` is 0x50300 for 14 of the 15 answer-A tables, and
+  0x50300 is `edx ? mov [obj+0x102],0x1e : mov [obj+0x102],edx`
+  (0x50300..0x50315) - with the argument 1 that is 0x1e = 30. The
+  countdown is then decremented exactly one per record step by 0x50720
+  (0x536f0 -> 0x523f0 -> `[.vt+0xa8]`), the rate PR-135 already
+  pins. So `LL_OBJ_HIT_CD` = 30. WHERE 14 CAME FROM: `edx ?
+  [obj+0x102]=14 : [obj+0x102]=0` at 0x27260/0x27264 is reached from
+  exactly one +0xe4 slot in that census, table 0x9a54c - a different
+  family, and PR-89 read its constant as the general one. WHICH
+  TABLE IS THE LION: the factory 0x1fef2 matches the class-name
+  literal "TLewZaria" (0x9078b, next to "TLewZariaB", "TLewEna",
+  "TLewKadmar1" - per-level lion classes) and writes `[obj+8] =
+  0x96960` at 0x1ff15; 0x96960 has +0x78 = 0x50f80, +0xd0 = 0x50ed0
+  and +0xe4 = 0x50300. So the 30 IS the lion's own countdown - the
+  port's `pl->lock = 30` (PR-89) is exact - while the same constant
+  applied to an OBJECT is a stand-in, because an animal's own
+  receiver/arm pair is elsewhere: SEP's 0x97bc0 installs
+  0x1ecd0/0x4ffb0, the ZWIERZ base 0x97f64 installs 0x41c30 (which
+  calls 0x41180 and then `fild [obj+0x107]` -> `fstp [obj+0x14c]`)
+  and 0x41460 (`fild [ebx+0x102]`, an arithmetic use - it never
+  WRITES 0x1e). Neither writes 30, and the port keeps 30 there as a
+  named model. The other answer-A receiver this PR read, 0x34020
+  (table 0x9e134), is the object-side one PR-89 quoted: it dispatches
+  on the deliverer's class token against the globals
+  `ds:0xcecf0..0xced04` - 0xced00/0xcecf0 substitute
+  `[receiver+0xad]*30/100+10` (0x34037/0x3406b: `shl 4`, `sub`,
+  `lea [eax+eax*1]` = *30, `idiv 100`, `+10`), 0xcecf8 sets
+  `[receiver+0xad] = -1` (0x340a7), the 0xced04 branch (0x340c8/
+  0x340db) is PR-89's stomp and takes the fixed `mov ebx,0x1e`
+  (0x34103), and the default at 0x340ce jumps to 0x34108 forwarding
+  the incoming damage unchanged. So `LL_LION_HIT_DAMAGE = 30` stands
+  as the stomp value; what the engine really passes for any hit is
+  `[deliverer+0xb1]`.
+
+- `[obj+0xad]` / `[obj+0xb1]`, THE TWO NUMBERS. `[obj+0xad]` is the
+  energy counter: 0x54550 is exactly `sub [eax+0xad],ebx`, and the
+  answer-C tail compares it before/after (above). `[obj+0xb1]` is the
+  deliverer's damage: it has ONE setter in the image, 0x1e540 (`mov
+  [eax+0xb1],edx` plus `or dl,0x40` into `[obj+0x66]`), reached
+  through the thunks 0x207cf and one table slot (0x96ce8); it is
+  zero-initialised at 0x22e48, copied field-for-field by the
+  object-construction chains (0x1ed27, 0x24583, 0x28d45, 0x2e2f3,
+  0x2fb7f, ...), and hard-coded to 0x14 = 20 for one class at
+  0x362d2. That pattern - authored attribute, copied onto instances,
+  one default of 20 - matches the shipped `.des` values exactly
+  (`damage=10` x6, `damage=15` x2, `damage=20` x2 in the ZARIA.01
+  .des texts this PR re-extracted), but the grammar that feeds
+  `[obj+0xb1]` from the text was NOT pinned here, so the value the
+  port supplies stays a model, counted below.
+
+- WHAT THE PORT DOES NOW (the behaviour that ships). A shape contact
+  with a resting animal answers with the push-out and the plain
+  AC_ENEMY raise only - no damage at all. Damage flows only while the
+  object's own window is open (the authored `atc_on` rows), only if
+  the 0x550c0 clash rule does not cancel it, and one landed hit per
+  armed episode: `o->atc_hit` is consumed ONLY when the hit lands, so
+  a cancelled window stays armed. The window law the pins use:
+  LICHA's `A_ATAK` is 8 rows x 400 units with `ATC_ON` on row 4 and
+  `ATC_OFF` on row 8, and a forced state admits its first row on the
+  NEXT iteration (PR-135), so an A_ATAK forced at tick T opens its
+  window at T+16 and closes it at T+32.
+
+- THE TWO RE-PINNED PLAY LEGS (Makefile, with an in-file RE-PIN
+  NOTE). The contact leg, run with `LEO_PLAY_SOLID=1` and no DANGER:
+  tick 37 still prints "first touch raises AC_ENEMY" on LICHA and the
+  solid SEMI push-out at 165,669 still happens, and the leg now
+  asserts that NOTHING prints "hit by" or "ATTACKS through" - a bump
+  against the worm costs no energy at any tick. The DANGER leg
+  (`LEO_PLAY_DANGER=1`) is re-pinned to the window law: 31 = LICHA
+  arms A_ATAK inside the pinned MAIN box, 38 = the touch raises
+  AC_ENEMY with no damage, 47 = the FIRST window hit (31+16) lands
+  for 15 and the lion's energy goes 100 -> 85, 48 = A_DOSTAL with
+  `seq=hit` frame 1, 66 = A_DRAP, 98 = a SECOND arm that belongs to
+  the other placement `LICHA@250 bounds=230,320` and is not a re-arm,
+  114 = its first window hit (98+16), energy 85 -> 70, exactly two
+  "ATTACKS through" lines in the whole run
+  (`test $(grep -c ...) -eq 2`), 133 = A_DRAP again.
+
+- TESTS AND MUTATIONS. `contact_model_selftest` (data-free): the
+  0x550c0 truth table - closed lion window never suppresses;
+  lion right of the object facing right (+1) lands; facing left (-1)
+  suppresses; lion left facing left (+1) lands; facing right (-1)
+  suppresses; EQUAL x gives 0, not -1, and must land - plus the
+  receiver's arm: a landed hit sets the countdown to exactly 0x1e,
+  the next hit is refused and hp is untouched, and `hp < 0` is not
+  hit-able. Mutation controls (/tmp/opencode/pr139_mut/run_mut.sh,
+  base green before and after): M2 invert the 0x550c0 sign ->
+  DETECTED; M3 0x550c0 ignores geometry -> DETECTED; M4 countdown back
+  to 14 -> DETECTED; M5 drop the window requirement (kills G-5's
+  core) -> DETECTED; M7 `atc_hit` never consumed -> DETECTED. TWO
+  SURVIVORS, reported not hidden: M6 (remove the lion's own
+  countdown gate `pl->lock == 0`) and M8 (remove `o->damage > 0`) -
+  on the shipped stage the `atc_hit` flag already limits each window
+  to one hit and every windowed ZARIA placement has `damage>0`, so
+  neither mutant changes an observable tick. The `o->damage > 0`
+  clause is kept because it is 0x50eef's own gate.
+
+- OPEN ITEMS COUNTED (13). (1) Which class tables the `LICHA`,
+  `PAJAK`, `NOSOROG` tokens build: their constructors 0x61890/0x626c0
+  chain into sub-factories this PR did not resolve, so the per-token
+  answer family is pinned only for `SEP`. (2) The animal-side hit
+  receiver chain (0x1ecd0/0x4ffb0, 0x41c30/0x41180/0x41460) is
+  unread: the object-side hp/countdown law is a stand-in for animals.
+  (3) The `.des damage=` grammar into `[obj+0xb1]` is not pinned (the
+  setter 0x1e540 and its thunks are). (4) `0x27260` - the 14/0
+  countdown setter - is referenced by exactly one +0xe4 slot (table
+  0x9a54c) whose family and role are unmapped. (5) `[obj+0x11a]` in
+  {6,7} and `[obj+0x126] != 0` are two more drop gates whose writers
+  are unmapped; the port models neither, so it can accept hits the
+  engine would drop. (6) The consumers of `[receiver+0x10a]`/
+  `[receiver+0x10e]` (last attacker's class token and face) were not
+  found. (7) The `[receiver+0xd2]` -> 0x551f0 drain and the
+  `[obj+0x107]`/`[obj+0x14c]` float pair are unread. (8) The CALLER
+  of the +0x78 answer entries - who enumerates the colliding pairs -
+  is still not pinned; the port's per-object loop is its own model.
+  (9) The `[obj.vt+0x9c]` filter (0x23a40 in 150 tables, 0x3d980 in
+  5) is unread; the port models no filter. (10) The row-record flag
+  word at `[[obj+0x50]+[obj+0x5c]*4]+0x12` was read for two bits
+  only (0x80000, 0x2000); the mapping from the port's `LL_CTRL_*`
+  tokens to that word's bits is not pinned. (11) Whether the AI
+  should arm an attack BY DEFAULT (the DANGER + pinned MAIN box
+  stand-in stays opt-in behind `LEO_PLAY_DANGER`) - unchanged from
+  PR-90, still policy. (12) Whether the engine's `[deliverer+0x66]`
+  bit 6 (set with every authored damage by 0x1e540) gates anything is
+  unread; the port keeps no such flag. (13) Answer-A hands answer-C a
+  third argument, `[obj+0xee]` (0x50ffd), where the animal path
+  passes 0 (0x5526f); what that field is and what answer-C does with
+  `ecx` is unread, and the port has no equivalent.
+
+- CORRECTIONS THIS PR MAKES TO THE RECORD. PR-90's open item "no
+  pinned consumer of `atc_on` in the hit path" is CLOSED (0x4636e ->
+  0xa10f0+4 -> 0x45c20 -> bit 5 of `[obj+0xb6]` -> `[obj.vt+0x40]`).
+  PR-94/96's "[obj.vt+0x40] = is-enemy" is wrong: it is that window
+  bit, and 64 tables install a getter that returns a constant 0.
+  PR-96's shorthand that every answering family installs 0x50f80 is
+  wrong (15 tables; the animals' is 0x552e0). PR-89's countdown 14 is
+  corrected to 30, with the 14's actual owner named (0x27260 via
+  0x9a54c).
+
+- GATES. `make` rc=0 and `make win` rc=0, both zero warnings.
+  `./ll_level --mov-selftest` rc=0 with the new contact leg `(ok)`.
+  `DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/hd_files make -k
+  verify-play` rc=0. Full `make -k verify-all` with the same
+  fixtures: rc=0, "ALL TESTS PASSED (linux + windows + llrs)", 55
+  `(ok)` proofs and zero FAILED - 55 = PR-138's 54 plus this PR's
+  contact leg, no other count changed. Fixture-free
+  (`DATA=/tmp/opencode/nope HD=/tmp/opencode/nope`): rc=0 with the
+  same 23 named SKIP lines (21 `verify-*: SKIP` + the umbrella
+  `verify: SKIP`) and every selftest still running cold. Logs:
+  /tmp/opencode/pr139b_va.log, pr139b_va_nofix.log, pr139b_vp.log,
+  pr139b_selftest.log; the play traces the pins were derived from are
+  the legs' own logs /tmp/opencode/ly_hit.log (no DANGER) and
+  ly_dgr.log (DANGER), kept side by side as pr139_ly_hit.log /
+  pr139_ly_dgr.log.
+
+- HANDOFF UPDATED. Section 6's contact-model row now names the window
+  law and the deleted block; section 7 item 15 marks G-5 CLOSED and
+  reorders what is left (G-9's probe is unblocked at x=180), and item
+  13 gains a PR-139 bullet naming the corrections above.
+
+- EVIDENCE. /tmp/opencode/pr139/ (`fam_census.py`, `fam_slots.py`,
+  `class_of.py`, `class_slots.py`, `dump_table.py`, `scan_tables.py`,
+  `rng.py` the address-range dumper, and `des/` with the ZARIA.01
+  `.des` texts re-extracted for the `damage=` census);
+  /tmp/opencode/mov/ (777 `.MOV` texts, including
+  `ZARIA.01_LICHA_LICHA3.MOV` whose ATC_ON/ATC_OFF rows the window
+  law is read from); the regenerated disassembly
+  /tmp/opencode/vis/text.asm (203,343 lines, sha256 starting
+  `8cf39eb4ad11`) made from the image blob whose sha256 is
+  `edf19a129e85efb8764457a0808e246ca4baf08a9111aa09be4ec99ce6b8c40e`
+  - byte-identical to PR-138's copy, so every address quoted here and
+  there is the same image; /tmp/opencode/pr139_mut/run_mut.sh plus
+  log_c.txt/log_d.txt/log_s.txt (the re-run transcript above is from
+  the shipped tree).
+
 ## Next — pick from the Deferred list below
 
-- G-13 CLOSED BY THE PR-138 RECORD (read it first if this line
-  pulls you back): the engine's ground records ARE the authored .PLT
-  text - one object per polyline, parsing itself into the 13-byte
-  records the segment lookup searches - and PR-136's "surfaces 7-51
-  units above the .PLT" is retracted as screen-x from false-matched
-  single-landmark cameras; every verified frame stands the lion on a
-  .PLT line at d+0. The ground work that remains is now a NAMED
-  port gap, not a mystery: the port places ani_plat= objects but
-  never parses their LOCAL ground lines (ANIPL2.DES: KATAPULT@300,
-  588 "1 7,45;40,45 -6300,-1350", three PALMA entries with world
-  tops 475/380/320), and engine-side nobody was found that fills
-  the entity record tables (0x34850, [obj+0x48]/+0x4c) or what the
-  global +0x394 provider answers (the 0x4ddf0 chain naming
-  MOVEPLAT/MOVERECT at 0x91f42). The PR that pursues G-13's
-  remainder reads that chain FIRST, then parses the ani_plat local
-  lines behind a hand-derived test with mutation controls. If that
-  is not next, pick from the PR-131 gap list G-3..G-12 - the
-  current text of every item is HANDOFF.md §7 item 13.
+- G-5 CLOSED BY PR-139 (read that record first): an authored
+  `damage=` reaches the LION only through the object's OWN attack
+  window (answer-C 0x55130 behind the 0x550c0 clash rule), that
+  window is the authored `atc_on` row directive (its applier 0x45c20
+  writes the very bit the collision path tests), the DANGER branch
+  delivers the level's `danger_power` which no shipped level authors
+  - so the receiver's own `damage == 0` gate answers "nothing" - and
+  the repeat-hit countdown is the 0x1e = 30 that the lion's own class
+  table 0x96960 ("TLewZaria") installs, not PR-89's 14, which belongs
+  to one other family (0x27260 via table 0x9a54c). A bump against a
+  resting animal costs no energy at all: that is what the two
+  re-pinned play legs now assert, and the 13 open items the record
+  counts are where the reading stops.
+
+- NEXT PR (PR-140): G-9's climb probe, now UNBLOCKED. The stage audit
+  had the port's lion dying of contact damage around x=153-180, which
+  is exactly where the clip climbs, so the probe could not run. Re-run
+  it with the corrected model: start the lion west of the worms, walk
+  east, and measure whether he reaches the climb at x=180 and what the
+  first screens' ground and objects actually do to him, with the A-clip
+  edit cuts at 6.35-7.35 and 11.0-11.35 s as the comparison (never
+  integrated across). Every standing claim must name its tier: tier-1
+  is two DISTINCT static landmarks agreeing, first screen only, camera
+  x 1..122; anything mid-level is tier-2 by definition and must say
+  so. If the lion still stops at x=180, the next hole is step height
+  and ground, not contact - read it as G-13's remainder, never as a
+  fitted constant.
+
+- THEN, from the PR-131 gap list (the current text of every item is
+  HANDOFF.md §7 item 15): G-8's HUD lives - both R3 clips start at
+  "5" while the port prints a hard-coded 6, so map the STATUS.LEO
+  fields instead (that is also the only way a "did this bump cost
+  life" question could ever become a video claim; G-5 made it moot on
+  the engine side); G-3's ZAR.BLK corridor and the KAMIEN sixth field
+  (1308/1218/1115 decreasing toward 1299..1620); G-13's remainder
+  exactly as the PR-138 record names it (the port places ani_plat=
+  objects but never parses their LOCAL ground lines - ANIPL2 KATAPULT/
+  PALMA - and engine-side the entity record table 0x34850
+  [obj+0x48]/+0x4c and its MOVEPLAT-chain provider are unread); then
+  G-7 (the water surface as a floor), G-12 (the SURPRISE "?" firing)
+  and G-10/G-11 (the level-end scene and the mid-level bird
+  sequences - no bird leaf exists in ZARIA.01's ANIMACJE tree).
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
 first item and PR-45 its second (the authored scene), PR-46 its third
