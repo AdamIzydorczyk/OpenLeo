@@ -7039,6 +7039,23 @@ happened.
   RECEIVER for type 0x1c that posts through 0x52cc0 when the
   received record's [msg+4] == 0x1c. The full 14-site list and
   the receiver lead are in the PR-151 section.]
+  [FLIPPED by PR-153 F3/F4: this handler is ALIVE and its
+  entry is 0x1e130 (`push ebx; push ecx` sit BEFORE 0x1e132 -
+  a listing BOUNDARY ARTIFACT; PR-129's and PR-152's zero-
+  reference censuses searched non-entry addresses). Dword
+  census: 0x96970 = TLewZaria+0x10, 0x97980 = TLewZariaB+
+  0x10, 0x97aa8 = TLewZariaB+0x138 - the type-5 arm and the
+  type-0xc arm ([obj+0x12a]=1; PR-151's "no live ZARIA-path
+  writer" is thereby CORRECTED) are live ZARIA code; the
+  types<5 tail-call IS the base delegation, as written. And
+  0x52cc0 is NOT a queue-post helper but a HIT pipeline:
+  slot +0x30 (ZARIA's 0x23a00 = `[obj+0x54]` getter), +0x24
+  (lion 0x52a50 = ask [[0xcef40]+0x394]+0x68, the PLAYER
+  field), +0x28 (0x52a90 chains the getter, tests [self+
+  0x20]), then 0x56600(self,kind) -> [[self+8]+0x18] (bare
+  `ret` in EVERY lion table; 0x3f0f0, geometry, in the ladder
+  table 0x97cdc) and [self+0x20]=1. Whole detail: the PR-153
+  section, Findings 3 and 4.
 - THE LION CONTROLLER CHAIN (the one measured runtime driver of
   +0x14). Slot +0xd0 = 0x50ed0, present at +0xd0 in 12 lion tables
   including both bases (0xa2218+0xd0, 0x97970+0xd0, and the ten
@@ -7126,7 +7143,9 @@ happened.
   9..0x21 lion range mean); (5) [obj+0x126] authoring, [obj+0x11a]
   enum values, [obj+0x10a]/[obj+0x10e] consumers; (6) the
   unreferenced 0x4a4be/0x1e30c/0x1e12f cluster - dead code or read
-  path missing; (7) the four object lists at [level+0x58]/+0x64:
+  path missing [the 0x1e1xx member RESOLVED ALIVE by PR-153
+  F3: entry 0x1e130, three class-table references]; (7) the
+  four object lists at [level+0x58]/+0x64:
   which placement section feeds which list.
 - Docs: this record in NEXT_STEPS.md; mirrored into HANDOFF.md §7
   item 13 and the §8 pacing paragraph; engine-comparison comments
@@ -15703,49 +15722,49 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- THE K_GEN1 CHAIN TRACE IS THE READING PR NOW (PR-153) -
-  PR-152 turned the blank into a six-link named chain whose
-  two decisive gaps are: (a) THE RECORD LAYOUT: the hand-off
-  scan compares [record+0x4] against the per-class constant
-  6, and the authored value 6 sits at the SECOND field of the
-  gated row lines (`4,6,GEN AC_TIME`) - verify the record
-  builder (the 0x524xx/0x525xx parse PR-100 read as "row
-  field 2 = 6") produces that word at +0x4; if yes, the
-  ZARIA hand-off is authored to fire from A_WALK/A_ZABLOK
-  rows 7-8; (b) THE QUEUE CONSUMER: who drains the message
-  queue 0x52b10 and runs the receiver 0x50d60, and what type
-  field the hand-off's node (posted by 0x50c50 via 0x52b10)
-  carries - the type-9 arm 0x50df4 is PR-70's bit-54 setter,
-  so if the node type is 9 the chain CLOSES: A_WALK rows 7-8
-  -> hand-off -> queue -> bit 54 -> the ladder's A_UP(1)=
-  K_GEN1 exit and the player's climb rows. Also on this
-  pass: 0x4aa60 (the +0x80 delegate the base hand-off calls)
-  and the [[companion+8]+0xe0] test; the [obj+0x160] mode
-  machine around the second +0x100 site (0x41b6a, table
-  0x41a40); which states reach A_WALK/A_ZABLOK row positions
-  7-8 in ZARIA.01 gameplay (the port rig can answer this
-  part with data).
-- THEN THE WAIT ROW-GATE LAW, now DOUBLY load-bearing: the
-  field-2 = 6 gate value IS the hand-off match constant
-  (PR-152 F3) - model the gate and the hand-off together or
-  not at all. THEN THE y-FORCE / INPUT-BLOCK PATH (the
-  0x58690 + 0xcf400 block source, 0x549f0's seeding, the
-  0x54250 velocity law - M9/M10's other half).
-- THEN the small studies: the BY_TIME guard 0x543f2, the
-  scene-side BY_TY mirror, the dead-region 0x50252 follow-up,
-  the 20-vs-10 force scale question; PR-152's counted items
-  (the key-registry chain +0xc/+0x14 slots, 0x57d30, the
-  0x9620c.. entries, the stub's code-range branch, the
-  type-9..21 receiver arms, the 0x50b30..0x50c2c method
-  entry, the +0x7c factory tail).
+- THE BIT-54 BRIDGE IS THE READING PR NOW (PR-154). PR-153
+  narrowed the K_GEN1 gap to one exact question: WHO WRITES
+  BIT 54 (or the row-55 stamp) INTO THE RIGHT OBJECT - the
+  chain up to the type-5 hand-off node is byte-verified and
+  its receiver effects are named (latch, stamp, hit pipeline),
+  but no static path raises the bit. In priority order:
+  (a) THE STAMP OBJECT'S CLASS TABLE: 0x443b0 stores 0x98278
+  at [obj+8]; the same table neighborhood (0x98274) is ref-
+  erenced from ZARIA-era lion code (0x1e3d4, 0x1e9d0, 0x1efb0
+  in the 0x1e952 enqueue's own method!) - read the table's
+  slots (its head 0x23e30/0x23ed0/0x23ea0/0x23e00), resolve
+  the 0x98274-vs-0x98278 off-by-4 (slot-shifted table or two
+  tables - and this IS PR-150's counted 0x98274 gap, now on
+  the hand-off path); the stamped fields ([t+0x5c]=55, [t+
+  0x6c]=count) live in a row-cursor/live-set field map - the
+  class answers what they mean. (b) THE FOUR DYNAMIC-edx EN-
+  QUEUE SITES: 0x1ef22, 0x330a7, 0x4bcd7, 0x4bd13 - read the
+  20 bytes before each call and name the type fields; if any
+  can pass 9, the bit-54 arm is reachable. (c) THE KIND-OB-
+  JECT TABLES ds:0xcf0ac/ds:0xcf0b4: find the builders (the
+  0x56600 guard reads the count; no writes matched the obvious
+  greps - try the singleton-init region near 0x5c8xx/0x5bf10)
+  and read what kind-9 / kind-0x31 OBJECTS are (0x3f0f0, the
+  ladder's +0x18, consumes one - geometry/flags over [obj+
+  0xa5]/[obj+0xb1], NOT bit-54). (d) THE WAIT-NODE GETTERS
+  (0xa11c8 slots - PR-126 item 3 finish): do `WAIT K_GEN1`
+  rows contribute keys or consume them; this decides the
+  `1,0,WAIT K_GEN1` gate AND the row-gate law at once. THEN
+  the WAIT row-gate CODE pass (field 2 is now verified as the
+  gate word AT record+0x4 - model the gate and the +0x104/
+  +0x108 hand-off together; the port already stores the field
+  - PR-100's law + PR-153 F1 give the whole engine law), the
+  y-force/0xcf400 path, then the small studies and the stand-
+  ing PR-150/152 items ([obj+0x160] machine 0x41a40; 0x4aa60;
+  [[companion+8]+0xe0]; the companion runtime identity; the
+  rectangle format; the LINA-family table; the flag feature).
 - THE kind-4 CODE PASS stays DEFERRED to an ENA/SADES/TUNGA-
   era controller (PR-151); the y-override and the 20-vs-10
   scale questions return with it.
-- READING LEADS with addresses, still the user's call: the
-  standing PR-150 items (authored rectangle format; the
-  LINA-family class table; object-asked answers; the
-  [obj+0xa5]/[self+0x66] flag feature; the 0x238e4/0x98274
-  gaps).
+- METHOD NOTE carried forward: entry claims need prologue-
+  byte scans / dword censuses, never the objdump listing's
+  first line (three boundary artifacts caught in one pass:
+  0x1e130, 0x52b50, 0x749a0).
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f and
   the TRASA pair as leads).
@@ -15917,10 +15936,20 @@ no port behaviour change)
   fires; (3) the +0x100 hand-off resolves [obj+0x112] and
   runs the companion's +0x118/+0x80; (4) the +0x118 body
   posts a node to the global message queue 0x52b10 carrying
-  the facing; (5) the base message receiver 0x50d60's table
+  the facing [CORRECTED by PR-153 F2: the queue is NOT
+  global - 0x52b10 appends to a PER-OBJECT list at [obj+
+  0x10], here the COMPANION's; consumer 0x52b50 drains each
+  node through [[obj+8]+0x10], the owner's receiver]; (5) the
+  base message receiver 0x50d60's table
   arms types 9..21 - and its type-9 arm (0x50df4) is PR-70's
   bit-54 (K_GEN1) setter (PR-70's reading, not re-verified
-  this pass); (6) K_GEN1 in the right live set drives
+  this pass [VERIFIED byte-by-byte by PR-153 F5: guard [obj+
+  0xad] < 100, a 12-byte buffer filled 0 by 0x749a0 then
+  `or byte [buffer+6],0x40` = bit 54, 0x49580-OR into [obj+
+  0x60], then [obj+0xad] += 32. But PR-153 F6: the 66-site
+  0x52b10 census has NO static type-9 feeder - the arm is
+  verified, the bridge to it is not yet.]); (6) K_GEN1 in the
+  right live set drives
   the ladder's `A_UP(1)=K_GEN1` (PR-150's authored row) and
   the player's own climb rows. THE GAPS THAT DECIDE IT
   (named, in order): who consumes queue 0x52b10 and runs
@@ -15930,7 +15959,10 @@ no port behaviour change)
   scanned +0x4 word the row line's second field?). NOTE:
   the 0x1e12f/0x1e132 handler PR-129 named dead is
   ZERO-REFERENCED again this pass (dword + rel32 censuses
-  clean), and the LIVE base receiver 0x50d60 passes types <9
+  clean [CORRECTED by PR-153 F3: boundary artifact - the
+  entry is 0x1e130 and it IS referenced (TLewZaria/TLewZar-
+  iaB+0x10); the pairing below is live-to-live, not dead-
+  to-live], and the LIVE base receiver 0x50d60 passes types <9
   (incl. 5 and 0xc) to its inert tail - which strengthens
   PR-151's finding that nothing on the live +0x10 path ever
   arms [obj+0x12a]; but the SAME counter [ds:0xa94f4]
@@ -15993,6 +16025,295 @@ no port behaviour change)
  (13 .DES + 4 text), ZARIA1.DES whole, ZWIERZ1/2.DES whole,
   mov/ZARIA.01_LEW.ZAR_LEW.MOV (AC_BREAK_NEXT record lines
   59/770/790/808), ll_play.h signal enum cited verbatim.
+
+## PR-153 — THE K_GEN1 CHAIN TRACE: THE MESSAGE QUEUE, ITS
+## CONSUMER AND THE RECEIVER CENSUS (ZARIA'S "DEAD" HANDLER IS
+## ALIVE - A DISASSEMBLY BOUNDARY ARTIFACT); THE ROW-RECORD
+## LAYOUT CLOSES THE HAND-OFF LAW (FIELD 2 AT RECORD +0x4); THE
+## STATE-MACHINE PIPELINE IS ONE TICK METHOD (0x536f0) THAT
+## EVERY LION TICK CALLS; BIT-54 SETTER BYTE-VERIFIED; THE
+## HAND-OFF RECEIVER'S ACTUAL EFFECTS NAMED (READING RECORD -
+## NO CODE CHANGE; PR-138..152 PRECEDENT)
+
+- WHY. PR-152's Next named two decisive gaps: (a) the record
+  layout behind the hand-off scan, (b) the queue consumer +
+  the posted node's type. Both closed - and the pass surfaced
+  two corrections bigger than the questions asked. Image
+  unchanged (text.bin sha256 edf19a129e85efb8764457a0808e24
+  6ca4baf08a9111aa09be4ec99ce6b8c40e).
+
+- FINDING 1, THE ROW-RECORD LAYOUT - HAND-OFF LAW CLOSED. The
+  array [[obj+0x50]+[obj+0x5c]*4] holds 72-byte records: the
+  allocator 0x518f0 gives 0x48 and 0x517e0 copy-constructs
+  from the parsed line (dword@+0x0 = field 1 = the FRAME
+  SELECTOR per PR-133, dword@+0x4 = field 2 = PR-100's
+  gate/threshold value, then word fields +0x8/+0xa/+0xc,
+  dword +0xe...). The vtable is at +0x44 (0xa260c/0xa25d4
+  sub-tables; 0x535a0,
+  the row switch, calls slot +0x1c = row-ENTER and +0x20 =
+  row-EXIT through it). So the hand-off scan's `mov eax,
+  [record+0x4]` IS the authored second field: ZARIA's -6
+  constant matches exactly the rows at POSITIONS 7-8 of
+  A_WALK (`4,6,GEN AC_TIME`/`5,6,GEN AC_TIME`) and A_ZABLOK
+  (`4,6`/`5,6`) - inside the +0x104 window - and no other
+  ZARIA rows at those positions (A_JUMP 225/900, A_DEAD 400,
+  ...). PR-152 open item 7 CLOSED at the layout level; "which
+  state reaches rows 7-8 in play" stays (item 5 below). The
+  two record systems are now separated for good: TRANSITION
+  records (compiled `( N )=SIG` exits) are 21-byte blocks at
+  [[obj+0x1a]], count [obj+0x22], walked by 0x52000 (stride
+  0x15), kind byte +0xc -> EventSet::match 0x47e40 (a cs-
+  table switch at 0x47e30 on [rec+0xc] 0..3), target +0xd,
+  N-field +0x11; ROW records are the 72-byte structures above.
+  GEN/Wait sub-nodes: the parser branch comparing the token
+  against literals 0x91985 'GEN' / 0x91989 'Wait' allocates
+  21-byte nodes with vtable 0xa11e0/0xa11c8 at +0x4, copies
+  the 12-byte parsed payload to +0x8, zeroes the kind byte at
+  +0xc, and REGISTERS the node by name through 0x47d60 ->
+  0x57d30 over the descriptor root 0x961fc (token grammar
+  0x919bc ' %[^, \r\n\t]') - PR-126's item (3) is half an-
+  swered: WAIT rows DO build keyed nodes (the named class ta-
+  bles; their getter semantics stay open, item 6).
+
+- FINDING 2, THE MESSAGE QUEUE FULLY READ. 0x52b10 (entry de-
+  coded from raw bytes - the listing boundary hides its head)
+  appends a 16-byte node to a PER-OBJECT list at [obj+0x10]:
+  +0 next, +4 = edx (the TYPE), +8 = ebx (payload), +c = ecx.
+  The consumer 0x52b50 (entry at 0x52b50; PR-152 pointed one
+  byte off) walks the list and calls `[[obj+8]+0x10](obj,
+  node)` per node - THE receiver slot - freeing each node
+  (0x5c370). The PUMP 0x52b80 = drain + `[[obj+8]+0x14]`
+  (the tick slot) + conditional `[[obj+8]+0x0](obj, edx=2)`
+  gated on [obj+0x28] != 0; its callers are the container
+  loop 0x55380 (iterates [[ecx+0x40]+i], count [ecx+0x3c])
+  and 0x4aed6/0x4baed/0x4bb12/0x55696/0x556af. The object's
+  own +0x10 FIELD is the queue head while `[[obj+8]+0x10]`
+  resolves through the CLASS TABLE - no collision. The hand-
+  off node (0x50c50) carries TYPE 5 (the enqueue's edx=5;
+  PR-152's caution re-confirmed), payload = [self+0x6d] (the
+  facing sign - the writers store 0xffffffff/1 at 0x324a1 etc.
+  - the receiver dereferences payloads as objects, an open
+  contradiction, item 4), aux 0. PR-152 open item 1 CLOSED:
+  the drainer, the receiver ownership and the type are known;
+  WHICH object's queue (the companion) stays the runtime
+  question (item 5).
+
+- FINDING 3, ZARIA'S "DEAD" MESSAGE HANDLER IS ALIVE - THE
+  BIGGEST CORRECTION OF THE PASS. The real entry is 0x1e130
+  (`push ebx; push ecx` at 0x1e130/0x1e131 - the objdump
+  listing boundary starts the method at 0x1e132, so PR-129/
+  152's zero-reference censuses on 0x1e12f/0x1e132 were cor-
+  rect-but-useless). A +0x10-slot census over the class ta-
+  bles finds the entry stored three times: 0x96970 = TLewZar-
+  ia+0x10, 0x97980 = TLewZariaB+0x10, and 0x97aa8 = TLewZar-
+  iaB+0x138. The base pair 0xa2218 keeps 0x50d60; TLewEna
+  0x24170, TLewSades 0x2e8e0. The +0x14 tick slot is 0x550a0
+  everywhere (see Finding 5) and +0x18 is 0x23c60 = a BARE
+  RET in every lion table. Ladder table 0x97cdc: +0x10 =
+  0x53770 (handles msg type 0x10 with magic payload 0x8138764
+  specially, else delegates to 0x52bb0 = the general receiver,
+  which implements ONLY type 1 (attach: splice the object at
+  [obj+0x34/0x38]) and types 0xe/0x21, everything else a
+  ret), +0x14 = 0x536f0, +0x18 = 0x3f0f0 (geometry/flag ma-
+  chinery over [obj+0xa5]/[obj+0xb1], NOT bit-54). ZARIA's
+  receiver 0x1e130 dispatch: type 5 = the hand-off arm (see
+  Finding 4); type 0xc sets [obj+0x12a]=1 (PR-151's "no live
+  ZARIA-path writer" is CORRECTED - the live receiver arms
+  it); every other type DELEGATES to the base 0x50d60. Two
+  sibling receivers with the identical type-5 shape exist in
+  other eras: 0x27470 (referenced once: 0x9a55c = +0x10 of a
+  mid-era lion table) and a third body reached via 0x33edb -
+  they differ only in the kind passed to 0x52cc0 (9 for ZA-
+  RIA, 0x31=49 for the 0x27470 class).
+
+- FINDING 4, WHAT THE HAND-OFF RECEIVER ACTUALLY DOES (AND
+  0x52cc0 IS NOT A QUEUE POST). 0x1e130's type-5 arm: pay-
+  load non-zero -> `[[payload+8]+0x0](payload, edx=2)`; then
+  [ds:0xa94f4]++ (PR-152's "dead-handler pairing" now fully
+  resolved: both sides are LIVE code - the same counter the
+  hand-off guard 0x50b6a tests to SUPPRESS further hand-offs
+  - a one-shot hand-off latch); then 0x44900([[ds:0xcef40]+
+  0x38c], edx=count) - a two-instruction stamp: [t+0x5c]=55,
+  [t+0x6c]=count; then 0x52cc0(self, 9). And 0x52cc0 self,
+  kind): it calls `[[self+8]+0x30]` (ZARIA's 0x23a00 = a one
+  instruction `[obj+0x54]` getter), `[[self+8]+0x24]` with
+  edx=0 (the lion tables hold 0x52a50 = forward the ask to
+  [[ds:0xcef40]+0x394]+0x68 - THE PLAYER singleton field),
+  `[[self+8]+0x28]` with edx=0x80 (0x52a90 chains the +0x30
+  getter and tests [self+0x20]), THEN 0x56600(self, kind):
+  guard kind < [ds:0xcf0b4], kind-object = ds:0xcf0ac[kind],
+  call `[[self+8]+0x18]` - INERT for every lion table (bare
+  ret), geometry for the ladder - and finally [self+0x20]=1.
+  So 0x52cc0 is a hit/damage-style pipeline (its +0x24/+0x28
+  slots are PR-104's damage-ask/apply pair), NOT a message
+  post: PR-129's "0x52cc0 ... message-posting helper" half-
+  corrected in place (the 14-site list and edx=9 census were
+  already corrected by PR-152 F5), and PR-152 F4/F5's wording
+  that treated 0x52cc0 as posting into a queue is bracketed.
+  WHO WRITES [[ds:0xcef40]+0x38c]: the main-.des key handler
+  region - after the key literals 'sample'/'lew'/... (0x4d02a
+  /0x4d067...), the block at 0x4d5a3..0x4d63e builds a reg-
+  istry query (0x4d910 over the descriptor root 0x961fc),
+  searches it (0x57dd0, 'none' checks at 0x4d5d6), and on a
+  hit ALLOCATES 0x8c bytes, constructs via 0x4a910/0x443b0
+  (which stores a POINTER to the static object 0x98278 at
+  +0x8 - PR-150's "0x98274 gap" neighborhood) and stores it
+  at [singleton+0x38c]. The stamped fields (+0x5c = 55, i.e.
+  a ROW POSITION beyond every authored state's row count, and
+  +0x6c = the counter, inside the live-set field span) are
+  recorded exactly; their semantics stay open (item 5).
+- FINDING 5, THE STATE-MACHINE PIPELINE HAS ONE ENTRY AND
+  EVERY LION TICK RUNS IT. 0x53520 (scan), 0x535a0 (apply)
+  and 0x523f0 (row-key feed) each have EXACTLY ONE caller -
+  all inside 0x536f0..0x5374b. 0x536f0 = the ladder table's
+  +0x14 tick - but ALSO the lion tables' +0x14 = 0x550a0 is
+  two field zeroes ([obj+0xe6], [obj+0xea]) and `call 0x536f0`
+  - so PR-151's "controller pipeline" IS every lion/level-
+  controller tick, with the class slots as the per-level
+  customization layer, in tick order: (1) `[[obj+8]+0x8c]`
+  -> 12-byte set -> 0x49580-OR into [obj+0x60] (ladder's
+  supplier 0x23a60 = the EMPTY set - authored negative; the
+  LION's is the real feed 0x504e0); (2) 0x523f0(self, rec
+  at [obj+0x50]+[obj+0x5c]*4) -> 13-byte key -> OR into the
+  live set (the row feed raising the current row's signals);
+  (3) `[[obj+8]+0x54]` (the threshold-node machinery of PR-
+  100's row law - the 0x522fc..0x52336 block compares com-
+  piled-node [node+0x10] against the accumulator [obj+0xa1]
+  and runs node handlers); (4) 0x53520 = copy live set ->
+  0x52000 scan with CONTEXT = the 12-byte copy of [self+
+  0x60] (`mov edx,esp` at 0x53569 - the match tests the OB-
+  JECT'S OWN live set) -> `[[obj+8]+0x90]` hook (the two
+  image-wide sites: 0x5357d here, plus the one-shot builder
+  0x3ed70 at 0x3edaf - its ZARIA hook reading stands); (5)
+  0x749a0 fill-0 over [obj+0x60] (PR-151's "0x749a0 clears
+  the live set" byte-verified - it is a fill primitive: byte
+  dl replicated, count ebx=0xc, via 0x77c00); then the tick
+  returns and 0x535a0-apply runs from the caller (0x5374b)
+  before a second +0x54 call and +0x28. THE BIT-54 SETTER IS
+  BYTE-VERIFIED (PR-70 CONFIRMED): 0x50d60's type-9 arm
+  0x50df4: guard [obj+0xad] >= 100 -> exit; else 0x749a0
+  fills a 12-byte buffer with 0, `or byte [buffer+6], 0x40`
+  = BIT 54 = K_GEN1, 0x49580-OR into [obj+0x60], and
+  [obj+0xad] += 32 (PR-151 F2b's [obj+0xad] -30 bite in
+  ZARIA's hook is the same countdown field - one resource
+  across the two reads). The base receiver's switch otherwise:
+  [msg+4]==1 special when [obj+0x126]!=0 (0x50e58 path),
+  types 9..21 via the cs-table 0x50d20 (arms 10/11/15 skim-
+  med: +0xd8/+0xe0 delegations, 21 = [obj+0x116]=1), all
+  other types inert.
+- FINDING 6, THE K_GEN1 GAP FULLY CHARACTERIZED (THE PASS'S
+  REAL PRODUCT). Chain as it now stands, all links named and
+  verified at bytes: (1) the LION CONTROLLER object (class
+  TLewZaria, created from the main-.des `lew=` line) at rows
+  7-8 of A_WALK/A_ZABLOK, field-2 = 6; (2) the +0x104/+0x108
+  gates fire; (3) the base +0x100 resolves the [obj+0x112]
+  companion (key registry - no authored name) and calls its
+  +0x118; (4) ZARIA's +0x118 0x50c50 appends a TYPE-5 node
+  to the COMPANION's own queue [companion+0x10]; (5) the
+  container pump 0x55380 -> 0x52b50 drains it into the
+  companion's +0x10 receiver; (6) IF the companion is ZARIA-
+  class (a self/second-lion hand-off), its receiver's type-5
+  arm runs: latch [0xa94f4]++ (suppresses FURTHER hand-offs
+  - one-shot), stamps the .des-built singleton at [0xcef40]+
+  0x38c (row 55 + count), runs the hit pipeline with kind 9.
+  WHAT THIS DOES NOT DO: the type-5 arm never raises bit 54;
+  bit 54's ONLY verified raiser is the type-9 RECEIVER arm
+  (needs a TYPE-9 queue node) and the GEN row feed (0x523f0
+  ORs the current row's signal key). THE AUTHORED NEGATIVES,
+  now on FULL scripts (the whole-CD extraction): drab.MOV and
+  lina.MOV (ladder + rope, both states, every line) contain
+  ZERO GEN tokens - only the `A_DROP(1)=K_GEN1` exit and the
+  `1,0,WAIT K_GEN1` gate; the ladder's +0x8c feed is the
+  empty-set stub; and the 0x52b10 enqueue census (66 sites,
+  every static edx) shows NO type-9 anywhere: types seen are
+  1(7),2(6),5(6: 0x1ed3a, 0x28d50, 0x36e63, 0x3daa8, 0x50c60
+  = THE HAND-OFF, 0x73f00),8,0xa,0xb,0xd(4),0xf(6),0x10,0x11,
+  0x12(2),0x14,0x15(4),0x19(11),0x1b(4),0x1d,0x1e,0x21 - and
+  FOUR DYNAMIC-edx sites (0x1ef22, 0x330a7, 0x4bcd7, 0x4bd13)
+  where the type is a runtime value (item 2). So the ladder's
+  own K_GEN1 (its answer per PR-150, its `A_DROP(1)=` exit
+  against its own live set per (4)) cannot come from its own
+  rows or a static message: the remaining candidates are the
+  dynamic-enqueue sites, the 0x38c-singleton stamp path
+  ([t+0x6c] IS in the live-set span - setting dword at +0x6c
+  writes live-set bits 96+... but for the .des-built object
+  the field map may differ), and the WAIT-node getters (the
+  0xa11c8 class). The chain is NOT closed and no invented
+  bridge is shipped - the gap is now exactly: who writes
+  bit 54 (or the row-55 stamp) into the right object.
+- OPEN ITEMS COUNTED (8 new). (1) Semantics + class of the
+  [[ds:0xcef40]+0x38c] stamp object (0x8c bytes, ctor 0x4a910
+  /0x443b0, stores POINTER 0x98278 at +0x8 - PR-150's 0x98274
+  gap family) and the meaning of [t+0x5c]=55 / [t+0x6c]=count.
+  (2) The four dynamic-edx enqueue sites - can they post
+  type 9? (3) Runtime builders of ds:0xcf0ac/ds:0xcf0b4 (the
+  kind-object table; what kind 9 / kind 0x31 objects ARE).
+  (4) The type-5 arm dereferences payload+8 as a class table
+  while the hand-off sends the ±1 facing sign - which pay-
+  loads are objects? (5) The companion identity at runtime
+  (still the key-registry question). (6) WAIT-node (0xa11c8)
+  getter semantics - do gated rows contribute keys (PR-126
+  item 3, half-closed)? (7) Who posts a TYPE-0xc queue node
+  (the live armer of [obj+0x12a]) - no static site found.
+  (8) The [obj+0x160] mode machine 0x41a40 (second +0x100
+  site, carried), 0x4aa60, [[companion+8]+0xe0], and which
+  states reach rows 7-8 in ZARIA.01 play (port rig can).
+- CLOSED or NARROWED: PR-152 items 1 (queue consumer, node
+  type 5, receiver ownership, pump sites), 3 (0x52b10 head +
+  node fields decoded from raw bytes), 7 (record layout =
+  authored field 2 at +0x4) - and its "dead-handler pairing"
+  resolved (both sides live); PR-151 item 2 CORRECTED ([obj+
+  0x12a] has a live armer: ZARIA receiver's type-0xc arm);
+  PR-129 item "dead override / unreferenced cluster 0x4a4be/
+  0x1e30c/0x1e12f" - the 0x1e1xx member is RESOLVED alive
+  (0x1e130); PR-126 item 3 half-closed (WAIT nodes = keyed
+  0xa11c8 class); PR-104/PR-3961's damage slots placed in a
+  real pipeline (0x52a50 asks THE PLAYER at [[0xcef40]+0x394]
+  +0x68); PR-100's row law placed inside the tick sequence
+  (step (3)); PR-101's node-vtable-at-+0x4 claim verified for
+  GEN/Wait nodes (NOT for the 72-byte row records - those
+  carry their vtable at +0x44); PR-70's bit-54 claim byte-
+  verified; PR-151 F1's pipeline and clear byte-verified with
+  the exact slot order.
+- GATES. Docs-only (PR-138..152 precedent): no ported/, Make-
+  file, tools/ or .gitignore line touched; no build run. Every
+  added prose line <= 79 columns; the over-79 baselines UN-
+  CHANGED (NEXT_STEPS 71, HANDOFF 72); no game data or frames
+  in git (scratch /tmp/opencode/pr153/, out of git); .github/
+  workflows/* untouched; the image unchanged (text.bin sha256
+  above). New method note: objdump BOUNDARY ARTIFACTS are now
+  a standing hazard class for this project - three findings
+  this pass (0x52b50, 0x749a0, 0x1e130) began one to a few
+  bytes BEFORE the address the static listing shows; entry
+  claims must come from prologue-byte scans or dword censuses
+  on candidates, never from the listing's first line.
+- EVIDENCE. rng/objdump dumps: 0x518f0+0x517e0 (row-record
+  alloc/copy grammar), 0x535a0 (enter/exit slot calls), the
+  whole walk of 0x52000, 0x47e40 head (cs-table 0x47e30), 0x46ae1..
+  0x46b36 + 0x47cb0 (GEN/Wait node builders, literals 0x919
+  85/0x91989, vtables 0xa11e0/0xa11c8 - raw bytes dumped),
+  0x47d60 + 0x57d30 head (register-into-key-registry, token
+  format 0x919bc, 'TEventSet::match' error string 0x919d0,
+  signal-name table 0x91a00+), 0x52b00-0x52bc0 raw (enqueue,
+  drain, pump), 0x55380 loop, 0x1e130 whole (the live recep-
+  ver), 0x27470 head (sibling receiver), 0x50df4..0x50e4f
+  (bit-54 arm), 0x536f0..0x53766 (the whole tick), 0x550a0
+  (the lion tick trampoline), 0x53520 head+tail (context =
+  own live set; fill-0 after the hook), 0x749a0 raw (fill
+  primitive), 0x52cc0 + 0x56600 + 0x23a00/0x52a50/0x52a90
+  (the hit pipeline), 0x53770/0x52bb0/0x52bf9 (ladder-side
+  receivers), 0x3f0f0 head, 0x4d5a3..0x4d63e + literal map
+  (main-.des key handler; 'sample'/'lew' at 0x4d02a/0x4d067;
+  'none' checks; the 0x38c store), 0x443b0 head (stores the
+  0x98278 pointer). Censuses: the +0x10/+0x14/+0x18 slots of
+  TLewZaria/TLewZariaB/TLewEna/TLewSades/base pair/ladder
+  table 0x97cdc (ladder table located via +0x78=0x3f1c0); the
+  dword refs of 0x1e130 (0x96970/0x97980/0x97aa8) and of
+  0x27470 (0x9a55c); single-caller facts for 0x53520/0x535a0/
+  0x523f0; 66-site 0x52b10 edx census (reproduced above);
+  0x52cc0/0x56600 caller lists; 0x91f0b 'none'. Authored:
+  mov/ZARIA.01_DRABINKA_DRAB.MOV + ZARIA.01_LINA_LINA.MOV
+  read WHOLE (zero GEN tokens - the full-script negative).
 
 ## Deferred big items (deliberately out of scope so far)
 
