@@ -4885,6 +4885,80 @@ writer as its open items.
       -> PR-190 = the frame-loop + record-chain +
       handler-vector pass. Full record: PR-189 section of
       NEXT_STEPS.md (scratch /tmp/opencode/pr189/).
+   - PR-190 (READING; no port code, no behaviour change):
+      THE LEVEL LOOP 0x4abd0 IS ONE FUNCTION WITH EXACTLY
+      ONE CALLER (0x5d251): head 0x4ac3b re-reads the
+      player + SAMPLES INPUT (0x58690 into a 12-byte block)
+      EVERY ITERATION; the three hotkey legs test the
+      sampled bytes (bit [0x1f9].0x20 / [0x1f8].0x04 /
+      [0x1f8].0x08) and run the FILE/STREAM family (name
+      builders 0x5e030/0x5e0c0/0x5e100 + the 0x60xxx
+      stream API); the end-of-frame label 0x4ae82 =
+      stage test (ds:0xa94f0 == 0 -> exit ebx=2) else the
+      input-push chain + 0x563d0 registry service + the
+      plan-script step 0x4af10 + 0x4b0e0 + `inc
+      ds:0xcef3c` (frame counter, 9th in this ledger's
+      0xcef40-family globals). THE EXIT LAW (PR-147 item
+      (2) CLOSED): ebx=3 = [[player.vt]+0x116]!=0 (the
+      key-state field!), ebx=1 = [mgr+0x4]!=0 (AN EXIT
+      WORD the world writes), ebx=2 = the stage global
+      zeroed, ebx=4 = the hotkey path; the exit tail
+      0x4ae53 stops the devices (0x1cfd0/0x1dba0/0x1cfe5)
+      + pumps THE DEMO ONCE AT LEVEL END (0x4a9f0 census
+      now EXACTLY 2: 0x4a857 level-start + 0x4ae6e) +
+      `mov eax,ebx`; the caller stores CODE->[ebp-0xc]
+      and [mgr+0x4]->[ebp-0x8] = THE LEVEL-CHANGE
+      CONTRACT, then the level teardown (manager +0x3e6
+      verb(2), ds:0xcef40 := 0, key-layer reset 0x1c490).
+      THE 'HANDLER VECTORS' ARE CLASS TABLES (0x9686c-
+      0x98288 = consecutive vtables; install census):
+      0x9803c = the +0xec VERB SLOT of CLASS TABLE
+      0x97f50 (4 ctor installs 0x3f570/0x44e5d/0x4573d/
+      0x4e85b); the 0x41a50 jump-table arms are ITS OWN
+      slots +0xf4/+0xf8/+0xfc/+0x100 = 0x41410/0x41460/
+      0x41480/0x41600 (FP cmp [obj+0x10b] vs [obj+0x12f]
+      = the +0x100 arm; 0x418f0 = [obj.vt+0xf0]-based);
+      THE SELECTOR [obj+0x160] HAS EXACTLY ONE WRITER
+      whole-image (0x415d3, inside the +0xfc arm 0x41480
+      after its [obj.vt+0xec] self-call) - PR-189 item
+      (2) CLOSED; 0x98274/0x98278 = THE UNIVERSAL
+      BOUNDS-METHOD CLASS (extent / print-leg / point-
+      writer / rect-contains, INSTALLED BY 85 CTORS) -
+      PR-189's 'animation-table' READING CORRECTED (the
+      0x27170 leg: out-of-bounds REQUEST msg via
+      [obj.vt+0x10] against EXTENTS 0x143/0x18b, then
+      live-key bit test). 0x49580 = THE LIVE-KEY
+      PRODUCER: 69 E8 callers, 31 with +0x60-region
+      targets (12 add-form + 19 lea-form) - verb results
+      are OR-MERGED into [obj+0x60..0x6b]; NOT an
+      appender (PR-88/101 OR-INTO law RESTORED; PR-189's
+      'record append' phrasing CORRECTED x5 sites) -
+      PR-189 item (1) CLOSED. [mgr+0x30] IS THE LEVEL-
+      PLAN SCRIPT: 0x4af10 executes ONE CHAR/FRAME,
+      alphabet 'A','B','L','T' ONLY else print 'Bledny
+      opis poziomu - plany'; 'A' -> 0x4b360 spawn
+      handler, 'L' -> [[player.vt]+0x74] + 0x4b2f0
+      entity-chain tick ([mgr+0x64]->[node+0x34],
+      [node.vt+0x60]/+0x74), 'T' -> camera scroll ops,
+      'B' -> 0x448c0/0x4a170/0x49bd0 leg ([esp+4] =
+      [mgr+0x3ce]); the 0x4b140 walk = count AUTHORED
+      'A' spawn-requests up to 'L' + membership test
+      0x4b0f0 (the manager's 3 object vectors
+      [+0x44/48/4c]x[+0x58/5c/60] + [node+0x34] chains,
+      cap 5) - the pair law's 'do I own my pair?' test;
+      ZERO disp-form stores to [reg+0x30]/[reg+0x34] -
+      author pointer-fed, counted. THE CAMERA ([mgr+
+      +0x390]): 0x576e0 SET-SCROLL to player minus
+      0xa0/0x64 = THE 160/100 CENTER RUNS EVERY
+      ITERATION; 0x57600 APPLY-scroll (0x50 tile stride)
+      - and 0x54450 (PR-189 F4's tail) = A SCREEN-
+      POSITION GUARD vs [rec+0x2]+0x1f4, re-framed. 8
+      new items counted (file-hotkey semantics, plan 'B'-
+      leg + the [mgr+0x4] writer, class identities first).
+      PORT VERDICT unchanged. Next -> PR-191 = the level-
+      plan authoring + file-hotkey + class-identity pass.
+      Full record: PR-190 section of NEXT_STEPS.md
+      (scratch /tmp/opencode/pr190/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -7887,6 +7961,58 @@ entries of the PR-188 carried list. 7 new items counted
 (the [obj+0x160] selector author and the final key-byte
 writer are first).
 Gates: docs-only (PR-138..188 precedent); added lines <=
+79; baselines 71/71 held; the Windows half stays in the
+end pass (rule 8).
+
+STATUS after PR-190 (the frame-loop + record-chain +
+handler-vector pass; docs reading - ZERO port lines
+changed, the ZARIA.01 output image is byte-identical to
+PR-189's; build state = the OWNER GATE (rule 8) measured
+on 7b4d736, only docs moved since).
+
+What this pass GROUNDS for T5:
+(1) THE LEVEL-CHANGE CONTRACT IS EXACT (PR-147 item (2)
+    CLOSED): the level loop is ONE function (0x4abd0)
+    called once; it returns WHY the level ended (player
+    flag / quit request / stage-zeroed / hotkey) and the
+    world leaves an EXIT WORD in [mgr+0x4]; the caller
+    stores both into its result block before teardown.
+    For T5: level transitions are a CODE+WORD handshake,
+    not a callback - the port's level flow stands; the
+    loop SAMPLES INPUT EVERY FRAME and the demo pump
+    runs ONCE at level end - the demo legs stand.
+(2) THE LEVEL-PLAN SCRIPT IS A REAL ARTIFACT (new law):
+    [mgr+0x30] is a character script run ONE CHAR PER
+    FRAME ('A' spawn-request, 'L' entity tick, 'T'
+    camera scroll, 'B' data leg; any other char prints
+    'Bledny opis poziomu - plany' - a NAMED error). The
+    camera law is exact (SET-SCROLL to player minus
+    160/100 EVERY iteration). T5's flow gates and
+    camera moves now have their engine counterparts;
+    plan authoring (the file that fills [mgr+0x30]) is
+    PR-191 item (1) - the last unknown of the level
+    story.
+(3) THE LIVE-KEY PRODUCER IS SETTLED (PR-189 item (1)
+    CLOSED): verb results are OR-MERGED into the live
+    words by 0x49580 (31 of its 69 callers target that
+    region); the interaction SELECTOR [obj+0x160] is
+    authored ONLY by its own class arm (0x41480). The
+    port's key-bit channel remains the right shim; the
+    interaction-dispatch class (0x97f50) is identified
+    structurally, name pending.
+(4) THE 'ANIMATION-TABLE' READING WAS WRONG AND IS
+    CORRECTED WITH DATA: 0x98278 = the default bounds-
+    method class (85 installs) and the 0x27170 leg is
+    an OUT-OF-BOUNDS REQUEST MESSAGE against extent
+    constants 0x143/0x18b - no table-index law to port.
+SELF-CORRECTION SHIPPED WITH DATA: 3 correction
+categories at 9 sites (the 'handler vector / installed
+message handler' x2, the '0x49580 record append'
+phrasing x5 - restoring the PR-88/100/101 OR-INTO law,
+the 'animation-table' x2). Closures: PR-147 item (2)-
+remainder, PR-189 items (1) and (2). 8 new items
+counted (file-hotkey semantics + plan 'B'-leg first).
+Gates: docs-only (PR-138..189 precedent); added lines <=
 79; baselines 71/71 held; the Windows half stays in the
 end pass (rule 8).
 

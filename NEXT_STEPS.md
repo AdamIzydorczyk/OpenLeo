@@ -15832,41 +15832,49 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-190 IS THE FRAME-LOOP + RECORD-CHAIN + HANDLER-
-  VECTOR PASS (the last mechanical legs of the demo/
-  input-record story): (1) THE OUTER FRAME LOOP: read
-  the manager pump body - 0x4a8c0/0x4a8f0 (the [0x3b0]
-  one-shot leg, PR-189 F3), the frame gate 0x4ac76, the
-  input-push chain 0x4ae82-0x4aee0 and 0x4ae53's arms -
-  who decides 'tick one frame', where the 0x49580
-  record-append runs per frame, and PR-147 item (2)'s
-  remainder: the ebx=2-returning functions and their
-  callers (the frame-loop arm at 0x4ae8b); (2) THE
-  HANDLER VECTORS: the 0x980xx table (which holds
-  0x549f0 and the interaction dispatcher 0x41a50 at
-  slot 0x9803c - PR-189 F1) and the 0x98278 table:
-  enumerate every slot, map handler -> owner class, and
-  find WHO indexes them - the author of the BYTE
-  selector [obj+0x160] (PR-189 open item (2)) and any
-  sibling selectors; (3) THE RECORD-CHAIN LAW: 0x49580's
-  append contract + the 0x60-stride record layout + the
-  0x4b140 [mgr+0x30] 'A'-record walk (PR-189 F1's leg):
-  WHO consumes the chain (demo playback vs cheat save
-  vs neither) and what the 'A' tag counts; (4) LIVE-KEY
-  PRODUCERS, ONE BOUNDED ATTEMPT: classify the 37
-  `lea reg,[obj+0x60]` sites read-vs-write (PR-189 open
-  item (1) is the final writer) - if the classification
-  does not isolate it, it stays counted, do NOT re-mine;
-  (5) BRACKET CARE: re-check PR-188/PR-189 claims
-  touching these areas (the +0x44/+0x4c pump correction
-  is SHIPPED - verify the 0x98278 animation-table
-  reading via 0x27170's 0x143/0x18b legs) and close any
-  carried items the frame loop settles. STOP CONDITIONS:
-  every claim byte-backed; the [obj+0x160] author may
-  stay counted if the store census is empty; the
-  spawner-dispatch split (PR-188 item (6)) and the
-  [dev+0xb] entry stay counted; do NOT change port fi/
-  BY_TY/energy values.
+- PR-191 IS THE LEVEL-PLAN AUTHORING + FILE-HOTKEY +
+  CLASS-IDENTITY PASS (the level flow's remaining legs,
+  PR-190 F1/F3's open items): (1) THE FILE-HOTKEY LEGS:
+  the level loop's three hotkey arms test block bytes
+  ([esp+0x1f8] bits 0x04/0x08, [esp+0x1f9] bit 0x20) -
+  WHICH KEYS feed them (PR-189 F4's key-state layer),
+  and the stream families they run: the name builders
+  0x5e030/0x5e0c0/0x5e100 + the 0x60xxx stream API
+  (0x60930/0x60960/0x603b0/0x60820/0x609c0) - map the
+  SAVE/LOAD/RESTART file semantics (name formats, paths,
+  what file each leg opens): closes PR-190 open item
+  (1); (2) THE PLAN-SCRIPT DATA FLOW: the plan 'B' leg
+  ([esp+4] cursor vs [mgr+0x3ce]; bodies of 0x4a170,
+  0x49bd0 with [mgr+0x3b4], 0x448c0 on [mgr+0x38c]),
+  the FULL bodies of the 'A' handler 0x4b360 (its
+  [[player.vt]+0x68] legs) and the tail of the 'L'
+  handler 0x4b2f0, THE WRITER OF THE EXIT WORD [mgr+0x4]
+  (which command/plan sets 1 - the loop's ebx=1 exit),
+  and the AUTHORED SOURCE of the [mgr+0x30] plan stream
+  (level-file chunk? PR-189 F3's 'ANITAB' family?):
+  closes PR-190 open items (2)/(5); (3) CLASS
+  IDENTITIES: name the class table 0x97f50 (what are
+  the objects built by ctors 0x3f570/0x44e5d/0x4573d/
+  0x4e85b - the interaction-dispatch class), the owners
+  of 0x98078 (ctors 0x23675/0x236e5/0x24fb7/0x617b9),
+  0x9815c (20 installs) and 0x981e8 (9 installs), and
+  the config-parser class table 0xa1310 (methods
+  0x4c010-0x4c700): name-block anchors or ctor-string
+  cross-refs (PR-158/165 method), closes PR-190 open
+  items (3)/(8); (4) THE 38 NON-+0x60 0x49580 CALL
+  SITES: which OTHER 3-dword fields are key-merged (a
+  one-pass field map, closes PR-190 open item (6));
+  (5) BRACKET CARE: the [mgr+0x30] re-frame REACHES BACK -
+  audit PR-106/PR-112/PR-147-era prose that calls
+  [mgr+0x30] a record chain or describes 0x4b140 as a
+  record walk, and correct the wrong ones; re-check the
+  PR-149/155-era '0x4ae82 the only non-self +0xcc
+  caller' framing (it is the loop's own label).
+  STOP CONDITIONS: every claim byte-backed; a class name
+  may stay counted if no anchor pins it; the
+  [0x120]/[0x124] role, the spawner-dispatch split, the
+  0x5df2b event code and flag values 4..7 stay counted;
+  do NOT change port fi/BY_TY/energy values.
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -24786,11 +24794,17 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   [CLOSED x2 BY PR-189 F6/F7: item (2) - THE WRAPPER IS
   0x3eda0 (`call [obj.vt+0x90]` at 0x3edaf, after [obj+
   0x40] := 1 it builds an 8-byte sub-record, `or BYTE
-  [rec+4],4`, 0x49580 APPENDS it); slot values 0x96960
+  [rec+4],4`, 0x49580 APPENDS it) [PR-190 F4
+  CORRECTION: 0x49580 OR-MERGES 3 dwords into the
+  LIVE-KEY words - the PR-88/101 law, NOT an append];
+  slot values 0x96960
   -> 0x1e250 (record op 4: [obj+0x10e]*[obj+0x6d] > 0
   -> the dice leg 0x53670), 0x9a54c -> 0x27170 (op-6
   dice leg + the state-0x12 animation-table 0x98278
-  leg), 0x98f34 -> 0x50970 (the key-state method); plus
+  leg [PR-190 F2 CORRECTION: 0x98278 = the UNIVERSAL
+  BOUNDS-METHOD CLASS - see the correction at PR-189
+  F7]), 0x98f34 -> 0x50970 (the key-state method);
+  plus
   the 0x27470 msg handler for 0x9a54c +0x10 (word1 == 5
   -> [[word2].vt+0x0](edx=2), ds:0xa94f4 inc,
   0x52cc0(0x31)). Item (3): the id-17 ==2 arm 0x241cd
@@ -25569,7 +25583,9 @@ BEHAVIOUR CHANGE)
   0x50c2a. 0x41b6a = the +0x100 arm of the jump-table
   block at 0x41a40 - THE DISPATCHER IS FOUND AT 0x41a50
   (its only reference: the data slot 0x9803c in the
-  0x980xx handler vector): [obj.vt+0xe8], then the
+  0x980xx handler vector [PR-190 F2: CLASS-TABLE VERB
+  SLOT +0xec of class table 0x97f50]): [obj.vt+0xe8],
+  then the
   [obj.vt+0x104] TARGET-LOOKUP verb, an FP cmp
   [obj+0x10b] vs [obj+0x12f] BELOW -> `or BYTE [[obj+
   0x60]+1],1` (SYNTHETIC KEY INJECTION - see item (5)
@@ -25577,7 +25593,9 @@ BEHAVIOUR CHANGE)
   selector BYTE [obj+0x160] -> `jmp cs:[eax*4+0x41a40]`
   (0x41af5); the 4 arms call [obj.vt+0xf4]/+0xf8/+
   0xfc/+0x100 and EVERY arm ends with a 0x49580 record
-  append. 0x50c2a = the key-state tail's no-partner
+  append [PR-190 F4 CORRECTION: THE 3-DWORD OR-MERGE
+  into [obj+0x60..0x6b] - see the PR-189 F1 bracket].
+  0x50c2a = the key-state tail's no-partner
   call (ebx=0) into the 0x50c70 fallback: with ebx=0
   the partner = [[self+0x112].vt+0xdc]() - THE FALLBACK
   SUPPLIES ITS +0xdc VERB - and the [obj+0x112] store
@@ -25597,8 +25615,9 @@ BEHAVIOUR CHANGE)
   counts 'A'-records in [mgr+0x30] when self ==
   [mgr+0x394], then 0x4aa70. Remainders COUNTED: the
   BYTE [obj+0x160] selector's author + the per-class
-  +0xf4../+0xfc arm bodies + the load-sites' per-
-  consumer semantics.] (3) The subsystem
+  +0xf4../+0xfc arm bodies [BOTH CLOSED BY PR-190 F2 -
+  see the PR-189 open-item (2) bracket] + the load-
+  sites' per-consumer semantics.] (3) The subsystem
   registry law: WHO registers into 0xcf068 via 0x57990
   (+0x2c offsets; the 0x105xx/0x21cxx/0x3xxxx caller
   families), the 0x56360 event codes (edx=2/10), the
@@ -25659,7 +25678,15 @@ BEHAVIOUR CHANGE)
   and the 0x27410 :=3 arm's trigger. (8) The 0x1c550
   device-code map + xlat 0x9636c format (PR-187 item (6)
   remainder). (9) The 'return ebx=2' caller semantics
-  (PR-147 item (2) remainder). CLOSED: PR-106 item (1)
+  (PR-147 item (2) remainder) [CLOSED BY PR-190 F1: the
+  'loop' is ONE function 0x4abd0 with EXACTLY ONE E8
+  caller 0x5d251; its exit arm 0x4ae82 tests
+  ds:0xa94f0 == 0 -> ebx = 2, ebx = 1 when [mgr+0x4]
+  != 0, ebx = 3 when [[player.vt]+0x116] != 0, ebx = 4
+  via the hotkey legs; the caller stores the CODE to
+  [ebp-0xc] and [mgr+0x4] to [ebp-0x8] = THE
+  LEVEL-CHANGE CONTRACT: a level end reports WHY + an
+  exit word.] CLOSED: PR-106 item (1)
   (the demo/input-record law end to end: three legs,
   RLE, demo authoring - with 3 correction brackets);
   PR-147 item (2) (setter census + bounded-index role);
@@ -25818,7 +25845,12 @@ BEHAVIOUR CHANGE)
   [obj.vt+0xf8] (esp+0x30), [obj.vt+0xfc] (esp+0x20) and
   [obj.vt+0x100] (esp+0x20), then `add ecx,0x60` +
   `call 0x49580` - EVERY ARM ENDS BY APPENDING THE RECORD
-  INTO THE +0x60-STRIDE CHAIN. THE TABLE'S DISPATCHER IS
+  INTO THE +0x60-STRIDE CHAIN [CORRECTED BY PR-190 F4:
+  NOT an append - 0x49580 IS the PR-88/100/101 TEventSet
+  OR-INTO: `for i=0..2: [eax+4i] |= [edx+4i]` - the
+  'record' is a 3-DWORD KEY MASK WRITTEN INTO THE
+  LIVE-KEY WORDS [obj+0x60..0x6b]]. THE TABLE'S
+  DISPATCHER IS
   FOUND, AT 0x41a50: it calls [obj.vt+0xe8], zeroes a
   0x10-byte temp record, then `call [obj.vt+0x104]
   (edx = temp)` - THE TARGET-LOOKUP VERB; on a hit it FP-
@@ -25831,7 +25863,13 @@ BEHAVIOUR CHANGE)
   `jmp cs:[eax*4+0x41a40]` (0x41af5). 0x41a50 has NO E8
   caller: its ONLY reference is the DATA slot 0x9803c in
   the handler vector 0x980xx - AN INSTALLED MESSAGE
-  HANDLER.)
+  HANDLER. [CORRECTED BY PR-190 F2: 0x9686c-0x98288 is
+  NOT a handler vector - it is a RUN OF CLASS TABLES
+  (vtable data). 0x9803c = the +0xec VERB SLOT of CLASS
+  TABLE 0x97f50 (installed at [obj+8] by FOUR ctors:
+  0x3f570/0x44e5d/0x4573d/0x4e85b); the 4 arms call
+  that class's OWN slots +0xf4/+0xf8/+0xfc/+0x100 =
+  0x41410/0x41460/0x41480/0x41600.])
   0x50c2a sits in the head-tail chain: the key-state
   method tail (Finding 4) falls through +0x110 (default
   0x1e240 = `mov eax,0xffffffc9; ret` = -55), +0x10c,
@@ -25859,7 +25897,17 @@ BEHAVIOUR CHANGE)
   row-verb on self's row field), then 0x4b140(manager,
   self) - a walk of the record chain [mgr+0x30] counting
   'A'-records, only when self == [mgr+0x394] - then
-  0x4aa70(manager, G, count). [obj+0x112] WRITER CENSUS:
+  0x4aa70(manager, G, count). [REFRAMED BY PR-190 F3:
+  [mgr+0x30] IS NOT A RECORD CHAIN - IT IS THE LEVEL-
+  PLAN SCRIPT, a character stream 0x4af10 executes ONE
+  CHAR PER FRAME (alphabet 'A','B','L','T' ONLY, else
+  the print 'Bledny opis poziomu - plany' = 'wrong
+  level description - plans'); 0x4b140 counts the 'A'
+  (SPAWN-REQUEST) BYTES up to 'L' and 0x4b0f0 tests
+  the object's MEMBERSHIP in the manager's THREE
+  vectors + the [node+0x34] chains (cap 5) - the pair
+  law's 'do I already own my authored pair?' check.]
+  [obj+0x112] WRITER CENSUS:
   EXACTLY 16 sites (0x1e1db, 0x2401d, 0x2709b, 0x283c9,
   0x285d7, 0x2c10b, 0x2e04b, 0x33ced, 0x362bb, 0x39edb,
   0x3b2ad, 0x3dd28, 0x3df83, 0x3e042, 0x4d6c5, 0x500fd)
@@ -25974,8 +26022,18 @@ BEHAVIOUR CHANGE)
   IS SET THE FRAME SKIPS WORLD CONSTRUCTION AND ENTERS
   THE INPUT-PUSH CHAIN DIRECTLY; then `cmp [ecx+0x3b0],0`
   -> nonzero: 0x4a8f0, [[0x3b0].vt+0x8], [0x3b0] := 0 -
-  THE ONE-SHOT DEFERRED REQUEST, consumed once. THE
-  [0x3b8] LIST: ZERO direct stores; 0x4d91a BUILDS IT:
+  THE ONE-SHOT DEFERRED REQUEST, consumed once.
+  [EXTENDED BY PR-190 F1: 0x4ae82 IS NOT A SEPARATE
+  GATE - IT IS THE END-OF-FRAME LABEL INSIDE THE SAME
+  FUNCTION: the whole level loop is ONE fn 0x4abd0
+  (caller 0x5d251); the frame gate's jne target
+  continues 'if ds:0xa94f0 == 0 exit ebx=2' ELSE the
+  full input-push chain (the 0x4ab50 12-byte copy,
+  the [player.vt+0xcc] verb, 0x563d0, the 0x4af10
+  plan-step, 0x4b0e0) + `inc ds:0xcef3c` (frame
+  counter) + jmp loop-head 0x4ac3b. THE FULL LOOP LAW
+  IS PR-190 F1.] THE [0x3b8] LIST: ZERO direct
+  stores; 0x4d91a BUILDS IT:
   descriptor = THE 0x961fc/0x96200 PAIR installed at
   [esp+0x24]/[esp+0x9], parse via 0x497b0, then 0x57d30
   with the format block at 0x91f1b which contains the
@@ -26002,7 +26060,8 @@ BEHAVIOUR CHANGE)
   [obj+0x126]==1 AND [obj+0xd2]==0: [obj+0x116] :=
   [obj+0x126], else ds:0xcef4c := 0; [obj+0x11a]==6 ->
   [obj+0xb5] := ([obj+0x11e]/5)%2; [obj+0x11a]==8 ->
-  append a record via 0x49580 with OR 0x20; [obj.vt+0xdc]
+  append a record via 0x49580 with OR 0x20 [PR-190 F4:
+  THE OR-MERGE INTO THE LIVE WORDS]; [obj.vt+0xdc]
   result -> [obj+0xb5]; THEN THE TAIL CHAIN: [obj.vt+
   0x110] -> ds:0xcef4c, [obj.vt+0x10c], `call [obj.vt+
   0x100]` with ebx=0 (0x50c2a, Finding 1), then 0x54450:
@@ -26099,7 +26158,10 @@ BEHAVIOUR CHANGE)
   [obj+0x3c]'s handler table is called +0x10 with stack
   args (0, 8, 0, 0), then [[res]+0x4]/[[res]] go through
   [helper.vt+0x58], the record gets `or BYTE [rec+4],4`
-  and 0x49580 APPENDS IT TO THE +0x60 CHAIN. SLOT VALUES:
+  and 0x49580 APPENDS IT TO THE +0x60 CHAIN [CORRECTED
+  BY PR-190 F4: THE 3-DWORD OR-MERGE INTO THE LIVE-KEY
+  WORDS - the PR-88/101 law, not an append]. SLOT
+  VALUES:
   0x96960 +0x90 = 0x1e250 (record op 4: [obj+0x10e] *
   [obj+0x6d] > 0 -> 0x53670 - THE DICE-BET LEG, the same
   shape as 0x27170's op-6 arm); 0x9a54c +0x90 = 0x27170;
@@ -26107,7 +26169,15 @@ BEHAVIOUR CHANGE)
   the dice leg ([obj+0x10e]*[obj+0x6d] > 0 -> 0x53670);
   state 0x12 AND [[obj+0x50]+state*4][+4] == 2 -> call
   [obj.vt+0x68], then the ANIMATION-TABLE lookup at
-  0x98278 with index 0x143/0x18b legs. THE +0x10 MSG
+  0x98278 with index 0x143/0x18b legs [CORRECTED BY
+  PR-190 F2: 0x98274/0x98278 = THE UNIVERSAL BOUNDS-
+  METHOD CLASS (extent 0x23e30 / print-leg 0x23ed0 /
+  point-write 0x23ea0 / rect-contains 0x23e00), 85
+  INSTALLS at [obj+8]; the leg computes the
+  [obj.vt+0x68] result's x/y DELTAS against the extent
+  CONSTANTS 0x143/0x18b and posts an OUT-OF-BOUNDS
+  REQUEST through `[[obj.vt]+0x10]` - a bounds
+  complaint, NOT a table lookup]. THE +0x10 MSG
   HANDLERS: 0x9a54c +0x10 = 0x27470 (no E8 caller - a
   table-only entry): word1 == 5 -> if word2 != 0 call
   [[word2].vt+0x0](edx=2) (the entry-handler contract
@@ -26130,11 +26200,23 @@ BEHAVIOUR CHANGE)
 - OPEN ITEMS COUNTED (7 new). (1) The FINAL writer of key
   bytes into [obj+0x60..0x67] (pointer-mediated; the
   +0xcc/0x549f0 leg EXCLUDED by reading - see Finding 4;
-  do NOT re-mine). (2) The author
+  do NOT re-mine). [CLOSED BY PR-190 F4: THE PRODUCER
+  IS 0x49580 ITSELF - of its EXACTLY-69 E8 sites, 31
+  pass a +0x60-region target (12 `add reg,0x60` + 19
+  `lea reg,[reg+0x60]` forms): verb results are
+  OR-MERGED INTO the live words - the lea sites PR-188
+  counted ARE the write path.] (2) The author
   of the BYTE [obj+0x160] selector and the per-class
   +0xf4/+0xf8/+0xfc arm bodies (the 0x41a50 dispatcher
   itself is now READ end to end, and its installation
-  slot 0x9803c is settled). (3) The ds:0xa94ec load-
+  slot 0x9803c is settled). [CLOSED BY PR-190 F2:
+  0x9803c = VERB SLOT +0xec of CLASS TABLE 0x97f50;
+  the four ARM SLOTS are that class's own +0xf4/
+  +0xf8/+0xfc/+0x100 = 0x41410/0x41460/0x41480/
+  0x41600; and the SOLE [obj+0x160] byte store whole-
+  image (modrm census = EXACTLY 1) is 0x415d3 INSIDE
+  0x41480 - the selector's author is the class's own
+  +0xfc arm.] (3) The ds:0xa94ec load-
   sites' per-consumer semantics beyond 'ebx = default
   partner' (33 `mov ebx` + one `mov ecx`, 0x4b897). (4)
   The [obj+0x120]/[0x124]
@@ -26246,6 +26328,337 @@ BEHAVIOUR CHANGE)
   PR-188 carried-list x5, and EXTENSIONS at PR-188 F6
   (+0x112 per-class) and PR-186 F1 (0x50970 = Ena2
   +0x90).
+
+## PR-190 — THE LEVEL LOOP IS 0x4ABD0 WITH ONE CALLER (0x5d251):
+## ITS EXIT CODES ebx=1..4 AND THE [mgr+0x4] EXIT WORD FORM THE
+## LEVEL-CHANGE CONTRACT (PR-147 item (2) CLOSED); 0x49580 IS A
+## 3-DWORD OR-MERGE INTO [obj+0x60..0x6b] - THE LIVE-KEY
+## PRODUCER (PR-189 item (1) CLOSED); THE 0x980xx 'HANDLER
+## VECTOR' IS A CLASS-TABLE CLUSTER: 0x41a50 IS THE +0xec VERB
+## OF CLASS TABLE 0x97f50, AND ITS +0xfc ARM IS THE SOLE
+## AUTHOR OF THE SELECTOR [obj+0x160] (PR-189 item (2)
+## CLOSED); [mgr+0x30] IS THE LEVEL-PLAN SCRIPT STREAM -
+## 0x4af10 EXECUTES ONE CHARACTER PER FRAME, ALPHABET
+## 'A','B','L','T' ONLY; 0x98278 IS THE UNIVERSAL BOUNDS-
+## METHOD CLASS (READING, NO PORT CODE, NO BEHAVIOUR CHANGE)
+
+- WHY. PR-190's Next specced the frame-loop + record-chain +
+  handler-vector pass: (1) the outer frame loop (0x4a8c0/
+  0x4a8f0 legs, the frame gate 0x4ac76, 0x4ae53's arms, the
+  PR-147 'return ebx=2' remainder); (2) the 0x980xx vector
+  (holding 0x41a50 at 0x9803c) and 0x98278 - slots, owners,
+  indexers, the [obj+0x160] author; (3) 0x49580's append
+  contract, the record layout, who consumes the 0x4b140
+  [mgr+0x30] 'A'-walk; (4) one bounded attempt at the live-
+  key writer (PR-189 item (1)); (5) bracket care on the
+  0x98278 reading. Method: whole-function objdump reads of
+  0x4abd0-0x4b0e0 (the loop + every leg), 0x4a8c0-0x4a930,
+  0x4b140-0x4b199, 0x4b0f0, 0x4b2f0, 0x4af10-0x4b0d2 (the
+  executor), 0x57600-0x577a0 (the list ops), 0x49580/0x495b2/
+  0x495e2, 0x41480/0x41600/0x41870/0x418f0, 0x563d0's head,
+  the caller block 0x5d200-0x5d2e8; E8-caller censuses
+  (0x4abd0=1, 0x49580=69, 0x4b140=1, 0x4af10=2, 0x4b0e0=2,
+  0x4a9f0=2); class-table install censuses (the 'c7 XX 08
+  imm' constructor-store form); modrm scans for +0x160 byte
+  stores and +0x30/+0x34 disp32 stores; elf dword tables for
+  0x97f50/0x98078/0x9815c/0x981e8/0x98274. Docs only.
+
+- FINDING 1, THE LEVEL LOOP IS ONE FUNCTION AND ITS EXIT
+  CODES ARE THE CONTRACT (PR-147 item (2) CLOSED). The
+  'loop entry 0x4ae53' is an ARM, not a function: the whole
+  region 0x4abd0-0x4ae81 is ONE function (prologue 0x4abd0
+  'push ebx ecx edx esi edi ebp; sub esp,0x22c', ecx :=
+  manager; ret at 0x4ae81). Prologue: zeroes the 12-byte
+  input block at [esp+0x1f0..0x1fb], calls [[mgr+0x394].vt+
+  0x54] (player init), [[player.vt]+0xec]/[+0xe8], then
+  0x576e0(camera,[player vt+0xe8 result],[+0xec] result) =
+  THE CAMERA FOLLOW (Finding 3). LOOP HEAD 0x4ac3b: (a) if
+  [[player.vt]+0x116] != 0 -> ebx := 3 jump to exit; (b) if
+  [mgr+0x4] != 0 -> ebx := 1; (c) 0x58690(ds:0xcf400, the
+  block at [esp+0x1f0]) SAMPLES INPUT EVERY ITERATION;
+  (d) 0x4ac76 frame gate: [mgr+0x3a0] != 0 jumps to
+  0x4ae82; [0x3b0] one-shot consumed (0x4a8f0, [[x.vt]+8],
+  := 0, then 0x4a8c0); (e) THREE HOTKEY LEGS test the
+  sampled block bytes: [esp+0x1f9] bit 0x20 -> clear + a
+  loop of 0x4a8f0 / 0x5e030 / 0x4a910 / 0x60930 / 0x57a00
+  x2 / 0x603b0 / 0x60960 / 0x4a8c0 (re-loops while the
+  stream API returns nonzero); [esp+0x1f8] bit 0x04 ->
+  0x5e100 / 0x609c0 / 0x57a00 x2 / 0x603b0 / 0x60820;
+  [esp+0x1f8] bit 0x08 -> 0x5e0c0 + the same stream family
+  and THEN the full end-of-frame leg. These are the game's
+  file/stream hotkeys (save/load-style; exact semantics
+  counted). END-OF-FRAME 0x4ae82 (a LABEL inside the
+  function - the frame gate and the bit-0x08 leg both jump
+  to it): ds:0xa94f0 == 0 -> ebx := 2 (0x4ae8b) jump to
+  exit; else the input-push chain (PR-189 F4 unchanged:
+  0x4ab50 12-byte COPY of the block to [esp+0x1e4],
+  0x222d0, 0x4b970, 0x4ba90, [[player.vt]+0xcc](edx = the
+  copied block), 0x52b80, 0x4ab80 (its [mgr+0x3a8] == 0
+  gate -> [player vt+0xec]/[+0xe8] + 0x57600 = APPLY THE
+  CAMERA SCROLL)); then 0x563d0(0xcf068) = the per-frame
+  registry SERVICE (walks ds:0xcf064 + the [table+0x24]
+  count), 0x4af10 = the plan-script step (Finding 3),
+  0x4b0e0 = 0x4a120(0xcef30) + 0x1cfe5, `inc ds:0xcef3c`
+  THE FRAME COUNTER, then jmp 0x4ac3b. EXIT TAIL 0x4ae53
+  (all four exits): 0x1cfd0 + 0x1dba0 + 0x1cfe5 (stop
+  input devices), 0x4a160(0xcef30, mgr), 0x4a9f0 = THE
+  DEMO PUMP runs once at level END (its caller census is
+  now EXACTLY 2: 0x4a857 level-start (PR-188 F1) + this
+  0x4ae6e), eax := ebx, epilogue, ret. THE CALLER (0x5d251,
+  sole E8 ref): the level-runner block registers a registry
+  entry ('%s\%s'-style name at 0x9262e/0x9262f + the
+  0x96200/0x961fc descriptor via 0x57990 + 0x4a4c0 +
+  0x57a00(1) + [[x].vt+0x28]), calls the loop, then
+  STORES THE RESULT: [ebp-0xc] := the exit CODE (1/2/3/4)
+  and [ebp-0x8] := [mgr+0x4] = THE EXIT WORD - then
+  0x5b8f0(0xcf1a8), 0x55d20(0xcf068) close, 0x1cc10/
+  0x56380 registry-result, the manager teardown
+  [[[mgr]+0x3e6].vt+0x4](edx=2), ds:0xcef40 := 0 and
+  0x1c490 (the key-state layer reset). So: THE FRAME LOOP
+  RETURNS WHY THE LEVEL ENDED (3 = the player's +0x116 flag
+  set, 1 = the [mgr+0x4] quit request, 2 = the stage index
+  ds:0xa94f0 zeroed, 4 = the hotkey path finished) AND THE
+  WORLD LEAVES AN EXIT WORD IN [mgr+0x4] - both flow into
+  the caller's result record. Frame helpers: 0x4a8f0 =
+  MESSAGE-END (0x74be0([obj]) then [obj] := 0) - called at
+  every hotkey leg + the one-shot leg; 0x4a8c0 = 0x4a8f0 +
+  [[ds:0xcef14 first entry].vt+0x28] + 0x76a64 with
+  comparator fn 0x2f9b8 (test [x+0xf2]==1, state 3,
+  [[x].vt+0x70] cmp) -> result stored at [edx] = the end-
+  of-frame LIST REFRESH; 0x4a910 = STREAM-OPENER: opens the
+  record stream at [obj+0x28] with the DEFAULT descriptor
+  pair {0x96200, 0x961fc} via 0x5c680. ds:0xcef3c = the
+  frame counter (9th global read in this ledger family).
+
+- FINDING 2, THE 0x980xx 'HANDLER VECTOR' IS A CLASS-TABLE
+  CLUSTER (CORRECTION + PR-189 item (2) CLOSED). The region
+  0x9686c-0x98288 is CONSECUTIVE CLASS TABLES (vtable data
+  only). Install census (the `c7 XX 08 imm` [reg+8] store
+  form): 0x97f50 x4 (ctors 0x3f570, 0x44e5d, 0x4573d,
+  0x4e85b), 0x98078 x4, 0x9815c x20, 0x981e8 x9, 0x98274/
+  0x98278 x85 (!). So 0x9803c = CLASS TABLE 0x97f50 + 0xec:
+  0x41a50 IS THE +0xec VERB OF CLASS 0x97f50 (the 4 ctors
+  install it; the class owns the whole interaction-dispatch
+  method). THE FOUR ARMS ARE ITS OWN VERB SLOTS: +0xf4 =
+  0x41410, +0xf8 = 0x41460, +0xfc = 0x41480, +0x100 =
+  0x41600. 0x41600 (the +0x100 arm) was READ: FP predicate
+  (fld [obj+0x10b], fcomp [obj+0x12f] ...) - the distance
+  flag - and 0x41480 (the +0xfc arm) was READ: THE SELECTOR
+  AUTHOR - FP chain over [obj+0x11b/0x137], [0x123/0x11f],
+  [0x12b/0x127] via the 0x41370 helper (each leg fadd-
+  accumulates into [obj+0x10b]), calls to [obj.vt+0xe0] and
+  [obj.vt+0xe4], then `call [obj.vt+0xec]` (its own
+  dispatcher - recursion) and `mov BYTE [obj+0x160],al`:
+  the modrm census finds EXACTLY ONE [obj+0x160] byte store
+  in all of .text - 0x415d3 INSIDE THIS ARM. So the
+  selector 0..3 is written ONLY by the class's own +0xfc
+  arm; PR-189 open item (2) is CLOSED (arm bodies known:
+  FP/state/verb-chain predicates 0x41410/0x41460 read-
+  partially, full bodies of 0x41410/0x41460 counted).
+  0x98274/0x98278 = THE UNIVERSAL BOUNDS-METHOD CLASS (4
+  slots): +0x0 0x23e30 = extent calc ([+0xc]-[+0x4] ...),
+  +0x4 0x23ed0 = test dl,4 -> the 0x74bc0/0x74be0 print
+  pair with 0x96858, +0x8 0x23ea0 = POINT WRITER (mov [eax]
+  ,edx; [eax+4],ebx), +0xc 0x23e00 = RECT-CONTAINS test
+  (cmp [eax+0..0xc] vs [edx+0..0xc]). 85 classes install it
+  at [obj+8] - the default rectangle/bounds object class.
+  CORRECTION BRACKET (PR-189 F7, 0x27170): the '0x98278
+  ANIMATION-TABLE with index 0x143/0x18b' is WRONG: that
+  leg = [obj.vt+0x68] getter -> the result's dword0/dword4
+  (x,y), then bounds DELTAS computed against the EXTENT
+  CONSTANTS 0x143 (323) and 0x18b (395), the 0x98278-table
+  leg branches under the cmp, and the call is
+  `[[obj.vt+0x10]](msg) (0, 1, 0x143-x, 0x18b-y)` - an out-
+  of-bounds REQUEST MESSAGE, not a table lookup; the same
+  handler then tests `BYTE [obj+0x60],0x40` (live key bit)
+  and writes the result words. The other 0x9815c/0x981e8/
+  0x98078 tables' class owners are counted (the 0x9815c
+  table has 20 installs incl. parser-adjacent ctors, but
+  NONE of its 256 scanned slots points into the config-
+  parser method range 0x4c000-0x4d100 - the parser-class
+  lead survives ONLY as table 0xa1310 (18 slots, methods
+  0x4c010-0x4c700, ADJACENT to the manager class table
+  0xa1350) - attribution counted).
+
+- FINDING 3, [mgr+0x30] IS THE LEVEL-PLAN SCRIPT AND
+  0x4af10 IS ITS PER-FRAME EXECUTOR. The 'A'-record walk
+  of PR-189 F1 was half right: [mgr+0x30] is a CHARACTER
+  STREAM (one char per command). 0x4af10 (called EVERY
+  frame from the end-of-frame label + from 0x609d5):
+  ebp := [eax+0x30]; skips zero bytes; per frame consumes
+  ONE command, RE-READING [mgr+0x3a0] before each leg (the
+  world-paused guard). Dispatch at 0x4b076 (`mov al,
+  [ebp]; call 0x76e98` char->int): 'A' (0x41) -> leg
+  0x4afb1: gate [mgr+0x3a0]==0, index := [esp+0x8]+1,
+  0x4b360(mgr, index) [the 'A' HANDLER - begins
+  [[mgr+0x394].vt+0x68] getter legs; full body counted];
+  'B' (0x42) -> leg 0x4b008: [[mgr+0x3ce]+8] == 0 ->
+  0x448c0([mgr+0x38c]) else 0x4a170(0xcef30,...) +
+  0x49bd0 with [mgr+0x3b4]; 'L' (0x4c) -> leg 0x4afe1:
+  [[mgr+0x394].vt+0x74](the player) + 0x4b2f0 = TICK THE
+  ENTITY CHAIN: walks [mgr+0x64] -> [node+0x34], calls
+  [node.vt+0x60] each + [node.vt+0x74] where nonzero;
+  'T' (0x54) -> leg 0x4af54: 0x57710/0x57780 on
+  [mgr+0x390] = the camera (scroll/scroll-by with the
+  index doubled at idx==0); ANY OTHER CHAR -> 0x4b0a7: if
+  ds:0xa92d4 != 0, 0x49660 prints the error string at
+  0x91d2a = 'Bledny opis poziomu - plany' ('wrong level
+  description - plans') + 0x49620. So THE PLAN ALPHABET IS
+  {A,B,L,T} AND A PARSE ERROR NAMES ITSELF. THE 0x4b140
+  LAW (re-read): guard self==[mgr+0x394] only; walks
+  BYTES from [mgr+0x30] counting 'A' up to 'L'; if count
+  > 0, tries 0x4b0f0 up to 5 times: 0x4b0f0 searches the
+  TARGET in the manager's THREE object vectors ([+0x44]/
+  [+0x48]/[+0x4c] counts x [+0x58]/[+0x5c]/[+0x60] arrays
+  + the [node+0x34] chains) and returns 1 on hit; returns
+  1 if found. With 0x531cb (the PR-189 pair-law leg): THE
+  'A' COUNT IS THE AUTHORED SPAWN REQUESTS, checked against
+  membership - the pair-store fallback's 'do I already own
+  my pair?' test. Authorship of the [mgr+0x30] buffer:
+  the whole-image modrm scan finds ZERO disp32-form stores
+  to [reg+0x30]/[reg+0x34] (like the live-key region) -
+  filled via pointer forms; the exact author stays counted.
+  THE CAMERA OBJECT ([mgr+0x390], set at level ctor +
+  PR-189): [0x10]/[0x14] = scroll x/y, [0x2c]/[0x30] +=
+  extent offsets, dims moduli [0x34]/[0x38]/[0x3c]/[0x40];
+  0x576e0 = SET-SCROLL to (player-x - 0xa0, player-y -
+  0x64) = THE 160/100 CENTER OFFSET, called EVERY loop
+  iteration; 0x57600 = APPLY-scroll (adds the +0xa0/+0x64
+  back with wrap); 0x57710/0x57780 = TILE-INDEX ops (the
+  0x50 tile stride, the [x+0x44] row arrays). This also
+  re-frames PR-189 F4's 0x54450: it reads the CAMERA at
+  [mgr+0x390] ([rec+0x2]+0x1f4 vs the player x) - a
+  screen-position guard, not a record-list walk.
+
+- FINDING 4, THE LIVE-KEY PRODUCER IS 0x49580 - THE 3-
+  DWORD OR-MERGE (PR-189 item (1) CLOSED). 0x49580(eax=
+  target3dwords, edx=src3dwords): `while (eax != [eax+0xc])
+  { *[eax] |= [edx]; eax += 4; edx += 4 }` - MERGE-OR, NOT
+  APPEND. Caller census: EXACTLY 69 E8 sites; 31 of them
+  set the target register to obj+0x60 (12 in `add reg,0x60`
+  form, 19 in `lea reg,[reg+0x60]` form) - the live-key
+  words are written by VERB-RESULT MERGES, through the very
+  'lea pointer handoff' sites PR-189 counted; 0x41a50's four
+  arms all end `verb result -> edx; obj+0x60 -> eax;
+  call 0x49580`. Siblings read: 0x495b2 = 'any of the 3
+  dwords nonzero' (12-byte input test); 0x495e2 = zero the
+  16-byte block ([+0xc], 0x749a0 leg, [+0xd], [+0x11]).
+  The end-of-frame input path feeds the OTHER copy: 0x4ab50
+  copies the device block to [esp+0x1e4] and hands it to
+  [player.vt+0xcc] (the +0xcc verb = the key-record handler,
+  PR-189 unchanged). PR-189's 'record append to the +0x60-
+  stride chain' phrasing gets a CORRECTION bracket; the
+  'final writer' question is SETTLED at this level (the
+  merge is the producer; the remaining 38 non-+0x60 0x49580
+  sites merge OTHER 3-dword fields - field map counted).
+
+- FINDING 5, BRACKETS AND CLOSURES. CLOSED: PR-147 item
+  (2) ('return ebx=2' caller semantics - the full exit
+  contract + the [mgr+0x4] exit-word law); PR-189 open
+  item (1) (live-key producer = 0x49580 merges); PR-189
+  open item (2) ([obj+0x160] sole author = the +0xfc arm
+  0x41480 of class 0x97f50 + the four arm slots); PR-189
+  F7's 0x27170 'animation-table' leg (out-of-bounds msg
+   law above). CORRECTIONS (bracket sites): PR-189's 'the
+   data slot 0x9803c in the handler vector 0x980xx - AN
+   INSTALLED MESSAGE HANDLER' -> class-table verb slot
+   +0xec of class table 0x97f50 (1 site); PR-189's 'a
+   0x49580 record append' phrasing x5 SITES (the PR-189
+   bracket inside PR-188 F6, PR-189 F1 x2, F4, F7) ->
+   the 3-dword OR-MERGE, RESTORING the PR-88/100/101
+   TEventSet OR-INTO law the ledger already carried;
+   'ANIMATION-TABLE lookup at 0x98278' x1 + the same
+   phrase inside PR-189's PR-188-F6 bracket -> the
+   universal bounds-method class + extent constants
+   0x143/0x18b.
+  EXTENSIONS: PR-189 F3's frame-gate sentence (the target
+  0x4ae82 is the END-OF-FRAME label inside the loop fn,
+  stage-index-gated, ebx=2 exit - now the full loop law);
+  PR-189 F1's 0x531cb/0x4b140 leg (the 'A'-walk = the
+  authored-spawn vs membership check).
+
+- OPEN ITEMS COUNTED (8 new). (1) The hotkey legs' file
+  semantics (0x5e030/0x5e0c0/0x5e100 name builders +
+  0x60930/0x609c0/0x603b0/0x60820/0x60960 stream API -
+  save/load/restart at file level; which block bits map to
+  which key). (2) The plan 'B'-leg data flow ([esp+4] =
+  [mgr+0x3ce] cursor, 0x4a170/0x49bd0/0x448c0 bodies) and
+  the [mgr+0x4] exit-word WRITER (which command sets 1).
+  (3) The class identity of 0x97f50 (4 ctor sites named;
+  no name-block found yet) + owners of 0x98078/0x9815c/
+  0x981e8. (4) Full bodies of arms 0x41410/0x41460 + the
+  FP fields [obj+0x11b..0x12b] (the [0x120]/[0x124] pair
+  role gains a lead: the selector FP chain reads 0x11f/
+  0x127/0x12b). (5) The plan-stream author (pointer-form
+  fill; zero disp stores). (6) The 38 non-+0x60 0x49580
+  field map. (7) 0x4b360/0x4b2f0 full bodies (the 'A'/'L'
+  handlers' tails). (8) The parser-class table 0xa1310 ->
+  class name. CARRIED unchanged: the 0x5df2b dynamic code,
+  the [0x120]/[0x124] role (lead extended), the spawner-
+  dispatch split, flag values 4..7, the 0x1c550 map, the
+  +0x240/+0x2cc computed dispatch, the energy/ladder video
+  checks, id-13/15/21/23 arms, the a94ec per-consumer
+  semantics.
+
+- GATES. Docs-only reading PR (PR-138..189 precedent): no
+  port file touched; build state = the OWNER GATE (rule 8)
+  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
+  verify-SKIPs) - only docs moved since. CI truth at this
+  record's time: PR-189's docs run 44582609955 = SUCCESS on
+  865e4d2; the chain (PR-188 44574817659, PR-187
+  44570032820, PR-186 44566740263) SUCCESS unchanged. This
+  docs push queues its own run. Added .md lines <= 79 cols;
+  over-79 baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 71);
+  no game data or frames in git (scripts under
+  /tmp/opencode/pr190/); .github/workflows/* untouched; the
+  image is unchanged.
+
+- EVIDENCE. pr190_evidence.py (48 True byte/scan checks:
+  the 0x4abd0 prologue + block-zero + [vt+0x54] +
+  camera-follow bytes; loop-head exits ebx=3/ebx=1; the
+  0x58690 sample call; the frame gate 8b 81 a0 03 + jne
+  0x4ae82 + the [0x3b0] consume + 0x4a8c0; hotkey bit
+  tests f6 c4 20 / f6 c6 04 / f6 c7 08 + the clear legs;
+  the stage-gate ebx=2 + input-push chain (0x4ab50/0x222d0/
+  0x4b970/0x4ba90/ff 93 cc/0x52b80/0x4ab80/0x563d0/
+  0x4af10/0x4b0e0/inc ds:0xcef3c/jmp 0x4ac3b); the exit
+  tail device-stops + demo pump + mov eax,ebx + epilogue;
+  the SINGLE caller 0x5d251 + the [ebp-0xc]/[ebp-0x8]
+  stores + teardown 0x3e6-vt+0x4(2) + ds:0xcef40 zero +
+  0x1c490; 0x4a8f0/0x4a8c0/0x4a910 bodies; the 0x4a9f0
+  2-caller census; 12-byte copy b9 0c + the 0x3a8 gate;
+  the 0x49580 merge body + the 69-caller census + the 31
+  +0x60-target recount + the 0x100-arm leg bytes +
+  0x495b2/0x495e2; the class-table censuses (x4/x85/x20) +
+  the 0x97f50+0xec/+0xf4../+0x100 slot law + the 0x98274
+  slot values + 0x23e00 contains-test bytes + the 0x41600
+  fld/fcomp + 0x418f0 [vt+0xf0]; the 0x27170 legs (cmp 6,
+  imul 0x6d, state 0x12, [vt+0x68], the 0x98278 const, the
+  0x143/0x18b constants, ff 57 10, test 0x40); the ONE
+  [obj+0x160] store at 0x415d3 beside the [vt+0xec] call;
+  the 0x4af10 legs (lea ebp,[eax+0x30], the char dispatch
+  cmp 0x42/0x4c/0x54/0x41, the 0x91d2a push + 0x49660/
+  0x49620) + 'Bledny opis poziomu - plany' bytes + the
+  0x4af10/0x4b0e0 2-caller censuses; the 0x4b140 'A'-walk
+  (guard 394, lea 70 30, cmp 4c/41, inc edx, cmp 5,
+  0x4b0f0) + 0x4b0f0's vector walk bytes (3b 73 44, 8b 43
+  58, +4 x3, cmp 3, [node+0x34]) + its ONE caller 0x531cb;
+  the ZERO disp32-form +0x30/+0x34 store scan; the camera
+  ops (c7 40 2c/30, sub 0xa0/0x64, 89 50 10/89 58 14, the
+  0x57600 add-0xa0, the 0x50 tile stride); the 'A'/'L' leg
+  bytes + 0x4b360/0x4b2f0 calls. obj_range.sh (the whole
+  reads listed in WHY). Ledger: records re-spliced from
+  HEAD (census: HEAD carries PR-150..PR-189 (40 records)
+  PLUS the four OWNER 2026-11-19 records, last carrier);
+  3 CORRECTION CATEGORIES (9 sites: the 'handler vector
+  / installed message handler' x2, the 'record append'
+  phrasing x5, the 'animation-table' leg x2; 4 of the
+  9 sites sit INSIDE PR-189-shipped brackets and get
+  nested notes) + CLOSURES at PR-147 (2)-remainder,
+  PR-189 items (1) and (2) + EXTENSIONS at
+  PR-189 F1 (the 0x4b140 'A'-walk meaning) and PR-189 F3
+  (the frame-gate full-loop law).
 
 ## Deferred big items (deliberately out of scope so far)
 
