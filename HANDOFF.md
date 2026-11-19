@@ -4002,6 +4002,60 @@ writer as its open items.
      <= 79; baselines 71/72 held; census (HEAD carries PR-
      150..PR-173, last carrier). Full record: the PR-174
      section of NEXT_STEPS.md (scratch /tmp/opencode/pr174/).
+   - PR-175 (READING; no port code, no behaviour change): THE
+     KEY-FOLLOW-UP INTERLOCK PASS. +0x14 IS THE PER-OBJECT
+     STATE-STEP VERB SLOT: over the 178 marker-anchored class
+     tables it holds 0x550a0 x79 (zero [obj+0xe6]/[0xea] then
+     `call 0x536f0` - 0x550b4 is the ONLY direct pump call in
+     the text), 0x536f0 direct x26, 0x400b0 x45 (position
+     path), 0x23c70 x18 (delegates to class verb +0x28),
+     0x55380 x4, singletons; the pump runs for exactly 105/
+     178 classes and LION (0x96960) is one of them - PR-153's
+     "every LION tick" HOLDS. THE 99 "family-B" tables are a
+     DISJOINT lineage: none carries the 0x23b80 marker (their
+     +0x60 = 0x54450/0x40030/other getters) and all 99 hold
+     0x23920 at +0x14 - "return the record's [rec+0x12]
+     control-flags word" - the passive class lineages with
+     the 0x23870 boolean at +0x8c: PR-173 F3's joint presen-
+     tation CONFLATED two table populations (bracketed). The
+     +0x8c slot has exactly TWO call sites (pump 0x536ff; the
+     0x3ed00-0x3ee27 owner-merge path ending at 0x3ee18,
+     which sets AC_BREAK_NEXT bit 2 in its built key) and
+     DISCARDS the return value at both - the "TWO contracts"
+     framing dissolves into the lineage separation. +0xac IS
+     A KEY-EXTENSION HOOK, NOT A ROW VERB: called only at
+     0x535f7 (state change, always) and 0x5361c-0x53620
+     (same-state, only on changing writes), always with
+     edx = &[obj+0x60] the LIVE KEY SET (ebx from 0x535ad) -
+     PR-174 F2's "edx = the row value" CORRECTED (bracketed;
+     its item (1) closed in part - the (step,+0xac) pairs
+     co-vary exactly, (0x550a0,0x546a0)x79 etc., 0x23930 =
+     empty `ret` for the 26 direct-pump classes; 0x546a0's
+     head read: +0x12 word test ah,0x40 -> the 0x4b600 pool
+     query (which reads [obj+0xa9] at 0x4b64f!) -> 0x49580
+     live merge, [obj+0xa9] RMW; full body carried). [obj+
+     +0xad] IS THE ENERGY FIELD - PR-173's "ordinal pair"
+     corrected (bracketed): 0x5516a `cmp [self+0xad],[other+
+     +0xad]` -> greater builds an AC_ENEMY_ATC key, jle zero-
+     key with AC_ENEMY always set - the same field PR-89
+     named. [obj+0xa9] site map COMPLETE (24 text sites: msg-
+     id READ 0x5460e/WRITE 0x54624, the pool-query feed at
+     0x4b64f, the animal trio, zeroers; semantics open).
+     [obj+0x75] has ZERO direct accessors - only the 0x23a20
+     pointer getter; NEW: 0x23a20 is also slot +0x4c's default
+     (the carried FLAG-getter item, slot-identified; counts
+     need a careful recount). TWELVE tables carry the 0x504e0
+     getter with the FULL LION controller shape (+0x14=0x550a0,
+     +0x54=0x55070) - the camel item (PR-173 (4)) gains that
+     grounding, twelve-class identity = PR-176's named task.
+     Pump-105 slot map recorded (+0x8c: 0x54910 x64/0x23a60
+     x26/0x504e0 x12; the +0x54=0x55070 set is DISJOINT from
+     the pump set - 49 each way). Docs: 7 brackets,
+     0 port
+     lines, baselines 71/72 held; census (HEAD carries PR-
+     150..PR-174, 25 records, last carrier). Full record: the
+     PR-175 section of NEXT_STEPS.md (scratch /tmp/opencode/
+     pr175/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -6370,6 +6424,45 @@ ferently. Gates: zero warnings both platforms, ll_level re-
 linked, mov-selftest rc=0 with the new test in the chain, ver-
 ify-all rc=0 both ways (56 ok; 10 ok + the same 23 named SKIPs);
 baselines 71/72 held.
+
+STATUS after PR-175 (the KEY-FOLLOW-UP INTERLOCK PASS; docs
+reading - ZERO port files touched, so T5's shipped behaviour
+is EXACTLY PR-174's, and ZARIA.01 output is unchanged by
+construction): what the pass settles FOR the port's model:
+(1) the engine's per-object state-step verb is slot +0x14,
+and the key pump 0x536f0 runs for exactly 105 of the 178
+marker-anchored classes through it (0x550a0 x79 wrapper + the
+26 direct + nothing else; 0x550b4 is the only direct pump
+call in the image) - the port's KEY/AC_* vocabulary has a
+named, counted producer set, and LION (0x96960, +0x14 =
+0x550a0) is pumped every tick exactly as PR-153 assumed;
+(2) the 99 "family-B" tables are a SEPARATE, passive lineage
+(+0x14 = 0x23920 returns the record's control-flags word;
+their +0x60 is never the 0x23b80 marker) - PR-173's joint
+presentation corrected, so no port reading of the pump/boolean
+"two contracts" was ever at stake; (3) the +0xac verb the
+PR-174 equality guard skips is a live-KEY-SET extension hook
+(edx = &[obj+0x60], never the row) - PR-174's shipped row-
+seek model stands unchanged, its one unmodelled half re-
+scoped and partially read (0x546a0 head: pool-query + live-
+set merge + [obj+0xa9] RMW); (4) [obj+0xad] IS the energy
+counter PR-89 named (0x5516a compares self vs other; the
+winning branch builds the AC_ENEMY_ATC key, the losing one
+AC_ENEMY) - the port's energy field and the engine's key-
+building relation verb are the SAME field, which grounds the
+port's atc windows (PR-89/obj_rowzero law) on real engine
+semantics; (5) [obj+0xa9]'s site map is complete (msg-id
+write 0x54624, pool-query feed 0x4b64f, animal family, zero-
+ers; semantics open), [obj+0x75] is pointer-only through the
+0x23a20 getter - and 0x23a20 is slot +0x4c's default (the
+carried FLAG-getter item, slot-identified). Twelve LION-
+shape controller classes (the 0x504e0 getter) are census-
+listed for PR-176. Nothing claimed here changes a shipped
+behaviour: all three carried items it closes were model-
+blocking questions, and every closure says so. Gates: docs-
+only (PR-138..171 precedent); added lines <= 79; baselines
+71/72 held; PR-174's binary+verify state stands (56 ok / 10
+ok + 23 named SKIPs).
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

@@ -15762,48 +15762,38 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-175 IS THE KEY-FOLLOW-UP INTERLOCK PASS (carried from
-  PR-173's Next, items (a)+(b) pulled together because they
-  share their call-site reads): (a) the +0x8c TWO contracts -
-  which families' objects actually run the 0x536f0 pump merge
-  (0x54910 x115 / base 0x52750 / 0x23a60 x38 buffer getters)
-  versus the 99 family-B tables whose +0x8c is the BOOLEAN
-  0x23870 ([obj+0xa9] != 0); the default wrapper 0x400b0 is a
-  position path (+0x68/+0x70/+0x71), so per-family state-step
-  attribution is OPEN, and PR-153's "every LION tick" wording
-  must be re-checked against the 99 family; (b) the field
-  readers: who reads [obj+0xa9] (the boolean's field), the
-  [obj+0xad] ordinal pair in 0x55130/0x550c0 (an ORDER or an
-  ENERGY field? - PR-89's obj docs already call [obj+0xad]
-  the energy counter: reconcile with PR-173 F3's ordinal
-  reading - the two may be the SAME field, say so or
-  separate them), and [obj+0x75], the SECOND 13-byte
-  TEventSet adjacent to the live set (installed as the
-  0x23a20 getter answer at x38+ tables): producers, readers,
-  and whether the pump merge sees it. Method: cross-reference
-  the +0x8c call sites (the pump 0x536f0 verbatim is already
-  pinned; find every caller of the pump and every caller of
-  the boolean), and the image-wide read/write census for the
-  three offsets. A docs reading PR unless the answers point
-  at a port-side gap, then a code PR follows.
-- THEN the +0xac READ (PR-174's new item): the verb called
-  by the state-change applier at 0x535f7 (edx = the row
-  value, after ENTER) and by the same-state arm ONLY on a
-  changing write (0x5361c-0x53620) - the base table's slot
-  and the per-class variants; it is the other half of the
-  0x53612 guard and may re-ground the row-seek model. It
-  interlocks with PR-175's call-site maps: pull it into that
-  pass if the census of the slot tables lands there.
-- THEN the per-class +0x78 singleton family (~76 tables):
-  0x28af0 whole read (the named lead for the K_GEN1 platform
-  key half; PR-155/156 recorded it raising bit 54 at
-  0x28af2), and the rest as census only.
+- PR-176 IS THE CONTROLLER-GETTER PASS (the natural next
+  step after PR-175 F6): read 0x504e0 WHOLE and its callee
+  0x551f0 whole (only the 0x504e0 head is read: tests
+  [obj+0xa5] bits 0x2/0x40), and identify the TWELVE tables
+  that carry it with the full LION controller shape
+  (+0x14 = 0x550a0, +0x54 = 0x55070): 0x96960 (LION),
+  0x97970, 0x97a98, 0x988ec, 0x98f34, 0x9b4d4, 0x9c958,
+  0x9d338, 0x9e134, 0x9f170, 0x9f540, 0xa2218 - cross-
+  reference the table-region against text/class-name strings
+  and the level-data object kinds; 0x9c05c's identity (a
+  0x546a0-carrier, PR-173 item (e)) comes with it. Then
+  UPDATE the KADMAR camel reachability item (PR-173 F5/item
+  (4)): if one of the twelve is the camel's controller, its
+  K_*-keyed rows ARE synthesis-reachable through the 0x504e0
+  getter's answer, and the item narrows to a model note;
+  if not, say so and keep it data-blocked. Docs reading; a
+  small code PR only if the answers expose a port-side gap.
+- THEN the per-class +0x78 singleton family (~76 tables,
+  PR-173 item (3)): 0x28af0 whole read (the named lead for
+  the K_GEN1 platform key half; PR-155/156 recorded bit 54
+  raised at 0x28af2), the rest as census only.
 - THEN the BY_TY FEED READ (PR-172 item): 4 shipped ZARIA.01
   states use control=BY_TY (rows gated 200/300); the port
   runs them as plain time states. Read the feed dispatcher
   0x543a0 mode arm for that token (PR-166's +0x14 map) and
   its relation to the [obj+0xba]/[obj+0xbe] pair; a labeled
   model note or a feed implementation follows.
+- THEN the msg-id arms + id map + [obj+0xa9] semantics
+  (PR-175 F7b's site map is IN HAND - start from it): the
+  0x5460e READ / 0x54624 WRITE arms' message-id source, the
+  id-to-meaning table, and what the pool query 0x4b600 does
+  with the [obj+0xa9] value at 0x4b64f.
 - THEN the PLAYER-SIDE same-state seek (PR-174 item (2)):
   the 20 ZARIA.01 lion lines (conditions: AC_TIME x2, AC_DUP,
   |K_ANY, K_FIRE,K_GEN2, AC_RECT,K_GEN1 - the player path
@@ -15812,36 +15802,40 @@ no port behaviour change)
   THEN the row writes, with fresh frame evidence for any
   changed T2/T3 animation claim. PR-86's keep-running stays
   shipped until then.
-- THEN the KADMAR camel reachability item (PR-173 F5): the
-  K_*-keyed OBJECT rows (KADMAR.07_CAMEL_CAMEL.MOV,
-  KADMAR.07_0_0.MOV) - decide synthesis (0x54910-shape) vs
-  the kind-0x10 arbitrary-bit law (PR-155) at that stage.
-  ZARIA.01 is proven NOT to reach any of it (F5) - no port
-  change now.
-- THEN the msg-id map + pool-name decode (carried unchanged):
-  0x5460e/0x5463a arms, the id-to-meaning table; the pool
-  names (PR-166 item 2 negatives banked) and the name-keyed
-  path 0x4dcc0/0x4df10.
-- THEN carried reads (unchanged): 0x504e0/0x551f0 whole and
-  0x9c05c/0x9c054 identity (PR-173 items (e)/(f)); the +0x60
-  conditional minority (PR-169 item 3); the vtable+0-word OR
-  4/8 row-end CONSUMER (PR-164 item 1); [obj+0x99] reader
-  semantics (PR-167 item 5); the base table's +0x1c/+0x20
-  overrides (PR-167 item 2); the 0xa2e9c/0xa2ed4 view
-  selection (PR-167 item 3); 0x53520 arg plumbing + [obj+0x95]
-  reader; the 31-vs-24 +0x14-slot delta; record verbs
-  +0x2c/+0x30 bodies + the second-view slots 0x559c0/0x45800;
-  the +0x9c per-class gate variants (PR-168 item 4); the walk
-  return-value encoding (PR-161 item 1); 0x524xx rest;
-  0x446de; 0x57d30 modes; FLAG +0x4c getter; the 0x4fef0
-  side-effect SEMANTICS ([pool+0x3a0]/[0x3a8], ds:0xcf068)
-  as PR-170 item (4).
+- THEN the +0xac FULL-BODY READ (PR-174 item (1)'s carried
+  remainder, re-scoped by PR-175 F4): 0x546a0 from 0x54706
+  on (the head is read: the [obj+0xb6] bit test, the +0x12
+  word test ah,0x40 -> the 0x4b600 pool query -> the 0x49580
+  live-set merge, the [obj+0xa9] RMW); the 0x52a00 variant
+  (the 0x23c70 x10 pairing); then re-check whether any
+  ZARIA.01-visible class's extension changes observable
+  keys.
+- THEN carried reads (mostly unchanged): 0x550c0's body and
+  the 0x55130 tail from 0x551b8 (PR-175 F7a stopped at the
+  key branches); the 73 non-pump anchored tables with a DEAD
+  0x54910 getter at +0x8c (where/if they are pumped at all);
+  the +0x54 hook families 0x53df0/0x3ddf0 and 0x55070's
+  callees (+0xb0/[obj+0xd6], 0x541f0/[obj+0x89], +0x98);
+  the +0x4c/+0x1c 0x23a20-default slot census RECOUNT (one
+  candidate base per table - PR-175 F7c's caveat); the pool-
+  name decode; the vtable+0-word OR 4/8 row-end CONSUMER
+  (PR-164 item 1); [obj+0x99] reader semantics (PR-167
+  item 5); the base table's +0x1c/+0x20 overrides (PR-167
+  item 2); the 0xa2e9c/0xa2ed4 view selection (PR-167 item
+  3); 0x53520 arg plumbing + [obj+0x95] reader; the 31-vs-24
+  +0x14-slot delta; record verbs +0x2c/+0x30 bodies + the
+  second-view slots 0x559c0/0x45800; the +0x9c per-class
+  gate variants (PR-168 item 4); the walk return-value
+  encoding (PR-161 item 1); 0x524xx rest; 0x446de; 0x57d30
+  modes; the 0x4fef0 side-effect SEMANTICS ([pool+0x3a0]/
+  [0x3a8], ds:0xcf068) as PR-170 item (4); the +0x60
+  conditional minority (PR-169 item 3).
 - LEDGER RULE (PR-158 F1): every Next-swap re-splices recent
   records from the LAST revision that carried them. Census
   recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
   `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD carries all twenty-four (PR-150..PR-
-  173); HEAD is the last carrier.
+  pass's census: HEAD carries all twenty-five (PR-150..PR-
+  174); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -21113,7 +21107,17 @@ table now verified 68/68)
   PR-168/171) carry 0x23870 at +0x8c — `return [obj+0xa9]
   != 0`, a BOOLEAN, not a key buffer. The slot has TWO
   contracts; the pump's unconditional merge cannot run for the
-  boolean shape — call-site attribution is counted item (1).
+  boolean shape - call-site attribution is counted item (1).
+  [CORRECTED BY PR-175 F2/F3: the 99 are NOT a family of the
+  178 - NONE carries the 0x23b80 marker (their +0x60 holds
+  0x54450/0x40030/other getters) and all 99 hold 0x23920 at
+  +0x14 - "return the record's [rec+0x12] control-flags
+  word" - so they are DISJOINT passive lineages, and the +0x8c
+  slot has exactly TWO call sites (the pump's 0x536ff and the
+  owner-merge path ending at 0x3ee18), BOTH discarding the
+  return value: the boolean's answer feeds no caller and the
+  "TWO contracts" framing dissolves into the lineage
+  separation. Item (1) closed in the same record.]
   Slot +0x78 (the pool-entry provider, PR-166/167): base
   0x23b10 = zero-key emitter (12 zero bytes + count 0 — the
   base entry contributes NO key); default 0x552e0 x65 + the
@@ -21130,8 +21134,13 @@ table now verified 68/68)
   0x55230 read whole: flags via verb +0x44 (PR-170's getter);
   test 0x80000 = ANTI_POCISK (PR-162's flag map) -> relation
   verb +0xd0 on the OTHER object; relation gate +0x40 true ->
-  0x55130 (which runs 0x550c0 — both parties' +0x40 — and
+  0x55130 (which runs 0x550c0 - both parties' +0x40 - and
   branches on the [obj+0xad]/[other+0xad] ordinal pair: the
+  [CORRECTED BY PR-175 F7a: the pair is the ENERGY field -
+  PR-89's counter, not an order: 0x5516a `cmp [self+0xad],
+  [other+0xad]`, the greater side builds the AC_ENEMY_ATC
+  key, the jle side the always-AC_ENEMY zero key. Item (2)'s
+  "ORDER field?" question resolved.]
   greater side builds a key with AC_ENEMY_ATC (bit 16 =
   [key+2]|0x01), the other branch zero-key; tail partial,
   item 2); flags test ah,0x20 = word bit 0x2000 = DANGER
@@ -21182,8 +21191,16 @@ table now verified 68/68)
   arbitrary-bit kind-0x10 law) and proves ZARIA.01 reaches
   NONE of it through the object path: NO port change for this
   stage. The K_*-keyed OBJECT rows that would need synthesis
-  live in the KADMAR camel pair — a later-stage reachability
-  item, counted, not modeled.
+  live in the KADMAR camel pair - a later-stage reachability
+  item, counted, not modeled. [UPDATED BY PR-175 F6: TWELVE
+  class tables carry the 0x504e0 key getter with the FULL
+  LION controller shape (+0x14 = 0x550a0, +0x54 = 0x55070) -
+  0x96960 (LION), 0x97970, 0x97a98, 0x988ec, 0x98f34,
+  0x9b4d4, 0x9c958, 0x9d338, 0x9e134, 0x9f170, 0x9f540,
+  0xa2218: controller classes that DO run the pump exist in
+  quantity; whether the camel's script belongs to one of them
+  is exactly what PR-176's identity pass decides, so the
+  reachability question narrows rather than widens.]
 
 - FINDING 6, THE 0x600000/0x800000 LITERALS ARE A LEDGER
   ARTIFACT — CLOSED WITH PROVENANCE. git -S over all blobs:
@@ -21205,22 +21222,45 @@ table now verified 68/68)
 
 - OPEN ITEMS COUNTED (5 new, 1 re-scoped, 2 closed). NEW: (1)
   the +0x8c slot's TWO contracts (buffer getters vs boolean
-  0x23870) — which classes run 0x536f0's pump merge and where
+  0x23870) - which classes run 0x536f0's pump merge and where
   the boolean answer is consumed (the default wrapper 0x400b0
-  calls +0x68/+0x70/+0x71 — position paths — so the state-
+  calls +0x68/+0x70/+0x71 - position paths - so the state-
   machine pump attribution per family is open; PR-153's
   "every LION tick" wording needs re-checking against 99-
-  family objects). (2) 0x55130/0x550c0 internals: the
+  family objects). [CLOSED BY PR-175 F1-F3: the pump is
+  reached ONLY through class verb slot +0x14 (0x550a0 x79 -
+  zero [obj+0xe6]/[0xea] then the image's ONLY direct `call
+  0x536f0` at 0x550b4 - plus 0x536f0 installed directly x26:
+  exactly 105/178 anchored classes, LION 0x96960 among them,
+  so PR-153's wording HOLDS for LION); the 99 are disjoint
+  passive lineages whose +0x14 returns the record's flag
+  word; both +0x8c call sites discard the value - nothing
+  "consumes" the boolean.] (2) 0x55130/0x550c0 internals: the
   [obj+0xad]/[other+0xad] ordinal pair (an ORDER field?),
   0x55130's tail from 0x551ad, 0x550c0's body; the
-  [obj+0xa9] reader (boolean 0x23870's field). (3) the ~76
+  [obj+0xa9] reader (boolean 0x23870's field). [CLOSED IN
+  PART BY PR-175 F7a/F7b: the pair IS the energy field (see
+  the bracket at F3 above); 0x55130's key branches are read;
+  [obj+0xa9]'s 24-site map is complete - msg-id READ 0x5460e
+  /WRITE 0x54624, the pool query 0x4b600's read at 0x4b64f,
+  the animal family, the zeroers, semantics open. STILL
+  OPEN: 0x550c0's body, 0x55130's tail from 0x551b8.] (3) the ~76
   per-class +0x78 singleton providers as a family (the bit-54
   raiser 0x28af0 now slot-identified; the census tool exists).
   (4) KADMAR camel/0_0 K_*-keyed object rows: reachability of
   synthesized or message-raised bits for THOSE at their stage
-  (T6+; not ZARIA.01). (5) [obj+0x75] — the second 13-byte
+  (T6+; not ZARIA.01). (5) [obj+0x75] - the second 13-byte
   TEventSet adjacent to the live set: producers and readers
-  unread; the 0x504e0/0x551f0 detail. RE-SCOPED: PR-171's
+  unread; the 0x504e0/0x551f0 detail. [UPDATED BY PR-175
+  F7c: [obj+0x75] has ZERO direct operand sites in the whole
+  text - every grep hit is false disassembly of data - so
+  the ONLY access is the 0x23a20 pointer getter's answer; and
+  0x23a20 is ALSO slot +0x4c's default value (the carried
+  "FLAG +0x4c getter" item is now slot-identified; the 156/
+  108 slot-match counts over-match through candidate bases -
+  a per-table recount is recorded as an open census note).
+  The buffer's producers/readers stay open; 0x504e0/0x551f0
+  became PR-176's named task.] RE-SCOPED: PR-171's
   family-B "producer referenced NOWHERE" — producers ARE
   statically installed at +0x8c (F3/F4); the remaining half is
   item (1). CLOSED: PR-171's literal-constants re-derivation
@@ -21323,7 +21363,16 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   at 0x53616 runs ONLY when it differs from the argument
   (0x53612's je jumps over it): when it runs it also calls
   class verb +0xac (0x53619-0x53620, edx = the row value)
-  BEFORE falling through to the 0x53626 count arm. PR-107's
+  BEFORE falling through to the 0x53626 count arm. [COR-
+  RECTED BY PR-175 F4: edx there is NOT the row - ebx =
+  &[obj+0x60] loaded at 0x535ad survives to both call sites,
+  so the argument is the LIVE KEY SET: +0xac is a key-
+  extension hook (the state-change arm calls it always, the
+  same-state arm only on row-CHANGING writes; the slot
+  co-varies with +0x14 exactly, and for the 26 direct-pump
+  classes it is the empty `ret` 0x23930). The row-write
+  model this record ships is UNAFFECTED; the guard's skipped
+  call is the extension hook, not a row verb.] PR-107's
   settlement stands for this path: the value is stored RAW
   (no sign test - the 0x52381 refusal is the +0x1c method's,
   the cross-state path), an absent token (-1) is stored and
@@ -21392,7 +21441,14 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   called with the row value by the state-change arm
   (0x535f7, after ENTER) and by the same-state arm ONLY on
   a row-changing write (0x5361c-0x53620): the body is the
-  other half of the 0x53612 guard and is unread. (2) the
+  other half of the 0x53612 guard and is unread. [CLOSED IN
+  PART BY PR-175 F4: the call discipline and the edx =
+  &[obj+0x60] argument are settled (bracket at F2 above),
+  and the LION-shape class's verb 0x546a0's head is read -
+  a +0x12 flag-word test, the 0x4b600 pool query (reading
+  [obj+0xa9]), a 0x49580 live-set merge, and an [obj+0xa9]
+  RMW. CARRIED: 0x546a0's full body and the 0x52a00
+  variant.] (2) the
   player-side same-state seek for the 20 lion lines (F5:
   needs the signal-side model + fresh frames; the exact 20
   lines and their conditions are listed in F1). CLOSED: the
@@ -21437,6 +21493,230 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   HEAD (census: HEAD carries PR-150..PR-173, 24 records,
   last carrier); 2 brackets (PR-107 item (2) CLOSED for the
   object path; PR-172's carried candidate CLOSED).
+
+## PR-175 — THE KEY-FOLLOW-UP INTERLOCK PASS: +0x14 IS THE
+## STATE-STEP VERB SLOT, THE 99-TABLE FAMILY IS A DISJOINT
+## LINEAGE, +0xac IS A KEY-EXTENSION HOOK, AND [obj+0xad] IS
+## THE ENERGY FIELD (READING; no port code, no behaviour
+## change; PR-173'S items (1)/(2)/(5) CLOSED or re-scoped with
+## call-site evidence, PR-174's +0xac detail CORRECTED)
+
+- WHY. PR-173's Next specced this pass: (a) the +0x8c "TWO
+  contracts" - which families' objects run the pump 0x536f0's
+  key merge and which carry the boolean 0x23870; (b) the field
+  readers - [obj+0xa9], the [obj+0xad] "ordinal pair" in
+  0x55130/0x550c0, and [obj+0x75]; and PR-174 had just
+  counted +0xac, "the other half of the 0x53612 guard". All
+  three interlock through the SAME call-site maps, so they run
+  as one docs pass. Method: the slot-table scan over the
+  binary (the 178 tables marker-anchored at +0x60 = 0x23b80,
+  plus the independent 99-table family found by its +0x78 =
+  0x54860 / +0x60 getter shape), the text-section grep recipe
+  (`grep -nE "0xa9\]" text.asm` - the bracket form keeps real
+  operands and rejects data-region false disassembly), and
+  re-reads of 0x550a0/0x55070/0x546a0/0x23920/0x23870/
+  0x55130/0x3ed00-0x3ee27. No port file changes: nothing
+  shipped moves.
+
+- FINDING 1, +0x14 IS THE PER-OBJECT STATE-STEP VERB SLOT -
+  THE PUMP IS REACHED THROUGH IT, AND LION IS PUMPED. Slot
+  +0x14 is called at many engine sites (0x129ac, 0x1349d,
+  0x2e9ce, 0x3f5ec, 0x3f680, 0x3fb07, 0x4006f, 0x40c56,
+  0x425a0, 0x4579c, ...). Across the 178 marker-anchored
+  tables its values: 0x550a0 x79, 0x400b0 x45, 0x536f0 x26
+  (the pump installed DIRECTLY), 0x23c70 x18, 0x55380 x4,
+  singletons 0x41b90/0x410f0/0x249d0. 0x550a0 reads verbatim:
+  zero [obj+0xe6], zero [obj+0xea], `call 0x536f0; ret` -
+  and 0x550b4 is the ONLY direct `call 0x536f0` in the whole
+  text. So the pump set = the tables with 0x550a0 or 0x536f0
+  at +0x14 = 105 of 178. LION 0x96960 carries 0x550a0 at
+  +0x14: PR-153's "the pump runs every LION tick" HOLDS for
+  LION. The 0x23c70 arm (x18) delegates to class verb +0x28
+  before the fall-through; 0x400b0 (x45) is the position path
+  PR-173 already named.
+
+- FINDING 2, THE 99 FAMILY-B TABLES ARE A DISJOINT LINEAGE -
+  PR-173's JOINT PRESENTATION CONFLATED TWO TABLE POPULATIONS.
+  Scanning by +0x78 = 0x54860 finds exactly 99 tables; NOT
+  ONE of them is in the 178 marker-anchored set: their +0x60
+  holds 0x54450 x41 / 0x40030 x26 / 0x3d2c0 x5 / 0x3d940 x4 /
+  0x3d200 x3 / 0x1edb0 x2 - never the 0x23b80 marker. Their
+  +0x14 is 0x23920 in ALL 99: read verbatim, `push edx; mov
+  edx,[eax+0x5c]; mov eax,[eax+0x50]; mov eax,[[eax+edx*4]
+  +0x12]; pop edx; ret` - the CURRENT record's control-flags
+  word ([rec+0x12], the same word 0x546c5 tests bit 0x40 and
+  the stepper reads for [rec+0xc]) returned as the step verb.
+  These classes have NO pump, no walk verb, no key verb at
+  +0x14 - they are the passive class lineages (their +0x8c =
+  0x23870 is consistent with that). PR-173 F3's "The 99
+  family-B tables ... The slot has TWO contracts" mixed the
+  two populations; the real separation is between LINEAGES,
+  not one slot's contracts.
+
+- FINDING 3, THE +0x8c SLOT HAS EXACTLY TWO CALL SITES, AND
+  NEITHER USES THE BOOLEAN'S VALUE. Grep over the text
+  section: `call DWORD PTR [+0x8c]` occurs at 0x536ff (inside
+  the pump 0x536f0, the merge pinned verbatim by PR-173 F2)
+  and 0x3ee18. The 0x3ee18 path (enclosing function spanning
+  0x3ed00-0x3ee27; boundary partially read, 0x3eff2 calls
+  0x3ed40): builds a 13-byte key via the ctor 0x749a0, sets
+  `or BYTE [key+ebp],0x4` - bit 2 = AC_BREAK_NEXT (PR-173
+  F1's numbering) - merges it into the OWNER's live set
+  ([[ecx+0x3c]+0x60], 0x49580), then calls the CHILD's +0x8c
+  with edx = the class table (a clobbered argument: the body
+  at 0x23870/0x54910 reads only eax = the object). The
+  return value at BOTH sites is discarded (0x536ff: the getter
+  writes its buffer through edx = &[obj+0x60]; 0x3ee18: `add
+  esp,0x3c` follows). So 0x23870's boolean answer feeds NO
+  caller at those slots - the "two contracts" framing
+  dissolves into the lineage separation of F2.
+
+- FINDING 4, +0xac IS A KEY-EXTENSION HOOK, NOT A ROW VERB -
+  PR-174'S DETAIL CORRECTED. Slot +0xac is called at exactly
+  two sites: the applier's state-change arm (0x535f7, always
+  after ENTER) and the same-state arm (0x5361c-0x53620) ONLY
+  on a row-changing write. At both, ebx = &[obj+0x60] has
+  been loaded at 0x535ad and survives, so edx = &the LIVE KEY
+  SET at entry - PR-174's "edx = the row value" was WRONG.
+  The slot values co-vary with +0x14 exactly: (0x550a0,
+  0x546a0) x79, (0x400b0, 0x546a0) x45, (0x536f0, 0x23930 =
+  a bare `ret` - the EMPTY extension) x26, (0x23c70, 0x52a00)
+  x10. Meaning: whenever the engine changes state or re-seeks
+  a row, it calls the class's key-extension verb on the live
+  set. 0x546a0 (x130) partially read: test [obj+0xb6],0x2 ->
+  0x54804 arm; else read the record's +0x12 word, test ah,
+  0x40 -> 0x4b600 (PR-165's pool query, which reads [obj+
+  +0xa9] at 0x4b64f!) -> 0x49580 merge into live; then RMW/
+  zero of [obj+0xa9] at 0x5477b-0x547f0. Full body: carried.
+
+- FINDING 5, THE PUMP-105 SLOT MAP AND A HOOK DISJOINTNESS.
+  Within the pump-105: +0x8c = 0x54910 x64, 0x23a60 x26,
+  0x504e0 x12, singletons 0x613d0 x2/0x27280; +0x54 =
+  0x55070 x56, 0x53df0 x26, 0x3ddf0 x21. The 73 non-pump
+  anchored tables carry 0x54910 x51 at +0x8c (they get the
+  synth getter but their +0x14 never pumps - a dead getter
+  slot, or those classes are pumped elsewhere: open). The 105
+  tables with 0x55070 at +0x54 are NOT the 105 pumped tables
+  (intersection EMPTY; 49 each way): 0x55070 (zero verbatim:
+  calls +0xb0 on [obj+0xd6], 0x541f0 on [obj+0x89], +0x98)
+  belongs to the walk/view side - the +0x54 hook families
+  0x53df0/0x3ddf0 stay carried.
+
+- FINDING 6, TWELVE CONTROLLER CLASSES SHARE THE LION'S
+  SHAPE. Every table whose +0x8c is the 0x504e0 getter -
+  0x96960 (LION), 0x97970, 0x97a98, 0x988ec, 0x98f34,
+  0x9b4d4, 0x9c958, 0x9d338, 0x9e134, 0x9f170, 0x9f540,
+  0xa2218 - has +0x14 = 0x550a0 AND +0x54 = 0x55070: the
+  FULL LION controller shape, twelve of them. This grounds
+  PR-173's "TLewZaria controller pair" note and makes the
+  KADMAR camel K_*-keyed rows (PR-173 F5/item (4)) plausible
+  for a controller class of exactly this shape - the identity
+  of the twelve is PR-176's named task (0x504e0/0x551f0 read
+  whole; table-region and name-string cross-reference).
+
+- FINDING 7, THE FIELD READS: [obj+0xad] IS THE ENERGY FIELD;
+  [obj+0xa9] HAS A BOUNDED MAP; [obj+0x75] IS POINTER-ONLY.
+  (a) PR-173 F3's "ordinal pair" RESOLVES to ENERGY:
+  0x5516a is `cmp ebp,[esi+0xad]` with ebp = [self+0xad]
+  (set at 0x55140; esi = the other object intact). Self
+  energy > other -> build a key with byte2 |= 0x01 = AC_
+  ENEMY_ATC (0x55188-0x55193); jle -> a ZERO key that always
+  sets byte0 |= 0x80 = AC_ENEMY (0x55199-0x551b5); tail from
+  0x551b8 partial. This matches the entry's flag gate ([rec+
+  0x12] test ah,0x40 -> the +0xd0 relation verb) - an
+  ATTACK-CONNECT comparison between the two actors' energy
+  counters, the same field PR-89's 0x54550 subtract /
+  0x544a5 death gate name. PR-89's reading and PR-173's
+  "ordinal" guess were the SAME field; the ordinal reading is
+  corrected. (b) [obj+0xa9], 24 text sites, bounded: ctor
+  zero 0x1f8e9; READ at 0x5460e and WRITE at 0x54624 inside
+  the msg-id arms (the carried 0x5460e/0x5463a pair - the id
+  map still open, but the field is now KNOWN to be written by
+  the message-id path); the 0x546a0 body maintains it
+  (0x5477b-0x547f0 RMW/zero); other zeroers 0x54e6a; readers
+  0x23870, 0x4b64f (inside 0x4b600 = PR-165's pool query -
+  the field FEEDS the pool lookup!), 0x34219, 0x2c13d/
+  0x2c1cd/0x2f763 (the animal-family trio), 0x38213/0x3822d,
+  0x3ea49 (imul), 0x45471, 0x5406f; address-takers 0x2b721/
+  0x2b7e3/0x2b815/0x2b846. Semantics OPEN, map CLOSED
+  enough to be carried as a completed census. (c) [obj+0x75]:
+  ZERO direct operand sites in the whole text (every grep hit
+  is a data-region false disassembly like `shl BYTE PTR [esi
+  -0x75],cl`) - the ONLY access is the 0x23a20 pointer
+  getter `add eax,0x75; ret`. NEW slot fact: 0x23a20 is also
+  the DEFAULT value of slot +0x4c (156 slot-matches - the
+  carried "FLAG +0x4c getter" item, now slot-identified; the
+  count over-matches because candidate bases were conflated,
+  so per-table numbers need a careful recount before any
+  claim), and 0x1c x108 with the same caveat (0x97c9c's
+  +0x8c = 0x23a20 confirmed earlier). The 13-byte set at
+  +0x75 is thus a private buffer reached only through its
+  getter's answer - producers/readers of the BUFFER itself
+  remain open (item (5) stays, re-scoped).
+
+- OPEN ITEMS COUNTED (0 new; 2 closed, 1 closed-in-part, 2
+  corrected, 1 re-scoped). CLOSED: PR-173 item (1) - the
+  pump-vs-boolean attribution (F1-F3: 105 pumped via +0x14,
+  the 99 are a disjoint passive lineage, the boolean's value
+  is discarded at both +0x8c sites). CLOSED: PR-174 item (1)
+  IN PART - +0xac's call discipline and argument are now
+  known (F4): the guard skips the CALL of the key-extension
+  verb when the row is unchanged; the LION-shape class's verb
+  0x546a0 is partially read; its FULL body stays carried as
+  the re-scoped remainder. CLOSED IN PART: PR-173 item (2) -
+  [obj+0xad] = energy (F7a), 0x55130's key branches read,
+  [obj+0xa9]'s site map complete (F7b); 0x550c0's body and
+  the 0x55130 tail from 0x551b8 stay carried. UPDATED: PR-173
+  item (5) - [obj+0x75] has zero direct accessors; the only
+  door is the 0x23a20 getter; +0x4c's default IS 0x23a20
+  (F7c). CORRECTED (brackets): PR-173 F3's "The slot has
+  TWO contracts"/joint 99-family presentation (F2/F3) and its
+  "ordinal pair" wording (F7a); PR-174 F2's "edx = the row
+  value" (F4). RE-SCOPED: PR-173's camel item (4) gains
+  F6's twelve-controller-class grounding. CARRIED unchanged:
+  0x546a0's full body; 0x550c0's body; the 0x55130 tail;
+  the msg-id arms 0x5460e/0x5463a and the id map (with the
+  new 0x54624 WRITE fact); the pool-name decode; the ladder-
+  gate fi-vs-state data block; PR-172's BY_TY feed item;
+  PR-173 items (3)/(4) (the +0x78 singletons, camel reach-
+  ability); PR-174 item (2) (the player-side seek); the
+  +0x54 hook families 0x53df0/0x3ddf0; the 73 non-pump
+  tables' dead 0x54910 getters; the +0x4c/+0x1c slot census
+  recount; everything else unchanged.
+
+- GATES. Docs-only reading PR - no port file touched, so the
+  build gates do not apply (PR-138..171 precedent); nothing
+  shipped could change: the tree builds from the PR-174
+  binary and its verify-all legs ran green at PR-174's ship
+  (56 ok / 10 ok + 23 named SKIPs, rc=0 both ways). Added
+  .md lines all <= 79 cols; over-79 baselines UNCHANGED
+  (NEXT_STEPS 71, HANDOFF 72); no game data or frames in
+  git (census scripts under /tmp/opencode/pr175/); .github/
+  workflows/* untouched. CI truth at this record's time,
+  stated honestly: PR-172's run (44511410834) CANCELLED as
+  superseded by PR-173's push (its diff is covered by
+  44515534020); PR-173's run (44515534020) and PR-174's run
+  (44518288398) were IN PROGRESS at the last check - their
+  status is recorded from the next check below; this docs
+  push queues its own run.
+
+- EVIDENCE. The slot-table scan (python over build/leo/
+  leo.elf, VA = fileoff + 0xF000: anchored-table +0x14/+0xac
+ /+0x8c/+0x54 histograms; the 99-family scan keyed on +0x78 =
+  0x54860 with +0x60/+0x14 histograms; the (step,ext) pair
+  census; the 12-controller list; the pump-105/non-pump-73
+  cross-tabs - scripts saved as slot_scan*.py under /tmp/
+  opencode/pr175/); the text-section greps (the `0xa9]`/
+  `0x8c]`/`0x14]` bracket-pattern hits with line numbers);
+  the verbatim re-reads 0x23920, 0x23870, 0x550a0/0x55070/
+  0x550b4, 0x546a0's head, 0x3ed00-0x3ee27, 0x55130's tail,
+  0x5516a-0x551b8. Ledger: records re-spliced from HEAD
+  (census: HEAD carries PR-150..PR-174, 25 records, last
+  carrier); 7 brackets (PR-173 F3 lineage conflation cor-
+  rected; PR-173 F3 ordinal wording corrected; PR-173 items
+  (1) CLOSED, (2) CLOSED IN PART, (5) UPDATED, its camel item
+  UPDATED; PR-174 F2's +0xac argument corrected and its item
+  (1) closed-in-part).
 
 ## Deferred big items (deliberately out of scope so far)
 
