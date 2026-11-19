@@ -15733,45 +15733,39 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- THE BIT-54 BRIDGE IS ONE DECIDING QUESTION FROM BOUNDED
-  (PR-156). The static raiser set is enumerated (PR-155 F7);
-  what remains, in order of decision power: (1) DOES THE kind-
-  TABLE EVER GET WRITTEN? ds:0xcf0b4 (count) and ds:0xcf0ac
-  (array) are BSS zeros whose ONLY disp32 references are the
-  two reads inside 0x56600 - if no code ever writes them, ev-
-  ery 0x56600 kind-dispatch (including the hand-off's kind-9
-  RUNG-RECT arm) is a NO-OP and the kind-0x10 magic-record law
-  (PR-155 F3) becomes the ONLY cross-object signal path. The
-  place to look is the 0x567xx/0x60ea4 family - the only code
-  touching the BSS neighbours 0xcf080/0xcf084/0xcf088 (maybe
-  via a computed base: check for lea/mov of 0xcf0xx plus regis-
-  ter-relative stores). (2) The MOVEPLAT bodies: 0x28af0 in
-  full (what guards the bit-54 self-raise; what the inert type-
-  0xf wake-up posts for), 0x287a0 in full (the AC_DRAB kind-
-  0x10 poster's conditions), and WHO fills the [obj+0x40]
-  assoc arrays (construction init at 0x53ff0/0x44fe0 contexts).
-  (3) WHICH LEVELS place the 3 ANIMACJE MOVEPLAT objects (ZAR-
-  IA?) - the ANIMACJE values are encrypted, so attribute via
-  ETAPY/LEVELDES record structure or the placement-record key
-  offsets. (4) The 0x9a54c family token (find the factory that
-  calls the raw ctor 0x27030) and the 0x9d088/0x9d080 clone
-  family (carried). (5) The two unread 0x52cc0 sites (0x373f0/
-  0x3dc5f). THEN the WAIT row-gate CODE pass - the engine law
-  is complete (PR-100 thresholds + PR-153 tick order + PR-154
-  F6 chain-composing getters + PR-155 F4: the engine itself
-  tests [[assoc]+0x50][i]+4 == 6): parse the field-2 gate,
-  feed it, and the A_WALK pose law falls out - ship with test
-  + mutations. Then the y-force/0xcf400 path and the standing
-  items (0x4aa60, [[companion+8]+0xe0], the companion identity,
-  the 0x41a40 machine, [obj+0xc6]/+0xf6, the rectangle format,
-  the LINA-family table, the flag feature).
-- THE kind-4 CODE pass stays DEFERRED to an ENA/SADES/TUNGA-
-  era controller (PR-151).
-- METHOD NOTE carried forward (PR-155 added a new failure
-  mode): for direct receiver calls the MESSAGE KIND LIVES AT
-  [record+4], not in edx - an edx-only walk misses posters;
-  and the entry-boundary rule fired again (0x50d62, 0x54562,
-  0x53772).
+- THE ROW-GATE SPEC READING IS NEXT (PR-157), THEN THE CODE
+  PASS. PR-156 proved the engine consumes ROW ARRAYS BY ANIM
+  STATE ([[obj+0x50] indexed by [[obj]+0x5c], field +4 com-
+  pared against 2/6/0x19 per consumer) and that the constant-
+  6 gate of the authored rows is tested by engine code at
+  0x287ea/0x1edd5. What is NOT yet read: (a) WHO BUILDS the
+  [obj+0x50] row arrays and WHO WRITES [obj+0x5c] (the state
+  machine - PR-70 saw [+0x5c]==1 as the balloon's start state;
+  the 0x40eb0/0x40030 calls at controller entries are candi-
+  dates); (b) which animation states indices 4 and 0x12 are
+  (map via the ANI tables); (c) how the ANI2.DES per-object
+  PARAM LINES (`1 33,-3`, `23,30;53,160`, `30,50` on DRABIN-
+  KA/LINA only) land in the object (rect list? rows? the
+  [obj+0x128] position list?) - read the DRABINKA branch ctor
+  0x1f8d4..0x1f963 and the shared base-ctor 0x531f0. THEN the
+  WAIT row-gate CODE pass (PR-150 item 6 + PR-152 + PR-156
+  F3: parse field-2, feed the gate) with test + mutations.
+- THEN the named ladder-machinery follow-ups: the 0xa1dfc/
+  0xa1df4 class that OVERWRITES the ladder pair at TABLICA
+  construction (and where LINA/DRABINKA keep theirs), the
+  0x28bf0 method, the 0x97970/0x96fd8 swap variants (which
+  runtime path installs them), the kind-4 [obj+0xb6] OR lead
+  (PR-151's kind-4 CODE pass - the literal OR at 0x545c6 is
+  now read).
+- THE kind-0x10 law is the ONLY cross-object signal path
+  alive (kind-dispatch is dead code, PR-156 F1): the ledger
+  treats hand-off kind-9 arms as UNREACHABLE everywhere; any
+  future K_GEN1-on-ladder claim must come through kind-0x10,
+  queue messages, self-raisers, or the pair share (0x54b84).
+- METHOD NOTE carried forward: token-window attribution needs
+  token position vs store address (LINA/TABLICA corrected);
+  re-check old table attributions at construction sites (the
+  TLewZariaB pair correction 0x97a98/0x97a90).
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f and
   the TRASA pair as leads).
@@ -15914,7 +15908,13 @@ no port behaviour change)
   authored field value, AT THE PER-CLASS ROW WINDOW, is now
   the session's strongest K_GEN1 lead: at ZARIA the hand-off
   is designed to fire from the A_WALK/A_ZABLOK rows whose
-  gate field is 6.
+  gate field is 6 [PR-156 F3: the row-array law is now engine
+  truth x4 - 0x28af2 (state-4 guard), 0x287a0/0x287ea (== 6)
+  with the state-0x12/<=0x19 arm, 0x1edb0, 0x1eee0 (+4 == 2):
+  [[obj+0x50] is indexed BY ANIM STATE [[obj]+0x5c] and field
+  +4 IS the gate; reading the row-BUILDER and the state writer
+  (PR-156 open item 1) is the last step before the CODE
+  pass].
 
 - FINDING 4, WHAT THE HAND-OFF ACTUALLY DOES TO THE
   COMPANION (base +0x100 0x50c70 tail, read whole): after
@@ -15964,7 +15964,13 @@ no port behaviour change)
   wrong question.]]); (6) K_GEN1 in the
   right live set drives
   the ladder's `A_UP(1)=K_GEN1` (PR-150's authored row) and
-  the player's own climb rows. THE GAPS THAT DECIDE IT
+  the player's own climb rows [PR-156 F1: links (4)-(6) are
+  VOID as engine behavior - the hand-off's queue node is
+  TYPE-5 (INERT, PR-155 F2); the only static type-9 poster
+  is BAL (PR-155 F1); and the hit-pipeline kind-9 route
+  (0x52cc0 -> 0x56600 -> the ladder's +0x18 rung geometry)
+  is DEAD CODE - the kind tables are never written]. THE
+  GAPS THAT DECIDE IT
   (named, in order): who consumes queue 0x52b10 and runs
   0x50d60 on which object, and WHAT type field the hand-off's
   node carries (is it 9?); what 0x4aa60 (the +0x80 delegate)
@@ -16504,7 +16510,9 @@ no port behaviour change)
 - OPEN ITEMS COUNTED (7 new). (1) The semantics of the 0x38c
   list object's [t+0x5c]=55 / [t+0x6c]=count pair and its
   null class pair. (2) The runtime builder of the kind tables
-  ds:0xcf0ac/0xcf0b4. (3) The node-node +4 "type"-vs-pointer
+  ds:0xcf0ac/0xcf0b4 [CLOSED by PR-156 F1: there IS no
+  builder - the tables are never written and kind-dispatch is
+  dead code]. (3) The node-node +4 "type"-vs-pointer
   duality and the era of class pair 0x9d088/0x9d080 (the
   0x330a7 clone). (4) The static method-prototype vectors and
   the 13 0x4a050 sites. (5) The two unread 0x52cc0 sites
@@ -16676,7 +16684,9 @@ no port behaviour change)
   and 0xa1dfc - the LADDER class is EMBEDDED in placed TRASA2
   objects). AUTHORED DATA: ZARIA's satellite .DES contain SUR-
   PRISE x2 and BAL x6; 'MOVEPLAT' occurs 3 times in the ANIMA-
-  CJEs master (level attribution open).
+  CJEs master (level attribution open) [PR-156 F5: ANI2.DES is
+  PLAINTEXT - ZARIA.01's 35-object roster places ZERO MOVE-
+  PLAT; its ladder machinery is DRABINKA/LINA].
 
 - FINDING 6, THE PRNG RAISER CONTEXT (PR-144 item 2 remainder
   CLOSED). The pair (0x98f34, 0x98f2c) is TLewEna2 - factory
@@ -16714,19 +16724,35 @@ no port behaviour change)
   kind-0x10 record law (any bit, any object, poster statically
   known only at 0x287a0). ENA/ENA2 are other-era classes; for
   ZARIA the live candidates are the MOVEPLAT machinery (place-
-  ment census open) and the kind-0x10 law.
+  ment census open) [CORRECTED by PR-156 F5: ZARIA.01 places
+  ZERO MOVEPLAT - the candidates there are the kind-0x10 law
+  and a SELF-raiser in the DRABINKA/LINA ladder objects, the
+  only roster entries with parameter lines and the only
+  classes embedding the LADDER pair] and the kind-0x10 law.
 
 - OPEN ITEMS COUNTED (10 new). (1) The runtime writer of the
   kind tables ds:0xcf0ac/0xcf0b4 - if NOTHING ever writes the
   count, EVERY 0x56600 kind-dispatch is a no-op and Finding 3
   is the only signal law; the 0x567xx family (the only code
   referencing neighbours 0xcf080/0xcf084/0xcf088) is the place
-  to check. (2) The [obj+0x40] assoc-array semantics: who
+  to check [CLOSED by PR-156 F1: NOTHING writes them - the
+  whole-image census of every immediate in [0xcf000,0xcf100)
+  finds 0xcf0ac/0xcf0b4 ONLY as the two READS inside 0x56600,
+  never address-loaded, zero at load - kind-dispatch is DEAD
+  CODE, the guard never passes, and Finding 3 is the ONLY
+  cross-object signal law; the 0x567xx family reads stage-
+  index bytes (0xcf088) and .MOD registrations (0xcf068) -
+  unrelated]. (2) The [obj+0x40] assoc-array semantics: who
   fills +0x40[i] (TRASA2/MOVEPLAT construction init at
   0x53ff0/0x44fe0 contexts). (3) Which levels the 3 ANIMACJE
-  MOVEPLAT placements belong to (ZARIA?). (4) The 0x28af0
-  guards above the bit-54 raise and the purpose of its inert
-  type-0xf post. (5) The ZARIA-controller 0x1e6xx/0x1e8xx
+  MOVEPLAT placements belong to (ZARIA?) [PR-156 F5: ZARIA.01
+  is EXCLUDED - the ANI2.DES roster has ZERO MOVEPLAT; other-
+  level attribution stays open]. (4) The 0x28af0 guards above
+  the bit-54 raise and the purpose of its inert type-0xf post
+  [CLOSED by PR-156 F2: state [[ctrl]+0x5c]==4 + the LION's
+  rect INSIDE the platform rect minus a (20,0) reach constant;
+  the 0xf post wakes the LION (inert as data, live as wake-
+  up)]. (5) The ZARIA-controller 0x1e6xx/0x1e8xx
   +0/+4-slot object verbs (dynamic kinds). (6) The 0x9a54c/
   0x9a544 family identity (ctor 0x27030 sets [obj+0xf6]=1500,
   zeroes the [obj+0x12a] word; its embedded subobject at the
@@ -16786,6 +16812,175 @@ no port behaviour change)
   ' dist = %d', and the 31 factory tokens (ANITAB..TRASA2).
   Authored-data greps: SURPRISE x2 / BAL x6 in ZARIA satel-
   lites, MOVEPLAT x3 in ANIMACJE.
+
+## PR-156 — THE kind-DISPATCH IS PROVEN DEAD CODE (NOTHING
+## EVER WRITES ds:0xcf0ac/0xcf0b4); THE ENGINE'S OWN ROW-ARRAY
+## CONSUMPTION IS READ TWICE (state-indexed [[obj+0x50]+4 ==
+## 2/6/0x19); THE K_GEN1 PLATFORM LAW IS OUT (0x28af2: LION
+## RECT-TOUCH IN STATE 4 RAISES BIT 54 ON SELF); THE SECOND,
+## ZARIA-ERA PLACEMENT CHAIN (23 BRANCHES, 0x1ed00..0x20000)
+## PLACES DRABINKA AND THE STAGE CONTROLLER ITSELF; ANI2.DES
+## IS PLAINTEXT - THE FULL ZARIA.01 ROSTER OF 35 OBJECTS
+(READING RECORD - NO CODE CHANGE; PR-138..155 PRECEDENT)
+
+- WHY. PR-155's Next named one DECIDING question (does any
+  code write the kind tables?) plus the MOVEPLAT bodies, the
+  ANIMACJE attribution and the carried identities. All pulled.
+  Image unchanged (text.bin sha256 edf19a129e85efb8764457a08
+  08e246ca4baf08a9111aa09be4ec99ce6b8c40e).
+
+- FINDING 1, THE kind-TABLES ARE NEVER WRITTEN - kind-
+  DISPATCH IS DEAD CODE. A dword census over the ENTIRE image
+  for every immediate in [0xcf000,0xcf100): 0xcf0ac and
+  0xcf0b4 occur EXACTLY twice each - both READS inside 0x56600
+  (0x5660e/0x56604). No instruction loads their address, so no
+  register-relative write is possible either; the BSS block is
+  zero at load. THEREFORE ds:0xcf0b4 (count) == 0 forever:
+  0x56600's `kind < count` guard ALWAYS FAILS, and EVERY
+  0x56600 kind-dispatch - including both hand-off kind-9 arms
+  (0x1e185/0x274b1) and the LADDER +0x18 (0x3f0f0) call -
+  NEVER EXECUTES at runtime. The PR-152/153 candidate chain's
+  links (4)-(6) through kind-9 are VOID as engine behavior
+  (the code exists; it cannot fire). SURVIVING cross-object
+  signal paths: the kind-0x10 magic-record law (PR-155 F3),
+  queue-typed messages through the receivers (PR-155 F2),
+  self-raisers, and the pair share (0x54b84). The other
+  0cf0xx singletons are unrelated: 0xcf000 is written at init
+  (0x51532 `call 0x44350`), 0xcf068/0xcf074 are the .MOD-
+  module registration list (56 registration sites, e.g.
+  0x23fba passes descriptor 0xcf068 with token 'looser.mod'
+  to 0x562e0; era names like 'ena2ed.mod' live here), and
+  0xcf088 reads a stage-index byte ([obj+0x20] at 0x56765).
+
+- FINDING 2, THE K_GEN1 PLATFORM LAW (0x28af2, MOVEPLAT-main
+  slot +0x138, raw-byte whole): entry guard SELF state
+  [[ctrl]+0x5c] == 4 else ret (the state-indexed law of
+  Finding 3); if [[ctrl]+0xf6]==0 first call 0x28bf0 and set
+  it to 1; get THE LION via [[obj+8]+0x3c] (the PR-70 player
+  getter) - null -> ret; rect = the LION's own rect through
+  [[lion]+0x68] - minus (20,0) at 0x28b50; test the LION's
+  current rect ([[lion]+0x4c] - 0x55760-style getter) for
+  INCLUSION (all four bounds, 0x28b65-0x28b87); on hit:
+  0x52b10 posts a TYPE-0xf node (payload = the platform con-
+  troller, aux 3) into THE LION's queue (an inert wake-up per
+  PR-155 F2), then byte6 |= 0x40 = BIT 54 K_GEN1 is ORed into
+  the CONTROLLER's own live set [0x60] (0x28bb4-0x28bc7). So
+  "the generator raises K_GEN1 when the lion stands in its
+  reach while it is in moving-state 4" is ENGINE CODE, with
+  the -20px reach constant and the state-4 gate.
+
+- FINDING 3, THE ENGINE'S OWN ROW-ARRAY CONSUMPTION - THE
+  PR-152 ROW MODEL CROSS-CHECKED TWICE MORE. Method 0x287a0
+  (MOVEPLAT main+0x9FC, full): if [[ctx]+8]+0x8](param) suc-
+  ceeds, read the assoc object [[self+0x30]+0x40][1] (via
+  0x55760, the assoc getter) and test ROW [[assoc]+0x50]
+  [[assoc]+0x5c*4] +4 == 6 - state-indexed row array, field
+  2 == 6, THE constant - if true send a TYPE-4 message whose
+  payload byte |= 4 (receiver arm 0x545c6: [obj+0xb6] |= 4 -
+  literal per-state OR, PR-151's kind-4 lead). If the +0x8
+  test FAILS and the CONTEXT's own state == 0x12 and ITS row
+  [[ctx]+0x50][0x12*4]+4 <= 0x19 (25): send the kind-0x10
+  record {0, 0x10, 0x8138764, 0xa} = AC_DRAB to the assoc
+  object (PR-155 F4, now with its guards). Together with the
+  0x1edb0 armer (entry == 3, [[.]+0x50][3]+4 in {0,6}) and
+  0x1eee0 (node +4 == 2): the engine indexes ROW ARRAYS BY
+  ANIM STATE and tests FIELD +4 - values 0/2/6/0x19. The row
+  gate is engine truth in four independent reads; the port's
+  WAIT row-gate pass can be written against it.
+
+- FINDING 4, THE SECOND PLACEMENT CHAIN - THE ZARIA-ERA
+  KEY CHAIN AT 0x1ed00..0x20000 (23 branches): SEP2(0x12c,
+  0x96fd8), DRABINKA(0xd9 - stores the LADDER pair 0x97cdc/
+  0x97cd4 at 0x1f94d), RYBA, POKAZ, STRUMIEN, PIANA, SPLYW,
+  ZWODOSPD, KAMIEN, KATAPULT, KILOF_PL, PALMA, WODA, PLANT,
+  ZARROW, CROCODIL, BRANCH, TREE, JBRANCH, JROPE, ZTABL, and
+  TLewZaria(0x12e, 0x96960/0x96958) plus TLewZariaB(0x12e,
+  0x97a98/0x97a90). THE STAGE CONTROLLERS AND THE LADDER OB-
+  JECT ARE THEMSELVES AUTHORED-PLACEABLE in ZARIA-era level
+  keys. 0x97970/0x97968 is referenced ONLY by ctor 0x1e0a0 -
+  the alternate/swapped ZARIA-controller table (PR-144's class
+  swapping) - correcting the ledger's earlier "TLewZariaB =
+  0x97970" attribution: the branch pair is 0x97a98/0x97a90.
+  In the first chain (PR-155 F5) the exact stores at
+  0x4e8c4-0x4e8d9 (TABLICA branch, token at 0x4e89f):
+  the +0xc9 sub-block gets pair 0x97cdc/0x97cd4 AND AT CONS-
+  TRUCTION IS OVERWRITTEN by 0xa1dfc/0xa1df4 - the ladder
+  machinery starts as the LADDER class and becomes 0xa1dfc;
+  at 0x4f649 the same pair is stored with fields 0xc9/0xcd/
+  0xd1=0, +0xd5=0x98274. 'LINA' (0xd9, base-ctor 0x531f0,
+  main 0x97f50) and 'DRABINKA' SHARE size and base-ctor: the
+  character class embeds the SAME ladder machinery block.
+
+- FINDING 5, ANI2.DES IS PLAINTEXT - THE ZARIA.01 ROSTER
+  (35 entries; corrects the "encrypted values" assumption of
+  PR-152 for this file): ANITAB x2, KORONA, DRABINKA x1 (re-
+  sources drab.ani/drab.mov, position 180,510, with param li-
+  nes `1 33,-3`, `23,30;53,160`, `30,50`), LINA x2 (lina.ani
+  with param lines), DRECT, RECT, KILOF_PL, GRABG x2, BAL x6
+  (positions EXACTLY as PR-70 read them - the balloon census
+  cross-validated), WODA, POCISK x17, ZARROW. ZERO MOVEPLAT
+  in ZARIA.01 - the Finding-2 platform law is NOT ZARIA's
+  bridge; ZARIA's candidates are the DRABINKA object (ladder
+  class 0x97cdc) and LINA (same machinery embedded), which
+  are ALSO the only two entries carrying extra parameter lines
+  - the same two classes that embed the LADDER pair.
+
+- OPEN ITEMS COUNTED (7 new). (1) The 0x28bf0 method (what
+  the [obj+0xf6]-priming call sets up). (2) Which animation
+  STATES the indices 4 and 0x12 are (the row-array index is
+  the anim state - map via the class ANI tables). (3) The
+  DRABINKA-branch ctor body 0x1f8d4..0x1f963 and the LINA
+  ctor 0x531f0 + its +0xa5 block: HOW the authored param li-
+  nes (`23,30;53,160`) land in the object (rect list? the
+  [obj+0x50] rows? [obj+0x128]?). (4) The 0xa1dfc/0xa1df4
+  class that OVERWRITES the ladder pair in TABLICA (and what
+  never gets restored). (5) The 'XaXnDdOrCz'-style string
+  family after the factory chain (MOV-name table?). (6) The
+  0xcf068 module-list contents (the 56 registration names -
+  the era-module ledger; 'looser.mod' first-seen). (7) ZAR-
+  ROW/SEP2/RYBA/... semantics as ZARIA-stage machinery.
+  Carried still open: 0x4aa60, [[companion+8]+0xe0], compa-
+  nion identity (NOW NAMED AS THE DRABINKA/LINA pair question),
+  the 0x41a40 machine, [obj+0xc6]/+0xf6, rectangle format
+  (NOW: the ANI2 param lines are the candidate source), LINA-
+  family tables (PARTIALLY CLOSED - the pair chain 0x97f50),
+  the flag feature, the two unread 0x52cc0 sites, the proto-
+  type vectors, the kind-table runtime writer (CLOSED AS AL-
+  WAYS-EMPTY), the ANIMACJE MOVEPLAT attribution (CLOSED FOR
+  ZARIA - zero in the roster). CLOSED: PR-155's deciding que-
+  stion (kind-dispatch dead), the 0x28af0/0x287a0 guards
+  (Findings 2-3), PR-155 open item (1) (decided: never writ-
+  ten), item (3) for ZARIA (zero MOVEPLAT placed), the LINA-
+  family open item (the class IS placed and named; pair at-
+  tribution corrected).
+
+- GATES. Docs-only (PR-138..155 precedent): no ported/, Make-
+  file, tools/ or .gitignore line touched; no build run. Every
+  added prose line <= 79 columns; over-79 baselines UNCHANGED
+  (NEXT_STEPS 71, HANDOFF 72); no game data or frames in git
+  (scratch /tmp/opencode/pr156/; authored excerpts quoted);
+  .github/workflows/* untouched; the image unchanged. Method:
+  token-window attribution needs TOKEN POSITION vs STORE Ad-
+  dress comparison (the LINA/TABLICA mix-up caught and cor-
+  rected in-pass); the 0x97970/0x97a98 correction shows old
+  ledger attributions must be re-checked against construction
+  sites.
+
+- EVIDENCE. Raw-byte windows: 0x28af2-0x28bcc (the platform
+  law in full, -20 constant at 0x28b50), 0x287a0-0x28860
+  (both arms with guards), 0x4e7dc-0x4e81d (TRASA2 tail),
+  0x4e81d-0x4e8e0 (LINA branch + TABLICA stores), 0x4f600-
+  0x4f65e (ladder pair + swap), 0x1f880-0x1f8e0 (DRABINKA
+  branch head + TLewZaria-variant ctor 0x1f896/0x96fd8),
+  0x51520-0x51559 (singleton init), 0x56760-0x5679b (stage-
+  byte reads). Censuses: ALL immediates in [0xcf000,0xcf100)
+  with site lists (0xcf0ac/0xcf0b4: reads only; 0xcf068: 56
+  sites; 0xcf000: init writes); the 23-branch ZARIA-chain ta-
+  ble (tokens+allocs+pairs); string 'DRABINKA' 0x906ff -> 1
+  ref (0x1f8ad), 'TLewEna' 0x908b0 -> ctor 0x1f896, 'looser.
+  mod' 0x907a0; authored greps: LINA x2 / DRABINKA x1 in
+  ANI2.DES, MOVEPLAT x0 in ZARIA.01 (3 in ANIMACJE else-
+  where); ANI2.DES quoted in full in the scratch dir.
 
 ## Deferred big items (deliberately out of scope so far)
 

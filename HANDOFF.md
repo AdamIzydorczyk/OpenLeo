@@ -2957,6 +2957,72 @@ writer as its open items.
      (NEXT_STEPS 71, HANDOFF 72); no game data in git; image
      unchanged. Full record: the PR-155 section of NEXT_STEPS.
      md (scratch /tmp/opencode/pr155/).
+     [PR-156 OUTCOME: the deciding question is ANSWERED -
+     nothing ever writes the kind tables, kind-dispatch is
+     DEAD CODE; the 0x28af0/0x287a0 guards are READ (the
+     platform K_GEN1 law, the row-array law x4); ZARIA.01
+     places ZERO MOVEPLAT - the bridge candidates there are
+     DRABINKA/LINA self-raising and the kind-0x10 law - the
+     PR-156 bullet below carries it].
+   - PR-156 (READING, no code, no new test - the PR-138..155
+     precedent): kind-DISPATCH IS PROVEN DEAD CODE; THE ROW-
+     ARRAY LAW IS ENGINE TRUTH; THE ZARIA-ERA PLACEMENT CHAIN
+     AND ROSTER ARE OUT. WHY: PR-155's deciding question +
+     the MOVEPLAT bodies + the ANIMACJE attribution. F1 A di-
+     word census over the WHOLE image for every immediate in
+     0xcf000..0xcf100: ds:0xcf0ac/0xcf0b4 (the kind tables)
+     occur ONLY as the two reads inside 0x56600 - nothing ever
+     writes them, so the count stays 0 and EVERY kind-dispatch
+     (both hand-off kind-9 arms, the ladder +0x18 0x3f0f0)
+     NEVER RUNS; the PR-152/153 chain links (4)-(6) are VOID
+     as behavior; live signal paths: kind-0x10 records, queue
+     types, self-raisers, the pair share. (The other 0xcf0xx:
+     0xcf000 init-written via 0x44350; 0xcf068/74 = the 56-
+     site .MOD module registration list ('looser.mod' first);
+     0xcf088 = stage-index byte.) F2 THE PLATFORM K_GEN1 LAW
+     (0x28af2 whole): state [[ctrl]+0x5c]==4, lion present (
+     [[obj+8]+0x3c]), lion rect INSIDE the platform rect minus
+     a (20,0) reach constant -> type-0xf wake-up post to the
+     LION + byte6|0x40 (bit 54) into the CONTROLLER's live
+     set. F3 THE ROW-ARRAY LAW (0x287a0 whole): [[assoc]+0x5
+     0][[[assoc]+0x5c]*4]+4 == 6 -> kind-4 message (payload
+     |=4 -> the literal [obj+0xb6]|=4 OR at 0x545c6 - PR-151
+     lead); state 0x12 with field <= 0x19 -> the kind-0x10
+     AC_DRAB record; with 0x1edb0/0x1eee0 this is the FOURTH
+     independent engine reading of state-indexed row arrays by
+     field +4 - PR-152's model stands. F4 THE SECOND PLACE-
+     MENT CHAIN (0x1ed00..0x20000, 23 branches) places DRA-
+     BINKA (0xd9, stores the LADDER pair at 0x1f94d), ZARIA's
+     own controllers (TLewZaria 0x96960, TLewZariaB 0x97a98/
+     0x97a90 - the ledger's 0x97970 attribution CORRECTED:
+     0x97970 is the ctor-0x1e0a0 swap-variant only), plus RYBA/
+     WODA/ZARROW/CROCODIL/TREE... F4b: in the first chain the
+     TABLICA branch (token 0x4e89f) stores the LADDER pair at
+     0x4e8c4 then OVERWRITES it with 0xa1dfc/0xa1df4 at con-
+     struction (method note: token-vs-store positions - the
+     LINA/TABLICA attribution was corrected in-pass); 'LINA'
+     (0xd9, base-ctor 0x531f0, main 0x97f50) SHARES size+base
+     ctor with DRABINKA - the character embeds the same lad-
+     der block. F5 ANI2.DES IS PLAINTEXT (corrects PR-152's
+     assumption for this file): the full ZARIA.01 roster of
+     35 objects - DRABINKA x1 + LINA x2 are the ONLY entries
+     with extra PARAM LINES (`23,30;53,160`...), BAL x6 (co-
+     ordinates exactly as PR-70 read - cross-validated), POCIS
+     K x17, WODA/ZARROW/GRABG/RECT/KILOF_PL/ANITAB/KORONA -
+     and ZERO MOVEPLAT: the F2 platform law is NOT ZARIA's
+     bridge; ZARIA's bridge candidates are the DRABINKA/LINA
+     ladder machinery itself. 7 new open items (row-array bui
+     lder + [obj+0x5c] state writers - the row-gate SPEC;
+     states 4/0x12 identity; param-lines landing format; the
+     0xa1dfc swap class; the 0x28bf0 arm; 0xcf068 module list
+     contents; ZARROW/SEP2 semantics). CLOSED: PR-155's deci-
+     ding question (kind-dispatch DEAD) + items (1)/(3), the
+     0x28af0/0x287a0 guards, the LINA-family item. Gates:
+     docs-only; every added line <= 79; baselines unchanged
+     (NEXT_STEPS 71, HANDOFF 72); no game data in git (autho-
+     red EXCERPTS quoted only); image unchanged. Full record:
+     the PR-156 section of NEXT_STEPS.md (scratch /tmp/openge
+     de/pr156/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -3144,7 +3210,11 @@ writer as its open items.
      thirteen TLew<level> factory cases and their class tables:
      sizes 0x12a..0x162, two shared bases (0x500b0 -> pair 0xa2218/
      0xa2210 for ENA2/KADMAR2/KARA/TUNGA1/JUNCTION, 0x1e0a0 ->
-     0x97970/0x97968 for both ZARIA classes), per-class fields like
+     0x97970/0x97968 for both ZARIA classes [CORRECTED by
+     PR-156 F4: the ZARIA-era placement chain writes TLew-
+     Zaria 0x96960/0x96958 and TLewZariaB 0x97a98/0x97a90;
+     0x97970/0x97968 is referenced ONLY by ctor 0x1e0a0 - a
+     runtime swap variant]), per-class fields like
      `[obj+0xf6]` = 2000/1500 defaults carried IN the class, not in
      the data. The headline: every level's lion has a death-theme
      method - read `[[rec]+4]` (the CURRENT state's row index), if 0
@@ -4641,6 +4711,28 @@ now). The ONE deciding question for PR-156: whether ds:0xcf0ac/
 0xcf0b4 (kind tables) are ever written - if not, kind-dispatch
 is dead code and kind-0x10 is the only signal path. ZARIA.01
 output unchanged (no code). 10 new open items counted.
+
+STATUS after PR-156 (docs-only; the K_GEN1 search is now a
+CONSTRUCTION question, not a signal question): kind-dispatch
+is DEAD CODE - nothing ever writes ds:0xcf0ac/0xcf0b4, so
+every 0x56600 kind arm (including both hand-off kind-9 arms
+and the ladder +0x18 rung-geometry call) never runs; the only
+cross-object signal paths alive are the kind-0x10 magic-record
+law, queue-typed messages, self-raisers, and the pair share.
+For ZARIA.01 that means the authored K_GEN1 (the ladder's
+`WAIT K_GEN1` row) must come from one of: a kind-0x10 record,
+a queue message, the object's OWN self-raiser, or the pair
+share - the DRABINKA/LINA ladder machinery (the only roster
+entries with param lines, the only classes embedding the lad-
+der pair) is the prime self-raiser candidate, exactly like the
+MOVEPLAT 0x28af2 law PR-156 F2 read (state-4 + lion-rect-in-
+minus-20 -> bit 54 into self). The ROW-GATE spec is now un-
+blocked: the engine indexes [[obj+0x50] by [[obj]+0x5c] and
+tests field +4 vs per-consumer constants (2/6/0x19) in FOUR
+independent methods - PR-150 item 6's UNMODELLED gate field
+becomes a parseable, feedable field once the row-builder and
+ANI-STATE reader (PR-157) names the format. ZARIA.01 output
+unchanged (no code). 7 new open items counted.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
