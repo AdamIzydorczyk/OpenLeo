@@ -15733,28 +15733,23 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-170 IS THE POOL MANAGER VERB CENSUS (PR-169 item 1, the
-  re-scoped chain-insert hunt): read the method table at
-  [[ds:0xcef40]+0x394]+0x8 (the pool manager - its +0x68
-  handle getter and +0xd8 = base ENTER are already met) and
-  the 0x5c320-created pool object's class table; list mainte-
-  nance in this engine runs through VERB DISPATCH (0x53db0's
-  pattern: call verb +0x14 on the neighbour with edx=2, then
-  relink [x+0x54]), so the chain links are written by manager
-  verbs reached indirectly. Output: the insertion path end to
-  end, plus the [obj+0x2c] producer contract (PR-169 item 2:
-  which class verb +0x08 bodies feed the membership field -
-  the 0x23b70 accessor has no direct callers, it is itself a
-  verb body) and the ds:0xa94f0 1..9 counter cluster.
-- THEN the key-bit map (carried from PR-168, item 2): the
-  full body of the 0x54860 key-provider family (99 tables) -
-  the 32-bucket bitmap loop + the param-sign bits 0x20/0x40
-  at key+4 are read, the REST of the map is not; STILL where
-  the 0x600000/0x800000 CHECK_LN/BASE_LN constants must
-  finally appear; if they do not, PR-161's constants get re-
-  derived. Includes the param-clamp family (PR-168 item 3:
-  0x54a02-0x54b90, the 0x54a4e '+5', the [paramblk+0xc]-vs-
-  facing comparison at 0x54a24 = the flip-bit lead).
+- PR-171 IS THE KEY-BIT MAP + VERB +0x10 PASS (merges PR-168
+  item 2 with PR-170's re-pointed chain-store lead - they sit
+  in the SAME code family): read the full 0x54860 key-provi-
+  der family (99 tables) - the 32-bucket bitmap loop + the
+  param-sign bits 0x20/0x40 at key+4 are read, the REST of
+  the map is not; and the controller/obj verb +0x10 bodies
+  (the 0x54ed6 call passes a 4-dword arg block, values 0/0x1b
+  - decode them; the +0x10 slot values ARE the remaining
+  chain-maintenance candidates per PR-170 F3). Output: the
+  complete row-key bit law (STILL where the 0x600000/0x800000
+  CHECK_LN/BASE_LN constants must finally appear - if they do
+  not, PR-161's constants get re-derived) AND possibly the
+  pool chain insert. Also in scope: the [obj+0x102] 30-tick
+  field + [obj+0xd6] snapshot lifecycles (PR-170 item 2 - the
+  +0x102 timeout is a contact-work lead) and the 0x54a24
+  [paramblk+0xc]-vs-facing comparison (the flip-bit lead,
+  PR-168 F3).
 - THEN the BY_TIME equivalence audit (PR-168 item 1, narrow):
   does the port's BY_TIME row-gating match the engine's
   constant-100/tick accumulator feed for shipped rows (the
@@ -15768,18 +15763,20 @@ no port behaviour change)
   fully readable name table): pair-substitution against the
   readable neighborhood names; a solved name lights the
   name-keyed path (0x4dcc0/0x4df10 contract, PR-166 item 3).
-- THEN carried reads (unchanged): the conditional +0x60 mino-
-  rity (PR-169 item 3); the vtable+0-word OR 4/8 row-end
-  CONSUMER (PR-164 item 1 = ordering question (a)); the flip-
-  bit owner (lead at 0x54a24); [obj+0x99] reader semantics
-  (PR-167 item 5); the base table's own +0x1c/+0x20 overrides
-  0x52c70/0x52a00 (PR-167 item 2); the 0xa2e9c/0xa2ed4 view
-  selection (PR-167 item 3); 0x53520 arg plumbing + [obj+
-  0x95] reader; the 31-vs-24 +0x14-slot delta; record verbs
-  +0x2c/+0x30 bodies + the second-view slots 0x559c0/0x45800;
-  the 0x4fef0 pool prelude side-effects; the walk return-
-  value encoding (PR-161 item 1); 0x9c05c identity; 0x524xx
-  rest; 0x446de; 0x57d30 modes; FLAG +0x4c getter.
+- THEN carried reads (unchanged): the +0x60 conditional mino-
+  rity (PR-169 item 3); the [obj+0x2c] +0x08-product contract
+  remainder (PR-169 item 2 half); the vtable+0-word OR 4/8
+  row-end CONSUMER (PR-164 item 1 = ordering question (a));
+  the flip-bit owner (lead at 0x54a24); [obj+0x99] reader
+  semantics (PR-167 item 5); the base table's own +0x1c/+0x20
+  overrides 0x52c70/0x52a00 (PR-167 item 2); the 0xa2e9c/
+  0xa2ed4 view selection (PR-167 item 3); 0x53520 arg plumb-
+  ing + [obj+0x95] reader; the 31-vs-24 +0x14-slot delta;
+  record verbs +0x2c/+0x30 bodies + the second-view slots
+  0x559c0/0x45800; the 0x4fef0 pool prelude side-effects;
+  the walk return-value encoding (PR-161 item 1); 0x9c05c
+  identity; 0x524xx rest; 0x446de; 0x57d30 modes; FLAG +0x4c
+  getter.
 - RIDES THE NEXT CODE PR (not a read): the three port
   comments citing the applier as 0x535a2 get the entry
   correction to 0x535a0 (ll_level.c:802,823, ll_play.c:209)
@@ -15788,8 +15785,8 @@ no port behaviour change)
   records from the LAST revision that carried them. Census
   recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
   `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD 5e123e1 carries all nineteen (PR-150..
-  PR-168); HEAD is the last carrier.
+  pass's census: HEAD 643f13a carries all twenty (PR-150..
+  PR-169); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -20273,7 +20270,18 @@ gets a correction; its item (4) is CLOSED below)
   (pointer-increment loops inside the pool manager's generic
   verbs: the manager table is [[ds:0xcef40]+0x394]+0x8, its
   +0xd8 = base ENTER, +0x68 = the handle getter that 0x52a50
-  calls). PR-167 item (1) remains open, re-scoped from "find
+  calls). [CORRECTED + ANSWERED IN PART BY PR-170: the
+  manager IS the level controller - [container+0x394] is the
+  level-ctor store (0x4de22-0x4dea4 nine per-family ctor at-
+  tempts; TLewZaria's 0x1fef0 installs tables 0x96960/0x96958
+  over the shared 0x5c320(0x12e)+0x1e0a0 base); +0x68 = the
+  generic `add eax,0xd6` FIELD POINTER (a position-snapshot
+  pair written by the ctor block 0x54e02), not a chain hand-
+  le; the controller's real register verb is its SECOND-table
+  +0xd8 = 0x50ed0 -> game-class +0xe4 = 0x50300 (30-tick
+  [obj+0x102] window) - a HANDSHAKE, no chain insert; the
+  store hunt re-points to the verb +0x10 family + ctor
+  0x1e0a0]. PR-167 item (1) remains open, re-scoped from "find
   the store" to "read the manager verb family" (the 0x5c320-
   created pool object IS a class instance with verb-dispatched
   list code - that is where linked-list maintenance lives in
@@ -20348,6 +20356,156 @@ gets a correction; its item (4) is CLOSED below)
   BUT membership is the [obj+0x2c] COMPUTED product, chain
   store re-scoped to the manager verbs).
 </content>
+
+## PR-170 — THE POOL MANAGER IS THE LEVEL CONTROLLER ITSELF:
+## [container+0x394] IS WRITTEN BY THE CONTAINER'S OWN CTOR
+## (0x4de02 CALLS THE PER-LEVEL CTOR 0x1fef0/0x25510/...; THE
+## TLewZaria CTOR INSTALLS CLASS TABLES 0x96960/0x96958 FROM
+## THE SHARED BASE 0x5c320(0x12e)+0x1e0a0); THE JOIN PATH IS
+## CONTROLLER VERB +0xd8 (0x50ed0) -> GAME-CLASS VERB +0xe4
+## (0x50300 SETS A 30-TICK FIELD AT [obj+0x102]); THE +0x68
+## "HANDLE GETTER" IS THE GENERIC `add eax,0xd6` - A POINTER
+## TO THE OBJECT'S OWN +0xd6 PAIR, WHICH THE CONTROLLER CTOR
+## FILLS AS A POSITION SNAPSHOT ([0]/+4); THE WALK LOOP IS
+## FULLY VERBATIM-CONFIRMED (heads slot +0x58, next +0x34,
+## predicate -> class filter [entry+0x24]==[owner]+0x24 ->
+## self-skip) - THE STORE HUNT STAYS OPEN, RE-POINTED AT THE
+## VERB +0x10 CODE CALLED AT 0x54ed6
+(READING + LEDGER CORRECTION; no code, no new test - the
+PR-138..169 precedent; the PR-169 manager-verb item GAINS
+MUCH but stays open on the store; its +0x394-table wording
+gets a correction bracket; PR-165's F5-side "+0x394 manager"
+wording is implicitly corrected)
+
+- WHY. PR-169 re-scoped the chain-insert hunt to "read the
+  manager verb family at [[ds:0xcef40]+0x394]+0x8". Method:
+  census every writer of [x+0x394]; read the per-level con-
+  troller constructors those writers call; census verb +0x68
+  bodies (the getter 0x52a50 calls); read the +0xd8/+0xe4
+  join chain end to end; re-read the 0x4b500 walk loop verba-
+  tim to pin every guard.
+
+- FINDING 1, THE MANAGER IS THE LEVEL CONTROLLER. Writers of
+  [x+0x394]: zeros (0x4a56d/0x4a830) and the CONTAINER'S OWN
+  construction at 0x4de22-0x4dea4: nine sequential attempts -
+  `call 0x1fef0(esi); test; mov [edi+0x394],eax` then 0x25510
+  /0x269a0/0x29b00/0x2bfa0/0x2f0f0/0x33500/0x35200/... - one
+  per LEVEL FAMILY (PR-104's factory chains - TLewZaria,
+  TLewEna, TLewEna2, TLewKadmar1...): the controller ob-
+  ject IS built as part of container construction and its
+  pointer goes into +0x394. THE CONTROLLER CTOR 0x1fef0: com-
+  pares the name vs 'TLewZaria' (0x9078b) / 'TLewEna' (0x90795
+  ...), then `0x5c320(0x12e)` (type 302 = the shared base) +
+  `call 0x1e0a0` (the base ctor) + installs TWO class tables:
+  [obj+0x8] = 0x96960 (primary), [obj+0xc] = 0x96958 (second
+  view - the two-table layout of PR-95) with per-level extras
+  (the Ena variant also writes [obj+0xf6] = 0x2710). So the
+  "pool manager singleton" of PR-165/166 is the level con-
+  troller - a game object like any other; its +0x68/+0xd8/
+  +0xe4 slots are ordinary class verbs.
+
+- FINDING 2, THE +0x68 FAMILY IS GENERIC FIELD ACCESS, AND
+  THE +0xd6 PAIR IS A POSITION SNAPSHOT. The 145-call verb
+  +0x68 (both table views carry it at +0x68): the generic
+  body 0x23900 = `add eax,0xd6; ret` - it returns a POINTER
+  TO [obj+0xd6]. The controller ctor's own reset block (0x54e
+  02, right after base 0x52c70): `lea eax,[obj+0xd6]; mov
+  ebx,[obj]; mov ecx,[obj+4]; mov [eax],[ebx]; mov [eax+4],
+  [ecx]` - the pair holds a COPY OF THE OBJECT'S POSITION
+  FIELDS [obj+0]/+4: a snapshot/origin base, not a chain han-
+  dle. (Its readers: 0x54efa computes deltas vs [obj+0x89]/
+  +[0xda] - relative-position math; full lifecycle open.)
+  Adjacent generic verbs pinned in the same pass: 0x23920 =
+  the CURRENT-RECORD FLAG getter ([[obj+0x50]+[obj+0x5c]*4]
+  then +0x12 - the flag word, generic); 0x23910 = const 1;
+  and 0x238f0 ends in the MEMBERSHIP STORE `test eax,eax;
+  setne; mov [obj+0x2c],eax` - the boolean writer for the
+  PR-169 predicate field (a SECOND writer beside 0x23b70's
+  product-store: membership can be a computed handle OR a 0/1
+  - both shapes feed the same predicate).
+
+- FINDING 3, THE JOIN PATH: CONTROLLER VERB -> GAME-CLASS
+  VERB -> STATE FIELD. The controller's second table (0x96958)
+  +0xd8 = 0x50ed0 (the real registration verb, not 0x507e0):
+  guards ([obj+0x11a] in {6,7} refuse; [obj+0x126] != 0 re-
+  fuse; both parties' verb +0x40 must pass), then reads the
+  participant's verb +0xc -> [ctl+0x10a] and +0x70 (POSITION,
+  PR-95) -> [ctl+0x10e], a `call 0x551f0 while [obj+0xd2]`
+  loop, then the controller's own 0x502f0 guard ([obj+0x102]
+  != 0), then `call [participant+0x8+0xe4](1)` and 0x54550.
+  The game-class +0xe4 default (15 tables) = 0x50300: `test
+  edx,edx; jne -> [obj+0x102] := 30; je -> [obj+0x102] :=
+  edx` - THE JOIN SETS A 30-TICK ACTIVE FIELD at [obj+0x102]
+  (read by 0x502f0 as the busy guard). So: registration =
+  handshake + a bounded active window, NOT a list insert -
+  consistent with PR-169's "registration counts, it does not
+  chain". THE CHAIN STORE HUNT THEREFORE MOVES AGAIN: the
+  only unexplored structural caller is the controller verb
+  +0x10 (called with a 4-dword arg block at 0x54ed6: the key
+  builder 0x54eb0 path) and the generic ctor 0x1e0a0 - item
+  (1) stays open, re-pointed.
+
+- FINDING 4, THE WALK LOOP, FULLY VERBATIM (0x4b552-0x4b5cc).
+  Pinned every element: index vs [poolObj+0x44] count; chain
+  head = [[ecx]+0x58] dereferenced (the slot IS a pointer);
+  skip null heads; NEXT = [entry+0x34] (end at null); per
+  entry: predicate verb +0x60 (0x4b59a - confirmed in walk
+  position), then CLASS FILTER `cmp [entry+0x24], ebp` where
+  ebp = [[rec+0]+0x24] = the OWNER's class id, with the
+  CHECK_ALL_PLANE switch at [esp+0x54], then self-skip `cmp
+  ecx, esi` (esi = the owner), then key provider verb +0x78
+  with ebx = owner, OR-merge 0x49580. PR-166 F1's law stands
+  EXACTLY; only the narrative frame changes (the "pool
+  object" is the controller-owned array structure, and no
+  insertion store is visible).
+
+- OPEN ITEMS COUNTED (2 new, 1 re-pointed). (1) THE CHAIN
+  STORE, RE-POINTED: the verb +0x10 family (the 0x54ed6 call
+  with the 4-dword key-ish arg block; the controller-side
+  +0x10 bodies) and the generic controller ctor 0x1e0a0 are
+  the remaining structural candidates; the walk's chain fields
+  (+0x58 head slot, +0x34 next) are pinned, only the writer
+  is missing. (2) The [obj+0xd6] pair + [obj+0x102] 30-tick
+  field lifecycles (who reads the snapshot for what - the
+  0x54efa delta math vs [obj+0x89]/[obj+0xda]; who clears
+  +0x102 and what it gates beyond 0x502f0 - it looks like a
+  contact/interaction timeout, a lead for the contact work).
+  CARRIED: PR-169 item (1) as re-pointed here, item (2)
+  (partially ANSWERED: the boolean writer 0x238f0 found; the
+  +0x08-product half stays), item (3); PR-168 items (1)-(4);
+  the ladder-gate data block; the flip-bit lead at 0x54a24;
+  the pool-name decode; the walk-return encoding; everything
+  else unchanged.
+
+- GATES. Docs-only per the PR-138..169 precedent; nothing
+  compiled. Every added prose line <= 79 cols; over-79
+  baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 72); no game
+  data or frames in git (scratch /tmp/opencode/pr170/);
+  .github/workflows/* untouched; the image unchanged (text.bin
+  sha256 edf19a12...). CI: PR-169's run (44505822001) was
+  queued at record time; PR-168 (5e123e1) was in_progress and
+  PR-167 (f7d7552) confirmed GREEN at record time.
+
+- EVIDENCE. All reads from the pinned image: the [x+0x394]
+  writer census + 0x4de22-0x4dea4 verbatim (the nine ctor at-
+  tempts); 0x1fef0/0x1ff26 verbatim (the name comparisons,
+  0x5c320(0x12e), 0x1e0a0, the 0x96960/0x96958 and 0x97a98/
+  0x97a90 installs, the Ena [obj+0xf6]=0x2710 extra); the
+  +0x68 slot census on 0x96960/0x96958/0x97a98 (0x23900, and
+  the second view's +0xd8 = 0x50ed0); 0x23900/0x23920/0x23910
+  /0x238f0 verbatim (the generic family: field-pointer, flag
+  getter, const-1, membership store); 0x54e02-0x54eae verba-
+  tim (the snapshot pair + the whole initialize block:
+  +0xa5/+0xba/+0xbe/+0xc2/+0xca/+0xce/+0xa9 zeroed, +0xad
+  := 100, +0xb1 := 22 - PR-98's default physics pair!);
+  0x50ed0-0x50f79 verbatim; 0x50300/0x502f0 verbatim; 0x4b552
+  -0x4b5cc verbatim (F4); 0x9078b = 'TLewZaria' raw string.
+  Ledger rule applied: census first - HEAD 643f13a carries
+  PR-150..PR-169 (last carrier HEAD); records re-spliced from
+  it; 1 bracket (PR-169 F2's manager-table sentence: the
+  manager IS the level controller; +0x68 returns a field
+  pointer, not a chain handle; the store hunt re-pointed to
+  verb +0x10/ctor 0x1e0a0).
 
 ## Deferred big items (deliberately out of scope so far)
 

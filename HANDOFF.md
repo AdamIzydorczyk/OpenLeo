@@ -3745,6 +3745,55 @@ writer as its open items.
      unchanged; ledger census run (HEAD 5e123e1 = last carr
      ier). Full record: the PR-169 section of NEXT_STEPS.md
      (scratch /tmp/opencode/pr169/).
+   - PR-170 (READING + LEDGER CORRECTION, no code - the PR-
+     138..169 precedent): THE POOL MANAGER IS THE LEVEL CON-
+     TROLLER ITSELF. [container+0x394] is written by the con-
+     tainer's OWN construction (0x4de22-0x4dea4: nine sequen-
+     tial `call <level ctor>; test; mov [edi+0x394],eax` -
+     one per PR-104 level family: 0x1fef0/0x25510/0x269a0/
+     0x29b00/...): the TLewZaria ctor 0x1fef0 compares the
+     name ('TLewZaria' at 0x9078b), calls 0x5c320(0x12e) +
+     0x1e0a0 (shared base ctor) and installs the controller's
+     TWO class tables ([+8]=0x96960, [+c]=0x96958; the Ena
+     variant adds [obj+0xf6]=0x2710). The manager's "verbs"
+     are ordinary class verbs of a game object. SECOND: THE
+     +0x68 HANDLE GETTER IS GENERIC FIELD ACCESS - 0x23900 =
+     `add eax,0xd6; ret`, a POINTER to the object's own +0xd6
+     pair, which the controller's ctor reset block (0x54e02,
+     right after base 0x52c70) fills as a POSITION SNAPSHOT
+     (copy of [obj+0]/+4); the same block initializes the
+     whole motion state (+0xa5/+0xba/+0xbe/+0xc2/+0xca/+0xce
+     zero, +0xad := 100, +0xb1 := 22 - PR-98's default phy-
+     sics pair!). Pinned generics too: 0x23920 = current-
+     record FLAG getter ([[obj+0x50]+[obj+0x5c]*4]+0x12) and
+     0x238f0 = the BOOLEAN membership writer (test/setne/mov
+     [obj+0x2c]) - PR-169's predicate field has TWO producer
+     shapes (computed handle OR 0/1 flag). THIRD: THE JOIN
+     PATH IS A HANDSHAKE, NOT A LIST INSERT: controller se-
+     cond-table +0xd8 = 0x50ed0 (guards: [obj+0x11a] in {6,7}
+     or [obj+0x126] set refuse; both participants' verb +0x40
+     must pass; reads the participant's verb +0xc -> [ctl+
+     0x10a] and +0x70 position -> [ctl+0x10e]) then calls the
+     GAME-CLASS verb +0xe4 (default 0x50300: sets a 30-TICK
+     field [obj+0x102], read as a busy guard by 0x502f0) and
+     0x54550 - registration = handshake + bounded active win-
+     dow, confirming PR-169's "registration counts, it does
+     not chain". FOURTH: THE WALK LOOP FULLY VERBATIM (0x4b552
+     -0x4b5cc: count +0x44, head slot [[x]+0x58], NEXT [entry
+     +0x34], predicate +0x60, class filter [entry+0x24] vs
+     [[rec+0]+0x24] with the [esp+0x54] CHECK_ALL_PLANE swit-
+     ch, self-skip vs the owner, key provider +0x78 + OR-
+     merge) - PR-166 F1's law stands EXACTLY; the chain-store
+     hunt is RE-POINTED (not closed) at the verb +0x10 family
+     (0x54ed6 passes a 4-dword block with 0/0x1b) and the
+     shared ctor 0x1e0a0. 2 new items (+0xd6/+0x102 lifecy-
+     cles - the +0x102 timeout looks like contact work) + 1
+     re-pointed; 1 bracket (PR-169's manager-table sentence
+     corrected). ZARIA.01 output: UNCHANGED (docs-only).
+     Gates: added lines <= 79; baselines held (71/72); image
+     unchanged; ledger census run (HEAD 643f13a = last carr-
+     ier). Full record: the PR-170 section of NEXT_STEPS.md
+     (scratch /tmp/opencode/pr170/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -5897,6 +5946,45 @@ itself only reachable as a verb body; the conditional mino-
 rity) + PR-167 item (1) re-scoped with a bracket. ZARIA.01
 output: UNCHANGED (docs-only). Baselines 71/72 held; census
 run; no code built.
+
+STATUS after PR-170 (the pool "manager" loses its mystery - it
+IS the level controller): [container+0x394] is written by the
+container's own construction, nine sequential level-ctor at-
+tempts at 0x4de22-0x4dea4 (one per PR-104 level family). The
+TLewZaria ctor 0x1fef0 compares the name, builds via the sha-
+red 0x5c320(0x12e)+0x1e0a0 and installs TWO class tables
+(0x96960/0x96958; the two-table layout of PR-95) - the pool
+manager is an ordinary game object, the level controller. The
+mythical "+0x68 pool-handle getter" = 0x23900 `add eax,0xd6`
+- a pointer to the object's own +0xd6 pair, which the ctor's
+reset block (0x54e02) fills as a POSITION SNAPSHOT ([obj+0]/
++4 copy) and initializes the whole motion state (+0xad := 100,
++b1 := 22 = PR-98's defaults!). Two generics pinned in pass-
+ing: 0x23920 = current-record flag getter (the [[obj+0x50]+
+[obj+0x5c]*4]+0x12 idiom as a REUSABLE VERB), and 0x238f0 =
+the boolean membership writer for [obj+0x2c] - PR-169's mem-
+bership field has two producer shapes (computed handle via
+0x23b70, boolean via 0x238f0). THE JOIN IS A HANDSHAKE: con-
+troller second-table +0xd8 = 0x50ed0 (guard: [obj+0x11a] not
+6/7, [obj+0x126] clear, both verbs +0x40 pass; captures the
+participant's +0xc id and +0x70 position into [ctl+0x10a]/+
+0x10e) then calls the game-class +0xe4 (0x50300: sets the 30-
+tick busy field [obj+0x102], read by 0x502f0) - registration
+counts/times out, it does NOT chain, exactly as PR-169 fore-
+cast. The walk loop is now verbatim-pinned (count +0x44, head
+slot [[x]+0x58], next [entry+0x34], predicate/class-filter/
+self-skip/order as PR-166 said) - the law stands; the chain-
+STORE hunt is re-pointed, not closed: the verb +0x10 family
+(the 0x54ed6 call with the 4-dword 0/0x1b arg block) and the
+shared ctor 0x1e0a0 are the remaining candidates, and they
+sit INSIDE the key-builder code - so PR-171 merges the key-
+bit map (PR-168 item 2, the last place for the 0x600000/
+0x800000 CHECK_LN constants) with the +0x10 census. New li-
+fetime items: the +0xd6 snapshot readers (0x54efa delta math
+vs [obj+0x89]/[obj+0xda]) and the +0x102 30-tick timeout (a
+CONTACT-work lead). 1 bracket: PR-169's manager-sentence cor-
+rected. ZARIA.01 output: UNCHANGED (docs-only). Baselines
+71/72 held; census run; no code built.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
