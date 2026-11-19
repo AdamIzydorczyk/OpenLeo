@@ -4356,6 +4356,47 @@ writer as its open items.
      the +0xe6 holder - also the pool-name decode's home).
      Full record: PR-180 section of NEXT_STEPS.md (scratch
      /tmp/opencode/pr180/).
+   - PR-181 (READING; no port code, no behaviour change):
+     THE POOL MACHINERY DECODED END TO END - TWO LONG
+     CARRIED ITEMS CLOSE. THE POOL LAYOUT: mgr 0xcef40
+     +0x390 -> pool P with member array P+0x10, index
+     arrays P+0x20/P+0x24, count P+0x1c (setters 0x574d0/
+     0x574e0/0x574f0, enumeration idiom at 0x4cf0a); a
+     class-RANGE energy rule at 0x54458 (nameWord+500 vs
+     class id -> energy -1, counted item). THE CANDIDATE-
+     WRITER FOUND: the ONLY static [reg+0xe6] store is
+     0x454a2 inside the relationship-nearest SELECTOR
+     0x45400 (entry; 0x45401 again an entry-desync): it
+     scores the PR-177 rel-list (0x45380 count, 13-byte
+     records, positions via +0x6c, distances via 0x455a0)
+     and stores [obj+0xe6]=candidate, [obj+0xea]=distance,
+     [obj+0xe2]=CANDIDATE CLASS BYTE (descriptor+0xc, the
+     PR-172 layout) - so the +0xac attach gates are class-
+     based. Sole caller = wrapper 0x45320 (physics via
+     0x541f0 with the CAMEL-variant class table 0x98278 as
+     cfg, velocity pair [obj+0xca/ce] added); 6 call sites
+     inside the provider clusters PR-177 F1 enumerated;
+     the pair installs at LION-table windows (0x96960 reads
+     +0x2cc/+0x2d0) - dispatch unresolved with the +0x240
+     family. PR-180 F3 CORRECTED: 0x57500/0x57530 are
+     hash ARITHMETIC over the pool fields, ds:0xcec74/78/
+     7c are one function's private scratch, and 0x2c670 is
+     a placement/randomize method of the camel-family
+     classes (rng-hash membership vs 12-stride spawn slots
+     at [obj+0xbf/0xc3] +-50). POOL-NAME DECODE CLOSED:
+     the grammar block 0x91e01-0x92060 = level-file
+     property names (danger_power...maski, incl. 'lew'),
+     31 OBJECT FAMILY NAMES = the .MOV stems (LINA,
+     GWIAZDKI, KATPLAT, BAL, POCISK...), two-letter
+     object codes, the engine's own error string 'Bledny
+     wpis w pliku levels: %s'; 0x49871 resolves a name via
+     the class slot +0x00 -> name table 0xa11fc ('$'-split
+     + '*' flags, cfg+0x34 failure flag); 0x49920 = the
+     150-site property/pool reader. 5 new items; 3 closed/
+     updated-partial; 4 brackets. Next -> PR-182 = the
+     msg-sender pass (ids 2/6/13/27 emitters - the input
+     protocol). Full record: PR-181 section of
+     NEXT_STEPS.md (scratch /tmp/opencode/pr181/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -6958,6 +6999,47 @@ state-copy helper + the -0xd6 structure family); one
 closed (PR-178 item (1)); one re-scoped (PR-179 item (1)
 -> the pool-wiring lead).
 Gates: docs-only (PR-138..179 precedent); added lines <=
+79; baselines 71/71 held; the Windows half stays in the
+end pass (rule 8).
+
+STATUS after PR-181 (the pool-wiring pass; docs reading -
+ZERO port lines changed, the ZARIA.01 output image is
+byte-identical to PR-180's; build state = the OWNER GATE
+(rule 8) measured on 7b4d736, only docs moved since).
+
+What this pass GROUNDS for T5:
+(1) PR-150's PER-STEP CANDIDATE MODEL NOW HAS ITS ENGINE
+    COUNTERPART NAMED: the relationship-nearest selector
+    (0x45400 via wrapper 0x45320, called by the provider
+    bodies) picks the best candidate from the rel-list by
+    distance and stores it into [obj+0xe6]+[obj+0xea]+
+    [obj+0xe2] EVERY step after the pump's clear - i.e.
+    the engine re-selects nearest-overlap continuously,
+    exactly what the port's PR-150 model (green on frames)
+    does. The attach/AC_DUP gates are CLASS-BYTES from
+    the descriptor (+0xc), the PR-172 layout - the value
+    map (which byte = ladders/ropes) is counted open.
+(2) THE POOL-NAME DECODE CLOSED: the level-file grammar
+    block (0x91e01) carries the 31 object-family names -
+    THEY ARE EXACTLY the authored .MOV stems - so "pool
+    X" = the class-table set for family X, and the
+    membership/energy rules key on class-ID ranges. This
+    directly connects the level-data family names to the
+    class-table families the whole ledger names.
+(3) THE CAMEL-FAMILY placement method (0x2c670) explains
+    PR-180's false lead: the candidate is NOT wired by
+    address; PR-180's F3 is corrected with data (the
+    0x2c6f0 +0xe6 is arithmetic, the globals private to
+    that one function).
+Three carried items closed or closed-in-part (pool-name
+decode; the [obj+0xe6] writer for the relationship
+family; PR-177 provider items in part - the chain is
+supply-tracked); PR-180 F3 corrected; 5 new items
+counted (slot-owner/dispatch ambiguity incl. the +0x240
+family; the class-byte value map; the list-builder +
+distance internals; the energy class-range rule; the
+camel placement model).
+Gates: docs-only (PR-138..180 precedent); added lines <=
 79; baselines 71/71 held; the Windows half stays in the
 end pass (rule 8).
 

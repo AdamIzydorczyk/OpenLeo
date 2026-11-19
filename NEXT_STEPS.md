@@ -15762,37 +15762,40 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-181 IS THE POOL-WIRING PASS (the candidate-filler now
-  has ONE named lead and the pool-name decode sits right
-  next to it): read the function containing 0x2c6d3 (its
-  entry + callers: level-init sequence taking mgr+0x390,
-  calling 0x57500 -> ds:0xcec74 and 0x57530 with CLASS
-  TABLE 0x98274 -> ds:0xcec78, then parking [obj+0xe6]
-  ADDRESSES and [obj-0x1e] into a cfg block) - name the
-  holder of the linked +0xe6 pointer and find the code
-  that STORES through it: that is the per-step candidate
-  writer PR-179/180 both pointed at, and its window rule
-  completes PR-150's ladder-overlap story end to end (if
-  the rule is code-visible AND the port lacks it, ship the
-  fix with hand-derived test + mutation battery per the
-  standing rules; else count with data). Read 0x57500/
-  0x57530 whole (pool class-queries over the mgr+0x390
-  pool - the carried POOL-NAME DECODE lives in them) and
-  the consumers of ds:0xcec74/0xcec78. THEN, in order:
-  the msg senders (who emits ids 2/6/13/27 - the input
-  path's protocol, PR-179 item (4)); the player-side same-
-  state row seek (PR-174 item (2)); the relation-helper
-  bodies 0x52eb0/0x52cc0/0x534e0/0x45620 + provider tails
-  (PR-177 items (1)/(2)) + 0x549f0's tails (PR-178 item
-  (3)); the other 55 +0x78 singletons as census (PR-177
-  item (3)); the +0x240 driver dispatch (PR-180 item (1));
-  PR-176's five controller items. Carried reads unchanged:
-  the ratio-law behaviour study (PR-180 item (2), video-
-  gated); the other +0xcc drivers (PR-180 item (3)); the
-  state-copy helper (PR-180 item (4)); the +0x54 hook
-  families; 0x550c0's body; the 0x55130 tail; the +0x4c/
-  +0x1c recount; the 73 dead-0x54910 tables; the +0xa0
-  census oddities; the CFG windows (PR-179 item (3));
+- PR-182 IS THE MSG-SENDER PASS (carried since PR-180's
+  Next, now first): find WHO puts ids 2 (SET v) / 6 (SET
+  facing) / 13 (IMPULSE) / 27 (SET attached) on the wire
+  for the msg handler 0x54560 (PR-179 F2's map) - the
+  input/player side of the object-control protocol: scan
+  the msg-struct builders (the [msg+4]=id dword is the
+  search handle; the msg struct shape is [msg+4] id,
+  [msg+8]/[msg+0xc] payload per PR-179), then the class
+  slot that receives them (PR-179 item (4): the 87
+  installs of 0x54560 sit at shape-varying slots - pair
+  sender-callsites with the slot constants used). If the
+  player-input half lands a code-visible rule the port
+  lacks, ship the fix with its hand-derived test +
+  mutation battery per the standing rules; else count.
+  THEN, in order: the player-side same-state row seek
+  (PR-174 item (2)); the relation-helper bodies 0x52eb0/
+  0x52cc0/0x534e0/0x45620 + 0x45620's entry-index
+  semantics (PR-177 item (1) remainder) + the chain
+  readers' tails (PR-177 item (2)); the class-byte value
+  map + the 31 family-name -> class-table mapping (PR-181
+  item (2)); 0x45380's list builder + the 13-byte record
+  layout + 0x455a0's distance formula (PR-181 item (3));
+  the 0x2cc/0x2d0 + 0x240 dispatch mechanism (shared with
+  PR-180 item (1)); the other 55 +0x78 singletons as
+  census (PR-177 item (3)); PR-176's five controller
+  items. Carried reads unchanged: the ratio-law behaviour
+  study (PR-180 item (2), video-gated); the other +0xcc
+  drivers (PR-180 item (3)); the state-copy helper (PR-
+  180 item (4)); the [obj+0xb6] bit law; the 0x54790-
+  0x547b5 CFG window; the 0x54458 energy class-range
+  rule (PR-181 item (4)); the 0x2c670 placement model
+  (PR-181 item (5)); the +0x54 hook families; 0x550c0's
+  body; the 0x55130 tail; the +0x4c/+0x1c recount; the
+  73 dead-0x54910 tables; the +0xa0 census oddities;
   everything else in the ledger's carried list.
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
@@ -22397,7 +22400,11 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 
 - OPEN ITEMS COUNTED (5 new). (1) Bodies of the relation
   helpers 0x52eb0/0x52cc0/0x534e0/0x45620 and the chain
-  readers 0x45320/0x45620 entry-index semantics. (2) Unread
+  readers 0x45320/0x45620 entry-index semantics. [CLOSED
+  IN PART BY PR-181 F2: 0x45320 is READ - the physics +
+  distance SCORE WRAPPER into selector 0x45400, the
+  chain's supply law; the 0x45620 body and entry-index
+  semantics stay.] (2) Unread
   tails: 0x3d440 at 0x3d687/0x3d6ab, 0x3d990's [obj+0x5c]
   ==1 arm at 0x3da9d, the +0xf4/+0xd8/+0x3c verbs on the
   decor side, [self+0x11a]/[self+0xb1] semantics, [obj+
@@ -22878,7 +22885,12 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   found pool object's +0xe6 ADDRESS into a cfg block, so
   per-step stores are through a linked pointer and
   statically invisible (the pool-wiring pass, PR-181,
-  names the holder).] (2) The
+  names the holder).] [CLOSED BY PR-181 F2: there is NO
+  holder - the per-step stores are the relationship-
+  nearest selector's (0x45400 via wrapper 0x45320,
+  writing [obj+0xe6/ea/e2] at 0x454a2/0x454a8/0x454ba);
+  the LION-table install windows + the unresolved slot
+  dispatch are counted as PR-181 item (1).] (2) The
   [obj+0xb6] bit law: which code SETS bits 2/4/8 (msg 3/4
   set 4/8; +0.ac gates bit 2; 0x549f0 NULL-branch set
   0x10; 0x54e00 clears 0xc0) - a five-bit flags word with
@@ -23036,7 +23048,13 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   (the pool-wiring pass will name the holder - PR-181's
   lead), and stores through it are invisible to static
   scans - which also EXPLAINS why no per-step writer was
-  ever found: the writer holds a pointer.
+  ever found: the writer holds a pointer. [CORRECTED BY
+  PR-181 F1/F2: NO holder - the 0x2c6f0 +0xe6 is
+  ARITHMETIC (a hash constant + 0xe6, not a field; the
+  0x57500/0x57530 pair are mod-arithmetic over the pool
+  object's tables, and ds:0xcec74/78/7c are one
+  function's private scratch]; the per-step store is the
+  relationship-nearest selector's 0x454a2 (PR-181 F2).]
 
 - OPEN ITEMS COUNTED (4 new). (1) The +0x240 dispatch into
   the LION driver (computed call or init-time call - the
@@ -23068,8 +23086,12 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   (1)/(2)); 0x549f0's tails (PR-178 item (3)); the other
   55 +0x78 singletons (PR-177 item (3)); PR-176's five
   controller items; the +0x54 hook families; 0x550c0's
-  body; the 0x55130 tail; the pool-name decode (now
-  adjacent to PR-181's wiring pass); the +0x4c/+0x1c
+  body; the 0x55130 tail; the pool-name decode [CLOSED
+  BY PR-181 F3: the grammar block 0x91e01-0x92060 -
+  level-file property names + the 31 object FAMILY names
+  (= the .MOV stems) + object codes + the engine's own
+  levels-file error string; 0x49871 resolves names via
+  class slot +0x00 -> table 0xa11fc]; the +0x4c/+0x1c
   recount; the 73 dead-0x54910 tables; the +0xa0 census
   oddities; the CFG window (PR-179 item (3)); the msg
   senders; everything else in the ledger's carried list.
@@ -23102,6 +23124,245 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   the four OWNER 2026-11-19 records, last carrier); 2
   brackets (PR-178 item (1) CLOSED with remainders;
   PR-179 item (1) UPDATED re-scoped).
+
+## PR-181 — THE POOL MACHINERY IS DECODED END TO END: THE
+## POOL OBJECT LAYOUT (MEMBER ARRAYS + COUNT GETTERS), THE
+## CANDIDATE-WRITER FOUND (THE RELATIONSHIP-NEAREST
+## SELECTOR 0x45400 STORES [obj+0xe6/ea/e2] THROUGH THE
+## WRAPPER 0x45320 CALLED BY SIX PROVIDER BODIES), THE
+## [obj+0xe2] BYTE PINNED (THE CANDIDATE CLASS BYTE FROM
+## DESCRIPTOR+0xc), AND THE CARRIED POOL-NAME DECODE
+## CLOSED (THE LEVEL-GRAMMAR BLOCK AT 0x91e01: PROPERTY
+## NAMES + THE OBJECT FAMILY NAMES = THE .MOV FILE STEMS)
+## (READING, NO PORT CODE, NO BEHAVIOUR CHANGE)
+
+- WHY. PR-180's Next specced this pass (the 0x2c6d3 lead +
+  the carried pool-name decode). Method: continuous
+  objdump ranges (obj_range.sh; the desync entry trap
+  reconfirmed at 0x45401 - the entry is 0x45400, byte
+  0x56 push esi at 0x45400, called by `call 0x45400` at
+  0x4536f - text.asm shows it, the byte range split it);
+  the disp32 byte scan for [reg+0xe6] (a disp8 CANNOT
+  encode +0xe6 - 0xe6 signed is -0x1a, so the disp8 scan
+  is a false-positive trap, stated as a tool fact); the
+  elf dword-scan for installs; the grammar block dump as
+  null-delimited strings; pool_evidence.py re-runs every
+  count cited. Docs only; nothing shipped moves.
+
+- FINDING 1, THE POOL OBJECT LAYOUT (mgr 0xcef40 +0x390 ->
+  pool P). Byte-exact getters/setters: P+0x10 = the
+  member-object dword array; P+0x20 = an index dword
+  array; P+0x24 = a second index array (0x574d0 writes
+  `[ecx+edx*4],ebx` with ecx=[P+0x24]; 0x574e0 the same
+  via [P+0x20]; 0x574f0 writes P+0x1c := edx - the COUNT
+  - all three then call 0x57460, the post-update helper);
+  P+0x1c = member count. The enumeration idiom (0x4cf0a-
+  0x4cf29): loop ecx over [esi+0x50] (a count), per
+  member `eax=[esi+0x390]; call 0x574e0` with edx=ecx.
+  The MEMBERSHIP TEST 0x54458-0x5447a: take record
+  [[P+0x44]+[P+0x1c]*4], movsx word [rec+0x2], add 500,
+  compare with [obj+0x4] (the class id); when
+  nameWord+500 < classId the code sets [obj+0xad] :=
+  0xffffffff (the energy field of PR-175 F7a / the 100-
+  default of PR-179 F4 gets a -1 writer here - a class-
+  RANGE rule keyed on a word in the pool's current name-
+  record; its intended reading counted as an open item).
+  PR-180's "0x2c6f0 = pool wiring parked &found+0xe6 into
+  a cfg block" is CORRECTED (bracket): 0x57500/0x57530
+  are ARITHMETIC helpers - returns ([P+0x10]*param[idx])
+  % modtable and the same with a table-load added (the
+  byte bodies at 0x57500-0x57566) - not object lookups;
+  ds:0xcec74/78/7c are PRIVATE scratch (written and read
+  ONLY inside one function, scan: 2/0/3 sites all in
+  0x2c670); that function (entry 0x2c670, no rel-callers,
+  dword refs at 5 window-overlapping positions in the
+  0x9ae34-0x9b244 table cluster) reads word [obj+0x56f],
+  takes an rng hash (seed [obj+0x24] through the 0x57500/
+  0x57530 pair over the pool object), tests membership of
+  the derived values against 12-byte-stride slot fields
+  at [obj+0xbf/0xc3] (+-0x32 = +-50), ORs msg bytes
+  ([msg+0x2]|0x20 or [msg+0x3]|0x04 by 0x76bcc parity),
+  calls 0x2b840 then class slot +0x04 (LEAVE), and
+  clears [obj+0x571]. Its 5 host tables have +0x78 =
+  0x3df00/0x2c4a0/0x552e0 - the PR-177 F1 RELATIONSHIP
+  PROVIDERS: a placement/randomize method of the camel-
+  family classes (their interpretation counted).
+
+- FINDING 2, THE CANDIDATE-WRITER (PR-179 item (1) /
+  PR-180's lead) FOUND FOR THE RELATIONSHIP FAMILY. The
+  disp32 byte scan gives the complete static store set
+  for [reg+0xe6] (12 sites; classified): 0x550a0 pump
+  clear, 0x54e98 reset zero (both PR-179), 0x2c6f0 =
+  arithmetic (PR-180's false positive, now CONFIRMED
+  arithmetic - the hash value +0xe6), 0x4ceea/0x4cef0/
+  0x4cf04 = OUT-POINTERS INTO A STACK FRAME (the fn's
+  locals; [ebp-0x7e]/[ebp+0x10e] siblings prove the
+  frame), 0x160b2 = a jge displacement (false positive),
+  0x5413e/0x54759/0x54788/0x547a7/0x547b6 = the known
+  reads, and ONE true store: 0x454a2 `mov [edi+0xe6],
+  esi` at 0x454a2, immediately followed by `mov [edi+
+  0xea],eax` (0x454a8) and `mov [edi+0xe2], class-byte`
+  (0x454ba). Its function, entry 0x45400 (the 0x45401
+  was the objdump entry-desync again), eax=self obj,
+  edx=other obj, ecx=an upper bound from the caller,
+  ebx=a third arg: (i) the candidate's class byte [desc
+  +0xc] (PR-172 F4's descriptor = [[class+1]] - its byte
+  at +0xc) must be <= ecx; (ii) the relationship list is
+  fetched by 0x45380 (an element COUNT; entries are
+  13-byte records at stride 0xd - PR-177's rel-list
+  records, entries holding a class dword at +4 and more);
+  (iii) positions via class slot +0x6c, distances via
+  0x455a0 (3 call sites, unread); (iv) the BEST rule:
+  keep the candidate whose distance beats [self+0xea]
+  (skip if >, plus the skip-if-below-and-not-current-
+  attached rule at 0x45471-0x4547f using [self+0xa9] the
+  PR-179 attached field); store [self+0xe6] = candidate,
+  [self+0xea] = its distance, [self+0xe2] = its class
+  byte. The single caller is the wrapper 0x45320 (entry
+  byte 0x56 at 0x45320): it first calls 0x541f0 (the
+  PHYSICS update of PR-179's hook chain) with a zeroed
+  cfg triple whose 3rd slot is CLASS TABLE 0x98278 (the
+  CAMEL-variant table family of PR-176/177 - the target's
+  physics uses the camel's tables!), adds [obj+0xca/ce]
+  (the scaled velocity pair of PR-178) to the computed
+  position, passes the count in ecx, then `call 0x45400`
+  (0x4536f). 0x45320 has SIX direct callers: 0x1e596,
+  0x1e985, 0x2890d, 0x38102, 0x3df2f, 0x3f028 - inside
+  or adjacent to exactly the provider clusters PR-177 F1
+  enumerated (0x1e570/0x288e0-/0x380d0/0x3df00/0x3e500-
+  families; per-site function boundaries not fully proven
+  over those desyncs, counted). So THE LAW: a provider
+  step builds the rel list, the wrapper scores it through
+  the physics + distance chain, and the selector writes
+  the per-step candidate + distance + class byte - after
+  the pump cleared them (PR-179 F3). THE +0xac ATTACH
+  MACHINE'S INPUTS ARE NOW SUPPLY-TRACKED: [obj+0xe2] =
+  the candidate class byte (its ==2 gate of PR-179 F1(c)
+  and the ==0 AC_DUP_CD rule are CLASS-BASED), and
+  0x45320/0x45400 are installed at windows of the LION
+  tables themselves (0x96960 reads +0x2cc/+0x2d0 = them;
+  the window-overlap ambiguity of the 0x98f34-style
+  clusters is the same counted one as PR-178's slot
+  arithmetic; no `call [r+0x2cc]`/`call [r+0x2d0]`
+  statics exist - the dispatch is the same unresolved
+  computed-dispatch family as PR-180's +0x240, counted).
+
+- FINDING 3, THE POOL-NAME DECODE, CLOSED (the item
+  carried since PR-9x). 0x49871 (entry; the 0x49872 was
+  the desync): calls the CLASS TABLE's slot +0x00 method
+  (a pool/level-name virtual - the LION table's slot 0 is
+  0x20400, its +0x04 = 0x23850, bodies not read), gets a
+  NAME-TABLE INDEX, and indexes string table 0xa11fc; the
+  parse law: names are split at '$' (0x25) with '*'
+  (0x2a) marker components (the byte loop at 0x49882-
+  0x498b3); lookup failure sets a flag at cfg+0x34
+  (`mov DWORD [ecx+0xd],1`). The grammar block at
+  0x91e01-0x92060 (VA, null-delimited, 700 bytes dumped)
+  IS the level-file name registry: LEVEL PROPERTY NAMES
+  (danger_power, platformy, blokady, sufity, muzyka,
+  sample, lew, main_back, back_rect, demolist, belka,
+  paleta, pozycja, plany, dir, intro, lew_rect, maski),
+  then the OBJECT FAMILY NAMES - ANITAB, PLANT, GRABOBJ,
+  DEMOTEXT, ANIBACK, MOVEPLAT, MOVERECT, RECT, DRECT,
+  DRECT2, KATPLAT, DZWIGNIA, WODOSPAD, ZWIERZ, GRUPA,
+  PICT, POCISK, IDPOCISK, GRABG, GWIAZDKI, NIESP, ZONE,
+  KORONA, SURPRISE, BAL, DNGANI, TRASA, TRASA2, LINA,
+  TABLICA, BERLO (31 of them) - THESE ARE EXACTLY THE
+  .MOV OBJECT-FAMILY STEMS of the authored levels
+  (GWIAZDKI_ZARIA01.MOV, LINA_LINA.MOV, KATAPULT/KAT-
+  PLAT, KORONA/ZKORONA, BAL_BALONIK, POCISK_*... - the
+  engine's pool names ARE the level object family names,
+  so "the pool named X" = the class-table set for family
+  X); then two-letter object CODE strings (XaXn..., 12
+  strings) and the engine's own error string 'Bledny
+  wpis w pliku levels: %s' (Polish: "incorrect entry in
+  the levels file") - direct words that this block is
+  the level-file grammar. The format strings ('%d , %d
+  ; ', '\\.\\.\\.%d,%d;%d'...) are sscanf patterns;
+  0x91e01 itself is the argument 0x49920's callers pass
+  as the grammar anchor, and 0x4cf2e shows the comparison
+  idiom: strcmp via 0x76d20 against "danger_power"
+  (0x91e0d). The trio 0x57990 (init: name-table pointer
+  like 0x961fc) / 0x57ae0 / 0x57a00 = pool iteration;
+  0x49920 has 150 direct call sites = the engine-wide
+  property/pool reader.
+
+- OPEN ITEMS COUNTED (5 new). (1) The exact install OWNER
+  of the 0x45320/0x45400 pair under the window-overlap
+  ambiguity (the 38-ref count stands; which tables truly
+  own which slot is the same unresolved as PR-178's) and
+  the DISPATCH mechanism (no call [r+0x2cc/0x2d0]
+  statics - shared with PR-180 item (1)). (2) The class-
+  byte VALUE map: which descriptor bytes are 2 (the
+  +0xac fall-past gate) and 0 (the AC_DUP_CD rule), and
+  the 31 family-name -> class-table mapping per level.
+  (3) 0x45380's list builder + the 13-byte record layout
+  + 0x455a0's distance formula + the wrapper's ecx bound
+  semantics (the caller-side counts). (4) The 0x54458
+  class-range energy rule (nameWord+500 vs class id ->
+  energy -1): intent + the record-word meaning. (5) The
+  0x2c670 placement method's slot model ([obj+0x56f]
+  count word, [obj+0xbf/0xc3] 12-stride slots, msg-byte
+  bits 0x20/0x04, [obj+0x571]) and the cfg+0x34 flag
+  struct. CLOSED: the pool-name decode (carried since
+  PR-9x - Finding 3); the [obj+0xe6] per-step writer FOR
+  THE RELATIONSHIP FAMILY (Finding 2 - with remainder:
+  the LION-table pair's dispatch, item (1)); the [obj+
+  0xe2] semantics (PR-179 item (3) partial - it is the
+  candidate class byte from descriptor+0xc); PR-177 items
+  (1)/(2) IN PART (the provider->wrapper->selector chain
+  is supply-tracked; the helper bodies 0x52eb0/0x52cc0/
+  0x534e0/0x45620 themselves still unread). UPDATED:
+  PR-180 F3 (bracket: the pool-wiring reading is replaced
+  by Findings 1-2 - no holder, arithmetic; the lead
+  resolves to the selector); PR-180 item (1) unchanged.
+  CARRIED unchanged: the msg senders; the player-side
+  same-state seek (PR-174 item (2)); the relation-helper
+  bodies (PR-177 items (1)/(2) remainder); 0x549f0's
+  tails (PR-178 item (3)); the other 55 +0x78 singletons
+  (PR-177 item (3)); the ratio-law behaviour study
+  (PR-180 item (2), video-gated); the other +0xcc
+  drivers; the state-copy helper (PR-180 item (4) -
+  NOTE: 0x45320's physics-cfg shape makes a hand-off
+  reading less likely, but the -0xd6 family question
+  stands); the +0x54 hook families; 0x550c0's body; the
+  0x55130 tail; the +0x4c/+0x1c recount; the 73 dead-
+  0x54910 tables; the +0xa0 census oddities; the CFG
+  windows (PR-179 item (3)); PR-176's five controller
+  items; everything else in the ledger's carried list.
+
+- GATES. Docs-only reading PR (PR-138..180 precedent): no
+  port file touched; build state = the OWNER GATE (rule 8)
+  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
+  SKIPs) - only docs moved since. CI truth at this
+  record's time: PR-180's docs run 44549075152 = SUCCESS
+  on 44b0870; the chain (PR-179 44547207457, PR-178
+  44546099837, PR-177 44544519251) SUCCESS unchanged.
+  This docs push queues its own run. Added .md lines <=
+  79 cols; over-79 baselines UNCHANGED (NEXT_STEPS 71,
+  HANDOFF 71); no game data or frames in git (scripts
+  under /tmp/opencode/pr181/); .github/workflows/*
+  untouched; the image is unchanged.
+
+- EVIDENCE. pool_evidence.py (re-runs every cited number:
+  the pool-getter field writes from bytes; 25+11 grammar
+  names extracted incl. 'lew' at 0x91e58, 'LINA' at
+  0x92004, 'GWIAZDKI' at 0x91fc8, 'danger_power' at
+  0x91e0d; 38 installs of 0x45400 + the LION window
+  pairs; the 6 rel callers of 0x45320; the 12-site
+  [reg+0xe6] disp32 scan with classification; the LION
+  0x96960 map incl. +0x2cc = 0x45320 / +0x2d0 =
+  0x45400; 150 callers of 0x49920). obj_range.sh (the
+  whole reads: 0x574d0-0x57566, 0x49870-0x49a30,
+  0x452d0-0x454c0, 0x2c600-0x2c810, 0x4cee3-0x4cf57,
+  0x54450-0x544a4; entry-desync traps reconfirmed at
+  0x45400 and 0x49871). Ledger: records re-spliced from
+  HEAD (census: HEAD carries PR-150..PR-180 (31 records)
+  PLUS the four OWNER 2026-11-19 records, last carrier);
+  4 brackets (PR-180 F3 CORRECTED; PR-179 item (1) lead
+  CLOSED; the carried pool-name decode CLOSED; PR-177
+  provider items IN PART).
 
 ## Deferred big items (deliberately out of scope so far)
 
