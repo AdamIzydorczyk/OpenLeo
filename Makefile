@@ -88,8 +88,22 @@ resources/ll_cutscene.res: resources/ll_cutscene.rc resources/app.manifest \
 # the python reference frames every byte-exact leg compares against
 py-refs:
 ifeq ($(PX_DATA),1)
-	python3 $(PYREF) frames $(DATA)/INTRO_P.IS /tmp/opencode/c_py --ppm --only 1020
-	python3 $(PYREF) frames $(DATA)/INTRO_P.IS /tmp/opencode/py_last --ppm --only 1520
+# ONE decode pass for both oracle frames (2026-11-19). This rule used
+# to run the whole file twice, one frame each: measured 6.43s for the
+# pair, 3.21s for the single `--only 1020,1520` pass, and the frames
+# are the same bytes either way (sha256 f01020 1e567247..., f01520
+# 50a7f40a... from both methods, compared here before the change).
+# tools/is_decode.py already takes a comma list (--only a,b,c) and
+# names its outputs f<frame>.ppm, so no tool change was needed.
+	python3 $(PYREF) frames $(DATA)/INTRO_P.IS /tmp/opencode/c_py --ppm \
+		--only 1020,1520
+# Placement, not a second decode: the two oracle paths are separate
+# contracts (c_py/f01020 = the decode-midpoint oracle used by verify,
+# verify-win, verify-utf8, verify-cmake, verify-golden; py_last/f01520
+# = the end-of-file ESC-skip oracle used by verify-skip, verify-win).
+# Keeping both paths keeps every leg byte-identical to before.
+	mkdir -p /tmp/opencode/py_last
+	cp -f /tmp/opencode/c_py/f01520.ppm /tmp/opencode/py_last/f01520.ppm
 endif
 
 # Byte-exactness oracle: headless --ppm output vs tools/is_decode.py.
@@ -165,20 +179,26 @@ ifeq ($(PX_WINREF),1)
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 \
 	  LEO_MENU_SECS=1 LEO_MENU_PPM=/tmp/opencode/lmenu_t2.ppm LEO_MENU_PPM_TICK=2 \
 	  timeout 90 ./ll_cutscene --demo $(DATA) --no-audio >/dev/null 2>&1 || true
-	@rm -f /tmp/opencode/wmenu_t2.ppm
+# ONE wine run for both frames (2026-11-19) - the same proof as the
+# linux pair in verify-menu: LEO_MENU_PPM+TICK and LEO_MENU_PPM_DIR+MAX
+# emit identical bytes at the same tick (verified here: wine single-shot
+# t2 == wine sequence map_0002, same for t8/map_0008, and identical
+# across targets), so this removes a cold wine chain replay (the most
+# expensive thing this suite does) without touching what is asserted:
+# t2 != t8 under wine (animation) and t2 == the fresh linux frame
+# (cross-target byte-exactness). Z: is wine's drive for "/", and the
+# sequence hook writes through it exactly as the single-shot hook does.
+	@rm -rf /tmp/opencode/wmenu_seq; mkdir -p /tmp/opencode/wmenu_seq
 	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all SDL_VIDEODRIVER=dummy \
 	  LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_SECS=1 \
-	  LEO_MENU_PPM=Z:/tmp/opencode/wmenu_t2.ppm LEO_MENU_PPM_TICK=2 \
-	  timeout 120 wine ./ll_cutscene.exe --demo Z:$(DATA) --no-audio >/dev/null 2>&1 || true
-	@rm -f /tmp/opencode/wmenu_t8.ppm
-	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all SDL_VIDEODRIVER=dummy \
-	  LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_SECS=1 \
-	  LEO_MENU_PPM=Z:/tmp/opencode/wmenu_t8.ppm LEO_MENU_PPM_TICK=8 \
-	  timeout 120 wine ./ll_cutscene.exe --demo Z:$(DATA) --no-audio >/dev/null 2>&1 || true
-	@if tools/frames_differ.sh /tmp/opencode/wmenu_t2.ppm /tmp/opencode/wmenu_t8.ppm; \
+	  LEO_MENU_PPM_DIR=Z:/tmp/opencode/wmenu_seq LEO_MENU_PPM_MAX=8 \
+	  timeout 120 wine ./ll_cutscene.exe --demo Z:$(DATA) --no-audio \
+	  >/dev/null 2>&1 || true
+	@if tools/frames_differ.sh /tmp/opencode/wmenu_seq/map_0002.ppm \
+	                           /tmp/opencode/wmenu_seq/map_0008.ppm; \
 	then echo "win menu anim: BERLO cycles under wine (t2 != t8, ok)"; \
 	else echo "win menu anim FAILED: t2 == t8"; exit 1; fi
-	@cmp /tmp/opencode/lmenu_t2.ppm /tmp/opencode/wmenu_t2.ppm \
+	@cmp /tmp/opencode/lmenu_t2.ppm /tmp/opencode/wmenu_seq/map_0002.ppm \
 	  && echo "win menu frame == linux frame (byte-exact, overlays composited)"
 	@env -u DISPLAY WINEPREFIX=$(WINEPREFIX) WINEDEBUG=-all SDL_VIDEODRIVER=dummy \
 	  LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_KEY=r LEO_MENU_SECS=1 \
@@ -545,6 +565,13 @@ ifeq ($(PX_DATA),1)
 # the rhino at parent (1700,600) + offset (20,29) = (1720,629), never at the
 # literal (20,29) corner - that is why the rhino "stood on nothing". The report
 # line names it; and no other level's top-level static is pulled to a parent.
+# (This re-runs the IDENTICAL command of the PR-93 leg above on purpose. A
+# 2026-11-19 audit of duplicate chain runs flagged it as a removable replay,
+# ~2 s; it is kept because two independent processes producing the same
+# placement listing is the only check anywhere that ll_level's scene listing
+# is reproducible run to run - the suite's other determinism oracles are
+# linux-vs-wine hash parity (verify-mod) and C-vs-python agreement, neither
+# of which covers this. Merging the two would trade 2 s for lost coverage.)
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=1 \
 	  LEO_OBJ_ALL=1 \
@@ -1758,15 +1785,21 @@ ifeq ($(PX_DATA),1)
 	   && grep -q 'map: anim 0: 30 frames' /tmp/opencode/menu_bg.log; \
 	then echo "menu render: 640x400 chapter map + BERLO arrow anim attached (hooked, ok)"; \
 	else echo "menu render FAILED (rc=$$rc)"; cat /tmp/opencode/menu_bg.log; exit 1; fi
-	@rm -f /tmp/opencode/menu_t2.ppm
+# ONE run for the two animation frames (2026-11-19). This pair used to
+# replay the whole chain twice, once per tick. It is safe to collapse
+# because the two hooks emit the same bytes at the same tick - proven,
+# not assumed: LEO_MENU_PPM+TICK and LEO_MENU_PPM_DIR+MAX both call
+# ppm_fb on the same composed buffer (ported/ll_menu.c:1288 vs :1305),
+# and hashing a single-shot run against a sequence run gave identical
+# frames on BOTH targets (t2 sha 14c5ef3b..., t8 e41b61fd...; linux==wine
+# in all four combinations), while t2 != t8 inside one run, which is
+# exactly the assertion here. MAX=8 emits map_0000..map_0008.
+	@rm -rf /tmp/opencode/menu_seq; mkdir -p /tmp/opencode/menu_seq
 	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_SECS=1 \
-	    LEO_MENU_PPM=/tmp/opencode/menu_t2.ppm LEO_MENU_PPM_TICK=2 \
+	    LEO_MENU_PPM_DIR=/tmp/opencode/menu_seq LEO_MENU_PPM_MAX=8 \
 	    timeout 60 ./ll_cutscene --demo $(DATA) >/dev/null 2>&1 || true
-	@rm -f /tmp/opencode/menu_t8.ppm
-	@env -u DISPLAY LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 LEO_MENU_SECS=1 \
-	    LEO_MENU_PPM=/tmp/opencode/menu_t8.ppm LEO_MENU_PPM_TICK=8 \
-	    timeout 60 ./ll_cutscene --demo $(DATA) >/dev/null 2>&1 || true
-	@if tools/frames_differ.sh /tmp/opencode/menu_t2.ppm /tmp/opencode/menu_t8.ppm; \
+	@if tools/frames_differ.sh /tmp/opencode/menu_seq/map_0002.ppm \
+	                       /tmp/opencode/menu_seq/map_0008.ppm; \
 	then echo "menu anim: BERLO frame cycles on screen (t2 != t8, ok)"; \
 	else echo "menu anim FAILED: frames t2 == t8 (nothing animates)"; exit 1; fi
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy LEO_DEMO_SKIP_FRAMES=3 LEO_SKIP_USER=1 \
