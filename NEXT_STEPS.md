@@ -15877,25 +15877,23 @@ no port behaviour change)
   own live numbers at build time, never a frozen count). This file's
   PR-197 record is the FIRST carrying the field block; PR-196's Next
   guessed PR-198 - corrected in PR-197's CORRECTS field.
-- THEN PR-198 IS THE PRODUCER'S NEXT STEP: THE .MOV ACTION RUNTIME
-  (the SECOND record carrying the field block - PR-197 dogfooded it).
-  PR-194 F-(a)/(b) left exactly one link missing between authored data
-  and an exit code: the parser turns `end_level <n>` into a node of
-  class 0xa1048 (0x46bbd-0x46c01), and nobody has read the interpreter
-  that EXECUTES such a node. Read that, and answer the one question
-  that decides the port's next code change: is the authored number the
-  level loop's RETURN value, the exit word [level+0x4], or a level
-  index? Where to start: the parse legs and their sibling directive
-  classes (0xa1030, 0xa1060, 0xa11c8 - the same shape, other words),
-  the verb slots of those tables, and the row walk the port already
-  models (ported/ll_play.c). Rules: text.asm only
-  (tools/re/make_text_asm.sh), no invented semantics, an unproven half
-  stays counted. IF the runtime says the number reaches the loop's
-  return or the exit word, the following PR ([PORT]) replaces
-  LEO_LEVEL_EXIT's injected codes with the real `A_EXIT` rows of a
-  level's own LEW.MOV - the fixture then drives the engine's own end-of
-  -level walk, which is the whole point of the injection hook being
-  separate.
+- THEN PR-199 IS THE PRODUCER'S NEXT STEP: THE [PORT] THAT
+  REPLACES LEO_LEVEL_EXIT'S INJECTED CODES WITH REAL `A_EXIT` ROWS.
+  PR-198 closed the runtime end to end: an authored `end_level <n>`
+  row runs as any other row; class 0xa1048's apply 0x45750 stores n
+  into the level object's +0x4; the level loop 0x4abd0 tests that
+  slot against zero at every iteration top (0x4ac55) and a nonzero
+  makes it RETURN THE CONSTANT 1 for EVERY value; the number itself
+  is published beside that code (0x5d25e/0x5d2dc) and read by
+  nothing.
+  So the fixture rows (PR-194 F(b): the LEW.MOV `A_EXIT`/`A_TUNGA`
+  states) drive the engine's own end-of-level walk through the port's
+  existing row walk, and the injected hook stops being the model:
+  keep the authored number as data only, and pin the measured
+  any-nonzero -> loop code 1, while exit 4 stays the menu leg and
+  must not model a level end. Rules unchanged: full gate per
+  record, one LEO_* hook documented (rule 4), no invented semantics.
+
 - THEN THE DOCUMENT WORK, IN ORDER: step 3, one open-items register
   with stable ids (~40 rows seeded from the audit's re-listed phrases
   AND from the new `OPENS:`/`CLOSES:` lines), the ledger citing
@@ -28005,7 +28003,11 @@ BEHAVIOUR CHANGE)
       values (1 and 2) from its two exchange states. Whether those numbers
       are the loop's return, the exit word, or a level index is NOT read -
       counted, and it is the first question of the next reading step.
-  (c) The exit-word WRITER is still not identified. This pass did rule
+  (c) The exit-word WRITER is still not identified [PR-198 CORRECTION:
+      ds:0xcef40 the ruled-out-shape claim below is WRONG as stated,
+      corrected in: PR-198 - the writer is right there, 0x45752 loads
+      the global and 0x4575b stores [reg+0x4], 3 instructions apart].
+      This pass did rule
       out the easy shape: of the 261 code sites that mention ds:0xcef40
       and the 918 stores of the form `mov DWORD PTR [reg+0x4], ...`,
       none pairs a ds:0xcef40 load with a store into the level object's
@@ -28612,6 +28614,241 @@ each is the new verify-index leg, which runs in both modes and adds one
 (ok); the record is spliced and the index regenerated before the gate,
 then `make verify-docs` and `make verify-index` are re-run on the final
 tree, per the checklist section 10 now pins).
+
+## PR-198 — THE end_level RUNTIME IS CLOSED END TO END: the apply
+## call was already in PR-101's text, and the authored number is ONE
+## NONZERO FLAG - the level loop's top test makes it RETURN THE
+## CONSTANT 1 for EVERY value; the out-pair's second dword has ZERO
+## readers in the whole image
+
+KIND: read
+SUBSYSTEM: .MOV action runtime; end_level directive -> exit contract
+ADDRESSES: 0x520e1 0x45750 0x4ac55 0x4ae45 0x5d25e 0x5d2dc 0x5d3b5
+      0x98278 0x23ea0 0x23f00 (retracts PR-96's "format string"
+      reading of 0x98278)
+NAMES: end_level, A_EXIT, A_TUNGA1, A_TUNGA2, LEW.MOV, LEO_LEVEL_EXIT,
+      zaria1, zaria2, ena1, ena2, lona, sades, kadmar1, kadmar2,
+      ran, kara, junction, tunga1, tunga2
+CODE: no: [READ], the ledger record only
+HOOKS: none
+OPENS: the 23 other apply methods and the 6 pure-walks; the second
+      apply site 0x51101, a different object type; 0x5eb11's
+      caller and why it discards the pair; what consumes the
+      0x23ea0 two-view cursor; what feeds the 0x603b0 menu-result
+      leg, PR-190's exit-4 source; what raises code 0
+CLOSES: PR-194 F(b)/(c)'s questions and the PR-198 scope in `## Next`
+CORRECTS: PR-194(c) "This pass did rule out the easy shape ... none
+      pairs a ds:0xcef40 load with a store into the level object's
+      +0x4 within 30 instructions" - refuted as stated: replaying a
+      window pairing gives 71 such pairs, and 0x45752->0x4575b is one
+      of them, 3 instructions apart, inside 12 bytes; PR-191's similar
+      "zero field-op stores at +4 within 24B" filter admits the same
+      pair. The instrument was the problem, not the arithmetic: see
+      THE LESSON below.
+
+- WHAT THIS READ ESTABLISHES. The link PR-194 F(a) left open ("the
+  RUNTIME that executes such a node was NOT found") and the question
+  PR-194 F(b)/(b) and `## Next` scoped ("is the authored number the
+  loop's RETURN, the exit word [level+0x4], or a level index?") are
+  now read end to end. The answer: neither return nor index. The
+  authored number is written into the current level object's +0x4
+  slot; the level loop tests that slot against ZERO at the top of
+  every iteration, and a nonzero makes the loop RETURN THE CONSTANT
+  1, the same for every value; one copy of the number is published
+  beside that code and read by NOTHING in the image. The values 1
+  and 2 in the fixtures' 26 rows are behaviorally identical, and
+  that code 1 is NOT the exit-4 leg - PR-190 pinned exit 4 as the
+  menu result - so the two signals stay distinct.
+
+- THE RUNTIME WAS ALREADY IN THE LEDGER, ONE CALL SHORT. PR-101
+  recorded that 0x520c0 "takes the current node [[rec+0x2e]] +
+  [rec+4]*4, calls the node's +0x4 method" (0x520cf-0x520e1), and
+  PR-193/PR-100 fixed 0x520c0 as the `[[rec+0x44]+0x18]` handler,
+  identical in all 16 record-class sub-tables, with no direct E8
+  call anywhere (re-verified: zero call sites). What was never
+  followed is where that call lands for an `end_level` row. It lands
+  exactly where PR-194 F(a) already pointed: the parser at
+  0x46bbd-0x46c01 builds a 0xc node whose class word is 0xa1048;
+  class 0xa1048's slot +0x04 (table 0xa104c) is 0x45750; and
+  0x520e1 is `mov ebx,[edi+0x4]; mov eax,edi; mov edx,esi; call
+  DWORD PTR [ebx+0x4]` - the apply call, with the row node in eax
+  and the record in edx.
+
+- THE APPLY METHOD, EXACTLY. 0x45750-0x4576e:
+  `mov ebx,ds:0xcef40; mov ecx,[eax+0x8]; mov [ebx+0x4],ecx` then
+  if `[node+0x00]` is non-null, `mov eax,[node]; mov ebx,[ebx+0x4];
+  call [ebx+0x4]` - it stores the node's number (the parser filled
+  [node+0x8] through the `' %i '` format at 0x91998, PR-194 F(a))
+  into the global object's +0x4, then recursively applies the rest
+  of the row's directive chain through each next node's own class.
+  It IGNORES edx (the remainder argument of the +0x18 handler's
+  convention); PR-101's "[0x52118] rewrites the accumulator, so the
+  carry lives in the object, not the node" is what makes that safe.
+
+- THE +0x04 SLOT IS NOT ONE METHOD. Census of the 31-table run's
+  slot +0x04 (PR-101's stride 0x18 census, same tables): 24
+  DIFFERENT functions plus 0x457e0 x6 - every directive class has
+  its own apply, and 0x45750 (write-then-walk) belongs to exactly
+  one class, 0xa1048, the `end_level` class. The six 0x457e0
+  classes are the pure-walk apply PR-101 described ("only walks"),
+  and its chain recursion is 0x457e9->0x457ec. Full-image census of
+  the apply pattern (`mov R2,[R1+0x4]` then `call [R2+0x4]` within
+  6 instructions) finds exactly 4 sites: 0x45766 (0x45750's own
+  recursion), 0x457e9 (0x457e0's recursion), 0x520da->0x520e1 (the
+  row-apply above) and 0x510fc->0x51101 - that last on a DIFFERENT
+  object shape (a byte cursor at [obj+0x8] walked through [obj],
+  applying when a zero byte terminates); its object type is not
+  identified here, counted below. The sibling row-steppers
+  0x521f0/0x52360/0x523f0/0x52470 contain NO apply at all: their
+  indirect calls are the PR-101 model's chain getters and record
+  methods (+0x8/+0xc/+0x70/+0xa0/+0xa4/+0xa8/+0xac/+0x10/+0x18),
+  so directive side effects run only through 0x520c0.
+
+- WHO THE OBJECT IS, WITH THE IDENTITY CHAIN MEASURED. The
+  ds:0xcef40 global holds the CURRENT LEVEL-SESSION OBJECT, and the
+  loop's `this` is that same object:
+  (1) 0x5d1f5 asks 0x5c320 for 0x3ea bytes and 0x5d233 runs the
+      ctor 0x4a4c0 over it (PR-191: that ctor zeroes [obj+0] and
+      [obj+4] and "the reader is 0x5d25e" - PR-191's exit-word
+      language, confirmed as the field layout here);
+  (2) inside that object's open sequence 0x4a5cf is the ONLY call
+      to 0x223d0 anywhere; 0x223d0 returns the +0x3ce sub-view, and
+      0x4a5d4 restores `lea ebx,[eax-0x3ce]` - the object base;
+  (3) 0x4a5f3 stores that base to ds:0xcef40, installs the class
+      table 0xa1350 at [obj+0x3e6] (PR-189's "manager" naming) and
+      chains the previous global at [obj+0x39c] (0x4a5f9);
+  (4) 0x5d24c loads the global and 0x5d251 calls 0x4abd0 with it in
+      eax, so the loop's ecx and the global are the SAME object -
+      `lea edi,[ecx+0x3ce]` at 0x4ac2b is the same view arithmetic;
+  (5) teardown: the stubs' chain calls the object's +0x04 method
+      with edx=2 (0x5d2a1-0x5d2ac, class 0xa1350's slot) and THEN
+      nulls the global (0x5d2b6); 0x5e337-0x5e352 is the same
+      destroy-then-null sequence for the other global holder, and
+      0x3f74b is an unrelated fourth store to that global.
+  Mention census over the whole image: 261 instruction sites mention
+  ds:0xcef40 - 257 register-loads in 170 functions, 4 stores to the
+  global itself. Accesses of the +0x4 slot in register form, entire
+  image: ONE writer (0x4575b), the guard TEST (0x4ac55, a cmp
+  against 0 - see below), one copy-OUT (0x5d25e), and nothing else:
+  scanning every function that loads the global for any `[reg+0x4]`
+  or bare `[reg]` read used as a source finds 5 functions and all
+  5 are `lea` address arithmetic, not reads.
+
+- THE LOOP'S OWN TEST, AND THE EXIT-CODE MAP. The level loop
+  0x4abd0 (PR-106's law: exactly one E8 caller, 0x5d251) tests at
+  the top of every iteration (0x4ac3b): first `[[ecx+0x394]+0x116]`
+  nonzero -> ebx=3 and out; ELSE `cmp DWORD PTR [ecx+0x4],0x0`
+  (0x4ac55): zero falls through into the frame body, NONZERO sets
+  ebx=1 (0x4ac5b) and `jmp 0x4ae53` (0x4ac60) - straight to the
+  epilogue, which ends `mov eax,ebx; ret`. So an `end_level` row's
+  number makes the loop RETURN 1, identically for every value, 1 or
+  2 alike. Two measured facts pin that as a real signal: within the
+  body exactly ONE instruction loads the immediate 1 into ebx -
+  0x4ac5b, this guard (the other immediates are 3 at 0x4ac4b, 2 at
+  0x4ae8b, 4 at 0x4ae4e) - and the body contains NO store to the
+  flag at all (zero `[reg]`/`[reg+4]` dword stores, zero
+  ds:0xcef40 mentions), so the flag is never cleared mid-level and
+  the exit lands on the first boundary after the row runs. Per
+  level it starts 0: the ctor 0x4a4c0 zeroes [obj+4] (PR-191's
+  reading, re-verified at byte level - 0x4a4c3 and 0x4a4cc are the
+  two zeroing stores) on a freshly allocated 0x3ea block (0x5d1f5),
+  so the flag cannot leak into the next level.
+  THE 1->4 CONVERSION IS A DIFFERENT LEG. The frame-end test
+  0x4ae45 `cmp ebx,0x1; jne 0x4ac3b` re-checks an ebx that came
+  from a CALL: 0x4ae29 `call 0x603b0` then 0x4ae30 `mov ebx,eax`;
+  its 1 is rewritten to 4 at 0x4ae4e. That is PR-190's exit-4 leg,
+  "THE ESC MENU'S RESULT == 1 IS THE EXIT-4 SOURCE", reached only
+  through the menu-result call and NEVER through the guard, whose
+  jmp 0x4ac60 skips it. This is the one trap the reading nearly
+  fell into: an earlier draft of THIS record claimed end_level
+  returns 4, read off the frame-end test, and the guard's direct
+  jump to the epilogue refutes it - corrected before commit, and
+  stated here because the two legs look continuous in a linear
+  listing. All four exits run through one epilogue: the body
+  0x4abd0-0x4ae81 has EXACTLY ONE `ret` (0x4ae81), entered only at
+  0x4ae53, from 0x4ac50 [3], 0x4ac60 [1, the guard], 0x4ae90 [2,
+  when `ds:0xa94f0` is zero, 0x4ae82-0x4ae8b] and by the 0x4ae4e
+  fall-through [4, menu]. PR-193's consumer table then applies as
+  it recorded it: the stub at 0x5d3b5 dispatches on the code, and
+  code 1 lands in its `mov eax,0x1` leg = CONTINUE WITHOUT RESET;
+  code 4 is the `xor eax,eax` chain-stop (0x5d3ec).
+- THE PUBLISHED PAIR, AND ITS ZERO READERS. 0x5d25e reloads the
+  global AFTER the loop returns and copies N into the wrapper's local
+  at [ebp-0x8]; 0x5d2d1-0x5d2dc (PR-193's out-pair store) then
+  writes `[out+0x0]` = the loop's return and `[out+0x4]` = N. All
+  14 call sites of 0x5d170 were enumerated: thirteen pass a LEVEL
+  NAME in ebx from the block at 0x92631 - zaria1 zaria2 ena1 ena2
+  lona sades kadmar1 kadmar2 ran kara junction tunga1 tunga2 (the
+  ten plain stubs 0x5d3b0..0x5d7a0, plus three jump-table consumers
+  at 0x5d891 [junction] 0x5d8c9 [tunga1] 0x5d940 [tunga2] - the
+  TUNGA pair this whole read is about, and their shape is
+  `dec eax; cmp eax,3; ja; jmp cs:[eax*4+...]` = a four-way table on
+  code-minus-one); the 14th, 0x5eb11, takes the name from ITS
+  caller, sets ds:0xa94f0=9 first, and reads NEITHER dword - it
+  discards the pair. NOT ONE of the 14 reads the second stack dword:
+  every consumer that reads at all reads the code, none reads the
+  word, in any window. So the authored
+  number's only live effect in the shipped engine is the nonzero
+  test at 0x4ac55; the number itself leaves the level as data no
+  code consumes.
+
+- 0x98278, THE LAST UNREAD LEG OF PR-101'S WALK. `mov ecx,0x98278;
+  call DWORD PTR [ecx+0x4]` at 0x520e6/0x520f6 is NOT a format
+  string (PR-96's reading, made when 0x98278 was seen as a data
+  value near the 0x3dbcc item lookup): the data at 0x98278 is a
+  method table - [0x98278]=0x23ed0, [0x98278+0x04]=0x23ea0,
+  [0x9827c+0x04]=0x23e00, adjacent to the level-bounds class table
+  0x98274 that PR-190's law installs at [obj+0x14] - so the call is
+  the +0x04 method of that table, 0x23ea0, with the record's two
+  table views in edx/ebx as PR-101 described. READ, four
+  instructions: 0x23ea0 `mov [eax],edx; mov [eax+0x4],ebx; ret` -
+  it installs the two views into the dword block at eax (0x520eb
+  points eax at 0x520c0's own stack scratch), i.e. the call
+  MATERIALIZES a two-view cursor over the record right there; the
+  same shape zero-defaulted at 0x23f00 (`mov [eax],0; mov [eax+4],0;
+  mov [eax+8],0x98278; ret`) shows +0x8 is the table self-reference.
+  What consumes that cursor is not read in this pass (counted), and
+  the neighbours 0x23eb0 (a pair-copy that installs 0x98278 at
+  +0x8) and 0x23ed0 (a dl-flag destroy/free leg) were noted, not
+  followed.
+
+- THE LESSON FOR THE NEXT WINDOW SEARCH. The exit word's writer sat
+  inside a class-table METHOD reached only through an indirect call,
+  storing through a register loaded 12 bytes earlier (two
+  instructions between). No
+  register-window pairing can rank that store above noise: replaying
+  PR-194(c)'s stated shape (ds:0xcef40 mentions x `mov [reg+0x4],`
+  stores, +-30 instructions) over the image gives 71 pairs, 29 of
+  them with real registers, and 0x45752->0x4575b is among them - so
+  the sentence "none pairs ..." is false as written, and the search
+  that motivated it could not have succeeded. What DID find the
+  writer was following the class model (PR-101/PR-153): row ->
+  node class -> slot +0x04. Stated so no future pass re-runs the
+  dead instrument.
+
+- PORT CONSEQUENCE (for the scheduled [PORT]). The engine's own
+  end-of-level contract is now: an authored `end_level <n>` row in a
+  level's LEW.MOV (the lion's script; the fixtures' rows sit in the
+  `A_EXIT`/`A_TUNGA1`/`A_TUNGA2` states PR-194 F(b) censused) runs
+  as any other row, its apply stores n, and the level run ends at
+  the NEXT frame boundary with the loop returning the constant 1 -
+  PR-193's CONTINUE-WITHOUT-RESET leg - for every value of n. So
+  the number selects nothing; the row's existence IS the exit.
+  LEO_LEVEL_EXIT can therefore stop injecting codes: the real
+  rows, run through the port's existing row walk, end the level.
+  The pins to write a port against: any `end_level` row -> loop
+  code 1, flag-only, no value semantics; the flag is per-level
+  (ctor-zeroed) and never cleared mid-level; and exit 4 belongs to
+  the MENU leg, so a level ending must not be modelled as a
+  chain-stop.
+
+GATE: make 0 warnings; verify-all fixtures rc=0 60 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 20 named verify-SKIPs - the counts
+  a [READ] must not move; the record is spliced and the index
+  regenerated before the gate, then verify-docs and verify-index are
+  re-run on the final tree, and the over-79 SETS of the three
+  tracked docs are compared to HEAD (0 added, 0 removed).
+
 
 ## Deferred big items (deliberately out of scope so far)
 
