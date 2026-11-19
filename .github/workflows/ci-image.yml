@@ -14,6 +14,21 @@
 # the built-in GITHUB_TOKEN of the SAME repo reads its own packages
 # without any login step - no extra secret is needed. If you set the
 # image public instead, that also just works (no auth at all).
+#
+# WHY PLAIN `docker build` + `docker push` (2026-11-19, rewritten after
+# the first attempt failed with a 403): buildx + a registry cache tries to
+# IMPORT the cache manifest before anything exists, and a brand-new GHCR
+# package is private, so the anonymous token request is refused:
+#   > importing cache manifest from
+#     ghcr.io/adamizydorczyk/open-leo-ci:buildcache
+#   failed to fetch anonymous token: ...403 Forbidden
+#   [error] buildx failed with: failed to solve: ... 403 Forbidden
+# There is nothing worth caching here anyway: this workflow runs only when
+# the toolchain changes, a cold build measured ~2 minutes, and the docker
+# CLI path authenticates with the daemon's own GHCR login instead of
+# handing credentials to a separate buildkit container. Fewer moving parts,
+# and the thing that actually has to work (the pushed :ci tag) is all it
+# does.
 name: ci-image
 
 on:
@@ -24,6 +39,12 @@ on:
       - .github/ci/Dockerfile
       - .github/workflows/ci-image.yml
 
+concurrency:
+  # The bootstrap fired twice (push trigger + a manual dispatch) and two
+  # runners raced on the same :ci tag. Serialise it instead.
+  group: ci-image
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
@@ -32,7 +53,7 @@ env:
   REGISTRY: ghcr.io
   # lower-case on purpose: GHCR image names are lower-case, and this must
   # match the container: line in ci.yml exactly. If the repo or owner is
-  # ever renamed, update BOTH lines together (Actions expressions cannot
+  # ever renamed, update BOTH places together (Actions expressions cannot
   # lower-case a value, and a job-level container: cannot be computed by
   # a step, so a literal is the only drift-free option).
   IMAGE: adamizydorczyk/open-leo-ci
@@ -44,23 +65,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The registry layer cache (cache-from/cache-to below) needs the
-      # buildx container driver; the runner's default docker driver only
-      # speaks inline caches. Native arch, so no QEMU cost.
-      - name: Set up buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        # Needed for the push. The pull side needs no login: GITHUB_TOKEN
+        # reads its own repository's private packages (that is what ci.yml
+        # and ci-windows.yml pass in the job's env).
+        run: echo "${GITHUB_TOKEN}" | docker login "${REGISTRY}" \
+               -u "${GITHUB_ACTOR}" --password-stdin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push the toolchain image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .github/ci/Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE }}:ci
-            ${{ env.REGISTRY }}/${{ env.IMAGE }}:${{ github.sha }}
-          # plain inline layer cache on the runner's default builder:
-          # rebuilds after a toolchain bump cost seconds, not minutes.
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE }}:buildcache,mode=min
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE }}:buildcache,mode=max,ignore-error=true
+      - name: Build the toolchain image
+        run: |
+          docker build -f .github/ci/Dockerfile \
+            -t "${REGISTRY}/${IMAGE}:ci" \
+            -t "${REGISTRY}/${IMAGE}:${GITHUB_SHA}" .
+
+      - name: Publish it (this is what makes ci.yml's pull resolve)
+        # :ci is the moving tag the jobs use; the full-sha tag is kept for
+        # audit and rollback (a container: line can be pinned to it).
+        run: |
+          docker push "${REGISTRY}/${IMAGE}:ci"
+          docker push "${REGISTRY}/${IMAGE}:${GITHUB_SHA}"
+
+      - name: Confirm what the CI jobs will pull
+        # Prints the image id + the exact toolchain versions that the
+        # verify-arch pins will meet, so a base-image change that moves
+        # cmake/gcc/mingw shows up HERE instead of as a verify-arch
+        # failure in another workflow. The names below are the ones the
+        # Makefile actually resolves (XC: x86_64-w64-mingw32-gcc,
+        # WINDRES: x86_64-w64-mingw32-windres - a bare "windres" does
+        # not exist in this image, that is an MSYS2-only name).
+        run: |
+          docker image inspect --format '{{.Id}} {{join .RepoTags ", "}}' \
+            "${REGISTRY}/${IMAGE}:ci"
+          docker run --rm "${REGISTRY}/${IMAGE}:ci" sh -c \
+            'set -e; cmake --version | head -1; gcc --version | head -1;
+             x86_64-w64-mingw32-gcc --version | head -1;
+             x86_64-w64-mingw32-windres --version | head -1;
+             python3 --version; cat /etc/os-release | grep PRETTY_NAME'
