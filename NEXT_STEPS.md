@@ -3,11 +3,13 @@
 > **Start with HANDOFF.md** (the current map, rules, estimates, open
 > questions and the ordered task list). This file is the per-PR history:
 > each `## PR-nn` heading is one step with its evidence; the newest are at
-> the end, just before `## Next`. Numbering continues at PR-75.
+> the end, just before `## Next`. Numbering continues at PR-200.
 
-Working plan derived from `open-leo_native_port_review.md` (P/E/M) and
-`open-leo_porting_tips.md` (T). Update the status lines here as items
-land; the review/tips files stay as the detailed work orders.
+The P/E/M and T work-order ids cited across this journal come from
+the external review documents, now under `docs/archive/` with every
+other superseded Nov-2026 work order and report (PR-200 inventory
+pass; `docs/archive/README.md` is the index). Those files are
+READ-ONLY history; the live plan is this file's `## Next`.
 
 > **Subject tags + the 2026-11-19 history override.** `PR-nn` subjects
 > now carry a kind tag: `[READ]` = engine reading (docs plus
@@ -15866,11 +15868,19 @@ no port behaviour change)
   byte-identical proofs the record states. The design calls - the
   lion-owned slot, the `end_level 0` collapse, the no-re-entry end -
   are stated in the record and at the fields, not hidden.
-- OWNER'S RULING (2026-11-19): STOP AFTER PR-199. The steps below
-  stay PLANNED, NOT STARTED; nothing after this ruling was begun.
+- OWNER'S RULING (2026-11-19, second): DOCUMENTATION IS THE CURRENT
+  FOCUS - run the doc order; engine reading and porting stays where
+  PR-199 left it until re-opened.
+- PR-200 IS SHIPPED (the inventory step - written as "step 6" in
+  the old order, run FIRST on purpose, so the register never seeds
+  from files in motion): the .md set is a CLOSED standard, P5 in
+  verify-docs fails the build for anything outside it, and the
+  superseded Nov-2026 work orders and reports live under
+  docs/archive/ with an index, id map and supersession table. The
+  P/E/M-, T- and X/W/L/B- ids the journal cites resolve there.
 
-- WHEN WORK RESUMES, THE DOCUMENT WORK, IN ORDER: step 3,
-  one open-items register
+- THE DOCUMENT WORK, IN ORDER: step 3, one open-items
+  register
   with stable ids (~40 rows seeded from the audit's re-listed phrases
   AND from the new `OPENS:`/`CLOSES:` lines), the ledger citing
   `OI-nnn` instead of restating sentences; step 4, HANDOFF sections
@@ -28994,6 +29004,121 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
 - REVERT: `git revert` of this PR's commit removes the parse arm,
   both fields, the guard, the injector, the census tool and the leg;
   no output line and no frame of any pre-existing leg depends on it.
+
+## PR-200 — THE DOCUMENT SET BECOMES A CLOSED, MACHINE-PINNED
+## STANDARD: P5 (verify-docs) FAILS THE BUILD for any tracked .md
+## outside the declared set; the seven finished Nov-2026 work orders
+## and reports move to docs/archive/ with an index and a supersession
+## table; PLAN.md STAYS living because the CODE cites it; two stale
+## claims die, both measured
+
+KIND: docs
+SUBSYSTEM: the document standard: the .md inventory check (P5),
+      docs/archive/, the NEXT_STEPS/HANDOFF/README/original headers
+ADDRESSES: none in the engine sense - this pass adds no engine read.
+      Its measurements are file inventories and the Makefile's own
+      line 6 wording, quoted below.
+NAMES: docs/archive, docs/archive/README.md, docs/RE_INDEX.md,
+      IMPLEMENTATION_PLAN.md, IMPROVEMENTS.md, PORT_DEEP_DIVE,
+      TEST_REPORT.md, VERIFICATION_2026-11-16.md,
+      open-leo_native_port_review.md, open-leo_porting_tips.md,
+      PLAN.md, history_override_2026-11-19.txt, P5
+CODE: yes: tools/doc_census.py (the P5 check + its constants); new
+      docs/archive/README.md; nothing under ported/ or original/ C
+HOOKS: none
+OPENS: doc step 3 (the OI-nnn open-items register - now also seeded
+      by the P/E/M-, T- and X/W/L/B id sets, which resolve at stable
+      archive paths), step 4 (HANDOFF sections 5/6/7 become
+      pointers), step 5 (NEXT_STEPS journal-only; ## Next to its one
+      home); the archive README grows by APPENDED rows only
+CLOSES: the docs-inventory step (called step 6 when the order was
+      written: it precedes the register because the register would
+      otherwise seed from files still in motion)
+CORRECTS: none (no record is retracted; two DOCUMENT-file claims are
+      fixed in place - original/README.md's "the root Makefile
+      compiles this directory + ported/ into both targets" is
+      refuted, the Makefile header (its line 6) says "original/ is
+      the faithful-DOS blueprint (Ghidra output, not buildable)", no
+      recipe names an original/*.c, and `make -n` emits none; and
+      NEXT_STEPS.md's header said "Numbering continues at PR-75",
+      stale by 125 PRs.)
+
+GATE: make 0 warnings; verify-all fixtures rc=0 64 (ok); the counts
+      equal PR-199's ON PURPOSE - nothing under ported/ changed and
+      verify-docs stays ONE leg (P5 prints inside it, no new (ok)
+      line); verify-docs and verify-index green on the final tree,
+      and the over-79 sets of the tracked docs unchanged.
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs, identical to PR-199's - the docs legs run in
+      both fixture modes and only their insides changed.
+
+- WHY THIS EXISTED, MEASURED FIRST. The owner asked (2026-11-19,
+  then ruled: documentation is the current focus) for the scattered
+  .md mess to be replaced by a standardized set. Measured before any
+  change: 12 tracked .md files plus the generated index; the tooling
+  sees exactly three of them (doc_census's DOCS tuple), so eight
+  root-level documents - roughly 4,000 lines, four of them dated by
+  name - were invisible to every check. Honest nuance the inventory
+  also found: all seven superseded ones ALREADY carried banners
+  naming what superseded them, so the CONTENT was kept honest by
+  past passes; only the STRUCTURE was missing. That is why this PR
+  moves and pins rather than rewrites or deletes.
+- THE PIN, TESTED RED FIRST. P5 in doc_census.py: the tracked .md
+  set (via `git ls-files`, so untracked vendored material like SDL's
+  own docs is out of scope by definition) must equal the declared
+  standard - four living root docs, the generated index, the
+  directory and tool READMEs, docs/archive/**. Its first run FAILED
+  exactly as required: 7 files outside the set, and the missing
+  archive README. After the moves: 16 tracked files, 16 in the
+  standard, 8 archived, 0 outside. A missing REQUIRED file fails too
+  (the check is two-way). P5 runs only in default mode: it measures
+  the repository, not files handed to it. The failure message states
+  WHERE content belongs, so the rule teaches instead of just
+  rejecting.
+- WHAT STAYED, AND THE PROOF: PLAN.md is not history - code
+  comments cite its sections directly (ported/main.c "PLAN 8b",
+  the parser's counted-directives note "PLAN 8g"), so it is the
+  living RE-facts reference and stays at the root, inside the allow
+  set; HANDOFF's header line that called it "early milestones" was
+  corrected in the same pass. original/ and ported/ READMEs stay
+  where they describe their directories (original/README's two
+  false claims fixed, see CORRECTS; ported/README's account was
+  checked true: the Makefile does not build original/).
+  tools/*/README.md and docs/RE_INDEX.md: allowed by shape and by
+  name respectively.
+- THE ARCHIVE RULES (docs/archive/README.md, the one new
+  content-file): moved files are NEVER EDITED - their text, counts
+  and line references stay frozen at the snapshots they name;
+  corrections go in the README's table, never into the frozen file;
+  `git mv` only, so `git log --follow` still works (git recorded
+  all seven as renames, 100% similarity: the bytes did not move);
+  every future arrival needs a record AND a table row in the same
+  commit. One measured gotcha the README now states: the shas the
+  archived files cite PREDATE the 2026-11-19 history override -
+  c5be46c->4356d86, dfb2bf2->c6ca322, 4c48dd0->2a29f0a, a428cef
+  unchanged - so old citations resolve through
+  tools/history_override_2026-11-19.txt.
+- THE HEADER FIXES, all width-safe: NEXT_STEPS now says
+  "Numbering continues at PR-200" and points the P/E/M- and T- ids
+  at the archive (read-only history; the live plan stays `## Next`);
+  HANDOFF's map-line names the archive and PLAN.md's real role;
+  README's Documents section IS the standard now - living set,
+  generated index, frozen archive, with the P5 sentence stating that
+  the set is pinned by the build.
+- WHAT THIS UNBLOCKS: the step-3 register can cite P/E/M-, T- and
+  X/W/L/B- ids at stable paths, and nothing it seeds from can be
+  silently re-scattered later, because P5 fails the build on a new
+  root-level .md. The index is unchanged (regenerated
+  byte-identical): the moves touch no indexed address, field token
+  or name - verified, not assumed.
+
+- RISK: LOW. No code touched; every test count is unchanged by
+  construction (verify-docs remains ONE leg - P5 prints inside it,
+  no new (ok) line); the moved files are read by no leg, and the
+  only greps for their names are prose in the journal and this
+  PR's pointers, which were updated or are history.
+- REVERT: revert the commit; the `git mv` records restore every
+  path, and dropping P5 restores the old census exactly.
 
 ## Deferred big items (deliberately out of scope so far)
 

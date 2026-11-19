@@ -40,6 +40,20 @@ WHAT IT PINS - any of these fails the build:
      is section 10a's style, not a rule); presence, order and
      exactly-one-each are.
 
+   P5 the .md INVENTORY (PR-200, doc-work step 6). The set of TRACKED
+      .md files must equal the declared document standard, exactly:
+      the four living root docs, the generated index, the directory
+      and tool READMEs, and files under docs/archive/ (frozen
+      history, see docs/archive/README.md). A new root-level .md -
+      the exact failure mode this repo showed on 2026-11-19: eight
+      superseded work orders and reports sitting in the root, four
+      thousand lines no tool could see - fails the build HERE, with
+      the message saying where content belongs instead. A REQUIRED
+      file going missing fails it too. The rule deliberately covers
+      tracked files only: vendored material (vendor/SDL2's docs) is
+      not ours to standardize and is not tracked.
+   report-only: the archive count, so drift in the frozen set shows.
+
 WHAT IT ONLY REPORTS (no rule attached yet, they are the audit's
 measurement points so a future PR can show a change): wrapped-title
 `##` continuation lines, distinct addresses and mentions, `PR-nn`
@@ -47,6 +61,8 @@ citations, `[field+0xNN]` tokens, authored-name tokens.
 
 usage: python3 tools/doc_census.py [FILE ...]   (default: the tracked
 docs). Exit 0 + one "(ok)" line, or exit 1 with every FAILED reason.
+P5 runs only in default mode (it measures the repo, not the files
+handed to it).
 """
 import collections
 import io
@@ -54,6 +70,21 @@ import re
 import sys
 
 DOCS = ('NEXT_STEPS.md', 'HANDOFF.md', 'README.md')
+
+# P5: the .md standard (PR-200). The four root docs: README is the
+# entry, NEXT_STEPS the journal, HANDOFF the current map, PLAN the
+# RE-facts reference the CODE cites ("PLAN 8b" / "PLAN 8g" appear in
+# ported/ comments, so it is living, not archive). The archive is a
+# prefix rule because adding frozen history is a normal act - listing
+# every file by hand would make the check nag about appends while
+# staying blind about real additions elsewhere.
+ALLOW_ROOT = {'README.md', 'NEXT_STEPS.md', 'HANDOFF.md', 'PLAN.md'}
+ALLOW_GEN = {'docs/RE_INDEX.md'}
+ALLOW_ARCHIVE = 'docs/archive/'
+ALLOW_DIR = {'original/README.md', 'ported/README.md'}
+ALLOW_TOOL_RE = re.compile(r'^tools/[^/]+/README\.md$')
+P5_REQUIRED = sorted(ALLOW_ROOT | ALLOW_GEN | ALLOW_DIR |
+                    {'docs/archive/README.md'})
 
 # P1: measured 2026-11-19 by this tool. 184 record headings = 183
 # distinct PR numbers (PR-73 has two records, which is correct history:
@@ -214,6 +245,50 @@ def check_template(lines, starts, heads, bad):
     return have
 
 
+def check_inventory(bad):
+    """P5 (PR-200): the tracked .md set must equal the standard. Uses
+    git ls-files (the repo, not the argv), so vendored/untracked
+    material is out of scope by definition."""
+    import subprocess
+    try:
+        out = subprocess.run(['git', 'ls-files', '-z', '--', '*.md'],
+                             capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.SubprocessError) as e:
+        bad.append('P5 cannot list tracked .md files (%s)' % e)
+        return
+    if out.returncode != 0:
+        bad.append('P5: git ls-files failed: %s' % out.stderr.strip())
+        return
+    tracked = sorted(p for p in out.stdout.split('\0') if p)
+
+    def allowed(p):
+        return (p in ALLOW_ROOT or p in ALLOW_GEN or p in ALLOW_DIR
+                or p.startswith(ALLOW_ARCHIVE)
+                or ALLOW_TOOL_RE.match(p))
+
+    extra = [p for p in tracked if not allowed(p)]
+    have = set(tracked)
+    missing = [p for p in P5_REQUIRED if p not in have]
+    n_arch = sum(1 for p in tracked if p.startswith(ALLOW_ARCHIVE))
+    print('docs structure: tracked .md inventory (P5): %d file(s), '
+          '%d in the standard, %d archived (frozen), %d outside it%s'
+          % (len(tracked), len(tracked) - len(extra), n_arch,
+             len(extra),
+             ': ' + ', '.join(extra) if extra else ''))
+    if extra:
+        bad.append('%d tracked .md file(s) outside the document '
+                   'standard: %s - living content belongs in '
+                   'NEXT_STEPS/HANDOFF/README/PLAN, superseded work '
+                   'orders and reports go to docs/archive/ (listed in '
+                   'its README), tool docs to tools/*/README.md; the '
+                   'set itself lives in tools/doc_census.py, change '
+                   'it there on purpose, never by accident'
+                   % (len(extra), ', '.join(extra)))
+    if missing:
+        bad.append('document standard incomplete: required file(s) '
+                   'missing: %s' % ', '.join(missing))
+
+
 def main(argv):
     files = argv[1:] or list(DOCS)
     bad = []
@@ -300,6 +375,10 @@ def main(argv):
         check_template(text[ns_path].split('\n'), starts[ns_path],
                        heads_at[ns_path], bad)
 
+    # ---- P5 the .md inventory (PR-200), default mode only ----------
+    if not argv[1:]:
+        check_inventory(bad)
+
     # ---- report only ----------------------------------------------
     ns = text.get(ns_path, '')
     addrs = ADDR_RE.findall(ns)
@@ -330,7 +409,8 @@ def main(argv):
             print('docs structure: FAILED %s' % b)
         return 1
     print('docs structure: record headings, plan sections, the width '
-          'ratchet and the record template hold (ok)')
+          'ratchet, the record template and the .md inventory hold '
+          '(ok)')
     return 0
 
 

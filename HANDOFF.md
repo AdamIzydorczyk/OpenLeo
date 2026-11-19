@@ -2,9 +2,10 @@
 
 Written 2026-11-16 at commit `7db0cab` (PR-74) for whoever continues - a person
 or a smaller model. Read sections 1-4 first (15 minutes), then pick ONE task
-from section 8. Everything else in this repo (NEXT_STEPS.md = per-PR record,
-PLAN.md = early milestones, VERIFICATION_2026-11-16.md = audit) is history;
-this file is the map.
+from section 8. Everything else in this repo (NEXT_STEPS.md = per-PR
+journal, PLAN.md = the RE facts the code cites, docs/archive/ =
+frozen history and superseded work orders) is history; this file is
+the map.
 
 ## 1. What this project is, and where it stands
 

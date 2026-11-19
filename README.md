@@ -304,14 +304,28 @@ project glue that is neither wire format. One SDL2 platform layer
 execution-rate-bound busy loop would run thousands of times too fast on
 modern hardware).
 
-## Documents
+## Documents - a CLOSED set, pinned by `make verify-docs` P5: a tracked
+`.md` outside this list fails the build.
 
-- `NEXT_STEPS.md` - the per-PR record (what changed, how it was verified,
-  CI result) and the open-work lists; start at its last PR record.
-- `PLAN.md` - the reverse-engineering facts (formats, grammars, measured
-  counts); section 8h covers the level scene.
-- `VERIFICATION_2026-11-16.md` - the full-suite audit behind PR-47..PR-51.
-- `TEST_REPORT.md`, `IMPROVEMENTS.md`, `PORT_DEEP_DIVE_2026-11.md`,
-  `IMPLEMENTATION_PLAN.md`, `open-leo_native_port_review.md`,
-  `open-leo_porting_tips.md` - historical work orders and snapshots; each
-  carries a banner saying what superseded it.
+Living:
+- `README.md` - you are here: what this is, how to build, run and
+  verify it.
+- `HANDOFF.md` - the current map: subsystem truth, rules, estimates,
+  the ordered task list. Read it first.
+- `NEXT_STEPS.md` - the journal: one `## PR-nn` record per step with
+  its evidence and gate counts; `## Next` holds the live plan.
+- `PLAN.md` - the RE facts (formats, grammars, measured counts);
+  code comments cite its sections ("PLAN 8b", "PLAN 8g").
+- `docs/RE_INDEX.md` - generated index of every address, field token
+  and authored name the records mention; regenerate with
+  `python3 tools/re_index.py docs/RE_INDEX.md`, pinned by
+  `make verify-index`.
+- `original/README.md`, `ported/README.md`, `tools/*/README.md` -
+  what each directory holds.
+
+Frozen history - `docs/archive/`, never edited; its README is the
+index and supersession table:
+`open-leo_native_port_review.md`, `open-leo_porting_tips.md`,
+`IMPROVEMENTS.md`, `PORT_DEEP_DIVE_2026-11.md`,
+`IMPLEMENTATION_PLAN.md`, `TEST_REPORT.md`,
+`VERIFICATION_2026-11-16.md`.

@@ -1,10 +1,14 @@
 # original — the engine
 
-All engine sources (plain C, no platform dependency). The
-native port in `ported/` runs them; the root `Makefile` compiles this
-directory + `ported/` into both targets (`make` → Linux ELF,
-`make win` → static Windows x86-64 .exe). Build/run/test instructions:
-`README.md` at the repo root.
+Recovered original-engine material: the faithful-DOS reconstruction of
+the 1997 engine (Ghidra-derived sources, with the decompiled shape
+kept). It is NOT BUILT - the root `Makefile` says so in its header
+("original/ is the faithful-DOS blueprint (Ghidra output, not
+buildable)") and no recipe compiles this directory; it is read as
+the blueprint the port is measured against. The built native port is
+`ported/` (Linux ELF via `make`, static Windows x86-64 .exe via
+`make win`). Build/run/test instructions: `README.md` at the repo
+root.
 
 Sources:
 
@@ -27,5 +31,8 @@ Sources:
   (byte-exact round-trip).
 - `ll_config.h` — variant knobs shared with the port.
 
-Every module above is covered by a byte-exact or numeric oracle in
-`tools/`, all run by `make verify-all`.
+The modules above are the recovered original's parts. The native
+port in `ported/` reimplements each of them, and it is the port's
+side that carries the byte-exact oracles in `tools/`, run by
+`make verify-all`; this directory is the blueprint they are measured
+against, not a build input.
