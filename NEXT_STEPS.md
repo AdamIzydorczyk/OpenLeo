@@ -15733,28 +15733,35 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-168 IS THE FEED-DISPATCHER ARMS READ (PR-165 item 1,
-  now best-lit: PR-167 F4 pinned [obj+0xa1] = the feed accu-
-  mulator ZEROED at ENTER): the BY_TIME arm's [[obj+0xa1]+
-  0xc] dereference (accumulator-as-pointer? a record read at
-  +0xc = the AC_TIME gate offset - LEAD, unproven), what
-  [obj+0xba]/[obj+0xbe] guard in the BY_TX/BY_TY arms, the
-  pool scalar [container+0x388] BY_TY rate SETTER. These arms
-  are where the engine's per-mode row-feed really lives and
-  they touch the ladder-gate fi-vs-state block (do NOT touch
-  the port's fi gate until they read or data does).
-- THEN the pool chain-insert read (PR-167 item 1): the real
-  +0xd8 bodies (0x507e0/0x3d6c0/0x3def0 family) and the
-  direct stores to pool chain heads ([poolObj+0x58]) or
-  [obj+0x34] links; plus the +0x60 minority (25 non-default
-  predicates - which categories exclude themselves, item 4).
-- THEN the key-provider internals (PR-167 item 2): the 0x53ae0
-  gate + class verb +0x9c + builder 0x55230 - the engine's
-  actual per-class KEY CONTENT (this is where the 0x600000/
-  0x800000 CHECK_LN/BASE_LN constants should FINALLY appear;
-  if they do not, PR-161's constants need re-derivation);
-  also the base table's own +0x1c/+0x20 overrides (0x52c70/
-  0x52a00) and the 0xa2e9c/0xa2ed4 view selection (item 3).
+- PR-169 IS THE POOL CHAIN-INSERT READ (PR-167 item 1, now
+  the top carried lead): the real +0xd8 register-verb bodies
+  (0x507e0 / 0x3d6c0 / 0x3def0 family - the no-op 0x40f90 is
+  already mapped) and the DIRECT stores into the pool chain
+  heads ([poolObj+0x58] array) or the [obj+0x34] next-links;
+  output = the complete insertion path (which objects, at
+  load, into which chain) and the end of PR-60's placement
+  model as an open item. Pair it with the +0x60 minority
+  (PR-167 item 4: the 25 non-default membership predicates -
+  which categories exclude themselves).
+- THEN the key-bit map (PR-168 item 2): the full body of the
+  0x54860 key-provider family (the 99-table main family; its
+  32-bucket bitmap loop + the param-sign bits 0x20/0x40 at
+  key+4 are read, the REST of the map is not) - this is
+  STILL where the 0x600000/0x800000 CHECK_LN/BASE_LN
+  constants must finally appear; if they do not, PR-161's
+  constants need re-derivation. Includes the param-clamp
+  family (PR-168 item 3: 0x54a02-0x54b90, the +-10/0 clamps,
+  the 0x54a4e '+5', and the [paramblk+0xc]-vs-facing com-
+  parison at 0x54a24 = the flip-bit lead).
+- THEN the BY_TIME equivalence audit (PR-168 item 1, a narrow
+  pass, docs or code): does the port's BY_TIME row-gating
+  match the engine's constant-100/tick accumulator feed for
+  shipped rows (the port's fixtures literally show '1,100/
+  2,100' rows under control=BY_TIME - one honest comparison,
+  then either a labeled divergence or a pinned test). DO NOT
+  touch the port's fi gate (still data-blocked; PR-168 F1
+  removed the deref hypothesis - the gate question is now
+  PURELY fi-vs-state parameter selection).
 - THEN the pool-name decode (PR-166 item 2, negatives banked:
   not one-XOR, pair-like, position-independent, adjacent to a
   fully readable name table): pair-substitution against the
@@ -15762,14 +15769,16 @@ no port behaviour change)
   name-keyed path (0x4dcc0/0x4df10 contract, PR-166 item 3).
 - THEN carried reads (unchanged): the vtable+0-word OR 4/8
   row-end CONSUMER (PR-164 item 1 = ordering question (a));
-  the flip-bit owner (CH_DIR still no consumer); [obj+0x99]
-  reader semantics now that ENTER writes it (PR-167 item 5);
-  0x53520 arg plumbing + [obj+0x95] reader; the 31-vs-24
-  +0x14-slot delta; record verbs +0x2c/+0x30 bodies + the
-  second-view slots 0x559c0/0x45800; the 0x4fef0 pool prelude
-  side-effects; the walk return-value encoding (PR-161 item
-  1); 0x9c05c identity; 0x524xx rest; 0x446de; 0x57d30 modes;
-  FLAG +0x4c getter.
+  the flip-bit owner (new lead at 0x54a24, PR-168 F3);
+  [obj+0x99] reader semantics (PR-167 item 5); the base
+  table's own +0x1c/+0x20 overrides 0x52c70/0x52a00 (PR-167
+  item 2); the 0xa2e9c/0xa2ed4 view selection (PR-167 item
+  3); 0x53520 arg plumbing + [obj+0x95] reader; the
+  31-vs-24 +0x14-slot delta; record verbs +0x2c/+0x30 bodies
+  + the second-view slots 0x559c0/0x45800; the 0x4fef0 pool
+  prelude side-effects; the walk return-value encoding (PR-
+  161 item 1); 0x9c05c identity; 0x524xx rest; 0x446de;
+  0x57d30 modes; FLAG +0x4c getter.
 - RIDES THE NEXT CODE PR (not a read): the three port
   comments citing the applier as 0x535a2 get the entry
   correction to 0x535a0 (ll_level.c:802,823, ll_play.c:209)
@@ -15778,8 +15787,8 @@ no port behaviour change)
   records from the LAST revision that carried them. Census
   recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
   `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD c00c1ce carries all seventeen (PR-150..
-  PR-166); HEAD is the last carrier.
+  pass's census: HEAD f7d7552 carries all eighteen (PR-150..
+  PR-167); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -19472,11 +19481,22 @@ its port-name DECISION stays open as a new item; PR-162 item
   DEREFERENCED - see item 1), cmp with the value at +0xc,
   jle into a full sub-record feed; mode 3 = BY_TX composite
   (bits 1+2, exactly PR-162's composite reading): 0x543f2
-  guards `cmp [obj+0xba],0; je` default; mode 4 = BY_TY
-  (bit 4): 0x5441b guards `cmp [obj+0xbe],0; je` default,
+  guards `cmp [obj+0xba],0; je` default; [THE ARM TEXT WAS A
+  ONE-BYTE LISTING MISREAD - CORRECTED BY PR-168 F1: raw
+  bytes at 0x543fb = a PLAIN feed of the pool scalar [contai-
+  ner+0x388] into [obj+0xa1] (no deref, no compare - the
+  `mov eax,[eax+0x388]` mis-split); modes 2/3/4 are BYTE-
+  IDENTICAL feeds, 3/4 pre-guarded by the [obj+0xba]/[obj+
+  0xbe] zero-tests, and those "guards" are the authored
+  MOTION PARAMETERS (PR-98's fields), not control flags -
+  see PR-168 F2]; mode 4 = BY_TY (bit 4): 0x5441b guards
+  `cmp [obj+0xbe],0; je` default,
   else adds the pool global [ds:0xcef40+0x388] to
   [obj+0xa1] (0x54429-0x5443d) - a CONSTANT per-step rate
   read at runtime (static image value 0; the pool sets it) -
+  [PINNED BY PR-168 F1: the rate is a LITERAL 100 - the sole
+  writer of [x+0x388] is 0x4c8b7 `mov DWORD [x+0x388],0x64`
+  at container init] -
   the engine's steady BY_TY feed, matching PR-105's note
   that BY_TY flows only when the step runs; default (mode
   >=5, i.e. FRAME_REV bit 3 set or any higher bit): no feed
@@ -19565,8 +19585,15 @@ its port-name DECISION stays open as a new item; PR-162 item
   read where +0xc = the AC_TIME gate offset is suggestive but
   UNPROVEN), and what [obj+0xba]/[obj+0xbe] guard - these
   three arms are the largest new behaviour question and they
-  touch the ladder-gate fi-vs-state block. (2) The
-  obfuscated pool REGISTRATION names at 0x9209a... (decode).
+  touch the ladder-gate fi-vs-state block. [CLOSED BY PR-168:
+  the arms are ONE arms - byte-identical constant-100/tick
+  feeds ([container+0x388] set at 0x4c8b7), the deref a lis-
+  ting artifact, the guards the authored motion params loaded
+  by 0x549f0 from the param block [obj+0xd2]; the consumer
+  side (0x52323/0x52118) was already PR-98/162's model. The
+  narrow BY_TIME-equivalence audit survives as PR-168 item
+  (1).] (2) The obfuscated pool REGISTRATION names at
+  0x9209a... (decode).
   (3) The pool query bodies: 0x4b500 + the 0x4b870/0x4b890/
   0x4bd30 wrappers' argument contract [CLOSED BY PR-166:
   bodies read - container-attached pools; class-filtered
@@ -19808,7 +19835,10 @@ are CORRECTED with brackets)
   CLOSED: PR-165 item (3) (query bodies + wrapper contract).
   CARRIED unchanged: PR-165 items (1) BY_* arm semantics
   (the BY_TY scalar is now located at [container+0x388], its
-  SETTER unread - narrows the item but does not close it),
+  SETTER unread - narrows the item but does not close it)
+  [CLOSED BY PR-168: setter = the literal 100 at 0x4c8b7,
+  all three arms read and corrected - PR-165's item (1)
+  closed there],
   (4) the 0x4fef0 pool prelude side-effects ([pool+0x3a0]/
   [0x3a8] are container-relative - same map, still open),
   (5) record verbs +0x2c/+0x30 bodies, (6) second-view
@@ -20010,6 +20040,168 @@ bracket and its item (3) bracket gains F1's fact)
   (last carrier HEAD); records re-spliced from it; 2 brackets
   (PR-166 item (1) CLOSED; its F3 item bracket gains the
   entries-are-objects fact).
+
+## PR-168 — THE FEED LAW IS CLOSED END TO END AND THE BY_*
+## "ARMS" ARE ONE ARMS: MODES 2/3/4 ARE BYTE-IDENTICAL FEEDS
+## OF A CONSTANT 100/TICK ([container+0x388], SET AT CONTAINER
+## INIT 0x4c8b7); THE [obj+0xa1]+0xc DEREFERENCE NEVER EXISTED
+## - IT WAS THE ONE-BYTE LISTING TRAP SEVENTH INSTANCE; THE
+## [obj+0xba]/[obj+0xbe] GUARDS ARE NOT GUARDS BUT THE STATE'S
+## OWN MOTION PARAMETERS, LOADED AT 0x549F0 FROM THE PARAM
+## BLOCK [obj+0xd2] AND CONSUMED AS KEY-BIT SIGNS BY THE
+## DEFAULT KEY BUILDER 0x54900 - PR-98's PHYSICS FIELDS, THE
+## SAME ONES THE PORT ALREADY MODELS
+(READING + LEDGER CORRECTION; no code, no new test - the
+PR-138..167 precedent; PR-165 open item (1) is CLOSED (with
+one new narrow item); PR-166's carried mention of it gets a
+close bracket)
+
+- WHY. The Next entry specced the feed-dispatcher arms: the
+  BY_TIME arm's [[obj+0xa1]+0xc] dereference, the [obj+0xba]/
+  [obj+0xbe] guards in the BY_TX/BY_TY arms, and the
+  [container+0x388] BY_TY rate setter. Method: raw-byte dumps
+  at the five jump-table targets (the listing offsets were
+  already suspect), a writer census for [obj+0xba]/[obj+0xbe]
+  and [x+0x388], and a reader census for the accumulator
+  [obj+0xa1].
+
+- FINDING 1, MODES 2/3/4 ARE THE SAME FEED; THE DEREFERENCE
+  WAS A LISTING MIRAGE. Raw bytes at the jump-table targets:
+  mode 0 0x543c6 = [obj+0xa1] += abs([obj+0xca]) (unchanged
+  from PR-165); mode 1 0x543dc = the abs([obj+0xce]) twin
+  (unchanged); mode 2 0x543fb = `mov eax,ds:0xcef40; mov
+  edi,[obj+0xa1]; mov eax,[eax+0x388]; add edi,eax; mov
+  [obj+0xa1],edi` - NO dereference, NO compare: a plain feed
+  of the pool scalar, IDENTICAL in form to the old "mode 4";
+  mode 3 0x543f2 = the same feed PRE-GUARDED by `cmp [obj+
+  0xba],0; je` default; mode 4 0x5441b = the same feed pre-
+  guarded by `cmp [obj+0xbe],0; je` default. The apparent
+  "[obj+0xa1]+0xc deref, cmp +0xc, jle full-feed" was the
+  objdump starting one byte early inside 0x543fb's sequence
+  (the `8b 80 88 03 00 00 = mov eax,[eax+0x388]` mis-split
+  into a deref + a 0xc compare) - SEVENTH member of the one-
+  byte trap class (0x543a0, 0x52360, 0x535a0, 0x4b890,
+  0x4bd30, 0x4b88f). THE CORRECTED LAW: BY_TIME = constant
+  100/tick feed; BY_TX = the same feed iff [obj+0xba] != 0;
+  BY_TY = the same feed iff [obj+0xbe] != 0; mode bits stay
+  exactly PR-162's map (bit 0 BY_Y, bit 1 BY_TIME, bit 2
+  BY_TY). The rate is set at container init: 0x4c8b7 `mov
+  DWORD PTR [x+0x388],0x64` = 100 (PR-166's "runtime-set" is
+  now pinned to a literal 100 at load). THE CONSUMER WAS
+  ALREADY KNOWN: [obj+0xa1] is read by the record step at
+  0x52323 to compute the distance to the row end and WRITTEN
+  by the row-step helper at 0x52118 - PR-98/162's accumulator
+  model is the engine's, with the dispatcher as its feeder,
+  ENTER as its zeroer (PR-167 F4) and the row step as its
+  consumer. The law is now CLOSED end to end.
+
+- FINDING 2, THE GUARDS ARE THE STATE'S OWN MOTION
+  PARAMETERS - [obj+0xba]/[obj+0xbe] = PR-98'S PHYSICS FIELDS.
+  Writer census (whole image): the ONLY stores are (a) 0x549f9
+  /0x54a08: `mov eax,[edx]; mov [obj+0xba],eax; mov eax,
+  [edx+0x4]; mov [obj+0xbe],eax` with [obj+0xd2] the state's
+  PARAMETER BLOCK (0x54a45 re-reads [obj+0xd2]+0x8 = the row
+  parameter array - PR-101/102's shape): the first two row
+  parameters load into the object at the key-gate step (F4);
+  (b) 0x54a57/0x54a82/0x54a93/0x54ac3/0x54ae7/0x54b16/
+  0x54b3b/0x54b47 - literal writes 10/-10/0 inside the
+  physics clamp comparisons against the param block (0x54a51
+  `add esi,5; cmp [paramblk+8+edx], esi; jle`) = the engine's
+  parameter CLAMPING for authored motion; (c) 0x54e2e/0x54e38
+  zeroing both. READERS beyond the feed guards: the key-
+  provider family 0x54860 (F3) and PR-98's physics reads (the port's
+  own model: NEXT_STEPS cites v_x += ... [obj+0xba]/20 + ...
+  [obj+0x6d]). So the "guards" are not control flags: they
+  are the authored motion pair (the PR-98 velocity params),
+  and BY_TX/BY_TY feed only while the object's motion
+  parameters are live - the engine's steady rate feed paired
+  with authored motion, not a third speed source.
+
+- FINDING 3, A MAIN KEY-BUILDER FAMILY IS FOUND - AND THE
+  GUARD SIGN BECOMES KEY BITS. PR-167's +0x78 variant 0x54860
+  (99 class tables - paired 1:1 with the +0x9c gate 0x549f0)
+  is the other main key-provider; its bodies include the one
+  read at 0x54900-0x549e6: a 32-bucket bitmap loop (`mov
+  ebx,0x20; idiv` + `shl/or` into [esp+edi]), then `cmp
+  [obj+0xbe],0; jge -> or BYTE [key+4],0x20` and `cmp [obj+
+  0xbe],0; jle -> or BYTE [key+4],0x40` - THE PARAMETER
+  SIGNS SELECT KEY BITS - then the standard 12 + count copy-
+  out. (Full bit map unread, item 2 - but the MECHANISM is
+  established: row keys encode the sign of the authored mo-
+  tion; and 0x54a24-0x54a2a compares [paramblk+0xc] with
+  [obj+0x6d] the facing - PR-98/102's facing-relative motion
+  law at the KEY level.) Note the 0x54900 listing head was
+  again interior (no table holds bare 0x54900). CONNECTION TO
+  THE STANDING QUESTIONS: the port's DANGER/CH_DIR-labelled
+  behaviours (PR-165: those flag bits have no consumer) sit
+  exactly where the engine uses param-sign key bits instead -
+  the port's approximations now have a named engine counter-
+  part; the flip-bit question (PR-162 item 2) gets a new lead
+  at the facing comparison 0x54a24.
+
+- FINDING 4, NO PORT BEHAVIOUR CHANGE IS INDICATED (VERIFIED
+  BY READ). The port models row advance through its own feed
+  model (PR-98's law, whose engine identity F1 re-confirms:
+  consume at 0x52118/0x52323). The port does not carry the
+  engine's accumulator-as-scalar for BY_TIME (a constant 100/
+  tick feed): whether its existing row-gating for BY_TIME
+  states is OBSERVATIONALLY equivalent is a narrow audit, not
+  a re-model (item 1). The port's physics fields for the
+  authored params already match (PR-98).
+
+- OPEN ITEMS COUNTED (4 new). (1) THE BY_TIME EQUIVALENCE
+  AUDIT (docs/code pass): does the port's BY_TIME row-gating
+  match a constant 100/tick accumulator feed for shipped
+  ZARIA.01 rows (the port's own fixtures show rows like
+  '1,100/2,100' under control=BY_TIME - the '100' there vs
+  the engine's constant 100 deserves one honest comparison
+  pass). (2) THE FULL KEY-BIT MAP of 0x54900 (the 32-bucket
+  bitmap loop + which other fields become key bits; this is
+  STILL where the 0x600000/0x800000 CHECK_LN/BASE_LN
+  constants must finally appear). (3) The param-clamp writer
+  family's full context (0x54a02-0x54b90: which params clamp
+  to +-10/0 and why 5 is added at 0x54a4e) + the
+  [paramblk+0xc] vs facing comparison semantics at 0x54a24
+  (the flip-bit lead). (4) The remaining +0x9c gate bodies
+  (0x507e0 etc. per-class variants). CARRIED: PR-167 items
+  (1)-(5) unchanged (chain store, base +0x1c override, view
+  selection, +0x60 minority, [obj+0x99] readers); PR-166
+  items (2)-(6); the ladder-gate data block (F1 removes the
+  deref hypothesis entirely - the gate question is now PURELY
+  fi-vs-state parameter selection, still data-blocked); the
+  flip-bit owner (new lead, F3); the walk-return encoding;
+  everything else unchanged.
+
+- GATES. Docs-only per the PR-138..167 precedent; nothing
+  compiled. Every added prose line <= 79 cols; over-79
+  baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 72); no game
+  data or frames in git (scratch /tmp/opencode/pr168/);
+  .github/workflows/* untouched; the image unchanged (text.bin
+  sha256 edf19a12...). CI: PR-167's run (44504766661) was
+  queued at record time; PR-166 (c00c1ce), PR-165, PR-164,
+  PR-163 all confirmed GREEN.
+
+- EVIDENCE. All reads from the pinned image: raw-byte dumps
+  at the five jump-table targets (0x543c6/0x543dc/0x543fb/
+  0x543f2/0x5441b, 30 bytes each - the mode-2/3/4 identity
+  is byte-exact); the full-text.asm listing of 0x543f2-
+  0x54443; the [obj+0xba]/[obj+0xbe] writer census (14 sites
+  total, quoted with contexts at 0x549f9/0x54a57/0x54e2e);
+  the [x+0x388] writer census (exactly one: 0x4c8b7 = 0x64);
+  the [obj+0xa1] reader census (0x239d8, 0x52323, 0x54400,
+  0x54429 + writer 0x52118); 0x54900 tail 0x54980-0x549e6
+  verbatim (bitmap + the two sign-or stores + the 12+count
+  copy); 0x549f0-0x54a55 verbatim (the param loads, the
+  [obj+0xd2]+0x8 param-block read, the facing comparison);
+  the +0x78/+0x9c pairing census (126 tables with +0x9c =
+  0x549f0; 99 of them carry +0x78 = 0x54860; the raw-dword
+  searches proving no table holds 0x54900/0x548f0 - the
+  listing head is interior). Ledger rule applied: census
+  first - HEAD f7d7552 carries PR-150..PR-167 (last carrier
+  HEAD); records re-spliced from it; 2 brackets (PR-165 F2
+  arm text + its item
+  (1) CLOSED; PR-166's carried mention closed).
+</content>
 
 ## Deferred big items (deliberately out of scope so far)
 

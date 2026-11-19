@@ -3653,6 +3653,55 @@ writer as its open items.
      held (71/72); image unchanged; ledger census run (HEAD
      c00c1ce = last carrier). Full record: the PR-167 section
      of NEXT_STEPS.md (scratch /tmp/opencode/pr167/).
+   - PR-168 (READING + LEDGER CORRECTION, no code - the PR-
+     138..167 precedent): THE FEED LAW IS CLOSED END TO END -
+     AND THE THREE "DIFFERENT" BY_* ARMS ARE ONE ARMS. Raw-
+     byte dumps at the five jump-table targets: modes 2/3/4
+     (BY_TIME/BY_TX/BY_TY) are BYTE-IDENTICAL feeds of the
+     pool scalar [container+0x388] into the accumulator [obj+
+     0xa1], the last two merely PRE-GUARDED by `cmp [obj+0xba
+     or 0xbe],0; je`; the famous "[obj+0xa1]+0xc dereference,
+     cmp +0xc, jle" NEVER EXISTED - a one-byte objdump split
+     of `mov eax,[eax+0x388]` (SEVENTH member of the listing
+     trap class: 0x543a0, 0x52360, 0x535a0, 0x4b890, 0x4bd30,
+     0x4b88f, now 0x543fb). THE RATE IS A LITERAL 100/TICK:
+     the ONLY writer of [x+0x388] is 0x4c8b7 `mov DWORD [x+
+     0x388],0x64` at container init. THE GUARDS ARE THE STATE
+     ITSELF: [obj+0xba]/[obj+0xbe] are the authored MOTION
+     PARAMETERS (PR-98's physics fields) - 0x549f0 loads them
+     as param block [obj+0xd2] words 0/1; the only other
+     writers are the param CLAMP family (0x54a57..0x54b47,
+     literal 10/-10/0 under comparisons against the param
+     block) and zeroing at 0x54e2e/0x54e38. So BY_TX/BY_TY
+     = the constant rate feed WHILE the authored motion para-
+     meters are live - not a third speed source. THE CONSUMER
+     SIDE RE-CONFIRMED: [obj+0xa1] is read by the step at
+     0x52323 and written by the row-step helper at 0x52118 -
+     PR-98/162's accumulator model IS the engine's (feeder =
+     the dispatcher, zeroer = ENTER per PR-167 F4, consumer =
+     the row step). KEY-BIT MECHANISM FOUND: the second main
+     key-provider family +0x78 = 0x54860 (99 class tables,
+     paired 1:1 with the +0x9c gate 0x549f0) contains the
+     body where THE PARAM SIGN SELECTS KEY BITS: `cmp [obj+
+     0xbe],0; jge -> or BYTE [key+4],0x20 / jle -> or 0x40`
+     (plus a 32-bucket bitmap loop, full map open) - and
+     0x54a24 compares [paramblk+0xc] against [obj+0x6d] the
+     FACING: the flip-bit question gets a named lead, and the
+     port's DANGER/CH_DIR-labelled behaviours now have their
+     engine counterpart named (param-sign key bits, not flag
+     bits). NO port change indicated; one narrow audit item
+     opened (does the port's BY_TIME row-gating match the
+     constant-100 feed - its fixtures literally have '1,100/
+     2,100' rows). 4 new items (BY_TIME audit; full 0x54860
+     key-bit map = the last place the 0x600000/0x800000
+     CHECK_LN constants can live; param-clamp family context;
+     +0x9c per-class gate variants). CLOSED with brackets:
+     PR-165 item (1) (its F2 arm text corrected in place) and
+     PR-166's carried mention. ZARIA.01 output: UNCHANGED
+     (docs-only). Gates: added lines <= 79; baselines held
+     (71/72); image unchanged; ledger census run (HEAD
+     f7d7552 = last carrier). Full record: the PR-168 section
+     of NEXT_STEPS.md (scratch /tmp/opencode/pr168/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -5733,6 +5782,45 @@ PR-161's constants get re-derived; the base table's own +0x1c/
 bracket; its F3 bracket strengthened. ZARIA.01 output: UN-
 CHANGED (docs-only). Baselines 71/72 held; census run; no
 code built.
+
+STATUS after PR-168 (the feed law is CLOSED end to end, and a
+treasure of misalignments falls): the three "distinct" BY_*
+feed arms are ONE arms - modes 2/3/4 are byte-identical feeds
+of [container+0x388] into the accumulator [obj+0xa1] (BY_TX/
+BY_TY pre-guarded by cmp [obj+0xba]/[obj+0xbe],0;je), and
+the long-quoted "[obj+0xa1]+0xc dereference, cmp +0xc, jle
+full-feed" NEVER EXISTED: one-byte objdump split of `mov eax,
+[eax+0x388]` at 0x543fb (seventh listing-trap member). THE
+RATE IS A LITERAL 100/TICK (sole writer 0x4c8b7 `mov [x+
+0x388],0x64` at container init). THE GUARDS ARE THE STATE'S
+OWN MOTION PARAMETERS: [obj+0xba]/[obj+0xbe] = PR-98's physi-
+cs fields, loaded by the gate 0x549f0 from the param block
+[obj+0xd2] words 0/1, clamped by the 0x54a57-0x54b47 family
+(literals 10/-10/0 against param-block compares), zeroed at
+0x54e2e/0x54e38 - so BY_TX/BY_TY = the constant feed while
+authored motion is live. The consumer side re-confirms PR-
+98/162's accumulator model as the engine's (read at 0x52323,
+written at 0x52118, zeroed by ENTER, fed by the dispatcher).
+KEY-BIT MECHANISM FOUND: the second main key-provider family
+(+0x78 = 0x54860 in 99 tables, paired with +0x9c = 0x549f0)
+turns the PARAM SIGNS into key bits (`cmp [obj+0xbe],0; jge
+-> or BYTE [key+4],0x20`, jle -> 0x40, plus a 32-bucket bit-
+map loop - full map open, and STILL the last place the
+0x600000/0x800000 CHECK_LN constants can live); 0x54a24 com-
+pares [paramblk+0xc] against [obj+0x6d] the FACING - the
+flip-bit question finally has a named lead, and the port's
+DANGER/CH_DIR behaviours now have a named engine counterpart
+(param-sign key bits, not flag bits). The ladder-gate block
+NARROWS again: with the deref hypothesis dead, the gate is
+PURELY fi-vs-state parameter selection (still data-blocked -
+do NOT touch the fi gate). One narrow audit opened: whether
+the port's BY_TIME row-gating is observationally equivalent
+to a constant-100/tick feed (its fixtures have '1,100/2,100'
+rows). 4 new items (the audit; the 0x54860 full map; the
+clamp family; +0x9c variants). PR-165 item (1) CLOSED with
+its F2 text corrected in place; PR-166's carried mention
+closed. ZARIA.01 output: UNCHANGED (docs-only). Baselines
+71/72 held; census run; no code built.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
