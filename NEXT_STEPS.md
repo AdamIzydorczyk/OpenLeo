@@ -13448,51 +13448,302 @@ no port behaviour change)
   /tmp/opencode/pr139/rng.py over /tmp/opencode/vis/text.asm
   (203,343 lines, unchanged).
 
+## PR-142 — THE KEY/CONDITION MECHANISM IS READ END TO END: THE
+
+## 13-BYTE "KEY" IS THE LIVE SIGNAL SET AT [obj+0x60], 0x47e40 IS A
+
+## SET-OPERATION DISPATCHER (NOT A REGISTRY LOOKUP), AN AUTHORED
+
+## CONDITION IS AN AND-AGAINST-LIVE INSIDE AN ORDERED ROW SCAN - THE
+
+## PORT'S SHIPPED CONDITION MODEL IS CONFIRMED BY THE CODE ITSELF
+
+## (READING RECORD - NO CODE CHANGE; PR-138/141 precedent)
+
+- WHY. PR-141's Next item (a), and the repo's oldest open
+  mechanism: PR-88 read the condition parser and named [obj+0x60]
+  "a latching TEventSet"; PR-101 re-read the same composition code
+  and described [obj+0x60] as "the object's identity key" looked up
+  with 0x47e40 ("null = no match"). PR-141 open items 1 and 2
+  asked which is true: is an authored transition condition matched
+  by that key lookup, or by an AND against a live set? This PR
+  answers it with the code of both consumers of 0x47e40 - and the
+  answer reconciles the two readings. No behaviour change ships
+  here; what it makes possible is the climb-entry decision
+  (PR-143), because the match law the port already implements is
+  now the engine's law on the record, not an inference.
+
+- FINDING 1, [obj+0x60] IS THE LIVE SIGNAL SET (13 bytes: 3 dwords
+  + flag byte at +0xc) - PR-88's reading, against PR-101's. Read
+  the ladder class table 0x97cdc (PR-141) as a plain slot array:
+  its +0x10 is 0x53770 and its +0x14 is 0x536f0 - exactly the two
+  functions that settle this.
+  * 0x53770 = the class's EVENT-RECEIVE entry (slot +0x10): it
+    takes a parameter record, requires [rec+0x4]=0x10 and
+    [rec+0x8]=0x8138764 (a magic tag), then from
+    `movsx cl,[rec+0xc]` (a BIT INDEX from PR-88's table, signed)
+    builds a ONE-BIT set and ORs it into [obj+0x60] with 0x49580
+    (0x53789..0x537d4). A signal arrives at an object as a record
+    whose byte +0xc is a signal-bit index; receiving it SETS that
+    bit in the live set. 23 class-table slots carry 0x53770
+    (0x96c48..0xa24a8) - the whole object family, DRABINKA's
+    table included, receives signals this way.
+  * 0x23a60 = the class's "standing bits" provider (slot +0x8c,
+    the callee of PR-101's compositor first step): memsets the
+    13-byte buffer and returns it - ZERO standing bits. Nothing
+    "identifies" a class into [obj+0x60].
+  * The rest of PR-101's composition is equally vacuous for this
+    family: 0x523f0 fills its 13-byte key through record vt+0x8,
+    record vt+0xc, and object slots +0xac/+0xa8 = 0x23930/0x23940
+    - BOTH plain `ret` stubs (eax untouched, nothing written) -
+    plus object slot +0x10 (the event entry, no-op unless the
+    record is a signal). The tag assembler 0x53df0 (slot +0x54)
+    assembles [obj+0x89..] and owner-method chains (0x53df2..
+    0x53e2b) - contribution unread, open item 5.
+  CONCLUSION: [obj+0x60] is fed ONLY by signal events for this
+  family. PR-88's TEventSet reading is right; PR-101's
+  "identity key" language described composition writes whose
+  object-class providers are empty stubs. And PR-100's note that
+  0x49580 "is an in-place OR, NOT a lookup" extends to 0x47e40 -
+  Finding 2.
+
+- FINDING 2, 0x47e40 IS NOT A LOOKUP - IT IS THE 13-BYTE-SET
+  OPERATION DISPATCHER. eax = a record/list, edx = a 13-byte
+  CALLER KEY; it dispatches on the caller key's FLAG BYTE at
+  edx+0xc through the jump table 0x47e30 = [0x47e63, 0x47edc,
+  0x47fb2, 0x47f42] and asserts (error string 0x919ca via 0x49660)
+  for flag > 3:
+  * flag 0 (0x47e63): copy the key, fall to the epilogue 0x49543,
+    RETURN 0.
+  * flag 1 (0x47edc): copy the key, call 0x49550(record's own set,
+    caller) = the TEventSet AND (verified slot by slot, `and` per
+    dword, 0x49552..0x49562), copy the RESULT out, and return
+    0x495b0(result) = "is ANY bit set" (OR of the three dwords,
+    0x495b2..). THIS is the authored-condition match test.
+  * flag 2 (0x47fb2): `repz cmps` of the 12 data bytes -> 1 iff
+    EQUAL.
+  * flag 3 (0x47f42): the same equality, negated at 0x47fa0..
+    (`sete`) -> NEVER-style.
+  THE FLAGS ARE AUTHORED TEXT AND THEY DECODE CLEANLY. The clause
+  parser 0x47d60 writes the flag byte at [node+0xc] from the
+  operator characters (0x47db2..0x47dd0, verbatim): the DEFAULT
+  (any separator that is not '*' or '|' or '!', which includes an
+  ordinary condition) sets flag 1; '!' (0x21, tested 0x47dce) and
+  '*' (0x2a) set flag 2; '|' (0x7c) sets flag 3. The two special
+  names work differently: K_ANY (0x48029..0x48048) memsets the
+  node then fills set WORD 0..1 |= 0x1f8/0x2 - bits 3,4,7,8,9,10
+  and 21 (AC_BREAK_NEXT, AC_BREAK_PREV, AC_ENEMY, AC_EDGE,
+  AC_TIME, AC_DRAB, AC_MRECT) - plus a word-1 marker 0x2001f8
+  (bit 53 = K_JUMP plus two bits beyond the 69-bit space);
+  K_NEVER (0x4806f..0x4807d) leaves the set EMPTY and ORs 0x60
+  into set WORD 3 - bits 96/97, where the flag byte lives (its
+  +0xc byte), marking the node as the two out-of-space bits. If a
+  K_NEVER node carries the default flag 1, an EMPTY set ANDs to
+  nothing = NEVER - exactly the name; flag 3 (negated equality)
+  is also never-matching. K_ANY with flag 1 would read "any of
+  those 7 specific signals is live" - which does not match the
+  name either, and flag 0's mode returns 0. The precise runtime
+  honour of the two marker encodings is open item 1 - both
+  constants and the empty-set/never alignment are stated; no
+  semantics is fitted to the names. The '!'/'*' flag-2 nodes
+  (real in shipped texts: `A_DRAP(1)=!K_UP`) and their
+  complement representation are open item 2.
+
+- FINDING 3, THE ROW-TRANSITION SCAN - THE ANSWER TO THE PR-141
+  QUESTION. 0x52000 is a record method (entity-class table slot
+  +0x194 - tables like 0x9a6e0, whose +0x18 is 0x521f0): the
+  current ROW record keeps a transition list at [rec+0x1a] with
+  count [rec+0x22]; the loop 0x52020..0x5204d walks it with stride
+  0x15 = 21 bytes. Each transition record is exactly the 13-byte
+  authored condition key (what the parser at 0x47d60 builds -
+  node masks + flag byte) followed by [rec+0xd] = TARGET STATE and
+  [rec+0x11] = TARGET ROW. For each record: `call 0x47e40` with
+  the caller key = the object's LIVE STATE (the chain composes it
+  via 0x536f0 into [obj+0x60]; in the step path the same merge is
+  explicit at 0x52279..0x522bc: caller := authored ([rec+0x1c]) OR
+  [entity+0x60]); on no match the loop CONTINUES (`add ebx,0x15`);
+  on the first match it copies [rec+0xd] and [rec+0x11] to the
+  output pair and stops, and 0x52052..0x52059 hands the result to
+  record-class vt+0x4 to apply it. So an authored transition
+  condition IS matched by an AND against the live 13-byte set
+  inside an ordered scan - the OR-of-ANDs of PR-87's model is the
+  SCAN (first match wins, in authored order) and the AND is the
+  node mask; the "0x47e40 lookup, null = no match" of PR-101 is
+  this boolean read as a pointer. There is no global key registry.
+  `A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR` fires exactly when bits 12 AND
+  18 are set in the lion's live set - and the port's shipped model
+  (comma-AND against `o->sig`, per-name wiring, GEN raising name
+  bits - PR-88's selftest in ll_level.c) IS THE ENGINE'S LAW. The
+  strongest confirmation the project asked for since PR-87/88,
+  recorded as confirmation, not change: no port behaviour touched.
+
+- FINDING 4, THE RECORD-STEP PATH, THE ROW GATE AND THE LATCH.
+  0x521f0 is the record class's step method (table +0x18; the same
+  table repeats it at +0x1c0/+0x1f8). Its argument is a 0x4c+-byte
+  WRAPPER (ebp): [ebp+0x0]=entity, [ebp+0x4]=current record index
+  (the [obj+0x5c]/[obj+0x50] pair PR-101/139 read), [ebp+0x1c]=
+  the 13-byte authored key, [ebp+0x44]=record array; the entity
+  keeps the wrapper back at [entity+0x2e] (0x52472..0x52486 reads
+  it the same way). Step: [entity+0x95] := 0 at entry and := 1 on
+  ANY completion (0x52217/0x5234a) - a latch whose consumer was not
+  read (open item 6); rec = recordarray[index]; rec.vt+0x8 fills
+  the record's OWN set; EMPTY (the row-transition records - their
+  conditions live in the scan) -> merge caller := authored OR live,
+  0x47e40(record array, caller), and on non-zero call the
+  target-state handler [record-class vt+0x18] with ebx = 0.
+  NON-empty (motion-style records) -> OR rec.vt+0xc into the
+  caller in place (0x5230c), then the handler runs UNLESS a second
+  gate fails: obj.vt+0xa0([rec+0x10]) vs obj.vt+0xa4 - for the
+  object family 0x239c0 (`ret 0`) and 0x239d0 ([obj+0xa1] + the
+  global dword at [0xcef40]+0x388, a clock-like accumulator,
+  written back into [obj+0xa1]). So `STATE(N)`-style records carry
+  an authored threshold [rec+0x10] tested against the object's
+  accumulated index/clock - the direction convention and units are
+  open item 7, and this is the field where PR-134/135's
+  "row feeding" and the record-step path meet. 0x52033 and 0x522e6
+  are the ONLY two calls of 0x47e40 in the image: the scan and the
+  step path - exactly the two condition consumers the port models.
+
+- WHAT THIS CLOSES. PR-141 item 1 (the 13-byte key/set): CLOSED -
+  the live signal set; its only non-vacuous feeders for the object
+  family are signal records through the class +0x10 entry; the
+  "identity" providers are `ret` stubs. PR-141 item 2 (the
+  transition evaluator): CLOSED - Findings 3/4 ARE the evaluator,
+  and the port's model is confirmed by the code. PR-141 item 7
+  (K_ANY/K_NEVER record words): PARTIAL - both marker encodings
+  are now decoded (K_ANY = an empty node filled with bits
+  3,4,7,8,9,10,21 plus word-1 marker 0x2001f8; K_NEVER = an
+  EMPTY set plus word-3 bits 96/97 - and an empty set under the
+  default flag 1 IS "never"); the exact runtime honour of the
+  K_ANY marker stays open (item 1). PR-141 item 3 (K_GEN1's
+  raiser): MECHANISM FOUND (a signal record with byte +0xc = 54
+  through the +0x10 entry), POSTER unknown. PR-101's "identity
+  key" wording is superseded (its composition facts stand; the
+  interpretation does not). PR-92/94's 13-byte answer packets keep
+  their meaning as answer-argument buffers; whether answer bits
+  reach a toucher's [obj+0x60] as signal records is open item 3 -
+  the concrete next question for AC_DRAB and the lion.
+
+- OPEN ITEMS COUNTED (8 new; PR-139's 13, PR-140's 8 and PR-141's
+  7 carry with PR-141 items 1/2 CLOSED). (1) K_ANY: its filled
+  node (bits 3,4,7,8,9,10,21, flag 0) and flag 0's mode both read,
+  yet flag 0 returns 0 - the always-fires honour is not
+  reproduced; who consumes flag-0 nodes, if anyone, is unread.
+  (2) '!'/'*' flag-2 (equality) nodes: how a negated condition's
+  complement is represented at match time (the port models '!'
+  directly; the engine's mechanism is not this dispatcher alone).
+  (3) Whether the ladder answer's AC_DRAB/AC_DRAB_CATCH packet
+  (PR-141 0x3f1c0) reaches the lion's [obj+0x60] as a signal
+  record, and where the lion's scan caller key is composed.
+  (4) Who POSTS the type-0x10/magic-0x8138764 signal records (GEN
+  frames, answers, collisions - the port raises bits for all three;
+  the engine's posting sites are unread). (5) What the 0x523f0/
+  0x53df0 per-frame tags ([obj+0x89], owner chains) contribute, if
+  anything in the 0..68 space (vacuous for the object family via
+  +0xa8/+0xac stubs, not for all classes). (6) [entity+0x95]: set
+  1 on every step, cleared at entry - consumer unread. (7) The
+  units/convention of the [rec+0x10] threshold vs
+  [obj+0xa1]+[0xcef40]+0x388, and its relation to PR-134/135's
+  row-feeding numbers. (8) Class +0x10 entries that are NOT
+  0x53770 (the LION family was not checked) - receive may differ
+  per family.
+
+- MUTATIONS. None: no code and no test changed (reading record,
+  PR-138/141 precedent). The honesty mechanism is attribution plus
+  self-correction in BOTH directions: this record resolves the
+  PR-88 vs PR-101 conflict instead of quietly adopting either side,
+  and its headline (the port's model is the engine's law) is a
+  CONFIRMATION claim - the one kind of claim a mutation cannot
+  test, so it is quoted against the two shipped consumers
+  (0x52033/0x522e6) and the port's own PR-88 selftest text.
+
+- GATES. No code touched: `make` rc=0, `make win` rc=0, zero
+  warnings, unchanged; `make -k verify-all` with the standard
+  fixtures (`DATA=/tmp/opencode/iso_stage/LEO HD=/tmp/opencode/
+  hd_files`) rc=0 with 56 `(ok)` - the same count PR-140/141
+  shipped - and zero FAILED; fixture-free (`DATA=/tmp/opencode/nope
+  HD=/tmp/opencode/nope`) rc=0 with the same 23 named SKIP lines.
+  The image is unchanged (sha256 edf19a129e85efb8764457a0808e246c
+  a4baf08a9111aa09be4ec99ce6b8c40e - every address here is that
+  same binary). No game data or frames in git; no
+  .github/workflows/* touched.
+
+- HANDOFF UPDATED. Section 7 item 15's G-9 line: the evaluator/key
+  question is CLOSED (conditions match by AND against the live set
+  at [obj+0x60], the port's model confirmed by the engine's own
+  scan); what the climb still needs narrows to the AC_DRAB
+  answer-to-live-set routing, the K_UP key raise, the K_GEN1
+  poster, and the A_WSP feed law. Item 13 gains the PR-142 bullet;
+  section 8 T5's climb STATUS carries the same narrowed list.
+
+- EVIDENCE. /tmp/opencode/pr142/mech_map.txt (the mechanism
+  address map, every range reproducible with
+  /tmp/opencode/pr139/rng.py over /tmp/opencode/vis/text.asm,
+  203,343 lines, unchanged). Ranges quoted verbatim: 0x47e40..
+  0x47ffd (dispatcher + jump table 0x47e30), 0x49550..0x495ca
+  (AND / OR-INTO / ANY-BIT), 0x47d60..0x47dd7 (flag-byte grammar),
+  0x48009..0x48086 (K_ANY/K_NEVER fills), 0x52000..0x52062 (the
+  scan), 0x521f0..0x5235c (the record step), 0x523f0..0x52460
+  (the composition), 0x52472..0x52486 (wrapper back-link),
+  0x536f0..0x53766 (the compositor), 0x53770..0x537e8 (signal
+  receive), 0x53df0..0x53e2b (the tag assembler), and the slot
+  getters 0x23930/0x23940 (ret stubs), 0x239c0/0x239d0 (the row/
+  clock pair), 0x23a60 (standing-bits zero). Table dumps: 0x97cdc
+  (+0x10=0x53770, +0x14=0x536f0, +0x8c=0x23a60) and the entity-
+  class tables (0x9a6e0 family: +0x18/+0x1c0/+0x1f8 = 0x521f0,
+  +0x194 = 0x52000).
+
 ## Next — pick from the Deferred list below
 
-- THE LADDER'S ANSWER SIDE IS READ (read the PR-141 record first):
-  DRABINKA's class table 0x97cdc (+0x40 = the constant-zero getter:
-  ladders never have an ATC window), its answer entry 0x3f1c0 gated
-  on the ladder's own unroll rows, and its three outcomes - AC_EDGE
-  when the toucher does not fit, AC_DRAB alone (branch B), and
-  AC_DRAB | AC_DRAB_CATCH merged through 0x49580 and copied by the
-  stop-at-zero repnz-movs into the toucher's 13 bytes. PR-88's
-  vocabulary re-derived exactly (LL_SIG_* needs no change; new only
-  the node-op record words 0x2001f8 / 0x60 and the K_ANY memset).
-  Plain LINA has no class-name token - the K-prefix KLINA/KDRABINA
-  family is the "climbable variant" one; that path is open item 4.
+- THE EVALUATOR IS READ (read the PR-142 record first): the 13-byte
+  "key" is the live signal set at [obj+0x60] (its object-family
+  "identity" providers are `ret` stubs - PR-88's TEventSet reading
+  stands, PR-101's "identity key" wording is superseded); 0x47e40
+  is a set-operation dispatcher keyed on the caller key's flag byte
+  (flag 1 = AND-then-any-bit = every ordinary authored condition;
+  the flag byte is authored grammar: default 1, '!'/'*' -> 2,
+  '|' -> 3, K_NEVER -> flag 3 empty = never); the only two call
+  sites 0x52033/0x522e6 are the row-transition scan and the
+  record-step path. Transition records are 21 bytes (13-byte
+  authored condition + target state +0xd + target row +0x11) and
+  the scan tries them in order until (authored AND live) != 0 -
+  the OR-of-ANDs is the scan, the AND is the node mask. THE PORT's
+  shipped condition model (comma-AND vs o->sig, name wiring, GEN
+  raises) is the engine's law - confirmed, nothing changed. Signals
+  ENTER the live set through the class +0x10 entry 0x53770 (record
+  type 0x10, magic 0x8138764, bit index at record byte +0xc) -
+  K_GEN1's mechanism is found, its poster is not.
 
-- NEXT PR (PR-142): the KEY/CONDITION MECHANISM AT LAST, picking up
-  the strongest lead the repo already has - PR-101's chain: 0x536f0
-  (composes the object's 13-byte key into [obj+0x60] via 0x49580),
-  0x523f0 (fills a 13-byte key from "record class, step, owner,
-  frame"), the 0x47e40 lookup ("null = no match"), and the two
-  branches at 0x52251/0x522fc (empty key: OR the caller's key with
-  [obj+0x60] and look that up; non-empty key: a different path).
-  Read those and answer ONE question with machine code: is an
-  authored transition condition ("A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR")
-  matched by that key lookup (i.e. the "key" IS the condition-set
-  identity), or by a separate AND against a live set? That closes
-  PR-88's oldest §6 open ("pulse-vs-latch + cross-object routing")
-  and names where the K_* bits and the answer copies must enter.
-  THEN (b) read the A_WSP feed law (BY_TY `F=0,100 T=160,50`,
-  SEQ_REV_Y) against the 0x543a2 dispatcher family, and only then
-  (c) decide the port step for the climb entry (behind a
-  hand-derived test + mutations, per the behaviour-PR rule). If any
-  step stays unread, count it, do not fit it.
+- NEXT PR (PR-143), in order: (a) the ROUTING question that now
+  makes the ladder actionable - does the ladder answer's
+  AC_DRAB/AC_DRAB_CATCH packet (PR-141 0x3f1c0) reach the lion's
+  [obj+0x60] as a signal record (who POSTS type-0x10/0x8138764
+  records after an answer/collision/GEN frame - PR-142 open
+  items 3/4 - and is the LION's +0x10 entry also 0x53770, item
+  8); (b) the K_UP feed: the engine path raising key bits
+  (35-38/53) into the lion's live set - the engine-side answer
+  for the port's input-model decision (and while there, the '!'-
+  negation representation, PR-142 item 2); (c) the A_WSP feed law
+  (BY_TY F=0,100 T=160,50, SEQ_REV_Y vs the 0x543a2 family) -
+  now approachable with the record-step path (Finding 4) and the
+  [rec+0x10] vs [obj+0xa1]+[0xcef40]+0x388 threshold concrete
+  (item 7). Only after (a)+(b) does the climb-entry port step
+  become implementable (hand-derived test + mutations,
+  behaviour-PR rule). Count, do not fit, anything unread.
 
 - THEN, from the PR-131 gap list (the current text of every item is
   HANDOFF.md §7 item 15): G-8's HUD lives - map the STATUS.LEO
   fields (both R3 clips start at "5", the port prints 6); G-3's
   ZAR.BLK corridor and the KAMIEN sixth field (1308/1218/1115
-  toward 1299..1620); then G-7 (the water surface as a floor), G-12
-  (the SURPRISE "?" firing) and G-10/G-11 (the level-end scene and
-  the mid-level bird sequences - no bird leaf exists in ZARIA.01's
-  ANIMACJE tree). G-13's local-lines remainder is now down to a
-  concrete named field: DRABINKA's rectangle [obj+0xb1..0xbd] (the
-  constructor default is 1,1,1,1) is what the authored local block
-  feeds - the provider that fills it from the .des text is still
-  unread.
+  toward 1299..1620); then G-7 (the water surface as a floor),
+  G-12 (the SURPRISE "?" firing - its bit-space mechanism is now
+  fully read: an event record naming a bit raises it) and
+  G-10/G-11 (the level-end scene and the mid-level bird
+  sequences). G-13's local-lines remainder: DRABINKA's rectangle
+  [obj+0xb1..0xbd] is what the authored local block feeds
+  (PR-141) - the filling provider is still unread; PR-142's
+  record/event machinery (the [rec+0x10] threshold, the
+  [0xcef40]+0x388 global) is likely where that lands, start there.
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
 first item and PR-45 its second (the authored scene), PR-46 its third

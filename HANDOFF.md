@@ -1973,6 +1973,57 @@ writer as its open items.
       attribution (PR-88's prior claim is named, not hidden). Full
       record: the PR-141 section of NEXT_STEPS.md (cond_map.txt
       carries the re-derived table with every parser block address).
+
+    - PR-142 READ THE EVALUATOR ITSELF - the repo's oldest open
+      mechanism - and CLOSED it (reading record, no code change:
+      PR-138/141 precedent). Answer to the PR-88-vs-PR-101
+      question: [obj+0x60] IS the live signal set (13 bytes), not
+      an identity key - the object family's "identity" providers
+      are plain `ret` stubs (0x23930/0x23940) and its
+      standing-bits getter 0x23a60 returns a zeroed set; signals
+      enter ONLY through the class +0x10 event entry 0x53770 (a
+      record of type 0x10, magic 0x8138764, whose byte +0xc is a
+      bit index from PR-88's table, ORed into [obj+0x60] via
+      0x49580; 23 class tables carry this entry, DRABINKA's
+      included). 0x47e40 is NOT a lookup: it dispatches on the
+      caller key's flag byte (jump table 0x47e30): flag 0 ->
+      return 0, flag 1 -> (record's own set AND caller key) any-
+      bit - the ONLY non-trivial mode and the authored-condition
+      test - flag 2 -> 12-byte equality, flag 3 -> negated
+      equality; flag > 3 asserts. The flag byte is authored
+      grammar (0x47db2..0x47dd0): ordinary conditions default to
+      flag 1, '!'/'*' -> 2, '|' -> 3; K_NEVER = an EMPTY set +
+      word-3 bits 96/97 (an empty set under flag 1 IS never),
+      K_ANY = bits 3,4,7,8,9,10,21 + marker 0x2001f8 (honour
+      open). THE MATCH IS AN ORDERED SCAN: each row record keeps
+      transition records at [rec+0x1a]/[rec+0x22], stride 21 =
+      13-byte authored condition + target state [rec+0xd] +
+      target row [rec+0x11]; 0x52000 tries each via 0x47e40
+      against the caller key := authored OR live (explicit merge
+      at 0x52279..0x522bc) and takes the FIRST match - the OR-
+      of-ANDs IS the scan, the AND IS the node mask. 0x52033 and
+      0x522e6 are the only two 0x47e40 calls in the image: the
+      scan and the record-step path (0x521f0: wrapper [ebp+0x0]=
+      entity / +0x4=index / +0x1c=authored key / +0x44=record
+      array, entity back-link +0x2e, latch [entity+0x95], and a
+      second authored threshold [rec+0x10] tested against
+      [obj+0xa1]+[0xcef40]+0x388 through the class +0xa0/+0xa4
+      pair 0x239d0/0x239c0). THE HEADLINE IS A CONFIRMATION: the
+      port's shipped condition model - comma-AND against o->sig,
+      per-name wiring, GEN raising name bits (PR-88's selftest) -
+      is the engine's law, quoted from the code; no port behaviour
+      was touched. 8 new open items counted (PR-141's 1/2/7
+      closed or narrowed): the K_ANY marker honour, the '!'
+      complement representation, whether the ladder answer packet
+      reaches the lion's live set as a signal record, who POSTS
+      signal records, the per-frame tag contribution ([obj+0x89]),
+      the [entity+0x95] latch consumer, the [rec+0x10] threshold
+      units vs PR-134/135's row feeding, and class +0x10 entries
+      that are not 0x53770 (the LION not yet checked). No
+      mutants: a confirmation claim is the one thing a mutation
+      cannot test - it is instead quoted against both shipped
+      consumers. Full record: the PR-142 section of NEXT_STEPS.md
+      (mech_map.txt carries the whole address map).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2697,11 +2748,17 @@ writer as its open items.
     at ZERO energy cost, the worms answer with the SEMI push-out
     alone and cost delay, not a stop - and PR-141 FOUND the
     AC_DRAB/AC_DRAB_CATCH raise site (the ladder's own answer
-    entry 0x3f1c0 writes them into the toucher); what the CLIMB
-    still needs is named there: the EVALUATOR/key mechanism (what
-    the 13-byte set is - PR-88 vs PR-101's identity-key reading), the
-    runtime K_* feed (K_UP = bit 37), the K_GEN1 raiser, and the
-    A_WSP feed law (PR-142); SURPRISE
+    entry 0x3f1c0 writes them into the toucher); and PR-142 CLOSED
+    the evaluator/key question - the 13-byte set IS the live
+    signal set at [obj+0x60] (PR-88 right, PR-101's identity-key
+    wording superseded) and an authored condition is an AND-
+    against-live inside the ordered row scan 0x52000, which IS
+    the port's shipped model (confirmed, no change); what the
+    CLIMB still needs narrows to: the answer-to-live-set routing
+    for AC_DRAB, the runtime K_* feed (K_UP = bit 37), the
+    K_GEN1 poster (its mechanism is found: a signal record at
+    the class +0x10 entry), and the
+    A_WSP feed law (PR-143); SURPRISE
     "?" firing (G-12); and the
     ground SOURCE of the first screens (G-13, PR-136) IS DECIDED IN
     PR-138: the engine's ground records ARE the authored .PLT text,
@@ -3196,20 +3253,29 @@ corrected model and pins it as a verify-play leg: a 12 s FWD walk
 crosses both worms and stands x=685 at tick 300 with ZERO damage,
 zero state changes outside A_WALK, and the worm answer being the SEMI
 push-out alone (cost: ~40 lost iterations, 0.8 vs 2.5 units/tick).
-The CLIMB at x=180 still does not work, and the blocker is named:
-the EVALUATOR/KEY mechanism (which 13-byte field a transition
-condition ANDs against - PR-88 called [obj+0x60] a TEventSet, PR-101
-read it as the object's identity key; PR-142 picks up PR-101's chain
-0x536f0/0x523f0/0x47e40/0x52251), the runtime feed of the K_* bits
-(K_UP is bit 37 of the SAME 69-bit space as the AC_* signals - that
-map is PR-88's), the object-side K_GEN1 unroll trigger (bit 54,
-raiser unknown), and the A_WSP feed law (BY_TY `F=0,100 T=160,50` +
-SEQ_REV_Y, still PR-109's open law). CLOSED by PR-141:
-the AC_DRAB/AC_DRAB_CATCH answer bits themselves - DRABINKA's own
-answer entry 0x3f1c0 raises exactly those into the toucher, gated on
-its unroll rows, and the ladder's +0x40 getter is constant-zero (no
-ATC window, ever). Reading order in the PR-141 Next entry; nothing
-was invented for any of it.
+The CLIMB at x=180 still does not work, and the blocker list has
+narrowed twice (PR-141, then PR-142). CLOSED by PR-141: the
+AC_DRAB/AC_DRAB_CATCH answer bits themselves - DRABINKA's own
+answer entry 0x3f1c0 raises exactly those into the toucher, gated
+on its unroll rows, and the ladder's +0x40 getter is constant-zero
+(no ATC window, ever). CLOSED by PR-142: the EVALUATOR/KEY
+mechanism - the 13-byte field a transition ANDs against IS the
+live signal set at [obj+0x60] (PR-88's TEventSet reading stands,
+PR-101's identity-key wording is superseded: the object family's
+identity providers are `ret` stubs), 0x47e40 is a set-operation
+dispatcher not a lookup, and an authored condition matches by
+(authored node mask AND live) != 0 inside the ordered row scan
+0x52000 - first match wins - which is EXACTLY the port's shipped
+condition model (a confirmation, no port change). Signals enter the
+live set through the class +0x10 entry 0x53770 (signal record, bit
+index at its byte +0xc), so K_GEN1's MECHANISM is found and only
+its POSTER is open. What remains for the climb, named: whether the
+ladder answer's packet reaches the lion's live set as a signal
+record (PR-142 open item 3), the runtime feed of the K_* key bits
+(K_UP is bit 37 - that map is PR-88's), the K_GEN1 poster, and the
+A_WSP feed law (BY_TY `F=0,100 T=160,50` + SEQ_REV_Y, still
+PR-109's open law). Reading order in the PR-142 Next entry;
+nothing was invented for any of it.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
