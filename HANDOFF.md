@@ -4056,6 +4056,41 @@ writer as its open items.
      150..PR-174, 25 records, last carrier). Full record: the
      PR-175 section of NEXT_STEPS.md (scratch /tmp/opencode/
      pr175/).
+   - PR-176 (READING; no port code, no behaviour change): THE
+     CONTROLLER GETTER READ WHOLE. 0x504e0 - the +0x8c getter
+     of exactly twelve classes - WRAPS the motion synth: gate
+     (class verb +0xf8 && [obj+0xd2] != 0 && [obj+0xa5]&0x2)
+     calls 0x551f0 (a queue-node consumer), then a ten-leg
+     priority chain over ([obj+0xa5] 0x40/0x80, [obj+0xa6]
+     0x01/0x02/0x40/0x80, [obj+0xa7] 0x01/0x02/0x04/0x08),
+     each leg gated by global words ds:0xcef5c..0xcef80
+     (stride 4, written only by stage-load ctors 0x1e0dc/
+     0x2dfe9/0x3b1f2/0x50162), picks ordinal [obj+0xee] 0..9;
+     a 12-entry jump table at 0x504b0 sets bit 41+k = K_F1..
+     K_F12 - EXACTLY the port's LL_SIG_* enum, a new
+     independent confirmation of the name block; the tail
+     calls 0x54910 and merges both keys via 0x49580 into the
+     caller's buffer - getter = signal key OR motion key,
+     standard +0x8c contract. THE TWELVE IDENTIFIED by exact
+     factory-chain attribution (name literal -> call 0x76a69
+     -> match branch's first [eax+0x8] store): SIX TLew stage
+     lions (TLewZaria -> 0x96960 = THE ZARIA-stage lion IS
+     the controller class; TLewZariaB/TLewEna2/TLewKadmar2/
+     TLewKara/TLewJunction) + FIVE death-module classes
+     ("looser.mod"/A_DEAD -> 0x988ec + rec-class 0x98e7c;
+     sadesdea/ran1/lonade/deatd .mod) + the SHARED PARENT
+     0x97970 (base ctor 0x1e0a0). Bonus: PURCHAWA -> 0x9c05c
+     (closes PR-173 item (e)); LEW_SWT -> 0x9ac90; LONAKULA
+     -> 0x9e740; TLewTunga1 -> 0x9f668; TLewRan -> 0x9cfd0.
+     CAMEL NARROWS: CAMEL -> 0x98278, a generic decor/mover
+     class in NEITHER key lineage (third packed format) - the
+     KADMAR.07_CAMEL K_* rows cannot come from the twelve
+     controllers. 5 new open items, 2 closed; docs: 3
+     brackets, 0 port lines, baselines 71/72 held; census
+     (HEAD carries PR-150..PR-175, 26 records, last carrier).
+     Next -> PR-177 = the +0x78 singleton family pass. Full
+     record: PR-176 section of NEXT_STEPS.md (scratch /tmp/
+     opencode/pr176/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -6463,6 +6498,43 @@ blocking questions, and every closure says so. Gates: docs-
 only (PR-138..171 precedent); added lines <= 79; baselines
 71/72 held; PR-174's binary+verify state stands (56 ok / 10
 ok + 23 named SKIPs).
+
+STATUS after PR-176 (the CONTROLLER-GETTER pass; docs
+reading - ZERO port lines changed, the ZARIA.01 output image
+is byte-identical to PR-175's, and the build state remains
+PR-174's green binary with verify-all rc=0 both ways).
+
+What this pass GROUNDS for T5 (no shipped behaviour changed,
+so no new test was required - the reading's payoffs are
+confirmations and exclusions):
+(1) The controller getter CONFIRMS the key model end-to-end:
+    its jump table builds bits 41..52 and those are EXACTLY
+    K_F1..K_F12 in PR-173 F5's name block and in the port's
+    LL_SIG_* enum - a second, independent confirmation of
+    the bit->name law (on top of the 68/68 row census).
+(2) The getter = signal-ordinal key OR the 0x54910 motion
+    key, merged via 0x49580 into the standard +0x8c buffer
+    the pump 0x536f0 already reads - the port's pump-side
+    model needs no change for controllers.
+(3) THE TWELVE 0x504e0-carriers are IDENTIFIED: the six TLew
+    stage-lion classes (TLewZaria -> 0x96960 - THE ZARIA.01
+    lion's class), five per-stage death-module classes, and
+    the shared parent 0x97970. The lion object the port
+    models belongs to a named, enumerated family - no unknown
+    class remains among the controller-getter tables.
+(4) The KADMAR camel rows are EXCLUDED from the controller
+    lineage (CAMEL -> 0x98278, a decor class in a third
+    table format with no +0x14 pump and no +0x8c getter in
+    any read map) - the camel K_* row mystery narrows to one
+    decor-class format question, still T6+ data-blocked; the
+    port's ZARIA.01 output is unaffected either way.
+Five new open items are counted in the record (five unnamed
+TLew classes; [obj+0xee] >= 10; the queue producers/verbs;
+the button-bit map; the switch-array source + decor format);
+two closed (PR-175 F6 twelve-identity; PR-173 item (e)).
+Gates: docs-only (PR-138..171, PR-175 precedent); added lines
+<= 79; baselines 71/72 held; PR-174's binary+verify state
+stands (56 ok / 10 ok + 23 named SKIPs).
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

@@ -15762,83 +15762,35 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-176 IS THE CONTROLLER-GETTER PASS (the natural next
-  step after PR-175 F6): read 0x504e0 WHOLE and its callee
-  0x551f0 whole (only the 0x504e0 head is read: tests
-  [obj+0xa5] bits 0x2/0x40), and identify the TWELVE tables
-  that carry it with the full LION controller shape
-  (+0x14 = 0x550a0, +0x54 = 0x55070): 0x96960 (LION),
-  0x97970, 0x97a98, 0x988ec, 0x98f34, 0x9b4d4, 0x9c958,
-  0x9d338, 0x9e134, 0x9f170, 0x9f540, 0xa2218 - cross-
-  reference the table-region against text/class-name strings
-  and the level-data object kinds; 0x9c05c's identity (a
-  0x546a0-carrier, PR-173 item (e)) comes with it. Then
-  UPDATE the KADMAR camel reachability item (PR-173 F5/item
-  (4)): if one of the twelve is the camel's controller, its
-  K_*-keyed rows ARE synthesis-reachable through the 0x504e0
-  getter's answer, and the item narrows to a model note;
-  if not, say so and keep it data-blocked. Docs reading; a
-  small code PR only if the answers expose a port-side gap.
-- THEN the per-class +0x78 singleton family (~76 tables,
-  PR-173 item (3)): 0x28af0 whole read (the named lead for
-  the K_GEN1 platform key half; PR-155/156 recorded bit 54
-  raised at 0x28af2), the rest as census only.
-- THEN the BY_TY FEED READ (PR-172 item): 4 shipped ZARIA.01
-  states use control=BY_TY (rows gated 200/300); the port
-  runs them as plain time states. Read the feed dispatcher
-  0x543a0 mode arm for that token (PR-166's +0x14 map) and
-  its relation to the [obj+0xba]/[obj+0xbe] pair; a labeled
-  model note or a feed implementation follows.
-- THEN the msg-id arms + id map + [obj+0xa9] semantics
-  (PR-175 F7b's site map is IN HAND - start from it): the
-  0x5460e READ / 0x54624 WRITE arms' message-id source, the
-  id-to-meaning table, and what the pool query 0x4b600 does
-  with the [obj+0xa9] value at 0x4b64f.
-- THEN the PLAYER-SIDE same-state seek (PR-174 item (2)):
-  the 20 ZARIA.01 lion lines (conditions: AC_TIME x2, AC_DUP,
-  |K_ANY, K_FIRE,K_GEN2, AC_RECT,K_GEN1 - the player path
-  models NONE of those signal legs) - the signal-side model
-  first (the AC_TIME count + live-set bits on the lion),
-  THEN the row writes, with fresh frame evidence for any
-  changed T2/T3 animation claim. PR-86's keep-running stays
-  shipped until then.
-- THEN the +0xac FULL-BODY READ (PR-174 item (1)'s carried
-  remainder, re-scoped by PR-175 F4): 0x546a0 from 0x54706
-  on (the head is read: the [obj+0xb6] bit test, the +0x12
-  word test ah,0x40 -> the 0x4b600 pool query -> the 0x49580
-  live-set merge, the [obj+0xa9] RMW); the 0x52a00 variant
-  (the 0x23c70 x10 pairing); then re-check whether any
-  ZARIA.01-visible class's extension changes observable
-  keys.
-- THEN carried reads (mostly unchanged): 0x550c0's body and
-  the 0x55130 tail from 0x551b8 (PR-175 F7a stopped at the
-  key branches); the 73 non-pump anchored tables with a DEAD
-  0x54910 getter at +0x8c (where/if they are pumped at all);
-  the +0x54 hook families 0x53df0/0x3ddf0 and 0x55070's
-  callees (+0xb0/[obj+0xd6], 0x541f0/[obj+0x89], +0x98);
-  the +0x4c/+0x1c 0x23a20-default slot census RECOUNT (one
-  candidate base per table - PR-175 F7c's caveat); the pool-
-  name decode; the vtable+0-word OR 4/8 row-end CONSUMER
-  (PR-164 item 1); [obj+0x99] reader semantics (PR-167
-  item 5); the base table's +0x1c/+0x20 overrides (PR-167
-  item 2); the 0xa2e9c/0xa2ed4 view selection (PR-167 item
-  3); 0x53520 arg plumbing + [obj+0x95] reader; the 31-vs-24
-  +0x14-slot delta; record verbs +0x2c/+0x30 bodies + the
-  second-view slots 0x559c0/0x45800; the +0x9c per-class
-  gate variants (PR-168 item 4); the walk return-value
-  encoding (PR-161 item 1); 0x524xx rest; 0x446de; 0x57d30
-  modes; the 0x4fef0 side-effect SEMANTICS ([pool+0x3a0]/
-  [0x3a8], ds:0xcf068) as PR-170 item (4); the +0x60
-  conditional minority (PR-169 item 3).
-- LEDGER RULE (PR-158 F1): every Next-swap re-splices recent
-  records from the LAST revision that carried them. Census
-  recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
-  `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD carries all twenty-five (PR-150..PR-
-  174); HEAD is the last carrier.
-- HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
-  G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
-  and the TRASA pair as leads).
+- PR-177 IS THE +0x78 SINGLETON FAMILY PASS (the natural
+  next lead: PR-173 item (3) says the ~76 remaining +0x78
+  singletons are a DISJOINT passive lineage whose +0x14 is
+  0x23920 returning the [rec+0x12] control-flags word; the
+  census named 0x28af0 as the lead singleton). Method:
+  re-derive the singleton census from the 178 marker tables
+  (tables WITHOUT the 0x23b80 pump marker), then read 0x23920
+  whole, then 0x28af0 whole, then 3-4 more singletons to fix
+  the family shape; check what consumes the flags word (the
+  [rec+0x12] law from PR-159/160), and whether any ZARIA.01
+  row lives in this lineage (if yes it feeds the port's row
+  matching; if no, count it as a settled negative). THEN, in
+  this order when data allows: the BY_TY feed read 0x543a0's
+  mode arm (PR-166 carried); the msg-id arms 0x5460e/0x5463a
+  + id map + [obj+0xa9] semantics (the 24-site map from
+  PR-175 F7b narrows this); the player-side same-state row
+  seek (PR-174 item (2) - the 20 lion lines keyed AC_TIME x2/
+  AC_DUP/K_ANY/K_FIRE,K_GEN2/AC_RECT,K_GEN1 that the player
+  path models none of); PR-176's five new controller items
+  (the five unnamed TLew class tables; [obj+0xee] >= 10
+  writers; the [obj+0xd2] queue producers + the +0xf8/+0x3c
+  verbs + [obj+0x106]; the [obj+0xa5/a6/a7] button-bit map
+  vs the input model; the ds:0xcef5c value source + the
+  decor-class 0x98278 format reads + the rec-class 0x98e7c
+  pair + 0x524e0). Carried reads unchanged: the +0x54 hook
+  families 0x53df0/0x3ddf0, 0x550c0's body, the 0x55130 tail
+  from 0x551b8, the pool-name decode, the +0x4c/+0x1c 0x23a20
+  slot recount, the 73 dead-0x54910 tables, 0x546a0's full
+  body, everything else in the ledger's CARRIED list.
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -21201,6 +21153,16 @@ table now verified 68/68)
   quantity; whether the camel's script belongs to one of them
   is exactly what PR-176's identity pass decides, so the
   reachability question narrows rather than widens.]
+  [DECIDED BY PR-176 F4: NO - the camel's script belongs to
+  NONE of them. CAMEL -> 0x98278, a generic decor/mover
+  class shared by EBECZKA/CEBRZYK/KRA*/TMPLAT: no 0x23b80
+  marker, not one of the 99, and its region switches to a
+  THIRD, byte-tagged table format (0x23ed0/0x23ea0/0x23e00
+  helpers, repeated 0x074bac) - no +0x14 pump and no +0x8c
+  getter runs through any read map, so the camel/0_0 K_*
+  rows CANNOT be reached by the twelve controllers; what
+  remains is that decor class's own verb layout, unread,
+  still T6+ data-blocked.]
 
 - FINDING 6, THE 0x600000/0x800000 LITERALS ARE A LEDGER
   ARTIFACT — CLOSED WITH PROVENANCE. git -S over all blobs:
@@ -21249,7 +21211,13 @@ table now verified 68/68)
   raiser 0x28af0 now slot-identified; the census tool exists).
   (4) KADMAR camel/0_0 K_*-keyed object rows: reachability of
   synthesized or message-raised bits for THOSE at their stage
-  (T6+; not ZARIA.01). (5) [obj+0x75] - the second 13-byte
+  (T6+; not ZARIA.01). [UPDATED BY PR-176 F4: the twelve
+  controllers are ALL named now (stage lions + death
+  modules + parent) and NONE is the camel's - CAMEL ->
+  0x98278, a decor class in a third, unread table format
+  with no pump and no getter in any read map. The open half
+  is that class's verb layout.] (5) [obj+0x75] - the second
+  13-byte
   TEventSet adjacent to the live set: producers and readers
   unread; the 0x504e0/0x551f0 detail. [UPDATED BY PR-175
   F7c: [obj+0x75] has ZERO direct operand sites in the whole
@@ -21613,6 +21581,20 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   for a controller class of exactly this shape - the identity
   of the twelve is PR-176's named task (0x504e0/0x551f0 read
   whole; table-region and name-string cross-reference).
+  [CLOSED BY PR-176 F1-F3: BOTH read whole - the getter is
+  a signal-ordinal key (ten-leg chain over [obj+0xa5/a6/a7]
+  gated by ds:0xcef5c..0xcef80 -> [obj+0xee] 0..9 -> the
+  0x504b0 table sets bits 41+k = K_F1..K_F10) OR-ed with
+  the 0x54910 motion key, merged via 0x49580 into the
+  caller's +0x8c buffer; 0x551f0 is a queue-node consumer.
+  The twelve = SIX TLew stage-lion classes (TLewZaria ->
+  0x96960 - THE ZARIA-stage lion IS the controller class;
+  TLewZariaB/TLewEna2/TLewKadmar2/TLewKara/TLewJunction),
+  FIVE death-module classes (looser.mod/A_DEAD -> 0x988ec
+  + rec-class 0x98e7c; sadesdea/ran1/lonade/deatd .mod ->
+  0x9c958/0x9d338/0x9f170/0xa2218), and the shared PARENT
+  0x97970 (base ctor 0x1e0a0) - exact factory-chain
+  attribution, 6+5+1 = twelve exactly.]
 
 - FINDING 7, THE FIELD READS: [obj+0xad] IS THE ENERGY FIELD;
   [obj+0xa9] HAS A BOUNDED MAP; [obj+0x75] IS POINTER-ONLY.
@@ -21717,6 +21699,214 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   (1) CLOSED, (2) CLOSED IN PART, (5) UPDATED, its camel item
   UPDATED; PR-174 F2's +0xac argument corrected and its item
   (1) closed-in-part).
+
+## PR-176 — THE CONTROLLER GETTER READ WHOLE: +0x8c WRAPS
+## THE MOTION SYNTH AND ADDS THE K_F1-12 SIGNAL BITS FROM A
+## PRIORITY CHAIN; THE TWELVE CONTROLLER CLASSES ARE THE
+## STAGE LIONS AND THEIR DEATH-MODULE DOUBLES (PURCHAWA AND
+## CAMEL IDENTIFIED; READING, NO PORT CODE, NO BEHAVIOUR
+## CHANGE)
+
+- WHY. PR-175's Next named this pass: read 0x504e0 whole and
+  its callee 0x551f0; identify the twelve tables carrying the
+  0x504e0 getter with the LION controller shape; then update
+  the KADMAR camel reachability item. Method: verbatim disas-
+ sembly of 0x504e0-0x5071b and 0x551f0-0x55228; the name-
+  string region 0x90700-0x91400 decoded from the binary; two
+  factory-chain parsers (a class-name literal feeds `call
+  0x76a69`, and the MATCH branch's block is the one that
+  follows the compare - pinned by the Zaria exemplar at
+  0x1fef4/0x1ff15 - NEVER nearest-neighbour matching); the
+  jump table at 0x504b0 read as data; the signal vocabulary
+  from PR-173 F5's name block cross-checked against the
+  port's LL_SIG_* enum. Docs only: nothing shipped moves.
+
+- FINDING 1, 0x504e0 WHOLE: THE CONTROLLER +0x8c GETTER IS A
+  WRAPPER - SIGNAL-ORDINAL KEY PLUS THE 0x54910 MOTION KEY.
+  Entry: eax = self, edx = the caller's key buffer (saved at
+  [esp+0x30]); first gate: class verb +0xf8 nonzero AND
+  [obj+0xd2] != 0 AND bit 0x2 of [obj+0xa5] -> call 0x551f0
+  (F2). Then a PRIORITY CHAIN, ten legs read to the last:
+  ([obj+0xa5],0x40; ds:0xcef5c)->ordinal 0; ([obj+0xa5],
+  0x80; 0xcef60)->1; ([obj+0xa6],0x01; 0xcef64)->2; ([obj+
+  0xa6],0x02; 0xcef68)->3; ([obj+0xa6],0x40; 0xcef6c)->4;
+  ([obj+0xa6],0x80; 0xcef70)->5; ([obj+0xa7],0x01; 0xcef74)
+  ->6; ([obj+0xa7],0x02; 0xcef78)->7; ([obj+0xa7],0x04;
+  0xcef7c)->8; ([obj+0xa7],0x08; 0xcef80)->9 - each leg
+  requires BOTH the object bit and the global word non-zero,
+  and writes the winner into [obj+0xee] (0x50634: build a
+  ZERO 12+count key via 0x749a0; `cmp [obj+0xee],0xb; ja
+  skip; jmp cs:[eax*4+0x504b0]` - the 12-entry table reads
+  0x5065b,0x50662,...,0x506a8: case k ORs bit (41+k) (cases
+  0-6 set [key+5] bits 1-7, cases 7-11 [key+6] bits 1-4)).
+  Bits 41..52 in PR-173 F5's block vocabulary are exactly
+  K_F1..K_F12 - and the port's LL_SIG_* enum puts K_F1 at 41
+  through K_F12 at 52: EXACT match, a new independent confir-
+  mation of the name block from the getter's own jump table.
+  Tail: the local key is copied to [esp+0x20], then 0x54910
+  - PR-173's MOTION SYNTHESIZER - is called (eax = self,
+  edx = [esp+0x10]); `call 0x49580` merges THAT key into the
+  caller's saved buffer [esp+0x30], and the merged set (with
+  its count byte) is copied back over the caller's buffer.
+  So the controller getter = signal-ordinal key OR motion key,
+  delivered through the standard +0x8c buffer contract the
+  pump 0x536f0 already reads. The chain writes only ordinals
+  0..9: cases 10/11 (K_F11/K_F12) are unreachable from this
+  chain - counted (open).
+
+- FINDING 2, 0x551f0 WHOLE: A QUEUE-NODE CONSUMER. 0x551f0-
+  0x55228: edx = self; unlink the first node - `mov eax,
+  [obj+0xd2]; ebx=[[obj+0xd2]]; [obj+0xd2]=ebx`; `call
+  0x5c370` (release); if the queue is now empty AND class
+  verb +0x3c returns true, set [obj+0x106] = 1. Together
+  with PR-175's 0x550a0 (which zeros [obj+0xe6]/[obj+0xea]
+  at EVERY state step) and this getter's [obj+0xee], fields
+  0xd2/0xe6/0xea/0xee form a controller signal-event queue
+  block (head at 0xd2; 0xe6/0xea per-step-cleared pair;
+  0xee current ordinal). Producers of queue entries: open,
+  counted; the +0xf8 and +0x3c verbs and the [obj+0x106]
+  flag: open, counted.
+
+- FINDING 3, THE TWELVE IDENTIFIED: STAGE LIONS AND THEIR
+  DEATH-MODULE DOUBLES. The registration factories are chains
+  over the class-name strings at 0x90700-0x91400 ("TLewZaria"
+  0x9078b, "TLewZariaB" 0x90795, "looser.mod" 0x907a0,
+  "A_DEAD" 0x907ab, "TLewEna" 0x908b3, "ena2ed.mod" 0x908bc,
+  "TLewEna2" 0x908f6, "kadmdead.mod" 0x90900, "TLewKadmar1"
+  0x90aae, "TLewKadmar2" 0x90b36, "k2dead.mod" 0x90b5d,
+  "sadesdea.mod" 0x90b99, "TLewSades" 0x90d01, "ran1.mod"
+  0x90e70, "TLewRan" 0x90fe6, "karade.mod" 0x90ff0,
+  "TLewKara" 0x9112a, "lonade.mod" 0x91134, "TLewLona"
+  0x912cf, "TLewTunga1" 0x9132c, "TLewJunction" 0x91337,
+  "TLewTunga2" 0x91391, "deatd.mod" 0x920f3, plus per-stage
+  object-kind names and the error strings). Exact-chain
+  attribution for all twelve 0x504e0-carriers: SIX TLew stage
+  LION classes - TLewZaria->0x96960 (THE lion: PR-175's
+  LION 0x96960 IS the ZARIA-stage lion controller class,
+  closing PR-173's "TLewZaria controller pair" note as a
+  FACT), TLewZariaB->0x97a98, TLewEna2->0x98f34, TLewKadmar2
+  ->0x9b4d4, TLewKara->0x9e134, TLewJunction->0x9f540 - and
+  FIVE death-module registration classes: the ZARIA block at
+  0x240d0 (after "looser.mod") pairs a record-class store
+  ([rec+0x44] = 0x98e7c, its +0x14 = 0x52570 in the record-
+  verb region) with object class 0x988ec; then "sadesdea.
+  mod"->0x9c958, "ran1.mod"->0x9d338, "lonade.mod"->0x9f170,
+  "deatd.mod"->0xa2218. The twelfth, 0x97970, is the SHARED
+  PARENT: its store site is the base constructor 0x1e0a0,
+  which the Zaria pair's factory blocks call BEFORE overwrit-
+  ing [obj+0x8] with 0x96960/0x97a98 - the parent is itself
+  a controller class (same 0x550a0/0x55070/0x504e0 shape).
+  Six plus five plus one = twelve EXACTLY. Bonus identities
+  from the same exact-chain method (slot rows saved): PURCHA-
+  WA -> 0x9c05c (the PR-173 item (e) identity CLOSED); LEW_
+  SWT -> 0x9ac90 (+0x14 = 0x536f0 DIRECT pump, +0x8c =
+  0x23a60 - one of PR-175's x26 direct-pump tables named);
+  TABLICZKALONA/GRABOBJL1/GRABOBJL2 -> 0x9815c; LONAKULA ->
+  0x9e740 (LION shape but the plain 0x54910 getter); TLewTun-
+  ga1 -> 0x9f668 (+0x8c = 0x613d0); TLewRan -> 0x9cfd0
+  (direct pump, 0x23a60 getter). NOT resolved (counted open):
+  the class tables of TLewEna, TLewKadmar1, TLewSades,
+  TLewLona, TLewTunga2 - their registration blocks contain
+  no clean [obj+0x8] store readable by the parser (a second
+  compare form - string in eax, `mov ecx,eax; mov eax,str;
+  call 0x76a69` - appears in the 0x240d0-style blocks, so
+  their creates are elsewhere; their own stage controllers
+  evidently exist OUTSIDE the 0x504e0 twelve, since the
+  twelve census is exact).
+
+- FINDING 4, THE CAMEL ITEM NARROWS HARD: CAMEL IS NOT A
+  CONTROLLER. The "CAMEL" branch (0x2983f, exact chain)
+  stores [obj+0x8] = 0x98278 - a class SHARED by many static
+  object kinds (EBECZKA, CEBRZYK, KRA/KRA0/KRA1, TMPLAT,
+  SMIGLO-context, ...): a generic decor/mover class. 0x98278
+  is in NEITHER key lineage: no 0x23b80 marker at +0x60, not
+  one of the 99; its first three dwords are pointers into
+  the 0x23exx helper cluster (0x23e00 read: a rectangle-
+  bounds comparison of [eax] vs [edx],[edx+8]), and from
+  +0x08 on the region switches to a packed, byte-tagged
+  format with repeated 0x074bac - a THIRD table format, not
+  the 178 convention. So no +0x14 pump and no +0x8c getter
+  runs for CAMEL objects through the maps this port has read:
+  the KADMAR.07_CAMEL_CAMEL / KADMAR.07_0_0 K_*-keyed rows
+  CANNOT be reached through the twelve controller classes -
+  the remaining question is the decor class's own verb layout
+  (format unread), still T6+ data-blocked. PR-173 item (4)
+  updated (bracket); PR-175's F6 grounding corrected in part.
+
+- FINDING 5, THE GLOBAL CONTROLLER SWITCHES ARE STAGE-LOAD
+  STATE. The chain's global words ds:0xcef5c..0xcef80 (10 of
+  them, stride 4; 38 total references) are written by `mov
+  [ds], edx` at exactly 0x1e0dc - INSIDE the parent-class
+  constructor 0x1e0a0 - and 0x2dfe9, 0x3b1f2, 0x50162 (the
+  other registration-region ctors, same shape as 0x50090-
+  0x5011b). So stage-load code programs each stage's control-
+  ler switch array; the values' source (.mod load? PR-170's
+  side-effect territory) is open, counted. The controller
+  button bytes [obj+0xa5]/[0xa6]/[0xa7] are the SAME bytes
+  PR-173 F4 read for the motion synth (0xa5 bits -> K_FIRE/
+  K_ALT/K_JUMP there; the 0x2 bit here gates the queue call)
+  - one state word, two readers; a full button->bit assign-
+  ment against the port's input model is open, counted.
+
+- OPEN ITEMS COUNTED (5 new, 2 closed). NEW: (1) the class
+  tables of TLewEna/TLewKadmar1/TLewSades/TLewLona/TLewTunga2
+  and the second compare form's create blocks; (2) jump-table
+  cases 10/11 (K_F11/K_F12) unreachable from the ten-leg
+  chain - what may write [obj+0xee] >= 10; (3) the queue
+  block: producers of [obj+0xd2] entries, the [obj+0xe6]/
+  [0xea] pair's role beyond 0x550a0's per-step zero, the
+  +0xf8 / +0x3c verbs, the [obj+0x106] flag; (4) [obj+0xa5/
+  a6/a7] button-bit assignment vs the port input model; (5)
+  the ds:0xcef5c..0xcef80 value source, and the decor class
+  0x98278's third-format verb layout + the 0x23ed0/0x23ea0/
+  0x23e00 reads + the rec-class 0x98e7c pair semantics (the
+  A_DEAD block at 0x240d0 also calls 0x524e0 - in PR-167's
+  carried +0x1c region). CLOSED: the PR-175 F6 twelve-class
+  identity (bracket - resolved as F3); PR-173 item (e)'s
+  0x9c05c identity (PURCHAWA). UPDATED: the camel item (F4).
+  CARRIED unchanged: PR-173 item (3) (the ~76 +0x78 single-
+  tons, 0x28af0 lead); the BY_TY feed read; the msg-id arms
+  0x5460e/0x5463a + id map + [obj+0xa9] semantics (the site
+  map from PR-175 F7b); PR-174 item (2) (player-side seek);
+  0x546a0's full body; 0x550c0's body; the 0x55130 tail;
+  the pool-name decode; the ladder-gate data block; the
+  +0x54 hook families; the 73 dead-0x54910 tables; the
+  +0x4c/+0x1c 0x23a20 recount; everything else unchanged.
+
+- GATES. Docs-only reading PR - no port file touched (PR-138..
+  171, PR-175 precedent): the build state is PR-174's green
+  binary with verify-all rc=0 both ways (56 ok / 10 ok + the
+  same 23 named SKIPs) re-confirmed at that ship. CI truth at
+  this record's time, confirmed: PR-175's run 44520177374 =
+  SUCCESS; PR-174's 44518288398 = SUCCESS (it covered the
+  PR-172+PR-173+PR-174 diffs cumulatively); PR-172's
+  44511410834 and PR-173's 44515534020 = CANCELLED as super-
+  seded by later pushes - no red run exists on this chain.
+  This docs push queues its own run. Added .md lines <= 79
+  cols; over-79 baselines UNCHANGED (NEXT_STEPS 71, HANDOFF
+  72); no game data or frames in git (parsers/census scripts
+  under /tmp/opencode/pr176/); .github/workflows/* untouched;
+  the image is unchanged.
+
+- EVIDENCE. The exact-chain parsers (/tmp/opencode/pr176/
+  factory_chain.py and factory_chain2.py - class-name literal
+  + `call 0x76a69` within a few lines + the match branch's
+  block, per the 0x1fef4 exemplar); the name-region dump
+  (name_strings.py - every printable string 0x90700-0x91400
+  with its VA, which produced the stage/registration map in
+  F3); the signal-chain extractor (signal_chain.py - the ten
+  legs with their global-word addresses and ordinals) and
+  the jump-table read (0x504b0's 12 entries); the slot/
+  identity census (twelve_slots.py - every named table's
+  +0x14/+0x54/+0x60/+0x78/+0x8c/+0x9c/+0xac row); the raw
+  CAMEL-region hex dump (camel_dump.py - the 0x98278 format
+  anomaly and the 0x98e7c record-class row); verbatim reads
+  0x504e0-0x5071b, 0x551f0-0x55228, 0x23e00, 0x1fef4-0x1ff25
+  (the exemplar), 0x240d0-0x2413d (the A_DEAD record+object
+  create pair). Ledger: records re-spliced from HEAD (census:
+  HEAD carries PR-150..PR-175, 26 records, last carrier); 3
+  brackets (PR-175 F6 identity CLOSED; PR-175's camel bracket
+  UPDATED; PR-173's item-(4) camel text UPDATED again).
 
 ## Deferred big items (deliberately out of scope so far)
 
