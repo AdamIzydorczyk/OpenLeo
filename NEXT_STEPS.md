@@ -21908,6 +21908,103 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   brackets (PR-175 F6 identity CLOSED; PR-175's camel bracket
   UPDATED; PR-173's item-(4) camel text UPDATED again).
 
+## OWNER (2026-11-19) — THE NAME: open-leo. REPO, PROJECT AND
+## SHIPPED STRINGS, DOCS AND CI IN ONE PASS (no engine semantics
+## change; the commit carrying it is df97096, not a PR step)
+
+- Owner ask, 2026-11-19: one spelling, `open-leo`, everywhere, the
+  project name included. GitHub repo renamed
+  AdamIzydorczyk/OpenLeo -> AdamIzydorczyk/open-leo (public as
+  before); `origin` and the `.git/config` LFS endpoint repointed
+  (`access=basic` preserved); `git ls-remote` verified on the new
+  URL. Note for future sessions: the GHCR image path follows the
+  repo name lower-case, so `.github/ci/Dockerfile`-adjacent files
+  pin `ghcr.io/adamizydorczyk/open-leo-ci` as a literal in TWO
+  places (a job-level `container:` cannot be computed by an
+  expression) - rename it in both if the repo ever moves.
+- The token: 23 `OpenLeo` occurrences -> `open-leo` across README,
+  NEXT_STEPS, PORT_DEEP_DIVE, VERIFICATION, the two review docs,
+  and the SHIPPED strings the owner approved: the --version banner
+  (ported/main.c), resources/app.manifest (`open-leo.LewLeon`)
+  and resources/ll_cutscene.rc CompanyName/ProductName, and
+  tools/package.py's package headers.
+- Files renamed with git mv: OpenLeo_native_port_review.md ->
+  open-leo_native_port_review.md and OpenLeo_porting_tips.md ->
+  open-leo_porting_tips.md; every cross-reference and both repo
+  URLs were rewritten in the same pass, so no doc points at a
+  name that no longer exists.
+- NOT renamed, deliberately and stated: the lowercase RUNTIME
+  identifiers - the data-dir search path in ported/main.c
+  ($XDG_DATA_HOME/openleo, ~/.local/share/openleo,
+  /usr/share/openleo) and `openleo.ini`. Those are on-disk
+  contracts with existing installs, not naming; they need a
+  migration decision (and a test), not a sed. OWNER DECISION OPEN.
+- Gates: `windres` (vendored llvm-mingw) recompiles the edited
+  .rc - 3904 B; app.manifest parses as XML and reports the new
+  assemblyIdentity; `gcc -fsyntax-only -Wall -Wextra` over
+  ported/main.c = zero warnings; no test asserts any renamed
+  string (no `OpenLeo` token exists in Makefile or tools/).
+
+
+## OWNER (2026-11-19) — LINUX-FIRST GATE AND MEASURED SUITE SPEED
+## (no port code, no behaviour change; the Windows legs are DEFERRED,
+## not deleted; the Makefile/docs half is in df97096, the CI file half
+## is held back by the missing workflow scope - see that commit)
+
+- Two owner rulings, 2026-11-19, both recorded as HANDOFF section 2
+  rule 8 (with pointers from rule 4, the section 3 command block
+  and the section 10 checklist), plus the deferred list below and
+  the README test list: (1) implementation is Linux-first, the
+  Windows target is verified ONCE at the end of implementation;
+  (2) the day-to-day gate runs in parallel.
+- First per-leg measurement of the whole suite (fixtures staged,
+  every leg timed): 307 s total, and `verify-win` alone is 164.8 s
+  = 53.7 %. It is not wine machinery and not the compiler - a wine
+  start measures 0.1 s, the .exe decode of 1020 frames 0.1 s, and
+  the C decoder does the same 1020 frames in ~0 s - it is
+  real-time-paced demo/menu/level playback repeated per assertion.
+- Makefile: `verify-all` = the 22 Linux legs; `verify-windows` =
+  verify-win + verify-mod; `verify-all-windows` = both. Verified in
+  make's own database: the default omits both, and
+  `make -k verify-all WINTEST=1` expands to the old 24-leg list
+  byte for byte. No leg body was edited, nothing was deleted.
+- Measured after the change: day-to-day gate EXIT=0 (64
+  ok/byte-exact lines) 159.1 s serial; fixture-free EXIT=0 in
+  2.7 s. Parallel: -j22 40.4 s, repeated 29.5 s, -j4 (models a
+  runner) 37.6 s - 93 verdicts in EVERY mode and the normalised
+  verdict SETS identical across serial/parallel. The single diff
+  under load is a wall-clock duration printed inside a PASSING
+  music-pump line (its peak=12706 assertion unchanged), so gate
+  on rc + `(ok)` counts, which is what this project already does.
+- The Windows pass stays SERIAL: verify-win and verify-mod both
+  drive wine against one WINEPREFIX. It also now states its
+  staging requirement: verify-mod produced ZERO verdicts locally
+  (0.2 s) because the three MOD records are not pulled out of the
+  SOUND container; section 3 carries the
+  `tools/pull_record.py CONTAINER KEY OUTFILE` loop.
+- Observed honestly: one run of the OLD full gate failed at
+  Makefile:139 (the wine `--skip-at 10` half of verify-win) after
+  the same leg had passed ~25 min earlier in isolation. It is the
+  suite's most expensive and wall-clock-paced leg; deferring it is
+  also a flakiness win, and that is stated in rule 8.
+- CI: `ci.yml` = linux + asan only, suite step
+  `make -k -j"$(nproc)" verify-all`; the cross build, the mingw
+  SDL2 provisioning and the .exe artifacts moved verbatim into
+  `ci-windows.yml` (workflow_dispatch, or push a windows-gate-*
+  tag). Toolchain installs are gone from both Linux jobs: they run
+  in the pre-baked image from `.github/ci/Dockerfile` (built by
+  `ci-image.yml`; base ubuntu:26.04 = the release today's runners
+  resolve against, so cmake/mingw/gcc versions match past green
+  runs). Measured old cost: 4m07s and 149 MB of archives per run,
+  81 % of the then-critical job. msys2 gets cache:true.
+  BOOTSTRAP: dispatch ci-image.yml ONCE before the new ci.yml runs
+  - the container pull fails until the image exists.
+- Gates: the three workflow files parse (yaml.safe_load); target
+  lists verified by `make -pn`; `make -k -j"$(nproc)" verify-all`
+  EXIT=0 with fixtures AND fixture-free; added lines <= 79
+  columns; nothing under ported/ changed, so no frame can move.
+
+
 ## Deferred big items (deliberately out of scope so far)
 
 - **WINDOWS TESTING DEFERRED** (owner ruling, 2026-11-19 - full text in
