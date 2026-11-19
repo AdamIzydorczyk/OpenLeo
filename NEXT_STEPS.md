@@ -15722,53 +15722,48 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- THE BIT-54 BRIDGE IS THE READING PR NOW (PR-154). PR-153
-  narrowed the K_GEN1 gap to one exact question: WHO WRITES
-  BIT 54 (or the row-55 stamp) INTO THE RIGHT OBJECT - the
-  chain up to the type-5 hand-off node is byte-verified and
-  its receiver effects are named (latch, stamp, hit pipeline),
-  but no static path raises the bit. In priority order:
-  (a) THE STAMP OBJECT'S CLASS TABLE: 0x443b0 stores 0x98278
-  at [obj+8]; the same table neighborhood (0x98274) is ref-
-  erenced from ZARIA-era lion code (0x1e3d4, 0x1e9d0, 0x1efb0
-  in the 0x1e952 enqueue's own method!) - read the table's
-  slots (its head 0x23e30/0x23ed0/0x23ea0/0x23e00), resolve
-  the 0x98274-vs-0x98278 off-by-4 (slot-shifted table or two
-  tables - and this IS PR-150's counted 0x98274 gap, now on
-  the hand-off path); the stamped fields ([t+0x5c]=55, [t+
-  0x6c]=count) live in a row-cursor/live-set field map - the
-  class answers what they mean. (b) THE FOUR DYNAMIC-edx EN-
-  QUEUE SITES: 0x1ef22, 0x330a7, 0x4bcd7, 0x4bd13 - read the
-  20 bytes before each call and name the type fields; if any
-  can pass 9, the bit-54 arm is reachable. (c) THE KIND-OB-
-  JECT TABLES ds:0xcf0ac/ds:0xcf0b4: find the builders (the
-  0x56600 guard reads the count; no writes matched the obvious
-  greps - try the singleton-init region near 0x5c8xx/0x5bf10)
-  and read what kind-9 / kind-0x31 OBJECTS are (0x3f0f0, the
-  ladder's +0x18, consumes one - geometry/flags over [obj+
-  0xa5]/[obj+0xb1], NOT bit-54). (d) THE WAIT-NODE GETTERS
-  (0xa11c8 slots - PR-126 item 3 finish): do `WAIT K_GEN1`
-  rows contribute keys or consume them; this decides the
-  `1,0,WAIT K_GEN1` gate AND the row-gate law at once. THEN
-  the WAIT row-gate CODE pass (field 2 is now verified as the
-  gate word AT record+0x4 - model the gate and the +0x104/
-  +0x108 hand-off together; the port already stores the field
-  - PR-100's law + PR-153 F1 give the whole engine law), the
-  y-force/0xcf400 path, then the small studies and the stand-
-  ing PR-150/152 items ([obj+0x160] machine 0x41a40; 0x4aa60;
-  [[companion+8]+0xe0]; the companion runtime identity; the
-  rectangle format; the LINA-family table; the flag feature).
-- THE kind-4 CODE PASS stays DEFERRED to an ENA/SADES/TUNGA-
-  era controller (PR-151); the y-override and the 20-vs-10
-  scale questions return with it.
-- METHOD NOTE carried forward: entry claims need prologue-
-  byte scans / dword censuses, never the objdump listing's
-  first line (three boundary artifacts caught in one pass:
-  0x1e130, 0x52b50, 0x749a0).
+- THE BIT-54 BRIDGE IS STILL THE READING PR (PR-155). PR-154
+  closed the stamp hypothesis (the 0x38c object is a two-dword
+  RECORD list, its 0x98278 class has no receiver - the row-55
+  stamp is bookkeeping, NOT a signal write) and the dynamic-
+  enqueue hypothesis (no site is dynamic; 0x1ef22 is the type-
+  0xc poster at the PLAYER, 0x330a7 a type-5 onto a 0x9d088
+  clone, 0x4bcd7/0x4bd13 broadcast loops whose node +4 slot
+  carries the CALLER POINTER - a second usage of that field).
+  What remains, in order: (a) DIRECT receiver calls with a
+  kind/type 9 - walk every `call DWORD PTR [reg+0x10]` site
+  (the 0x13462/0x1e624/0x1f6b7/0x27201/... list) and read
+  the raw pre-window for edx; the type-9 RECEIVER arm 0x50df4
+  needs one. (b) THE kind-9 OBJECT: read 0x3f0f0's use of its
+  argument ([[0xcef40]+0x38c]... no - the 0x56600 argument,
+  ds:0xcf0ac[9]) - which fields of the ladder ([obj+0xa5]/+
+  0xb1 geometry) does it set, and could the SAME kind-object
+  shape reach a lion's live set; and the runtime writer of ds:
+  0xcf0ac/0xcf0b4 (base-relative store: try the 0x567xx family
+  and the placement init 0x4abxx/0x4d4xx with computed +0x24/
+  +0x0c offsets). (c) THE REMAINING LIVE-SET WRITERS: the two
+  mask windows PR-144 left (0x28bc7, 0x50ab7) - the last un-
+  read bit-ORs into any [obj+0x60]. (d) The 0x9d088/0x9d080
+  family (which class is cloned at 0x330a7, and does its own
+  +0x10 arm raise bits?). THEN the WAIT row-gate CODE pass -
+  the engine law is now COMPLETE (PR-100 thresholds + PR-153
+  tick order + PR-154 F6 chain-composing getters): parse the
+  field-2 gate, feed it, and the A_WALK pose law falls out -
+  ship with test + mutations. Then the y-force/0xcf400 path
+  and the standing items (0x4aa60, [[companion+8]+0xe0], the
+  companion identity, the 0x41a40 machine, [obj+0xc6]/+0xf6,
+  the rectangle format, the LINA-family table, the flag fea-
+  ture).
+- THE kind-4 CODE pass stays DEFERRED to an ENA/SADES/TUNGA-
+  era controller (PR-151).
+- METHOD NOTE carried forward (PR-154 exercised it four more
+  times): entry/slot claims need raw-byte windows - 0x56600
+  (0x56602), the 0xa11xx node vtables (bases 0xa11c0/0xa11d8,
+  NOT 0xa11c8/0xa11e0), 0x1ef07's edx just outside a 40-byte
+  window, and the 0x443b0 slot stride.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f and
   the TRASA pair as leads).
-
 
 ## PR-152 — THE COMPANION HAND-OFF IS AN AUTHORED, GATED
 ## FEATURE: A PER-CLASS +0x104 ROW WINDOW (ZARIA: ROW
@@ -16067,7 +16062,9 @@ no port behaviour change)
   N-field +0x11; ROW records are the 72-byte structures above.
   GEN/Wait sub-nodes: the parser branch comparing the token
   against literals 0x91985 'GEN' / 0x91989 'Wait' allocates
-  21-byte nodes with vtable 0xa11e0/0xa11c8 at +0x4, copies
+  21-byte nodes with vtable 0xa11e0/0xa11c8 at +0x4 [CORRECTED
+  by PR-154 F6: the table BASES are 0xa11c0/0xa11d8 - the
+  pair printed here is another boundary artifact], copies
   the 12-byte parsed payload to +0x8, zeroes the kind byte at
   +0xc, and REGISTERS the node by name through 0x47d60 ->
   0x57d30 over the descriptor root 0x961fc (token grammar
@@ -16093,7 +16090,10 @@ no port behaviour change)
   PR-152's caution re-confirmed), payload = [self+0x6d] (the
   facing sign - the writers store 0xffffffff/1 at 0x324a1 etc.
   - the receiver dereferences payloads as objects, an open
-  contradiction, item 4), aux 0. PR-152 open item 1 CLOSED:
+  contradiction, item 4 [ANSWERED IN PART by PR-154 F5(ii):
+  the type-5 enqueue at 0x330a7 posts exactly this payload
+  shape from a freshly-cloned object - [self+0x6d] IS used
+  as an object pointer there], aux 0. PR-152 open item 1 CLOSED:
   the drainer, the receiver ownership and the type are known;
   WHICH object's queue (the companion) stays the runtime
   question (item 5).
@@ -16246,15 +16246,23 @@ no port behaviour change)
   /0x443b0, stores POINTER 0x98278 at +0x8 - PR-150's 0x98274
   gap family) and the meaning of [t+0x5c]=55 / [t+0x6c]=count.
   (2) The four dynamic-edx enqueue sites - can they post
-  type 9? (3) Runtime builders of ds:0xcf0ac/ds:0xcf0b4 (the
+  type 9? [CLOSED by PR-154 F5: none is dynamic - 0x1ef22 is
+  a STATIC type-0xc post at the PLAYER, 0x330a7 a type-5 at
+  a 0x9d088 clone, 0x4bcd7/0x4bd13 broadcast loops carrying
+  the caller pointer in the +4 slot] (3) Runtime builders of
+  ds:0xcf0ac/ds:0xcf0b4 (the
   kind-object table; what kind 9 / kind 0x31 objects ARE).
   (4) The type-5 arm dereferences payload+8 as a class table
   while the hand-off sends the ±1 facing sign - which pay-
   loads are objects? (5) The companion identity at runtime
   (still the key-registry question). (6) WAIT-node (0xa11c8)
   getter semantics - do gated rows contribute keys (PR-126
-  item 3, half-closed)? (7) Who posts a TYPE-0xc queue node
-  (the live armer of [obj+0x12a]) - no static site found.
+  item 3, half-CLOSED by PR-154 F6: the node getters
+  delegate to the node's own child and COMPOSE the authored
+  row key; childless nodes answer EMPTY.) (7) Who posts a TYPE-0xc queue node
+  (the live armer of [obj+0x12a]) - no static site found
+  [FOUND by PR-154 F5(i): 0x1ef22, method 0x1eee0, onto the
+  player singleton].
   (8) The [obj+0x160] mode machine 0x41a40 (second +0x100
   site, carried), 0x4aa60, [[companion+8]+0xe0], and which
   states reach rows 7-8 in ZARIA.01 play (port rig can).
@@ -16291,7 +16299,8 @@ no port behaviour change)
   alloc/copy grammar), 0x535a0 (enter/exit slot calls), the
   whole walk of 0x52000, 0x47e40 head (cs-table 0x47e30), 0x46ae1..
   0x46b36 + 0x47cb0 (GEN/Wait node builders, literals 0x919
-  85/0x91989, vtables 0xa11e0/0xa11c8 - raw bytes dumped),
+  85/0x91989, vtables 0xa11e0/0xa11c8 [bases 0xa11c0/0xa11d8
+  per PR-154 F6] - raw bytes dumped),
   0x47d60 + 0x57d30 head (register-into-key-registry, token
   format 0x919bc, 'TEventSet::match' error string 0x919d0,
   signal-name table 0x91a00+), 0x52b00-0x52bc0 raw (enqueue,
@@ -16314,6 +16323,223 @@ no port behaviour change)
   0x52cc0/0x56600 caller lists; 0x91f0b 'none'. Authored:
   mov/ZARIA.01_DRABINKA_DRAB.MOV + ZARIA.01_LINA_LINA.MOV
   read WHOLE (zero GEN tokens - the full-script negative).
+
+## PR-154 — THE BIT-54 BRIDGE, PASS 1: THE STAMP OBJECT IS A
+## PLACEMENT-LIST OBJECT, NOT A SIGNAL OBJECT (ITS CLASS 0x98278
+## IS AN 8-BYTE TWO-DWORD RECORD; THE 0x44900 STAMP IS DEMO/
+## COUNTDOWN BOOKKEEPING) - THE "ROW-55 STAMP" BRIDGE HYPOTH-
+## ESIS IS CLOSED NEGATIVE; THE KIND-9 HIT-PIPELINE CENSUS IS
+## COMPLETE (EXACTLY TWO kind-9 SITES, BOTH HAND-OFF ARMS) AND
+## THE kind OBJECT IS THE ONLY UNEXPLORED FUNCTIONAL ARM OF A
+## HAND-OFF; THE KIND TABLES ARE RUNTIME-ONLY (BSS, NEVER
+## STATICALLY WRITTEN); THE "4 DYNAMIC-edx ENQUEUE SITES" ARE
+## ALL CORRECTED - ONE IS THE STATIC TYPE-0xC POSTER AT THE
+## PLAYER, AND A FIFTH ENQUEUE POSTS TYPE 5 ONTO A FRESH
+## COPY-CLASS OBJECT; NODE KEY GETTERS CHAIN (PR-126 ITEM 3
+## CLOSED - AUTHORED ROWS COMPOSE THEIR KEY THROUGH THE CHAIN)
+(READING RECORD - NO CODE CHANGE; PR-138..153 PRECEDENT)
+
+- WHY. PR-153's Next named the exact open question - who
+  writes bit 54 (or the row-55 stamp) into the right object -
+  and the four candidate threads (a)-(d). This pass pulls all
+  four and closes two of them plus one PR-153 open item. Im-
+  age unchanged (text.bin sha256 edf19a129e85efb8764457a0808
+  e246ca4baf08a9111aa09be4ec99ce6b8c40e).
+
+- FINDING 1, THE STAMP OBJECT IS A LIST, NOT A SIGNAL OBJECT.
+  The class at 0x98278 (stored by ctor 0x443b0 at [t+0x14]
+  and every +0x20,+0x2c,... up to [t+0x83] - a 10-item array
+  of {0, class, 0} twelve-byte slots inside the 0x8c-byte ob-
+  ject): its slots are +0x10 = 0x23ed0 (a FREE-path receiver:
+  bit 2 of the flags -> free a shared EMPTY STRING whose des-
+  ctor block is the TLewZaria table tail at 0x96854..0x96858,
+  length 0; bit 1 -> 0x5c370 free-self), +0x14 = 0x23ea0 (a
+  two-dword COPY: [dst]=[src], [dst+4]=[src+4], no vtable
+  write), +0x18 = 0x23e00, +0x24 = 0x23e30 (a vector tail-
+  trim over [obj+0x4]/+0x8/+0xc). So 0x98278 is the class of
+  a TWO-DWORD RECORD with a plain copy verb - demo/counter
+  record shape, not a lion. The 0x443b0 ctor never stores a
+  class PAIR at [t+0x8]/[t+0xc] - those stay 0 (the factory
+  0x4d612 alloc-then-construct stores no vtable either) - so
+  the [[0xcef40]+0x38c] singleton is NOT a classed lion-style
+  object. CONSEQUENCE: the PR-153 bridge reading "or the row-
+  55 stamp" is CLOSED NEGATIVE - 0x44900's [t+0x5c]=55 and
+  [t+0x6c]=count land in a list object with no receiver slot;
+  the bit-54 question must be answered by a live-SET writer,
+  not by a stamp. The builder block sits in the main-.des key
+  chain AFTER the 'lew' compare (the compare method 0x76d20 at
+  0x4d06f, literal 'lew' 0x91e59) and inside the 'demolist'
+  region (literal 0x91e82 at 0x4d157); the 0x8c build at
+  0x4d60d is guarded by a registry search whose query is the
+  literal 'none' (0x4d5d6 -> 0x57c60, then 0x57dd0 with capa-
+  city 0x42) - exact key attribution stays open (item 6).
+
+- FINDING 2, THE kind-9 HIT-PIPELINE CENSUS IS COMPLETE. The
+  14 sites of 0x52cc0, kind (edx) read raw-bytes-correct: 9 =
+  EXACTLY TWO, 0x1e185 (ZARIA's receiver type-5 arm, PR-153)
+  and 0x274b1 (the sibling 0x27470, PR-153); then 2 (0x2475a,
+  0x247aa), 1 (0x24807), 0x31 (the 0x27470 pair), 0x18
+  (0x33ee7), and the dynamic ones: [esi+0x8] (0x374a9), [ecx+
+  0xee] (0x3e54a), [esi+0xf6] (0x3e727), [ebx+0x4c] (0x3f77e,
+  PR-152's correction stands), [ebx+0x16] and [ebx+0x8]
+  (0x45aed/0x45b10); 0x373f0/0x3dc5f unread (item 7). 0x56600
+  (entry 0x56602 per its raw head - PR-153 already noted the
+  boundary): if kind < ds:0xcf0b4, kind-object = ds:0xcf0ac
+  [kind*4], then call [[self+8]+0x18](self, kind-obj). Only
+  the LADDER table runs real code at +0x18 (0x3f0f0); every
+  lion table is the bare-ret 0x23c60. So the kind-9 hit path
+  exists ONLY for hand-off receivers, and its only functional
+  arm is the kind-object passed into the companion's +0x18.
+
+- FINDING 3, THE KIND TABLES ARE RUNTIME-ONLY. ds:0xcf0ac
+  (array) and ds:0xcf0b4 (count) sit in the all-zero BSS
+  block 0xcf090..0xcf0d0; an image-wide disp32 census finds
+  EXACTLY two references (0x56604, 0x5660e - both inside
+  0x56600), and an immediate-reference census over
+  0xcf080..0xcf0e0 finds no builder either (only 0x567xx/
+  0x60ea4 reads neighbours; 0x1cbb2 touches 0xcf084). Kind
+  objects are created at runtime through a base-relative store
+  not yet located (item 2). This does NOT close the path - it
+  says the census cannot: a runtime kind table can hold a
+  kind-9 object in play. THE DECIDING LEAD MOVES TO: which
+  objects carry a non-bare-ret +0x18 (the ladder-table family
+  among level-placed objects) and who builds the kind table.
+
+- FINDING 4, A FOURTH 0x44900 CALL SITE INSIDE LION BASE CODE.
+  0x50720 (raw-decoded; entry): pushes the object, edx=[obj+
+  0x102] the PR-89 hit COUNTDOWN, decrements in place; calls
+  [[cls]+0x?] 0x50290 with edx=1; tests bit 4 of a caller's
+  stack byte (test byte [ecx],0x10; setne); if set and [obj+
+  0xc6] <= [obj+0xf6] then `or byte [ecx],0x40` (bit 6 - the
+  0x40 shape again); divides [obj+0xc2] by 3; calls 0x54860;
+  then 0x44900([[ds:0xcef40]+0x38c], edx=[obj+0x102]). The
+  stamp therefore lives in the hit-countdown machinery of the
+  lion base family too - consistent with Finding 1: a book-
+  keeping sink, not a signal write. Method identity and the
+  +0xc6/+0xf6 pair: item 7.
+
+- FINDING 5, THE "4 DYNAMIC-edx ENQUEUE SITES" - ALL FOUR
+  CORRECTED, PLUS A NEW TYPE-5 SITE. Raw-byte windows fix the
+  40-byte scan PR-153 used: (i) 0x1ef22 is NOT dynamic - `mov
+  edx,0xc` sits at 0x1ef07 (just outside the old window): a
+  STATIC TYPE-0xc enqueue, guard [self+0x128] != 0, target =
+  [[ds:0xcef40]+0x394] THE PLAYER, payload = [ds:0xcef40],
+  aux 0, and [self+0x28]=1 is set first. THE OPEN PR-153 ITEM
+  (7) "who posts a type-0xc node" IS ANSWERED - ZARIA's own
+  controller method 0x1eee0 (which starts by calling 0x1edb0
+  and tests the message node's +4 == 2) posts it, and the
+  ZARIA-arm effect ([obj+0x12a]=1, PR-153 F3) is the PR-151
+  transition-redirector armer - the whole named chain closes.
+  (ii) 0x330a7: `mov edx,0x5` at 0x3308f - a TYPE-5 enqueue
+  onto a FRESHLY CONSTRUCTED object: alloc 0xf6 at 0x3304d,
+  copy from [[self+0xee]+0xee] via 0x54030, class pair
+  0x9d088/0x9d080 installed at +0x8/+0xc, fields +0xb1/+0xf2
+  copied - the sender is the controller and the payload is
+  [self+0x6d] (a POINTER per PR-153 F2, resolving that open
+  item); which era class 0x9d088 is stays (item 3). (iii)
+  0x4bcd7 and (iv) 0x4bd13 are the SAME list-broadcast loop
+  (method at 0x4bc40, entry raw-decoded: it walks [[level+
+  0x44] .. [level+0x44]+[level+0x58]] with the [x+0x34] next
+  chain and an optional [[x+8]+0xc] filter) enqueuing to every
+  member; edx = edi = the caller's OWN object pointer, so the
+  node's +4 "type" slot carries a POINTER at these sites - a
+  second, pointer-valued usage of the message-node +4 field
+  (item 3). THE TRULY-DYNAMIC-EDx SET IS NOW EMPTY; the bit-9
+  RECEIVER arm (0x50df4) still has NO static feeder - the
+  search continues at the DIRECT receiver-call sites (`call
+  DWORD PTR [reg+0x10]` with edx=9).
+
+- FINDING 6, NODE KEY GETTERS CHAIN - PR-126 ITEM 3 CLOSED.
+  The node-class vtables sit at 0xa11c0 (0x47c00, 0x46cf0,
+  0x457e0, 0x45970, 0x45870, 0x458e0) and 0xa11d8 (0x47cb0,
+  0x46c70, 0x457e0, 0x45800, 0x458e0, 0x47c00) - the 0x98278
+  boundary-artifact trap again (PR-153 said 0xa11c8/0xa11e0;
+  the two bases are 0xa11c0 and 0xa11d8 and their slots over-
+  lap). The getters at 0x457e0/0x45800 delegate to the NODE'S
+  OWN child: `mov ebx,[node+0]; if (ebx) call
+  [[ebx+4]+4](node, out)` - the chain walk PR-101 described;
+  0x45970 copies the 12-byte key from node+8 (the authored
+  payload), 0x45870 chains the child's +0xc getter and ORs
+  (0x49580 grammar at 0x458d3..); a childless node returns
+  the EMPTY set (0x749a0-fill at 0x4589c). So authored GEN
+  and WAIT row nodes DO compose their key through the chain
+  into the row key - the row-gate/WAIT question is fully a
+  CODE question now, with the engine law in hand (PR-100 +
+  PR-153 F5 + this).
+
+- FINDING 7, THE STATIC METHOD-PROTOTYPE VECTORS 0x98230..
+  0x98274.
+  0x98274's real role (the off-by-4 that PR-150 counted as a
+  gap and PR-153 carried): it is the END BOUND of a static
+  vector of 17 method pointers (0x23b40, 0x23b50, 0x23b60,
+  ..., 0x23c60, 0x553b0, 0x553e0, 0x555a0, 0x531b0, 0x55530,
+  0x55690) - not a class-table candidate at all. Five sites
+  (0x1e3d3, 0x1e9d0, 0x1ebxx, 0x1ee71, 0x1efaf - all ZARIA-
+  controller methods) borrow it into a stack block and call
+  0x4a050 (a vector tail-trim: end = end - edx with the same
+  half-split arithmetic as 0x23e30) with edx = 0x14 / 0x23 -
+  the same utility the LADDER ctor uses at 0x3f182; 13 call
+  sites image-wide. The constructed block is then passed to
+  class getters +0x68/+0x70/+0x4c (the player getters). Se-
+  mantics counted open (item 4).
+
+- OPEN ITEMS COUNTED (7 new). (1) The semantics of the 0x38c
+  list object's [t+0x5c]=55 / [t+0x6c]=count pair and its
+  null class pair. (2) The runtime builder of the kind tables
+  ds:0xcf0ac/0xcf0b4. (3) The node-node +4 "type"-vs-pointer
+  duality and the era of class pair 0x9d088/0x9d080 (the
+  0x330a7 clone). (4) The static method-prototype vectors and
+  the 13 0x4a050 sites. (5) The two unread 0x52cc0 sites
+  (0x373f0, 0x3dc5f). (6) The exact main-.des key (demolist
+  or other) behind the 0x38c build, the 'none' query, and the
+  0x42 capacity. (7) The 0x50720 method identity and the
+  [obj+0xc6]/[obj+0xf6] pair. Carried from PR-153 and still
+  open: 0x4aa60, [[companion+8]+0xe0], the companion runtime
+  identity, the 0x41a40 machine. CLOSED or NARROWED: PR-153
+  item 2 (the 4 dynamic sites - none dynamic), item 7 (the
+  type-0xc poster - FOUND), item 4 half (the payload pointer
+  question - [self+0x6d] is a payload POINTER at a real hand-
+  off-shaped site); PR-126 item 3 CLOSED; PR-150's counted
+  "0x98274 gap" DISSOLVES (vector end-bound); PR-153's bridge
+  alternative "the row-55 stamp" CLOSED NEGATIVE (Finding 1).
+  The bit-54 bridge ITSELF: still open, now narrowed to the
+  kind-9 kind-object into the companion's +0x18, direct re-
+  ceiver calls with edx=9, and the remaining live-set writers
+  (0x28bc7, 0x50ab7 mask windows).
+
+- GATES. Docs-only (PR-138..153 precedent): no ported/, Make-
+  file, tools/ or .gitignore line touched; no build run. Every
+  added prose line <= 79 columns; the over-79 baselines UN-
+  CHANGED (NEXT_STEPS 71, HANDOFF 72); no game data or frames
+  in git (scratch /tmp/opencode/pr154/); .github/workflows/*
+  untouched; the image unchanged (text.bin sha256 above). The
+  boundary-artifact method rule was exercised again and again:
+  0x56600, the 0xa11xx vtable bases, the 0x1ef07 edx, and the
+  ctor 0x443b0 slot stride all needed raw-byte windows; no en-
+  try claim in this record comes from a listing's first line.
+
+- EVIDENCE. Raw-byte objdump windows: 0x1eee0..0x1ef27 (the
+  type-0xc enqueue, edx at 0x1ef07), 0x33040..0x330ac (the
+  0x9d088 clone + type-5), 0x4bc00..0x4bd18 (the broadcast
+  loop, entry 0x4bc40, edx=edi), 0x506a0..0x507a0 (0x50720
+  and its 0x44900 call), 0x56600 head (0x56602), 0x443a0..
+  0x443f5 (the ctor stride), 0x23e30/0x23ea0/0x23ed0/0x23e00
+  in full, 0x457e0/0x45800/0x45870/0x45970/0x46cf0 (node
+  getters), 0x4a050 whole, 0x5c8b7/0x5bf10 (kind-table hunt),
+  0x4d000..0x4d16x + 0x4d5d6..0x4d646 (the key-chain region:
+  'lew' 0x91e59, 'demolist' 0x91e82, 'none' 0x91f0b, the
+  0x42-capacity search, the 0x8c alloc, the +0x38c store).
+  Censuses: the 14-site 0x52cc0 kind table (reproduced above);
+  the 22-site 0x4bc40 caller list with last-edx reads; the
+  disp32/immediate censuses for 0xcf090..0xcf0e0 (two refs,
+  zero writers); dword refs of 0x98274 (none - immediate-only,
+  5 sites) vs 0x98278 (the ctor stores); the +0x10/+0x14/+0x18
+  /+0x24 slot census of TLewEna/TLewSades/base pair/lion2/
+  ladder/TLewZaria-sub confirming 0x98278 is unique in the
+  image; BSS dump 0xcf090..0xcf0d0 (all zero); string lits
+  0x91e4a ' %s', 0x91e59 'lew', 0x91e82 'demolist', 0x91e8b
+  ' %s', 0x91f0b 'none', and the empty string at 0x96854/
+  0x96858.
 
 ## Deferred big items (deliberately out of scope so far)
 

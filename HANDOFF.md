@@ -2795,11 +2795,93 @@ writer as its open items.
      So nothing static raises bit 54 on the ladder; the bridge
      candidates are named (PR-154 Next: the 0x98274/0x98278
      class table, the dynamic-enqueue sites, the ds:0xcf0ac
-     kind-table builders, the WAIT-node getters). 8 new open
+     kind-table builders, the WAIT-node getters) [PR-154 OUT-
+     COME: the 0x98278 lead is FALSE (an unclassed two-dword-
+     record list object; 0x98274 is a vector END-bound), the
+     dynamic sites are all static, the kind tables are runtime-
+     only BSS, the WAIT getters chain and COMPOSE keys - the
+     PR-154 bullet below carries the details]. 8 new open
      items counted. Gates: docs-only; every added line <= 79;
      baselines unchanged (NEXT_STEPS 71, HANDOFF 72); no game
      data in git; image unchanged. Full record: the PR-153
      section of NEXT_STEPS.md (scratch /tmp/opencode/pr153/).
+   - PR-154 (READING, no code, no new test - the PR-138..153
+     precedent): THE BIT-54 BRIDGE, PASS 1 - TWO BRIDGE HYPO-
+     THESES CLOSED NEGATIVE AND THREE PR-153 OPEN ITEMS CLOSED.
+     WHY: PR-153 narrowed the K_GEN1 gap to "who writes bit 54
+     (or the row-55 stamp) into the right object" and named
+     threads (a)-(d). F1 THE STAMP IS BOOKKEEPING, NOT A SIG-
+     NAL: the 0x98278 "class table" thread was a false lead -
+     0x98278 is the class of an 8-byte TWO-DWORD RECORD (its
+     +0x10 = a free-path receiver (bit2 frees the EMPTY STRING
+     at 0x96854/0x96858, in the TLewZaria table tail; bit1 =
+     0x5c370 free-self), +0x14 = a plain two-dword copy, +0x18
+     = 0x23e00), and the 0x8c singleton [[0xcef40]+0x38c] is a
+     LIST OBJECT (ctor 0x443b0 stamps {0,0x98278,0} 12-byte
+     slots from [t+0x14] to [t+0x83] and NEVER writes a class
+     pair at +0x8/+0xc) built in the main-.des key chain after
+     the 'lew' compare (0x4d06f/0x91e59) in the 'demolist' re-
+     gion (0x91e82), guarded by a registry search for the li-
+     teral 'none' (0x4d5d6) with capacity 0x42; 0x98274 itself
+     is just the END BOUND of a static 17-pointer method-pro-
+     totype vector (0x98230..0x98274) borrowed+trimmed by 0x4a050
+     (a vector tail-trim, 13 sites) at 5 ZARIA-controller sites
+     - so PR-150's counted "0x98274 gap" DISSOLVES and the
+     "row-55 stamp" bridge alternative is CLOSED (the stamped
+     fields [t+0x5c]=55/[t+0x6c]=count live in an unclassed
+     list; a 4TH 0x44900 site, inside the lion-base hit method
+     0x50720 (hit countdown [obj+0x102] decrement + bit-0x40/
+     0x40 tests + [obj+0xc2]/3 + 0x54860), confirms it as a
+     bookkeeping sink). F2 THE kind-9 CENSUS IS COMPLETE: of
+     the 14 0x52cc0 sites the kind is EXACTLY 9 at TWO - both
+     hand-off receiver arms (0x1e185, 0x274b1); others 1/2/
+     0x31/0x18/static-field reads; so the ONLY functional arm
+     of a hand-off's hit path is the kind-object passed into
+     the companion's +0x18 (bare-ret in all lion tables; 0x3f0f0
+     in the ladder's). F3 THE KIND TABLES ARE RUNTIME-ONLY:
+     ds:0xcf0ac/0xcf0b4 are BSS zeros with EXACTLY two ref-
+     erences image-wide (0x56604/0x5660e inside 0x56600, entry
+     0x56602) and no builder among static references - the
+     census cannot decide kind-9; a runtime table can. F4/F5
+     THE ENQUEUE CENSUS CORRECTED: all 4 "dynamic-edx" sites
+     re-read at raw width - 0x1ef22 is STATIC edx=0xc (set at
+     0x1ef07, outside PR-153's 40-byte window): a type-0xc
+     node onto THE PLAYER ([[0xcef40]+0x394]) guarded by [self+
+     0x128], payload [ds:0xcef40] - PR-153 item 7 CLOSED, the
+     [obj+0x12a] armer now has a named static poster (method
+     0x1eee0, which tests the received node's +4 == 2 first);
+     0x330a7 edx=5 onto a freshly-CLONED object (alloc 0xf6,
+     class pair 0x9d088/0x9d080, field copies via 0x54030) - a
+     second type-5 hand-off-shaped site with the [self+0x6d]
+     POINTER payload (PR-153 item 4 half-resolved); 0x4bcd7/
+     0x4bd13 are one list-broadcast loop (method 0x4bc40, walks
+     [level+0x44]+0x58 lists with the +0x34 chain and a +0xc
+     filter) whose node +4 slot carries the CALLER POINTER - a
+     pointer-valued second usage of the "type" field (counted).
+     The truly-dynamic set is EMPTY and the bit-54 receiver arm
+     still has no static feeder. F6 NODE GETTERS CHAIN - PR-126
+     item 3 CLOSED: the node vtable BASES are 0xa11c0/0xa11d8
+     (the PR-153 0xa11c8/0xa11e0 pair is a boundary artifact
+     again); the key getters 0x457e0/0x45800 delegate to the
+     node's own child ([[child+4]+4]), 0x45970 copies the 12-
+     byte authored payload at node+8, 0x45870 chains +0xc and
+     ORs - childless nodes answer EMPTY, so authored GEN and
+     WAIT rows compose their key through the chain and the row
+     gate is now purely a CODE question. 7 new open items count-
+     ed (the list object's +0x5c/+0x6c semantics; the runtime
+     kind-table writer; the +4 type-vs-pointer duality and the
+     0x9d088 family; the prototype vectors; the 2 unread 0x52cc0
+     sites; the exact key behind the 0x38c build; the 0x50720
+     identity + [obj+0xc6]/+0xf6). PR-155 Next: direct receiver
+     calls with edx=9 (the +0x10 call-site walk), the kind-9
+     object's fields in 0x3f0f0 + the kind-table writer, the
+     last two live-set mask windows (0x28bc7/0x50ab7), the
+     0x9d088 family - then the WAIT row-gate CODE pass (the
+     engine law is now COMPLETE). Gates: docs-only; every added
+     line <= 79; baselines unchanged (NEXT_STEPS 71, HANDOFF
+     72); no game data in git; image unchanged. Full record:
+     the PR-154 section of NEXT_STEPS.md (scratch /tmp/opencode/
+     pr154/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
