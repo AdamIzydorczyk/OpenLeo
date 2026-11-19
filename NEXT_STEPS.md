@@ -15733,53 +15733,53 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-160'S FIRST READ: THE ROW-WALK VERB BODY AND THE ENTRY-
-  KIND DECISION (PR-159 item 1). The walk loop head sits at
-  0x522c1-ish inside a method invoked as [[rec-class]+0x18];
-  locate the record-class vtable by scanning for dwords equal
-  to that method's head (the +0x44-class pattern from PR-150
-  F1: records carry their class at +0x44 - and the ladder
-  records' class tables were already named in PR-156/157 work,
-  e.g. the 0x97cdc family). DECIDE: does the verb iterate the
-  SAME 0x15-stride transition entries (then the +0x10 thresh-
-  old read contradicts the +0xd/+0x11 out-slots and PR-139's
-  entry map needs a carve-out) or a separate row-line array
-  (then find where it hangs off the record - and PR-101's
-  "threshold = authored row field 2" gets its mechanism).
-  While there: the [[owner]+8]+0xa0] call at 0x52317 whose
-  result is dropped - find the base-class body and check the
-  PR-159 F4 candidate "its side effect computes [entry+0x10]"
-  (item 2's near side).
-- THEN the [rec+0xc] authoring chain (PR-159 item 2): the
-  .MOV/state-block DIRECTIVE parser is the 0x51910 family and
-  it reads the AUTHORED TEXT (control=, seq=, time_scale are
-  plain-text directives - 'seq NAME' in a state block is the
-  sequence registration the PR-157 item 3 question hunted;
-  the pool itself is still the encrypted main data). Trace
-  what lands in record +0x8/+0xa WORDs (a `time=` pair is the
-  obvious candidate given AC_TIME's step-gate reading) and
-  what 0x76bcc computes; then re-check 0x47e40 against an
-  EMPTY entry key (item 3: does a WAIT entry re-match every
-  step, making [rec+0xc] an effective step-timer - which
-  would make the port's AC_TIME approximation replaceable by
-  the real law).
-- THEN the named follow-ups (carried): the +0x84/+0x88 re-
-  cord-fetch verbs; 0x9c05c/0x9c054 identity and the clone
-  law's owner (0x30083's caller, the [[cls]+0x4] copy verb);
-  0x509aa/0x61279 contexts and the hand-off +0x114 verb; the
-  0x524xx/0x525xx family; 0x446de; 0x57d30 modes; the 0x49a10
-  consumption semantics; the FLAG-branch +0x4c getter (PR-158
-  item 3). THE LADDER-GATE fi-vs-state DECISION stays data-
-  blocked (pure param-token mapping now - PR-159 F3/F1 closed
-  every numeric/base question): do NOT touch the port's fi
-  gate before the ANI2 token map or the 'seq' pool decode.
-- LEDGER RULE (PR-158 F1): every Next-swap must re-splice the
-  recent record sections from the LAST revision that carried
-  them. Audit recipe: `git log --format=%H main --
-  NEXT_STEPS.md`, then `git show <rev>:NEXT_STEPS.md |
-  grep -c '^## PR-1'` per revision - HEAD may already have
-  lost records (PR-150/151 had; this pass's census confirms
-  HEAD 9c29656 carries all nine).
+- PR-161'S FIRST READ: THE ROW-LINE PARSER (PR-160 item 1).
+  The 0x52640 driver loops a state block and dispatches:
+  directive lines go to 0x51910; plain `N,T,...` row lines
+  must go elsewhere - find that path (the 0x518a1-0x51bd
+  field-copy + [entry+0x4]=0xa2638 store sits inside the
+  builder that fills [rec+0x2e]; trace its callers upward
+  from 0x518xx/0x516xx and 0x51e92/0x51eb0). WHILE THERE:
+  settle PR-160 item 2 - which walk arm reaches
+  [rec-struct+0x18]=0x520c0 vs the [entry-cls+0x18] call
+  (0xa2638's +0x18 is metadata=3, so plain-row entries must
+  carry a richer class - find it in the builder). THIS is
+  also where the row line's CONDITION/transition tail is
+  compiled: it decides whether a WAIT-style entry key is
+  EMPTY (always re-matches => [obj+0x9d] counts passes =>
+  time=N is an effective step-timer - PR-159 item-3 sub-
+  question CLOSED there), and it shows how the authored
+  `( N )` targets land in transition nodes +0xd/+0x11 next
+  to threshold +0x10 (the 21-byte layout reconciliation,
+  PR-159 item 1-part).
+- THEN the AC_TIME CODE pass is now FULLY SPECCED (PR-160
+  F3): on state ENTER roll rand(min,max) from the authored
+  time= pair (the port already parses time= per PR-69's
+  grammar); count same-state transition matches; raise
+  LL_SIG_AC_TIME when count >= roll; no time= line = never.
+  The port's "end of frame list" approximation becomes
+  replaceable with the exact law - ZARIA.01 has ZERO time=
+  lines so output cannot change; the ENA-era corpus shows
+  time=10,20/30,60/50,100/5,15 and the single-value time=
+  350 form (check the port parser's no-comma case; engine
+  behavior for a missing max = small open item). Ship it as
+  a CODE PR with hand-derived tests + mutation battery.
+- THEN the named follow-ups (carried): the derived ENTER
+  overrides (0x4fef0); +0x84 non-null families (which
+  classes DO fetch named records); 0x9c05c identity + the
+  clone owner (0x30083's caller) + 0x509aa/0x61279 + the
+  hand-off +0x114 verb; the 0x524xx/0x525xx family rest;
+  0x446de; 0x57d30 modes; the 0x49a10 consumption semantics;
+  FLAG-branch +0x4c getter; ds:0xcef40+0x388 vs per-record
+  time_scale. THE LADDER-GATE fi-vs-state DECISION stays
+  data-blocked on the param-token map - do NOT touch the
+  port's fi gate.
+- LEDGER RULE (PR-158 F1): every Next-swap re-splices the
+  recent records from the LAST revision that carried them.
+  Census recipe: `git log --format=%H main -- NEXT_STEPS.md`
+  then `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`
+  per revision. This pass's census: HEAD carries all ten
+  (PR-150..PR-159); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -18157,7 +18157,13 @@ FULL BUILD GATES RUN ANYWAY; PR-138..157 PRECEDENT)
   [obj+0xa1]) - the cursor is NEVER consulted. CONSEQUENCES:
   (i) PR-158 item 2 and its F4 question CLOSE: no row-
   advancement writer exists; the cursor is a pure SET-POSITION
-  register. (ii) The cursor's BASE is the authored base: the
+  register [REFINED BY PR-160 F4: the cursor is what the row-
+  walk INDEXES - rows live in a pointer vector at [[rec]+0x2e]
+  and the verb reads entry = [[rec+0x2e array][cursor]] (0x522
+  21-0x52229); an incrementer for the cursor is still NOT
+  found (the entry/helper verbs are the candidates) so the
+  writer law above stands unchanged].
+  (ii) The cursor's BASE is the authored base: the
   only non-zero writer copies the authored (N) VERBATIM
   (0x52046 -> 0x53616), the authored (N) is 1-based (PR-86),
   and 0 is exactly the init value ("before any authored row",
@@ -18182,7 +18188,11 @@ FULL BUILD GATES RUN ANYWAY; PR-138..157 PRECEDENT)
   law; cross-checked against ll_play.h). The counter is zeroed
   on a STATE CHANGE (0x535c2, the different-state arm before
   its ENTER verb) and at construction (0x538c3) and by a list-
-  parent path (0x52077, part of F4's 0x52072 function). So
+  parent path (0x52077, part of F4's 0x52072 function)
+  [RE-TERMS BY PR-160 F3: 0x52072 IS the ENTER verb body
+  (record-class slot +0x1c, base stub 0x52360 -> 0x52070/
+  0x52072); [self+0] is the record's OWNER back-pointer -
+  the "list-parent" zero is the STATE-ENTRY zero]. So
   the engine's AC_TIME is NOT a timer: it counts SELF-TRANS-
   ITION MATCHES since state entry against a per-state record
   word. The port's PR-69 approximation ("end of the frame
@@ -18200,7 +18210,17 @@ FULL BUILD GATES RUN ANYWAY; PR-138..157 PRECEDENT)
   (item 2); a WAIT-style always-matching entry would make
   this "fire N steps after state entry" - the candidate read-
   ing, unproven until the entry-key semantics are re-checked
-  (item 3).
+  (item 3). [CLOSED BY PR-160 F2/F3: the parser at 0x51910
+  (a record-class verb, +0x38) handles the directive 'time':
+  '%hi' at [rec+0x8], ',%hi' at [rec+0xa] - the authored
+  time=min,max pair IS the bound pair; 0x76bcc is the classic
+  Borland rand() LCG (x*0x41c64e6d+0x3039, output (x>>16)&
+  0x7fff) so ENTER rolls a RANDOM threshold in [min,max]; a
+  state with no time= line keeps the gate word 0 and never
+  self-raises (ZARIA.01 authors ZERO time= lines - every leg
+  stands). The exact "does a WAIT entry re-match every pass"
+  half stays open - it is decided by the unread row-line par-
+  ser (PR-160 item 1).]
 
 - FINDING 3, THE rows[] BINDING HELPER - THE STATE-INDEX
   SPACE IS PROVEN 1-BASED. The row-builder loop PR-157 F1
@@ -18211,7 +18231,15 @@ FULL BUILD GATES RUN ANYWAY; PR-138..157 PRECEDENT)
   to a different call site, not this loop) and calls the
   helper 0x53480, which (a) gets the record via class verb
   +0x84, falling back to class verb +0x88 when that returns
-  null (0x5348d-0x534b1), (b) computes the STORE INDEX via
+  null (0x5348d-0x534b1) [DECODED BY PR-160 F1: +0x84 is the
+  NULL stub 0x23a90 for the base AND the LADDER families -
+  ZARIA-era records are BUILT FRESH, not name-fetched; +0x88
+  is the per-class record FACTORY: base 0x55360 = 0x60-byte
+  alloc + ctor 0x524d0 (stores the record-class table 0xa25d4
+  at [rec+0x44]); LADDER-family 0x534c0 = 0x48-byte alloc +
+  ctor 0x51770 (inits: owner back-pointer, cursor 0, time_-
+  scale DEFAULT 0x3e8=1000, control flags 0, sample 0)], (b)
+  computes the STORE INDEX via
   0x53440 - a scan of the object's OWN authored parameter-
   entry list ([obj+0x3c], count at +0x8, entries stride 8,
   name compare via 0x76a69) that INCREMENTS the position
@@ -18247,7 +18275,14 @@ FULL BUILD GATES RUN ANYWAY; PR-138..157 PRECEDENT)
   back-pointer) - the candidate reading is that this call's
   SIDE EFFECT computes [entry+0x10] (the same lerp-style pat-
   tern as F2's [rec+0xc] computation); unproven until the
-  +0xa0 body is found.
+  +0xa0 body is found. [RESOLVED BY PR-160 F4: the object
+  base-class slot +0xa0 IS 0x543a0 - the frame-advance MODE
+  DISPATCHER (the 0x54380 switch that feeds position deltas
+  into [obj+0xa1], PR-100/101's mechanism now NAMED): the
+  walk runs it per row visit and discards the result because
+  its SIDE EFFECT is the accumulator feed. The "computes
+  [entry+0x10]" candidate is REJECTED - [entry+0x10] is the
+  authored row threshold per PR-101's data law.]
 
 - FINDING 5, THE [obj+0x9d] CONSUMER CENSUS + THE HAND-OFF
   CHAIN REFINED. The text.asm census gives 11 code sites (21
@@ -18276,11 +18311,19 @@ FULL BUILD GATES RUN ANYWAY; PR-138..157 PRECEDENT)
   entry-layout census). (2) The [rec+0xc] authoring chain: the
   +0x8/+0xa WORD sources (a `time=` pair? `time_scale`?) and
   0x76bcc's function, plus the base-class body of the
-  [[obj]+8]+0xa0] pre-scale. (3) Whether a WAIT-style entry
+  [[obj]+8]+0xa0] pre-scale. [ALL CLOSED BY PR-160: time= di-
+  rective writes the pair; 0x76bcc = rand() LCG; +0xa0 = the
+  0x543a0 mode dispatcher.] (3) Whether a WAIT-style entry
   key re-matches every step (would make [rec+0xc] an effective
-  step-timer) - re-check 0x47e40 against empty keys. (4) The
+  step-timer) - re-check 0x47e40 against empty keys. [THE
+  THRESHOLD SEMANTICS ARE SETTLED (random match-count in the
+  authored range, PR-160 F3); the re-match question itself
+  CARRIES to the row-line parser - PR-160 item 1.] (4) The
   record-fetch verbs +0x84/+0x88 bodies (registry vs authored
-  record creation). (5) 0x9c05c/0x9c054's class IDENTITY and
+  record creation). [NARROWED BY PR-160 F1b: factories + NULL
+  stub decodes for base/LADDER; which families implement a
+  NON-NULL +0x84 named fetch stays open.] (5) 0x9c05c/0x9c054's
+  class IDENTITY and
   the full clone law (0x30083's caller, the [[cls]+0x4] copy
   verb); plus 0x509aa's and 0x61279's contexts and the
   hand-off's +0x114 verb. NARROWED: PR-158 item 1 (the gate
@@ -18328,6 +18371,225 @@ FULL BUILD GATES RUN ANYWAY; PR-138..157 PRECEDENT)
   vision census before surgery (HEAD 9c29656 carries all nine
   PR-150..158 records - last carrier is HEAD; records re-
   spliced from it).
+
+## PR-160 — THE STATE-BLOCK DIRECTIVE PARSER IS DECODED END TO
+## END (0x51910 = a record-class verb; time= feeds the AC_TIME
+## gate bounds; seq registers a block into the global pool; s
+## inserts a NAMED-SEQUENCE ROW; control= enumerates 21 flags)
+## AND WITH IT THE ENTIRE AC_TIME LAW CLOSES: ENTER ROLLS A
+## RANDOM WORD BETWEEN THE AUTHORED time=min,max PAIRS VIA THE
+## BORLAND LCG (0x76bcc), AND THE PR-159 MATCH-COUNTER GATES
+## ON THAT ROLL; THE RECORD CLASS STRUCTURES DECODE (base
+## 0xa25d4; the LADDER family at its own object-class table
+## blob), THE ROW MODEL IS rows[[rec+0x2e]] INDEXED BY THE
+## ROW CURSOR, THE [[rec]+8+0xa0] PRE-SCALE IS THE FRAME-
+## ADVANCE MODE DISPATCHER THAT FEEDS THE [obj+0xa1] ACCUMU-
+## LATOR (PR-100/101's mechanism, now named), AND THE RE-
+## CORD+0xc GATE WORD'S ZEROER IS THE ENTER VERB ITSELF
+(READING; no code, no new test - the PR-138..159 precedent;
+the PR-159 items (2)/(3)/(4) CLOSE; a row-line-parser gap is
+counted instead)
+
+- WHY. PR-159's Next set two first reads: the row-walk verb
+  body and the [rec+0xc] authoring chain. Both opened the
+  same door - the record-class method tables - and behind it
+  sat the whole authored-text directive layer PR-157 had
+  hunted: the engine's parser reads the .MOV/state-block
+  DIRECTIVES as plain text, 'seq NAME' is the sequence reg-
+  istration mechanism, and time=min,max is verbatim the
+  AC_TIME threshold pair.
+
+- FINDING 1, THE RECORD-CLASS STRUCTURES AND THE RECORD
+  FACTORIES. (a) State records carry their method-table
+  POINTER at [rec+0x44]; the constant stores census (exact-
+  pattern grep): the BASE record-class = 0xa25d4 (written at
+  0x524cf, 0x52508) and a derived family at 0x97c9c (0x1e119,
+  0x23115 - the TLewZaria-era region). (b) Records are made
+  by the OBJECT-class verb +0x88 (PR-159 F3's fallback):
+  base 0x55360 = 0x60-byte alloc + ctor 0x524d0 (which ends
+  [rec+0x44]=0xa25d4); the LADDER class's +0x88 = 0x534c0 =
+  0x48-byte alloc + ctor 0x51770. The +0x84 named-fetch verb
+  is the NULL stub 0x23a90 for BOTH families - so ZARIA-era
+  records are constructed fresh per object, never fetched
+  from a name pool at binding time. (c) The LADDER record-
+  class store at 0x97c9c lies INSIDE the LADDER object-class
+  table blob (PR-156's pair at 0x97cdc): the walk verb 0x521f0
+  appears at 0x97ca8, which is record-view +0x0c/+0x18-de-
+  pending slots - the two views sit at a constant positional
+  offset (+0x40) in that blob. Observed; the compile-time
+  mechanism is not claimed. (d) Record ctor init (0x51770):
+  [rec+0x0]=owner, [rec+0x4]=0 (row cursor), [rec+0xe]=
+  0x3e8=1000 - the time_scale DEFAULT in a per-mille style
+  (1000 = 1x) - [rec+0x12]=0 (control flags), [rec+0x16]=0
+  (sample). (e) The base ctor region also holds 0x52500:
+  copies WORDs +0x48..+0x5c FROM AN AUTHORED PARAM ENTRY
+  (ebx=param entry; the F/T/G header fields of PR-79's map)
+  INTO the record - PR-157 F7's "field-copy block whose 5c->
+  58 copy contradicts [obj+0x58]=count" is this param-entry
+  copy - the contradiction was only a mis-typed target; no
+  object-copy is involved.
+
+- FINDING 2, THE STATE-BLOCK DIRECTIVE PARSER - 0x51910, a
+  record-class verb at +0x38 (called from a driver at
+  0x52640), line-oriented: 0x76d20 compares the line head
+  against directive names, then custom scanf 0x49920/0x498f0
+  or tokenizer 0x57d30 reads the values. Full decode:
+  time= -> '%hi' at [rec+0x8], ',%hi' at [rec+0xa] - the
+  authored time=min,max pair IS the AC_TIME bound pair (the
+  corpus shows time=10,20 / time=30,60 / time=50,100 / a
+  single-value time=350 form too - the no-comma case's effect
+  on +0xa is a small open item);
+  sample= -> [rec+0x16]; time_scale= -> [rec+0xe];
+  seq NAME -> REGISTERS the current block into the global
+  pool ds:0xceff8 via the [[ds:0xcef40]+0x398] singleton's
+  +0x4 verb (result parked at ds:0xceff4) - THE sequence
+  registration mechanism PR-157 asked for;
+  s NAME,N -> LOOKS UP the name in the same pool, allocates
+  a 0x18-byte ROW ENTRY (ctor 0x515e0: +0x8=0, +0xc=0,
+  +0x10=1 threshold default, +0x14=0, class 0xa2638; a 0x3e8
+  argument to the ctor), and APPENDS it to the rows vector at
+  [rec+0x2e] - named-sequence rows;
+  control= -> the FULL flag enumeration (21 names, exact
+  strings): BY_X BY_Y BY_TIME BY_TX BY_TY FRAME_REV SEQ_REV_X
+  SEQ_REV_Y CHECK_ZW CHECK_ANI CHECK_LN CHECK_ALL CHECK_LEW
+  CHECK_BASE_LN SOLID CH_DIR INV_V DANGER CHECK_ALL_PLANE
+  ANTI_SOLID SOLID2 SEMI_SOLID ANTI_POCISK; the error path
+  prints "Bledny control %s w pliku %s." ("Wrong control %s
+  in file %s") - the parser carries the authored FILE NAME.
+  ZARIA's extracted .MOV texts contain NO seq=/s= lines -
+  their rows must come from the plain row lines; that parser
+  is the counted gap (item 1).
+
+- FINDING 3, THE AC_TIME LAW NOW FULLY CLOSED (joining PR-159
+  F2): ENTER (record-class +0x1c; base 0x52360 -> 0x52070/
+  0x52072) zeroes the owner's step counter [obj+0x9d] - the
+  PR-159 "list-parent zeroer 0x52077" IS the ENTER body,
+  [self+0] is the owner back-pointer - and computes
+  [rec+0xc] = min + (max-min) * r / 32767 with r from
+  0x76bcc = the classic Borland-C rand() LCG (state x*
+  0x41c64e6d + 0x3039, output (x>>16)&0x7fff): A RANDOM
+  ROLL IN THE AUTHORED RANGE AT STATE ENTRY. The PR-159 gate
+  (WORD <= self-transition match count -> live-set AC_TIME)
+  therefore means: after a random number of same-state trans-
+  ition matches in [min,max], AC_TIME raises - and a state
+  with NO time= line keeps [rec+0xc]=0 (ctor leaves it) so
+  the gate NEVER raises it. ZARIA.01: zero time= lines in any
+  ZARIA.01 authored text -> AC_TIME never self-raises there
+  -> every ZARIA.01 leg unchanged; the port's PR-69 approxi-
+  mation stays harmless but is now REPLACEABLE by the real
+  law (Next: a candidate CODE pass - the port already parses
+  time= per its PR-69 grammar). (Sub-question kept: the LAD-
+  DER-family record ENTER override 0x4fef0 - does it roll too
+  or deliberately not.)
+
+- FINDING 4, THE ROW MODEL AND THE WALK VERB (0x521f0-0x35c,
+  record-class +0x0c/+0x44; the helper at +0x18 is 0x520c0).
+  (a) A state record's ROWS live in a vector at [rec+0x2e]
+  whose entries are POINTERS indexed by the ROW CURSOR
+  [rec+0x4] (0x52221-0x52229) - the cursor PR-159 called a
+  "pure SET-position register" is actually the row-array in-
+  dex the walk consumes; who increments it is still not proven
+  (the entry/helper verbs are the candidates) so the PR-159
+  writer law holds but its "never touches the cursor" phras-
+  ing is refined here. (b) Row entries: [entry+0x0]=payload,
+  [entry+0x4]=class; the base entry-class 0xa2638 is a WRAP-
+  PER (verbs 0x55820/0x457e0/0x45800/0x45870/0x458e0 forward
+  into the payload object whose own class is 0xa1000) -
+  composition: row entries wrap sequence records (the s NAME
+  lookup gives exactly those). (c) The walk: entry key via
+  [entry-cls+0x8]; a keyed path copies the caller's 13B key,
+  copies the object's live set (12B+1B, the 0x53520 shape),
+  merges (0x49580) and tests the entry key with 0x47e40 - NO
+  match ends the walk; the other path runs the per-row gate:
+  the walk calls [[owner]+8]+0xa0] - WHICH IS 0x543A0, THE
+  FRAME-ADVANCE MODE DISPATCHER (the 0x54380 switch feeding
+  position deltas into [obj+0xa1] - PR-100's mechanism now
+  NAMED; its result is discarded because its SIDE EFFECT is
+  the accumulator feed, closing PR-159 F4's candidate) - then
+  reads the threshold WORD/DWORD [entry+0x10] (the authored
+  row field-2 per PR-101's data law - now structurally sup-
+  ported) and holds the row while threshold >= [obj+0xa1]
+  (no store - PR-100/101 re-verified), else pays the debt
+  (acc -= threshold) and re-enters. After any entry verb:
+  [[owner]+8]+0xa4] and [owner+0x95]=1 (PR-142's latch note,
+  exact); the helper 0x520c0 calls [entry-cls+0x4](entry,
+  rec) and re-sets [obj+0xa1] (0x52112-0x52118 = PR-100's
+  "accumulator is set at 0x52118" ✓). (d) The transition-entry
+  layout (0x15 stride at [rec+0x1a]) and the row-entry field
+  (+0x10 threshold vs +0x10 inside the key region of a 21-B
+  transition node) STILL do not reconcile if both read the
+  same array; since [rec+0x1a] and [rec+0x2e] are DISTINCT
+  fields, the honest reading stands: two node kinds, and the
+  plain-row builder (who fills [rec+0x2e] from `x,T,...`
+  lines; the 0x518a1-0x51bd field-copy + [entry+0x4]=0xa2638
+  store belongs to which parser) is unread - item (1), with
+  the walk's exact arm-attribution as item (2).
+
+- FINDING 5, THE RECORD LAYOUT, FINAL FOR NOW: +0x00 owner
+  back-pointer; +0x04 ROW CURSOR (indexes [rec+0x2e]); +0x08/
+  +0x0a authored time min/max WORDs; +0x0c the rolled gate
+  WORD (ENTER); +0x0e time_scale (ctor 1000); +0x12 control-
+  flag BYTE (bit4 tested at 0x52158); +0x15 bit 0x8 = face-
+  flip-on-transition (PR-108 CORROBORATED verbatim); +0x16
+  sample=; +0x1a transition LIST (ptr @+0x1a, count @+0x22,
+  0x15-stride nodes); +0x2e rows DATA POINTER (the array of
+  entry pointers; size at +0x36, capacity end at +0x3a - the
+  vector-growth reads at 0x51ac9-0x51ad9), +0x44
+  record-class pointer; header channels +0x48..+0x5c (F/T/G
+  per PR-79's map - filled from the param entry per Find-
+  ing 1e).
+
+- OPEN ITEMS COUNTED (3 new + 2 narrowed). (1) THE ROW-LINE
+  PARSER: the builder that turns authored `N,T,...` lines in-
+  to rows[] entries (the 0x518a1 copy block's owner; the
+  0x52640 driver's line dispatch). (2) The walk verb's exact
+  arm-attribution: which arm (keyed vs gate) reaches the
+  [rec-struct+0x18]=0x520c0 helper vs the [entry-cls+0x18]
+  call (0xa2638's +0x18 is metadata=3 - so plain rows must
+  carry a richer class, or the arms map opposite to my first
+  reading; honest gap). (3) The derived ENTER override 0x4fe f0
+  body; the single-value time= parse case; ds:0xcef40+0x388
+  vs per-record time_scale relation. NARROWED: PR-159 item 4
+  (+0x88 = per-class factory; +0x84 = NULL stub for the two
+  families read - other families' +0x84 still unenumerated);
+  PR-159's "never touches the cursor" phrasing refined by
+  Finding 4a. CLOSED here: PR-159 items (2) [authoring chain:
+  time= directive + rand roll at ENTER] and (3) [the gate word's
+  semantics - random match-count threshold]; PR-157 F1's
+  "consumed as it binds" pool question gets its mechanism
+  (seq/s via 0xceff8) even though ZARIA's rows are plain;
+  PR-159 F4's pre-scale question (it is the mode dispatcher,
+  not a threshold writer); PR-159 item (2) fully (the author-
+  ing chain - time= directive + rand roll at ENTER) and the
+  gate-word half of item (3) (its semantics: a random match-
+  count threshold - while the "does a WAIT entry re-match
+  every pass" sub-question stays open). CARRIED unchanged:
+  PR-159's item-(3) sub-question, item (5), the ladder-gate
+  param-token blocker, and
+  the older named ones.
+
+- GATES. No code or port change (reading PR; no ll_level.c
+  touch) - docs-only per the PR-138..157/159 precedent, build
+  gates not required (nothing compiled differs). Every added
+  prose line <= 79 cols; over-79 baselines UNCHANGED (NEXT_-
+  STEPS 71, HANDOFF 72); no game data or frames in git
+  (scratch /tmp/opencode/pr160/); .github/workflows/* un-
+  touched; the image unchanged (text.bin sha256 edf19a12...).
+
+- EVIDENCE. Raw windows: 0x51910-0x51ea5 (the whole directive
+  parser, every cmp/FMT string resolved from the image); the
+  directive/format string table reads at 0x92119-0x92156;
+  0x521f0-0x5235c and 0x520c0-0x52118 (walk + helper, verba-
+  tim); 0x517e0/0x518a1-0x51bd/0x515e0-0x5161a (entry copy/
+  ctor); 0x524d0-0x52534 and 0x55360-0x5537d, 0x534c0
+  (factories); 0x51770-0x517c0 (record init); 0x76bcc-0x76be
+  f (the LCG constants verbatim); table reads: 0xa25d4, 0x97
+  c60/0x97c9c blob, 0xa2638, 0xa1000, 0xa2218+0xa0->0x543a0;
+  the +0x44-class census (2+2+2 exact stores); the .MOV cor-
+  pus greps (ZARIA.01 time= count = 0; ENA-era time= exam-
+  ples quoted); the entry-class +0x4 forwarder reads 0x457e0
+  ff. Ledger rule applied: census first - HEAD carries PR-15
+  0..159 (last carrier HEAD), records re-spliced from it.
 
 ## Deferred big items (deliberately out of scope so far)
 

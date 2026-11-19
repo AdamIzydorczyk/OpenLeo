@@ -3189,7 +3189,12 @@ writer as its open items.
      0x52072 as an interpolation of WORDs +0x8/+0xa (authoring
      source = open; a WAIT-style always-matching entry would
      make it an effective step-timer - the port's PR-69 frame-
-     list approximation was directionally right). BINDING
+     list approximation was directionally right) [CLOSED by
+     PR-160: word = a RANDOM roll in the authored time=min,
+     max pair, taken at ENTER (0x76bcc = Borland rand LCG);
+     no time= line => never raises - and ZARIA.01 authors no
+     time= at all, so no leg moves; the exact law is now re-
+     placeable port-side, specced in Next]. BINDING
      HELPER 0x53480: record via class verb +0x84 (fallback
      +0x88), store index via 0x53440 = name scan of the ob-
      ject's own [obj+0x3c] param-entry list, INC BEFORE com-
@@ -3221,6 +3226,63 @@ writer as its open items.
      .md lines <= 79; baselines UNCHANGED (71/72); image un-
      changed. Full record: the PR-159 section of NEXT_STEPS.
      md (scratch /tmp/opencode/pr159/).
+   - PR-160 (READING, no code, no new test - the PR-138..159
+     precedent): THE STATE-BLOCK DIRECTIVE PARSER DECODED END
+     TO END - 0x51910, a record-class verb (+0x38; driver
+     0x52640): time= writes the authored min/max WORDs at
+     [rec+0x8]/+0xa ('%hi', ',%hi'); sample= -> [rec+0x16];
+     time_scale= -> [rec+0xe]; 'seq NAME' REGISTERS the block
+     into the global pool ds:0xceff8 (via the [[ds:0xcef40]+
+     0x398] singleton's +0x4 verb - PR-157's seq-registration
+     mechanism FOUND); 's NAME,N' looks a name up in that
+     pool and appends a 0x18-byte row entry (ctor 0x515e0,
+     class 0xa2638 - a WRAPPER forwarding to the payload's
+     0xa1000 class) to the rows vector at [rec+0x2e];
+     control= enumerates 21 flags (BY_X..ANTI_POCISK, exact
+     strings) with a Polish error naming the source FILE.
+     AC_TIME FULLY CLOSES: ENTER (record-class +0x1c, base
+     0x52360 -> 0x52072) zeroes the owner's [obj+0x9d] AND
+     rolls [rec+0xc] = min+(max-min)*rand()/32767 where
+     0x76bcc is the Borland LCG rand (0x41c64e6d/0x3039/>>16
+     &0x7fff) - a random match-count threshold per state
+     entry; no time= line => gate 0 => never raises. ZARIA.01
+     authored texts have ZERO time= lines (ENA-era ones show
+     time=10,20/30,60/50,100 and a single-value time=350
+     form) - every ZARIA.01 leg unchanged; the port's PR-69
+     approximation is now replaceable by the exact law (Next:
+     CODE pass fully specced). RECORD MODEL: [rec+0x44] =
+     record-class table (base 0xa25d4; LADDER family 0x97c9c
+     inside the LADDER object-table blob, +0x40 view offset);
+     factories = object-class +0x88 (base 0x55360 alloc+ctor
+     0x524d0; LADDER 0x534c0 alloc 0x48 + ctor 0x51770, ctor
+     init: owner back-pointer, cursor 0, time_scale DEFAULT
+     1000 = 1x, flags/sample 0); +0x84 = NULL stub for both
+     families (records built fresh, not name-fetched). The
+     base ctor region's 0x52500 copies the F/T/G header from
+     the PARAM ENTRY (PR-157 F7's "contradictory copy block"
+     resolved). ROWS MODEL: [[rec+0x2e]+[rec+4]*4] indexed by
+     the ROW CURSOR (PR-159's "pure set-position register"
+     refined); walk 0x521f0 = keyed-merge/0x47e40 gate OR
+     per-row threshold gate [entry+0x10] vs [obj+0xa1] (for-
+     mer PR-100/101 re-verified, hold-keeps-debt); the
+     dropped-result [[owner]+8+0xa0] call is 0x543a0 = the
+     frame-advance mode dispatcher feeding [obj+0xa1] (PR-100
+     mechanism NAMED; PR-159's "computes [entry+0x10]" candi-
+     date rejected); helper +0x18 = 0x520c0 runs [entry-cls+
+     0x4] and re-sets the accumulator (0x52118 = PR-100's
+     cite ✓); after entries: [[owner]+8+0xa4] + [owner+0x95]
+     = 1 (PR-142's latch ✓). 3 new open items (row-line par-
+     ser for plain rows - the gap PR-157's 'seq' hunt implie-
+     d; walk-arm attribution given 0xa2638's +0x18 metadata;
+     derived ENTER overrides + single-value time= case) + 2
+     narrowed (+0x84/+0x88 partial, cursor-phrasing); CLOSED:
+     PR-159 item 2 fully, item 3 half (semantics; WAIT-key
+     open), F4's pre-scale, PR-157 F1's pool-binding mechan-
+     ism (seq/s). Gates: docs-only, nothing compiled (no ll_
+     level.c touch); added lines <= 79; baselines UNCHANGED
+     (71/72); image unchanged; ledger census run (HEAD = last
+     carrier). Full record: the PR-160 section of NEXT_STEPS.
+     md (scratch /tmp/opencode/pr160/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -5011,7 +5073,11 @@ closes. The transition pipeline itself raises AC_TIME: self-
 transition matches counted in [obj+0x9d] against WORD [state-
 record+0xc] set live-set bit 9 (0x53626-0x5365c) - the port's
 frame-list approximation was directionally right; the exact
-gate waits on the [rec+0xc] authoring decode. The rows[] bind-
+gate waits on the [rec+0xc] authoring decode. [DECODED by
+PR-160 F2/F3: the time= directive pair + a rand() roll at
+ENTER; zero time= lines in ZARIA.01 keep every leg un-
+changed; the exact roll-and-count law is fully specced for
+a CODE pass.] The rows[] bind-
 ing helper (0x53480/0x53440) PROVES the state-index space
 1-based (rows[0]=NULL, init=first param entry): the ladder
 gate's unit reading stands, and the fi-vs-state decision is
@@ -5025,6 +5091,32 @@ ZARIA.01 output: UNCHANGED (comment-only ll_level.c edits;
 full gates pass - 56 with fixtures, 10 + the same 23 SKIPs
 without). 5 new open items counted + 1 narrowed; PR-158 item
 2 and the F4 base question closed.
+
+STATUS after PR-160 (the AC_TIME question fully CLOSED with the
+directive parser decode): the engine's state-block DIRECTIVE
+layer is read end to end - time= is the authored min/max pair
+that ENTER turns into a random AC_TIME match-threshold via the
+Borland rand() LCG; seq= registers a block into the global
+name pool and s= inserts a named-sequence row; control= is
+enumerated verbatim (21 flags) and the parser cites source
+file names. The record model is decoded: class tables (base
+0xa25d4 / LADDER 0x97c9c), per-class record factories via the
++0x88 verb, ctor defaults (time_scale 1000 = 1x), and the
+rows vector indexed BY THE ROW CURSOR - the walk verb, the
+[entry+0x10] threshold gate on the [obj+0xa1] accumulator
+(the pre-scale call is the frame-advance dispatcher that
+FEEDS it - PR-100's mechanism, now named), and the PR-142
+latch writes all sit in named verbs. ZARIA.01: authored texts
+carry zero time= lines, so AC_TIME never self-raises there -
+every ZARIA.01 leg stands; the port's frame-list approxima-
+tion is now replaceable by the exact roll-and-count law (Next
+names the fully-specced CODE pass). Honest gaps counted: the
+row-line parser for plain rows (what fills rows[] from au-
+thored `N,T` lines - the last piece of the row model and the
+decider for the 21-byte layout and the WAIT-key question),
+the walk-arm attribution, and derived ENTER overrides. ZARIA.
+01 output: UNCHANGED (docs-only PR, nothing compiled). PR-159
+items 2/3 close (half of 3), F4 closes; 3 new items counted.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
