@@ -2024,6 +2024,60 @@ writer as its open items.
       cannot test - it is instead quoted against both shipped
       consumers. Full record: the PR-142 section of NEXT_STEPS.md
       (mech_map.txt carries the whole address map).
+
+    - PR-143 READ THE SIGNAL DELIVERY MACHINERY (reading record,
+      no code change: PR-138/141/142 precedent). Signals travel as
+      records: the GLOBAL BROADCASTER 0x4bc40 (world object
+      ds:0xcef40 walks its object lists; ebx = the signal bit
+      index from PR-88's table; ecx = a class magic 0x8138764 or
+      0, filtered via [obj.vt+0xc]()) - ALL 22 call sites resolved
+      and censused: only bits 7 AC_ENEMY x2, 16 AC_ENEMY_ATC x4,
+      18 AC_ONAIR x5, 19 AC_DRECT x3, 25 AC_UP_DUP x7, 26
+      AC_SPOKUJ x1 - NO key bits and NO AC_DRAB/AC_DRAB_CATCH are
+      ever broadcast (a first window pass misgrouped 0x1f468 as
+      bit 12; the resolved census corrects it, stated). Per-object
+      delivery: 0x52b10 appends a 16-byte payload node to the
+      list rooted at [obj+0x10]; the drain 0x52b52 pops each node
+      and calls the CLASS +0x10 ENTRY (0x53770 for this family)
+      per node - queue field and receive slot are a pair; the
+      payload TYPE numbers share the condition index space
+      (0x52bb0's arms 0xe/0xf/0x21: the type-33/AC_KILO arm is a
+      MOVE record adding deltas to x/y). THE EVALUATION TRIGGER IS
+      PINNED: 0x53520 copies [obj+0x60] VERBATIM as the scan's
+      caller key and has exactly ONE caller - inside PR-101's
+      compositor 0x536f0 right after the live-set recompose - so
+      signal raise + transition test are ONE pass (PR-142 open
+      item 3 CLOSED: the key is the live set itself, no merge);
+      0x535a0 IS THE ROW-SWITCH EXECUTOR (fires only when target
+      != [obj+0x5c]: old-record exit [vt+0x20], [obj+0x9d]:=0,
+      [obj+0x95]:=1 - PR-142's latch writer, narrowed -,
+      [obj.vt+0xa4] read, new-record entry [vt+0x1c], store
+      [obj+0x5c]) - the engine's exit/entry/store law. THE
+      ANSWER-CHAIN CALLER IS FOUND: the collision handler 0x50f80
+      calls 0x53ae0 (PR-139's hunted caller), whose entry gate is
+      the object's row flags `test ah,0x4` = 0x4000 = the port's
+      LL_CTRL_CHECK_ANI, skipped when the toucher carries 0x10000
+      (ANTI_SOLID analogue the port already reads); the push arm
+      re-derives PR-133's ported law verbatim (0x40400 gate,
+      kinds 5/13, idiv 5). PR-140 open item 8 is CLOSED for the
+      law half: an object answers a contact only from rows
+      flagged 0x4000, and ZARIA.01's drab/lina rows carry none -
+      PR-140's untouched-column run was consistent. HONEST
+      NEGATIVES: the answer/contact result bits provably flow only
+      to the COLLISION CALLER's buffer (0x51062..0x5107a), never
+      into a live set - and AC_DRAB/AC_DRAB_CATCH are raised by
+      ~40 direct 0x49580 mask merges and state-gated posts whose
+      LION instance is not yet identified (open item 1: the
+      instance hunt, starting from the LION's own class table and
+      the collision output's consumers). 5 new open items counted
+      (drain caller; key-bit posting path - the [vt+0xc](0x13)
+      lead at 0x34a35 -; the LION +0x10 entry; 0x52bb0's other
+      arms; the AC_DRAB instance), and PR-142's items 3/6 plus
+      PR-140's item 8 close or narrow. No mutants (no behaviour
+      changed); the census is enumerated, not sampled, and the
+      misgrouping correction is recorded rather than hidden. Full
+      record: the PR-143 section of NEXT_STEPS.md (sig_map.txt
+      carries the delivery map + full censuses).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -2753,12 +2807,19 @@ writer as its open items.
     signal set at [obj+0x60] (PR-88 right, PR-101's identity-key
     wording superseded) and an authored condition is an AND-
     against-live inside the ordered row scan 0x52000, which IS
-    the port's shipped model (confirmed, no change); what the
-    CLIMB still needs narrows to: the answer-to-live-set routing
-    for AC_DRAB, the runtime K_* feed (K_UP = bit 37), the
-    K_GEN1 poster (its mechanism is found: a signal record at
-    the class +0x10 entry), and the
-    A_WSP feed law (PR-143); SURPRISE
+    the port's shipped model (confirmed, no change); PR-143 then
+    read the DELIVERY: signals ride as records - global broadcasts
+    (censused: never key bits, never AC_DRAB/AC_DRAB_CATCH), per-
+    object queues at [obj+0x10] drained through the +0x10 receive
+    raising bits into [obj+0x60]; the scan's caller key is a
+    VERBATIM live-set copy (0x53520, one call site, right after
+    the recompose), 0x535a0 is the row-switch executor, and the
+    answer chain runs only from rows flagged 0x4000 =
+    LL_CTRL_CHECK_ANI (ZARIA.01 ladder rows: none - the untouched
+    column in PR-140's run is consistent). What the CLIMB still
+    needs: the AC_DRAB post INSTANCE for the lion, the
+    key-bit/K_UP posting path, and the
+    A_WSP feed law (PR-144); SURPRISE
     "?" firing (G-12); and the
     ground SOURCE of the first screens (G-13, PR-136) IS DECIDED IN
     PR-138: the engine's ground records ARE the authored .PLT text,
@@ -3269,13 +3330,25 @@ dispatcher not a lookup, and an authored condition matches by
 condition model (a confirmation, no port change). Signals enter the
 live set through the class +0x10 entry 0x53770 (signal record, bit
 index at its byte +0xc), so K_GEN1's MECHANISM is found and only
-its POSTER is open. What remains for the climb, named: whether the
-ladder answer's packet reaches the lion's live set as a signal
-record (PR-142 open item 3), the runtime feed of the K_* key bits
-(K_UP is bit 37 - that map is PR-88's), the K_GEN1 poster, and the
+its POSTER is open. What remains for the climb, named: the
+AC_DRAB post INSTANCE for the lion (PR-143's honest negative: no
+broadcast posts bits
+10/12, and answer/contact packets provably reach only the
+collision caller's buffer - the ~40 direct bit-12 mask merges have
+no identified lion-destination site yet), the posting path of the
+K_* key bits (K_UP is bit 37 - that map is PR-88's; no broadcast
+posts key bits either), the K_GEN1 poster (its mechanism is
+found: a queued signal record raised through the class +0x10
+entry), and the
 A_WSP feed law (BY_TY `F=0,100 T=160,50` + SEQ_REV_Y, still
-PR-109's open law). Reading order in the PR-142 Next entry;
-nothing was invented for any of it.
+PR-109's open law). CLOSED by PR-143 additionally: the answer-
+chain entry gate (row flags 0x4000 = the port's
+LL_CTRL_CHECK_ANI; ZARIA.01's drab/lina rows carry none, so the
+ladder answering nothing in PR-140's run matches the engine's
+law), the row-switch executor 0x535a0 (exit/entry/index-store),
+and the scan's caller key = a verbatim copy of [obj+0x60]
+evaluated in the same pass as the signal raise. Reading order in
+the PR-143 Next entry; nothing was invented for any of it.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

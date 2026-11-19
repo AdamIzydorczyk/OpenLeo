@@ -13693,57 +13693,295 @@ no port behaviour change)
   class tables (0x9a6e0 family: +0x18/+0x1c0/+0x1f8 = 0x521f0,
   +0x194 = 0x52000).
 
+## PR-143 — THE SIGNAL DELIVERY MACHINERY IS READ: SIGNALS TRAVEL AS
+
+## RECORDS (WHOSE TYPE/INDEX NUMBERS SHARE THE CONDITION INDEX
+
+## SPACE), PUSHED ONTO PER-OBJECT QUEUES AND RAISED INTO THE LIVE
+
+## SET AT [obj+0x60]; THE TRANSITION SCAN IS CALLED WITH A VERBATIM
+
+## COPY OF THE LIVE SET RIGHT AFTER THE LIVE SET IS RECOMPOSED; AND
+
+## THE ROW-SWITCH
+
+## EXECUTOR 0x535a0 IS PINNED (READING RECORD - NO CODE CHANGE;
+
+## PR-138/141/142 precedent)
+
+- WHY. PR-142's Next item (a): the evaluator is read, but the
+  climb still hangs on three routing questions - who POSTS the
+  signal records whose receiver 0x53770 PR-142 found, whether the
+  ladder answer's AC_DRAB/AC_DRAB_CATCH packet reaches the lion's
+  live set, and what feeds the K_* key bits. This PR reads the
+  delivery machinery end to end and pins the evaluation trigger and
+  the row-switch executor. No behaviour change; every finding is
+  quoted from the code of the same image (sha256 edf19a12...).
+
+- FINDING 1, THE SIGNAL-RECORD DELIVERY MACHINERY. Three pieces,
+  all read:
+  * THE BROADCAST POSTER 0x4bc40 (22 call sites): called with
+    eax = the global world object ds:0xcef40, ebx = the SIGNAL BIT
+    INDEX (PR-88's table), ecx = a class magic (0x8138764 when the
+    broadcast is class-filtered, 0 = unconditional), edx = 0. It
+    walks the world's object lists ([0xcef40]+0x58 indexed arrays
+    counted at +0x44, 3 list slots, plus the chain at +0x64 with
+    links at +0x34), for each object optionally requires
+    [obj.vt+0xc]() == the magic, then pushes the signal. THE BIT
+    CENSUS AT ALL 22 SITES (the last `mov ebx,imm` before every
+    call; all 22 resolved, none dynamic): bit 7 AC_ENEMY x2
+    (0x1ec46/0x1ec5f), bit 16 AC_ENEMY_ATC x4 (0x247e7 + the
+    three magic-filtered sites 0x2c5e6/0x2c624/0x2c664), bit 18
+    AC_ONAIR x5 (0x1f468, 0x3457c, 0x34a71, 0x34a9a, 0x3a20d),
+    bit 19 AC_DRECT x3 (0x246dd, 0x324f0, 0x34a48), bit 25
+    AC_UP_DUP x7, bit 26 AC_SPOKUJ x1 - NO key bits (35-38/53)
+    and NO AC_DRAB(10)/AC_DRAB_CATCH(12) is ever broadcast.
+    Example, verbatim 0x2c5b0..0x2c5e6: an object method gated on
+    [obj+0x5c]=2 AND global ds:0xcec70==0 posts bit 16 filtered
+    by magic 0x8138764.
+  * THE PER-OBJECT QUEUE: 0x52b10 allocates a 16-byte node
+    (next=0, payload fields at +0x4/+0x8/+0xc) and appends it to
+    the singly-linked list rooted at [obj+0x10] (0x52b13..0x52b3f:
+    walk to the last node, store); the drain 0x52b52..0x52b7d pops
+    each node and calls THE CLASS +0x10 ENTRY per node - the same
+    slot PR-142 mapped to 0x53770 for the object family. So the
+    queue field [obj+0x10] and the receive method slot +0x10 work
+    as a pair. The direct callers of 0x52b10 include the collision
+    push path (0x53b70/0x53b9d push kinds 5 and 13, PR-133's
+    ported push), and other direct receive calls build payloads
+    inline (0x1e931 `call [ebx+0x10]` in the collision family).
+    0x52b52 itself has no direct call site - its caller is
+    reached through a jump-table/far-pair encoding not present as
+    a plain dword (counted, open item 2).
+  * THE PAYLOAD TYPE = A NUMBER FROM THE SAME INDEX SPACE: the
+    else-branch of the receive entry, 0x52bb0, dispatches
+    parameter records on [rec+0x4] with `cmp 0xe / jb, jbe /
+    cmp 0x21, je` - types 14, 15 and 33; the 0x21 arm treats type
+    33 = AC_KILO (PR-88 index 33) as a MOVE record: it adds
+    [rec+0x8]/[rec+0xc] deltas to the object's x/y at [obj+0x0]/
+    [obj+0x4] (0x52bbd..0x52bd7) - i.e. signal-record TYPE
+    numbers live in the same numbering space as condition bits,
+    and an authored signal can carry a motion payload. The
+    receiver 0x53770's bit-raise branch requires type 0x10 +
+    magic 0x8138764 (PR-142); 0x52bb0 is its dispatcher for
+    everything else.
+  * A SIGNAL-RECORD RECEIVER EXISTS IN THE COMPOSITION TOO:
+    0x523f0 includes obj.vt+0x10 in filling the 13-byte key
+    (PR-142), and 0x536f0 processes the CURRENT record via
+    0x53770 - a queued/processed signal is raised exactly once
+    (the node is consumed by the drain).
+
+- FINDING 2, THE EVALUATION TRIGGER AND THE ROW-SWITCH EXECUTOR.
+  0x53520 is called from exactly one place: inside PR-101's
+  compositor 0x536f0 at 0x5373c - and its body settles the last
+  routing doubt of PR-142:
+  * 0x53531..0x53557: it copies 13 bytes VERBATIM FROM
+    [obj+0x60] (the live set, flag byte included) into its stack
+    buffer, and calls the row-transition scan 0x52000 with that
+    copy as the caller key ([ebp+0x50]/[ebp+0x5c] = the record
+    array/current index select the record; ecx/ebx = result
+    out). So the match test is EXACTLY (the record's own set -
+    what the clause parser 0x47d60 filled - AND the live set) !=
+    0, with the flag byte honoured as PR-142 read; the "authored
+    OR live" merge PR-142 saw at 0x522bc belongs to the record-
+    step path only. PR-142 open item 3 (where the scan's caller
+    key is composed) is CLOSED: 0x53520, verbatim from [obj+0x60].
+  * 0x535a0 (called from 0x5374b, same compositor) IS THE ROW
+    SWITCH EXECUTOR: `mov edi,[obj+0x5c]; cmp esi,new; je skip` -
+    it fires ONLY when the target record differs from the current;
+    on a switch: old record's exit method [record-class vt+0x20],
+    [obj+0x9d] := 0, [obj+0x95] := 1 (PR-142's latch: its writer
+    here is the row-switch itself - narrow for PR-142 item 6),
+    [obj.vt+0xa4] read, new record's entry method
+    [record-class vt+0x1c], then [obj+0x5c] := new index. That is
+    the engine's row-change law - exit method, entry method, index
+    store - the shape the port's row-change models.
+  * THE COMPOSITOR SEQUENCE, end to end (0x536f0): raise the
+    current signal record into the live set (0x53770 branch), OR
+    the standing bits (zero) and the composition, run the
+    evaluation (0x53520 -> scan -> first match), then apply (
+    0x535a0 row switch), then [vt+0x54] and [vt+0x28]. Signal
+    processing and transition evaluation are ONE pass: a signal
+    raises a bit and the transitions are tested against the live
+    set in the same step.
+
+- FINDING 3, WHERE AC_DRAB AND AC_DRAB_CATCH ACTUALLY COME FROM
+  (THE LADDER QUESTION). None of the 22 global broadcasts posts
+  bits 10/12 (the census above); and the ladder answer packet
+  (PR-141 0x3f1c0) provably does NOT write any [obj+0x60]: its
+  result lands in the CALLER's buffer - the answer chain 0x53ae0,
+  which is the caller PR-139 hunted: the collision/contact handler
+  0x50f80 calls it at 0x50fa9 with ebx = a result buffer on the
+  caller's frame; 0x53ae0 copies the answer result (3 dwords +
+  flag byte, `movs` x4 at 0x53bdd..0x53be0) there, and 0x50f80
+  later ORs that buffer plus AC_ENEMY (bit 7, `or dh,0x80` at
+  0x51050) into a local set and copies the 13 bytes to [esp+0x30]
+  - the COLLISION CALLER's output (0x51062..0x5107a, PR-92's
+  copy). So contact answers feed the collision CALLER, not the
+  live set. What posts bits 10/12: direct signal raises at ~40
+  sites merging bit-12 masks with 0x49580 (the 0x49580 census),
+  and per-object posts with state
+  gates - e.g. 0x1f440..0x1f468: an
+  object whose [obj.vt+0x3c] gate passes AND whose CURRENT ROW
+  INDEX == 9 broadcasts bit 18 (AC_ONAIR) right after setting the
+  [obj+0x66] bit-6 flag PR-139/141 keep meeting (an honest
+  correction: my first window pass read this site as bit 12; the
+  resolved census above is the corrected one). So: the
+  signal-posting sites EXIST and are gated on object state and
+  row; which of them is the ladder/rope answer to the lion is not
+  yet identified - every 0x49580 merge destination was not read
+  (counted, open item 1). The KEY FACTS stand: the delivery
+  mechanism (Finding 1), the consumption law (Finding 2), the
+  negative that the answer packet writes no live-set bit, and the
+  bit census of every global broadcaster.
+
+- FINDING 4, THE ANSWER-CHAIN ENTRY GATE (PR-140 item 8's engine
+  half). 0x53ae0 (the chain 0x50f80 calls) first reads the
+  object's ROW FLAGS via [obj.vt+0x44] (PR-139's row-flags
+  getter) at 0x53b18 and runs only `test ah,0x4` - bit 0x4000 =
+  the port's LL_CTRL_CHECK_ANI (ll_play.h line 151) - and skips
+  the chain when the toucher's row flags carry 0x10000 = the
+  port's row-flag ANTI_SOLID analogue (the port's push path
+  already reads that bit at 0x10000, ll_level.c 3798). The push
+  branch inside (0x53b39..0x53ba9) is PR-133's ported law verbatim
+  again (kinds 5 and 13, `idiv 5`, SEMI/CHK_ANI gate `and
+  0x40400`). So whether an object answers a contact AT ALL is
+  row-flag governed (0x4000), and ZARIA.01's drab/lina art states
+  carry no such row flag - the ladder answers nothing today in
+  either model, which is consistent with PR-140's run (the walk
+  crossed the ladder column untouched). PR-140 open item 8
+  ("whether the ladder blocks or carries the lion - the engine-side
+  answer was not read") is CLOSED for the read-the-law half: the
+  engine's answer entry runs only for rows flagged 0x4000, and
+  ZARIA.01's ladder rows are not so flagged.
+
+- WHAT THIS CLOSES. PR-142 open item 3: CLOSED (the scan's caller
+  key = verbatim [obj+0x60] copy, 0x53520, invoked right after
+  the live-set recompose). PR-142 item 4 (who posts type-0x10
+  records): POSTER READ as a mechanism (0x4bc40 + the queue +
+  direct calls) WITH the full 22-site bit census; per-site
+  semantics are data questions, not mechanism. PR-142 item 6
+  ([entity+0x95] latch): NARROWED - the row switch 0x535a0 writes
+  1, the record step writes 0/1; consumer still unread. PR-142
+  item 8 (non-0x53770 +0x10 entries): the pair [obj+0x10] queue +
+  +0x10 receive is uniform for the object family (0x52b52 calls
+  the slot, not a fixed address), so per-family differences would
+  show in the slot value - the LION's own +0x10 slot was still
+  not located (keeps as open item 4). PR-140 item 8: CLOSED for
+  the law half (Finding 4). The AC_DRAB-to-the-lion ROUTING stays
+  open (item 1) - honestly counted, mechanism found, instance not.
+
+- OPEN ITEMS COUNTED (5 new; the carry: PR-139's 13, PR-140's 8
+  (item 8 CLOSED = 7), PR-141's 7 (items 1/2/7 closed/narrowed =
+  4), PR-142's 8 (item 3 CLOSED, item 6 narrowed = 7)). (1) Which
+  specific site answers the lion with AC_DRAB/AC_DRAB_CATCH: of
+  the ~40 bit-12 mask merges and the state-gated posts (e.g.
+  0x1f468 row-9 post), none was yet tied to the ladder/rope
+  objects or to a lion-destination [obj+0x60]. (2) The caller of
+  the queue drain 0x52b52 (a jump-table/far-pair encoding, not a
+  plain dword; the tick loop presumably reaches it - PR-134/135's
+  dispatcher family is the place to look). (3) Whether key bits
+  (35-38, 53) are ever posted: no broadcast site posts one and
+  the input path was not read; the 0x34a35 `[vt+0xc](0x13)` call
+  with ebx=0x13 just before its AC_ONAIR broadcast is a lead, not
+  a finding. (4) The LION class table's +0x10 receive entry (the
+  23-slot census did not identify LEW.ZAR's own table). (5) The
+  record-type dispatcher 0x52bb0's other arms (0xe/0xf) - only
+  the 0x21 (AC_KILO) move-arm was read.
+
+- MUTATIONS. None: no code and no test changed (reading record,
+  PR-138/141/142 precedent). As in PR-142 the claims are
+  mechanism claims quoted verbatim against the code (the 22-site
+  bit census is enumerated, not sampled; the negatives - no key
+  bits broadcast, answer packets write no live-set bit - are
+  stated as such).
+
+- GATES. No code touched: `make` rc=0, `make win` rc=0, zero
+  warnings; `make -k verify-all` with the standard fixtures rc=0
+  with 56 `(ok)` and zero FAILED, fixture-free rc=0 with the same
+  23 named SKIP lines - all three runs unchanged since the PR-142
+  gate logs (/tmp/opencode/pr142_make.log, pr142_makewin.log,
+  pr142_va.log, pr142_va_nofix.log; no source or Makefile byte
+  changed since). The image is unchanged (sha256 edf19a129e85ef
+  b8764457a0808e246ca4baf08a9111aa09be4ec99ce6b8c40e). No game
+  data or frames in git; no .github/workflows/* touched.
+
+- HANDOFF UPDATED. Section 7 item 15's G-9 line and section 8 T5's
+  STATUS carry: the delivery machinery and evaluation trigger are
+  read; what the climb still needs narrows to the AC_DRAB post
+  instance for the lion, the key-bit (K_UP) posting path, and the
+  A_WSP feed law. Item 13 gains the PR-143 bullet.
+
+- EVIDENCE. /tmp/opencode/pr143/sig_map.txt (the delivery-map
+  address table + the 22-site broadcast census + the 0x49580 bit
+  census, as measured); ranges quoted verbatim: 0x4bc40..0x4bd1a
+  (the broadcaster), 0x52b10..0x52b41 (queue push), 0x52b52..
+  0x52b7d (queue drain -> [+0x10] per node), 0x52bb0..0x52bd7
+  (the type dispatcher, the 0x21 move-arm), 0x53520..0x53569
+  (the verbatim live-set copy + scan call), 0x535a0..0x535f0 (the
+  row-switch executor), 0x53ae0..0x53c81 (the answer chain entry
+  gate and push kinds - the port's own 0x53b47..0x53ba9 comment
+  cross-checks), 0x50fa9..0x5107a (the collision consumer copy),
+  0x2c5b0..0x2c664 (a state-gated class-filtered post example),
+  0x1f440..0x1f468 (a row-gated AC_ONAIR post), 0x34a24..
+  0x34a59 (the AC_ONAIR/AC_DRECT posts). All reproducible with
+  /tmp/opencode/pr139/rng.py over /tmp/opencode/vis/text.asm
+  (203,343 lines, unchanged).
+
 ## Next — pick from the Deferred list below
 
-- THE EVALUATOR IS READ (read the PR-142 record first): the 13-byte
-  "key" is the live signal set at [obj+0x60] (its object-family
-  "identity" providers are `ret` stubs - PR-88's TEventSet reading
-  stands, PR-101's "identity key" wording is superseded); 0x47e40
-  is a set-operation dispatcher keyed on the caller key's flag byte
-  (flag 1 = AND-then-any-bit = every ordinary authored condition;
-  the flag byte is authored grammar: default 1, '!'/'*' -> 2,
-  '|' -> 3, K_NEVER -> flag 3 empty = never); the only two call
-  sites 0x52033/0x522e6 are the row-transition scan and the
-  record-step path. Transition records are 21 bytes (13-byte
-  authored condition + target state +0xd + target row +0x11) and
-  the scan tries them in order until (authored AND live) != 0 -
-  the OR-of-ANDs is the scan, the AND is the node mask. THE PORT's
-  shipped condition model (comma-AND vs o->sig, name wiring, GEN
-  raises) is the engine's law - confirmed, nothing changed. Signals
-  ENTER the live set through the class +0x10 entry 0x53770 (record
-  type 0x10, magic 0x8138764, bit index at record byte +0xc) -
-  K_GEN1's mechanism is found, its poster is not.
+- THE SIGNAL MACHINERY IS READ (read the PR-143 record first):
+  signals travel as records - broadcast globally by 0x4bc40 (the
+  full 22-site census: only bits 7/16/18/19/25/26 - NO key bits,
+  NO AC_DRAB/AC_DRAB_CATCH are ever broadcast), queued per object
+  (0x52b10 pushes onto the list at [obj+0x10]), drained by 0x52b52
+  which calls the class +0x10 entry (0x53770) that raises the bit
+  into [obj+0x60]; record TYPE numbers share the condition index
+  space (0x52bb0's arms 0xe/0xf/0x21, the AC_KILO arm moves x/y).
+  THE EVALUATION TRIGGER: 0x53520 copies [obj+0x60] VERBATIM as
+  the scan's caller key and is called only from inside the
+  compositor right after the recompose - signal raise and
+  transition test are ONE pass; 0x535a0 is the row-switch
+  executor (target != current -> old-record exit vt+0x20,
+  [obj+0x95] := 1, new-record entry vt+0x1c, store [obj+0x5c]).
+  The answer chain entry IS the collision path (0x50f80 ->
+  0x53ae0), gated on row flags 0x4000 = the port's
+  LL_CTRL_CHECK_ANI (ZARIA.01 ladder rows carry none - PR-140's
+  untouched-column run is consistent); answer/contact result bits
+  flow to the COLLISION CALLER's buffer, provably never into a
+  live set.
 
-- NEXT PR (PR-143), in order: (a) the ROUTING question that now
-  makes the ladder actionable - does the ladder answer's
-  AC_DRAB/AC_DRAB_CATCH packet (PR-141 0x3f1c0) reach the lion's
-  [obj+0x60] as a signal record (who POSTS type-0x10/0x8138764
-  records after an answer/collision/GEN frame - PR-142 open
-  items 3/4 - and is the LION's +0x10 entry also 0x53770, item
-  8); (b) the K_UP feed: the engine path raising key bits
-  (35-38/53) into the lion's live set - the engine-side answer
-  for the port's input-model decision (and while there, the '!'-
-  negation representation, PR-142 item 2); (c) the A_WSP feed law
-  (BY_TY F=0,100 T=160,50, SEQ_REV_Y vs the 0x543a2 family) -
-  now approachable with the record-step path (Finding 4) and the
-  [rec+0x10] vs [obj+0xa1]+[0xcef40]+0x388 threshold concrete
-  (item 7). Only after (a)+(b) does the climb-entry port step
-  become implementable (hand-derived test + mutations,
-  behaviour-PR rule). Count, do not fit, anything unread.
+- NEXT PR (PR-144), in order: (a) the AC_DRAB INSTANCE hunt - of
+  the ~40 bit-10/12 mask merges via 0x49580 and the state-gated
+  posts, find (or honestly fail to find) the site that feeds the
+  LION's live set from a ladder/rope contact; the practical route:
+  read the LION class table (find LEW.ZAR's token + factory the
+  way PR-141 found DRABINKA's) and its +0x10 receive entry and
+  the collision path's other callers of 0x53ae0/0x50f80 (who
+  consumes the 13-byte collision output, and whether any of it
+  reaches [obj+0x60] for the player object). (b) The K_UP feed:
+  search for posts of bits 35-38/53 or writes of key masks into
+  the player's live set (the [vt+0xc](0x13) lead at 0x34a35 and
+  the input/keyboard code are the places); also the '!' complement
+  representation (PR-142 item 2). (c) The A_WSP feed law (BY_TY
+  F=0,100 T=160,50, SEQ_REV_Y vs the 0x543a2 family, with the
+  [rec+0x10] vs [obj+0xa1]+[0xcef40]+0x388 threshold from
+  PR-142 Finding 4). Only when (a)+(b) land does the climb-entry
+  implementation become decidable (hand-derived test + mutations);
+  count, do not fit, anything unread.
 
-- THEN, from the PR-131 gap list (the current text of every item is
-  HANDOFF.md §7 item 15): G-8's HUD lives - map the STATUS.LEO
+- THEN, from the PR-131 gap list (HANDOFF.md §7 item 15 is the
+  current text of every item): G-8's HUD lives - map the STATUS.LEO
   fields (both R3 clips start at "5", the port prints 6); G-3's
   ZAR.BLK corridor and the KAMIEN sixth field (1308/1218/1115
-  toward 1299..1620); then G-7 (the water surface as a floor),
-  G-12 (the SURPRISE "?" firing - its bit-space mechanism is now
-  fully read: an event record naming a bit raises it) and
+  toward 1299..1620 - note the magic-filtered AC_ENEMY_ATC posts
+  at 0x2c5e6.. gate on [obj+0x5c] and a global flag: that family
+  is where KAMIEN's behaviour lives too); then G-7 (the water
+  surface as a floor), G-12 (the SURPRISE "?" firing - its whole
+  delivery mechanism is now read, find its posting site) and
   G-10/G-11 (the level-end scene and the mid-level bird
-  sequences). G-13's local-lines remainder: DRABINKA's rectangle
-  [obj+0xb1..0xbd] is what the authored local block feeds
-  (PR-141) - the filling provider is still unread; PR-142's
-  record/event machinery (the [rec+0x10] threshold, the
-  [0xcef40]+0x388 global) is likely where that lands, start there.
+  sequences). G-13's local-lines remainder unchanged (the
+  [obj+0xb1..0xbd] provider).
 
 PR-43 (M4-B playable prototype) opened the M4-C line, PR-44 closed its
 first item and PR-45 its second (the authored scene), PR-46 its third
