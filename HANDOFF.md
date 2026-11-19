@@ -1,6 +1,6 @@
 # HANDOFF - state of the Lew Leon native port and the plan from here
 
-Written 2026-11-16 at commit `8769434` (PR-74) for whoever continues - a person
+Written 2026-11-16 at commit `7db0cab` (PR-74) for whoever continues - a person
 or a smaller model. Read sections 1-4 first (15 minutes), then pick ONE task
 from section 8. Everything else in this repo (NEXT_STEPS.md = per-PR record,
 PLAN.md = early milestones, VERIFICATION_2026-11-16.md = audit) is history;
@@ -135,6 +135,28 @@ Section 8 lists them as tasks.
    that had passed ~25 min earlier when run on its own - it is the
    suite's most expensive and wall-clock-paced leg, which is itself an
    argument for running it on purpose, once, instead of per PR.
+
+9. **Commit subjects carry a kind tag** (owner ruling, 2026-11-19),
+   right after the number: `PR-193 [READ]: ...`, `PR-194 [PORT]: ...`,
+   `PR-195 [GATE]: ...`. `[READ]` = engine reading (docs + probe
+   scripts, nothing under `ported/`, no behaviour change - the record
+   and the `## Next` rewiring are the deliverable); `[PORT]` = port
+   implementation (touches `ported/`); `[GATE]` = build/verify/tooling
+   (`Makefile`, `tools/`, `.github/`, fixtures). The tag is chosen by
+   what the commit TOUCHES, never by intent, so `git log --grep
+   '\[READ\]'` is an honest count of reading-only PRs. A maintenance
+   commit that is not a ledger record carries no number and uses a
+   bare `[GATE]`/`[DOCS]` prefix.
+   HISTORY OVERRIDE (same day, owner-approved): all 316 commits of
+   `main` were re-written to add these tags (`git filter-branch
+   --msg-filter`); messages only - the tree of every commit was
+   compared byte-identical before and after (0 mismatches), and the
+   176 sha references in this file (28) and NEXT_STEPS.md (148) were
+   re-pointed to the new values. Old->new table:
+   `tools/history_override_2026-11-19.txt`; pre-override ref:
+   `refs/original/refs/heads/main`. CI run ids recorded in
+   NEXT_STEPS.md were measured against the PRE-override sha of the
+   same tree, so they stay valid evidence for the content.
 
 ## 3. Machine layout and commands
 
@@ -627,7 +649,7 @@ Pitfalls seen:
   - runs 1, 2, 8 - are real setup breakage: SDL2 headers absent, the
   data-backed fixtures absent, a link error). Rerunning the failed job of
   run 124 passed on attempt 2. Both failing trees had byte-identical leg
-  code (`git diff f1afa64..HEAD --stat -- ported/ tools/ Makefile
+  code (`git diff bb5cdc9..HEAD --stat -- ported/ tools/ Makefile
   cmake/` empty for 124), so it is a timing assertion, not a regression.
   Fixed in PR-112: the headless backend trusted the CRT's
   absolute-deadline sleep instead of re-checking its own clock (the SDL
@@ -2451,7 +2473,7 @@ writer as its open items.
       keyword encoding, the keyboard map, the two censuses and the
       authored census).
     - PR-148 MADE THE INPUT/GUARD LAW BEHAVIOUR (the first CODE
-      change since PR-140's afefe73; gates re-run fresh: make
+      change since PR-140's 81eee9b; gates re-run fresh: make
       rc=0 / make win rc=0 zero warnings; verify-all with
       fixtures rc=0, 56 (ok), zero FAILED - the count is
       unchanged because the PR-108 leg was RE-PINNED IN PLACE
@@ -3206,7 +3228,7 @@ writer as its open items.
      edits COMMENT/DIAGNOSTIC-STRING ONLY, no new test - no
      behavior change): THE MISSING PR-150/PR-151 RECORDS ARE
      RESTORED VERBATIM - a per-revision census shows each
-     survived ONLY in its own commit blob (c947e90 / 0081b1b;
+     survived ONLY in its own commit blob (7626bb3 / ecf3e9d;
      swallowed by the Next-swaps of the PR-151/PR-152 eras;
      later restores re-spliced from a HEAD that had already
      lost them; the HANDOFF bullets survived), with correction
@@ -3581,7 +3603,7 @@ writer as its open items.
      PR-162 item 5 CLOSED with a bracket in its record. ZARIA.01
      output: UNCHANGED (docs-only, nothing compiled). Gates:
      added lines <= 79; baselines UNCHANGED (71/72); image un-
-     changed; ledger census run (HEAD 2e43bc1 = last carrier).
+     changed; ledger census run (HEAD 2968da8 = last carrier).
      CI: PR-160's RERUN GREEN. Full record: the PR-164 section
      of NEXT_STEPS.md (scratch /tmp/opencode/pr164/).
    - PR-165 (READING + LEDGER CORRECTION, no code - the PR-
@@ -3637,7 +3659,7 @@ writer as its open items.
      0x52750 body (bracketed). ZARIA.01 output: UNCHANGED
      (docs-only). Gates: added lines <= 79; baselines held
      (71/72); image unchanged; ledger census run (HEAD
-     0509ce9 = last carrier). Full record: the PR-165 section
+     61bb0cf = last carrier). Full record: the PR-165 section
      of NEXT_STEPS.md (scratch /tmp/opencode/pr165/).
    - PR-166 (READING + LEDGER CORRECTION, no code - the PR-
      138..165 precedent): THE POOL CONTENTS ARE READ - THEY
@@ -3697,7 +3719,7 @@ writer as its open items.
      F5 class-id sample corrected to the full sequence; item
      3 CLOSED). ZARIA.01 output: UNCHANGED (docs-only).
      Gates: added lines <= 79; baselines held (71/72); image
-     unchanged; ledger census run (HEAD 1c22089 = last carr
+     unchanged; ledger census run (HEAD 7f64eea = last carr
      ier). Full record: the PR-166 section of NEXT_STEPS.md
      (scratch /tmp/opencode/pr166/).
    - PR-167 (READING + LEDGER CORRECTION, no code - the PR-
@@ -3745,7 +3767,7 @@ writer as its open items.
      F3 bracket gains entries-are-objects. ZARIA.01 output:
      UNCHANGED (docs-only). Gates: added lines <= 79; baselines
      held (71/72); image unchanged; ledger census run (HEAD
-     c00c1ce = last carrier). Full record: the PR-167 section
+     ec199d6 = last carrier). Full record: the PR-167 section
      of NEXT_STEPS.md (scratch /tmp/opencode/pr167/).
    - PR-168 (READING + LEDGER CORRECTION, no code - the PR-
      138..167 precedent): THE FEED LAW IS CLOSED END TO END -
@@ -3794,7 +3816,7 @@ writer as its open items.
      PR-166's carried mention. ZARIA.01 output: UNCHANGED
      (docs-only). Gates: added lines <= 79; baselines held
      (71/72); image unchanged; ledger census run (HEAD
-     f7d7552 = last carrier). Full record: the PR-168 section
+     5eb7c4d = last carrier). Full record: the PR-168 section
      of NEXT_STEPS.md (scratch /tmp/opencode/pr168/).
    - PR-169 (READING + LEDGER CORRECTION, no code - the PR-
      138..168 precedent): THE MEMBERSHIP PREDICATE GETS ITS
@@ -3836,7 +3858,7 @@ writer as its open items.
      1 bracket in PR-167's record (F2a product, not flag; item
      (1) re-scoped). ZARIA.01 output: UNCHANGED (docs-only).
      Gates: added lines <= 79; baselines held (71/72); image
-     unchanged; ledger census run (HEAD 5e123e1 = last carr
+     unchanged; ledger census run (HEAD a92bbb5 = last carr
      ier). Full record: the PR-169 section of NEXT_STEPS.md
      (scratch /tmp/opencode/pr169/).
    - PR-170 (READING + LEDGER CORRECTION, no code - the PR-
@@ -3885,7 +3907,7 @@ writer as its open items.
      re-pointed; 1 bracket (PR-169's manager-table sentence
      corrected). ZARIA.01 output: UNCHANGED (docs-only).
      Gates: added lines <= 79; baselines held (71/72); image
-     unchanged; ledger census run (HEAD 643f13a = last carr-
+     unchanged; ledger census run (HEAD 5058e67 = last carr-
      ier). Full record: the PR-170 section of NEXT_STEPS.md
      (scratch /tmp/opencode/pr170/).
    - PR-171 (READING + LEDGER CORRECTION, no code - the PR-
@@ -3946,7 +3968,7 @@ writer as its open items.
      (map complete) and (3) (deadzone law); PR-170 item (2)
      half. 5 brackets. ZARIA.01 output: UNCHANGED (docs-
      only). Gates: added lines <= 79; baselines held (71/
-     72); image unchanged; ledger census run (HEAD 0ce1036 =
+     72); image unchanged; ledger census run (HEAD ff84394 =
      last carrier). Full record: the PR-171 section of
      NEXT_STEPS.md (scratch /tmp/opencode/pr171/).
    - PR-172 (CODE PR + TEST): THE BY_TIME AUDIT (PR-168 item
@@ -3995,7 +4017,7 @@ writer as its open items.
      Gates: make/make win ZERO warnings, ll_level re-linked,
      verify-all 56 (ok) with fixtures / 10 (ok)+23 SKIP with-
      out, rc=0 both; baselines held (71/72); census run (HEAD
-     2872f45 = last carrier). Full record: the PR-172 section
+     68c85d0 = last carrier). Full record: the PR-172 section
      of NEXT_STEPS.md (scratch /tmp/opencode/pr172/).
    - PR-173 (READING + LEDGER CORRECTION + ONE CODE COMMENT
      FIX): THE KEY-LITERAL RE-DERIVATION CLOSED THE HUNT AND
@@ -4048,7 +4070,7 @@ writer as its open items.
      (block bounds + law). ZARIA.01 output unchanged (comment-
      only). Gates: make/make win ZERO warnings, ll_level re-
      linked, mov-selftest rc=0; baselines 71/72 held; census
-     run (HEAD af3e3ff = last carrier, 23 records). Full
+     run (HEAD 6926676 = last carrier, 23 records). Full
      record: the PR-173 section of NEXT_STEPS.md (scratch
      /tmp/opencode/pr173/).
    - PR-174 (CODE + TEST): THE SAME-STATE MATCH NOW WRITES
@@ -7552,7 +7574,7 @@ stays in the end pass (rule 8).
 STATUS after PR-178 (the BY_TY FEED pass; docs reading -
 ZERO port lines changed, the ZARIA.01 output image is byte-
 identical to PR-177's, and the build state is the OWNER
-GATE of 2026-11-19 measured on 7b4d736: make clean +
+GATE of 2026-11-19 measured on 40cf915: make clean +
 parallel verify-all rc=0 both ways, 52 (ok) fixtures /
 10 (ok) + 18 named SKIPs fixture-free; only docs have
 moved since).
@@ -7595,7 +7617,7 @@ STATUS after PR-179 (the LION +0xac / msg-map / identity
 pass; docs reading - ZERO port lines changed, the ZARIA.01
 output image is byte-identical to PR-178's, and the build
 state is the OWNER GATE of 2026-11-19 measured on
-7b4d736: 52 (ok) fixtures / 10 (ok) + 18 named SKIPs
+40cf915: 52 (ok) fixtures / 10 (ok) + 18 named SKIPs
 fixture-free; only docs have moved since).
 
 What this pass GROUNDS for T5:
@@ -7634,7 +7656,7 @@ end pass (rule 8).
 STATUS after PR-180 (the producer pass for the feed-gate
 words; docs reading - ZERO port lines changed, the ZARIA.01
 output image is byte-identical to PR-179's; build state =
-the OWNER GATE (rule 8) measured on 7b4d736, only docs
+the OWNER GATE (rule 8) measured on 40cf915, only docs
 moved since).
 
 What this pass GROUNDS for T5:
@@ -7671,7 +7693,7 @@ end pass (rule 8).
 STATUS after PR-181 (the pool-wiring pass; docs reading -
 ZERO port lines changed, the ZARIA.01 output image is
 byte-identical to PR-180's; build state = the OWNER GATE
-(rule 8) measured on 7b4d736, only docs moved since).
+(rule 8) measured on 40cf915, only docs moved since).
 
 What this pass GROUNDS for T5:
 (1) PR-150's PER-STEP CANDIDATE MODEL NOW HAS ITS ENGINE
@@ -7712,7 +7734,7 @@ end pass (rule 8).
 STATUS after PR-182 (the msg-sender/event pass; docs
 reading - ZERO port lines changed, the ZARIA.01 output
 image is byte-identical to PR-181's; build state = the
-OWNER GATE (rule 8) measured on 7b4d736, only docs moved
+OWNER GATE (rule 8) measured on 40cf915, only docs moved
 since).
 
 What this pass GROUNDS for T5:
@@ -7751,7 +7773,7 @@ end pass (rule 8).
 STATUS after PR-183 (the event-consumer body pass; docs
 reading - ZERO port lines changed, the ZARIA.01 output
 image is byte-identical to PR-182's; build state = the
-OWNER GATE (rule 8) measured on 7b4d736, only docs moved
+OWNER GATE (rule 8) measured on 40cf915, only docs moved
 since).
 
 What this pass GROUNDS for T5:
@@ -7796,7 +7818,7 @@ end pass (rule 8).
 STATUS after PR-184 (the consumer-census/token correction
 pass; docs reading - ZERO port lines changed, the ZARIA.01
 output image is byte-identical to PR-183's; build state =
-the OWNER GATE (rule 8) measured on 7b4d736, only docs
+the OWNER GATE (rule 8) measured on 40cf915, only docs
 moved since).
 
 What this pass GROUNDS for T5:
@@ -7834,7 +7856,7 @@ end pass (rule 8).
 STATUS after PR-185 (the controller-is-the-LION pass; docs
 reading - ZERO port lines changed, the ZARIA.01 output image
 is byte-identical to PR-184's; build state = the OWNER GATE
-(rule 8) measured on 7b4d736, only docs moved since).
+(rule 8) measured on 40cf915, only docs moved since).
 
 What this pass GROUNDS for T5:
 (1) THE INPUT PATH IS ENGINE-SETTLED END TO END: hardware
@@ -7874,7 +7896,7 @@ pass (rule 8).
 STATUS after PR-186 (the LION-flag/input-bottom pass; docs
 reading - ZERO port lines changed, the ZARIA.01 output image
 is byte-identical to PR-185's; build state = the OWNER GATE
-(rule 8) measured on 7b4d736, only docs moved since).
+(rule 8) measured on 40cf915, only docs moved since).
 
 What this pass GROUNDS for T5:
 (1) THE INPUT MODEL IS ENGINE-SETTLED AT THE BOTTOM NOW:
@@ -7920,7 +7942,7 @@ pass (rule 8).
 STATUS after PR-187 (the hardware-bottom/controller-family
 pass; docs reading - ZERO port lines changed, the ZARIA.01
 output image is byte-identical to PR-186's; build state =
-the OWNER GATE (rule 8) measured on 7b4d736, only docs
+the OWNER GATE (rule 8) measured on 40cf915, only docs
 moved since).
 
 What this pass GROUNDS for T5:
@@ -7969,7 +7991,7 @@ end pass (rule 8).
 STATUS after PR-188 (the input-stack completion pass;
 docs reading - ZERO port lines changed, the ZARIA.01
 output image is byte-identical to PR-187's; build state =
-the OWNER GATE (rule 8) measured on 7b4d736, only docs
+the OWNER GATE (rule 8) measured on 40cf915, only docs
 moved since).
 
 What this pass GROUNDS for T5:
@@ -8021,7 +8043,7 @@ STATUS after PR-189 (the interaction-verb + subsystem-
 registry pass; docs reading - ZERO port lines changed,
 the ZARIA.01 output image is byte-identical to PR-188's;
 build state = the OWNER GATE (rule 8) measured on
-7b4d736, only docs moved since).
+40cf915, only docs moved since).
 
 What this pass GROUNDS for T5:
 (1) THE INTERACTION VERB IS FULLY LAID OUT (PR-188 item
@@ -8072,7 +8094,7 @@ STATUS after PR-190 (the frame-loop + record-chain +
 handler-vector pass; docs reading - ZERO port lines
 changed, the ZARIA.01 output image is byte-identical to
 PR-189's; build state = the OWNER GATE (rule 8) measured
-on 7b4d736, only docs moved since).
+on 40cf915, only docs moved since).
 
 What this pass GROUNDS for T5:
 (1) THE LEVEL-CHANGE CONTRACT IS EXACT (PR-147 item (2)

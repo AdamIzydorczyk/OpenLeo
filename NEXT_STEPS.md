@@ -9,6 +9,19 @@ Working plan derived from `open-leo_native_port_review.md` (P/E/M) and
 `open-leo_porting_tips.md` (T). Update the status lines here as items
 land; the review/tips files stay as the detailed work orders.
 
+> **Subject tags + the 2026-11-19 history override.** `PR-nn` subjects
+> now carry a kind tag: `[READ]` = engine reading (docs plus
+> disassembly/fixture probes, nothing under `ported/`), `[PORT]` = port
+> implementation (touches `ported/`), `[GATE]` = build/verify/tooling.
+> Rule text: HANDOFF.md section 2, rule 4. All 316 commits of `main`
+> were re-written to add the tags - messages only, and the tree of
+> every one was compared byte-identical (0 mismatches). Every sha in
+> this file is the NEW value (148 mentions were re-pointed); the
+> old->new table is `tools/history_override_2026-11-19.txt`, the
+> pre-override ref is `refs/original/refs/heads/main`, and the CI run
+> ids quoted below were measured on the PRE-override sha of the same
+> tree.
+
 ## Status as of 2026-11-14 (through PR-19, all pushed; later PRs have their own
 ## records below - the newest is the last `## PR-nn` heading before `## Next`)
 
@@ -137,7 +150,7 @@ Done and verified green (full `make verify-all` incl. wine parity):
   demo chain + level tool, and a REAL-session X11 smoke: island
   CLICK launches chapter -> IS -> ESC skip -> level p/ESC -> map q,
   rc 0 (synthetic core Button events under XI2-off; kwin owns the
-  Wayland-side pointer so XTEST hit-testing is unavailable there).    (d58f33c)
+  Wayland-side pointer so XTEST hit-testing is unavailable there).    (aa03f7b)
 - PR-17 T-01 phase 4 (music service): ll_level.c is now COMPLETELY
   SDL-free - the music singleton uses plat_audio_open/queue/close for
   its device (same queue-only device the player uses; samples=0
@@ -159,7 +172,7 @@ Done and verified green (full `make verify-all` incl. wine parity):
   platform device + REAL platform pump thread (no fallback message),
   joined clean, rc 0; LSan in real-audio sessions shows only third-
   party libasound/sdl2-compat one-time allocs (zero app frames) -
-  documented below with the timeout/SIGTERM gotcha.                  (9e52313)
+  documented below with the timeout/SIGTERM gotcha.                  (ad4170f)
 - PR-18 T-01 phase 5 (app glue): main.c and ll_paths.c are now
   SDL-FREE too (cpp proof: 0 SDL headers AND 0 SDL_ tokens in their
   TUs) - only the backend files (platform_sdl.c, platform_sdl/
@@ -792,7 +805,7 @@ ll_view/ll_audio as backend-private helpers).
 - verify-quit/verify-sel/verify-platform/verify-arch green locally;
   full suite + fixture-free sim run next as always.
 
-- PR-26 pushed 656dbc5; CI green.
+- PR-26 pushed c8ba4f3; CI green.
 
 ## PR-27 — FIX-12: CI hardening (DONE 2026-11-15)
 
@@ -846,7 +859,7 @@ ll_view/ll_audio as backend-private helpers).
   the WINDRES change; the two new jobs run their exact steps locally
   first (asan fully; windows partially - the .exe smoke executed via
   the local binfmt path, real-MSYS2 proof lands with this CI run).
-- CI green run 43717359504 (PR-27b 4618d61): linux, windows-smoke
+- CI green run 43717359504 (PR-27b 2589048): linux, windows-smoke
   (first native Windows build+run in repo history) and asan all ok.
   PR-27 CLOSED.
 - CI iteration (first run 43717009882: linux ok, both new jobs failed,
@@ -912,7 +925,7 @@ ll_view/ll_audio as backend-private helpers).
   drift-sensitive 'tick 8: ED000002.SEQ state 1' grep and the
   tick2!=tick8 animation proof; verify-help, verify-sel, verify-quit,
   verify-platform, verify-arch all green before the full suite.
-- PR-28 pushed 42f3703; CI green run 43718104724 (all 3 jobs). CLOSED.
+- PR-28 pushed f15e7d1; CI green run 43718104724 (all 3 jobs). CLOSED.
 ## PR-29 — FIX-08 cutscene A/V sync (DONE 2026-11-15)
 
 - Step A (is_player.c ONLY; no new plat_* - plat_audio_queued_bytes already
@@ -944,7 +957,7 @@ ll_view/ll_audio as backend-private helpers).
 - Diagnostics (additive): LEO_AV_DEBUG=1 -> 'is_player: av
   min_queued=%ums err=%+dms' once per second.
 - Measured acceptance (real ALSA device, dummy video):
-  * Before/after LEO_IS_WAV vs pristine 42f3703 binary (kept as
+  * Before/after LEO_IS_WAV vs pristine f15e7d1 binary (kept as
     /tmp/opencode/ll_cutscene_base): LOGO/INTRO_P/AUTORZY differ ONLY
     by inserted zero runs at exactly the silent-chunk positions
     (zero_diff.py: every content sample identical; insertions
@@ -973,7 +986,7 @@ ll_view/ll_audio as backend-private helpers).
   from a pinned binary copy (ll_cutscene_base pattern) or rebuild
   before starting; (2) LEO_IS_WAV files are RAW s16 LE despite the
   extension (ffplay -f s16le -ar 22050).
-- PR-29 pushed 79961aa; CI green run 43720858381 (all 3 jobs). CLOSED.
+- PR-29 pushed b493ad5; CI green run 43720858381 (all 3 jobs). CLOSED.
 ## PR-30 — FIX-09 Part 1 + FIX-10 Part 1 + W-04 tail (DONE 2026-11-15)
 
 - FIX-09 Part 1 (ll_audio.c only): the pipewire->alsa pin uses
@@ -1024,7 +1037,7 @@ ll_view/ll_audio as backend-private helpers).
   verify-all exit 0 (only by-design no-regression SKIP, golden 98.4%
   unchanged); fixture-free sim exit 0 with 22 named SKIPs; zero-warning
   native + llvm-mingw builds.
-- PR-30 pushed f2bfbc4; CI green run 43722275109 (all 3 jobs). CLOSED.
+- PR-30 pushed 29bc06f; CI green run 43722275109 (all 3 jobs). CLOSED.
 ## PR-31 — FIX-11 Wayland policy: LEO_FORCE_X11 hook, default = SDL's choice (DONE 2026-11-15)
 
 - plat_prepare_video: the X11/XWayland pin now runs ONLY with
@@ -1065,7 +1078,7 @@ ll_view/ll_audio as backend-private helpers).
   shows 'driver wayland' and passes unchanged); fixture-free sim exit
   0, 22 named SKIPs; verify/quit/menu/arch/platform spot legs green;
   zero-warning native + llvm-mingw builds.
-- PR-31 pushed 45fbd26; CI green run 43723272576 (all 3 jobs). CLOSED.
+- PR-31 pushed d1166a9; CI green run 43723272576 (all 3 jobs). CLOSED.
 ## PR-32 — FIX-13 robustness + CLI polish (X-11, X-12, B-02) + smoke flip (DONE 2026-11-15)
 
 - Item 1 (.MOV hang, X-11): obj_advance for(;;) got the spec's
@@ -1137,10 +1150,10 @@ ll_view/ll_audio as backend-private helpers).
   verify-menu/verify-arch green; zero-warning native + llvm-mingw +
   cmake-mingw builds (the latter re-exercised the PR-30 DLL copy).
 
-- PR-32 pushed 8b4f908; CI green run 43724602260 (all 3 jobs, incl. the
+- PR-32 pushed e9507e8; CI green run 43724602260 (all 3 jobs, incl. the
   flipped windows --help smoke + asan mov selftest). CLOSED.
-- SERIES PR-25..32 COMPLETE (c0d959a, 656dbc5, 816a9a0, 4618d61, 42f3703,
-  79961aa, f2bfbc4, 45fbd26, 8b4f908 - all CI green). Owner decisions
+- SERIES PR-25..32 COMPLETE (5bf8de7, c8ba4f3, 055cbb4, 2589048, f15e7d1,
+  b493ad5, 29bc06f, d1166a9, e9507e8 - all CI green). Owner decisions
   C1/C2/C3 presented below (## Presentations section); C2 default flip
   already shipped per its ruling ("implement behind the flag" - done),
   awaiting confirmation/rollback call.
@@ -1220,14 +1233,14 @@ ll_view/ll_audio as backend-private helpers).
   build; first verify-all run had one self-inflicted failure (my own wine
   A/B run shared WINEPREFIX concurrently with the suite - lesson: never
   run wine while verify legs are using the prefix).
-- PR-33 pushed 61a00ee; CI green run 43741448274 (all 3 jobs). CLOSED.
+- PR-33 pushed dd4758a; CI green run 43741448274 (all 3 jobs). CLOSED.
 
 ## PR-34 — C1: FIX-09 Part 2, one audio device for the session (DONE 2026-11-15)
 
 - Owner ruling "all 3 changes" executed. Measure-first was blocked (the
   handheld never woke today; WOL does not work), so the implementation
   went first; the before/after measurement is fully staged for whenever
-  the device is on: /tmp/opencode/cmwin_before (a7a3388 build) vs
+  the device is on: /tmp/opencode/cmwin_before (20edd11 build) vs
   /tmp/opencode/cmwin (PR-34 build), instrument = count of
   'll_audio: device' lines over a two-movie chain (expect 2->1, the
   device line is now once per process).
@@ -1253,7 +1266,7 @@ ll_view/ll_audio as backend-private helpers).
   inside spec (min_queued ~150 ms >= 60 required, |err| <= 16 ms <= 40
   required, LEO_AV_DEBUG over real alsa); verify-music byte-exact
   (verify_music.py unchanged); LEO_IS_WAV for LOGO byte-identical
-  710,640 B vs the a7a3388 build (acceptance 4); verify-platform,
+  710,640 B vs the 20edd11 build (acceptance 4); verify-platform,
   verify-quit both halves green; zero-warning gcc + vendored
   llvm-mingw (SDL2 API note: free is SDL_FreeAudioStream, not the
   SDL3-style Delete name).
@@ -1261,7 +1274,7 @@ ll_view/ll_audio as backend-private helpers).
   now answers 48000 S16 with the same A/V margins and a clean run -
   mechanically healthy. The 'squeak' was an AUDIO artifact the numbers
   cannot see: pin STAYS until an ear check says otherwise.
-- PR-34 pushed f7f716a; CI green run 43742345929 (all 3 jobs). CLOSED.
+- PR-34 pushed c2fc226; CI green run 43742345929 (all 3 jobs). CLOSED.
   Open only as follow-ups: the STAGED handheld measurement (device lines
   2->1: /tmp/opencode/cmwin_before vs /tmp/opencode/cmwin, one
   power-button press away) and the optional LEO_KEEP_PIPEWIRE ear check
@@ -1300,7 +1313,7 @@ ll_view/ll_audio as backend-private helpers).
 - The FIX-09 story is now fully closed: Part 1 (PR-30) + Part 2
   (PR-34) + pin retirement (PR-35). Only the staged handheld
   device-count measurement (2->1) remains as confirmation, not code.
-- PR-35 pushed 6177637; CI run 43743655530: windows-smoke failed on
+- PR-35 pushed a62777d; CI run 43743655530: windows-smoke failed on
   the known transient dummy-backend clock flake ('sleep_until honors
   the deadline (>=20ms) FAILED' on a loaded runner - code untouched by
   this PR, passed on identical earlier runs; asan+linux green). Rerun
@@ -1401,7 +1414,7 @@ secrets on the way.
   fix, exit 0); fixture-free sim exit 0 (22 named SKIPs); zero-warning
   llvm-mingw build; verify-arch ok in both modes; verify-pcx 65/65,
   verify-seq 1656/1656 (1 known-bad), verify-golden pose+full both ok.
-- PR-36 pushed 82727cd; CI run 43749480757: linux + asan green first
+- PR-36 pushed f5e2896; CI run 43749480757: linux + asan green first
   pass; windows-smoke failed on the SAME transient clock flake as
   PR-35 ('sleep_until honors the deadline (>=20ms)', code untouched by
   this PR). Rerun --failed: all three jobs success. CLOSED.
@@ -1475,7 +1488,7 @@ make -k verify-all rc=0 INCLUDING the new corner-cycle leg;
 fixture-free sim rc=0 (22 named SKIPs); verify-arch ok; pixel checks
 above from LEO_MENU_PPM frames. Not pinned headless: interactive
 arrow-walk UI feel (owner to try - 'corner' covers the code path).
- - PR-37 pushed 81a4711; CI run 43753633583: ALL THREE JOBS (linux,
+ - PR-37 pushed 2c7af48; CI run 43753633583: ALL THREE JOBS (linux,
    asan, windows-smoke) green on the FIRST pass - the windows clock
    flake did not recur. CLOSED.
 
@@ -1525,7 +1538,7 @@ with no corner selected are UNCHANGED -> golden pose hashes and the
 Verification: full make -k verify-all rc=0 (new corner-art pins green
 incl. the .exe legs); fixture-free sim rc=0 (22 named SKIPs); native
 + llvm-mingw warning-free.
- - PR-38 pushed fe2cf12; CI run 43758144143: all three jobs green on
+ - PR-38 pushed 2cd0377; CI run 43758144143: all three jobs green on
    the first pass. CLOSED. Awaiting owner re-test of the corner
    cycle + bulawa-on-word feel (not pinnable headless).
 
@@ -1557,7 +1570,7 @@ hashes + 92.0 floor hold (verify-golden ok, best still 92.4516%).
 Verification: full make -k verify-all rc=0; fixture-free sim rc=0
 (22 named SKIPs); native + vendored llvm-mingw warning-free (the
 only 'warning:' lines in the logs are MESA-EGL runtime noise).
- - PR-39 pushed 0b631fa; CI run 43759690580: all three jobs green on
+ - PR-39 pushed 5e4c69f; CI run 43759690580: all three jobs green on
    the first pass. CLOSED. Awaiting owner re-test of the two-axis
    feel (not pinnable headless).
 
@@ -1627,10 +1640,10 @@ Verification: full make -k verify-all with data rc=0 (all legs ok,
 verify-menu + verify-golden green incl. the mingw/wine halves);
 fixture-free make -k verify-all rc=0 with the named SKIPs; gcc +
 vendored llvm-mingw builds warning-free.
- - PR-40 pushed f6fec38; CI run 43763544035: linux + asan green on
+ - PR-40 pushed d3d9461; CI run 43763544035: linux + asan green on
    the first pass, windows-smoke hit the known flake (fixture-only
    leg, passed unchanged on rerun --failed). CLOSED.
-FOLLOW-UP v2 (same owner thread, same day): after f6fec38 the owner
+FOLLOW-UP v2 (same owner thread, same day): after d3d9461 the owner
 reported "now is even worst, mace is rendered with part of background
 and moving with it around" + "and still there is same previous issue".
 Diagnosis needed eyes this tool does not have - the owner supplied a
@@ -2043,7 +2056,7 @@ Unknown .MOV condition names in the real data (inventory measured:
 K_FIRE 253 uses, K_JUMP 76, AC_ONAIR 199, AC_ENEMY_ATC 144, K_F1..
 F12, K_ALT, ...) all evaluate FALSE - nothing is guessed; K_JUMP +
 the AC_* signals are the M4-C list.
- - PR-43 pushed 73dec71; CI run 43783591185: linux + asan +
+ - PR-43 pushed 3d69b4d; CI run 43783591185: linux + asan +
    windows-smoke ALL green on the first pass. CLOSED. Ready-to-apply
    CI follow-up (NOT pushed: our gh token has no `workflow` scope, so
    this repo cannot change .github/workflows - owner applies it): in
@@ -2051,7 +2064,7 @@ the AC_* signals are the M4-C list.
    add `timeout 30 ./ll_level --play-selftest` - hermetic, so the
    player physics gets sanitizer coverage without fixtures (verified
    locally under the asan job's exact ASAN/UBSAN_OPTIONS: rc=0).
- - PR-43 follow-up pushed 47dea87; CI run 43821851544: linux + asan +
+ - PR-43 follow-up pushed 07de18b; CI run 43821851544: linux + asan +
    windows-smoke ALL green on the first pass (the 8 verify-play legs
    ran on the real CD+HD fixtures there). Verification before pushing:
    local `make -k verify-all` EXIT=0 / "ALL TESTS PASSED (linux +
@@ -2133,7 +2146,7 @@ target failures; the fixture-free config (`DATA=<absent> HD=<absent>`)
 EXIT=0 with 23 named SKIPs, zero failures, and the selftest still
 running; verify-arch green (no new SDL include - ll_play/ll_level stay
 engine-side).
-  - PR-44 pushed 634cb82; CI run 43824561094: linux + asan +
+  - PR-44 pushed eaf9d08; CI run 43824561094: linux + asan +
     windows-smoke ALL green on the first pass. On the runner the
     hermetic leg printed the new summary line ("an authored-empty '0'
     ground is data not an error") and the ten data legs printed their
@@ -2202,7 +2215,7 @@ engine-side).
     still running; verify-arch unchanged (no new SDL include). ASan/
     LSan/UBSan run of ll_level (selftest + full-data level + preview)
     clean. Peak child RSS unchanged (1114 MB; a one-off measurement, no pin exists in the Makefile or CI).
-  - PR-45 pushed 3cb067d; CI run 43836226298: linux + asan +
+  - PR-45 pushed 8e3c809; CI run 43836226298: linux + asan +
     windows-smoke ALL green on the first pass. On the runner the
     hermetic mov selftest printed its extended summary ("per-state seq=
     art selection (ok)") in both the asan job and the linux full suite,
@@ -2326,7 +2339,7 @@ engine-side).
      ll_level --mov-selftest rc=0 with zero sanitizer output (same leg
      the CI asan job runs). verify-arch unchanged. Peak child RSS
      1113 MB on RAN.01 (pinned 1114, unchanged).
-   - PR-46 pushed c239ae0; CI run 43845936475: linux + windows-smoke +
+   - PR-46 pushed 5af97da; CI run 43845936475: linux + windows-smoke +
      asan ALL green on the first pass. On the runner the extended mov
      selftest printed its new summary ("... per-state seq= art
      selection + shape geometry (ok)") in BOTH the asan job and the
@@ -4018,7 +4031,7 @@ in a loop continuously". Both root-caused, both fixed, both pinned.
 
   - MEASURED (extracted .MOV texts, all 777): `ATC_ON`/`ATC_OFF` are
     frame-tail directives (engine directive table 0x917c0, decoded in
-    adcea5f) and the scripts PAIR them: 267 state blocks open AND close
+    e5ba427) and the scripts PAIR them: 267 state blocks open AND close
     the window (ZARIA's A_FIGHT: ATC_ON at frame 8 - just before its
     `FC 100,0` lunge - ATC_OFF at 13, re-open at 17; LICHA3's A_ATAK
     opens at frame -4, closes at -8), 18 blocks open without closing.
@@ -4729,8 +4742,8 @@ corner (fixes the user's ZARIA.01 "something stands on nothing")
   item 11), which this PR advances but does not close.
 - make + make win warning-free; full `make -k verify-all` re-run green before
   commit. Docs: HANDOFF §7 item 11 panc sub-item marked RESOLVED.
-- CI: PR-95 (`3c2937b`) green on all jobs. Note: the immediately preceding
-  docs-only PR-94 (`c3e0547`) showed a windows-smoke FAILURE at
+- CI: PR-95 (`76072f9`) green on all jobs. Note: the immediately preceding
+  docs-only PR-94 (`5f3328f`) showed a windows-smoke FAILURE at
   `platform_selftest: sleep_until honors the deadline (>=20ms)` - a wall-clock
   timing selftest, unrelated to that commit (it changed no code); the same tree
   in this run passed windows-smoke, so that run was a shared-runner timing flake
@@ -4984,7 +4997,7 @@ gis legs are cutted becouse it is to low", on ZARIA.01)
   line. Self-consistent (the offset always belongs to the animation being
   shown), but it is why that pair moved 298 -> 286/284 and not by one clean
   constant.
-- CI: PR-97 (`176699b`) linux + asan green on the first pass; the
+- CI: PR-97 (`9e13404`) linux + asan green on the first pass; the
   windows-smoke job failed at `platform_selftest: sleep_until honors the
   deadline (>=20ms)` - the same wall-clock selftest that flaked on PR-35,
   PR-36 and PR-94 (see the note under the PR-95 record). This PR's own
@@ -7687,7 +7700,7 @@ first thing to check and it is `eax/edx/ebx`, not the 64-bit form.
   to no data leg today - KADMAR.07's 22 are in a level the suite only
   runs as a lion - so the new selftest is the only coverage, which is why
   it is four cases plus the wrap rather than one.
-- CI: the first pass on `5238c4f` was green on `linux` and `asan` and
+- CI: the first pass on `d017bb5` was green on `linux` and `asan` and
   failed on `windows-smoke` at `platform_selftest: sleep_until honors the
   deadline (>=20ms)` - the same wall-clock selftest that flaked on
   PR-35, PR-36, PR-94 and PR-97 (the note under the PR-95 record, and
@@ -8509,7 +8522,7 @@ the old number multiplied by a ratio.
   (ZARIA's own authored threshold), where a time feed on that same
   20 ms grid would have cycled the 6-unit list inside the first step.
   Measured with the scratch probe `/tmp/opencode/zm_probe.c`, that same
-  fixture at HEAD (f86280c, the ms clock PR-109 shipped) runs 3 rows per
+  fixture at HEAD (de8fd01, the ms clock PR-109 shipped) runs 3 rows per
   20 ms step, raises AC_TIME inside tick 1 and enters A_DRAP at tick 2.
   The RC loops also read `facc` at every step - in a BY_TIME state it
   stays exactly 0 - and the ZM walk loop reads the time accumulator the
@@ -8836,14 +8849,14 @@ are not used here (docs + .gitignore only, no code or Makefile change)
   `Makefile`, `tools/`, `ported/` or `.github/` is touched, and no Makefile
   target or tool reads a `.md` file (grep evidence in that bullet).
 - CI OF THE FOLLOW-UP PUSH (recorded, not fixed here). Run 44176302862 on
-  `29da788`: `linux` success, `windows-smoke` FAILURE in the step "Run
+  `782eb41`: `linux` success, `windows-smoke` FAILURE in the step "Run
   them (committed fixtures only; no game-data staging)" - one check of
   about thirty, `platform_selftest: sleep_until honors the deadline
   (>=20ms) FAILED` (job log `/tmp/opencode/ws_fail.log`, the check is
   `tools/platform_selftest.c:60-63`: sleep 20 ms from `t0`, then require
   `now_ns() >= t0 + 20ms`). `asan` was still running, so a rerun of the
   failed job had to wait for the run to finish. This is NOT a consequence
-  of a docs change: `git diff f1afa64..HEAD --stat -- ported/ tools/
+  of a docs change: `git diff bb5cdc9..HEAD --stat -- ported/ tools/
   Makefile cmake/` is empty, i.e. that leg's code is byte-identical to
   the CI-green PR-110 and PR-111 trees. It is a timing assertion on the
   msys2 runner, and it is a different thing from the known-flaky Wine
@@ -8865,14 +8878,14 @@ asserted 20 times at zero tolerance instead of once
   Pulling the whole workflow history (125 `ci` runs, `gh api
   actions/runs?per_page=100&page=1..2`) it is a pattern, not a one-off:
   only 4 runs ever failed, and 2 of those 4 are this exact check - run
-  101 / 44043011593 at 07:59 UTC on `c3e0547` and run 124 at 21:06 UTC
-  on `29da788`. The other three failures (runs 1, 2, 8) are real setup
+  101 / 44043011593 at 07:59 UTC on `5f3328f` and run 124 at 21:06 UTC
+  on `782eb41`. The other three failures (runs 1, 2, 8) are real setup
   breakage: `SDL2/SDL.h: No such file or directory`, `llrs_open failed:
   .../ANIMACJE`, and a link error. Rerunning run 124's failed job passed
   on attempt 2 (`linux`, `asan`, `windows-smoke` all success). Run 101
   was never rerun, its `attempt` is 1 and its conclusion is still
   failure. Neither failing tree was a regression: `git diff
-  f1afa64..HEAD --stat -- ported/ tools/ Makefile cmake/` is empty for
+  bb5cdc9..HEAD --stat -- ported/ tools/ Makefile cmake/` is empty for
   124, i.e. the leg's code was byte-identical to the CI-green PR-110/
   PR-111 trees. What is special about this check is that it is the ONLY
   wall-clock assertion in the suite (`grep -rn 'sleep_until honors'` ->
@@ -9005,7 +9018,7 @@ asserted 20 times at zero tolerance instead of once
   be written with the same zero-tolerance-on-the-lower-bound + loose
   upper-bound shape, or the flake rate comes back.
 - CI FOR THIS COMMIT, and the diagnostic answers back. Run 135 /
-  44179955442 on `b273981`: `linux`, `asan`, `windows-smoke` all
+  44179955442 on `c9eb24f`: `linux`, `asan`, `windows-smoke` all
   success. The three sleep_until checks pass on the NATIVE msys2 leg
   (job 134381308755, `/tmp/opencode/g5_job_134381308755.log` lines
   439-441: `sleep_until honors the deadline (>=20ms) (ok)`, `... never
@@ -14489,7 +14502,7 @@ no port behaviour change)
   same 23 named SKIP lines - all unchanged since the PR-142 gate
   logs (/tmp/opencode/pr142_make.log, pr142_makewin.log,
   pr142_va.log, pr142_va_nofix.log; no source or Makefile byte
-  changed since - the newest code commit is PR-140's `afefe73`).
+  changed since - the newest code commit is PR-140's `81eee9b`).
   The image is unchanged (sha256 edf19a129e85efb8764457a0808e24
   6ca4baf08a9111aa09be4ec99ce6b8c40e). No game data or frames
   in git; no .github/workflows/* touched.
@@ -14811,7 +14824,7 @@ no port behaviour change)
   with 56 `(ok)` and zero FAILED (pr146_va.log); fixture-free
   (DATA=/tmp/opencode/nope HD=/tmp/opencode/nope) rc=0 with the
   same 23 named SKIP lines (pr146_va_nofix.log). No source or
-  Makefile byte changed since PR-140's `afefe73`. The image is
+  Makefile byte changed since PR-140's `81eee9b`. The image is
   unchanged (sha256 edf19a129e85efb8764457a0808e246ca4baf08a911
   aa09be4ec99ce6b8c40e). No game data or frames in git; no
   .github/workflows/* touched.
@@ -15111,7 +15124,7 @@ no port behaviour change)
   hd_files) rc=0 with 56 `(ok)` and zero FAILED (pr147_va.log);
   fixture-free (DATA=/tmp/opencode/nope HD=/tmp/opencode/nope)
   rc=0 with the same 23 named SKIP lines (pr147_va_nofix.log).
-  No source or Makefile byte changed since PR-140's `afefe73`.
+  No source or Makefile byte changed since PR-140's `81eee9b`.
   The image is unchanged (sha256 edf19a129e85efb8764457a0808e24
   6ca4baf08a9111aa09be4ec99ce6b8c40e). No game data or frames
   in git; no .github/workflows/* touched.
@@ -15146,7 +15159,7 @@ no port behaviour change)
 ## PLAYER NOW CARRIES THE ENGINE'S VERTICAL-INTENT WORD AND A
 ## BY_TY ROW IS FED ONLY WHILE IT IS HELD — AND THE SESSION'S
 ## 0x50252 "RISE LAW" CANDIDATE IS CAUGHT DEAD CODE (CODE PR,
-## THE FIRST SINCE PR-140's `afefe73`)
+## THE FIRST SINCE PR-140's `81eee9b`)
 
 - WHY. PR-147 closed the climb feed law with ZERO open laws and
   said what remained was the implementation decision: give the
@@ -15875,7 +15888,7 @@ no port behaviour change)
   brackets; no port behaviour changes without a failing
   test; Linux-first gates (make zero-warning + verify-all
   both fixture modes) apply to any code PR - docs-only PRs
-  cite the last measured state (7b4d736).
+  cite the last measured state (40cf915).
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -18042,8 +18055,8 @@ FULL BUILD GATES RUN ANYWAY; PR-138..157 PRECEDENT)
   recipe). A per-revision census - `git log --format=%H main
   -- NEXT_STEPS.md`, then for each revision `git show
   <rev>:NEXT_STEPS.md | grep -c '^## PR-15[01]'` - shows the
-  PR-150 header exists ONLY in c947e90 and the PR-151 header
-  ONLY in 0081b1b: each was swallowed by the very next PR's
+  PR-150 header exists ONLY in 7626bb3 and the PR-151 header
+  ONLY in ecf3e9d: each was swallowed by the very next PR's
   Next-swap (the restore passes of later PRs re-spliced from
   HEAD, which had ALREADY lost both). Both full records (315
   and 285 lines) are restored verbatim in this file, with
@@ -18469,7 +18482,7 @@ FULL BUILD GATES RUN ANYWAY; PR-138..157 PRECEDENT)
   re-ground); direct table reads of 0x9c05c +0x2c/+0x7c; the
   [obj+0x9d] text.asm census (11 code sites, listed above);
   ll_play.h bit-9 cross-check. Ledger rule applied: the re-
-  vision census before surgery (HEAD 9c29656 carries all nine
+  vision census before surgery (HEAD bf39cc3 carries all nine
   PR-150..158 records - last carrier is HEAD; records re-
   spliced from it).
 
@@ -19155,7 +19168,7 @@ of PR-159/160's cursor phrasing are SUPERSEDED below)
   0x1`) are quoted with the miss; the correct idiom (lea+store)
   was in fact ALREADY in PR-159's text for the clone path.
   Corpus: unchanged. Ledger rule applied: census first - HEAD
-  7bae5a1 carries PR-150..PR-161 (last carrier HEAD); records
+  9389f70 carries PR-150..PR-161 (last carrier HEAD); records
   re-spliced from it.
 
 ## PR-163 — THE AC_TIME LAW SHIPS AS CODE: THE time= PAIR
@@ -19333,7 +19346,7 @@ verify-all modes staying at their counts.)
   opencode/pr163/); .github/workflows/* untouched; the image
   unchanged (text.bin sha256 edf19a12...). CI note: PR-160/
   161's runs had been CANCELLED by "Install toolchain" hangs
-  - `gh run rerun` issued this pass; PR-162's run (033c12d)
+  - `gh run rerun` issued this pass; PR-162's run (d2e3d10)
   confirmed green.
 
 - EVIDENCE. /tmp/opencode/pr163/: final_mov.log/final_play.
@@ -19346,7 +19359,7 @@ verify-all modes staying at their counts.)
   0), second state 3554416254 (output 21468), 9*21468 =
   193212, 32767*5 = 163835 < 193212 < 32767*6 - so
   1 + 193212/32767 = 6 exactly. Corpus: unchanged. Ledger
-  rule (PR-158 F1) applied: census first - HEAD 033c12d car-
+  rule (PR-158 F1) applied: census first - HEAD d2e3d10 car-
   ries PR-150..PR-162 (last carrier HEAD); records re-spliced
   from it, zero brackets this pass (Finding 1 verified no
   older record needs superseding: PR-107 item 2 already shows
@@ -19496,7 +19509,7 @@ correction; PR-163's open item (1) is NARROWED, not closed)
   pops); 0x53520 body 0x53520-0x5359a (the live-key copy +
   0x52000 + [[obj+8]+0x90]); 0x550a0-0x550b9 verbatim; the
   indirect `call [reg+0x14]` site census (20+ listed). Ledger
-  rule applied: census first - HEAD 2e43bc1 carries PR-150..
+  rule applied: census first - HEAD 2968da8 carries PR-150..
   PR-163 (last carrier HEAD); records re-spliced from it; 1
   bracket (PR-162 item 5 CLOSED).
 
@@ -19732,7 +19745,7 @@ its port-name DECISION stays open as a new item; PR-162 item
   loop + the 0x9209a.. strings raw; 0x4b870/0x4b890 heads
   (with the misalignment proof); static image bytes at
   [0xcef40+0x388] = 0 (the BY_TY rate is runtime-set).
-  Ledger rule applied: census first - HEAD 0509ce9 carries
+  Ledger rule applied: census first - HEAD 61bb0cf carries
   PR-150..PR-164 (last carrier HEAD); records re-spliced
   from it; 2 brackets (PR-162 item (1) answered, item (4)
   0x52750 body CLOSED).
@@ -19940,7 +19953,7 @@ are CORRECTED with brackets)
   data or frames in git (scratch /tmp/opencode/pr166/);
   .github/workflows/* untouched; the image unchanged
   (text.bin sha256 edf19a12...). CI: PR-165's run
-  (44501716987) was queued at record time; PR-164 (0509ce9)
+  (44501716987) was queued at record time; PR-164 (61bb0cf)
   and the PR-161 rerun confirmed GREEN; PR-163's run pending
   at record time.
 
@@ -19959,7 +19972,7 @@ are CORRECTED with brackets)
   clone-prototype path, PR-104's, re-read); 0x5c320 head;
   the 256-key XOR scan over all 14 names (no printable key;
   script run inline); the 'XtXoTm' prefix sharing. Ledger
-  rule applied: census first - HEAD 1c22089 carries PR-150..
+  rule applied: census first - HEAD 7f64eea carries PR-150..
   PR-165 (last carrier HEAD); records re-spliced from it;
   3 brackets (PR-165 F3 argument roles, F5 class-id sample,
   open item 3 CLOSED).
@@ -20122,8 +20135,8 @@ bracket and its item (3) bracket gains F1's fact)
   data or frames in git (scratch /tmp/opencode/pr167/);
   .github/workflows/* untouched; the image unchanged (text.bin
   sha256 edf19a12...). CI: PR-166's run (44503746523) was
-  queued at record time; PR-165 (1c22089), PR-163 (2e43bc1),
-  PR-164 (0509ce9) and the PR-161 rerun all confirmed GREEN.
+  queued at record time; PR-165 (7f64eea), PR-163 (2968da8),
+  PR-164 (61bb0cf) and the PR-161 rerun all confirmed GREEN.
 
 - EVIDENCE. All reads from the pinned image: the 155-table
   census (tables carrying 0x543a0 at +0xa0) +0x60/+0x78 slot
@@ -20138,7 +20151,7 @@ bracket and its item (3) bracket gains F1's fact)
   0x52360 table census (4 tables) and the 0xa2e9c/0xa2ed4
   slot checks; the PR-100 sixteenth-record cross-reference
   (NEXT_STEPS line naming all 16 tables). Ledger rule
-  applied: census first - HEAD c00c1ce carries PR-150..PR-166
+  applied: census first - HEAD ec199d6 carries PR-150..PR-166
   (last carrier HEAD); records re-spliced from it; 2 brackets
   (PR-166 item (1) CLOSED; its F3 item bracket gains the
   entries-are-objects fact).
@@ -20296,7 +20309,7 @@ close bracket)
   data or frames in git (scratch /tmp/opencode/pr168/);
   .github/workflows/* untouched; the image unchanged (text.bin
   sha256 edf19a12...). CI: PR-167's run (44504766661) was
-  queued at record time; PR-166 (c00c1ce), PR-165, PR-164,
+  queued at record time; PR-166 (ec199d6), PR-165, PR-164,
   PR-163 all confirmed GREEN.
 
 - EVIDENCE. All reads from the pinned image: raw-byte dumps
@@ -20315,7 +20328,7 @@ close bracket)
   0x549f0; 99 of them carry +0x78 = 0x54860; the raw-dword
   searches proving no table holds 0x54900/0x548f0 - the
   listing head is interior). Ledger rule applied: census
-  first - HEAD f7d7552 carries PR-150..PR-167 (last carrier
+  first - HEAD 5eb7c4d carries PR-150..PR-167 (last carrier
   HEAD); records re-spliced from it; 2 brackets (PR-165 F2
   arm text + its item
   (1) CLOSED; PR-166's carried mention closed).
@@ -20445,7 +20458,7 @@ gets a correction; its item (4) is CLOSED below)
   data or frames in git (scratch /tmp/opencode/pr169/);
   .github/workflows/* untouched; the image unchanged (text.bin
   sha256 edf19a12...). CI: PR-168's run (44505316888) was
-  queued at record time; PR-167 (f7d7552), PR-166, PR-165,
+  queued at record time; PR-167 (5eb7c4d), PR-166, PR-165,
   PR-164, PR-163 all confirmed GREEN.
 
 - EVIDENCE. All reads from the pinned image: 0x23b70/0x23b80/
@@ -20460,7 +20473,7 @@ gets a correction; its item (4) is CLOSED below)
   edx=2 on the PREVIOUS object (the LEAVE verb 0x52660) then
   relinking - object-list unlinking through VERB dispatch, the
   model F2's conclusion points at). Ledger rule applied:
-  census first - HEAD 5e123e1 carries PR-150..PR-168 (last
+  census first - HEAD a92bbb5 carries PR-150..PR-168 (last
   carrier HEAD); records re-spliced from it; 1 bracket
   (PR-167 F2a/item-(1) bracket corrected: entries are objects
   BUT membership is the [obj+0x2c] COMPUTED product, chain
@@ -20607,8 +20620,8 @@ wording is implicitly corrected)
   data or frames in git (scratch /tmp/opencode/pr170/);
   .github/workflows/* untouched; the image unchanged (text.bin
   sha256 edf19a12...). CI: PR-169's run (44505822001) was
-  queued at record time; PR-168 (5e123e1) was in_progress and
-  PR-167 (f7d7552) confirmed GREEN at record time.
+  queued at record time; PR-168 (a92bbb5) was in_progress and
+  PR-167 (5eb7c4d) confirmed GREEN at record time.
 
 - EVIDENCE. All reads from the pinned image: the [x+0x394]
   writer census + 0x4de22-0x4dea4 verbatim (the nine ctor at-
@@ -20624,7 +20637,7 @@ wording is implicitly corrected)
   := 100, +0xb1 := 22 - PR-98's default physics pair!);
   0x50ed0-0x50f79 verbatim; 0x50300/0x502f0 verbatim; 0x4b552
   -0x4b5cc verbatim (F4); 0x9078b = 'TLewZaria' raw string.
-  Ledger rule applied: census first - HEAD 643f13a carries
+  Ledger rule applied: census first - HEAD 5058e67 carries
   PR-150..PR-169 (last carrier HEAD); records re-spliced from
   it; 1 bracket (PR-169 F2's manager-table sentence: the
   manager IS the level controller; +0x68 returns a field
@@ -20839,7 +20852,7 @@ open with a corrected lead)
   .github/workflows/* untouched; the image unchanged (text.
   bin sha256 edf19a12...). CI: PR-170's run (44506391251)
   was queued at record time, PR-168's (44505316888) in_prog-
-  ress; PR-169 (643f13a), PR-167, PR-166, PR-165 all GREEN.
+  ress; PR-169 (5058e67), PR-167, PR-166, PR-165 all GREEN.
 - EVIDENCE. All reads from the pinned image: 0x54912 head +
   bit-map verbatim (0x54912-0x5499a: the 0x749a0 clear, the
   three [obj+0xa5] tests + the three `or BYTE [esp+N]`
@@ -20867,7 +20880,7 @@ open with a corrected lead)
   name loop and `inc [c+0x40]`); 0x52070 read and RULED
   OUT (ENTER preamble: [obj+0x9d] := 0 + a WORD scale law,
   no chain store). Ledger rule applied: census first - HEAD
-  0ce1036 carries PR-150..PR-170 (last carrier HEAD);
+  ff84394 carries PR-150..PR-170 (last carrier HEAD);
   records re-spliced from it; 5 brackets (PR-168 F3 sentence
   corrected; its items (2)/(3) closed; PR-170 items (1)/(2)
   corrected/answered).
@@ -21062,7 +21075,7 @@ ride item CLOSED; the PR-107 self-target row item UPDATED)
   selftest transcript (failing first run pinpointed the in-
   step row-list wrap - the test was corrected to the port's
   PR-135 law, not the reverse); the battery table in F4.
-  Ledger rule applied: census first - HEAD 2872f45 carries
+  Ledger rule applied: census first - HEAD 68c85d0 carries
   PR-150..PR-171 (last carrier); records re-spliced from it;
   5 brackets.
 
@@ -21272,9 +21285,9 @@ table now verified 68/68)
 
 - FINDING 6, THE 0x600000/0x800000 LITERALS ARE A LEDGER
   ARTIFACT — CLOSED WITH PROVENANCE. git -S over all blobs:
-  PR-161 (7bae5a1) contains ZERO occurrences of either value
+  PR-161 (9389f70) contains ZERO occurrences of either value
   in its record or commit message; the strings FIRST ENTER the
-  ledger in PR-166's Next (c00c1ce) with no derivation
+  ledger in PR-166's Next (ec199d6) with no derivation
   recorded in PR-166's own record; every later mention
   (PR-167 "must surface", PR-168 "STILL where", PR-170/171's
   "PR-161's constants") descends from that unrecorded coinage.
@@ -21389,10 +21402,10 @@ table now verified 68/68)
   the objdump split at 0x5490f); 0x552e0/0x55230/0x55130-head/
   0x550c0-head/0x23b10/0x23a20/0x23a40/0x23870 verbatim; the
   strict condition-token census (script + outputs); the git -S
-  provenance runs (7bae5a1 zero hits; c00c1ce first). Port
+  provenance runs (9389f70 zero hits; ec199d6 first). Port
   side: obj_cond_true's default false + its PR-88 comment, the
   LEW art-stem special case (ll_level.c ~7971). Ledger rules
-  applied: census first — HEAD af3e3ff carries PR-150..PR-172
+  applied: census first — HEAD 6926676 carries PR-150..PR-172
   (23 records, last carrier); records re-spliced from it;
   5 brackets (PR-88 bounds; PR-171 F1 entry+reachability; its
   labeled thesis superseded; its F5 attribution closed with
@@ -22105,7 +22118,7 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 
 ## OWNER (2026-11-19) — THE NAME: open-leo. REPO, PROJECT AND
 ## SHIPPED STRINGS, DOCS AND CI IN ONE PASS (no engine semantics
-## change; the commit carrying it is df97096, not a PR step)
+## change; the commit carrying it is bc24681, not a PR step)
 
 - Owner ask, 2026-11-19: one spelling, `open-leo`, everywhere, the
   project name included. GitHub repo renamed
@@ -22143,7 +22156,7 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 
 ## OWNER (2026-11-19) — LINUX-FIRST GATE AND MEASURED SUITE SPEED
 ## (no port code, no behaviour change; the Windows legs are DEFERRED,
-## not deleted; the Makefile/docs half is in df97096, the CI file half
+## not deleted; the Makefile/docs half is in bc24681, the CI file half
 ## is held back by the missing workflow scope - see that commit)
 
 - Two owner rulings, 2026-11-19, both recorded as HANDOFF section 2
@@ -22204,11 +22217,11 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 ## only RUNNING it could find, plus the measured effect of the image and
 ## the Linux-only gate (no port code, no leg body touched)
 
-- Pushed and green. The commits: 63c0827 (the split: pre-baked image,
-  Linux-only per-push path, `-j` suite, ci-windows.yml), 08a596a and
-  bc14cfc (ci-image fixes), a851eff (registry credentials +
-  packages:read), 14e6439 (the pinned SDL2 provisioning put back).
-- MEASURED RESULT, run 44536707174 (push, HEAD 14e6439): `linux` 59s
+- Pushed and green. The commits: fb81104 (the split: pre-baked image,
+  Linux-only per-push path, `-j` suite, ci-windows.yml), 0c3c540 and
+  c67a9be (ci-image fixes), 446707e (registry credentials +
+  packages:read), a86daaa (the pinned SDL2 provisioning put back).
+- MEASURED RESULT, run 44536707174 (push, HEAD a86daaa): `linux` 59s
   EXIT=0 with 51 `(ok)` lines and `ALL TESTS PASSED (linux half...`;
   `asan` 48s. Reference, run 44523679146 (last green BEFORE any of
   this): linux 304s of which `Install toolchain` 247s, asan 46s, and
@@ -22616,14 +22629,14 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   old 56 included the four verify-win/verify-mod oks now
   moved to the end pass), FIXTURE-FREE rc=0 = 10 (ok) + the
   same 18 named verify-SKIPs (was 23 with the windows legs;
-  the owner's suite-speed round fdbd42b changed no verdict
+  the owner's suite-speed round aceea87 changed no verdict
   count). The `make win` half is NOT a per-PR gate any more
   (owner ruling; the end-of-implementation pass runs
   `make -k verify-windows` + ci-windows). CI truth at this
-  record's time: HEAD 7b4d736 run 44541651358 = SUCCESS on
+  record's time: HEAD 40cf915 run 44541651358 = SUCCESS on
   the NEW linux-only ci.yml; the owner's CI-bootstrap round
   had two honest failures first (44535351029, 44536198608)
-  fixed by a851eff/bc14cfc/08a596a; ci-windows 44536359825
+  fixed by 446707e/c67a9be/0c3c540; ci-windows 44536359825
   = SUCCESS (manual); my own prior chain unchanged. This
   docs push queues its own run. Added .md lines <= 79 cols;
   over-79 baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 71 -
@@ -22863,14 +22876,14 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 
 - GATES. Docs-only reading PR (PR-138..177 precedent): no
   port file touched; the build state is the OWNER GATE of
-  2026-11-19 (HANDOFF rule 8) as MEASURED on 7b4d736 (make
+  2026-11-19 (HANDOFF rule 8) as MEASURED on 40cf915 (make
   ZERO warnings; verify-all rc=0 both ways = 52 (ok) with
   fixtures / 10 (ok) + 18 named SKIPs fixture-free) - and
   only docs have changed since (PR-177's commit is a
   NEXT_STEPS/HANDOFF-only diff). CI truth at this record's
   time: PR-177's docs run 44544519251 = SUCCESS on
-  9bff5de (the new linux-only ci.yml); the chain
-  7b4d736->44541651358, 112d914->44537126323 SUCCESS
+  ad28bf3 (the new linux-only ci.yml); the chain
+  40cf915->44541651358, 37120d3->44537126323 SUCCESS
   unchanged. This docs push queues its own run. Added .md
   lines <= 79 cols; over-79 baselines UNCHANGED (NEXT_STEPS
   71, HANDOFF 71); no game data or frames in git (scripts
@@ -23123,11 +23136,11 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 
 - GATES. Docs-only reading PR (PR-138..178 precedent): no
   port file touched; the build state is the OWNER GATE
-  (rule 8) as MEASURED on 7b4d736 (make ZERO warnings;
+  (rule 8) as MEASURED on 40cf915 (make ZERO warnings;
   verify-all rc=0 both ways = 52 (ok) fixtures / 10 (ok) +
   18 named SKIPs) - only docs have changed since. CI truth
   at this record's time: PR-178's docs run 44546099837 =
-  SUCCESS on 829dabe; PR-177's 44544519251 = SUCCESS; the
+  SUCCESS on 9bd5449; PR-177's 44544519251 = SUCCESS; the
   chain unchanged. This docs push queues its own run.
   Added .md lines <= 79 cols; over-79 baselines UNCHANGED
   (NEXT_STEPS 71, HANDOFF 71); no game data or frames in
@@ -23293,11 +23306,11 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 
 - GATES. Docs-only reading PR (PR-138..179 precedent): no
   port file touched; build state = the OWNER GATE (rule 8)
-  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  as MEASURED on 40cf915 (ZERO-warning make; verify-all
   rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
   SKIPs) - only docs moved since. CI truth at this
   record's time: PR-179's docs run 44547207457 = SUCCESS
-  on a6e7c19; the chain (PR-178 44546099837, PR-177
+  on 2fff311; the chain (PR-178 44546099837, PR-177
   44544519251) SUCCESS unchanged. This docs push queues
   its own run. Added .md lines <= 79 cols; over-79
   baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 71); no
@@ -23531,11 +23544,11 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 
 - GATES. Docs-only reading PR (PR-138..180 precedent): no
   port file touched; build state = the OWNER GATE (rule 8)
-  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  as MEASURED on 40cf915 (ZERO-warning make; verify-all
   rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
   SKIPs) - only docs moved since. CI truth at this
   record's time: PR-180's docs run 44549075152 = SUCCESS
-  on 44b0870; the chain (PR-179 44547207457, PR-178
+  on 89fddc2; the chain (PR-179 44547207457, PR-178
   44546099837, PR-177 44544519251) SUCCESS unchanged.
   This docs push queues its own run. Added .md lines <=
   79 cols; over-79 baselines UNCHANGED (NEXT_STEPS 71,
@@ -23758,11 +23771,11 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 
 - GATES. Docs-only reading PR (PR-138..181 precedent): no
   port file touched; build state = the OWNER GATE (rule
-  8) as MEASURED on 7b4d736 (ZERO-warning make;
+  8) as MEASURED on 40cf915 (ZERO-warning make;
   verify-all rc=0 both ways = 52 (ok) fixtures / 10 (ok)
   + 18 named SKIPs) - only docs moved since. CI truth at
   this record's time: PR-181's docs run 44553528506 =
-  SUCCESS on ce469ab; the chain (PR-180 44549075152,
+  SUCCESS on 08b3de6; the chain (PR-180 44549075152,
   PR-179 44547207457, PR-178 44546099837, PR-177
   44544519251) SUCCESS unchanged. This docs push queues
   its own run. Added .md lines <= 79 cols; over-79
@@ -24016,11 +24029,11 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 
 - GATES. Docs-only reading PR (PR-138..182 precedent): no
   port file touched; build state = the OWNER GATE (rule 8)
-  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  as MEASURED on 40cf915 (ZERO-warning make; verify-all
   rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
   SKIPs) - only docs moved since. CI truth at this
   record's time: PR-182's docs run 44554963180 = SUCCESS
-  on 5e357eb; the chain (PR-181 44553528506, PR-180
+  on 4afa7a1; the chain (PR-181 44553528506, PR-180
   44549075152, PR-179 44547207457, PR-178 44546099837,
   PR-177 44544519251) SUCCESS unchanged. This docs push
   queues its own run. Added .md lines <= 79 cols; over-79
@@ -24269,11 +24282,11 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 
 - GATES. Docs-only reading PR (PR-138..183 precedent): no
   port file touched; build state = the OWNER GATE (rule 8)
-  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  as MEASURED on 40cf915 (ZERO-warning make; verify-all
   rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
   SKIPs) - only docs moved since. CI truth at this
   record's time: PR-183's docs run 44557634130 = SUCCESS
-  on 9409e87; the chain (PR-182 44554963180, PR-181
+  on 2f57c7e; the chain (PR-182 44554963180, PR-181
   44553528506, PR-180 44549075152, PR-179 44547207457)
   SUCCESS unchanged. This docs push queues its own run.
   Added .md lines <= 79 cols; over-79 baselines UNCHANGED
@@ -24549,11 +24562,11 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 
 - GATES. Docs-only reading PR (PR-138..184 precedent): no
   port file touched; build state = the OWNER GATE (rule 8)
-  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  as MEASURED on 40cf915 (ZERO-warning make; verify-all
   rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
   SKIPs) - only docs moved since. CI truth at this
   record's time: PR-184's docs run 44560356006 = SUCCESS on
-  2014852; the chain (PR-183 44557634130, PR-182
+  0a9013a; the chain (PR-183 44557634130, PR-182
   44554963180, PR-181 44553528506, PR-180 44549075152)
   SUCCESS unchanged. This docs push queues its own run.
   Added .md lines <= 79 cols; over-79 baselines UNCHANGED
@@ -24902,11 +24915,11 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 
 - GATES. Docs-only reading PR (PR-138..185 precedent): no
   port file touched; build state = the OWNER GATE (rule 8)
-  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  as MEASURED on 40cf915 (ZERO-warning make; verify-all
   rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
   SKIPs) - only docs moved since. CI truth at this
   record's time: PR-185's docs run 44563439495 = SUCCESS on
-  6496cd4; the chain (PR-184 44560356006, PR-183
+  b3ad7e6; the chain (PR-184 44560356006, PR-183
   44557634130, PR-182 44554963180, PR-181 44553528506)
   SUCCESS unchanged. This docs push queues its own run.
   Added .md lines <= 79 cols; over-79 baselines UNCHANGED
@@ -25244,11 +25257,11 @@ BEHAVIOUR CHANGE)
 
 - GATES. Docs-only reading PR (PR-138..186 precedent): no
   port file touched; build state = the OWNER GATE (rule 8)
-  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  as MEASURED on 40cf915 (ZERO-warning make; verify-all
   rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
   SKIPs) - only docs moved since. CI truth at this
   record's time: PR-186's docs run 44566740263 = SUCCESS
-  on b649331; the chain (PR-185 44563439495, PR-184
+  on b9bef85; the chain (PR-185 44563439495, PR-184
   44560356006, PR-183 44557634130, PR-182 44554963180,
   PR-181 44553528506) SUCCESS unchanged. This docs push
   queues its own run. Added .md lines <= 79 cols;
@@ -25726,11 +25739,11 @@ BEHAVIOUR CHANGE)
 
 - GATES. Docs-only reading PR (PR-138..187 precedent): no
   port file touched; build state = the OWNER GATE (rule 8)
-  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  as MEASURED on 40cf915 (ZERO-warning make; verify-all
   rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
   SKIPs) - only docs moved since. CI truth at this
   record's time: PR-187's docs run 44570032820 = SUCCESS
-  on f74b37d; the chain (PR-186 44566740263, PR-185
+  on 2a35a9b; the chain (PR-186 44566740263, PR-185
   44563439495, PR-184 44560356006, PR-183 44557634130)
   SUCCESS unchanged. This docs push queues its own run.
   Added .md lines <= 79 cols; over-79 baselines UN-
@@ -26256,11 +26269,11 @@ BEHAVIOUR CHANGE)
 
 - GATES. Docs-only reading PR (PR-138..188 precedent): no
   port file touched; build state = the OWNER GATE (rule 8)
-  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  as MEASURED on 40cf915 (ZERO-warning make; verify-all
   rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
   SKIPs) - only docs moved since. CI truth at this
   record's time: PR-188's docs run 44574817659 = SUCCESS
-  on c6e2700; the chain (PR-187 44570032820, PR-186
+  on 88e5da6; the chain (PR-187 44570032820, PR-186
   44566740263, PR-185 44563439495, PR-184 44560356006)
   SUCCESS unchanged. This docs push queues its own run.
   Added .md lines <= 79 cols; over-79 baselines UN-
@@ -26732,11 +26745,11 @@ BEHAVIOUR CHANGE)
 
 - GATES. Docs-only reading PR (PR-138..189 precedent): no
   port file touched; build state = the OWNER GATE (rule 8)
-  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  as MEASURED on 40cf915 (ZERO-warning make; verify-all
   rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
   verify-SKIPs) - only docs moved since. CI truth at this
   record's time: PR-189's docs run 44582609955 = SUCCESS on
-  865e4d2; the chain (PR-188 44574817659, PR-187
+  0f2cbbd; the chain (PR-188 44574817659, PR-187
   44570032820, PR-186 44566740263) SUCCESS unchanged. This
   docs push queues its own run. Added .md lines <= 79 cols;
   over-79 baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 71);
@@ -27152,20 +27165,20 @@ BEHAVIOUR CHANGE)
 
 - GATES. Docs-only reading PR (the PR-138..PR-190
   precedent): no port file touched, so the build state =
-  the OWNER GATE (rule 8) as MEASURED on 7b4d736
+  the OWNER GATE (rule 8) as MEASURED on 40cf915
   (ZERO-warning make; verify-all rc=0 both ways = 52 (ok)
   with fixtures / 10 (ok) + 18 named verify-SKIPs) - only
   docs move here. Every added line is <= 79 columns and
   the width baselines (NEXT_STEPS 71 / HANDOFF 71
   over-79 lines) are held: line-set diffs 0 added /
   0 removed at this commit. Heading census 104 = 103 at
-  e9364a4 + this record; the 4 OWNER (2026-11-19) records
+  57abf8c + this record; the 4 OWNER (2026-11-19) records
   are unchanged; records PR-150..PR-190 are re-spliced
   byte-identical except for the 8 new brackets
   inside. The
   Windows half stays in the end pass (rule 8). The last
   CONFIRMED CI run at this record's time: PR-190's docs
-  run 44587997914 = SUCCESS on e9364a4.
+  run 44587997914 = SUCCESS on 57abf8c.
 
 ## PR-192 — 2026-11-19. THE TAG-FACTORY MAP IS DONE: 16
 ## AUTHORED-TYPE FACTORY CHAINS (361 tag arms, 386 strcmp
@@ -27550,17 +27563,17 @@ BEHAVIOUR CHANGE)
 
 - GATES. Docs-only reading PR (the PR-138..PR-191
   precedent): no port file touched; build state = the
-  OWNER GATE (rule 8) as MEASURED on 7b4d736 (ZERO-warning
+  OWNER GATE (rule 8) as MEASURED on 40cf915 (ZERO-warning
   make; verify-all rc=0 both ways = 52 (ok) with fixtures
   / 10 (ok) + 18 named verify-SKIPs) - only docs move
   here. Added lines all <= 79 columns; width baselines
   (NEXT_STEPS 71 / HANDOFF 71) held by line-set diff.
-  Heading census 105 = 104 at 21445d5 + this record; the
+  Heading census 105 = 104 at 575a395 + this record; the
   4 OWNER (2026-11-19) records unchanged; records
   PR-150..PR-191 re-spliced byte-identical except the new
   brackets. The Windows half stays in the end pass (rule
   8). The last CONFIRMED CI run at this record's time:
-  PR-191's docs run 44594688123 = SUCCESS on 21445d5.
+  PR-191's docs run 44594688123 = SUCCESS on 575a395.
 
 ## Deferred big items (deliberately out of scope so far)
 
