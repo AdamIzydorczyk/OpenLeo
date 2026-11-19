@@ -1960,7 +1960,12 @@ writer as its open items.
       Plain `LINA` has NO class-name token (0x910ca unreferenced) -
       the "climbable variant" family is K-prefixed (KLINA, KDRABINA
       ... at 0x910a7..0x910fb, matching AC_DRABK=11 and ZARIA.02's
-      DRABK.MOV); which class a plain LINA gets is open. 7 new open
+      DRABK.MOV); which class a plain LINA gets is open. [ANSWERED
+      by PR-149: the search checked ONE literal, not the file - a
+      second `LINA` at 0x92005 IS a factory branch (0x4e81d, the
+      same token-compare idiom, a 0xd9 ctor with the same rect/
+      block setup as DRABINKA's); which of the two literals is
+      the .des token stays counted.] 7 new open
       items counted, the first two being the engine's oldest open
       mechanism - the transition EVALUATOR and what the 13-byte
       key/set actually is (PR-88 labelled [obj+60] a TEventSet,
@@ -1968,7 +1973,11 @@ writer as its open items.
       PR-101's chain 0x536f0/0x523f0/0x47e40/0x52251) - then
       K_GEN1's raiser, LINA's class path, the [obj+0x66] bit-6 /
       probe units, the ladder's receiver pair 0x3e5e0/0x53d80, and
-      the answer-chain slots [vt+0x3c/0x4c/0x68/0x8]. No mutants:
+      the answer-chain slots [vt+0x3c/0x4c/0x68/0x8]. [PR-149
+      PINS those slots and that pair: 0x23c10 / 0x23a20 (add
+      eax,0x75) / 0x23b60 (ret-eax; the lion's +0x68 is 0x23900) /
+      0x23e00 across the 24 tables, and 0x3e5e0 is an INIT-AND-
+      PRINT entry that raises NOTHING. No mutants:
       no behaviour changed; the honesty mechanism here is
       attribution (PR-88's prior claim is named, not hidden). Full
       record: the PR-141 section of NEXT_STEPS.md (cond_map.txt
@@ -2180,7 +2189,14 @@ writer as its open items.
       0x52b80 from the frame loop 0x4aed6 and the think pass
       0x4baed/0x4bb12, plus 0x55398/0x55696); (ii) the mask at
       0x2451e is K_FIRE, not a second K_GEN1; (iii) PR-142's
-      zero-standing-bits generalization, above. STILL GENUINELY
+      zero-standing-bits generalization, above. [PR-149 ADDS TWO
+      NEGATIVES to item 3 (what arms K_GEN1 at a full-HP ladder):
+      the touch-damage route does not arm it - the ladder's +0xd0
+      receiver 0x3e5e0 consumes no argument (init-and-print) and
+      the +0xd0 sibling 8 of the 23 family tables use is `ret`
+      (0x23c60) - and no signal-record poster in PR-147's closed
+      census names bit 54 at a ladder. The item STAYS OPEN.]
+      STILL GENUINELY
       UNREFERENCED (byte-level any-alignment scan over both
       segments): the contact-pass fragments 0x4bd32/0x4bdf6 (the
       lion-specific half: it calls [lion.vt+0x78] with the LION
@@ -2324,7 +2340,12 @@ writer as its open items.
       beyond the node builder's 0x1d-byte allocation (whose answer
       set ends at +0x1c) - so who builds kinds 1/2/4 (PR-146 open
       item 1) now has teeth; node+0xc IS the ID field compared at
-      0x54a24 (PR-108), which half-resolves that item. 3 new open
+      0x54a24 (PR-108), which half-resolves that item. [CLOSED by
+      PR-149: the builders are pinned (0x53eb0/0x53f00 kind 1,
+      the answer-copying 0x53f50 kind 2, the kind-4 patch chain)
+      and the fit question was no oddity - kind-4 nodes are
+      allocated 0x21 at the one 0x21 site in the chain itself.]
+      3 new open
       items counted (the node builders and the allocation fit; the
       ds:0xa94f0 loop gate; the singleton's merge/second-cursor
       fields). Zero open laws remain for the climb: what is left
@@ -2407,6 +2428,71 @@ writer as its open items.
       section of NEXT_STEPS.md; battery driver at
       /tmp/opencode/pr148/run_mut.sh (kept out of git with the
       scratch tree).
+    - PR-149 (READING, no code, no new test - the PR-138..148
+      precedent): THE NODE BUILDERS ARE PINNED AND THE 0x1d
+      QUESTION IS CLOSED. Kind-1 nodes: builder entries 0x53eb0
+      and 0x53f00 (zero the 13-byte set at [n+0x10..0x1c]).
+      Kind-2: entry 0x53f50 BUILDS kind=2 and COPIES the
+      caller's 13-byte answer set in (rep movs, 0x53f6e..
+      0x53f88) - the answer-carrying builder, its only rel32
+      caller 0x3d66d. Kind-4: the kind-1 builder (0x24678) then
+      patches [rec+4]=4 (0x24681) and [rec+0x1d]=edx (0x24688).
+      THE ALLOC CENSUS: 0x5c320 is the general allocator (617
+      call sites), and a whole-image scan finds exactly THREE
+      sites sized 0x1d (0x1ef4c, 0x3d5fc, 0x3d64f) and exactly
+      ONE sized 0x21 - 0x2465f, three instructions before the
+      kind-4 patch. So the +0x1d y field sits INSIDE the kind-4
+      block; and the +0x1d access census shows one store
+      (0x24688) and only kind-4-handler reads (0x54b11/0x54b36).
+      PR-147 open item 1 CLOSED. The chain's function (entry
+      0x24440) is reached from one class-table dword (0x989ec)
+      and iterates [obj+0x136] - which data feeds it stays open.
+      ALSO: the ladder's answer method 0x3f1c0 is now read as a
+      three-predicate tree with the OPERANDS pinned: P1 = the
+      TOUCHER's block at [q+0xc5] (q = the +0x68 getter's
+      result; 23/24 family tables return self via the ret-eax
+      getter 0x23b60, the lion's returns &self+0xd6 = 0x23900)
+      vs the LADDER's stored block at self+0xc5, through the
+      class rect-INTERSECTION slot +0x8 (0x23e00, all 24
+      tables) - true -> AC_EDGE bit 8; false -> the 70% INSET
+      probe (0x49fb0, n=0x46, over a stack copy of
+      [self+0xb1..0xbd]); P2 vs the inset rect (false ->
+      inert); true -> P3 vs the ladder's FULL rect (0x3f2af) -
+      true -> AC_DRAB_CATCH+AC_DRAB merged through 0x49580,
+      false -> AC_DRAB alone. PR-141's four outcomes CONFIRMED,
+      operands now the record's, and every slot in the chain is
+      a base-class family slot - the ladder-specific content of
+      its answer is its DATA only. The lea-pair idiom (lea ebx,
+      [eax+0xb1] ... lea eax,[ebx-0xb1]; add eax,0xc5) exists
+      at exactly TWO ctor sites: DRABINKA 0x1f8f3 and LINA
+      0x4e871 (ctor 0x4e831, same 0xd9 alloc) - and this
+      session's earlier self-pointer reading of it is CORRECTED:
+      it computes the block base &obj+0xc5 for the ctors'
+      zero-stores, and direct +0xc5 accesses are exactly ONE
+      instruction image-wide (0x3f228).
+      PR-141 ITEM 4 ANSWERED: a second `LINA` literal (0x92005)
+      IS the factory branch (token compare at 0x4e81d) - and its
+      chain-mates name factory branches for SURPRISE (0x4e62f -
+      the G-12 route), TRASA/TRASA2 and more (counted leads).
+      The attribute vocabulary is now enumerated from the
+      engine's own trace strings (0x9142c..0x9161x: bounds,
+      number, sample, effects, count, div, damage, width, dist,
+      offset, speed, prior, loop, scope, energy, hit_time,
+      coef...); and the ladder's +0xd0 entry 0x3e5e0 proves out
+      as an INIT-AND-PRINT entry that raises NOTHING - plus a
+      second negative for the K_GEN1 arm (the base sibling 8 of
+      the 23 family tables use, 0x23c60, is `ret`). The K_GEN1
+      arm stays the named blocker for the in-game climb chain,
+      so PR-150's climb probe raises the signal directly.
+      PR-150 is now better specified: the candidate walk gated
+      by the state-token wire bits, the asked object's +0x78
+      answer entry, an answer-carrying node (this record's
+      builder/alloc shapes) into [obj+0xd2], the kind-2 merge
+      into the live set - with the ladder predicate tree as the
+      first authored answer. 6 new open items counted. Full
+      record: the PR-149 section of NEXT_STEPS.md (raw pass
+      notes at /tmp/opencode/pr149/nodes_notes.md, kept out of
+      git).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -3842,7 +3928,9 @@ is held, and stops the instant it is not; the port's row model
 matches the shape and lacks the guard and the magnitudes. What
 remains is the implementation decision (PR-148: the input/guard
 law with the engine's numbers, then the contact-answer route),
-plus one counted oddity (node+0x1d vs the 0x1d allocation).
+plus one counted oddity (node+0x1d vs the 0x1d allocation -
+CLOSED by PR-149: kind-4 nodes are allocated 0x21, one 0x21
+site image-wide, in the kind-4 chain itself).
 STATUS after PR-148 (the guard, SHIPPED): that decision's first
 half is CODE now - LL_CTRL_BY_TY + the parser mapping, the
 player's vert_intent word (Up negative, y+ down, at the port's
@@ -3864,6 +3952,22 @@ intent sign) and M10 (keys-not-word) survive by construction
 until the y-force path and the kind-4 override exist - the
 reason the port carries a WORD. The ZARIA.01 climb blocker is
 unchanged: the contact-answer route, PR-149.
+STATUS after PR-149 (the blocker's spec, CLOSED AS A READING
+GAP): the contact-answer route's every input is now pinned at
+byte level - the node builders and their allocation sizes
+(kind 1 at 0x53eb0/0x53f00, the answer-COPYING kind-2 builder
+0x53f50, the kind-4 patch chain allocating 0x21), and the
+ladder's answer 0x3f1c0 as an operand-pinned predicate tree
+(the toucher's block vs the ladder's +0xc5 block, then its
+70%-inset rect, then its full [self+0xb1..0xbd] rect - all
+through the shared rect-intersection slot 0x23e00; the row-1
+branch only FLAGS, row 0 never answers). So PR-150 is a CODE
+question, not a reading one. The remaining NAMED in-game
+blocker moved one link down the chain: the ladder's own live
+set never receives K_GEN1 (bit 54) to admit its A_UP out of
+`1,0,WAIT K_GEN1` - PR-149 adds two negatives there (the
++0xd0 receiver and the signal-record census) and the probe
+leg must raise the signal directly until it resolves.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
