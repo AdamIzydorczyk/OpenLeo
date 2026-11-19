@@ -2261,6 +2261,79 @@ writer as its open items.
       mutants (no behaviour changed). Full record: the PR-146
       section of NEXT_STEPS.md (contact_map.txt carries the
       builder table, the two censuses and the node map).
+
+    - PR-147 CLOSED THE CLIMB FEED LAW ON THE ENGINE SIDE (reading
+      record, no code change: PR-138..146 precedent; gates re-run
+      fresh: make rc=0 / make win rc=0 zero warnings; verify-all
+      with fixtures rc=0, 56 (ok), zero FAILED; fixture-free rc=0
+      with the same 23 named SKIPs). THE CONTROL-KEYWORD ENCODING
+      IS NOW BYTE-EXACT (the parser chain 0x51b35..0x51da0 over
+      the 23 strings 0x9216e..0x9222f): BY_X 0x1, BY_Y 0x2,
+      BY_TIME 0x3, BY_TX 0x4, BY_TY 0x5, FRAME_REV 0x8, SEQ_REV_X
+      0x10, SEQ_REV_Y 0x20, CHECK_ANI 0x40, CHECK_ZW 0x80,
+      CHECK_LN/CHECK_ALL 0x1c0 - PR-108's five-value mode note
+      confirmed item for item; the dispatcher's jump table 0x54380
+      is FIVE dwords ending at idx4 (mode 0 = the IMPLICIT no-
+      keyword mode, fed by |v_x|; BY_TIME guarded on [obj+0xba]
+      and falling through into the unguarded BY_TX body). THE
+      CONSTANT 100 HAS EXACTLY ONE WRITER image-wide: 0x4c8b7
+      `mov [eax+0x388],0x64` inside the init entry 0x4c8a2; the
+      grep `+0x388]` has 4 hits total. THE GUARD WORD IS THE
+      PLAYER'S OWN VERTICAL INTENT: the frame loop calls the
+      LION's class-table slot +0xcc with its 12-byte input block
+      EVERY frame before stepping it (0x4ae82 gate global ds:
+      0xa94f0 - zero makes the loop return 2; 0x4aeb3 [world+
+      0x394] = the lion; 0x4aeca `call [ebx+0xcc]`; then the step
+      pump 0x52b80), and that slot has EXACTLY 7 call sites in
+      the image (0x27e1d 0x282a1 0x344c8 0x4010e 0x4110c 0x41c01
+      0x4aeca - a closed set). THE CAPTURE READER 0x582f0 maps
+      the keyboard onto the block: word0 x = Home/Left 0x24b ->
+      -20, Right 0x24d -> +20; WORD1 y = Down 0x250 -> +20, Up
+      0x248 -> -20 (y+ = down, PR-99's sign confirmed); word2 +
+      flag bytes carry Insert/Delete, F1..F10, Tab, Esc, Space,
+      Ctrl, Shift, NumLock (full map in feed_map.txt). Words 0/1
+      are only ever 0/+/-20. 0x58690 has EXACTLY ONE call site
+      (the frame loop, 0x4ac6c), and its playback mode proves THE
+      DEMO RECORD FORMAT: 16-byte records (three input words + a
+      length at [rec+0xc]), cursor [x+0x2f] wrapping at that
+      length - closing PR-145 open item 6 (the merge helper 0x225a0
+      and fields [x+0x33]/[x+0x8] stay open). THE INTENT CHAIN,
+      WITH CLOSED WRITE CENSUSES: 0x549f0 stores block word0 ->
+      [obj+0xba] and word1 -> [obj+0xbe] UNCONDITIONALLY (0x549f9/
+      0x54a08), then the head-node kind chain re-decides: kind 1
+      = the x arm (+/-10 around node+8 with a +-8 dead band),
+      KIND 4 = THE VERTICAL ARM (+/-10 toward node+0x1d, 0x54b16/
+      0x54b3b/0x54b47 - PR-146's "raw-x variant" label CORRECTED:
+      it reads the getter's +4, it is a y), kind 2 = the
+      answer-set merge. [obj+0xbe] is written at exactly four
+      sites and read at five: the mode-4 guard 0x5441b, the
+      integrator's force 0x542cd, the K_UP/K_DOWN provider 0x5499d
+      and 0x54030's copy - so WHILE A CONTACT NODE IS PRESENT the
+      intent is the engine's own +/-10 toward the partner's y,
+      otherwise the player's +/-20. PR-145's "s = 10, never any
+      other magnitude" NARROWS to the contact path; the input
+      path's constant is 20. AUTHORED DATA (byte census over
+      ANIMACJE): BY_TY 12, BY_TX 0; every A_WSP/A_WSP_LIN block
+      is `control=BY_TY|CHECK_ALL|SEQ_REV_Y` (wire word 0x205),
+      F=0,100, T=160,50, rows 300/200.../300 - so under the read
+      law a BY_TY row advances after 3 and then 2 frames WHERE
+      THE VERTICAL INTENT IS HELD, and stops the instant it is
+      not; the port's row model already matches this shape and
+      lacks only the guard and the intent values. STRUCTURAL
+      ODDITY COUNTED, NOT SMOOTHED: node+0x1d (the compared y) is
+      beyond the node builder's 0x1d-byte allocation (whose answer
+      set ends at +0x1c) - so who builds kinds 1/2/4 (PR-146 open
+      item 1) now has teeth; node+0xc IS the ID field compared at
+      0x54a24 (PR-108), which half-resolves that item. 3 new open
+      items counted (the node builders and the allocation fit; the
+      ds:0xa94f0 loop gate; the singleton's merge/second-cursor
+      fields). Zero open laws remain for the climb: what is left
+      is the implementation decision (PR-148: the input/guard law
+      with the engine's magnitudes, then the contact-answer
+      route). No mutants (no behaviour changed). Full record: the
+      PR-147 section of NEXT_STEPS.md (feed_map.txt carries the
+      keyword encoding, the keyboard map, the two censuses and the
+      authored census).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -3522,10 +3595,11 @@ crosses both worms and stands x=685 at tick 300 with ZERO damage,
 zero state changes outside A_WALK, and the worm answer being the SEMI
 push-out alone (cost: ~40 lost iterations, 0.8 vs 2.5 units/tick).
 The CLIMB at x=180 still does not work, and the blocker list has
-narrowed repeatedly (PR-141, PR-142, PR-144/145 - and PR-146
-closed the last reading gap: the contact delivery is now read end
-to end, so what is left is the A_WSP law and the implementation
-decision). CLOSED by PR-141: the
+narrowed repeatedly (PR-141, PR-142, PR-144/145; PR-146 closed
+the last reading gap - the contact delivery is read end to end -
+and PR-147 closed the last reading law: the A_WSP feed law is
+now read at byte level, so ONLY the implementation decision is
+left). CLOSED by PR-141: the
 AC_DRAB/AC_DRAB_CATCH answer bits themselves - DRABINKA's own
 answer entry 0x3f1c0 raises exactly those into the toucher, gated
 on its unroll rows, and the ladder's +0x40 getter is constant-zero
@@ -3597,9 +3671,53 @@ PRNG-random K_GEN1/2/3 (0x76bcc LCG -> 0x26670 -> the raise at
 0x26738). PR-144's 14-site live-set write census is resolved
 except two mask windows (0x28bc7, 0x50ab7); 0x2451e is K_FIRE
 (corrected).
-WHAT REMAINS FOR THE CLIMB: one open law, unchanged -
-A_WSP feed law (BY_TY `F=0,100 T=160,50` + SEQ_REV_Y, still
-PR-109's open law). CLOSED by PR-143 additionally: the answer-
+WHAT REMAINS FOR THE CLIMB: ZERO open laws (PR-147 closed the
+last one at byte level, and corrected one of PR-146's labels -
+the kind-4 contact chain is the VERTICAL intent arm, not a
+raw-x variant). THE LAW, END TO END: the authored A_WSP/
+A_WSP_LIN blocks (12 in ANIMACJE, BY_TX zero - a byte census)
+carry wire control word 0x205 = BY_TY mode 4 + CHECK_ALL +
+SEQ_REV_Y, F=0,100, T=160,50, rows 300/200.../300. A BY_TY row
+is fed EXACTLY 100 per frame while [obj+0xbe] != 0 (0x5441b;
+the 100 has exactly one writer image-wide, 0x4c8b7 in an init
+entry), then the compare against the row threshold [rec+0x10]
+runs AFTER the feed with one admit and the remainder carried
+(0x52320..0x52338 -> the row advance 0x52470 writes it back at
+0x52118) - the shape the port already ships. THE GUARD WORD IS
+THE PLAYER'S OWN VERTICAL INTENT: the frame loop calls the
+LION's class-table slot +0xcc with its 12-byte input block every
+frame before stepping it (0x4aeca; that slot has exactly 7 call
+sites; the loop is gated on ds:0xa94f0 - zero makes it return
+2), 0x549f0 stores the block's words into [obj+0xba]/[obj+0xbe]
+unconditionally (0x549f9/0x54a08), and the KEYBOARD puts +/-20
+on the two axes (Up 0x248 -> -20, Down 0x250 -> +20, Home/Left
+0x24b -> -20, Right 0x24d -> +20; reader 0x582f0; words 0/1 are
+only ever 0/+/-20). THEN the contact chain overrides, in the
+same call: a head-node of kind 4 moves the vertical intent to
++/-10 toward the node's y ([head+0x1d], a +-8 dead band,
+0x54b16/0x54b3b/0x54b47); kind 1 does the same on x (PR-108's
+arm, +-8 confirmed); kind 2 merges the stored answer set (PR-
+146). [obj+0xbe] has exactly four writers and five readers (the
+guard 0x5441b, the integrator's force 0x542cd, K_UP/K_DOWN at
+0x5499d) - so while a contact node exists the intent is the
+engine's +/-10 toward the partner, otherwise the player's
++/-20; PR-145's "s = 10, never any other magnitude" NARROWS to
+the contact path. The keyword encoding itself is now byte-exact
+(0x51b35..0x51da0: BY_X 1, BY_Y 2, BY_TIME 3, BY_TX 4, BY_TY 5,
+FRAME_REV 8, SEQ_REV_X 0x10, SEQ_REV_Y 0x20, ...) confirming
+PR-108's five-value mode item for item; the demo record format
+is a 12-byte input block + a length (0x58690 playback,
+PR-145 item 6 CLOSED). WHAT REMAINS IS THE IMPLEMENTATION
+DECISION: the port's row model already matches the shape and
+lacks (i) the guard and (ii) the intent magnitudes, plus the
+contact-answer route (the node payload -> the live set) - all
+specified by engine numbers now, so PR-148 is code + a
+hand-derived test. OPEN ODDITY COUNTED: the kind-4 chain
+compares node+0x1d, the 30th byte, while the node builder's
+allocation is 0x1d bytes (whose answer set ends at +0x1c) -
+who builds kinds 1/2/4 (PR-146 item 1) has teeth now; node+0xc
+IS the ID compared at 0x54a24 (PR-108), which half-resolves it.
+CLOSED by PR-143 additionally: the answer-
 chain entry gate (row flags 0x4000 = the port's
 LL_CTRL_CHECK_ANI; ZARIA.01's drab/lina rows carry none, so the
 ladder answering nothing in PR-140's run matches the engine's
@@ -3620,6 +3738,26 @@ player also rewrites its class-table pair at runtime
 (0x1ec36..0x1ec3f) - named, not modelled, not needed. Reading
 order in
 the PR-144 Next entry; nothing was invented for any of it.
+
+STATUS after PR-147 (the feed law, CLOSED): the 12 authored
+BY_TY blocks run mode 4 - guard `[obj+0xbe] != 0`, feed exactly
+100 per frame, threshold = the row word [rec+0x10] (the port
+reads it from the 300/200 row lists), compare AFTER the feed,
+one admit, remainder carried - so PR-109's operational rule
+(T/100 iterations) is now RE-DERIVED from the engine with its
+word identity pinned. The guard word is the PLAYER'S VERTICAL
+INTENT: the frame loop hands the LION the 12-byte keyboard block
+through its +0xcc contact method every frame (0x4aeca), the
+keyboard writes the axes at +/-20 (Up -20 / Down +20, 0x584a9/
+0x584c3), and a kind-4 contact node overrides it to +/-10
+toward the node's y with a +-8 dead band (0x54b16..0x54b47) -
+the same word the integrator uses as the v_y force (0x542cd).
+A BY_TY row therefore advances only while the vertical intent
+is held, and stops the instant it is not; the port's row model
+matches the shape and lacks the guard and the magnitudes. What
+remains is the implementation decision (PR-148: the input/guard
+law with the engine's numbers, then the contact-answer route),
+plus one counted oddity (node+0x1d vs the 0x1d allocation).
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
