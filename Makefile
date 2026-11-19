@@ -2303,6 +2303,15 @@ verify-arch:
 verify-docs:
 	@python3 tools/doc_census.py
 
+# PR-197: the generated engine index (docs/RE_INDEX.md) is pinned by
+# regeneration + cmp, so the index cannot drift from the ledger. Like
+# verify-docs it reads only tracked markdown, so it runs in EVERY
+# configuration (fixtures or not) and adds exactly one (ok) line.
+verify-index:
+	@tmp=$$(mktemp); python3 tools/re_index.py "$$tmp" || exit 1; \
+	cmp "$$tmp" docs/RE_INDEX.md || { echo 'index: FAILED docs/RE_INDEX.md is stale; run: python3 tools/re_index.py docs/RE_INDEX.md' >&2; rm -f "$$tmp"; exit 1; }; rm -f "$$tmp"; \
+	echo "index: docs/RE_INDEX.md regenerates byte-identical (ok)"
+
 # T-24 golden-master (PLAN S6 rig, no-CD route). The ORIGINAL game runs in
 # QEMU (MS-DOS 6.22 floppy + build_data_disk.sh HDD + CFG drive 'C' + the
 # known 0x5bd51 CD-gate bypass on a COPY, see build_data_disk.sh header);
@@ -2436,7 +2445,8 @@ verify-all: verify verify-is-synth verify-skip verify-llrs verify-pcx \
             verify-menu verify-sel verify-quit verify-save verify-music \
             verify-utf8 verify-fuzz verify-platform verify-userdir \
             verify-stage \
-            verify-arch verify-docs verify-golden verify-cmake $(WIN_LEGS)
+            verify-arch verify-docs verify-index verify-golden \
+            verify-cmake $(WIN_LEGS)
 	@echo "ALL TESTS PASSED (linux half; Windows legs are deferred by the"
 	@echo "2026-11-19 ruling - the end pass is 'make -k verify-windows')"
 
@@ -2463,4 +2473,5 @@ clean:
         verify-sel verify-quit verify-save verify-music verify-utf8 verify-fuzz \
         verify-platform verify-userdir verify-cmake verify-all verify-windows \
         verify-all-windows level clean package package-win package-linux \
-        verify-golden verify-arch verify-stage verify-docs golden_rig golden_rig_cd golden_rig_ddir
+        verify-golden verify-arch verify-stage verify-docs \
+        verify-index golden_rig golden_rig_cd golden_rig_ddir

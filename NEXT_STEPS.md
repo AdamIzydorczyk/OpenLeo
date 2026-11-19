@@ -15851,47 +15851,34 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-196 IS SHIPPED (the owner's doc-audit step 1): the record
-  template lives in HANDOFF section 10a and `tools/doc_census.py` P4
-  enforces it from PR-196 on, this record being the one exemption
-  (FIELDS_EXEMPT). From the next record on a record without its field
-  block fails the build; the POS/E1 + N1..N7 controls are measured in
-  the PR-196 record. Two details that are easy to get wrong: field
-  names match at COLUMN 0 only (an indented copy is prose), and the
-  gate is TWO lines, `GATE:` and `GATE-FIXTURE-FREE:`, because one
-  line carrying both halves with its counts measures 107 columns.
-- PR-197 IS THE INDEX (step 2): `tools/re_index.py` generates
-  `docs/RE_INDEX.md` from the ledger - (a) addresses appearing in >=3
-  records: 729 entries, which answers 60% of every address lookup the
-  audit measured; (b) `[field+0xNN]` tokens in >=3 records: 155;
-  (c) the 240 authored names (`control=`, K_*, AC_*, A_* states, the
-  `.MOV` members). Each entry lists the records that mention the key
-  and whether a later record RETRACTS it - that is what makes "is this
-  claim still current?" one grep instead of 51 records (today: 0xcef40
-  = 113 lines across 51 records, 0x49580 = 88 across 42). It reads the
-  PROSE for the 185 records that predate the template and the FIELDS
-  for PR-196-on records; the template exists so that from now on the
-  current/retracted judgement has a source better than proximity.
-  `verify-index` regenerates the file and `cmp`s it, so the index
-  cannot drift; it runs in both fixture modes (the inputs are tracked
-  docs). Keep the generated file's own over-79 count at 0; add it to
-  WIDTH_MAX with a measured value if it is tracked by verify-docs.
-- THEN THE DOCUMENT WORK, IN ORDER: step 3, one open-items register
-  with stable ids (~40 rows seeded from the audit's re-listed phrases
-  AND from the new `OPENS:`/`CLOSES:` lines), the ledger citing
-  `OI-nnn` instead of restating sentences; step 4, HANDOFF sections
-  5/6/7 become pointers (5 = a short current-truth map per subsystem,
-  6 = one greppable block per estimate - which also removes the 41
-  over-79 table rows, longest 3,512 columns - 7 = the register plus
-  pointers); step 5, NEXT_STEPS becomes journal-only: the stale
-  2026-11-14 status block becomes a 5-line pointer, `## Next` moves
-  into HANDOFF section 8 (one plan, one place - 14 of its 15 keys are
-  already duplicated there), `## Deferred big items` joins the
-  register, `## Standing rules` joins the rules. Do NOT split the
-  journal by era: it re-breaks the 176-sha table and buys nothing
-  these steps give.
-- THEN PR-198 IS THE PRODUCER'S LAST STEP: THE .MOV ACTION RUNTIME
-  (and the first record in production carrying the field block).
+- PR-197 IS SHIPPED (the owner's doc-audit step 2; steps 0/1/2 of the
+  approved doc order are done): `tools/re_index.py` generates
+  `docs/RE_INDEX.md` and `make verify-index` pins it by regenerate +
+  `cmp` (tracked markdown only, so both fixture modes; one (ok) each).
+  Measured, records-scoped, on the real-heading boundary doc_census
+  itself slices records with (re_index imports doc_census on purpose):
+  182 records -> 619 addresses in >=3 records (47% of address
+  mentions), 140 field tokens (64%), 224 authored names = 983 entries,
+  4,180 lines, 0 over 79. P1's headline 187 counts heading-SHAPED
+  lines (5 old titles repeat their own number on a wrap line); the
+  187/182/189 difference is measured and explained in PR-197.
+  `corrected in:` is only a
+  pointer to where a correction is WRITTEN - never a census, not a
+  direction, never a currency verdict (the three limits print in the
+  generated header; 37 of 619 carry one). Two findings every later doc
+  PR must know: building on the shared regexes FOUND A DEAD BRANCH
+  (`[a-z_]{4,20}=\b` never matches, so every `.des` key was invisible
+  to the audit, to doc_census's report and to the index's first run -
+  fixed as `DES_RE`, NAME_RE kept so the historical report stays
+  comparable), and the audit's loose `## PR-` cut made 8 phantom
+  records (worked example 0xcef40: 118 raw lines on this tree, 115
+  before this record cited it, in 47 real records vs 55 loose
+  segments on the pre-record tree; the generated header computes its
+  own live numbers at build time, never a frozen count). This file's
+  PR-197 record is the FIRST carrying the field block; PR-196's Next
+  guessed PR-198 - corrected in PR-197's CORRECTS field.
+- THEN PR-198 IS THE PRODUCER'S NEXT STEP: THE .MOV ACTION RUNTIME
+  (the SECOND record carrying the field block - PR-197 dogfooded it).
   PR-194 F-(a)/(b) left exactly one link missing between authored data
   and an exit code: the parser turns `end_level <n>` into a node of
   class 0xa1048 (0x46bbd-0x46c01), and nobody has read the interpreter
@@ -15909,6 +15896,20 @@ no port behaviour change)
   level's own LEW.MOV - the fixture then drives the engine's own end-of
   -level walk, which is the whole point of the injection hook being
   separate.
+- THEN THE DOCUMENT WORK, IN ORDER: step 3, one open-items register
+  with stable ids (~40 rows seeded from the audit's re-listed phrases
+  AND from the new `OPENS:`/`CLOSES:` lines), the ledger citing
+  `OI-nnn` instead of restating sentences; step 4, HANDOFF sections
+  5/6/7 become pointers (5 = a short current-truth map per subsystem,
+  6 = one greppable block per estimate - which also removes the 41
+  over-79 table rows, longest 3,512 columns - 7 = the register plus
+  pointers); step 5, NEXT_STEPS becomes journal-only: the stale
+  2026-11-14 status block becomes a 5-line pointer, `## Next` moves
+  into HANDOFF section 8 (one plan, one place - 14 of its 15 keys are
+  already duplicated there), `## Deferred big items` joins the
+  register, `## Standing rules` joins the rules. Do NOT split the
+  journal by era: it re-breaks the 176-sha table and buys nothing
+  these steps give.
 - STOP CONDITIONS: every claim byte-backed or fixture-byte-backed
   (cite ISO offsets); formats cross-checked against the real
   ZARIA1.IS/ANIMACJE bytes, never inferred from names alone;
@@ -15921,7 +15922,10 @@ no port behaviour change)
   (floor 184, the accepted-gap list), the one `## Next` /
   `## Deferred` / `## Standing rules`, the over-79 ratchet 71/71/12,
   and since PR-196 the field block of every record from PR-196 on; a
-  raised ratchet needs a commit that says why.
+  raised ratchet needs a commit that says why. Since PR-197
+  `make verify-index` pins the generated index by regenerate + cmp:
+  if it fails, run `python3 tools/re_index.py docs/RE_INDEX.md` and
+  commit the result - the index is generated, never hand-edited.
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -28412,6 +28416,202 @@ GATE-FIXTURE-FREE: rc=0 12 (ok) + 20 named verify-SKIPs (the first
 production use of this format outside the controls; the record is
 spliced before the gate runs and `make verify-docs` is re-run on the
 final tree afterwards, which is the recipe section 10 pins).
+
+## PR-197 — THE GENERATED ENGINE INDEX LANDS: tools/re_index.py ->
+## docs/RE_INDEX.md + the verify-index regen-and-cmp leg; building it
+## on the SHARED doc code exposed a dead regex branch (every `.des`
+## key was invisible everywhere that regex ran; fixed as DES_RE) AND
+## measured the three different record counts the tools report - 187,
+## 189, 182 - none wrong, all reconciled here
+
+KIND: gate
+SUBSYSTEM: docs structure (the generated index, doc-audit step 2)
+ADDRESSES: none
+NAMES: control=, access=, docs/RE_INDEX.md, tools/re_index.py
+CODE: yes: new generator tools/re_index.py; doc_census gains DES_RE;
+      Makefile gains the verify-index leg
+HOOKS: none
+OPENS: index correction-pointers stay prose-co-occurrence until
+      records carry a CORRECTS: line the generator can read
+CLOSES: the doc-audit step 2 generated index
+CORRECTS: PR-196: two claims in PR-196's `## Next` block, both wrong
+      at the measurements this PR took. (1) It scoped the index as
+      "addresses appearing in >=3 records: 729 entries... [field]
+      tokens in >=3 records: 155... the 240 authored names" - those
+      were the audit's LOOSE-segment figures; the strict real-heading
+      boundary doc_census slices records with (and this generator
+      reuses) measures 619 / 140, and the full name vocabulary with
+      the dead key branch repaired is 224, not 240. (2) It said
+      "PR-198 (the .MOV runtime read) is the first one in production"
+      to carry the field block; the rule is every record >= 196, so
+      PR-197 - this record - is the first and PR-198 is the second.
+
+- WHY. The owner's audit step 2 (approved "ok, go") was an index. The
+  audit's sharpest number: `0xcef40` appears on 115 lines spread over
+  the ledger and nothing says which claim is current, and 3,022 of
+  3,371 `PR-nn` citations carry no address/field/name token. A reader
+  who greps an address gets the mentions, never the answer "which
+  records, and was there a correction?" This PR ships the landing page
+  for that: a generated index over the three vocabularies a reader
+  actually types, plus a build leg that regenerates it and `cmp`s it so
+  it cannot drift from the ledger.
+
+- WHAT SHIPPED. (1) `tools/re_index.py`: parses the ledger, emits
+  `docs/RE_INDEX.md` - as committed, 4,180 generated lines,
+  983 entries: 619 address keys in >=3 records (47% of address
+  mentions), 140 field tokens in >=3 (64%), 224 authored names
+  (all), 0 lines over 79 columns - one entry per key with `mentions:`
+  (every record), a `corrected in:` pointer, and a `latest mention:`
+  reading pointer. (2) The `verify-index` Makefile leg: regenerate to
+  a temp, `cmp` against the tracked file, fail with "docs/RE_INDEX.md
+  is stale" if it differs, else one `(ok)` line. Like verify-docs it
+  reads only tracked markdown, so it runs in BOTH fixture modes and
+  adds exactly one (ok) in each. (3) The HANDOFF section 10 checklist
+  line. (4) A fix to the shared vocabulary (below), because the index
+  is deliberately built ON doc_census's regexes.
+
+- IT SHARES THE PARSER WITH THE DOC PIN ON PURPOSE, AND THE COUNT
+  DIFFERENCES ARE ALL MEASURED. re_index imports doc_census and reuses
+  `RECORD_RE`/`HEAD_RE` and the real-heading rule, so the index works
+  on exactly the record slices P4 checks. Three record counts now
+  appear in this repo and a careless reader reads them as agreement -
+  they are not the same measurement, so all three are named here:
+    P1 reports 187: every line MATCHING the `## PR-<n>` anchor, at any
+      position, because its job is presence and gaps by PR NUMBER (set
+      based - on the set of PR numbers the tools agree exactly);
+    this index says 182: only real headings (a `## ` line preceded by
+      a blank line) - exactly what P4 slices;
+    the audit's census cut 189: any line STARTING `## PR-`.
+  The 187-vs-182 difference is five OLD titles that repeat their own
+  number on a continuation line (PR-29/30/31/32/116); the 189-vs-182
+  difference is those five plus three more title wraps in forms P1's
+  anchor rejects (`## PR-138..149`, `## PR-159/160`). None is wrong
+  for its job; the index uses 182 because an index entry must point at
+  real records. P1 was already the only heading census before
+  PR-195 - it is not a new inconsistency, it is a precision now
+  written down.
+
+- THE HONEST COUNTS AND THE RECONCILIATION. Measured on THIS tree
+  (182 records, this one included): 619 addresses in >=3 records =
+  47% of all address mentions; 140 field tokens in >=3 = 64% of field
+  mentions; 224 authored names; 37 of the 619 address entries carry a
+  correction pointer. Reproducing the audit's method on the
+  PRE-record tree for comparability: strict 181 records -> 619 addr /
+  140 field / 207 name (NAME_RE only, the dead branch still dead);
+  loose 189 segments -> 730 addr / 157 field / 84 name - which is the
+  audit's 729/155 headline, from phantom segments, not a bigger scan.
+  The name line moves 207 -> 223 by the DES_RE repair alone, and to
+  224 because this record cites `access=` as a worked example (see
+  below). The worked example, end to end: 0xcef40 sits on 118 raw
+  lines of THIS tree - 115 of them before this record, which cites
+  its own example, and 115 was the audit's whole-file figure - in 47
+  real records, or 55 loose segments on the pre-record tree. The
+  generated header prints the top entry's numbers COMPUTED at
+  generation time, which is exactly why a count frozen in prose goes
+  stale the moment the ledger grows - as this paragraph just did.
+
+- THE AUDIT'S OWN NAME MATCHER HAD A DEAD BRANCH, FOUND BY USING IT.
+  doc_census's `NAME_RE` carries `[a-z_]{4,20}=\b` for the `.des`
+  keys. The trailing `\b` after `=` never matches: there is no word
+  boundary between a letter and `=`. So that branch matched ZERO
+  tokens everywhere it ran - the audit's name census, doc_census's
+  report-only "name tokens 222 distinct", and re_index's first run all
+  silently missed every `.des` key (0 matches for `control=`,
+  verified). Fixed at the source with `DES_RE =
+  \b[a-z][a-z0-9_]{3,20}=(?![=<>!])` (the lookahead keeps `>=`/`!=`
+  from reading as keys; verified against those cases). NAME_RE is kept
+  untouched so the historical "222" figure stays comparable; the
+  report prints the honest union AND NAME_RE-alone (223 union / 222
+  NAME_RE on this tree), and the index uses both. THIS PATTERN IS A
+  LANDING PAGE, NOT A DICTIONARY - the same run proved it: among its
+  whole-file matches is `access=basic`, which is git-credential config
+  from a CI note, not engine vocabulary at all. That is why this
+  record lists it in NAMES honestly instead of hiding it: the entry
+  `### access=` says PR-197 names it, and the generated header says
+  plainly that an entry means "these records NAME this token", never
+  "the engine author WROTE it". The bug living in code three tools
+  trusted is the whole argument for sharing the parser instead of
+  reimplementing it.
+
+- FIVE CONTROLS ON THE GENERATOR + ONE ON THE LEG, MEASURED
+  (controls.sh / Makefile runs; the generator reads NEXT_STEPS.md from
+  the CWD so each case runs in a temp dir with a synthetic ledger):
+  C1 threshold: a key in 3 records is indexed, the same-shaped key in
+      2 records is not, and a `.des` key in ONE record IS (names have
+      no floor) - the full rule, both sides.
+  C2 correction present: a key established in PR-1/PR-2 and retracted
+      by a `[PR-3 CORRECTION: ...]` line gets `corrected in: PR-3`,
+      and only PR-3.
+  C3 determinism: two runs on identical input are byte-identical.
+  C4 the width guard is not dead code: with ONLY the guard's
+      comparison lowered (79 -> 70) it fires (rc=1) on real ~74-column
+      lines; lowering the wrap budget too changes nothing, because the
+      generator self-wraps to WIDTH_MAX - one constant drives budget,
+      guard and message together.
+  C5 NO invented retraction: a key in three records with no
+      correction word anywhere gets NO `corrected in:` line (0) - the
+      index marks only corrections the ledger states.
+  LEG drift control: tracked index matching, `make verify-index` rc=0
+      with one `(ok)`; after appending one fake entry to the tracked
+      file, rc=1 "docs/RE_INDEX.md is stale"; restoring returns rc=0.
+  Defects found by running this (each fixed, all in the shipped
+  tool): a PR-196-style header gained `{ncorrect}` fed to a format
+  call that lacked it; a `for key in set(...) | set(...)` continuation
+  was a syntax error (two assignments); one print got two format
+  tuples from a hasty patch; the generator's OWN header line broke
+  the 79 rule and its own guard rc=1'd it (the tool caught its
+  author); a frozen "46 records" example in the header went stale the
+  moment this record was spliced, so the example is now COMPUTED; and
+  a control that lowered the width constant instead of only the
+  comparison measured nothing at all (rc=0 - self-wrapping makes the
+  naive version undetectable).
+
+- HONEST LIMITS, WRITTEN INTO THE GENERATED HEADER. `corrected in:`
+  is a pointer to where a correction is WRITTEN, not a census or a
+  currency verdict: it names the HOST record (a `[PR-193 RETRACTION:
+  ...]` bracket pasted into PR-192 names PR-192), it only fires when
+  key and correction word share one line (so it MISSES retractions
+  not phrased that way - 0x4be20 is retracted yet only its bracket
+  line is flagged), and it is DIRECTION-AGNOSTIC (cannot say whether
+  the key is the wrong claim or its replacement). Only 37 of 619
+  address entries carry one, and that is printed as a measured fact.
+  A key with no such line is NOT asserted current. Over-claiming a
+  status the text does not state is the drift this work keeps
+  removing, so the index refuses to do it - and its numbers for
+  ITSELF are computed at generation, so it cannot over-claim about
+  its own size either.
+
+- DESIGN CHOICE, STATED: RE_INDEX.md is NOT added to doc_census's
+  DOCS/WIDTH_MAX. Its width is guaranteed by the generator itself (one
+  WIDTH_MAX constant drives the wrap budget and the guard; C4 proves
+  the guard fires), and its freshness by verify-index's cmp - both
+  stronger than a ratchet, and adding 983 generated `###` entry lines
+  to the tracked-docs read would only pollute verify-docs' report.
+
+- DOGFOOD: THIS RECORD CARRIES THE FIELD BLOCK, FIRST. PR-196's
+  `## Next` guessed "PR-198 is the first in production"; the rule is
+  every record >= 196, so it is this one - corrected in the CORRECTS
+  field above, and the `## Next` scope was updated when this record
+  was spliced. The field block is already load-bearing: `ADDRESSES:`
+  here is `none` because this PR establishes no engine address (the
+  old draft listed 0xcef40 etc. as if it did - the template's wording,
+  "establishes as current truth OR retracts", rejected that and the
+  field is now honest), and `NAMES:` lists exactly what this text
+  touches, including the `access=` false positive it discusses.
+
+- OPEN ITEMS, COUNTED. Closes doc-audit step 2 (the generated index).
+  Counted still open: correction-pointers improve when records carry
+  `CORRECTS:` lines the generator can read instead of prose
+  co-occurrence (OPENS above); steps 3-5 (open-items register, the
+  HANDOFF 5/6/7 pointer rewrite, NEXT_STEPS journal-only) unchanged
+  and still scheduled. The engine's unread items are untouched here.
+
+GATE: make 0 warnings; verify-all fixtures rc=0 60 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 20 named verify-SKIPs (the +1 to
+each is the new verify-index leg, which runs in both modes and adds one
+(ok); the record is spliced and the index regenerated before the gate,
+then `make verify-docs` and `make verify-index` are re-run on the final
+tree, per the checklist section 10 now pins).
 
 ## Deferred big items (deliberately out of scope so far)
 

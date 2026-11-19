@@ -129,6 +129,15 @@ PRCITE_RE = re.compile(r'\bPR-\d+\b')
 FIELD_RE = re.compile(r'\[[a-z]+(?:_[a-z]+)?\+0x[0-9a-f]{1,3}\]')
 NAME_RE = re.compile(r'\b(?:A_[A-Z0-9_]{3,}|AC_[A-Z0-9_]{2,}|'
                      r'K_[A-Z0-9_]{2,}|[a-z_]{4,20}=)\b')
+# The `.des`-key half of NAME_RE (`\b[a-z_]{4,20}=\b`) is DEAD: there
+# is no \b between a word char and `=`, so it never matches, and the
+# authored key names (control=, access=, ...) were invisible to the
+# audit's name count and to the report-only measure below. Caught while
+# building the index (PR-197), which needs those keys. DES_RE is the
+# working pattern, guarded so operators (>=, !=, <=) are not mistaken
+# for keys. NAME_RE is kept so the historical report number stays
+# comparable to the audit; the name measure counts both together.
+DES_RE = re.compile(r'\b[a-z][a-z0-9_]{3,20}=(?![=<>!])')
 
 
 def read(path):
@@ -295,7 +304,7 @@ def main(argv):
     ns = text.get(ns_path, '')
     addrs = ADDR_RE.findall(ns)
     fields = FIELD_RE.findall(ns)
-    names = NAME_RE.findall(ns)
+    names = NAME_RE.findall(ns) + DES_RE.findall(ns)
     cites = PRCITE_RE.findall(ns)
     cont = 0
     if ns:
@@ -310,9 +319,11 @@ def main(argv):
     print('docs structure: report only (the audit\'s measures, no rule): '
           'addresses %d distinct/%d mentions, PR-nn citations %d, '
           'field tokens %d distinct/%d mentions, name tokens %d '
-          'distinct, wrapped-title "##" lines %d'
+          'distinct (NAME_RE + the fixed DES_RE; NAME_RE alone saw '
+             '%d), wrapped-title "##" lines %d'
           % (len(set(addrs)), len(addrs), len(cites), len(set(fields)),
-             len(fields), len(set(names)), cont))
+             len(fields), len(set(names)), len(set(NAME_RE.findall(ns))),
+             cont))
 
     if bad:
         for b in bad:
