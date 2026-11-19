@@ -15762,50 +15762,54 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-184 IS THE +0x10 CONSUMER CENSUS + TOKEN OWNERSHIP
-  PASS (the two open questions PR-183 leaves, both data-
-  first): (A) CENSUS THE +0x10 SLOT ACROSS ALL 178
-  CLASS TABLES (which consumer each family installs:
-  the 0x54560/0x53770/0x52bb0 chain vs 0x1e130/0x50d60
-  vs the unread rest) - THIS NAMES THE FAMILIES THAT
-  CONSUME ids 17,18,20,25 (the most-sent literal!),29,30
-  (PR-183 item (1)) and IS the same table work as the
-  55 +0x78 singletons census (PR-177 item (3)) - run
-  them as one census; (B) THE TOKEN-INIT ORDER: scan ALL
-  `call 0x44350; mov ds:<tok>,eax` pairs in text (the
-  two runs at 0x1dfc0/0x3d119 are found; the full set +
-  their order = which family owns token 0x8138764 and
-  thus WHICH family the camel scenes address (PR-183
-  item (3)); pair the token globals with the class-table
-  families via the +0x0c census). IF either half lands
-  a code-visible rule the port lacks, ship the fix with
-  its hand-derived test + mutation battery per the
-  standing rules; else count. THEN, in order: the
-  relation-helper bodies 0x52eb0/0x534e0/0x45620 (PR-177
-  item (1) remainder - 0x52cc0 CLOSED: sender verbs +0x30/
-  +0x24/+0x28(0x80) + the 0x56600 indexed +0x18 dispatch
-  (ds:0xcf0ac/0xcf0b4 table pair open) + [obj+0x20]:=1);
-  the
-  [obj+0xc2/0xc6] + [obj+0x6d/0x71] pair semantics (PR-
-  183 item (2)); the class-byte value map + the 31
-  family-name -> class-table mapping (PR-181 item (2));
-  0x45380's list builder + the 13-byte record layout +
-  0x455a0's distance formula (PR-181 item (3)); the
-  +0x240/+0x2cc computed-dispatch mechanism (shared PR-
-  180 item (1)); PR-176's five controller items.
-  Carried reads unchanged: the id-9 FEED sender search
-  (PR-183 item (4)); the player-side same-state row seek
-  (PR-174 item (2), frames-blocked, model precondition
-  now complete); the energy class-range rule + the three
-  writers of [obj+0xad] (PR-181 item (4)); the 0x2c670
-  placement model + the [rec+4] guards (PR-181 item (5),
-  PR-183 item (3)); the [obj+0xb6] bit-2 setter; the
-  ds:0xcf2c8 registry (PR-182 item (4) remainder); the
-  ratio-law behaviour study (PR-180 item (2), video-
-  gated); the other +0xcc drivers (PR-180 item (3)); the
-  state-copy helper (PR-180 item (4)); the CFG windows;
-  the +0x54 hook families (now event-triggered - the
-  hook BODY families); 0x550c0's body; the 0x55130
+- PR-185 IS THE CONTROLLER/INPUT HALF OF THE EVENT SYSTEM
+  (PR-176's two live controller items, now paired with the
+  event alphabet PR-182..184 built): (A) PR-176 item (4) -
+  the [obj+0xa5/a6/a7] BUTTON-BIT fields vs the port's
+  input model (the controller class reads hardware bits;
+  pair them with the ids the controller SENDS: the id 1/2/
+  13 senders from the PR-183 histogram at 0x36xxx/0x28xxx/
+  0x45cxxx sit inside provider clusters - name which ones
+  are the player-controller path); (B) PR-176 item (2)'s
+  remainder - WHO WRITES [obj+0xee] >= 10 (jump-table
+  cases 10/11 = K_F11/K_F12 unreachable): THREE contexts
+  for [obj+0xee] are now known (the controller jump-table
+  index PR-176 F?; the id-25 gate `cmp [obj+0xee],0 /
+  [obj+0xf2]` in the 0x2f460 family; the 0x3dcb0 wrapper
+  passing obj+0xee to 0x45200 - a record-array handle
+  {base [obj+0xf2], count [obj+0xf6]}) - scan every
+  [obj+0xee]/[obj+0xf2]/[obj+0xf6] writer and settle it;
+  (C) THEN the quick data-half: the deeper consumer-form
+  scan (`mov reg,[node+4]` then
+  `cmp reg,imm` - the 0x54560/0x1e130 style) to close ids
+  17/29/30 (PR-184 item (1)). IF any of these lands a
+  code-visible rule the port lacks (the button-bit law is
+  the prime candidate - the port HAS an input model, PR-
+  15x-era), ship the fix with its hand-derived test +
+  mutation battery per the standing rules; else count.
+  THEN, in order: the LINK/GROUP field semantics [obj+
+  0x112]/[obj+0x30]/[obj+0x3c/40]/[obj+0xee/f2] + ds:
+  0xcef8c (PR-184 item (2)); the relation-helper bodies
+  0x52eb0/0x534e0/0x45620 (PR-177 item (1) remainder);
+  the class-byte value map + the 31 family-name -> class-
+  table mapping (PR-181 item (2)); 0x45380's list builder
+  + the 13-byte record layout + 0x455a0's distance
+  formula (PR-181 item (3)); the +0x240/+0x2cc computed-
+  dispatch mechanism (shared PR-180 item (1)); the token->
+  family bookkeeping map (PR-184 item (3)); PR-176 items
+  (1)/(3)-remainder/(5). Carried reads unchanged: the id-9
+  FEED sender (PR-183 item (4)); the id-7/18/19/26/28/31/
+  32 arm bodies beyond the decode sites (PR-184 item (4));
+  the byte-form raise bit-numbering (PR-184 item (5));
+  the [rec+4] guards + ds:0xcec70 semantics (PR-183 item
+  (3) remainder); the player-side same-state row seek
+  (PR-174 item (2), frames-blocked); the energy class-
+  range rule (PR-181 item (4)); the 0x2c670 placement
+  model; the ratio-law behaviour study (PR-180 item (2),
+  video-gated); the other +0xcc drivers (PR-180 item (3));
+  the state-copy helper (PR-180 item (4)); the [obj+0xb6]
+  bit-2 setter; the ds:0xcf2c8 registry; the CFG windows;
+  the +0x54 hook bodies; 0x550c0's body; the 0x55130
   tail; the +0x4c/+0x1c recount; the 73 dead-0x54910
   tables; the +0xa0 census oddities; everything else in
   the ledger's carried list.
@@ -21905,10 +21909,22 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   tables of TLewEna/TLewKadmar1/TLewSades/TLewLona/TLewTunga2
   and the second compare form's create blocks; (2) jump-table
   cases 10/11 (K_F11/K_F12) unreachable from the ten-leg
-  chain - what may write [obj+0xee] >= 10; (3) the queue
+  chain - what may write [obj+0xee] >= 10; [CONTEXT
+  EXTENDED BY PR-184: TWO MORE [obj+0xee] SITES are known
+  - the id-25 gate family (0x2f46x: `cmp [obj+0xee],0` +
+  `cmp node+8,[obj+0xf2]` guards, then set :=1) and the
+  0x3dcb0 wrapper (passes obj+0xee to 0x45200 - the block
+  is a record-array handle {base [obj+0xf2], count
+  [obj+0xf6]}, so there the sender IS the record-array
+  owner); the 'who writes >= 10' question is now PR-185's
+  (B).] (3) the queue
   block: producers of [obj+0xd2] entries, the [obj+0xe6]/
   [0xea] pair's role beyond 0x550a0's per-step zero, the
-  +0xf8 / +0x3c verbs, the [obj+0x106] flag; (4) [obj+0xa5/
+  +0xf8 / +0x3c verbs, the [obj+0x106] flag; [PART-CLOSED
+  BY PR-181 F2/PR-183: the [obj+0xe6]/[0xea] pair's role
+  IS the relationship selector's candidate + distance law
+  (see PR-181 F2); the queue producers, the +0xf8/+0x3c
+  verbs and the 0x106 flag stay.] (4) [obj+0xa5/
   a6/a7] button-bit assignment vs the port input model; (5)
   the ds:0xcef5c..0xcef80 value source, and the decor class
   0x98278's third-format verb layout + the 0x23ed0/0x23ea0/
@@ -22434,7 +22450,11 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   BOTH attach fields, v and the deltas). Value map and
   0x54e00's callers counted.] (3) the other 55
   singleton bodies (the census tool is in EVIDENCE; 0x28af0
-  read as the lead). (4) [obj+0x70]/[obj+0x7c] array
+  read as the lead). [PART-CLOSED BY PR-184 F1: the joined
+  (+0x10 consumer, +0x78 family) census - 178 tables, 41
+  implementations, 89 distinct pairs; singleton BEHAVIOURS
+  named where their consumer bodies were read (the id-25
+  seven-family set, id-7/28/31/32 arms).] (4) [obj+0x70]/[obj+0x7c] array
   producers, [mgr+0x394], the [obj+0x2c] store at 0x1eb9a
   (class verb +0x8's result), caller context of 0x1eba0/
   0x380f5. (5) entry-boundary honesty inside 0x4b4xx-
@@ -23753,12 +23773,21 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   reaches 0x8138764 for the target family (its meaning
   counted: which family owns that token needs the init
   order - traced runs are 0x1dfcf/0x3d119 and others,
-  full order counted). THE 0x4bc40 CONTRACT IS NOW EXACT:
+  full order counted). [CORRECTED BY PR-184 F2: NOT a
+  runtime token - the 135 init pairs start from a counter
+  with STATIC VALUE 1 (ds:0xa90ac), so tokens are small
+  ints 2..136, and 0x8138764 appears NOWHERE as data - it
+  is the CONSTANT NAMED-RAISE STAMP; the owner-family
+  question dissolves.] THE 0x4bc40 CONTRACT IS NOW EXACT:
   the caller passes ebx = ID, ecx = TARGET TOKEN (the
   filter compares each walked object's `call [class+
   0x0c]()` against it - 0x4bd02-0x4bd07), pushed arg =
   ARG; the enqueued node gets +4=ID, +8=the CALLER's
-  identity (edx), +0xc=ARG. THE THREE CAMEL RAISES ARE
+  identity (edx), +0xc=ARG. [CORRECTED BY PR-184 F2 by
+  the bytes (0x4bc46-0x4bc50): the FILTER argument is
+  EDX (0 = NO filter; senders pass token globals, e.g.
+  0x1ec46 loads ds:0xcebd4), EBX = ID, ECX = STAMP (goes
+  to node+8 via ebp), push = ARG.] THE THREE CAMEL RAISES ARE
   NOW CORRECTED (bracket): 0x2c5b0 (magic 0x2c5e1)
   pushes 0x21 = 33 = AC_KOREK (guard: [obj+0x5c] == 2
   AND a ONE-SHOT flag ds:0xcec70 = 0, set to 1 first -
@@ -23772,7 +23801,12 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   +4] = a record kind field, counted). 0x53770's gate
   `cmp [node+8], 0x8138764` then RAISES bit node+0xc
   only for objects of the target family = the NAMED-RAISE
-  DISPATCH IS TOKEN-FILTERED BROADCAST. PORT NOTE: the
+  DISPATCH IS TOKEN-FILTERED BROADCAST. [CORRECTED BY PR-
+  184 F2: the camel trio pass edx=0 -> NO filter - the
+  raise reaches EVERY object in both chains, and the magic
+  gate is a STAMP discriminator (system-raise vs targeted
+  family message); consistent with the PR-15x per-object
+  signal listening.] PORT NOTE: the
   port raises the same numbered bits (PR-88 law) directly
   - the token indirection has no port-visible difference;
   no behaviour change.
@@ -23780,7 +23814,15 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
 - OPEN ITEMS COUNTED (5 new). (1) Which consumer families
   handle ids 17,18,20,25 (the most-sent!),29,30 (the
   other +0x10 implementations - merges with the 55 +0x78
-  singleton families, PR-177 item (3)). (2) The semantics
+  singleton families, PR-177 item (3)). [PART-CLOSED BY
+  PR-184: ids 5/7/14/16/18/19/20/25/26/28/31/32 CONSUMERS
+  NAMED to families + the id-25 seven-family PAIR-SYNC LAW
+  (7 token-filtered broadcasts pass the sender's
+  [obj+0xf2]-link as node+8; the 7 same-cluster consumer
+  families guard on link equality/small codes and byte-
+  raise [obj+0x64..] key bits); ids 17/29/30 remain (no
+  static consumer under the cmp[reg+4],imm8 form) - moved
+  to PR-184 item (1).] (2) The semantics
   of the [obj+0xc2]/[0xc6] pair and [obj+0x6d]/[0x71]
   pair under SET/ADD/CLR (PR-171 fields - the raw law is
   here, the meaning not). (3) The [rec+4] guard values
@@ -23788,7 +23830,12 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   [rec+4] different), the [obj+0x5c] mode values at the
   raise sites, the ds:0xcec70 one-shot semantics, and the
   FULL token-init order (which token = which family =
-  0x8138764's owner). (4) The id-9 FEED sender (no
+  0x8138764's owner). [PART-CLOSED BY PR-184 F2: the
+  token-init order + base ARE settled (135 pairs, 17 runs,
+  counter static = 1); the magic-owner question DISSOLVED
+  - the magic is not a token (see F2 there); the [rec+4]
+  guards + ds:0xcec70 semantics stay.] (4) The id-9 FEED
+  sender (no
   literal id 9 exists - argument-driven; does ANY ZARIA.
   01 event carry id 9? the port's feed=constant-100 stands
   unless a sender is found) + the 0x50d60 wrappers' family
@@ -23866,6 +23913,244 @@ PR-107's numbers exactly; ZARIA.01 shipped output UNCHANGED
   item (2) CONFIRMED+EXTENDED; PR-182 items (1)/(2)/(3)
   CLOSED + item (4) PART-CLOSED; PR-182 F2 site-to-bit
   map CORRECTED; PR-177 item (1) PART-CLOSED).
+
+## PR-184 — THE +0x10 CONSUMER CENSUS IS COMPLETE (41
+## IMPLEMENTATIONS OVER THE 178 TABLES; THE TOKEN-FILTERED
+## AND CHILD-FORWARDING WRAPPERS; THE id-25 SEVEN-FAMILY
+## KEY-BIT RAISE LAW) AND THE TOKEN/STAMP CORRECTION (THE
+## COUNTER STARTS AT 1 - TOKENS ARE SMALL INTS, THE MAGIC
+## 0x8138764 IS NOT A TOKEN BUT THE NAMED-RAISE STAMP; THE
+## FILTER ARGUMENT IS EDX, NOT ECX) (READING, NO PORT CODE,
+## NO BEHAVIOUR CHANGE)
+
+- WHY. PR-183's Next specced this pass: (A) the +0x10
+  census across the class tables - naming the families that
+  consume ids 17,18,20,25,29,30 (PR-183 item (1)) run
+  together with the PR-177 item (3) table work; (B) the
+  token-init order (PR-183 item (3) remainder). Method:
+  the elf dword-scan for table slots; the id-decode byte
+  scan (`cmp DWORD PTR [reg+4],imm8` = 83 /7 mod=01
+  disp8=4 - the consumer arm-decode form; the scan is
+  FORM-PARTIAL: consumers using `mov reg,[node+4];
+  cmp reg,imm` (the 0x54560/0x1e130 style) need the PR-183
+  direct reads, stated; id-0 x14 and id-86 rows are non-
+  node [reg+4] noise, flagged); the `call 0x44350 + a3
+  store` pair scan; image reads of ds:0xa90ac.
+  consumer_census_evidence.py re-runs every count. Docs
+  only; nothing shipped moves.
+
+- FINDING 1, THE FULL CONSUMER CENSUS. 178 tables carry
+  41 distinct +0x10 implementations: 0x54560 x73 (the
+  generic map, PR-183 F2), 0x3dcb0 x22, 0x53770 x21
+  INSTALLED DIRECTLY - those families have NO id map, pure
+  named-raise consumers!, 0x40ca0 x7, 0x52bb0 x5 (the
+  fallback as PRIMARY consumer), 0x50d60 x5 (PR-183's
+  family-B consumer - its '7 more callers' ARE +0x10
+  installs), 0x3d8f0 x4, 0x55720 x4, 0x1e130 x3, 0x3db50
+  x3, plus 31 singletons. Wrapper/interceptor laws (all
+  byte-exact): 0x3dcb0 = id 1 (move-by) additionally calls
+  0x45200 with eax = obj+0xee (`add eax,0xee` at
+  0x3dcc2), edx = [node+8], ebx = [node+0xc] (0x3dcc7-
+  a); 0x45200 (10 callers: the 0x1e52x-0x1e8xx provider
+  clusters + 0x3dccd/0x3deb2) = skip if [obj+0xf6] < 0,
+  else for i = 0..[obj+0xf6] inclusive: [[obj+0xf2] +
+  i*13 + 0] += edx-of-caller, +4 += ebx-of-caller - it
+  SHIFTS THE 13-BYTE-STRIDE RECORD ARRAY AT [obj+0xf2]
+  WITH COUNT [obj+0xf6] BY THE CALLER'S TWO REGISTERS -
+  path/TRASA-style record arrays, the SAME 13-byte stride
+  as the PR-177/181 relation records! ([obj+0xf2] = the
+  array base address; the id-25 family guard `cmp
+  node+8,[obj+0xf2]` then reads as "the event's sender IS
+  my record-array owner"); and FORWARDS
+  the event to the LINKED object [obj+0x112] via its class
+  +0x10 (stack-repacked args), then everything to 0x54560;
+  0x55720 = after 0x52bb0, forwards the SAME NODE to every
+  CHILD ([obj+0x3c] = child count, [obj+0x40] = child
+  array; `call [[child+8]+0x10](node)` per child - EVENT
+  PROPAGATION DOWN GROUPS, the GRUPA-shape law); 0x3db50
+  intercepts id 28 (AC_BECZKA!): resolves a level-control
+  object via ds:0xcef8c[[obj+0x40]*4] and ENQUEUES id 33
+  onto the object at [obj+0x30] (a RELAY between attached
+  objects), else 0x52bb0; 0x3d8f0 intercepts id 5 -> [obj+
+  0x66] |= 0x40 + [obj+0x6d] := sender, else 0x54560;
+  0x40ca0 intercepts id 1 -> arithmetic over the [obj+0x3c
+  ..0x4c] block, else 0x52bb0. THE id-25 ANSWER IS FULLY
+  CIRCULAR (the most-sent id, PR-183): SEVEN BROADCAST
+  SITES (0x2f1ef, 0x2f37b, 0x2f398, 0x3b4e6, 0x3b60c,
+  0x3c1a8, 0x3c1c5 - all TOKEN-FILTERED: edx = a token
+  global e.g. ds:0xcec9c; the SENDER'S ECX = a LINK FIELD
+  (0x2f1e9 `mov ecx,[esi+0xf2]`), NOT a magic stamp;
+  several set their OWN [obj+0xee] := 1 right after
+  sending, e.g. 0x2f1f4) pair with SEVEN CONSUMER
+  FAMILIES in the SAME clusters (entry points 0x2f460,
+  0x2f5b0, 0x2f840, 0x3b6b0, 0x3bab0, 0x3c220, 0x3c310;
+  decode sites 0x2f46b/0x2f5bb/0x2f84b/0x3b6bb/0x3babb/
+  0x3c22b/0x3c31b): each DELEGATES to the generic
+  consumer (0x54560; 0x53770 directly in the 0x2f840
+  family!) and then, if node+4 == 25, uses node+8 (the
+  sender's ECX - a LINK value here) as the control.
+  0x2f460: `node+8 == [obj+0xf2]` AND an `[obj+0xee] ==
+  0` gate -> set [obj+0xee] := 1 + BYTE [obj+0x66] |=
+  0x40 (equality of the two [f2] fields = 'the sender
+  shares my record array'); 0x2f840: node+8 == 1/0/2 ->
+  [obj+0x66] |= 0x40/0x80, [obj+0x67] |= 0x01; 0x3bab0:
+  [obj+0x106] := node+8; ==4 -> call 0x44920 on
+  ds:0xcef40[+0x38c] then BYTE [obj+0x64] |= 0x02;
+  0x3c220: `node+8 == [obj+0xee]` -> set [obj+0xf6] := 1
+  (the 0x45200 COUNT field!); 0x2f5b0/0x3b6b0/0x3c310:
+  the same delegate+decode+`or ah,0x40` byte-raise shape
+  by byte-scan (guard variants not enumerated). BYTE-FORM
+  KEY-BIT RAISES in the [obj+0x64] live-set neighborhood
+  (PR-17x). id 25 = a PAIR/ATTACHMENT SYNC SIGNAL: the
+  sender broadcasts with its [f2]-link as the parameter;
+  objects sharing the link react + gate themselves. The
+  id-decode scan also
+  pins: id 7 -> 0x1ec90/0x1f110 (which the SAME-cluster
+  providers 0x1ec46/0x1ec5f SEND via 0x4bc40 with edx =
+  the TOKEN GLOBALS ds:0xcebd4/0xcebc8 - a complete
+  targeted-family id-7 send/consume pair!), id 14 ->
+  0x38180, id 16 -> 0x24770/0x24830, id 18 -> 0x34637/
+  0x6ebd0/0x6fbb0, id 19 -> 0x24f40/0x31f80/0x34ae4/
+  0x365fb, id 20 -> 0x24d71, id 28 -> 0x3db52/0x3e5b4/
+  0x3f76c, id 31 -> 0x1f130, id 32 -> 0x3ed20. Census
+  join: 89 distinct (consumer, +0x78-family) pairs (the
+  PR-177 item (3) table work joined onto the +0x10 axis).
+
+- FINDING 2, TOKENS ARE SMALL INTS AND THE MAGIC IS A
+  STAMP. The `call 0x44350; mov ds:<tok>,eax` pairs number
+  135 (135 distinct globals) in 17 runs (0x1dfc0 x21,
+  0x23f20 x11, 0x26440 x4, 0x26f50 x12, 0x2b510, 0x2dd40
+  x10, 0x31f30 x7, 0x33bd0 x13, 0x39d30 x6, 0x3ac80 x10,
+  0x3d100 x21, 0x40be0 x8, 0x44340, 0x4fcc3, 0x5152d,
+  0x51568 x5, 0x611e0 x3). ds:0xa90ac (the 0x44350
+  counter) has static value 1 IN THE IMAGE and no other
+  writer in text -> the tokens are 2..136 - SMALL INTEGERS.
+  The magic 0x8138764 is NOT among the 135 and appears
+  nowhere as data (the only occurrences remain the 4 code
+  immediates) - PR-183 F3's 'the magic is a runtime token,
+  owner family open' is CORRECTED: 0x8138764 is a
+  CONSTANT PROTOCOL STAMP. The 0x4bc40 contract, corrected
+  against the bytes (0x4bc46-0x4bc50): the caller's EDX ->
+  [esp+0x14] = the IDENTITY FILTER (0 = NO FILTER, the
+  walk passes every object; non-zero = compared against
+  `call [class+0x0c]()` at 0x4bd02-0x4bd07 - senders load
+  token globals, e.g. 0x1ec46 loads ds:0xcebd4), the
+  caller's EBX = ID, the caller's ECX = STAMP (becomes
+  node+8 via ebp), stack push = ARG. So the camel trio
+  (edx=0!) broadcast UNFILTERED to every object in both
+  chains, and 0x53770's `cmp [node+8], 0x8138764` gate is
+  a STAMP DISCRIMINATOR (system-named-raise vs targeted
+  family messages) - NOT a family filter. PR-183 F3's
+  'raises only for objects of the target family' is
+  CORRECTED: the named raises reach ALL objects (every
+  object ORs the bit into its own live set - consistent
+  with the per-object signal listening of PR-15x reads).
+
+- FINDING 3, CENSUS INVARIANT (context, no new claim):
+  the 21 direct-0x53770 families + 5 direct-0x52bb0
+  families + 73 map families partition the generic half;
+  the specialised half (0x3dcb0/0x40ca0/0x3d8f0/0x55720/
+  0x3db50/0x1e130/0x50d60 + singletons) always DELEGATES
+  to a generic implementation after/around its intercept -
+  the engine has exactly two base vocabularies (PR-183
+  F2's maps) plus per-family intercepts. ids 17,29,30 have
+  NO static consumer under the scanned form (the only
+  unresolved sends; their senders are at 0x41d0f (id 17),
+  0x33148 (id 29 - the 0x1e130-adjacent cluster!),
+  0x3a1e7 (id 30 - next to the id-18 token-filtered
+  broadcast at 0x3a20d!) - counted for the deeper-form
+  scan).
+
+- OPEN ITEMS COUNTED (5 new). (1) The deeper consumer-form
+  scan (mov reg,[node+4] then cmp reg,imm8/imm32) to close
+  ids 17/29/30 (and re-verify id 20's owner). (2) The
+  LINK/GROUP field semantics: [obj+0x112] (forward link),
+  [obj+0xee]/[obj+0xf2]/[obj+0xf6] (id-25 gate + the
+  0x45200 record array {base [f2], count [f6]} - the two
+  family-uses of [obj+0xf2] (link compare at the id-25
+  guards vs array base at 0x45200) converge on ONE
+  coherent reading: [obj+0xf2] = a SHARED record-array
+  pointer, pair members carry equal values - verify the
+  pools), [obj+0x3c]/
+  [obj+
+  0x40] (count/array - children in 0x55720, index into ds:
+  0xcef8c in 0x3db50!), [obj+0x30] (relay target, PR-183
+  id-15 setter), ds:0xcef8c; the 0x40ca0 0x3c-block
+  arithmetic. (3) The full token->family map (135 globals
+  x 17 runs x containing functions) - now only a book-
+  keeping map (the magic question dissolved). (4) The id-7
+  pair semantics (what id 7 means for the 0x1e3a0/0x1e570
+  provider families) and the id-18/19/26/28/31/32 arms'
+  bodies beyond the decode sites. (5) The bit-vs-id numeric
+  identity question: [obj+0x66]|=0x40 vs bit-raise laws
+  (PR-17x buffer shapes) - the exact bit numbering of the
+  BYTE-FORM raises. CLOSED: PR-183 item (1) IN PART (ids
+  18/19/20/25/26/28/31/32/14/7/5/16 NAMED to families +
+  the id-25 law; ids 17/29/30 remain, item (1) here);
+  PR-183 item (3) PART (the token-init order + counter
+  base settled; the magic-owner question DISSOLVED by F2;
+  the [rec+4] guards + ds:0xcec70 semantics stay); PR-177
+  item (3) IN PART (the (consumer, +0x78) join - 89 pairs;
+  the singleton BEHAVIOURS named per family where read).
+  UPDATED: PR-183 F3 (3 correction brackets: token-vs-stamp
+  nature, the EDX filter argument, the unfiltered reach of
+  named raises). CARRIED unchanged: ids 17/29/30 consumers
+  (item (1)); the relation-helper bodies (PR-177 items (1)/
+  (2) remainder); the class-byte value map (PR-181 item
+  (2)); 0x45380/0x455a0 internals (PR-181 item (3)); the
+  energy class-range rule (PR-181 item (4)); the 0x2c670
+  placement model + the [rec+4]/ds:0xcec70 semantics (PR-
+  181/183 item (5)s); the +0x240/+0x2cc computed dispatch;
+  the ratio-law study (video-gated); the other +0xcc
+  drivers; the state-copy helper; the [obj+0xb6] bit-2
+  setter; the id-9 FEED sender (PR-183 item (4)); the ds:
+  0xcf2c8 registry; the player-side same-state row seek
+  (frames-blocked); the CFG windows; the +0x54 hook bodies;
+  0x550c0; the 0x55130 tail; the +0x4c/+0x1c recount; the
+  73 dead-0x54910 tables; the +0xa0 census oddities; PR-
+  176's five controller items; everything else in the
+  ledger's carried list.
+
+- GATES. Docs-only reading PR (PR-138..183 precedent): no
+  port file touched; build state = the OWNER GATE (rule 8)
+  as MEASURED on 7b4d736 (ZERO-warning make; verify-all
+  rc=0 both ways = 52 (ok) fixtures / 10 (ok) + 18 named
+  SKIPs) - only docs moved since. CI truth at this
+  record's time: PR-183's docs run 44557634130 = SUCCESS
+  on 9409e87; the chain (PR-182 44554963180, PR-181
+  44553528506, PR-180 44549075152, PR-179 44547207457)
+  SUCCESS unchanged. This docs push queues its own run.
+  Added .md lines <= 79 cols; over-79 baselines UNCHANGED
+  (NEXT_STEPS 71, HANDOFF 71); no game data or frames in
+  git (scripts under /tmp/opencode/pr184/); .github/
+  workflows/* untouched; the image is unchanged.
+
+- EVIDENCE. consumer_census_evidence.py (every count: 178
+  tables, the +0x10 histogram top rows, 41 distinct impls,
+  89 pairs; the id-decode histogram [(0,14),(1,3),(5,1),
+  (7,2),(14,1),(16,2),(18,3),(19,4),(20,1),(25,7),(26,1),
+  (28,3),(31,1),(32,1),(86,1)]; 135 token pairs / 135
+  distinct / ds:0xa90ac static = 1 / magic-not-a-token =
+  True; 22 broadcast callers; the camel ctx-bytes check
+  (xor edx,edx + magic-ecx + id16-ebx) = FOUND; the 0x1ec46
+  token-filter load ds:0xcebd4 = FOUND; plus the id-25
+  pair scan: 7 decode sites [0x2f46b,0x2f5bb,0x2f84b,
+  0x3b6bb,0x3babb,0x3c22b,0x3c31b] each with `call
+  0x54560/0x53770` immediately before, 7 id-25 broadcast
+  sites [0x2f1ef,0x2f37b,0x2f398,0x3b4e6,0x3b60c,0x3c1a8,
+  0x3c1c5], 10 callers of 0x45200 [0x1e52a..0x1e896 +
+  0x3dccd/0x3deb2]). obj_range.sh (the whole reads:
+  0x3dcb0-0x3dd53, 0x3d8f0-0x3d933, 0x3db50-
+  0x3db87, 0x40ca0-0x40cef, 0x55720-0x55754, 0x2f460-
+  0x2f49d, 0x3b6b0-0x3b6cf, 0x1ec20-0x1ec5f, 0x44350,
+  0x45200-0x4522c, 0x2f840-0x2f879, 0x3bab0-0x3baec,
+  0x3c220-0x3c248, 0x2f1d0-0x2f1fe;
+  token runs enumerated by scan). Ledger: records re-
+  spliced from HEAD (census: HEAD carries PR-150..PR-183
+  (34 records) PLUS the four OWNER 2026-11-19 records,
+  last carrier); 8 brackets (PR-183 F3 x3 CORRECTED; PR-
+  183 items (1)/(3) PART-CLOSED; PR-177 item (3) PART-
+  CLOSED; PR-176 items (2)/(3) EXTENDED/PART-CLOSED).
 
 ## Deferred big items (deliberately out of scope so far)
 

@@ -4487,6 +4487,65 @@ writer as its open items.
      item (3) table work) + the token-init order. Full
      record: PR-183 section of NEXT_STEPS.md (scratch
      /tmp/opencode/pr183/).
+   - PR-184 (READING; no port code, no behaviour change):
+     THE +0x10 CONSUMER CENSUS IS COMPLETE + THE TOKEN/
+     STAMP CORRECTION. CENSUS: 41 distinct consumer impls
+     over 178 tables (0x54560 x73, 0x3dcb0 x22, 0x53770 x21
+     INSTALLED DIRECT - no id map, pure named-raise!,
+     0x40ca0 x7, 0x52bb0 x5, 0x50d60 x5, 0x3d8f0 x4,
+     0x55720 x4, 0x1e130 x3, 0x3db50 x3, 31 singletons;
+     89 distinct (consumer,+0x78-family) pairs - the PR-177
+     item (3) table work joined). NEW CONSUMER LAWS:
+     0x3dcb0 forwards id-1 move-by events to the LINKED
+     object [obj+0x112] (its class +0x10) before the
+     generic map; 0x55720 forwards the SAME NODE to every
+     CHILD ([obj+0x3c] count/[obj+0x40] array) - event
+     propagation down groups; 0x3db50 RELAYS id 28
+     (AC_BECZKA) into an id-33 enqueue on the object at
+     [obj+0x30]; 0x3d8f0 id-5 -> [obj+0x66] |= 0x40 +
+     [obj+0x6d]:=sender; 0x40ca0 id-1 -> [obj+0x3c..]
+     block arithmetic. THE id-25 ANSWER: SEVEN same-
+     cluster consumer families (0x2f460/0x2f5b0/0x2f840/
+     0x3b6b0/0x3bab0/0x3c220/0x3c310) delegate then use
+     node+8 as control - their OWN broadcast senders
+     (0x2f1ef..0x3c1c5, token-filtered) pass the sender's
+     [obj+0xf2]-LINK in ECX: link-equality guards, small-
+     code dispatch, byte-form key-bit raises [obj+0x64..]
+     |= 0x40 etc. + [obj+0xee] gate sets - a PAIR/
+     ATTACHMENT SYNC SIGNAL; [obj+0xf2] reads as one
+     coherent SHARED record-array pointer (also the
+     0x45200 array base); the `cmp [reg+4],imm8` decode
+     scan also pins
+     id 7 (the 0x1ec90/0x1f110 families - AND their
+     families SEND id 7 via 0x4bc40 with edx = TOKEN
+     GLOBALS ds:0xcebd4/0xcebc8: a complete targeted send/
+     consume pair), 14/16/18/19/20/26/28/31/32 to named
+     families; ids 17/29/30 have no static consumer under
+     that form (open). CORRECTION (self-caught, 3
+     brackets on PR-183 F3): the 135 `call 0x44350; mov
+     ds:<tok>,eax` init pairs (17 runs) start from counter
+     base 1 (ds:0xa90ac static = 1, no other writer) ->
+     TOKENS ARE SMALL INTS 2..136; the magic 0x8138764 is
+     NOT a token (appears nowhere as data) - it is the
+     CONSTANT NAMED-RAISE STAMP; the real filter argument
+     is EDX (0 = NO filter - the camel trio broadcast
+     UNFILTERED to every object in both chains; non-zero =
+     compared vs the +0x0c token), ECX goes to node+8, and
+     0x53770's magic gate is a STAMP discriminator, so
+     named raises reach ALL objects (consistent with PR-15x
+     per-object signal listening). 5 new items (deeper-form
+     scan for ids 17/29/30; link/group field semantics;
+     the token->family bookkeeping map; the id-7/18/19/...
+     arm bodies; the byte-form raise bit-numbering); 3
+     items part-closed (PR-183 (1)/(3), PR-177 item (3));
+     PR-176 items (2)/(3) extended/partially closed (the
+     [obj+0xe6]/[ea] pair's role CLOSED as PR-181's
+     candidate law; 3 [obj+0xee] contexts now known). Next
+     -> PR-185 = the controller/input half (PR-176 items
+     (4)+(2) remainder: the [obj+0xa5/a6/a7] button bits,
+     who writes [obj+0xee]>=10) + the ids-17/29/30 deeper-
+     form scan. Full record: PR-184 section of NEXT_STEPS.
+     md (scratch /tmp/opencode/pr184/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -7214,6 +7273,44 @@ items counted (id-17/18/20/25/29/30 consumer families;
 the pair semantics; the [rec+4] guards + token-owner
 family; the id-9 sender; the 0x116/0x108 setters).
 Gates: docs-only (PR-138..182 precedent); added lines <=
+79; baselines 71/71 held; the Windows half stays in the
+end pass (rule 8).
+
+STATUS after PR-184 (the consumer-census/token correction
+pass; docs reading - ZERO port lines changed, the ZARIA.01
+output image is byte-identical to PR-183's; build state =
+the OWNER GATE (rule 8) measured on 7b4d736, only docs
+moved since).
+
+What this pass GROUNDS for T5:
+(1) THE SIGNAL-DELIVERY REACH IS ENGINE-SETTLED: named
+    raises (the camel trio) are UNFILTERED broadcasts -
+    every object in both level chains ORs the bit into its
+    OWN live key set; the port's per-object signal model
+    (PR-88 bits, PR-15x listening states) matches exactly;
+    TOKEN filters exist but are used by targeted family
+    messages (the id-7 send/consume pair found end to end:
+    0x1e4xx/0x1e570-cluster providers -> 0x1ec90/0x1f110
+    consumer families).
+(2) GROUP SEMANTICS NOW HAVE THEIR ENGINE MECHANISM: the
+    0x55720 family forwards events to CHILDREN ([obj+0x3c
+    /0x40]) and the 0x3dcb0 family forwards to a LINKED
+    object ([obj+0x112]) - the ZONE/GRUPA-style authored
+    group objects propagate state through the event bus,
+    not through shared state; counted for per-level use.
+(3) THE CENSUS IS A STABLE BASIS: 41 +0x10 implementations
+    over 178 tables with the two base vocabularies (PR-183
+    F2 maps) + per-family intercepts - future family work
+    (the PR-177 item (3) singletons, the class-byte map)
+    now keys off this census.
+SELF-CORRECTION SHIPPED WITH DATA: three brackets replace
+PR-183 F3's token story (tokens are 2..136 small ints from
+the static base 1; 0x8138764 is a constant STAMP; the
+filter argument is EDX). No port change (the corrected
+model still matches the port's direct bit-raising). 5 new
+items counted; PR-183 items (1)/(3), PR-177 item (3),
+PR-176 items (2)/(3) part-closed/extended.
+Gates: docs-only (PR-138..183 precedent); added lines <=
 79; baselines 71/71 held; the Windows half stays in the
 end pass (rule 8).
 
