@@ -5005,6 +5005,64 @@ writer as its open items.
       menu engine + the tag-factory map + the level-load
       file sequence. Full record: PR-191 section of
       NEXT_STEPS.md (scratch /tmp/opencode/pr191/).
+- PR-192 SHIPPED (docs + fixture reading): THE TAG-FACTORY
+  MAP IS DONE - 0x76a69 (strcmp) has EXACTLY 386 E8 sites,
+  361 are tag arms (`mov edx,<tag>` within 24B) in EXACTLY
+  16 factory chains (per-stage vocabularies 0x2f8xx..
+  0x716a4 + the script-command table 0x55e7d ('end_level'
+  = AN AUTHORED SCRIPT COMMAND, one init 0x45770) + the
+  .MOV action/key vocabulary 0x58009 ('AC_*','K_FWD',
+  'K_F1'..'K_F12' - the engine twin of the port's .MOV
+  mirror)). Match arm law: `mov eax,<size>; call 0x5c320`
+  (617 sites) + a per-type initializer; THREE UNIVERSAL
+  INITIALIZERS carry the types (0x52860 geometry 62
+  callers / 0x531f0 static props 70 / 0x53ff0 movers 188)
+  + per-type ctors 0x61fb0..0x73e50 installing per-type
+  class tables directly. CLASS-TABLE LAW: exactly 503
+  `mov [reg+8],<table>` sites in 176 tables (all mod-01;
+  PR-188's 316 was a partial family - superseded; THE
+  PR-18x 302-SPLIT RESOLVED: dispatch = the 16 chains,
+  table stores live in per-type registration builders).
+  TABLE FAMILIES: 0x9815c = ZONE/RECT class (20 installs:
+  GRABOBJ*/SPAD/WODOSPAD/TABLICZKALONA/PICT), 0x981e8 =
+  GROUP family (GRUPA/GRABG), 0x98078 = a 4-site family.
+  FILE MODEL: FOUR root path buffers 'ANIMACJE\','ETAPY\',
+  'SOUND\','LEVELDES\' + boot init 0x5c600 (reached ONLY
+  from a {code,code,flags} registry table at 0xad8c0 -
+  computed dispatch again); 0x4a910 = open(ETAPY\name)
+  (15 callers: menu opens + level-load opens). THE .des
+  LEVEL-DESCRIPTION FORMAT: parser 0x4c723 (27 key legs,
+  24 keys incl. 'plany'/'lew'/'animacje'/'belka', zero
+  static refs) + THE [mgr+0x30] PLAN FILL RECOVERED (the
+  'plany=' scan writes straight into [builder+0x30] via
+  0x4cba1 `lea [esi+0x30]`) - PR-190/191's plan-author
+  CLOSED; fixture: LEVELDES holds 67 'plany=' records with
+  THREE '|'-separated plan slots ('plany=T|TALA|ATAB') =
+  the three vectors of the 'A'-tick law, and 'lew=TLewEna,
+  ...' meets the factory chains' 'TLew*' arms. THE 31 TAGS
+  RECLASSIFIED: they are the ANIMACJE object-description/
+  authored-type vocabulary (fn 0x5dcc5 opens ANIMACJE;
+  20/31 tags appear as plaintext in the member) - level
+  DATA = ETAPY\*.IS BINARY (zero plaintext tags); .mnu
+  files open under ETAPY but are NOT in the stage fixture
+  (ETAPY carries the .seq sound family: 'pomocNN.seq' up
+  to 42, 'pauza/energia/crown/cyfry_*'). STREAM CLASSES
+  DECODED (0xa2d90/0xa2d6c differ only at slot +0x20 =
+  0x60960 vs 0x4be20 THE LEVEL LOOP; run verb at [tbl+
+  +0x1c], PR-191's call [edx+0xc] CONFIRMED by bytes) -
+  PR-191 items (2)/(8) CLOSED, (5)/(6) half-closed; exit-
+  word verb set re-measured (0 register-form [reg+4]
+  stores across 15 fns - stays counted). 8 bracketed
+  ledger edits (1 reclass, 1 census-resolve, 2 closures,
+  2 half-closures, 1 confirmation, 1 fixture note); 6 new
+  items counted (.IS binary chunk format, ANIMACJE record
+  format, the 'levels' config chain first). PORT VERDICT
+  unchanged (the .des/'plany' three-slot law MATCHES the
+  port's level model; no discrepancy; no code change).
+  Next -> PR-193 = the .IS chunk format + the ANIMACJE
+  record format + the 'levels' config chain. Full record:
+  PR-192 section of
+  NEXT_STEPS.md (scratch /tmp/opencode/pr192/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -8099,6 +8157,36 @@ identities) SHIPPED - DOCS ONLY, NO T5 BEHAVIOUR CHANGED:
     verdicts stand as PR-190 left them. The hotkey legs
     are .mnu menu scripts (the port's menu engine is out
     of stage scope); no input-model change was made.
+
+PR-192 (tag-factory map + file model + .des/plan format)
+SHIPPED - DOCS ONLY, NO T5 BEHAVIOUR CHANGED:
+(1) THE AUTHORED-TYPE NAME SPACE IS NOW THE ENGINE'S OWN,
+    MAPPED WHOLE: 16 factory chains / 361 tag arms ->
+    three universal initializers (geometry 0x52860 /
+    static props 0x531f0 / movers 0x53ff0) + per-type
+    ctors with per-type class tables. THE LINA/LADDER
+    FAMILY SITS EXACTLY WHERE THE T5 CHUNK WORK NEEDS IT:
+    'LINA' 0xd9 + 'DRABINKA' (ladder) 0xd9 -> the SAME
+    0x531f0 initializer; 'KDRABINA' 0xa5, 'WSPRECT' (the
+    wall-support rect) 0x50 -> 0x52860; the zone classes
+    (GRABOBJ/SPAD/TABLICZKALONA) share table 0x9815c.
+    THE 302-SPAWNER ROLE SPLIT (the item every T5
+    chunk-format PR carried) IS RESOLVED.
+(2) THE DEFERRED CHUNK-FORMAT WORK HAS ITS SOURCE FILES
+    PINNED: the authored-object descriptions live in the
+    ANIMACJE archive keyed BY THE 31 TAGS (20/31 present
+    as plaintext in the ISO member - LINA x10, BERLO x15,
+    KATPLAT, DZWIGNIA, WODOSPAD...), while level DATA is
+    the binary ETAPY\*.IS stream (ZARIA1.IS: zero
+    plaintext tags). PR-193 reads both formats byte-wise;
+    the 'levels'/.des chain ('plany=T|TALA|ATAB' = three
+    plan slots; 'lew=TLew*' lion types) is the authoring
+    contract the port's loader mirrors - no discrepancy
+    found against the port's level model.
+(3) NO T5 OBSERVABLE MOVED: no port file touched; the
+    ladder/vine/BY_TY/energy verdicts stand as PR-191 left
+    them; the exit-word writer stays counted (re-measured
+    across the whole manager verb set).
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

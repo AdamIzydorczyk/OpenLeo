@@ -15838,50 +15838,44 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-192 IS THE .MNU MENU ENGINE + THE TAG-FACTORY MAP +
-  THE LEVEL-LOAD SEQUENCE (the last legs of the level
-  flow's file side): (1) THE FILE-STREAM + MENU CLASS
-  FAMILY: the base stream ctor 0x5f3d0 and its method
-  tables 0xa2d90/0xa2d6c/0xa2dd8 (the 0x60930/0x609c0
-  variants PR-191 F1 mapped), the 0x5f310 CHUNK LOOP as
-  the shared level/.mnu interpreter, and what chunks menu
-  files actually run (the 'MENU' 0x926bc + 'Press any
-  key...' 0x925f0 anchors, the 0x5e14e/0x5e18e RESET/
-  CONTINUE builders' menu-engine callers): closes PR-191
-  open item (2); (2) THE TAG-FACTORY MAP: enumerate the
-  full tag -> alloc-size -> ctor list of BOTH chains (the
-  0x1fxxx/0x20xxx family + the 0x4e710 chain inside class
-  table 0x97f50) against the 31-tag vocabulary - THIS IS
-  THE STRONG LEAD FOR THE 302-SPAWNER-CTOR ROLE SPLIT
-  (PR-18x item, PR-191 item (8)): pair each tag with its
-  class table and its ctor; (3) THE LEVEL-LOAD FILE
-  SEQUENCE 0x4d5xx: which files open in which order (the
-  name blocks [ebp+0x92]/[ebp+0x42], the 0x49e40/0x443b0
-  objects for [mgr+0x3b4]/[mgr+0x38c]) and THE PLAN-
-  STRING FILL - the [mgr+0x30] buffer's author (zero
-  disp-form stores whole-image; find the pointer-form
-  write): closes PR-191 open items (4)/(5) and PR-190
-  item (5)'s remainder; (4) THE [mgr+0x4] EXIT-WORD
-  WRITER via the class tables: read the 0x97f50 table's
-  remaining verbs 0x4bdc0/0x4c2c0/0x4c4a0/0x4c5c0/
-  0x4c680/0x51370/0x51560 (the 0x4c010-0x4c700 window is
-  0xa1310's method region too) hunting the store near
-  [obj+4]: closes PR-190 open item (2)'s remainder +
-  PR-191 open item (3); (5) CLASS NAMES: 0x98078/
-  0x9815c/0x981e8/0xa1310 via the 0x69xxx-0x72xxx
-  animation-clip-registration cluster (the clip names
-  'MAIN'/'WALK'/'ATACK'/'TURN'/'A_RUN_*' are the type
-  anchors, PR-158/165 method), and the meaning of the
-  'XxXx'-pair strings 0x9201c-0x920d5: closes PR-191 open
-  items (6)/(7)'s first half.
-  STOP CONDITIONS: every claim byte-backed; a class name
-  needs a string/name-block or ctor cross-ref, never a
-  guess; unproven halves stay counted as OPEN ITEMS;
-  corrections of earlier records get brackets in place;
-  no port behaviour changes without a failing test;
-  Linux-first gates (make zero-warning + verify-all both
-  fixture modes) apply to any code PR - docs-only PRs cite
-  the last measured state (7b4d736).
+- PR-193 IS THE LEVEL-DATA (.IS) CHUNK FORMAT + THE
+  ANIMACJE RECORD FORMAT (the two file formats the T5
+  chunk work keys off): (1) TRACE THE .IS READ PATH: the
+  remaining 0x5f310 chunk-loop callers 0x607e0/0x607ff
+  (their enclosing fn + who opens ZARIA1.IS - the ETAPY
+  getter's level-load caller region 0x4a98f vs 0x4a910),
+  then read the 0x4e710 chain (class 0x97f50's +0x58
+  verb) END TO END as the .IS chunk interpreter: which
+  binary header it expects, how tags encode, and how the
+  per-tag sizes (ZONE 0x54 -> 0x52860, TABLICA/BERLO...)
+  map to the authored chunks; cross-check ZARIA1.IS bytes
+  at the discovered header law - closes PR-192 open item
+  (1); (2) THE ANIMACJE RECORD FORMAT: fn 0x5dcc5 end to
+  end (its 0x4a910/ANIMACJE-getter open legs, the 31-tag
+  arms) + a direct byte read of an ANIMACJE member (the
+  'LINA'/'BERLO'/'KORONA' plaintext offsets found by
+  pr192_arch.py) to pin the per-type description layout
+  (the T5 chunk-format source) - closes PR-192 open item
+  (2); (3) THE 'levels' CONFIG CHAIN: where the 'levels'
+  file (error string 0x91ee5) is opened/parsed and how it
+  selects the LEVELDES '.DES' members (the 'Bledny wpis'
+  leg + the 0x91f0b-0x91f19 '\\' join strings) - closes
+  PR-192 open item (3); (4) THE BOOT REGISTRY: attribute
+  the {code,code,flags} entries at 0xad8c0-0xad91c
+  (0x514e0/0x59dc0/0x5c260/0x611e0 + who reads the table)
+  and the stream-table +0x24.. triples: closes PR-192
+  open items (4)/(5); (5) SECOND PASS on the exit word:
+  read the 0x4c2c0/0x4c4a0/0x4c5c0/0x4c680/0x51370/
+  0x51560 verb BODIES (not just store scans) for calls
+  that reach [mgr+4] indirectly. STOP CONDITIONS: every
+  claim byte-backed or fixture-byte-backed (cite ISO
+  offsets); formats cross-checked against the real
+  ZARIA1.IS/ANIMACJE bytes, never inferred from names
+  alone; unproven halves stay counted; corrections get
+  brackets; no port behaviour changes without a failing
+  test; Linux-first gates (make zero-warning + verify-all
+  both fixture modes) apply to any code PR - docs-only PRs
+  cite the last measured state (7b4d736).
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -25214,7 +25208,16 @@ BEHAVIOUR CHANGE)
   0x2df62/0x3b181). The other 302 are constructor
   bodies of the generic spawner (PR-176 F3/F4 law);
   full role split needs the spawner's dispatch table -
-  counted.] CLOSED:
+  counted.] [THE CENSUS + ROLE SPLIT RESOLVED BY PR-192
+  F1/F2: the full `mov [reg+8],<table>` census = EXACTLY
+  503 sites in 176 tables (all mod-01 c7 form; the mod-10
+  form has ZERO instances) - the 316/14/3 split above
+  counted a PARTIAL family, superseded. THE SPLIT: the
+  dispatch IS the 16-chain factory family (chain heads
+  have zero static refs), and the table stores sit in
+  per-type ctor/registration builders, NOT per-spawner-arm
+  ctors: THREE universal initializers + per-type class
+  tables.] CLOSED:
   PR-186 items (7) (0x9a54c = TLewKadmar1's controller),
   (9) (no header - alias law), (4) to the hardware bottom
   (port I/O + 0xcde70 keyboard layer); PR-176 item (1)
@@ -26495,7 +26498,12 @@ BEHAVIOUR CHANGE)
 - FINDING 3, [mgr+0x30] IS THE LEVEL-PLAN SCRIPT AND
   0x4af10 IS ITS PER-FRAME EXECUTOR. The 'A'-record walk
   of PR-189 F1 was half right: [mgr+0x30] is a CHARACTER
-  STREAM (one char per command). 0x4af10 (called EVERY
+  [mgr+0x30] is a CHARACTER
+  STREAM (one char per command) [PR-192 F4: the authored
+  plan text has THREE '|'-separated slots per level record
+  ('plany=T|TALA|ATAB' in the LEVELDES data) = the THREE
+  vector headers the 0x4b360 'A'-tick loops over - the
+  three plan streams law]. 0x4af10 (called EVERY
   frame from the end-of-frame label + from 0x609d5):
   ebp := [eax+0x30]; skips zero bytes; per frame consumes
   ONE command [CORRECTED BY PR-191 F2 WITH DATA: THE
@@ -26644,7 +26652,13 @@ BEHAVIOUR CHANGE)
   -> [stream.vt+0xc] + the 0x5f310 chunk loop); F1 re-
   opens 'pomoc1.mnu' until it returns 0, P runs 'pauza.
   mnu', and THE ESC MENU'S RESULT == 1 IS THE EXIT-4
-  SOURCE - not a hotkey constant]. (2) The plan 'B'-leg
+  SOURCE - not a hotkey constant. [PR-192 F3/F5: the
+  '.mnu' files are opened under 'ETAPY\' (0x4a910's fixed
+  root prefix); the stage fixture's ETAPY member carries
+  the .seq SOUND family instead (help pages 'pomocNN.seq'
+  up to 42, 'pauza/energia/crown/tools/cyfry_*') and ZERO
+  .mnu members - the menu-file family is not shipped with
+  the stage data.]. (2) The plan 'B'-leg
   data flow ([esp+4] = [mgr+0x3ce] cursor, 0x4a170/
   0x49bd0/0x448c0 bodies) and the [mgr+0x4] exit-word
   WRITER (which command sets 1) [HALF-CLOSED BY PR-191
@@ -26681,7 +26695,17 @@ BEHAVIOUR CHANGE)
   author (pointer-form fill; zero disp stores) [EXTENDED
   BY PR-191 F2: the plan-DATA objects' authorship IS
   mapped (0x4d56f/0x4d620 + the 0x4a559/0x4a5af zero-
-  defaults); the [mgr+0x30] cell's FILL stays counted].
+  defaults); the [mgr+0x30] cell's FILL stays counted]
+  [CLOSED BY PR-192 F4: THE .des PARSER 0x4c723 (27 key
+  legs / 24 keys, zero static refs) scans the 'plany='
+  value with ' %s' (0x57d30) STRAIGHT INTO [builder+0x30]
+  via the pointer staged at 0x4cba1 = `lea eax,[esi+
+  0x30]` - PR-191's zero-store law stands, mechanism
+  recovered. FIXTURE: LEVELDES holds 67 'plany=' records,
+  THREE '|'-separated slots per level ('plany=T|TALA|
+  ATAB') = the three plan vectors of the 0x4b360 law;
+  'lew=TLewEna,...' = the stage-lion type name, met by
+  the factory chains' 'TLew*' arms].
   (6) The 38 non-+0x60 0x49580 field map [MEASURED,
   STAYS COUNTED: the E8 census re-run = EXACTLY 69; a
   48B per-site objdump window resolves the destination
@@ -26812,9 +26836,22 @@ BEHAVIOUR CHANGE)
   READ-AND-ZERO [dev+0x20a + xlat*4]). The legs (loop body
   0x4acb1-0x4ae52) each: test bit, CLEAR it in the block, flush
   with 0x4a8f0, BUILD A NAME, open it (0x4a910 over the
-  [obj+0x28] block chain), run it (0x60930/0x609c0 create the
+  [obj+0x28] block chain - PR-192 F3: 0x4a910 ALWAYS
+  prepends the 'ETAPY\' root path and has 15 callers =
+  the menu opens + the level-load opens), run it
+  (0x60930/0x609c0 create the
   stream: methods 0xa2d90/0xa2d6c installed at [obj+0x9c], a
-  0x300-byte read buffer at [obj+0xa0]), 0x57a00 path-concat,
+  0x300-byte read buffer at [obj+0xa0])
+  [NAMED + RUN-VERB CONFIRMED BY PR-192 F6: base ctor
+  0x5f3d0 (exactly these 2 callers); 0xa2d90/0xa2d6c are
+  STREAM CLASSES differing only at table slot +0x20
+  (0x60960 vs 0x4be20 = THE LEVEL LOOP FN, PR-190) - the
+  menu and the level share the stream engine; the run
+  notation CONFIRMED: bytes 0x603cb `8b 90 9c 00 00 00
+  ff 52 0c` = `mov edx,[eax+0x9c]; call [edx+0xc]`, and
+  table slot +0x1c = 0x603b0 in BOTH tables; 0x60960 =
+  the mode-bit variant; base stream table 0xa2dd8 installed
+  at 0x5f13c/0x5f178], 0x57a00 path-concat,
   0x603b0 RUN = call [obj.vt+0xc] then 0x5f310 (THE LEVEL-FILE
   CHUNK INTERPRETER - menu files are level-format scripts!),
   0x60820 close, 0x4a8c0 refresh. THE NAMES COME FROM ONE
@@ -26954,7 +26991,18 @@ BEHAVIOUR CHANGE)
   OBJECTS OF ITS OWN CLASS FAMILY. THE OTHER TAG CHAIN
   (0x1fxxx) matches 'PLANT' at 0x90755 (its ONLY text ref,
   0x1fc98) -> alloc 0xa5 + 0x531f0 at 0x1fca7; 'ANITAB'
-  0x91f3d -> its single ref 0x4df16. THE COMPLETE TAG SET
+  0x91f3d -> its single ref 0x4df16. [EXTENDED BY PR-192
+  F1: THE MAP IS NOW COMPLETE - 0x76a69 has EXACTLY 386
+  E8 sites, 361 are tag arms in 16 chains (per-stage
+  vocabularies 0x2f8xx..0x716a4 + the 'levels' file
+  reader + the script-command table 0x55e7d ('end_level'
+  = an authored script command, one init 0x45770) + the
+  .MOV action/key vocabulary 0x58009 ('AC_*','K_F1'..'
+  K_F12'); three universal initializers carry the types:
+  0x52860 geometry 62 callers / 0x531f0 static props 70 /
+  0x53ff0 movers 188 + per-type ctors 0x61fb0..0x73e50
+  that install per-type class tables directly; the
+  0x5dcc5 reader = ANIMACJE.] THE COMPLETE TAG SET
   recovered from the name block 0x91dc0-0x92120: ANITAB,
   PLANT, GRABOBJ, DEMOTEXT, ANIBACK, MOVEPLAT, MOVERECT,
   RECT, DRECT, DRECT2, KATPLAT, DZWIGNIA, WODOSPAD, ZWIERZ,
@@ -26964,7 +27012,18 @@ BEHAVIOUR CHANGE)
   0x9201c-0x920d5, 'deatd.mod' 0x920f3, the 'Press any
   key...' string 0x925f0 and 'MENU' 0x926bc in the same
   block). This is the level format's authored-object
-  vocabulary (Polish-era names: GRABOBJ=grab, MOVEPLAT=
+  vocabulary [RECLASSIFIED BY PR-192 F5: THESE 31 TAGS ARE
+  THE ANIMACJE OBJECT-DESCRIPTION / AUTHORED-TYPE NAME
+  VOCABULARY - the chain 0x5df15-0x5e934 sits INSIDE fn
+  0x5dcc5 which opens under 'ANIMACJE\' (getter call
+  0x5df69), and the ISO member ANIMACJE carries 20/31 of
+  them AS PLAINTEXT (KORONA x23, BERLO x15, LINA x10...;
+  absent: the pure-geometry tags RECT/DRECT/ZONE/GRUPA/
+  TRASA...); the level-DATA files are ETAPY\*.IS BINARY -
+  ZARIA1.IS has ZERO plaintext tag occurrences. The level-
+  DESCRIPTION format is the .des key set (PR-192 F4). The
+  vocabulary itself + the Polish glosses stand.]
+  (Polish-era names: GRABOBJ=grab, MOVEPLAT=
   moving platform, ZWIERZ=animal, BERLO=goal, TABLICA=sign,
   DZWIGNIA=lever, WODOSPAD=waterfall, GWIAZDKI=stars,
   KORONA=crown, LINA=rope...) - the data-spine anchor for
@@ -27034,17 +27093,43 @@ BEHAVIOUR CHANGE)
   were mapped) and the ds:0xa9aa8 language-selector writer.
   (2) The stream classes' method tables 0xa2d90/0xa2d6c/
   0xa2dd8 bodies (the .mnu/level file reader internals) and
-  0x5f3d0's base ctor. (3) The [mgr+0x4] exit-word runtime
+  0x5f3d0's base ctor [CLOSED BY PR-192 F6: 0x5f3d0 read
+  (bounds class at [obj+0x10], sub-object verb-+4 loop);
+  both stream tables decoded - identical through the RUN
+  verb (slot +0x1c = 0x603b0), differ only at +0x20:
+  0x60960 vs 0x4be20 THE LEVEL LOOP; 0xa2dd8 = the base
+  stream class at 0x5f13c/0x5f178; the +0x00 slot = a
+  base-link (0x5f330) and the +0x24.. triple repeat =
+  counted]. (3) The [mgr+0x4] exit-word runtime
   writer (zero field-ops near 198 global loads; likely via
-  the manager's own verbs). (4) [mgr+0x3ce]/[mgr+0x3d6]
+  the manager's own verbs) [RE-MEASURED BY PR-192 F7: all
+  14 verbs of 0x97f50 + the .des parser: ZERO register-
+  form stores to [reg+4] - stays counted, method noted].
+  (4) [mgr+0x3ce]/[mgr+0x3d6]
   writers through the 0x4af36 pointer. (5) The 0x44xxx/
   0x49exx plan-data class bodies (record formats behind the
-  'B' leg) + the level-load 0x4d5xx file sequence. (6) Class
+  'B' leg) + the level-load 0x4d5xx file sequence [HALF-
+  CLOSED BY PR-192 F4: the file sequence's KEY GRAMMAR is
+  mapped - the 0x4c723 .des parser's 24-key set + the
+  ETAPY-root open helper (0x4a910 callers 0x4d2f5/0x4d4xx/
+  0x4d5xx/0x4d8b0/0x4d9a0 = the per-file opens); the
+  ORDER + the 0x44xxx/0x49exx record bodies stay counted].
+  (6) Class
   names for 0x98078/0x9815c/0x981e8/0xa1310 and the meaning
-  of the 'XxXx' pair strings. (7) The full 0x49580 field
+  of the 'XxXx' pair strings [HALF-CLOSED BY PR-192 F2:
+  SEMANTICS mapped - 0x9815c = the ZONE/RECT-class table
+  (STRUMIEN/WODOSPAD/GRABOBJ*/SPAD/TABLICZKALONA/PICT
+  arms), 0x981e8 = the GROUP family (GRUPA/GRUPA2/GRABG/
+  ZWODOSPD), 0x98078 = a 4-site family (PERLOPL+3); these
+  are BASE-CLASS tables shared by derived types; the NAMES
+  + 'XxXx' stay counted]. (7) The full 0x49580 field
   map (data flow per caller). (8) The 'A'-leg vs the 302
   spawner ctor roles (the tag factory's per-tag ctor list =
-  the strong lead for the PR-18x split item).
+  the strong lead for the PR-18x split item) [CLOSED BY
+  PR-192 F1: the tag->size->init map done - 361 arms in
+  16 chains, three universal initializers (0x52860 geo /
+  0x531f0 props / 0x53ff0 movers) + per-type ctors with
+  per-type class tables; see the PR-188 F5 bracket].
 
 - EVIDENCE. EVERY number above is reproducible with
   /tmp/opencode/pr191/pr191_evidence.py (run output:
@@ -27081,6 +27166,401 @@ BEHAVIOUR CHANGE)
   Windows half stays in the end pass (rule 8). The last
   CONFIRMED CI run at this record's time: PR-190's docs
   run 44587997914 = SUCCESS on e9364a4.
+
+## PR-192 — 2026-11-19. THE TAG-FACTORY MAP IS DONE: 16
+## AUTHORED-TYPE FACTORY CHAINS (361 tag arms, 386 strcmp
+## sites) DISPATCH THROUGH THREE UNIVERSAL INITIALIZERS
+## (0x52860 geometry 62 callers / 0x531f0 static-props 70 /
+## 0x53ff0 movers 188) + per-type ctors - THE PR-18x
+## 302-SPAWNER ROLE SPLIT RESOLVED; THE CLASS-TABLE LAW:
+## EXACTLY 503 `mov [reg+8],<table>` sites (all mod-01
+## form; supersedes PR-188's partial 316-site count) in
+## 176 tables; THE .des LEVEL-DESCRIPTION FORMAT AND THE
+## [mgr+0x30] PLAN FILL RECOVERED (parser 0x4c723, 26
+## keys, 'plany=' scans straight into +0x30); THE FOUR
+## ROOT PATHS + BOOT REGISTRY; THE 31 TAGS RECLASSIFIED AS
+## ANIMACJE OBJECT-DESCRIPTION TAGS; THE STREAM CLASSES
+## DECODED (0xa2d90/0xa2d6c, run verb +0x1c) - PR-191
+## items (2)/(8) CLOSED, (5)/(6) half
+(docs + fixture reading; no port code, no behaviour change)
+
+- METHOD: the pr192_evidence.py census battery over
+  text.bin/leo.elf (the 0x76a69 E8 census 386; the tag-arm
+  scan `mov edx,<0x9xxxx>` within 24B = 361 sites in 16
+  chains; 0x5c320 = 617; the c7-mod01+mod10 [reg+8],table
+  census = 503/176; per-table install-to-tag attribution;
+  the 0x4a910 path-builder read + its 15-caller census;
+  the four
+  root-name getters + 0x5c600's boot init + its single
+  data-table ref 0xad8de; the .des parser 0x4c723 key-
+  chain census (24 distinct key
+  strings, 27 key legs) + the 62-string key block
+  0x91db0-
+  0x91f3b + the 'plany' leg 0x4d230-0x4d259 with the
+  [ebp+0x12a] = `lea [esi+0x30]` fill at 0x4cba1; the
+  stream tables 0xa2d90/0xa2d6c/0xa2dd8 verb decode + the
+  0x603d1 `[edx+0x1c]` proof; the 0x5f310 3-caller census;
+  the 0x97f50 verb-set [reg+4] store scan = zero) + the
+  pr192_arch.py fixture scan over the stage ISO members
+  (LEVELDES: 24+ '<NAME>.DES' member headers, 67 'plany='
+  records, the full .des key grammar; ANIMACJE: 20/31 tags
+  present as plaintext; ETAPY: the .seq sound family, zero
+  .mnu members; ZARIA1.IS: zero plaintext tags). obj_range
+  reads per PR-177; text.asm NOT used.
+
+- FINDING 1, THE TAG-FACTORY MAP (PR-191 item (8) CLOSED,
+  the PR-18x 302-split RESOLVED). The tag-dispatch shape
+  PR-191 described generalizes: 0x76a69 (strcmp) has
+  EXACTLY 386 E8 call sites, 361 of them are tag arms
+  (a `mov edx,<tag-string>` within 24B before the call),
+  and they cluster into EXACTLY 16 factory chains at
+  0x2f874, 0x34f64, 0x36864, 0x39094, 0x3ba94, 0x3ea04,
+  0x43374, 0x44c24, 0x483c4, 0x4a254, 0x4acf4 (inside the
+  0x4e710 chain = class 0x97f50's own +0x58 verb), 0x55e7d,
+  0x58009, 0x5df15 (inside fn 0x5dcc5 - the ANIMACJE
+  reader, Finding 4), 0x716a4 (+ one scan artifact near
+  0x61b49: no instruction head there, it is an
+  animation-string-refs cluster 'WALK/TURN/A_RUN/A_ATAK'
+  at 0x93253-0x9326d around a jump table - NOT a chain).
+  The chains map to STAGES (per-stage authored-type
+  vocabularies: ENA/SADES/KADMAR/KARA/LONA/RAN/TUNGA +
+  shared groups). The match arm law holds everywhere:
+  `mov eax,<size>; call 0x5c320` (alloc - 617 call sites
+  whole-image) then the per-type initializer. THREE
+  UNIVERSAL INITIALIZERS carry almost all types: 0x52860
+  (62 E8 callers) = the geometry/zone record family (every
+  arm sized 0x40-0x68: RECT/DRECT/DRECT2/ZONE/GRUPA/GRABG/
+  PICT/TABLICA/TRASA/DRAB/BRECT/WSPRECT/GRABOBJ...);
+  0x531f0 (70 callers) = the static animated-prop family
+  (arms sized 0xa5-0x130: PLANT 0xa5, DRABINKA 0xd9,
+  LINA 0xd9, DZWIGNIA 0xad, SKJUMP 0xad, GWIAZDKI, NIESP,
+  BAL, FLAGA, IGLO, SOPEL...); 0x53ff0 (188 callers) =
+  the mover/creature family (arms 0xee-0x3ee: MOVEPLAT
+  0x122, ZWIERZ 0x161, BERLO 0xf2, KORONA 0xf2, SCHODY*,
+  MALPA*, GORYL 0x3ee...). Zero size-band/family mismatch
+  across all resolved arms. Specialized ctors exist for
+  the physics-movers (MOVERECT->0x3e1e0, KRA2->0x37c30,
+  SKOCZNIE->0x37f70, XCHG->0x3a110, WODOSPAD2->0x374f0,
+  SEP/SEP2->0x62e40, SOUNDSOURCE->0x3f560) and per-
+  creature ctors 0x61fb0..0x73e50 (PARROT/SNAKE/LICHA/
+  PAJAK/NOSOROG/REKIN/RMLOT/RPILA/KOLC/RYBKA/NINJA/WAZ/
+  KOBRA/PTAK/BOSS/E2BOSS/KSOWA/KZABA/SZCZURK/SZCZURS/
+  KSMOK/KMAG/CROCODIL/PANTERA/YETI/PINGWIN/...) - each
+  installing its OWN class tables directly (0x69f60 =
+  REKIN: `call 0x3ff70; mov [eax+8],0xa4820; mov
+  [eax+0xc],0xa4818`). Two more chains are VOCABULARIES,
+  not object spawners: 0x55e7d = the script-command table
+  (37 tags 'rev'..'end_level' incl. 'smp*','lock','goto',
+  'pos','I','F','M','GEN','Wait' - all -> alloc 8-0x18 +
+  ONE initializer 0x45770 (52 callers): THE SCRIPT-COMMAND
+  OBJECT CLASS; 'end_level' IS AN AUTHORED SCRIPT COMMAND)
+  and 0x58009 = the .MOV action/key vocabulary ('AC_K_ANY'
+  ..'AC_EV_MAX', 'K_ANY','K_FWD','K_BKWD','K_UP','K_DOWN',
+  'K_FIRE','K_ALT','K_F1'..'K_F12','K_JUMP','K_GEN1'..
+  'K_GEN5' - name-compare arms, NO alloc = the engine's
+  own side of the port's .MOV mirror, ll_level.c:4272).
+  CLASS-TABLE INSTALLATION LAW: the `mov [reg+8],<table>`
+  census = EXACTLY 503 sites across 176 distinct tables in
+  0x90000-0xc0000 (raw c7 mod-01 [reg+8] shape: 649 sites,
+  503 in-range; the c7 mod-10/disp32 form has ZERO
+  instances in this image; PR-188 F5's 316-site count was
+  a PARTIAL of this same family - superseded).
+  PR-188's 'The other 302 are constructor bodies
+  of the generic spawner... full role split needs the
+  spawner's dispatch table - counted': THE DISPATCH IS THE
+  16-CHAIN FAMILY itself (chain heads have zero static
+  refs = computed dispatch, the same shape as the
+  0x97f50/0x5dcc5/0x4c723 zero-ref functions), and the
+  class-table stores live in the per-type ctor/registration
+  fns (the 0x6xxxx-0x73xxx creature builders + stage
+  prop-builders), NOT in per-spawner-arm ctors: the split
+  resolves to THREE universal initializers + per-type
+  class tables.
+
+- FINDING 2, CLASS-TABLE FAMILIES (PR-191 item (6)
+  half-CLOSED - semantics recovered, names counted). The
+  high-install tables attribute cleanly by the tag nearest
+  their install site: 0x9815c (20 installs) = THE ZONE/
+  RECT-CLASS TABLE - its installs sit in the STRUMIEN/
+  waterfall/GRABOBJL1/GRABOBJL2/TABLICZKALONA/SPAD/
+  GRABOBJ/WODOSPAD/PICT arms (0x1f9f9/0x3862f/0x3867e/
+  0x38a09/0x3b12b/0x4dfad/0x4e342/0x4e478 + 12 more);
+  0x981e8 (9 installs) = THE GROUP-FAMILY TABLE (GRUPA
+  0x4e436, GRUPA2 0x290c9, GRABG 0x4e525, ZWODOSPD
+  0x1fab5); 0x98078 (4 installs) = a small 4-site family
+  (PERLOPL 0x24fb7 + 0x23675/0x236e5/0x617b9); 0x98278
+  (86 installs incl. the stream ctor) = the bounds class
+  (PR-190 law, count refined 85->86 with the disp32 form).
+  So these are BASE-CLASS tables shared by many derived
+  authored types - the C++-style family the 0x4e710 'builds
+  objects of its own class family' note pointed at.
+
+- FINDING 3, THE FILE/PATH MODEL + BOOT REGISTRY. EXACTLY
+  FOUR root-directory name buffers exist whole-image:
+  'ANIMACJE\' 0xa97c4, 'ETAPY\' 0xa97f8, 'SOUND\' 0xa982c,
+  'LEVELDES\' 0xa9860, each returned by a getter fn
+  (0x5c670/0x5c680/0x5c690/0x5c6a0). 0x4a910 (PR-191's
+  'open over the [obj+0x28] block chain') ALWAYS prepends
+  the ETAPY path (`call 0x5c680` then the 0x57990/0x57a70/
+  0x57a00 str-block concat) -> THE LEVEL-DATA (.IS) FILES
+  AND THE '.mnu' MENU FILES ARE BOTH OPENED UNDER ETAPY\.
+  Its E8 callers (15): 0x4aceb/0x4ad6a/0x4adf3 (the
+  hotkey menu opens, PR-191 F1), 0x4d58c/0x4d625 (the
+  level-load plan-data opens, PR-191 F2), 0x5dfa6 (the
+  ANIMACJE reader), + 0x32c63, 0x4cca4/0x4ce7a/0x4d2f5/
+  0x4d446/0x4d469/0x4d492/0x4d4bf (the .des key-value
+  file opens), 0x4d8b0/0x4d9a0. The
+  ANIMACJE getter's 2 callers (0x4a98f level-load region +
+  0x5df69) and the LEVELDES getter's single caller (0x4cae7
+  = the .des parser, Finding 4) complete the open-map. The
+  0x5f310 chunk loop has EXACTLY 3 E8 callers: 0x603d8
+  (inside the run verb 0x603b0), 0x607e0, 0x607ff. THE
+  BOOT INIT fn 0x5c600 sets all four paths and the
+  {0x961fc,0x96200} descriptor pair (ds:0xcf3cc/0xcf3d0);
+  it has ZERO E8 callers and its ONLY reference is entry
+  0xad8de in a data table of {code,code,flags} 12-byte
+  records at 0xad8c0-0xad91c (other entries: 0x514e0,
+  0x59dc0, 0x5c260, 0x611e0) = the computed-dispatch boot
+  registry the zero-ref functions are reached through.
+
+- FINDING 4, THE .des LEVEL-DESCRIPTION FORMAT AND THE
+  PLAN FILL (PR-190 item (5) remainder CLOSED). THE .des
+  PARSER = fn 0x4c723 (head `push ebp; sub esp`; zero E8
+  callers, zero data refs = boot-registry style): it reads
+  the LEVELDES path at 0x4cae7, then runs a key chain of
+  27 key legs on 24 distinct key strings (incl. 'none' as
+  a value marker) - 'tlo','zwierzaki','animacje','ani_plat'
+  (x2 each for the list forms),'speed','danger_power',
+  'platformy','blokady','sufity','muzyka','sample','lew',
+  'main_back','back_rect','demolist','belka','paleta',
+  'pozycja','plany','dir','intro','lew_rect','maski' -
+  compared with 0x76d20 (the word-at-a-time strcmp, EXACT
+  match: both the table and the files are lowercase) and
+  scanned via 0x57d30 with scanf formats from the
+  62-string block 0x91db0-0x91f3b (' %s', ' %d, %d',
+  ' %d,%d,%d,%d', ' %[^,\r\n] , ', ' %d ; ') - the block
+  ALSO holds the error 'Bledny wpis w pliku levels: %s'
+  0x91ee5 = THE CONFIG FILE IS NAMED 'levels'. THE PLAN
+  FILL: the 'plany' leg 0x4d230 scans with ' %s' into
+  [ebp+0x12a], and [ebp+0x12a] was set at 0x4cba1-0x4cba4
+  to `lea eax,[esi+0x30]` = THE SCAN WRITES DIRECTLY INTO
+  THE +0x30 FIELD OF THE BUILDER OBJECT - which is why
+  PR-191's whole-image store census found ZERO disp-form
+  stores (the fill goes through the pointer; the law
+  stands, the mechanism is now recovered). FIXTURE DATA
+  (the stage ISO): LEVELDES is an archive of member
+  headers '<NAME>.DES' + NUL padding (24+ names: ZARIA1/
+  ZARIA2/KARA/RAN/SADES/KADMAR1/KADMAR2/LONA/ENA1/ENA2/
+  TUNGA1/TUNGA2/JUNCTION + B/P/U/V/Z/j/w/x/5/7-variants)
+  with 44-byte-record blocks, and its plain-text region
+  carries 67 'plany=' records: 'plany=T|TALA|ATAB',
+  'plany=T|TALAB', 'plany=TL' = THREE plan SLOTS separated
+  by '|' - matching the THREE vector headers (mgr, mgr+4,
+  mgr+8) the 0x4b360 'A'-tick law loops over; 'lew=
+  TLewEna,Lew.ena,lew.mov,lew.des' gives the stage-lion
+  TYPE NAME that the factory chains' 'TLew*' arms match
+  ('TLewKadmar1/2','TLewRan','TLewSades','TLewKara',
+  'TLewLona','TLewTunga1/2','TLewJunction','TLewEna/2') -
+  the lion-class arms meet the level records exactly.
+
+- FINDING 5, THE 31 TAGS RECLASSIFIED: ANIMACJE IS THE
+  OBJECT-DESCRIPTION ARCHIVE (PR-191 F3 RECLASSIFIED, the
+  vocabulary itself stands). The 31-tag chain 0x5df15-
+  0x5e934 sits INSIDE fn 0x5dcc5 (head found; ZERO E8
+  callers, zero data refs) which opens under ANIMACJE (the
+  getter call at 0x5df69 + 0x4a910 at 0x5dfa6). The ISO
+  member ANIMACJE contains the tags AS PLAINTEXT: 20 of
+  the 31 present (KORONA x23, BERLO x15, SURPRISE x12,
+  GWIAZDKI x12, NIESP x11, GRABOBJ x10, POCISK x10, LINA
+  x10, ANIBACK x9, PLANT/PICT/ANITAB x6, TABLICA/DEMOTEXT/
+  DNGANI x4, MOVEPLAT/DZWIGNIA x3, ZWIERZ/WODOSPAD x2,
+  KATPLAT x1; absent: MOVERECT/RECT/DRECT/DRECT2/GRUPA/
+  IDPOCISK/GRABG/ZONE/TRASA/TRASA2/CHEATS - the pure-
+  geometry tags live elsewhere), while ZARIA1.IS (the
+  stage's level-DATA file under ETAPY\) contains ZERO
+  plaintext tags (binary chunk stream). So the 31-tag set
+  is the ANIMACJE authored-object DESCRIPTION vocabulary
+  (and the authored-type name space the factory chains
+  dispatch), NOT the level-data chunk format; the .IS
+  chunk format stays a binary question for the next PR.
+  ETAPY also carries the game's sound assets as '.seq'
+  members - the help-page family 'pomocNN.seq' (NN up to
+  42, matching the numbered 'pomoc1.mnu' help viewer),
+  'pauza.seq', 'energia.seq', 'crown/korona.seq',
+  'tools/mouse/litm/cyfry_*/tak/nie.seq' UI sets (119 .seq
+  name fragments). THE '.mnu' MENU FILES THEMSELVES ARE
+  NOT IN THE STAGE FIXTURE (zero 'domenu' anywhere, no
+  .mnu-name match in any member) - the menu-file family is
+  not shipped with the stage data.
+
+- FINDING 6, THE STREAM/MENU CLASSES (PR-191 item (2)
+  CLOSED, PR-191's run-verb offset CORRECTED). Base stream
+  ctor 0x5f3d0 (EXACTLY 2 callers = PR-191's two creators
+  0x60930/0x609c0): zeroes [obj+0]/[obj+4], installs the
+  bounds class 0x98278 at [obj+0x10], loops the sub-object
+  verb +4 (the 0x5f114 layout family). 0x60930 installs
+  0xa2d90 at [obj+0x9c] + allocates the 0x300-byte read
+  buffer (0x76a64) at [obj+0xa0]; 0x609c0 installs
+  0xa2d6c; 0x60960 = a mode-bit variant (test cl,4 -> a
+  0xa12e8-class path; else re-installs 0xa2d90, re-allocs
+  the buffer, closes via 0x60820, test cl,2 -> 0x5c370).
+  VERB DECODE (table byte offsets): slot +0x00 = 0x5f330
+  in both classes = a base/back-link slot, NOT a verb
+  (counted what it is); 0xa2d90 = +0x04=0x5f370,
+  +0x08=0x611a0, +0x0c=0x608b0, +0x10=0x608e0,
+  +0x14=0x60910, +0x18=0x60920, +0x1c=0x603b0 THE RUN
+  VERB, +0x20=0x60960; 0xa2d6c = same through
+  +0x1c=0x603b0, +0x10=0x609d0, +0x20=0x4be20 = THE LEVEL
+  LOOP FN (PR-190) - the level engine and the menu share
+  the stream class, differing only in the +0x20 slot; the
+  base stream table 0xa2dd8 is installed at 0x5f13c/
+  0x5f178 (inside the 0x5f114 base ctor); both tables
+  REPEAT their first three entries at byte +0x24.. = two
+  adjacent instances or a doubled prefix - counted. PR-191
+  wrote the run as `call [obj.vt+0xc]` - CONFIRMED
+  EXACTLY: bytes 0x603cb `8b 90 9c 00 00 00 ff 52 0c` =
+  `mov edx,[eax+0x9c]; call DWORD PTR [edx+0xc]` and the
+  table slot +0x1c holds 0x603b0 in both classes.
+
+- FINDING 7, THE EXIT-WORD VERB SET (RE-MEASURED, stays
+  counted). All 14 verbs of class table 0x97f50 (0x23e00,
+  0x4e710, 0x4ea40, 0x4f0f0, 0x498f0, 0x4b120, 0x4bdc0,
+  0x4c2c0, 0x41a50, 0x4c4a0, 0x4c5c0, 0x4c680, 0x51370,
+  0x51560) + the .des parser: ZERO register-form stores to
+  [reg+4]; the only [reg+4] writes near them are c7
+  immediate-0 object inits and 0x51xxx's [reg+4]=0xa2638
+  string installs (not the exit-word shape). PR-190's
+  exit-word writer and PR-191 item (3) stay COUNTED with
+  this stronger method (a register-store scan over the
+  whole verb set, not just near-global-load windows).
+
+- CORRECTIONS TO EARLIER RECORDS (brackets in the ledger):
+  PR-191 F3's 'This is the level format's authored-object
+  vocabulary' -> RECLASSIFIED (Finding 5): the 31 tags are
+  the ANIMACJE object-description / authored-type name
+  vocabulary; level DATA = ETAPY\.IS binary (zero plaintext
+  tags in ZARIA1.IS). PR-191 F1's run notation
+  '[obj.vt+0xc]' CONFIRMED by bytes (Finding 6; the
+  '+0x1c' reading in this PR's work notes came from
+  indexing from the table's +0x00 base-link slot and is
+  retracted). PR-188 F5's 316-
+  site role split -> 503 total (same mod-01 form) and the
+  dispatch = the 16 chains (Finding 1). PR-191 F3's tag-
+  factory 'shape' -> generalized to 386 strcmp sites / 16
+  chains / three universal initializers (Finding 1). The
+  0x603b0 'run = [vt+0xc] then 0x5f310' sequence in the
+  PR-191 record -> the loop is called BY the run verb
+  0x603b0 (its 3 E8 sites). PR-191's zero-store law for [mgr+0x30] CONFIRMED,
+  mechanism recovered (Finding 4). PR-191 items: (2) CLOSED
+  (Finding 6); (8) CLOSED (Finding 1); (6) half-CLOSED
+  (Finding 2 families; names counted); (3) re-measured,
+  COUNTED (Finding 7); (5) the level-load key mapping +
+  the plan fill CLOSED, the per-file open ORDER inside
+  0x4d5xx stays COUNTED (Finding 4); (1)/(4)/(7) unchanged.
+
+- VERDICT FOR THE PORT: NO CHANGE, no stage behaviour
+  touched. The .des key list is the authoring contract the
+  port's level loader mirrors; the port already implements
+  the plan semantics PR-192 re-derives (its own scripted
+  level logic, unchanged); the 'plany=T|TALA|ATAB' three-
+  slot law and the 'lew=TLew*' lion-type law MATCH the
+  port's existing level/actor model (no discrepancy found
+  - the three-vector loop of PR-191 F2 is exactly the
+  three plan slots). The AC_*/K_* vocabulary chain
+  (Finding 1) is the engine-side twin of the port's .MOV
+  parser - name-level confirmation, no code change.
+
+- FINDING 8, THE STREAM-CLASS FAMILY + WHICH STREAMS THE
+  HOTKEYS AND THE LEVEL USE (strengthens F6). Direct-E8
+  callers of the run verb 0x603b0: 0x4ad17/0x4ada0/0x4ae29
+  = THE THREE HOTKEY LEGS (F1 -> creator 0x60930 at
+  0x4acf4 + close 0x60960 at 0x4ad24; 'P' -> creator
+  0x609c0 at 0x4ad78; ESC -> creator 0x609c0 at 0x4ae01 +
+  close at 0x4ae29) + 0x51259 + 0x5d35f (THE LEVEL-FILE
+  RUN in the level runner block) + 0x5e544/0x5e5e2/0x5e647/
+  0x5e817/0x5e9db (nested runs inside the ANIMACJE reader
+  fn). Creator 0x60930 (table 0xa2d90) has 8 callers
+  (0x4acf4, 0x51230, 0x5e4ec/0x5e58a/0x5e980, 0x60a36/
+  0x60e1c/0x60fe0); creator 0x609c0 (table 0xa2d6c) has
+  EXACTLY the 2 hotkey callers. So: THE PAUSE/'P' AND ESC
+  MENU STREAMS ARE THE 0xa2d6c VARIANT, THE HELP/F1 STREAM
+  THE 0xa2d90 VARIANT, and 0xa2d6c's +0x20 slot holds
+  0x4be20 = THE LEVEL LOOP FN - the variant literally
+  carries the level-loop entry as its slot-+0x20. Further,
+  0x603b0 appears as an IMMEDIATE at 0xa2d1c/0xa2d40/
+  0xa2d64/0xa2d88/0xa2dac/0xa2dd0 = a WHOLE FAMILY of
+  adjacent stream-class tables all sharing the same RUN
+  verb (the 0xa2d90/0xa2d6c pair is two members; the
+  +0x24.. triple repeat = one table family's adjacency,
+  F6's open note now explained). NOTE: the giant authored-
+  file chain fn spans 0x4acf4-0x4e934 (its head IS the F1
+  creator site); 0x4e710, listed at slot +0x58 of class
+  table 0x97f50, is a MID-FUNCTION ENTRY of it - verb
+  tables may address interior entry points (compiled-thunk
+  style), which also recolors the other zero-ref host
+  functions (0x3f570/0x44e5d/0x4573d may be interior too).
+
+- OPEN ITEMS COUNTED (6 new). (1) The .IS level-DATA
+  binary chunk format (the 0x607e0/0x607ff callers of
+  0x5f310 + the .IS header vs the 0x4e710 chain's
+  text/binary mix). (2) The ANIMACJE record format (the
+  per-tag description layout inside the ANIMACJE member -
+  the T5 chunk-format source). (3) The 'levels' config
+  file loader (the 0x91ee5 error names it; where it is
+  opened/read - the 0x4c723 parser is the LEVELDES reader;
+  the levels-file -> LEVELDES-record chain counted).
+  (4) The stream-table triples at +0x24.. of 0xa2d90/
+  0xa2d6c (two table instances?) and the full verb
+  semantics of both tables. (5) The boot registry table
+  0xad8c0-0xad91c entries (0x514e0/0x59dc0/0x5c260/
+  0x611e0 = unattributed boot functions). (6) CARRIED
+  unchanged: the exit-word writer (re-measured), the
+  ds:0xa9aa8 language writer, the 'XxXx' pair strings,
+  the 0x49580 field map, [mgr+0x3ce]/[mgr+0x3d6] pointer
+  writers, the 0x582f0 other feeds, class NAMES
+  (0x98078/0x9815c/0x981e8/0xa1310 semantics now mapped,
+  names pending), the per-file open order in 0x4d5xx, the
+  ladder/energy video checks, the 0x240/+0x2cc computed
+  dispatch, flag values 4..7, id-13/15/21/23 arms, the
+  a94ec per-consumer semantics.
+
+- EVIDENCE. Reproducible with /tmp/opencode/pr192/
+  pr192_evidence.py (0x76a69 E8 census 386; tag arms 361
+  in 16 chains; 0x5c320 census 617; the [reg+8],table
+  census: 649 raw mod-01 c7 [reg+8] sites, 503 in
+  176 tables, 0 mod-10; top-install attribution lists for 0x9815c/
+  0x981e8/0x98078; the four root-name strings + their
+  getters + 0x5c600's single data ref 0xad8de; the 0x4a910
+  caller census 4; the 0x5f310 3-caller census; 0x4c723's
+  zero static refs + the 27-leg key chain + the
+  [ebp+0x12a]=
+  [esi+0x30] fill pair; the stream table decode +
+  0x603cb bytes + the table slot at +0x1c; the 0x97f50
+  verb-set [reg+4] zero-scan; the run-creator mapping:
+  E8->0x603b0 = 0x4ad17/0x4ada0/0x4ae29 + 0x51259 +
+  0x5d35f + the 0x5exxx nested-run sites, E8->0x60930 =
+  8, E8->0x609c0 = exactly 0x4ad78/0x4ae01, and
+  0x603b0's immediate refs at 0xa2d1c..0xa2dd0 = the
+  stream-table family) + pr192_arch.py / the fixture
+  scans
+  (LEVELDES 24+ .DES members + 67 'plany=' records + the
+  key grammar; ANIMACJE 20/31 tags plaintext; ETAPY 119
+  .seq fragments + 0 .mnu; ZARIA1.IS 0 tags). obj_range
+  reads per PR-177; text.asm NOT used.
+
+- GATES. Docs-only reading PR (the PR-138..PR-191
+  precedent): no port file touched; build state = the
+  OWNER GATE (rule 8) as MEASURED on 7b4d736 (ZERO-warning
+  make; verify-all rc=0 both ways = 52 (ok) with fixtures
+  / 10 (ok) + 18 named verify-SKIPs) - only docs move
+  here. Added lines all <= 79 columns; width baselines
+  (NEXT_STEPS 71 / HANDOFF 71) held by line-set diff.
+  Heading census 105 = 104 at 21445d5 + this record; the
+  4 OWNER (2026-11-19) records unchanged; records
+  PR-150..PR-191 re-spliced byte-identical except the new
+  brackets. The Windows half stays in the end pass (rule
+  8). The last CONFIRMED CI run at this record's time:
+  PR-191's docs run 44594688123 = SUCCESS on 21445d5.
 
 ## Deferred big items (deliberately out of scope so far)
 
