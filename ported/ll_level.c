@@ -3275,6 +3275,7 @@ out:
 
 static int obj_layer_selftest(void);
 static int contact_model_selftest(void);
+static int ladder_answer_selftest(void);
 
 /* FIX-13 (X-11) selftest, test-only entry point (ll_level.h): proves the
  * two .MOV duration invariants without any window or game data:
@@ -3435,7 +3436,7 @@ int ll_mov_selftest(void)
         seq_shape_selftest() != 0 || seq_push_selftest() != 0 ||
         obj_layer_selftest() != 0 || obj_state_selftest() != 0 ||
         obj_motion_selftest() != 0 || contact_model_selftest() != 0 ||
-        place_grammar_selftest() != 0) {
+        ladder_answer_selftest() != 0 || place_grammar_selftest() != 0) {
         free(sc.mov);
         free(m);
         return 1;
@@ -3497,7 +3498,16 @@ int ll_mov_selftest(void)
            " while the position path had already paid its 2 px on the"
            " sixth iteration; the old F=30 shape, 0.375 = 3/8 exact,"
            " lands exactly on 3.0 on time and leaves exactly 0.0"
-           " (ok)\n");
+           " + PR-150 the ladder's contact answer: its row-position"
+           " gate (idle/first/park rows answer nothing, only the"
+           " second drop row does, and the row cursor clamps like"
+           " the shape path's), the full-extent then 70%%-probe"
+           " predicate with the merged CATCH+DRAB and lone-DRAB"
+           " tails and the inclusive bounds, the probe's truncating"
+           " symmetric law at every w I pinned by hand, the edge"
+           " block's priority, the DRABINKA-only class scope, and"
+           " the model-default 1x1 blocks when the port has no"
+           " authored rectangle (ok)\n");
     return 0;
 }
 
@@ -3838,6 +3848,292 @@ static int clash_suppressed(const play_ctx *pl, int lx, int ox)
     return sd * (int)pl->p.face < 0;
 }
 
+/* PR-150: THE LADDER'S ANSWER BECOMES BEHAVIOUR. The DELIVERY route
+ * is PR-147 Finding 4's, read end to end: the mover's motion pipeline
+ * (0x52750 -> its merger 0x52790 -> the candidate walk 0x4bd30, whose
+ * lists are gated by the MOVER STATE's token bits - PR-131) puts the
+ * pair before the ASKED object's +0x78 answer entry; the answer writes
+ * a 13-byte set, the answerer appends it as a contact NODE (kind 2 =
+ * the builder 0x53f50 that COPIES the set in, PR-149 F1), and the
+ * asker's contact method ORs the node's stored set into the asker's
+ * live set (0x54b65 -> 0x49580, PR-145) under a ROW guard (0x54b6a:
+ * `[rec+8] == 0 || [rec+8] == [obj+0x5c]`). The port merges straight
+ * away: the node list, its pop and the merge-delay are counted open
+ * (item 4) - the port's pulse set is consumed at the same step
+ * boundary the engine's key provider sits at (PR-88's order; the
+ * raise lands after ll_player_step, the transitions of the NEXT
+ * iteration read it). The answer itself is the ladder class's entry
+ * 0x3f1c0, PR-149 F2's predicate tree, ported byte-for-byte:
+ *   THE ROW GATE [obj+0x5c] is a 1-BASED ROW POSITION, and the
+ *   port's row is o->fi (0-based) - the mapping is engine = fi+1,
+ *   proven THIS pass, not assumed: (i) the field indexes the
+ *   current state's row-record table (PR-147 + the re-read this
+ *   pass: 0x5523f/0x55242 call slot +0x44, and the base-class
+ *   getter at that position, 0x23920..0x2392e, IS
+ *   `[[obj+0x50]+[obj+0x5c]*4]+0x12`); (ii) the transition apply
+ *   0x52000 copies the authored `( N )` row field (record +0x11,
+ *   0x52046..0x5204d) INTO that cursor, so N addresses the
+ *   record; (iii) the authored data: drab.MOV (ZARIA.01, the
+ *   full text read this pass) has `A_UP`'s only transition
+ *   `A_DROP(1)=K_GEN1` while A_DROP's FIRST row line is
+ *   `2,500` - so (1) must mean "position 1 = the first line",
+ *   and the line's leading numbers (1,2,3..10, then 11) are
+ *   FRAME selectors (the drab art is one frame per drop step;
+ *   obj_shape_elem feeds the same field to ll_mov_frame_ref),
+ *   NOT row ids; (iv) PR-110's row law already equated `(1)`
+ *   with the port's row 0. The gate (0x3f1dc/0x3f214): cursor 1
+ *   (= fi 0: A_UP's idle `1,0`, A_DROP's first `2,500`,
+ *   A_DOWN's park `11,0`) takes the FLAG branch, which answers
+ *   NOTHING; cursor 2 (= fi 1: A_DROP's `3,400` row, 500 ms
+ *   into the drop) is the ONLY answer row; cursor >= 3 (= fi
+ *   >= 2) falls to the inert exit; cursor 0 (state start,
+ *   before any admit) has no handler and the port never
+ *   represents it. The port clamps fi exactly as obj_shape_elem
+ *   does (`o->fi < nfr ? o->fi : nfr-1`).
+ *   THE PREDICATE, 0x23e00 verbatim (PR-106's point-in-rect:
+ *   `p[0] in [q0..q2]` and `p[4] in [q1..q3]`, four signed
+ *   jl/jg, INCLUSIVE): the asker side is its OWN first two dwords
+ *   - PR-149 F2 pinned the operand chain: the +0x68 getter (the
+ *   ret-self base getter 0x23b60 in 23/24 family tables, 0x23900
+ *   = `add eax,0xd6` = the POSITION BLOCK in the lion's) hands the
+ *   method the asker object, and its slot +0x8 is called with the
+ *   ladder's block as edx. The port's asker point is the
+ *   position (the first two dwords of the lion's position block).
+ *   P1 (0x3f21d..0x3f24d): asker point vs the ladder's STORED
+ *   block [self+0xc5] -> TRUE: the answer is AC_EDGE (bit 8) and
+ *   NOTHING else.
+ *   P2 (0x3f256..0x3f2a4): asker point vs the ladder's block
+ *   [self+0xb1] at FULL extent: the stack copy at esp is inset
+ *   first, but the FIRST test runs against ecx = self+0xb1 (the
+ *   `add ecx,0xb1` at 0x3f283 feeds edx at 0x3f29b - read off
+ *   the bytes THIS pass) - FALSE -> the inert exit 0x3f364.
+ *   P3 (0x3f2aa..0x3f355): asker point vs the 70% PROBE (edx =
+ *   esp, the inset stack copy, 0x3f2ad): TRUE -> AC_DRAB |
+ *   AC_DRAB_CATCH (bits 10|12, `or dh,0x10` + `or bh,0x4`
+ *   merged through 0x49580, 0x3f2dc..0x3f313); FALSE -> AC_DRAB
+ *   ALONE (0x3f355). (CORRECTION, flagged against this session's
+ *   OWN shipped PR-149 wording, which had P2 = inset / P3 =
+ *   full: the operands are the other way round, and the
+ *   correction makes all four PR-141 outcomes reachable with
+ *   ONE rectangle format - CATCH inside the probe's band, DRAB
+ *   alone in the outer band, inert outside, EDGE via the other
+ *   block.)
+ * THE 0x49fb0 ARITHMETIC, RE-READ BYTE BY BYTE THIS PASS (n =
+ * 0x46 = 70, set at 0x3f278) - and a SECOND correction to the
+ * PR-149 wording, recorded not hidden: the shipped text says
+ * "[p] += inset, [p+8] -= half - asymmetric halving". The bytes
+ * say otherwise: `0x49fde add esi,eax` and `0x49fe0 sub edi,eax`
+ * use the SAME eax, the halved remainder (the inset value is
+ * consumed at 0x49fce only, to form t = w - inset; eax is
+ * rewritten at 0x49fd0/0x49fd5/0x49fd7). The true law:
+ * w = [p+8]-[p]; inset = trunc(w*n/100) (idiv - C truncation
+ * matches); t = w - inset; half = trunc(t/2) (the
+ * `t - (t >>s 31)` then `sar 1` idiom IS division by two
+ * truncated toward zero); then BOTH edges move by that SAME
+ * half: [p] += half, [p+8] -= half. A SYMMETRIC inset keeping
+ * the CENTRAL n percent of the x-span - for n=70 the middle 70%
+ * (odd leftovers stay inside the probe; w <= 3 leaves it
+ * unchanged, w <= 1 likewise). That is also exactly the
+ * predicate shape needs: the probe sits INSIDE the full extent,
+ * so "P2 true / P3 false", AC_DRAB alone, means precisely
+ * "inside the rung, outside its middle 70%". The x-words are the
+ * pair [p]/[p+8] - the SAME pair 0x23e00 bounds-tests at
+ * 0x23e03/0x23e07 (`p[0] in [q[0], q[8]]`, `p[4] in [q[4],
+ * q[0xc]]`, signed jl/jg, INCLUSIVE) - which pins which words
+ * carry the x-span but still not the layout of the other pair
+ * (PR-149's open item 3 = our item 1, unchanged: the engine's
+ * author-side writer of [obj+0xb1..0xbd] has never been found;
+ * a DESCENDING-x block would make even P2 unsatisfiable under
+ * 0x23e00's bounds test, a fact pinned in a leg; and the ctor
+ * never stores [obj+0xc5] itself, PR-149, so even the engine's
+ * default EDGE block value is un-read - the port's 1x1 is a
+ * MODEL CHOICE, pinned by legs, never a read fact).
+ * THE PORT'S SOURCES, NAMED MODELS (PR-149's open item 3 - the
+ * engine's authored writer of [obj+0xb1..0xbd] and the filler of
+ * [obj+0xc5..0xd1] - stays OPEN): the ladder's ANSWER block (the
+ * [self+0xb1] role, P2/P3's q) is the object's own current art
+ * bbox in object-local coordinates - the same authored shape
+ * obj_draw/obj_contact/play_collide use, the one rectangle every
+ * authored ladder provably has (ZARIA.01: DRAB.SEQ 42x48 at
+ * 180,510); an object with no art shape gets the ctor-shaped 1x1
+ * at the object position. The EDGE block (the [self+0xc5] role,
+ * P1's q) has NO authored source; the port defaults it to a 1x1
+ * at the object too - note the image fact: malloc'd 0xd9 bytes,
+ * the ctor NEVER stores [obj+0xc5] itself (PR-149 F2), so even
+ * the engine's default value at +0xc5 is un-read; the port's 1x1
+ * is a MODEL CHOICE, pinned by legs, and P1's priority (edge
+ * answer beats the rung answer) is a separate leg.
+ * CLASS SCOPE, COUNTED: only DRABINKA answers here. Its chain is
+ * the one anchored end to end (PR-141: factory 0x1f8ac -> class
+ * table 0x97cdc, +0x78 = 0x3f1c0). LINA's constructor chain is
+ * proven (PR-149 F3) but LINA's class table and the bit pair its
+ * +0x78 entry raises (the AC_LINA twins, 21/22) have never been
+ * anchored, and the K-prefixed climbable variants (KLINA,
+ * KDRABINA, PR-141) not at all - those stay unanswered, item 2.
+ * WHAT DOES NOT SHIP (counted, not hidden): the kind-4 contact
+ * node and its +/-10 y-override (PR-147 - PR-149 F1 built the
+ * node shape it needs, the natural next PR); object-asked answers
+ * (the engine's candidate walk runs for every stepped mover,
+ * 0x52790 is in 15 class units; the port has no object-to-object
+ * contact pass, so only the LION asks - item 3); the node-list
+ * lifetime and merge delay (item 4); the [obj+0xa5] child ANY-
+ * test of the row-1 branch (the port models no child list - the
+ * feature was never read - so the engine's row-1 answer here is
+ * the inert exit and [obj+0x66] bit 6 is never set, counted).
+ * AT ZARIA.01 THIS CHANGES NOTHING OBSERVABLE, and the legs say
+ * why instead of asserting it away: (i) the authored A_WALK token
+ * carries no CHECK bit for the ladder's list (PR-131's gate, the
+ * same gate the port's play_collide applies - zero answer
+ * calls); (ii) even with the gate open the ladder would answer
+ * nothing: its ONLY authored exit is `A_DROP(1)=K_GEN1`, K_GEN1
+ * is never raised on it (PR-149 F5's census with its two
+ * negatives), so the port's ladder sits in A_UP at row 0 = the
+ * FLAG branch forever, and the answer row (fi 1, the `3,400`
+ * line) is unreachable; and the engine's WAIT row-gate law
+ * stays unmodelled anyway. Both legs are below, not asserted
+ * away. */
+static int ladder_class(const lvl_obj *o)
+{
+    return o->sc && ci_eq(o->sc->leaf, "DRABINKA");
+}
+
+typedef struct { int x0, y0, x1, y1; } ll_blk;   /* the engine's block
+                                                  * order: [p]/[p+4] vs
+                                                  * [q0..q3] at 0x23e00 */
+typedef struct { int x, y; } ll_pt;
+
+static int pt_in_blk(const ll_pt *p, const ll_blk *q)
+{
+    /* 0x23e00 verbatim: [p] in [[q0],[q2]], [p+4] in [[q1],[q3]],
+     * signed, jl/jg - inclusive on all four sides. */
+    return p->x >= q->x0 && p->x <= q->x1 &&
+           p->y >= q->y0 && p->y <= q->y1;
+}
+
+static void blk_probe70(ll_blk *b)
+{
+    /* 0x49fb0 with n = 0x46 (0x3f278), verbatim 0x49fb6..0x49fe4
+     * and CORRECTED against the PR-149 wording, see the model
+     * note: inset the x-words SYMMETRICALLY by half =
+     * trunc((w - trunc(w*70/100)) / 2) - keep the central 70%.
+     * Both C divisions truncate toward zero exactly where the
+     * engine's idiv and the `sar 31 / sub / sar 1` idiom do, so
+     * the plain code IS the byte law for both signs. The x-words
+     * only; y untouched. w*70 must not overflow: engine imul is
+     * 32-bit too, and level spans are far below 2^31/70. */
+    int w = b->x1 - b->x0;
+    int ins = w * 70 / 100;            /* C99 division truncates
+                                        * toward zero = idiv exactly */
+    int t = w - ins;
+    int half = t / 2;                  /* = the sar idiom, both signs */
+
+    b->x0 += half;
+    b->x1 -= half;
+}
+
+static unsigned long long ladder_answer_core(int row, const ll_blk *edge,
+                                             const ll_blk *rung,
+                                             const ll_pt *ask)
+{
+    ll_blk probe;
+
+    if (row != 1)
+        return 0ull;                   /* the ONLY answer row (0x3f214);
+                                        * row 0 = the FLAG branch (its
+                                        * ANY-test never finds a child:
+                                        * the port models no child list,
+                                        * counted), row >= 2 = inert */
+    if (pt_in_blk(ask, edge))         /* P1: [self+0xc5] */
+        return 1ull << LL_SIG_AC_EDGE;
+    if (!pt_in_blk(ask, rung))        /* P2 FALSE: inert exit 0x3f364 */
+        return 0ull;
+    probe = *rung;
+    blk_probe70(&probe);
+    if (pt_in_blk(ask, &probe))       /* P3 TRUE: merged, 0x3f2dc.. */
+        return (1ull << LL_SIG_AC_DRAB) | (1ull << LL_SIG_AC_DRAB_CATCH);
+    return 1ull << LL_SIG_AC_DRAB;    /* P3 FALSE: 0x3f355 alone */
+}
+
+/* the object's current block, port-source version (see the model
+ * note). The SAME shape path as play_collide's two contact passes:
+ * obj_shape_elem (the current row's element, its fi clamp, and the
+ * drawn polarity - PR-81 keeps shape and sprite one polarity),
+ * then the element box positioned at the object exactly as the
+ * balloon pass above positions the LION's element box. An element
+ * with no margin lists is skipped by the game's hit tests (the
+ * rule ll_seq_shape_contact's contract names), so the port returns
+ * 0 there and the caller falls back to the ctor-shaped 1x1. */
+static int blk_of_obj(const lvl_obj *o, ll_blk *b)
+{
+    int mirror;
+    const ll_seq *oseq = NULL;
+    const ll_seq_elem *e = obj_shape_elem(o, &mirror, &oseq);
+
+    b->x0 = b->x1 = o->x;
+    b->y0 = b->y1 = o->y;
+    if (!e)
+        return 0;
+    {
+        int tw, th, rows, x, y, w, h;
+
+        ll_seq_shape_wh(e, &tw, &th, &rows);      /* *n = row count */
+        if (rows <= 0)
+            return 0;
+        ll_seq_shape_bbox(oseq, e, &x, &y, &w, &h);
+        if (mirror)                /* mirrored shape: mirror the box
+                                    * about the position point, the
+                                    * polarity the shape pass uses */
+            x = -(x + w);
+        b->x0 = o->x + x;
+        b->y0 = o->y + y;
+        b->x1 = o->x + x + w;
+        b->y1 = o->y + y + h;
+    }
+    return 1;
+}
+
+static ll_pt pt_of(const ll_player *p)
+{
+    ll_pt q;
+
+    q.x = (int)(p->x >= 0 ? p->x + 0.5 : p->x - 0.5);
+    q.y = (int)(p->y >= 0 ? p->y + 0.5 : p->y - 0.5);
+    return q;
+}
+
+static unsigned long long ladder_answer_for(const lvl_obj *o,
+                                            const ll_player *asker)
+{
+    ll_blk rung, edge;
+    ll_pt p = pt_of(asker);
+    const ll_mov_st *s = NULL;
+    int row;
+
+    if (o->sc && o->sc->mov && o->sti >= 0 && o->sti < o->sc->mov->nst)
+        s = &o->sc->mov->st[o->sti];
+    if (!s || s->nfr <= 0)
+        row = -1;                      /* no row list at all: no current
+                                        * row (the engine's moving objs
+                                        * always have one; empty lists
+                                        * are a shape the port permits,
+                                        * obj_state_selftest's first
+                                        * leg) */
+    else
+        row = o->fi < s->nfr ? o->fi : s->nfr - 1;  /* obj_shape_elem's
+                                                     * clamp, same field */
+    if (!blk_of_obj(o, &rung)) {
+        rung.x0 = rung.x1 = o->x;      /* the ctor-shaped 1x1 default */
+        rung.y0 = rung.y1 = o->y;
+    }
+    edge.x0 = edge.x1 = o->x;          /* MODEL CHOICE, see the note: a
+                                        * 1x1 at the object (the ctor
+                                        * zeroes +0xc9..+0xd1 and NEVER
+                                        * stores +0xc5; no authored
+                                        * source exists) */
+    edge.y0 = edge.y1 = o->y;
+    return ladder_answer_core(row, &edge, &rung, &p);
+}
+
 static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                          int verbose, int tick)
 {
@@ -4074,6 +4370,23 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
          * engine's 0x50ed0 tail builds its packet after the damage and
          * DANGER branches, and this loop's shapes have just met). */
         obj_touch_enemy(o, verbose, tick);
+        if (ladder_class(o)) {
+            /* PR-150: the pair has just MET and the object was MOVED
+             * by the push - the engine answers on the mover's CURRENT
+             * position block (0x3f222 re-reads the getter at answer
+             * time), so the answer is taken from the post-push shape
+             * and state (PR-92's order note: the engine answers after
+             * the push-out). */
+            unsigned long long ans = ladder_answer_for(o, &pl->p);
+
+            if (ans) {
+                pl->p.sig |= ans;
+                if (verbose)
+                    printf("ll_level: play tick %d: ladder %s/%s row %d"
+                           " ANSWERS the lion: set %llx\n", tick,
+                           o->sc->leaf, o->sc->movname, o->fi, ans);
+            }
+        }
         if (verbose)
             printf("ll_level: play tick %d: solid %s/%s %s at %d,%d push"
                    " %d,%d (ret %d) lion %d,%d\n", tick, o->sc->leaf,
@@ -4123,8 +4436,246 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
             if (d1 == 0 && d2 == 0)
                 continue;                       /* no shape meet: no touch  */
             obj_touch_enemy(o, verbose, tick);
+            if (ladder_class(o)) {
+                /* PR-150: same answer path for a NON-solid ladder
+                 * state - the engine's candidate walk is not gated on
+                 * solidity (PR-147 Finding 4: the pair goes to the
+                 * asked object's +0x78 entry whatever the state's
+                 * SOLID flag), and every shipped AC_* consumer lives
+                 * in a non-solid state (PR-92's census). Evaluated at
+                 * the lion's post-push position, like the touch. */
+                unsigned long long ans = ladder_answer_for(o, &pl->p);
+
+                if (ans) {
+                    pl->p.sig |= ans;
+                    if (verbose)
+                        printf("ll_level: play tick %d: ladder %s/%s row"
+                               " %d ANSWERS the lion (non-solid):"
+                               " set %llx\n", tick, o->sc->leaf,
+                               o->sc->movname, o->fi, ans);
+                }
+            }
         }
     }
+}
+
+/* PR-150 selftest: the ladder's contact answer, hand-derived from the
+ * machine code quoted in the ladder_answer_* model note (0x3f1c0, the
+ * 0x23e00 bounds test, the 0x49fb0 probe) and from the row structure
+ * its gate reads - the synthetic scripts mirror that shape, no game
+ * data, no video. L1 pins the probe law at the truncation edges its
+ * bytes decide (odd widths, w<=3, mirrored words); L2 the decision
+ * table with the inclusive bounds and the edge block's priority; L3
+ * the class scope; L4 the row-position gate and the no-art default
+ * end to end, including the ZARIA-shaped idle row that answers
+ * nothing at any asker and the shape path's row clamp. */
+static int ladder_answer_selftest(void)
+{
+    static const struct {
+        int x0, x1, wx0, wx1;
+        const char *what;
+    } probe_cases[] = {
+        { 0, 40, 6, 34, "w=40: ins 28, half 6 keeps the middle 70%" },
+        { 0, 41, 6, 35, "w=41: ins trunc(28.7)=28, half trunc(6.5)=6" },
+        { 0, 43, 6, 37, "w=43: ins trunc(30.1)=30" },
+        { 0, 10, 1, 9, "w=10: half trunc(1.5)=1, the odd px stays in" },
+        { 0, 3, 0, 3, "w=3: half 0, the probe IS the rung" },
+        { 0, 1, 0, 1, "w=1: unchanged" },
+        { 40, 0, 34, 6, "descending words mirror the law (34 above 6)" },
+        { -41, 0, -35, -6, "negative coordinates: the law on values" },
+    };
+    static const unsigned long long m_drab = 1ull << LL_SIG_AC_DRAB;
+    static const unsigned long long m_cat = m_drab |
+                                            (1ull << LL_SIG_AC_DRAB_CATCH);
+    static const struct {
+        int row; ll_pt ask; unsigned long long want;
+        const char *what;
+    } core_cases[] = {
+        { 0, { 120, 124 }, 0ull, "row 0 (idle/first/park shape) answers"
+          " nothing, inside the probe" },
+        { 0, { 100, 100 }, 0ull, "row 0 even ON the edge pixel" },
+        { 2, { 120, 124 }, 0ull, "row 2 (drop rows past the second):"
+          " inert exit 0x3f214/0x3f364" },
+        { 9, { 100, 100 }, 0ull, "row 9 even on the edge pixel" },
+        { 1, { 100, 100 }, 1ull << LL_SIG_AC_EDGE, "P1 FIRST: on the"
+          " stored edge block, AC_EDGE only" },
+        { 1, { 106, 100 }, m_cat, "probe near corner inclusive: CATCH+DRAB"
+          " merged" },
+        { 1, { 120, 124 }, m_cat, "probe band middle: merged" },
+        { 1, { 136, 148 }, m_cat, "probe far corner inclusive (136,148):"
+          " merged (no y inset)" },
+        { 1, { 101, 124 }, m_drab, "inside the rung, left of the band:"
+          " DRAB alone (0x3f355)" },
+        { 1, { 142, 148 }, m_drab, "rung far corner inclusive (142,148),"
+          " outside the band: alone" },
+        { 1, { 99, 124 }, 0ull, "one px left of the rung: P2 FALSE ->"
+          " inert 0x3f364" },
+        { 1, { 100, 149 }, 0ull, "below the rung (y not inset): inert" },
+        { 1, { 143, 124 }, 0ull, "one px right of the rung: inert" },
+    };
+    const ll_blk rung = { 100, 100, 142, 148 };
+    const ll_blk edge = { 100, 100, 100, 100 };
+    int k;
+
+    for (k = 0; k < (int)(sizeof probe_cases / sizeof probe_cases[0]);
+         k++) {
+        ll_blk b = { probe_cases[k].x0, 7, probe_cases[k].x1, 9 };
+
+        blk_probe70(&b);
+        if (b.x0 != probe_cases[k].wx0 || b.x1 != probe_cases[k].wx1 ||
+            b.y0 != 7 || b.y1 != 9) {
+            fprintf(stderr, "ladder answer selftest: FAILED probe law"
+                            " %s (got %d..%d y %d,%d)\n",
+                    probe_cases[k].what, b.x0, b.x1, b.y0, b.y1);
+            return 1;
+        }
+    }
+    for (k = 0; k < (int)(sizeof core_cases / sizeof core_cases[0]);
+         k++) {
+        unsigned long long got = ladder_answer_core(
+            core_cases[k].row, &edge, &rung, &core_cases[k].ask);
+
+        if (got != core_cases[k].want) {
+            fprintf(stderr, "ladder answer selftest: FAILED decision"
+                            " table: %s (ask %d,%d row %d got %llx want"
+                            " %llx)\n", core_cases[k].what,
+                    core_cases[k].ask.x, core_cases[k].ask.y,
+                    core_cases[k].row, got, core_cases[k].want);
+            return 1;
+        }
+    }
+    {   /* w <= 3: the probe IS the rung, so every rung touch is a
+         * CATCH - the byte law's own consequence, not a smoothing. */
+        const ll_blk narrow = { 100, 100, 102, 148 };
+        const ll_blk far_edge = { 90, 90, 90, 90 };
+        static const ll_pt nask[] = { { 100, 120 }, { 102, 120 } };
+
+        for (k = 0; k < 2; k++)
+            if (ladder_answer_core(1, &far_edge, &narrow, &nask[k]) !=
+                m_cat) {
+                fprintf(stderr, "ladder answer selftest: FAILED narrow"
+                                " rung (probe == rung must merge)\n");
+                return 1;
+            }
+    }
+    {   /* Descending x-words: 0x23e00's bounds test (p >= q[0] and
+         * p <= q[8] with q[0] > q[8]) is never satisfiable, so such
+         * a block answers inert at every asker. PR-149's open item 3
+         * stays open; this leg pins the consequence, not the format. */
+        const ll_blk down = { 140, 100, 100, 148 };
+        const ll_blk off_edge = { 200, 200, 200, 200 };
+        static const ll_pt dask[] = { { 120, 124 }, { 140, 100 },
+                                      { 100, 148 } };
+
+        for (k = 0; k < 3; k++)
+            if (ladder_answer_core(1, &off_edge, &down, &dask[k]) !=
+                0ull) {
+                fprintf(stderr, "ladder answer selftest: FAILED"
+                                " descending block must answer inert"
+                                " (ask %d,%d)\n", dask[k].x, dask[k].y);
+                return 1;
+            }
+    }
+    {   /* L3, class scope: the anchored chain is DRABINKA's (PR-141's
+         * factory 0x1f8ac -> table 0x97cdc -> +0x78 = 0x3f1c0); LINA
+         * and the K-prefixed variants stay unanswered (item 2). */
+        static const struct { const char *leaf; int want; } scope[] = {
+            { "DRABINKA", 1 }, { "drabinka", 1 }, { "LINA", 0 },
+            { "KLINA", 0 }, { "KDRABINA", 0 }, { "BAL", 0 },
+        };
+
+        for (k = 0; k < (int)(sizeof scope / sizeof scope[0]); k++) {
+            obj_script s2;
+            lvl_obj o2;
+
+            memset(&s2, 0, sizeof s2);
+            strcpy(s2.leaf, scope[k].leaf);
+            memset(&o2, 0, sizeof o2);
+            o2.sc = &s2;
+            if (ladder_class(&o2) != scope[k].want) {
+                fprintf(stderr, "ladder answer selftest: FAILED class"
+                                " scope for '%s'\n", scope[k].leaf);
+                return 1;
+            }
+        }
+    }
+    {   /* L4, end to end with the model default: no art (obj_art_of
+         * NULL through an empty table list), so both blocks are the
+         * 1x1 at the object - the edge block wins AT the pixel (P1),
+         * one px away NOTHING answers, and the row gate holds. The
+         * row texts mirror the shape the record quotes from drab.MOV
+         * (`1,0` idle, `2,500`/`3,400` drop) as a synthetic script;
+         * the authored file itself is NOT in this test. */
+        static const struct { const char *mov; int fi; double ax, ay;
+                             unsigned long long want;
+                             const char *what; } e_cases[] = {
+            { "[A_UP]\ncontrol=BY_TIME\n1,0\n", 0, 180, 510, 0ull,
+              "the idle single-row shape: its row (cursor 1) is the"
+              " FLAG branch, nothing answers even ON the object pixel" },
+            { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n", 0, 180, 510,
+              0ull, "a drop's FIRST row is also cursor 1: nothing" },
+            { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n", 1, 180, 510,
+              1ull << LL_SIG_AC_EDGE, "the SECOND row (cursor 2) is the"
+              " answer row: on the default 1x1s the edge block wins at"
+              " the pixel, and only edge" },
+            { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n", 1, 181, 510,
+              0ull, "1 px away the default 1x1s answer nothing" },
+            { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n", 5, 180, 510,
+              1ull << LL_SIG_AC_EDGE, "fi past a 2-row list clamps to"
+              " row 1, exactly obj_shape_elem's clamp" },
+            { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n3,400\n", 2, 180,
+              510, 0ull, "row 2 of a 3-row list (drop `4,400` shape):"
+              " the gate holds even on the pixel" },
+            { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n3,400\n", 9, 180,
+              510, 0ull, "fi 9 clamps to row 2: inert there too" },
+            { "[A_UP]\ncontrol=BY_TIME\n", 0, 180, 510, 0ull,
+              "no rows at all: no current row exists (a shape the port"
+              " permits; the engine's moving objects have one)" },
+        };
+
+        for (k = 0; k < (int)(sizeof e_cases / sizeof e_cases[0]);
+             k++) {
+            ll_mov_t *m = calloc(1, sizeof *m);
+            obj_script sc;
+            lvl_obj o;
+            ll_player asker;
+
+            if (!m) {
+                fprintf(stderr, "ladder answer selftest: FAILED out of"
+                                " memory\n");
+                return 1;
+            }
+            ll_mov_parse(e_cases[k].mov, m);
+            if (m->nst != 1) {
+                fprintf(stderr, "ladder answer selftest: FAILED the"
+                                " synthetic script did not parse (%d)\n",
+                        m->nst);
+                free(m);
+                return 1;
+            }
+            memset(&sc, 0, sizeof sc);
+            strcpy(sc.leaf, "DRABINKA");
+            sc.mov = m;
+            memset(&o, 0, sizeof o);
+            o.sc = &sc;
+            o.x = 180;
+            o.y = 510;
+            o.fi = e_cases[k].fi;
+            memset(&asker, 0, sizeof asker);
+            asker.x = e_cases[k].ax;
+            asker.y = e_cases[k].ay;
+            if (ladder_answer_for(&o, &asker) != e_cases[k].want) {
+                fprintf(stderr, "ladder answer selftest: FAILED end to"
+                                " end: %s (fi %d ask %d,%d)\n",
+                        e_cases[k].what, e_cases[k].fi,
+                        (int)e_cases[k].ax, (int)e_cases[k].ay);
+                free(m);
+                return 1;
+            }
+            free(m);
+        }
+    }
+    return 0;
 }
 
 /* PR-139 (G-5) selftest: the contact/damage reality, hand-derived from

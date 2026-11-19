@@ -15323,10 +15323,41 @@ no port behaviour change)
   is UNREAD (open item 2) - note PR-141 labelled edx "the
   toucher"; the CALL SHAPE says the called object is ebx and its
   own getter is what runs.
+  [RESOLVED by PR-150: the getter's RESULT is the point operand
+  for all three +0x8 tests - the entry itself fixes the roles
+  (0x3f1c1 `mov ebx,edx`, 0x3f1c6 `mov ecx,eax`): ecx = the
+  ANSWERING object (its [obj+0x5c] gates, its [obj+0xa5]
+  children, its [self+0x66] flag, its +0xb1/+0xc5 blocks are
+  the BOUNDS side), ebx = the ASKER, on whose class slots +0x3c
+  /+0x4c/+0x68 these calls run. For the lion the +0x68 slot is
+  0x23900 `add eax,0xd6` - the mover's own position block; a
+  NULL from the +0x3c getter makes the whole answer inert at
+  0x3f1d6. PR-141's "toucher" labels stand.]
   (1) THE ROW TEST IS A TWO-BRANCH CHAIN, NOT A SWITCH (the
   bytes, 0x3f1dc..0x3f217: `cmp edx,1; jne 0x3f214`; at 0x3f214
   `cmp edx,2; jne 0x3f364`). There is NO row-0 handler at all -
-  row 0 (A_UP's idle) falls straight to the inert exit. THE
+  row 0 (A_UP's idle) falls straight to the inert exit.
+  [CORRECTED by PR-150, recorded not hidden: the compared value
+  is a 1-BASED ROW POSITION in the current state's row-record
+  table - the transition apply 0x52000 copies the authored
+  `( N )` field (record +0x11, 0x52046..0x5204d) into that
+  cursor; drab.MOV's A_UP has exactly ONE exit, `A_DROP(1)=
+  K_GEN1`, while A_DROP's FIRST row line is `2,500` - so (1)
+  must mean position 1 - and PR-110's row law already equated
+  `(1)` with the port's row 0. The row lines' leading numbers
+  are FRAME SELECTORS (obj_shape_elem feeds the same stored
+  field to ll_mov_frame_ref), not row ids. Renaming the
+  branches under that reading: POSITION 1 (the port's fi 0 -
+  A_UP's idle `1,0`, a drop's first `2,500`, the park `11,0`)
+  IS the flag branch, not an inert no-handler; POSITION 2
+  (fi 1, the drop's `3,400` line) is the ONLY row with a
+  handler; every other value (0 = a state just entered,
+  >= 3 - and note 0x3f217's jne is reached only from
+  0x3f214's cmp-2, a strict equality) takes the inert exits.
+  The flag write also needs a child of [self+0xa5] to pass
+  the ANY-test, and the ctor zeroes that list with length 0 -
+  so a FRESH ladder neither flags nor answers at position 1,
+  which is exactly what the port models.] THE
   ROW-1 BRANCH (0x3f1e4..0x3f20f), read end to end this pass:
   it calls `[[ebx+8]+0x4c]` - that slot is 0x23a20 = `add
   eax,0x75` in 24/24 tables, the block at +0x75.. - and passes
@@ -15388,6 +15419,28 @@ no port behaviour change)
       read it); FALSE -> 0x3f33f: flag cleared (0x3f34c) and
       `or BYTE PTR [buf+1],0x4` = BIT 10 AC_DRAB ALONE (0x3f355,
       PR-141's branch B confirmed verbatim).
+    [CORRECTED by PR-150 on both counts - this session's own
+    wording, fixed in place, the bytes are the record now.
+    (1) THE ORDER IS FULL-FIRST, PROBE-SECOND: the
+    `add ecx,0xb1` at 0x3f283 leaves ecx = self+0xb1, so the
+    FIRST slot +0x8 call (0x3f29b `mov edx,ecx`) tests the
+    FULL extent - false -> inert 0x3f364 (0x3f2a4); only the
+    SECOND call (0x3f2aa `mov ecx,[ebx+8]`, 0x3f2ad
+    `mov edx,esp`) tests the INSET stack copy. There is no
+    `lea edx,[ecx+0xb1]` anywhere in this chain. (2) THE INSET
+    IS SYMMETRIC: 0x49fde `add esi,eax` and 0x49fe0
+    `sub edi,eax` share one eax = trunc((w - trunc(w*70/100))
+    /2); the inset value forms t = w - inset and reaches no
+    store, and C's two truncating divisions reproduce idiv and
+    the `sar 31 / sub / sar 1` idiom exactly (checked at
+    t = 13, -13, -1). So the probe keeps the CENTRAL 70% of
+    the x-span and sits INSIDE the full extent: CATCH inside
+    the band, DRAB alone between band and edge, inert outside
+    - ONE rectangle format, all four outcomes consistent.
+    0x23e00 re-read whole also names the words it bounds-
+    tests (q[0]/q[8] then q[4]/q[0xc], jl/jg INCLUSIVE) - the
+    same pair 0x49fb0 insets, so the x-role of those words is
+    read now; the layout of the other pair stays open item 3.]
     - inert exit 0x3f364: flag byte 0, empty buffer, return.
   PR-141's four OUTCOMES are all confirmed (AC_EDGE bit 8;
   AC_DRAB_CATCH+AC_DRAB merged; AC_DRAB alone; inert) - with
@@ -15397,7 +15450,17 @@ no port behaviour change)
   self+0xc5 -> AC_EDGE; (ii) the toucher's own block (for the
   lion, its position block) against the ladder rect inset 70% ->
   merged CATCH+DRAB; (iii) the same against the FULL rect ->
-  AC_DRAB alone; (iv) neither -> inert. Two structural points
+  AC_DRAB alone; (iv) neither -> inert.
+  [CORRECTED by PR-150: (ii) and (iii) as written are SWAPPED
+  - the FULL rect is tested FIRST (outside it -> inert at
+  once), the 70% probe SECOND (inside the band -> merged; in
+  the rect but outside the band -> AC_DRAB alone). "the
+  toucher's own block" is right as the POINT operand (the
+  +0x68 getter runs on the ASKER; for the lion, 0x23900
+  `add eax,0xd6`), but the BOUNDS operand in (ii) and (iii)
+  is the LADDER's [self+0xb1] - and the probe is a SYMMETRIC
+  central-70% inset, see the P2/P3 correction bracket.]
+  Two structural points
   this pass had to CORRECT IN ITS OWN DRAFT, recorded rather
   than hidden: (a) this session's own earlier draft
   claimed that P1's argument was the ladder's self-pointer `&self+
@@ -15409,7 +15472,15 @@ no port behaviour change)
   extent again", all against the ladder's dwords) conflated the
   predicates - P1 tests the ladder's +0xc5 BLOCK, P3 tests the
   TOUCHER's +0xc5 block; P1 false with P3 true is consistent,
-  not a contradiction. Also: every slot this chain calls is a
+  not a contradiction.
+  [CORRECTED by PR-150: there is no toucher-side +0xc5 block -
+  EVERY bounds operand in this method is the LADDER's
+  ([self+0xc5] for P1, [self+0xb1] full-then-probed for the
+  two later tests); the toucher only ever supplies the point
+  operand through its own getter. "P1 false, the later tests
+  true" just means the point is inside the ladder's rect and
+  outside its +0xc5 block - consistent, but for that reason.]
+  Also: every slot this chain calls is a
   BASE-CLASS family slot, not a ladder override - +0x68 = the
   ret-eax getter 0x23b60 (23 of the 24 tables; the lion's is
   0x23900), +0x8 = 0x23e00 (24/24), +0x4c (row 1, 0x3f1e9) =
@@ -15598,47 +15669,358 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- THE CONTACT-ANSWER ROUTE IS THE CODE PR NOW (PR-150). PR-149
-  closed the node shapes and re-read the ladder's answer method
-  as a predicate tree, so every input the route needs is
-  pinned: (i) the candidate walk - PR-131 read 0x52790's gate
-  exactly (the state-token wire bits at [obj+0x12]/[obj+0x13]
-  select the Lew/ani/zw candidate lists; 0x4bd30 is called from
-  one site, 0x527cb); (ii) the asked object's +0x78 answer
-  entry, with the LADDER'S as the first authored answer to
-  port - PR-149 Finding 2's operand-pinned predicate tree: the
-  toucher's block vs the ladder's stored +0xc5 block, then vs
-  its 70%-inset rect (0x49fb0, n=70), then vs its full
-  [self+0xb1..0xbd] rect, all through the class rect-
-  intersection slot +0x8 (0x23e00); row 1 only FLAGS
-  [self+0x66] bit 6 and answers nothing, row 0 does not
-  answer at all; and the four outcomes (AC_EDGE / merged
-  CATCH+DRAB / DRAB alone / inert) confirmed; (iii) the
-  answer-carrying node - build it with the kind-2 shape (0x1d
-  allocation,
-  builder 0x53f50 copying the 13-byte set), link it into
-  [obj+0xd2], and merge it into the live set exactly as
-  0x54b65 -> 0x49580 does. Test shape: hand-derived legs (the
-  port has no authored rectangle yet - the ctor default is the
-  1x1 the record shows, so legs must say what they pin, PR-148
-  style), the ZARIA.01 climb probe (PR-140's method) raising
-  AC_DRAB through the REAL answer path once it exists, plus the
-  mutation battery. The in-game K_GEN1 arm (PR-146 item 3, now
-  with two more PR-149 negatives: the +0xd0 receiver raises
-  nothing, the base sibling is `ret`) stays the named blocker
-  for the FULL chain, so the probe raises the signal directly
-  until it resolves. Then, in order, the named small studies:
-  the y-force path (the v_y FORCE write at 0x542cd, the
-  [param+0x4] map, the 0x54c00 friction/ground gate - the
-  other half of PR-148); the BY_TIME guard 0x543f2; the
-  scene-side BY_TY mirror; the dead-region 0x50252 follow-up
-  (who did reference it); the 20-vs-10 keyboard scale question.
-- HANDOFF item 15 keeps the gap list; PR-149 named the
-  factory-branch route for several of them (SURPRISE at
-  0x4e62f, TRASA/TRASA2 in the same chain, the attribute-name
-  vocabulary at 0x9142c) - those are now leads with addresses,
-  still the user's call whether to follow G-12/G-8/G-3/G-7/
-  G-10/G-11 next.
+- THE KIND-4 CONTACT NODE AND ITS +/-10 Y-OVERRIDE IS THE CODE
+  PR NOW (PR-151). PR-150 shipped the ANSWER content (what a
+  ladder's +0x78 entry decides); the ENGINE's delivery detail
+  still missing in the port is the node itself: PR-149 F1 built
+  the shape (kind 1/2/4 builders, the 0x21 kind-4 block), and
+  PR-147 read what kind 4 does - the contact method's override
+  pair 0x54b16..0x54b47 turns the player's +/-20 vertical intent
+  into +/-10 TOWARD the node's stored y (+-8 dead band), which
+  is the other half of PR-148's guard (the word the port already
+  carries) and the reason the engine's BY_TY feeds keep running
+  while a climber rides a contact node. With the answer pass in
+  place, the node becomes reachable data: an answer raised for a
+  ladder is exactly what would plant the node. Then, in order:
+  the y-FORCE path (the v_y write at 0x542cd reading
+  [param+0x4], the 0x54c00 friction/ground body - what the same
+  word does beyond the row clock, M9's other half); the K_GEN1
+  arm (PR-150 item 6, THE named blocker: until something raises
+  it at the object, no shipped ladder ever reaches the answer
+  row - PR-147's closed poster census plus PR-149 F5's two
+  negatives say look elsewhere: the 0x52607/0x52610 clamp
+  family and the 0x238e4 base method (PR-150 item 7) are now
+  the named unread leads); the WAIT row-gate law (`1,0,WAIT
+  K_GEN1` / `WAIT K_NEVER` still unmodelled, PR-150 item 6);
+  then the small studies: the BY_TIME guard 0x543f2, the
+  scene-side BY_TY mirror, the dead-region 0x50252 follow-up,
+  the 20-vs-10 keyboard scale question.
+- READING LEADS with addresses, still the user's call: the
+  authored rectangle format (PR-150 item 1 / PR-149 item 3 -
+  the attribute-name grammar at 0x9142c is the route); the
+  LINA-family class table (item 2 - the .MOV shape is now known
+  identical to DRABINKA's, the table + the AC_LINA twins are
+  the gap); object-to-object candidate walks and mid-air
+  asking (item 3); the 0x238e4 / 0x98274 small gaps (item 7).
+- HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
+  G-11; PR-149 named the SURPRISE factory branch at 0x4e62f and
+  the TRASA pair as leads).
+
+
+## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
+## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
+## MERGED CATCH / LONE DRAB TAILS ARE SHIPPED AS CODE; THE PASS'S
+## OWN THREE SELF-CORRECTIONS TO PR-149'S SHIPPED WORDING ARE
+## RECORDED, NOT HIDDEN (CODE + READING RECORD)
+
+- WHY. PR-149's Next named this as THE code pass: every input of
+  the contact-answer route was pinned there (node shapes, the
+  ladder's predicate tree, the merge chain), so the remaining
+  question was implementation. The implementation forced three
+  byte-level re-reads, and each re-read CORRECTED wording this
+  session itself had shipped in PR-149 - the corrections are part
+  of this record (Findings 1-3) and were also spliced into the
+  PR-149 sections in place, per the session's correction
+  discipline. The engine image is unchanged throughout (text.bin
+  sha256 edf19a129e85efb8764457a0808e246ca4baf08a9111aa09be4ec9
+  9ce6b8c40e).
+
+- FINDING 1, THE ROW-INDEX SPACE IS CLOSED: [obj+0x5c] IS A
+  1-BASED ROW POSITION, AND THE PORT'S CURSOR IS ITS 0-BASED
+  TWIN (engine = fi + 1). PR-149/150's first draft assumed the
+  gate read some row ID tied to the authored leading numbers
+  (drab's 1,2,3...11). The bytes close that. (a) The field
+  indexes the CURRENT STATE's row-record table: 0x5523f/
+  0x55242 calls class slot +0x44, and the base-class getter at
+  that slot, 0x23920..0x2392e, is exactly `[[obj+0x50] +
+  [obj+0x5c]*4] + 0x12` (PR-139 had already read that getter as
+  the row-record read; this pass re-read it for the index
+  question). (b) The transition apply 0x52000 walks the current
+  state's transition list ([state+0x1a], count at +0x8, record
+  stride 0x15, evaluator 0x47e40 per record), and on a match
+  writes record+0xd (the target state) and record+0x11 - the
+  AUTHORED `( N )` value, verbatim - into output slots; the
+  second slot is the object's row cursor (0x52046..0x5204d).
+  So N ADDRESSES the record table directly. (c) The authored
+  data decides the rest: drab.MOV's A_UP has exactly ONE exit,
+  `A_DROP(1)=K_GEN1`, while A_DROP's FIRST row line is `2,500`
+  - under any global-ID keying (1) would land on an empty slot
+  while (2) would be needed; under position keying (1) = the
+  first line, exactly as PR-110's row law already equated
+  `(1)` with the port's row 0. (d) Therefore the row lines'
+  leading numbers (1,2,3...10,11) are FRAME SELECTORS (the
+  drab table is one frame per drop step; obj_shape_elem feeds
+  the same stored field to ll_mov_frame_ref), NOT row ids, and
+  the near-contiguity is ladder art, not numbering. COROLLARY,
+  the ladder's gate map, exact: cursor 1 (port fi 0 - A_UP's
+  idle `1,0`, the drop's FIRST `2,500`, the park `11,0`) takes
+  the FLAG branch (its 0x44ec0 child ANY-test never matches in
+  the port - no child model - so it answers NOTHING and [self+
+  0x66] bit 6 is never set, counted); cursor 2 (port fi 1 - the
+  drop's `3,400,smpauto` row, 500 ms into the drop) is the
+  ONLY answer row; cursor >= 3 (fi >= 2) falls to the inert
+  exit at 0x3f217; cursor 0 = state start before any admit, no
+  handler, never represented by the port. Corroboration found
+  by the way: a second base-class gate at 0x238e4 treats row
+  position 2 ("`cmp [eax+0x5c],0x2`") as unconditionally true
+  in a test whose other arm is the class slot +0x8 rect test -
+  the same second-row semantics, in the same base region as the
+  +0x68 getter 0x23900; quoted, not chased (open item 7).
+
+- FINDING 2, THE 0x49fb0 ARITHMETIC IS A SYMMETRIC CENTRAL-n%
+  INSET - THE PR-149 WORDING WAS WRONG, CORRECTED IN PLACE. The
+  shipped sentence ("`[p] += inset`, `[p+8] -= half` - asymmetric
+  halving") misreads which register reaches the stores. Full
+  trace, entry to exit (0x49fb0..0x49fe4, n set to 0x46 = 70 at
+  0x3f278): eax = w = [p+8]-[p] (0x49fb6/0x49fb9); edx = n*w
+  (imul 0x49fbb); ecx saves w; idiv 100 (0x49fca, TRUNCATION
+  toward zero) -> inset; edx = w - inset = t (0x49fcc/0x49fce);
+  eax = t, then `sar edx,31 / sub eax,edx / sar eax,1`
+  (0x49fd0..0x49fd7) = t/2 TRUNCATED toward zero (checked at
+  t = 13, -13, -1: all match C's `/2`); THEN BOTH stores use
+  that same eax: `0x49fde add esi,eax` / `0x49fe0 sub edi,eax`
+  with esi=[p], edi=[p+8] (0x49fd9/0x49fdb). The inset value
+  never reaches a store - it is consumed forming t. The true
+  law: half = trunc((w - trunc(w*n/100))/2), [p] += half,
+  [p+8] -= half: a SYMMETRIC inset that keeps the CENTRAL n
+  percent of the x-span (middle 70% for n=70; odd leftovers
+  stay INSIDE the probe; w <= 3 leaves the block unchanged; the
+  other two dwords [p+4]/[p+0xc] are never touched). C's two
+  truncating divisions reproduce idiv and the sar-idiom exactly
+  for both signs, so the port's blk_probe70 is the byte law
+  with no normalisation.
+
+- FINDING 3, THE PREDICATE ORDER IS FULL-FIRST, PROBE-SECOND -
+  THE PR-149 WORDING HAD THEM SWAPPED, CORRECTED IN PLACE. The
+  answer chain, verbatim operands (0x3f256..0x3f2b6): the four
+  dwords [ecx+0xb1..0xbd] are copied to the stack block (esp..
+  esp+0xc) with [esp+0x10] = 0x98274 (a table - unchased), and
+  0x49fb0 runs on the COPY (0x3f28d/0x3f293); `add ecx,0xb1`
+  (0x3f283) leaves ecx = the ladder's OWN un-inset block, and
+  the FIRST slot +0x8 call gets `mov edx,ecx` (0x3f29b) - FULL
+  extent; FALSE -> the inert exit 0x3f364 (0x3f2a4). Only the
+  SECOND call gets `mov edx,esp` (0x3f2ad) - the PROBE; TRUE
+  -> the merged tail (or dh,0x10 = bit 12 AC_DRAB_CATCH at
+  0x3f2dc, or bh,0x4 = bit 10 AC_DRAB at 0x3f304, merged via
+  0x49580 at 0x3f313, repnz-copied); FALSE -> `je 0x3f33f` =
+  the AC_DRAB-alone tail (0x3f355). The PR-149 record had P2 =
+  inset / P3 = full, which made its own text ask "when can P1
+  be false while P3 is true?" - with the order corrected, the
+  probe sits INSIDE the full extent by Findings 2+4 and all
+  four PR-141 outcomes are consistent with ONE rectangle
+  format: EDGE via the stored +0xc5 block; CATCH|DRAB inside
+  the middle-70% band; DRAB alone inside the rung OUTSIDE the
+  band; inert outside the rung. That resolves the standing
+  "degenerate/ascending" worry the first draft of this note
+  carried (deleted from the code comment before it shipped).
+
+- FINDING 4, THE 0x23e00 SLOT IS A BOUNDS TEST OF TWO POINTS
+  AGAINST ONE BLOCK, WHICH PINES THE WORD ROLES. Re-read whole
+  (0x23e00..0x23e23): eax = p, edx = q; p[0] compared against
+  q[0] (fail if jl) and q[8] (fail if jg); p[4] against q[4]
+  (jl) and q[0xc] (jg); returns 1 or 0. INCLUSIVE bounds on
+  all four sides (jl/jg pass equality). Two consequences this
+  pass uses: (i) 0x49fb0's words 0 and 8 ARE the same pair the
+  bounds test uses for x - the x-role of those words is now
+  read, not inferred from arithmetic alone (the layout of the
+  OTHER pair - y at 4/0xc - stays PR-149's open item 3, our
+  item 1); (ii) a block whose x-words are INVERTED (q[0] >
+  q[8]) can never satisfy the bounds test, so such a ladder
+  answers INERT at every asker - the format the authored data
+  uses is still open, but only ascending blocks can ever mean
+  anything, and a leg pins the consequence. The asker side of
+  every call stays PR-149's: the +0x68 getter hands the base
+  family's self (0x23b60) or the lion's position block (0x23900
+  = add eax,0xd6), and its first two dwords are p[0]/p[4] - so
+  the port's asker point is the position point, and the lion
+  asks through its own position block.
+
+- FINDING 5, THE AUTHORED ROW DATA, READ END TO END (the texts
+  live under /tmp/opencode/mov/ from the earlier extraction;
+  none of it enters git or the tests). ZARIA.01 DRABINKA/DRAB:
+  A_UP `control=BY_TIME`, exit `A_DROP(1)=K_GEN1`, ONE row
+  `1,0,WAIT K_GEN1`; A_DROP exit `A_DOWN(1)=AC_BREAK_NEXT`,
+  rows `2,500`, `3,400,smpauto`, `4,400`, `5,300`..`10,200`;
+  A_DOWN ONE row `11,0,WAIT K_NEVER`. ZARIA.02 places DRABINKA
+  twice, with DRABK.MOV and DRAB.MOV - byte-identical row
+  structure (seq=drabk vs seq=drab). ZARIA.01 ALSO places LINA
+  (the extraction names ZARIA.01_LINA_LINA.MOV; also ENA2 and
+  KARA.07/TUNGA.11 LINA/ KLINA scripts): LINA's script has the
+  SAME A_UP/A_DROP/A_DOWN shape and the same `A_UP(1)=K_GEN1`
+  idiom with its own frame numbering (park `10,0,WAIT K_NEVER`)
+  - the .MOV side of the LINA family is now known; its CLASS
+  TABLE and the +0x78 bit pair (the AC_LINA twins, 21/22) are
+  still unanchored (item 2, unchanged). With Finding 1, the
+  ladder only answers while on its `3,400` row - 500 ms after
+  K_GEN1 unrolls it: the drop's second row is exactly the
+  moment a falling ladder can catch a climber, and the idle
+  row's child-ANY-test is exactly the "someone hangs on me"
+  flag. The design reads; no guess needed.
+
+- THE CODE, AND WHAT EACH PART IS. New block in ported/
+  ll_level.c above play_collide: ladder_class (the DRABINKA
+  leaf filter - the one chain anchored end to end, PR-141);
+  ll_blk/ll_pt + pt_in_blk (0x23e00 verbatim); blk_probe70
+  (Finding 2, byte law, both truncations as C divisions);
+  ladder_answer_core (the decision function: row gate by
+  Finding 1's map, then P1 edge-first, P2 full-extent, P3
+  probe -> merged/lone tails); blk_of_obj (the RUNG source:
+  the SAME shape path play_collide's own two contact passes
+  use - obj_shape_elem with its fi clamp and drawn polarity,
+  then ll_seq_shape_bbox positioned at the object, with the
+  no-margin-list skip rule ll_seq.h names); pt_of (the house
+  position rounding); ladder_answer_for (the clamp, the
+  ctor-shaped 1x1 fallback, the model-default edge, then the
+  core). Two call sites in play_collide: the solid push pass
+  and the non-solid PR-92 touch pass, both AFTER the shape
+  meet and the push, mirroring the engine's answer-after-push
+  order (0x552e0 -> 0x55230, PR-92); the answer is merged
+  straight into the lion's pulse set - the port has no node
+  list, and the node pop / merge-time row guard (0x54b6a:
+  `[rec+8] == 0 || [rec+8] == [obj+0x5c]`) are item 4. The
+  pulse lands after ll_player_step, so the NEXT iteration's
+  transitions read it (verified against the player's own
+  order: transitions evaluate first, p.sig zeroes mid-step
+  after them, frame tails and this pass re-raise afterwards -
+  the same window the PR-88 GEN pulses use).
+  NAMED MODEL DEFAULTS (each a choice, each pinned by legs,
+  none presented as read): the RUNG falls back to a 1x1 at the
+  object when the object has no art/shape (the ctor's own
+  1x1-default shape); the EDGE block is modelled as the same
+  1x1 at the object - the ctor zeroes [obj+0xc9..0xd1] and
+  NEVER stores +0xc5, so even the engine's default value there
+  is un-read (PR-149), and a literal reading would be a
+  garbage-dword degenerate at the world origin, unusable;
+  P1's priority is a model behaviour of the shared chain,
+  pinned as its own leg. WHAT THE CALL SITES DO NOT REPRODUCE
+  (counted): the candidate walk is per-MOVER in the engine
+  (0x52790 in 15 class units), while these passes run only
+  while the LION is stepped and NOT in an ANTI_SOLID state
+  (the port's existing contact gates) - object-object answers
+  and mid-air asking are item 3, unchanged and now with this
+  sharper edge.
+
+- THE TEST: `ladder_answer_selftest`, wired into ll_mov_selftest
+  (the mov-chain's own (ok) line extended; the verify count is
+  unchanged at 56 (ok) because the legs join an existing
+  binary - PR-148 precedent). All legs are hand-derived tables
+  over the code quoted above; NO game data, no frames. L1, the
+  probe law at every truncation edge found by hand: w=40 ->
+  inset [6,34]; w=41 (ins 28.7->28, half 6.5->6); w=43
+  (30.1->30); w=10 (half 1.5->1, the odd px stays in); w=3 and
+  w=1 unchanged (probe == rung); descending words mirror the
+  law; negative coordinates apply the law to values, not to
+  spans. y-words asserted untouched. L2, the decision table at
+  row 1 over a rung [100,100,142,148] (a 42x48 box, the DRAB.
+  SEQ extent's size, chosen by hand - not loaded) with edge 1x1
+  at (100,100): the edge pixel answers AC_EDGE ONLY (P1 first);
+  the probe corners (106,100)/(136,148) and the band middle
+  answer CATCH|DRAB MERGED, inclusive; (101,124) and the rung
+  far corner (142,148) answer DRAB ALONE (0x3f355); the pixels
+  one step outside the bounds answer inert (0x3f364). Rows 0,
+  2 and 9 answer NOTHING at every asker including the edge
+  pixel (the Finding 1 map). Narrow rungs (w<=3): every rung
+  touch is a CATCH (the byte law's own consequence). Descending
+  blocks: inert at three asks (Finding 4 (ii)). L3, class
+  scope: DRABINKA (both cases) passes; LINA/KLINA/KDRABINA/BAL
+  do not. L4, end to end over the DEFAULTS with synthetic
+  scripts that mirror the authored shapes without using them:
+  the idle single-row shape (cursor 1 = FLAG branch) answers
+  NOTHING even at the object pixel - the ZARIA-shaped leg; the
+  drop's first row likewise; the SECOND row answers AC_EDGE at
+  the 1x1 pixel (the edge default wins AT the point, and only
+  edge - nothing else is reachable without a sourced block),
+  nothing one px away; fi past a 2-row list CLAMPS to row 1
+  and answers (obj_shape_elem's clamp verbatim); a 3-row list
+  clamps to row 2 and stays inert; an empty list has no row at
+  all. ZARIA.01 ITSELF CHANGES NOTHING OBSERVABLE and both
+  reasons are pinned, not asserted: (a) the authored A_WALK
+  token carries no CHECK_ZW/CHECK_ANI bit, so the port's own
+  PR-131-gated passes never call the answer at ZARIA's walking
+  lion; (b) even with the gate open, the ladder sits in A_UP
+  forever in the port - A_UP's ONLY exit is `A_DROP(1)=K_GEN1`
+  and Finding 5's data + PR-149 F5's census leave no raiser of
+  K_GEN1 at that object - so the answer row (fi 1) is
+  unreachable; the one-row list's wrap keeps cursor at
+  position 1 (the PR-135 model). The whole-suite check agrees:
+  every verify leg, including the tier-1 landmark pins over
+  the ladder at (180,510), stays green with the code in.
+
+- MUTATION BATTERY (driver /tmp/opencode/pr150/run_mut.sh,
+  scratch tree /tmp/opencode/pr150_mut, both kept out of git).
+  Ten controls, each a single targeted edit; ALL TEN DETECTED,
+  NONE SURVIVED: M1 P1 deleted (the edge pixel answers CATCH);
+  M2 P2 inverted; M3 P3's merged/lone tails swapped; M4 the
+  gate widened to row >= 1 (the first draft's wrong gate);
+  M5 gate deleted; M6 the WRONG (PR-149-worded) asymmetric
+  inset `[p] += ins` (this is the mutant that pins Finding 2);
+  M7 half rounded UP instead of truncated (not the sar idiom);
+  M8 the class filter widened (LINA answers); M9 the probe
+  built from the EDGE block instead of the rung; M10 the row
+  clamp deleted (raw fi into the gate). M4/M6 are deliberately
+  the two readings this session previously held: the battery
+  proves the legs distinguish them.
+
+- OPEN ITEMS COUNTED (new for this PR, then deltas). (1) The
+  authored rectangle FORMAT and writer: PR-149 item 3 unchanged
+  - which fields feed [obj+0xb1..0xbd], and now also whether
+  any authored block could be non-ascending (Finding 4 (ii)
+  makes that inert-by-construction). (2) LINA/KLINA/KDRABINA:
+  class tables and the AC_LINA twins unanchored (Finding 5
+  narrows it: the .MOV shape is known identical, the table is
+  the gap). (3) Object-asked answers: no candidate-walk parity
+  in the port; only the lion asks, and only while its state is
+  non-ANTI_SOLID (mid-air asking is the engine's, unported).
+  (4) The node-list lifetime, its pop, and the merge-time row
+  guard 0x54b6a (the port merges straight away). (5) The child
+  list [obj+0xa5] and the [self+0x66] bit-6 flag: the feature
+  was never read (the 0x44ec0 ANY-test's child data), so the
+  FLAG branch is modelled as a no-op - honest gap, not a
+  claim. (6) The WAIT row-gate law (`1,0,WAIT K_GEN1` /
+  `WAIT K_NEVER`) is still unmodelled, and the K_GEN1 arm
+  (PR-146 item 3 with PR-149 F5's negatives) is still THE
+  named blocker for the in-game climb chain: until it
+  resolves, no shipped level's ladder reaches the answer row.
+  (7) New small: the 0x238e4 "row 2 or rect" base method and
+  the [esp+0x10] = 0x98274 table argument in the probe block
+  are quoted but unread. CLOSED or NARROWED here: PR-149's
+  row-index ambiguity (Finding 1 closes it), the "degenerate
+  ascending probe" worry (Findings 2+3 delete it), PR-149's
+  "when can P1 be false while P3 is true" tension (Finding 3).
+
+- GATES. `make` rc=0 and `make win` rc=0 with ZERO warnings
+  (full logs /tmp/opencode/pr150_make.log, pr150_makewin.log;
+  note for the record: after the first edit round the default
+  make target had NOT relinked ./ll_level although it printed
+  the compile warning - an explicit `make ll_level` did; the
+  gates above were run after a `make clean` + full `make`, so
+  they reflect the shipped tree). `make -k verify-all` rc=0 in
+  BOTH modes, fixtures (DATA=/tmp/opencode/iso_stage/LEO HD=
+  /tmp/opencode/hd_files: 56 `(ok)`, zero FAIL) and
+  fixture-free (DATA=/tmp/opencode/nope HD=/tmp/opencode/nope:
+  rc=0, the same 10 `(ok)` data-free legs and the same 23
+  named SKIPs as PR-148/149). `./ll_level --mov-selftest` and
+  `--play-selftest` rc=0 with the new legs included (the mov
+  line now ends with the PR-150 behaviour text). No .github/
+  workflows/* line touched; no game data or frames in git (the
+  tests are synthetic tables); every added prose line in the
+  docs is <= 79 columns and the over-79 baselines of the two
+  docs are UNCHANGED (NEXT_STEPS 71, HANDOFF 72); the image
+  sha256 above unchanged.
+
+- EVIDENCE. rng.py byte dumps quoted verbatim: the full
+  0x49fb0 (0x49fb0..0x49fe7) and the full 0x3f256..0x3f331
+  region, the 0x3f1dc..0x3f222 head, 0x23e00..0x23e23 whole,
+  0x23920..0x2392e whole, 0x238e4..0x238fe, the transition
+  walk 0x52000..0x52059, 0x55230..0x55276 (the +0x44 call
+  shape), and the +0x5c store/compare censuses (the 0x524xx/
+  0x525xx zero-and-clamp sites belong to a different family
+  and were counted as such, NOT used for the index proof). The
+  authored texts: /tmp/opencode/mov/ZARIA.01_DRABINKA_DRAB.MOV,
+  ZARIA.02_DRABINKA_{DRAB,DRABK}.MOV, ZARIA.01_LINA_LINA.MOV
+  (read whole; kept out of git). Scratch kept out of git:
+  /tmp/opencode/pr150/run_mut.sh, /tmp/opencode/pr150_mut,
+  the two gate logs.
 
 ## Deferred big items (deliberately out of scope so far)
 
