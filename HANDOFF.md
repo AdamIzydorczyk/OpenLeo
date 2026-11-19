@@ -2486,6 +2486,12 @@ writer as its open items.
       row (flag branch; a fresh child list is empty, so
       inert), position 2 - the drop's `3,400` line - is the
       ONLY answer row. PR-150's legs pin all of this.]
+      [FIELD IDENTITY SUPERSEDED by PR-157 F3 + PR-158 F2:
+      the gate reads the STATE slot ([ecx+0x5c], ecx = SELF
+      at 0x3f1c6), and `(N)` lands in the state record's cur-
+      sor [[rec]+4] (0x53616); the legs and the port's fi-
+      model survive both readings - see the restored PR-150
+      record in NEXT_STEPS.md.]
       PR-141's four outcomes CONFIRMED,
       operands now the record's, and every slot in the chain is
       a base-class family slot - the ladder-specific content of
@@ -2531,7 +2537,11 @@ writer as its open items.
       (its only exit, K_GEN1-gated) targets the FIRST line
       `2,500` - so the row lines' leading numbers are FRAME
       selectors (drab art is one frame per drop step), not row
-      ids. The port's cursor is the 0-based twin: the FLAG
+      ids. [IDENTITY SUPERSEDED by PR-157 F3 + PR-158 F2 -
+      the field is the rows-array/STATE index and `(N)` goes
+      to the record cursor [[rec]+4]; the ZARIA.01 legs and
+      the port's model hold under both readings.] The port's
+      cursor is the 0-based twin: the FLAG
       branch = position 1 (A_UP idle, drop's first row, park),
       the ONLY answer row = position 2 (the drop's `3,400`
       line, 500 ms in), positions >= 3 inert. A base method at
@@ -3092,6 +3102,54 @@ writer as its open items.
      changed (NEXT_STEPS 71, HANDOFF 72); no game data in git;
      image unchanged. Full record: the PR-157 section of
      NEXT_STEPS.md (scratch /tmp/opencode/pr157/).
+   - PR-158 (LEDGER RECOVERY + READING; ported/ll_level.c
+     edits COMMENT/DIAGNOSTIC-STRING ONLY, no new test - no
+     behavior change): THE MISSING PR-150/PR-151 RECORDS ARE
+     RESTORED VERBATIM - a per-revision census shows each
+     survived ONLY in its own commit blob (c947e90 / 0081b1b;
+     swallowed by the Next-swaps of the PR-151/PR-152 eras;
+     later restores re-spliced from a HEAD that had already
+     lost them; the HANDOFF bullets survived), with correction
+     brackets at the superseded claims only. THE LADDER GATE,
+     RE-READ (0x3f1c2..0x3f24d): ecx = SELF (0x3f1c6) and
+     0x3f1dc reads [ecx+0x5c] DIRECTLY - by PR-157's law a
+     STATE/rows-array index - so the gate is a STATE test:
+     1 = the initial state (first bound record, A_UP's role)
+     FLAG branch, answers NOTHING; 2 = the state entered by
+     `A_UP -> A_DROP` (K_GEN1-gated) the ONLY answering state;
+     >= 3 inert (incl. the 55 stamp); 0 = zeroed fields - NOT
+     a row-position test: `( N )` lands in the state record's
+     cursor [[rec]+4] (0x53616). PR-150's getter formula, its
+     frame-selector proof, the PR-86/110 row-start law and
+     ALL ZARIA.01 legs STAND under both readings. The ledger,
+     the HANDOFF and the port's OWN comment carry the cor-
+     rection (the PR-150 block re-worded with KEEP-fi-GATE
+     legs, the 0x54b6a guard re-termed a STATE guard, the
+     "unmodelled WAIT law" sentence retired, three e_case
+     labels fi-worded). THE ROW-GATE CODE PASS RESOLVES TO
+     NO-CODE BY INVENTORY: the port already models the cursor
+     (o->fi, set at ll_level.c:835 = the (N)-start law), has
+     row-targeted transitions (ll_mov_tr.entry) and row
+     thresholds; every cross-object cursor reader belongs to
+     a class never instantiated at T5 (PR-156 F5). PR-150
+     item (6) CLOSED as named+modelled+consumer-blocked. NEW
+     OPEN: the row-ADVANCEMENT writer of [[rec]+4] - whose
+     row clock and 0/1-BASED nature; if 1-based (the (N)-
+     verbatim copy + "0 = before any admit" + 0x300dd's zero-
+     reset all point that way), PR-157 F4's consumer-6 row
+     identity shifts to the `3,6` line (the numeric gate-6/
+     threshold-6 coincidence unaffected) - PR-159's first
+     read; the ladder-gate fi-vs-state decision waits for
+     DRABINKA's binding order (record-pool decode); the
+     FLAG-branch +0x4c getter. PROCESS RULE: Next-swaps re-
+     splice records from the LAST revision that carried them
+     (census recipe in the record). Gates: full build gates
+     anyway - make/make win ZERO warnings, ll_level relinked,
+     verify-all 56 / 10+23 both modes, diff verified comment/
+     string-only; every added .md line <= 79; baselines UN-
+     CHANGED (71/72); image unchanged. Full record: the
+     PR-158 section of NEXT_STEPS.md (scratch /tmp/opencode/
+     pr158/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -4820,10 +4878,43 @@ anything readable. For T5 the practical consequence: the WAIT
 row-gate CODE pass can be written NOW (cursor + row-targeted
 transitions + the (key,recA,rowB) transition-table law ground-
 ed at 0x52000/0x535a2) with ZARIA.01 output required un-
-  changed - a pure model-correctness pass, no visible beha-
-  vior risk. PR-152 open item 7 and the [rec+4] identity are
+changed - a pure model-correctness pass, no visible behavior
+risk. PR-152 open item 7 and the [rec+4] identity are
 CLOSED (cursor; the "authored 6" coincidence resolves to row
 INDEX 6 = the `4,6,GEN AC_TIME` pose). 8 new open items.
+[PR-158 F4: the cursor's 0/1-based nature is OPEN - if 1-
+based (the (N)-verbatim + "0 = before any admit" + 0x300dd
+zero-reset readings), consumer 6 names the `3,6` line and the
+row-identity sentence shifts; the numeric coincidence stands
+either way.]
+
+STATUS after PR-158 (ledger recovered; the row-gate CODE
+question CLOSED as a question, by inventory): PR-150's and
+PR-151's full records are back in NEXT_STEPS.md (they had
+been swallowed by old Next-swaps and survived only inside
+their own commit blobs - the census recipe in the record is
+the audit rule for every future swap). The ladder's answer
+gate was re-read: 0x3f1dc reads [ecx+0x5c] with ecx = SELF,
+so by PR-157's law it tests the STATE slot - 1 = the initial
+state (FLAG branch, answers nothing), the K_GEN1-transition
+target = the only answering state, >= 3 inert - and PR-150's
+"1-based row position" attribution is corrected in the ledger,
+the HANDOFF and the port's own comment, while EVERY ZARIA.01
+leg and the port's fi-model survive both readings (the one
+authored transition never fires). No new cursor machinery is
+needed or shipped: o->fi IS the modelled cursor (set via
+ll_mov_row_start, ll_level.c:835) and every cross-object
+cursor reader belongs to a class the port never instantiates
+at T5. One honest crack stays open and is now PR-159's first
+read: WHO advances [[rec]+4] during ordinary row playback
+(the applier only SETS it; 0x300dd resets it) - until that
+owner is known the cursor's 0/1-based nature is unresolved,
+PR-157 F4's row-identity arithmetic is flagged, and the lad-
+der-gate fi-vs-state decision waits on the record-pool de-
+code. ZARIA.01 output: UNCHANGED (the ll_level.c edits are
+comment/diagnostic-string only; full gates pass - 56 with
+fixtures, 10 + the same 23 SKIPs without). 3 new open items
+counted + 1 process rule; PR-150 item (6) closed.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange

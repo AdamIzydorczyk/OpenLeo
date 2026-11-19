@@ -3857,39 +3857,58 @@ static int clash_suppressed(const play_ctx *pl, int lx, int ox)
  * the builder 0x53f50 that COPIES the set in, PR-149 F1), and the
  * asker's contact method ORs the node's stored set into the asker's
  * live set (0x54b65 -> 0x49580, PR-145) under a ROW guard (0x54b6a:
- * `[rec+8] == 0 || [rec+8] == [obj+0x5c]`). The port merges straight
+ * `[rec+8] == 0 || [rec+8] == [obj+0x5c]` - PR-157 F3 re-terms it a
+ * STATE guard: [obj+0x5c] is the state index and the node carries
+ * the state it was planted in; 0 = any). The port merges straight
  * away: the node list, its pop and the merge-delay are counted open
  * (item 4) - the port's pulse set is consumed at the same step
  * boundary the engine's key provider sits at (PR-88's order; the
  * raise lands after ll_player_step, the transitions of the NEXT
  * iteration read it). The answer itself is the ladder class's entry
  * 0x3f1c0, PR-149 F2's predicate tree, ported byte-for-byte:
- *   THE ROW GATE [obj+0x5c] is a 1-BASED ROW POSITION, and the
- *   port's row is o->fi (0-based) - the mapping is engine = fi+1,
- *   proven THIS pass, not assumed: (i) the field indexes the
- *   current state's row-record table (PR-147 + the re-read this
- *   pass: 0x5523f/0x55242 call slot +0x44, and the base-class
- *   getter at that position, 0x23920..0x2392e, IS
- *   `[[obj+0x50]+[obj+0x5c]*4]+0x12`); (ii) the transition apply
- *   0x52000 copies the authored `( N )` row field (record +0x11,
- *   0x52046..0x5204d) INTO that cursor, so N addresses the
- *   record; (iii) the authored data: drab.MOV (ZARIA.01, the
- *   full text read this pass) has `A_UP`'s only transition
- *   `A_DROP(1)=K_GEN1` while A_DROP's FIRST row line is
- *   `2,500` - so (1) must mean "position 1 = the first line",
- *   and the line's leading numbers (1,2,3..10, then 11) are
- *   FRAME selectors (the drab art is one frame per drop step;
- *   obj_shape_elem feeds the same field to ll_mov_frame_ref),
- *   NOT row ids; (iv) PR-110's row law already equated `(1)`
- *   with the port's row 0. The gate (0x3f1dc/0x3f214): cursor 1
- *   (= fi 0: A_UP's idle `1,0`, A_DROP's first `2,500`,
- *   A_DOWN's park `11,0`) takes the FLAG branch, which answers
- *   NOTHING; cursor 2 (= fi 1: A_DROP's `3,400` row, 500 ms
- *   into the drop) is the ONLY answer row; cursor >= 3 (= fi
- *   >= 2) falls to the inert exit; cursor 0 (state start,
- *   before any admit) has no handler and the port never
- *   represents it. The port clamps fi exactly as obj_shape_elem
- *   does (`o->fi < nfr ? o->fi : nfr-1`).
+ *   THE GATE FIELD [obj+0x5c] - PR-150 read it as a 1-BASED
+ *   ROW POSITION and ported the gate onto o->fi (engine =
+ *   fi+1); PR-157's row-state law plus the bytes re-read at
+ *   0x3f1c2..0x3f24d (PR-158) CORRECT the attribution. 0x3f1c6
+ *   `mov ecx,eax` makes ecx = SELF and the gate reads
+ *   [ecx+0x5c] DIRECTLY - a field PR-157 named for what it
+ *   is: the rows-array INDEX, the current STATE/record slot.
+ *   [[obj+0x50] is built at placement by the +0x7C class verb
+ *   0x537f0 (PR-157 F1); the base-ctor initializes the index
+ *   to 1 (0x5321e) and the ENTER verb runs on rows[1]
+ *   (0x539e6-0x539fb); the transition applier stores the
+ *   TARGET RECORD INDEX at 0x535ed - the only functional
+ *   writer the PR-157 census found in transition/action code
+ *   (0x300dd's idiom RESETS the field to 1 and zeroes
+ *   rows[1]'s cursor - a state restart, PR-157 F7). The
+ *   +0x44 getter 0x23920 indexes records with the field -
+ *   PR-147/150 read that part right; what PR-150 got wrong is
+ *   the field's UNITS: it does NOT count rows, and the
+ *   authored `( N )` lands in the current state record's ROW
+ *   CURSOR [[rec]+4] (0x53616, PR-157 F3), not here. So the
+ *   gate at 0x3f1dc/0x3f214 is a STATE test: 1 = the initial
+ *   state (first bound record, A_UP's role) -> the FLAG
+ *   branch, answering NOTHING; 2 = the state entered by
+ *   `A_UP -> A_DROP` (K_GEN1-gated, A_DROP's role) -> the
+ *   ONLY answering state; >= 3 -> the inert exit (A_DOWN's
+ *   role and the 'none' stamp 55, 0x44910, included); 0 =
+ *   row-less zeroed fields (0x524a0-0x524c8). What STANDS of
+ *   PR-150: the getter formula, the frame-selector proof
+ *   (obj_shape_elem feeds the same field to ll_mov_frame_ref),
+ *   the PR-86/110 row-start law (the port's `(N)` -> fi =
+ *   N-1 mapping feeds exactly what 0x53616 feeds the entered
+ *   record's cursor), and the whole predicate tree below. THE
+ *   PORT KEEPS THE fi-GATE, and that is leg-counted, not as-
+ *   sumed: the two models AGREE on every ZARIA.01 path - the
+ *   one authored transition never fires (PR-149 F5's census),
+ *   so the port never passes row 0 of the single-row A_UP
+ *   (the clamp) and the engine never leaves the initial state;
+ *   they could diverge only for a multi-row FIRST state, and
+ *   what the gate's VALUES mean is blocked on DRABINKA's
+ *   binding order - the 'seq'/param-entry pool is encrypted
+ *   (PR-157 items 2/3, PR-158 item 1). The port clamps fi
+ *   exactly as obj_shape_elem does (`o->fi < nfr ?
+ *   o->fi : nfr-1`).
  *   THE PREDICATE, 0x23e00 verbatim (PR-106's point-in-rect:
  *   `p[0] in [q0..q2]` and `p[4] in [q1..q3]`, four signed
  *   jl/jg, INCLUSIVE): the asker side is its OWN first two dwords
@@ -3989,9 +4008,13 @@ static int clash_suppressed(const play_ctx *pl, int lx, int ox)
  * is never raised on it (PR-149 F5's census with its two
  * negatives), so the port's ladder sits in A_UP at row 0 = the
  * FLAG branch forever, and the answer row (fi 1, the `3,400`
- * line) is unreachable; and the engine's WAIT row-gate law
- * stays unmodelled anyway. Both legs are below, not asserted
- * away. */
+ * line) is unreachable; and the engine's row-gate law is no
+ * longer an unmodelled unknown either: the gate word is the
+ * state record's row cursor (PR-157 F3), a field the port's
+ * o->fi already tracks, and no port-reachable consumer of
+ * ANOTHER object's cursor exists at T5 - the readers are the
+ * ZARIA controller / other-era classes (PR-156 F5). Both
+ * legs are below, not asserted away. */
 static int ladder_class(const lvl_obj *o)
 {
     return o->sc && ci_eq(o->sc->leaf, "DRABINKA");
@@ -4610,12 +4633,12 @@ static int ladder_answer_selftest(void)
                              unsigned long long want;
                              const char *what; } e_cases[] = {
             { "[A_UP]\ncontrol=BY_TIME\n1,0\n", 0, 180, 510, 0ull,
-              "the idle single-row shape: its row (cursor 1) is the"
+              "the idle single-row shape: its row 0 is the"
               " FLAG branch, nothing answers even ON the object pixel" },
             { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n", 0, 180, 510,
-              0ull, "a drop's FIRST row is also cursor 1: nothing" },
+              0ull, "a drop's first row (fi 0) answers nothing" },
             { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n", 1, 180, 510,
-              1ull << LL_SIG_AC_EDGE, "the SECOND row (cursor 2) is the"
+              1ull << LL_SIG_AC_EDGE, "the second row (fi 1) is the"
               " answer row: on the default 1x1s the edge block wins at"
               " the pixel, and only edge" },
             { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n", 1, 181, 510,
