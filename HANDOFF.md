@@ -4959,6 +4959,52 @@ writer as its open items.
       plan authoring + file-hotkey + class-identity pass.
       Full record: PR-190 section of NEXT_STEPS.md
       (scratch /tmp/opencode/pr190/).
+   - PR-191 SHIPPED (docs-only): THE HOTKEY LEGS ARE
+      LOCALIZED '.mnu' MENU-SCRIPT RUNNERS - the level
+      loop's three legs read KEY-EVENT bits (0x582f0
+      feeds: 0x13b=F1 -> [block+9].0x20, 0x50='P' ->
+      [block+8].0x04, 0x1b=ESC -> [block+8].0x08;
+      0x1c550 = the latch CONSUME), build names from ONE
+      22-entry table at 0xa9a50 = 7 groups x 3 languages
+      (help/to-menu/pause/reset/continue/options/
+      calibrate, PL/EN/DE, selector ds:0xa9aa8), and RUN
+      the files through THE SAME SCRIPT ENGINE as levels
+      (0x603b0 -> [stream.vt+0xc] + the 0x5f310 chunk
+      interpreter). ESC opens 'domenu.mnu'; THE MENU'S
+      RESULT == 1 IS THE ONLY EXIT-4 SOURCE; F1 re-opens
+      'pomoc1.mnu' until it returns 0 (modal help); P
+      runs 'pauza.mnu' synchronously. THE PLAN MODEL IS
+      CORRECTED: 0x4af10 REPLAYS THE WHOLE SCRIPT EVERY
+      CALL (the cursor is local; ZERO stores to [mgr+
+      +0x30] whole-image in every disp form), dispatch is
+      TOUPPER-gated (either case), and THE 'A' LEG IS AN
+      INDEXED TICK OF THE THREE AUTHORED OBJECT VECTORS
+      (0x4b360(mgr,k): k-th entry of [+0x58/5c/60] past
+      counts [+0x44/48/4c], +0x34 chains, predicate
+      [vt+0x60] -> action [vt+0x74]) - NOT a spawn.
+      0x97f50 = A SHARED AUTHORED-OBJECT CLASS TABLE (4
+      install sites, zero static refs = computed dispatch;
+      the level manager is one of its instances via its
+      +0xcc/+0xd0 verbs), its +0x58 verb 0x4e710 IS ITSELF
+      A CHUNK-TAG CHAIN, and THE LEVEL FORMAT'S 31-TAG
+      CHUNK VOCABULARY IS RECOVERED WHOLE (ANITAB..CHEATS
+      at 0x91dc0-0x92120 + 'PLANT' 0x90755: GRABOBJ,
+      MOVEPLAT, ZWIERZ, TABLICA, BERLO, LINA, DZWIGNIA,
+      WODOSPAD...) = the data-spine anchor for every
+      format PR. THE 'B'-LEG DATA FLOW IS READ (WORD
+      records at 8-byte stride -> globals ds:0xcef18/
+      0xcef1c; center-cell target 0x4a170; both data
+      objects authored at level load 0x4d56f/0x4d620).
+      PR-190 items (1)/(7) CLOSED, (2)/(3)/(5) half-
+      closed, (6) measured-and-counted; 8 bracketed
+      ledger edits (7 correction sites, 4 closures,
+      2 half-closures, 2 extensions); 8 new items counted (the
+      .mnu stream classes, the tag->ctor map, the exit-
+      word writer first). PORT VERDICT unchanged (no
+      stage behaviour touched). Next -> PR-192 = the .mnu
+      menu engine + the tag-factory map + the level-load
+      file sequence. Full record: PR-191 section of
+      NEXT_STEPS.md (scratch /tmp/opencode/pr191/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -8015,6 +8061,44 @@ counted (file-hotkey semantics + plan 'B'-leg first).
 Gates: docs-only (PR-138..189 precedent); added lines <=
 79; baselines 71/71 held; the Windows half stays in the
 end pass (rule 8).
+
+PR-191 (level-plan authoring + file hotkeys + class
+identities) SHIPPED - DOCS ONLY, NO T5 BEHAVIOUR CHANGED:
+(1) THE CLIMBING/INTERACTION CHUNK VOCABULARY IS NOW THE
+    ENGINE'S OWN WORDS: the level-file tag set (31 NUL-
+    terminated tags at 0x91dc0-0x92120 plus the referenced
+    copies 'PLANT' 0x90755, 'ANITAB' 0x91f3d) includes
+    LINA (rope), TABLICA (board/sign), KATPLAT (tilting
+    platform), DZWIGNIA (lever), WODOSPAD (waterfall),
+    ZONE, KORONA, TRASA/TRASA2 (routes), GRABOBJ/GRABG
+    (grabbables), GWIAZDKI (stars), SURPRISE, NIESP -
+    THE AUTHORED NAMES every deferred T5 chunk-format
+    item must key off. THE TAG FACTORY'S SHAPE IS
+    SETTLED: an strcmp chain (`mov edx,<tag>; call
+    0x76a69`) + a size alloc (0x5c320) + a per-type ctor
+    ('TRASA' -> 0x54 + 0x52860 called at 0x4e744; 'PLANT'
+    -> 0xa5 + 0x531f0 at 0x1fca7), and TWO such chains
+    exist (the 0x1fxxx/0x20xxx family + the 0x4e710 chain
+    inside the class table 0x97f50).
+(2) THE AUTHORED-OBJECT FAMILY IS STRUCTURALLY IDENTIFIED:
+    class table 0x97f50 is installed by EXACTLY FOUR sites
+    (0x3f570/0x44e5d/0x4573d/0x4e85b) that have ZERO E8
+    and ZERO immediate references whole-image - the same
+    computed-dispatch shape as the open 302-spawner split;
+    the level manager (0xcef40) is an INSTANCE of this
+    class (its +0xcc gate = 0x498f0, its pair test =
+    0x4b120 = the table's own slots), so the LINA class
+    chain PR-147/149 read sits in this family. Class NAMES
+    stay counted; the tag->ctor map is PR-192's target and
+    feeds the spawner-role split the T5 chunk work needs.
+(3) THE PLAN MODEL CORRECTION CHANGES NO T5 OBSERVABLE:
+    0x4af10 replays the whole plan script per call and
+    the 'A' leg is an indexed authored-object tick (not a
+    spawn), but the port's level logic (ladder/vine gates,
+    BY_TY, the energy ladders) is untouched and its
+    verdicts stand as PR-190 left them. The hotkey legs
+    are .mnu menu scripts (the port's menu engine is out
+    of stage scope); no input-model change was made.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
