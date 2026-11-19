@@ -2447,6 +2447,14 @@ writer as its open items.
       PR-147 open item 1 CLOSED. The chain's function (entry
       0x24440) is reached from one class-table dword (0x989ec)
       and iterates [obj+0x136] - which data feeds it stays open.
+      [CORRECTED by PR-151 F1/F3: the chain is NOT inside
+      0x24440 (that method ends at its ret 0x4, 0x244c0) -
+      0x24678 sits inside the CLASS HOOK 0x245b0 = TLewEna
+      +0x90 (0x989ec is +0x100 of that table), the slot the
+      post-transition pipeline calls (exactly two call sites
+      image-wide). And the array's only writer is the SADES
+      hook 0x2e6a0: runtime per-level state, NOT authored
+      attach data - PR-108's question ANSWERED NO.]
       ALSO: the ladder's answer method 0x3f1c0 is now read as a
       three-predicate tree with the OPERANDS pinned: P1 = the
       TOUCHER's block at [q+0xc5] (q = the +0x68 getter's
@@ -2576,6 +2584,68 @@ writer as its open items.
       Next: the kind-4 contact node and its +/-10 y-override
       (PR-149 built the node shape; PR-147 read the override;
       answers can now PLANT one).
+      [CORRECTED by PR-151 before a line was written: answers
+      plant kind-2 nodes (PR-149 F1 - 0x53f50 is the answer-
+      copying builder); kind-4 nodes come only from the per-
+      class post-transition hook +0x90, and ZARIA-era hooks
+      supply none - the y-override code pass is DEFERRED to
+      an ENA/SADES/TUNGA-era controller. See the PR-151
+      bullet next.]
+   - PR-151 (READING, no code, no new test - the PR-138..150
+     precedent): THE POST-TRANSITION HOOK +0x90 IS THE PER-LEVEL
+     BEHAVIOUR LAYER, AND THE kind-4 SUPPLY QUESTION IS CLOSED -
+     which also corrects the framing PR-150's Next shipped with.
+     WHY: before writing the kind-4 code pass, this pass checked
+     its premise against the bytes ("answers plant the kind-4
+     node") - WRONG: answers plant kind-2 nodes (PR-149 F1);
+     kind-4 nodes come from a class-table hook this project had
+     never read. F1: the controller pipeline 0x53520..0x5359a
+     copies the live set, runs the 0x52000 transition scan
+     (writing the (row, N) pair to two out slots), calls
+     [[obj+8]+0x90] with (self, &out1, &out2), applies the
+     rewritten pair (0x535a0, PR-133's record/row switch), THEN 0x749a0-clears
+     the live set - the port's evaluate-then-clear ordering
+     CONFIRMED; the +0x90 call sites are exactly two (0x5357d,
+     0x3edaf). F2: ZARIA's hook 0x1e250 is a TRANSITION
+     REDIRECTOR read whole (0x1e250..0x1e2ef): facing flip via
+     0x53670 when out1==4 and [obj+0x10e]*facing>0; -30 from
+     [obj+0xad] on a row-0xa redirect; ONE-SHOT rewrite of any
+     fired transition to (9,0) when [obj+0x12a] is armed (no
+     live ZARIA-path writer of that flag found - counted);
+     [obj+0x116]=1 at row 9 with live-set bit 2; CANCEL of
+     out1==0xc/0xb under globals ds:0xcef64/0xcef68; tail-call
+     of the base hook 0x61670 (whose first arm: flag byte bit
+     0x40 -> force (2,0)). F3: the kind-4 builder IS the ENA
+     hook - TLewEna 0x988ec +0x90 = 0x245b0 (identity
+     cross-checked through its +0xcc = 0x50340), and the ONLY
+     writer of its [obj+0x136] array is the SADES hook 0x2e6a0
+     - so the array is runtime state per-level code maintains,
+     NOT PR-93's authored attach data: PR-108's question
+     ANSWERED NO. ZARIA-era controllers supply no kind-4 node
+     -> the override code pass is DEFERRED to an ENA-era
+     controller. F4: the strongest K_GEN1 lead yet - the ZARIA
+     ctor links a COMPANION [obj+0x112] via 0x4dcc0 over a
+     0x497b0-built query (seed ptr [ds:0x961fc] -> 0x1034c,
+     grammar unread), and the +0x100 hand-off method's ENA
+     variant 0x24440 raises K_GEN1 (byte 6 bit 6) into the
+     RESOLVED COMPANION's live set - the first bit-54 raiser
+     outside GEN row tails and kind-9 messages; ZARIA's tables
+     hold the BASE +0x100 (0x50c70) with no visible raise
+     (counted), and the two call sites (0x50c2a, 0x41b6a) are
+     unread: a LEAD with named bodies, not an answer. F5:
+     PR-129's "0x52cc0 ... all with edx=9" CORRECTED - the
+     list (14 sites, recorded) is right, 0x3f77e passes
+     edx=[self+0x4c]; its method 0x3f760 (from the table
+     dword 0xa0790, TUNGA region) is a TYPE-0x1c message
+     receiver. 9 open items counted (base-hook body; the
+     [obj+0x12a] arm question; the +0x90 census; globals
+     0xcef4c/64/68; the two +0x100 bodies; the query grammar +
+     seed; the message vocabulary + the 0xa0790 class; the
+     0x2e6a0 cadence; who zeroes (out1,out2) on no-match).
+     NEXT: the K_GEN1 arm reading pass with that lead order;
+     then the y-force/0xcf400 block path; then the WAIT law.
+     Full record: the PR-151 section of NEXT_STEPS.md (scratch
+     at /tmp/opencode/pr151/, kept out of git).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -4085,6 +4155,40 @@ decision table, class scope, the ZARIA-shaped idle-row and
 clamp legs); 10 mutations, ALL DETECTED, none survive. Next
 code PR: the kind-4 contact node's +/-10 y-override - the
 answer path can now PLANT a node.
+STATUS after PR-151 (docs-only, and it corrects that sentence
+before a line of kind-4 code was written): the premise is
+WRONG - answers plant kind-2 nodes, and kind-4 nodes come
+only from the per-class post-transition hook +0x90 (the
+pipeline 0x53520 calls it right after the 0x52000 scan and
+before the live-set clear - the port's evaluate-then-clear
+ordering CONFIRMED; the +0x90 call sites are exactly two,
+0x5357d/0x3edaf). ZARIA's hook (0x1e250) is a transition
+REDIRECTOR (facing flip, a 30-tick [obj+0xad] bite, a
+one-shot rewrite to row 9 when [obj+0x12a] arms - no live
+ZARIA-path armer found, counted - transition CANCELs under
+globals ds:0xcef64/0xcef68, then the base hook); the only
+kind-4 supplier image-wide is the ENA hook 0x245b0, building
+zones on the LION from the runtime array [obj+0x136] whose
+only writer is the SADES hook 0x2e6a0 (so PR-108's "authored
+attach data?" is ANSWERED NO). ZARIA.01 supplies no kind-4
+contact - the y-override CODE pass waits for an ENA/SADES/
+TUNGA-era controller; producer AND consumer are now fully
+read, so that future PR is implementation. For the named
+K_GEN1 blocker this pass found the strongest lead yet:
+ZARIA's ctor links a COMPANION [obj+0x112] through
+0x4dcc0(<level>, &0x497b0 query, seed ptr [ds:0x961fc] ->
+0x1034c), and the +0x100 hand-off method's ENA variant
+0x24440 raises K_GEN1 into the RESOLVED COMPANION's live
+set - the first bit-54 raiser outside GEN row tails and
+kind-9 messages (ZARIA's tables hold the BASE +0x100 with no
+visible raise; the two call sites 0x50c2a/0x41b6a are the
+named unread bodies). PR-129's "0x52cc0 ... all edx=9" was
+also corrected (0x3f77e passes [self+0x4c]; its method is a
+type-0x1c message receiver at a TUNGA-region table dword).
+ZARIA.01 output unchanged (no code). Next: the K_GEN1 arm
+reading pass with the companion-query grammar FIRST, then the
++0x100 bodies, then the 0x52cc0 sites; then the y-force/
+0xcf400 block path, then the WAIT law. 9 open items counted.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
