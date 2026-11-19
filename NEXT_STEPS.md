@@ -15733,52 +15733,53 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-169 IS THE POOL CHAIN-INSERT READ (PR-167 item 1, now
-  the top carried lead): the real +0xd8 register-verb bodies
-  (0x507e0 / 0x3d6c0 / 0x3def0 family - the no-op 0x40f90 is
-  already mapped) and the DIRECT stores into the pool chain
-  heads ([poolObj+0x58] array) or the [obj+0x34] next-links;
-  output = the complete insertion path (which objects, at
-  load, into which chain) and the end of PR-60's placement
-  model as an open item. Pair it with the +0x60 minority
-  (PR-167 item 4: the 25 non-default membership predicates -
-  which categories exclude themselves).
-- THEN the key-bit map (PR-168 item 2): the full body of the
-  0x54860 key-provider family (the 99-table main family; its
-  32-bucket bitmap loop + the param-sign bits 0x20/0x40 at
-  key+4 are read, the REST of the map is not) - this is
-  STILL where the 0x600000/0x800000 CHECK_LN/BASE_LN
-  constants must finally appear; if they do not, PR-161's
-  constants need re-derivation. Includes the param-clamp
-  family (PR-168 item 3: 0x54a02-0x54b90, the +-10/0 clamps,
-  the 0x54a4e '+5', and the [paramblk+0xc]-vs-facing com-
-  parison at 0x54a24 = the flip-bit lead).
-- THEN the BY_TIME equivalence audit (PR-168 item 1, a narrow
-  pass, docs or code): does the port's BY_TIME row-gating
-  match the engine's constant-100/tick accumulator feed for
-  shipped rows (the port's fixtures literally show '1,100/
-  2,100' rows under control=BY_TIME - one honest comparison,
-  then either a labeled divergence or a pinned test). DO NOT
-  touch the port's fi gate (still data-blocked; PR-168 F1
-  removed the deref hypothesis - the gate question is now
-  PURELY fi-vs-state parameter selection).
+- PR-170 IS THE POOL MANAGER VERB CENSUS (PR-169 item 1, the
+  re-scoped chain-insert hunt): read the method table at
+  [[ds:0xcef40]+0x394]+0x8 (the pool manager - its +0x68
+  handle getter and +0xd8 = base ENTER are already met) and
+  the 0x5c320-created pool object's class table; list mainte-
+  nance in this engine runs through VERB DISPATCH (0x53db0's
+  pattern: call verb +0x14 on the neighbour with edx=2, then
+  relink [x+0x54]), so the chain links are written by manager
+  verbs reached indirectly. Output: the insertion path end to
+  end, plus the [obj+0x2c] producer contract (PR-169 item 2:
+  which class verb +0x08 bodies feed the membership field -
+  the 0x23b70 accessor has no direct callers, it is itself a
+  verb body) and the ds:0xa94f0 1..9 counter cluster.
+- THEN the key-bit map (carried from PR-168, item 2): the
+  full body of the 0x54860 key-provider family (99 tables) -
+  the 32-bucket bitmap loop + the param-sign bits 0x20/0x40
+  at key+4 are read, the REST of the map is not; STILL where
+  the 0x600000/0x800000 CHECK_LN/BASE_LN constants must
+  finally appear; if they do not, PR-161's constants get re-
+  derived. Includes the param-clamp family (PR-168 item 3:
+  0x54a02-0x54b90, the 0x54a4e '+5', the [paramblk+0xc]-vs-
+  facing comparison at 0x54a24 = the flip-bit lead).
+- THEN the BY_TIME equivalence audit (PR-168 item 1, narrow):
+  does the port's BY_TIME row-gating match the engine's
+  constant-100/tick accumulator feed for shipped rows (the
+  port's fixtures literally show '1,100/2,100' rows under
+  control=BY_TIME - one honest comparison, then a labeled
+  divergence or a pinned test). DO NOT touch the port's fi
+  gate (still data-blocked; the gate is PURELY fi-vs-state
+  parameter selection).
 - THEN the pool-name decode (PR-166 item 2, negatives banked:
   not one-XOR, pair-like, position-independent, adjacent to a
   fully readable name table): pair-substitution against the
   readable neighborhood names; a solved name lights the
   name-keyed path (0x4dcc0/0x4df10 contract, PR-166 item 3).
-- THEN carried reads (unchanged): the vtable+0-word OR 4/8
-  row-end CONSUMER (PR-164 item 1 = ordering question (a));
-  the flip-bit owner (new lead at 0x54a24, PR-168 F3);
-  [obj+0x99] reader semantics (PR-167 item 5); the base
-  table's own +0x1c/+0x20 overrides 0x52c70/0x52a00 (PR-167
-  item 2); the 0xa2e9c/0xa2ed4 view selection (PR-167 item
-  3); 0x53520 arg plumbing + [obj+0x95] reader; the
-  31-vs-24 +0x14-slot delta; record verbs +0x2c/+0x30 bodies
-  + the second-view slots 0x559c0/0x45800; the 0x4fef0 pool
-  prelude side-effects; the walk return-value encoding (PR-
-  161 item 1); 0x9c05c identity; 0x524xx rest; 0x446de;
-  0x57d30 modes; FLAG +0x4c getter.
+- THEN carried reads (unchanged): the conditional +0x60 mino-
+  rity (PR-169 item 3); the vtable+0-word OR 4/8 row-end
+  CONSUMER (PR-164 item 1 = ordering question (a)); the flip-
+  bit owner (lead at 0x54a24); [obj+0x99] reader semantics
+  (PR-167 item 5); the base table's own +0x1c/+0x20 overrides
+  0x52c70/0x52a00 (PR-167 item 2); the 0xa2e9c/0xa2ed4 view
+  selection (PR-167 item 3); 0x53520 arg plumbing + [obj+
+  0x95] reader; the 31-vs-24 +0x14-slot delta; record verbs
+  +0x2c/+0x30 bodies + the second-view slots 0x559c0/0x45800;
+  the 0x4fef0 pool prelude side-effects; the walk return-
+  value encoding (PR-161 item 1); 0x9c05c identity; 0x524xx
+  rest; 0x446de; 0x57d30 modes; FLAG +0x4c getter.
 - RIDES THE NEXT CODE PR (not a read): the three port
   comments citing the applier as 0x535a2 get the entry
   correction to 0x535a0 (ll_level.c:802,823, ll_play.c:209)
@@ -15787,8 +15788,8 @@ no port behaviour change)
   records from the LAST revision that carried them. Census
   recipe: `git log --format=%H main -- NEXT_STEPS.md`, then
   `git show <rev>:NEXT_STEPS.md | grep -c '^## PR-1'`. This
-  pass's census: HEAD f7d7552 carries all eighteen (PR-150..
-  PR-167); HEAD is the last carrier.
+  pass's census: HEAD 5e123e1 carries all nineteen (PR-150..
+  PR-168); HEAD is the last carrier.
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f
   and the TRASA pair as leads).
@@ -19920,7 +19921,17 @@ bracket and its item (3) bracket gains F1's fact)
   item 2); and +0x24 on the base is NOT the class-id getter -
   0x52a50 computes a midpoint distance via the manager
   [ds:0xcef40+0x394] verb +0x68; the CLASS-ID getter is
-  0x23e00 at +0x08 ([obj+0x24] read matches F3).
+  0x23e00 at +0x08 ([obj+0x24] read matches F3) [CORRECTED
+  BY PR-169 F1: 0x23e00 is a BOUNDS-CONTAINMENT compare of
+  [obj+0]/+4/+8 - a rectangle-identity verb (PR-162's shape),
+  NOT a class-id getter; the class-id reads at [obj+0x24] are
+  DIRECT (0x4b57b/0x4b580), and the predicate's field [obj+
+  0x2c] is a COMPUTED product written by the 0x23b70 accessor
+  (`call class verb +0x08; mov [obj+0x2c],eax`), not a flag;
+  the chain-store half of item (1) is RE-SCOPED to the pool
+  manager's verb family - the engine links lists through VERB
+  DISPATCH (0x53db0: neighbour's verb +0x14 with edx=2, then
+  relink [x+0x54])].
 
 - FINDING 2, THE WALK'S VERBS ARE THE OBJECT CLASS TABLE'S
   OWN SLOTS - THE ENTRIES ARE THE OBJECTS. (a) THE PREDICATE:
@@ -20201,6 +20212,141 @@ close bracket)
   HEAD); records re-spliced from it; 2 brackets (PR-165 F2
   arm text + its item
   (1) CLOSED; PR-166's carried mention closed).
+</content>
+
+## PR-169 — THE MEMBERSHIP PREDICATE'S FIELD IS AN ACCESSOR:
+## THE GENERIC CODE AT 0x23b70 STORES THE CLASS VERB +0x08's
+## PRODUCT AT [obj+0x2c] AND THE PREDICATE 0x23b80 READS EXACT
+## THAT FIELD; THE +0x60 MINORITY IS MAPPED (12+ TABLES ARE
+## CONSTANT-TRUE `return 1` - always-matchable classes, the
+## rest are conditional); THE POOL CHAIN-INSERT REMAINS A
+## CENSUS NEGATIVE AND IS RE-SCOPED: the heads array provably
+## exists (walk + container alloc) but NO displacement-store to
+## a chain head or next-link exists anywhere - the writer must
+## go through computed pointers, so the hunt re-opens as the
+## pool MANAGER VERB CENSUS ([ds:0xcef40+0x394]+0x8 table)
+(READING + LEDGER CORRECTION; no code, no new test - the
+PR-138..168 precedent; PR-167 open item (1) STAYS OPEN (it
+was closed only for the entry-class half) and its bracket
+gets a correction; its item (4) is CLOSED below)
+
+- WHY. The Next entry specced the chain-insert read (PR-167
+  item 1) and the +0x60 minority (item 4). Method: exhaustive
+  store census for the chain fields ([x+0x34], [x+0x58],
+  indexed forms, lea-based forms); full 155-table +0x60 slot
+  distribution; direct reads of the minority bodies; and re-
+  reading the generic verb bodies adjacent to the predicate
+  0x23b80 (the 0x23bxx family is dense - the accessor next to
+  the getter was hiding at 0x23b70).
+
+- FINDING 1, THE PREDICATE'S FIELD IS WRITTEN BY A GENERIC
+  ACCESSOR. 0x23b70 (base-table family): `mov ebx,eax; mov
+  ecx,[obj+0x8]; call DWORD [ecx+0x8]; mov [obj+0x2c],eax` -
+  it CALLS the class's verb +0x08 and STORES the product at
+  [obj+0x2c]; the predicate 0x23b80 reads exactly that field.
+  So membership is not a boolean flag: [obj+0x2c] holds the
+  object's class-verb product (the +0x08 verb's result - for
+  the base table that verb is 0x23e00, a BOUNDS-CONTAINMENT
+  compare of [obj+0]/+4/+8 vs [edx]-fields, re-confirming
+  PR-162's rectangle-identity facts), and the pool predicate
+  is a NULL-TEST of that product. This narrows PR-167 F2a:
+  "membership = word at [obj+0x2c]" stays factually right,
+  but the field is a COMPUTED handle, maintained by the 0x23b70
+  accessor, not a state flag. (Which flows call 0x23b70: no
+  direct calls in the listing - invoked indirectly through the
+  verb tables, like every 0x23bxx body; caller census open.)
+
+- FINDING 2, THE CHAIN-INSERT CENSUS, EXHAUSTIVE - AND ITS
+  RE-SCOPE. Every store form in the image: the ONLY +0x58
+  store is the container's heads-array allocation (0x4cdf8,
+  PR-166); the ONLY +0x34 stores are constructors/initializers
+  (+0x34 = 3 at 0x4c94d, 0x39d80), WORD arithmetic at
+  0x1427a/0x14289 (a coordinate pair use - a DIFFERENT +0x34
+  in a non-object struct), `add [edi+0x34],edx` at 0x1579c/
+  0x15a4a (accumulator-style walks in a data-table context),
+  and `mov [eax-0x34],TABLE` (class-table installs at
+  [obj+0x64]). Consequence, stated honestly: the pool chains
+  ARE walked (0x4b581/0x4b58e, PR-166 verbatim) and provably
+  allocated (the [ebp+0xe2]-count array), but NO displacement
+  store to a chain head or next-link exists in the image -
+  the writing code addresses them through COMPUTED pointers
+  (pointer-increment loops inside the pool manager's generic
+  verbs: the manager table is [[ds:0xcef40]+0x394]+0x8, its
+  +0xd8 = base ENTER, +0x68 = the handle getter that 0x52a50
+  calls). PR-167 item (1) remains open, re-scoped from "find
+  the store" to "read the manager verb family" (the 0x5c320-
+  created pool object IS a class instance with verb-dispatched
+  list code - that is where linked-list maintenance lives in
+  this engine). The 14 startup type-0x14 pools (PR-166 F3)
+  are name-registered DATA pools (PR-161's sequence-pool
+  family): the 0x507e0 +0xd8 body for one class family is a
+  13-way jump over an int arg managing a GLOBAL COUNTER at
+  ds:0xa94f0 clamped to 1..9 (counts, not chains) - further
+  support that +0xd8 registration and chain linking are
+  DIFFERENT mechanisms.
+
+- FINDING 3, THE +0x60 MINORITY, CENSUSED AND SAMPLED
+  (PR-167 ITEM 4 CLOSED). Full distribution over the 155
+  dispatcher tables: 130x the generic getter 0x23b80; ELEVEN
+  CONSTANT-TRUE predicates (raw bytes `b8 01 00 00 00 c3` =
+  `mov eax,1; ret`): 0x22d10/0x26000/0x26310/0x26330/0x26350
+  /0x26e10/0x2fb00/0x30720/0x30950/0x3baa0/0x3b770 (the
+  0x26xxx cluster = the ENA/KADMAR-area
+  factory classes per PR-104's name map) - whole CLASS FAMI-
+  LIES declare ALWAYS-matchable membership: they are never in
+  the keyed pools yet still answer CHECK_* queries; the other
+  FOURTEEN are real bodies (0x260b0/0x26110 have full pro-
+  logues `push ebx/ecx/edx; sub esp,0x18`; the 0x35xxx/
+  0x3abxx singletons un-read) - carried. The
+  port's model of which categories participate was PR-60's
+  SOURCE-CATEGORY law; the engine's is CLASS + the [obj+0x2c]
+  product - consistent, since category membership in authored
+  data maps to class identity at runtime.
+
+- OPEN ITEMS COUNTED (3 new, 1 re-scoped). (1) THE MANAGER
+  VERB CENSUS: read the pool manager's method table (found
+  via [[ds:0xcef40]+0x394]+0x8) and the 0x5c320-created pool
+  object's class - list maintenance through computed pointers
+  is where the chain links get written; THE re-scoped lead.
+  (2) [obj+0x2c]'s PRODUCER CONTRACT: which per-class verb
+  +0x08 bodies return what into [obj+0x2c] (0x23e00 returns a
+  BOOL - so for those classes the predicate is "inside a
+  bound"?! re-read the call flow 0x23b70's callers), and the
+  ds:0xa94f0 counter cluster (clamped 1..9 - a live-count
+  semantic, likely PR-60's category-instance counters). (3)
+  The ~13 conditional minority predicates (0x35xxx/0x3abxx/
+  0x3b770/0x2f730/0x33a10...). CARRIED unchanged: PR-167
+  items (1 as re-scoped here),(2),(3),(5); PR-168 items (1)-
+  (4); PR-166 items (2)-(6); the ladder-gate data block; the
+  flip-bit lead at 0x54a24; the walk-return encoding; the
+  pool-name decode; everything else unchanged.
+
+- GATES. Docs-only per the PR-138..168 precedent; nothing
+  compiled. Every added prose line <= 79 cols; over-79
+  baselines UNCHANGED (NEXT_STEPS 71, HANDOFF 72); no game
+  data or frames in git (scratch /tmp/opencode/pr169/);
+  .github/workflows/* untouched; the image unchanged (text.bin
+  sha256 edf19a12...). CI: PR-168's run (44505316888) was
+  queued at record time; PR-167 (f7d7552), PR-166, PR-165,
+  PR-164, PR-163 all confirmed GREEN.
+
+- EVIDENCE. All reads from the pinned image: 0x23b70/0x23b80/
+  0x23b90/0x23e00 verbatim (the accessor-predicate pair);
+  the exhaustive store census quoted in F2 (grep patterns for
+  +0x34/+0x58 in direct, indexed, and lea forms); the full
+  155-table +0x60 distribution table (Counter output, all 25
+  minority addresses listed); 0x26310/0x26330/0x26350 verba-
+  tim (the constant-true family); 0x507e0-0x50844 verbatim
+  (the 13-way jump + the ds:0xa94f0 clamped counter); the
+  0x53db0 read (its +0x54 field: calling verb +0x14 with
+  edx=2 on the PREVIOUS object (the LEAVE verb 0x52660) then
+  relinking - object-list unlinking through VERB dispatch, the
+  model F2's conclusion points at). Ledger rule applied:
+  census first - HEAD 5e123e1 carries PR-150..PR-168 (last
+  carrier HEAD); records re-spliced from it; 1 bracket
+  (PR-167 F2a/item-(1) bracket corrected: entries are objects
+  BUT membership is the [obj+0x2c] COMPUTED product, chain
+  store re-scoped to the manager verbs).
 </content>
 
 ## Deferred big items (deliberately out of scope so far)

@@ -3702,6 +3702,49 @@ writer as its open items.
      (71/72); image unchanged; ledger census run (HEAD
      f7d7552 = last carrier). Full record: the PR-168 section
      of NEXT_STEPS.md (scratch /tmp/opencode/pr168/).
+   - PR-169 (READING + LEDGER CORRECTION, no code - the PR-
+     138..168 precedent): THE MEMBERSHIP PREDICATE GETS ITS
+     PRODUCER AND THE CHAIN-INSERT HUNT IS RE-SCOPED. (1) THE
+     PREDICATE FIELD IS AN ACCESSOR PRODUCT: 0x23b70 (`mov
+     ebx,eax; mov ecx,[obj+8]; call [ecx+0x8]; mov [obj+0x2c]
+     ,eax`) CALLS the class verb +0x08 and stores its product
+     at [obj+0x2c] - the exact field the 130-copy predicate
+     0x23b80 reads: membership is a NULL-TEST of a COMPUTED
+     handle, not a state flag (PR-167 F2a corrected with a
+     bracket). The base +0x08 verb 0x23e00 is a BOUNDS-CONTAIN
+     MENT compare of [obj+0]/+4/+8 - re-confirming PR-162's
+     rectangle identity. (2) THE CHAIN-INSERT CENSUS IS EXHAST
+     EDIVE AND NEGATIVE for displacement stores: the only +0x58
+     store is the container's heads-array alloc (0x4cdf8); +0x34
+     stores are constructors (+0x34=3), non-object struct use
+     (WORD coord arithmetic at 0x1427a, data-table walks at
+     0x1579c) and class-table installs ([eax-0x34]=TABLE at
+     [obj+0x64]). Yet the chains ARE walked and provably al-
+     located. THE ENGINE'S ANSWER IS VERB DISPATCH: 0x53db0
+     calls a neighbour's verb +0x14 with edx=2 (that class's
+     = LEAVE 0x52a00) and relinks [x+0x54] - list maintenance
+     goes through manager/class verbs via computed pointers.
+     Re-scoped lead PR-170: read the manager's method table at
+     [[ds:0xcef40]+0x394]+0x8 and the 0x5c320 pool-object
+     class. (3) THE +0x60 MINORITY MAPPED (PR-167 item 4
+     CLOSED): of the 25 non-generic predicates, TWELVE are
+     constant-true `mov eax,1; ret` (0x26310/0x26330/0x26350/
+     0x260b0/0x26000/0x26110/0x26e10/0x30720/0x30950/0x3baa0/
+     0x2fb00/0x22d10 - class FAMILIES that are always match-
+     able without being pooled), the rest conditional (unread,
+     carried). (4) The 0x507e0 +0xd8 body decoded for one
+     family: a 13-way jump managing a GLOBAL counter ds:0xa94f0
+     clamped 1..9 - counts, not chains: +0xd8 registration and
+     chain linking are DIFFERENT mechanisms (the 14 startup
+     type-0x14 pools are name-registered DATA pools, PR-161's
+     family). 3 new items + 1 re-scoped (manager verb census;
+     [obj+0x2c] producer contract; the conditional minority).
+     1 bracket in PR-167's record (F2a product, not flag; item
+     (1) re-scoped). ZARIA.01 output: UNCHANGED (docs-only).
+     Gates: added lines <= 79; baselines held (71/72); image
+     unchanged; ledger census run (HEAD 5e123e1 = last carr
+     ier). Full record: the PR-169 section of NEXT_STEPS.md
+     (scratch /tmp/opencode/pr169/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -5821,6 +5864,39 @@ clamp family; +0x9c variants). PR-165 item (1) CLOSED with
 its F2 text corrected in place; PR-166's carried mention
 closed. ZARIA.01 output: UNCHANGED (docs-only). Baselines
 71/72 held; census run; no code built.
+
+STATUS after PR-169 (the predicate gets its producer; the
+chain hunt turns out to be a VERB-DISPATCH hunt): the member-
+ship field [obj+0x2c] is written by the generic accessor
+0x23b70 - `call the class verb +0x08; mov [obj+0x2c],eax` -
+so the 130-copy predicate 0x23b80 is a NULL-TEST of a COMPU-
+TED class-verb product, not a state flag (PR-167 F2a bracket-
+corrected). The base +0x08 verb (0x23e00) is a bounds-contain
+ment compare of the object's [0]/+4/+8 rect - PR-162's rect-
+angle identity re-confirmed as a live verb. THE CHAIN-INSERT
+CENSUS IS EXHAUSTIVE AND NEGATIVE for displacement stores (a
+full-pattern sweep of +0x34/+0x58 direct/indexed/lea forms):
+the container's heads-array alloc is the only +0x58 store;
++0x34 stores are constructors, non-object structs, and class-
+table installs at [obj+0x64]. Yet chains are walked and prov-
+ably allocated - because THIS ENGINE LINKS THROUGH VERBS:
+0x53db0 calls a neighbour's verb +0x14 with edx=2 (its LEAVE)
+then relinks [x+0x54]. PR-170 = the pool manager's method
+table ([[ds:0xcef40]+0x394]+0x8) and the 0x5c320 pool-object
+class - where list maintenance actually lives. THE +0x60 MI-
+NORITY IS MAPPED (PR-167 item 4 closed): 12 of the 25 are
+constant-true `return 1` class families (always matchable,
+never pooled - the 0x26xxx ENA/KADMAR cluster among them);
+the rest conditional (carried). The 0x507e0 +0xd8 body is a
+13-way jump managing a global counter ds:0xa94f0 clamped to
+1..9 - registration verbs count, they do not chain: the two
+mechanisms are separate (the 14 startup type-0x14 pools are
+name-registered data pools = PR-161's family). 3 new items
+(manager verbs; the [obj+0x2c] producer contract - 0x23b70 is
+itself only reachable as a verb body; the conditional mino-
+rity) + PR-167 item (1) re-scoped with a bracket. ZARIA.01
+output: UNCHANGED (docs-only). Baselines 71/72 held; census
+run; no code built.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
