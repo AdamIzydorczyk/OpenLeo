@@ -4521,6 +4521,30 @@ STEPS; the WAIT row-gate CODE pass is next after it - field
 2 = the hand-off constant CONFIRMED, doubly load-bearing.
 8 new open items counted.
 
+STATUS after PR-154 (docs-only; two bridge hypotheses CLOSED
+NEGATIVE, the named K_GEN1 blocker is narrower and still open):
+the row-55-stamp alternative is dead - the [[ds:0xcef40]+0x38c]
+stamp object is an unclassed LIST of 8-byte two-dword records
+(class 0x98278: free-path receiver + a plain copy verb; ctor
+0x443b0 never gives it a class pair; built in the main-.des
+'demolist' region, and a 4th stamp site sits inside the lion
+base's hit-countdown method 0x50720) - bit 54 must come from
+a live-set writer, and PR-70's type-9 arm 0x50df4 still has
+NO static feeder: the 66-site enqueue census is now raw-
+corrected (no dynamic types; one NEW static type-5 site at
+0x330a7 onto a fresh 0x9d088 clone, and the [obj+0x12a] type-
+0xc chain CLOSED at 0x1ef22). The hand-off's only functional
+arm is now exactly: the kind-9 OBJECT (ds:0xcf0ac[9], a run-
+time table) passed into the companion's +0x18 - the ladder's
+0x3f0f0 consumes one for geometry; finding its builder or a
+direct receiver call with edx=9 is THE named next step (the
+PR-154 Next list, PR-155). And the WAIT row-gate CODE pass is
+fully unblocked: node getters compose the authored row key
+through the chain (0x457e0/0x45870/0x45970), so the engine
+law is complete and only the port-side implementation is
+missing. ZARIA.01 output unchanged (no code). 7 new open items
+counted.
+
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
 (`AC_XCHG_LEVEL`), lives/energy persistence, game over. STATUS.LEO progress is
