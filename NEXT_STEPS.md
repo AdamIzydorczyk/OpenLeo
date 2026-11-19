@@ -14330,7 +14330,10 @@ no port behaviour change)
   K_GEN1; 0x26738 random K_GEN1/2/3 (Finding 4c); 0x27f7d word-0
   byte 2 |= 0x2 = bit 17 AC_ENEMY_ATC; 0x28bc7 window not re-
   read (its neighbours push a 0xf-kind message via 0x52b10 at
-  0x28b92 - counted unread); 0x2fbf0 = a SIGNAL-PAYLOAD raise:
+  0x28b92 - counted unread [CLOSED by PR-155 F7:
+  byte6 |= 0x40 = bit 54 K_GEN1 into SELF, inside the
+  MOVEPLAT-family method 0x28af0; the 0xf post is inert
+  per PR-155 F2]); 0x2fbf0 = a SIGNAL-PAYLOAD raise:
   the divide-by-32 idiom over a movsx'd stack byte ([rec+0x14])
   - a fourth instance of the raise idiom, bit index payload-fed;
   0x36cf8 word 1 byte 1 |= 0x2 = bit 41, guarded by `cmp
@@ -14338,7 +14341,8 @@ no port behaviour change)
   bit 5 AC_DUP (not AC_EDGE - the enum order corrects the
   shorthand); 0x50ab7 inside the 0x50a70 receiver area (state
   fields 0x11a/0xb1 written just above; mask window not
-  resolved); 0x50e24 bit 54 K_GEN1 under the HP<100 guard
+  resolved [CLOSED by PR-155 F7: byte2 |= 0x20 = bit 21,
+  guard [obj+0x11a]==8]); 0x50e24 bit 54 K_GEN1 under the HP<100 guard
   (Finding 4a); 0x537d4 the signal-record raise (PR-142);
   0x54b84 the pair live-set share (Finding 3). No site posts
   bits 10/12 (AC_DRAB/AC_DRAB_CATCH) or 21/22 (AC_LINA*) -
@@ -14365,10 +14369,17 @@ no port behaviour change)
   loop region) AND the per-frame setter of the lion's [obj+0xd2]
   contact target. (2) The class context of the random-K_GEN
   raiser 0x26670/0x26738 (its entry is unreferenced; the 0x21-
-  arm dispatcher 0x52bb0 connection unproven). (3) Whether a
+  arm dispatcher 0x52bb0 connection unproven) [CLOSED by
+  PR-155 F6: the raiser is TLewEna2 (pair 0x98f34/0x98f2c,
+  module 'ena2ed.mod') main slot +0x3b4; its target is
+  [obj+0x124] = 0x4dcc0(level, authored position), THE OB-
+  JECT AT THAT POSITION]. (3) Whether a
   full-HP object can reach K_GEN1 (the ladder's `WAIT K_GEN1`
   gate at rest) - message-type arm of 0x50d20 which type, and
-  who sends it. (4) The mask windows at 0x28bc7 and 0x50ab7.
+  who sends it [CLOSED by PR-155: YES - no HP guard on the
+  kind-0x10 magic-record law (0x53772, F3); the only static
+  type-9 poster is the BAL touch 0x3d3fb (F1)]. (4) The mask
+  windows at 0x28bc7 and 0x50ab7 [CLOSED by PR-155 F7].
   (5) The authored-flags globals ds:0xcef5c..0xcef78 - who
   writes them (the per-game input readers at 0x1e35x read them).
   (6) The 0xcf400 input singleton's record format ([+0xb] mode,
@@ -15722,45 +15733,45 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- THE BIT-54 BRIDGE IS STILL THE READING PR (PR-155). PR-154
-  closed the stamp hypothesis (the 0x38c object is a two-dword
-  RECORD list, its 0x98278 class has no receiver - the row-55
-  stamp is bookkeeping, NOT a signal write) and the dynamic-
-  enqueue hypothesis (no site is dynamic; 0x1ef22 is the type-
-  0xc poster at the PLAYER, 0x330a7 a type-5 onto a 0x9d088
-  clone, 0x4bcd7/0x4bd13 broadcast loops whose node +4 slot
-  carries the CALLER POINTER - a second usage of that field).
-  What remains, in order: (a) DIRECT receiver calls with a
-  kind/type 9 - walk every `call DWORD PTR [reg+0x10]` site
-  (the 0x13462/0x1e624/0x1f6b7/0x27201/... list) and read
-  the raw pre-window for edx; the type-9 RECEIVER arm 0x50df4
-  needs one. (b) THE kind-9 OBJECT: read 0x3f0f0's use of its
-  argument ([[0xcef40]+0x38c]... no - the 0x56600 argument,
-  ds:0xcf0ac[9]) - which fields of the ladder ([obj+0xa5]/+
-  0xb1 geometry) does it set, and could the SAME kind-object
-  shape reach a lion's live set; and the runtime writer of ds:
-  0xcf0ac/0xcf0b4 (base-relative store: try the 0x567xx family
-  and the placement init 0x4abxx/0x4d4xx with computed +0x24/
-  +0x0c offsets). (c) THE REMAINING LIVE-SET WRITERS: the two
-  mask windows PR-144 left (0x28bc7, 0x50ab7) - the last un-
-  read bit-ORs into any [obj+0x60]. (d) The 0x9d088/0x9d080
-  family (which class is cloned at 0x330a7, and does its own
-  +0x10 arm raise bits?). THEN the WAIT row-gate CODE pass -
-  the engine law is now COMPLETE (PR-100 thresholds + PR-153
-  tick order + PR-154 F6 chain-composing getters): parse the
-  field-2 gate, feed it, and the A_WALK pose law falls out -
-  ship with test + mutations. Then the y-force/0xcf400 path
-  and the standing items (0x4aa60, [[companion+8]+0xe0], the
-  companion identity, the 0x41a40 machine, [obj+0xc6]/+0xf6,
-  the rectangle format, the LINA-family table, the flag fea-
-  ture).
+- THE BIT-54 BRIDGE IS ONE DECIDING QUESTION FROM BOUNDED
+  (PR-156). The static raiser set is enumerated (PR-155 F7);
+  what remains, in order of decision power: (1) DOES THE kind-
+  TABLE EVER GET WRITTEN? ds:0xcf0b4 (count) and ds:0xcf0ac
+  (array) are BSS zeros whose ONLY disp32 references are the
+  two reads inside 0x56600 - if no code ever writes them, ev-
+  ery 0x56600 kind-dispatch (including the hand-off's kind-9
+  RUNG-RECT arm) is a NO-OP and the kind-0x10 magic-record law
+  (PR-155 F3) becomes the ONLY cross-object signal path. The
+  place to look is the 0x567xx/0x60ea4 family - the only code
+  touching the BSS neighbours 0xcf080/0xcf084/0xcf088 (maybe
+  via a computed base: check for lea/mov of 0xcf0xx plus regis-
+  ter-relative stores). (2) The MOVEPLAT bodies: 0x28af0 in
+  full (what guards the bit-54 self-raise; what the inert type-
+  0xf wake-up posts for), 0x287a0 in full (the AC_DRAB kind-
+  0x10 poster's conditions), and WHO fills the [obj+0x40]
+  assoc arrays (construction init at 0x53ff0/0x44fe0 contexts).
+  (3) WHICH LEVELS place the 3 ANIMACJE MOVEPLAT objects (ZAR-
+  IA?) - the ANIMACJE values are encrypted, so attribute via
+  ETAPY/LEVELDES record structure or the placement-record key
+  offsets. (4) The 0x9a54c family token (find the factory that
+  calls the raw ctor 0x27030) and the 0x9d088/0x9d080 clone
+  family (carried). (5) The two unread 0x52cc0 sites (0x373f0/
+  0x3dc5f). THEN the WAIT row-gate CODE pass - the engine law
+  is complete (PR-100 thresholds + PR-153 tick order + PR-154
+  F6 chain-composing getters + PR-155 F4: the engine itself
+  tests [[assoc]+0x50][i]+4 == 6): parse the field-2 gate,
+  feed it, and the A_WALK pose law falls out - ship with test
+  + mutations. Then the y-force/0xcf400 path and the standing
+  items (0x4aa60, [[companion+8]+0xe0], the companion identity,
+  the 0x41a40 machine, [obj+0xc6]/+0xf6, the rectangle format,
+  the LINA-family table, the flag feature).
 - THE kind-4 CODE pass stays DEFERRED to an ENA/SADES/TUNGA-
   era controller (PR-151).
-- METHOD NOTE carried forward (PR-154 exercised it four more
-  times): entry/slot claims need raw-byte windows - 0x56600
-  (0x56602), the 0xa11xx node vtables (bases 0xa11c0/0xa11d8,
-  NOT 0xa11c8/0xa11e0), 0x1ef07's edx just outside a 40-byte
-  window, and the 0x443b0 slot stride.
+- METHOD NOTE carried forward (PR-155 added a new failure
+  mode): for direct receiver calls the MESSAGE KIND LIVES AT
+  [record+4], not in edx - an edx-only walk misses posters;
+  and the entry-boundary rule fired again (0x50d62, 0x54562,
+  0x53772).
 - HANDOFF item 15 keeps the gap list (G-12/G-8/G-3/G-7/G-10/
   G-11; PR-149 named the SURPRISE factory branch at 0x4e62f and
   the TRASA pair as leads).
@@ -15894,7 +15905,10 @@ no port behaviour change)
   pos 8 = `5,6,GEN AC_TIME`; `[A_ZABLOK]` pos 7/8 = `4,6` /
   `5,6` - the same 6 that PR-100 found gating EVERY A_WALK
   pose ("row field 2 = 6", the row-gate field PR-150 item 6
-  left UNMODELLED). Whether the record's +0x4 word IS that
+  left UNMODELLED [the ENGINE cross-check found by PR-155
+  F4: method 0x287a0 tests [[assoc]+0x50][i]+4 == 6 before
+  posting its AC_DRAB kind-0x10 record]). Whether the
+  record's +0x4 word IS that
   second field is the record-layout question (open item 7) -
   but the coincidence of the per-class constant with the
   authored field value, AT THE PER-CLASS ROW WINDOW, is now
@@ -15943,7 +15957,11 @@ no port behaviour change)
   `or byte [buffer+6],0x40` = bit 54, 0x49580-OR into [obj+
   0x60], then [obj+0xad] += 32. But PR-153 F6: the 66-site
   0x52b10 census has NO static type-9 feeder - the arm is
-  verified, the bridge to it is not yet.]); (6) K_GEN1 in the
+  verified, the bridge to it is not yet. [CLOSED by PR-155
+  F1: the only static kind-9 poster is the BAL touch (record
+  {0,9,..} at 0x3d3fb, call at 0x3d418); the kind sits at
+  [record+4], not in edx - the queue censuses asked the
+  wrong question.]]); (6) K_GEN1 in the
   right live set drives
   the ladder's `A_UP(1)=K_GEN1` (PR-150's authored row) and
   the player's own climb rows. THE GAPS THAT DECIDE IT
@@ -16505,7 +16523,13 @@ no port behaviour change)
   The bit-54 bridge ITSELF: still open, now narrowed to the
   kind-9 kind-object into the companion's +0x18, direct re-
   ceiver calls with edx=9, and the remaining live-set writers
-  (0x28bc7, 0x50ab7 mask windows).
+  (0x28bc7, 0x50ab7 mask windows) [PR-155 OUTCOME: no
+  static edx=9 anywhere - the kind lives at [record+4] and
+  the only static kind-9 poster is the BAL touch; both mask
+  windows closed (bit-54 self-raise in MOVEPLAT 0x28af0,
+  bit 21 at 0x50ab7); the kind-9 +0x18 arm is rung geom-
+  etry; the bounded raiser set and the kind-0x10 law are
+  in the PR-155 record].
 
 - GATES. Docs-only (PR-138..153 precedent): no ported/, Make-
   file, tools/ or .gitignore line touched; no build run. Every
@@ -16540,6 +16564,228 @@ no port behaviour change)
   0x91e4a ' %s', 0x91e59 'lew', 0x91e82 'demolist', 0x91e8b
   ' %s', 0x91f0b 'none', and the empty string at 0x96854/
   0x96858.
+
+## PR-155 — THE BIT-54 BRIDGE, PASS 2: THE STATIC RAISER SET
+## IS NOW BOUNDED; THE GENERIC SIGNAL-DELIVERY LAW IS THE
+## kind-0x10 MAGIC-RECORD (0x8138764); THE HAND-OFF'S TYPE-5
+## NODE IS INERT; THE ONLY STATIC kind-9 POSTER IS THE BAL
+## TOUCH (PR-70's PATH, BYTE-CONFIRMED); THE 31-BRANCH
+## PLACEMENT-FACTORY CENSUS NAMES THE PLACEABLE CLASSES
+(READING RECORD - NO CODE CHANGE; PR-138..154 PRECEDENT)
+
+- WHY. PR-154's Next named threads (a)-(d): direct receiver
+  calls with kind 9, the kind-9 object and the kind-table wri-
+  ter, the last two live-set mask windows (0x28bc7, 0x50ab7),
+  and the 0x9d088 family. All four were pulled; three closed,
+  one narrowed; PR-144 items (2 remainder), (3) and (4) closed.
+  Image unchanged (text.bin sha256 edf19a129e85efb8764457a080
+  8e246ca4baf08a9111aa09be4ec99ce6b8c40e).
+
+- FINDING 1, THE DIRECT-RECEIVER WALK - CORRECTED METHOD AND
+  RESULT. A byte census finds 64 `call DWORD PTR [reg+0x10]`
+  sites; the first pass read edx before each - but for a mes-
+  sage send edx is the RECORD and the kind sits AT [record+4].
+  Re-walk over the stack-record sites: the static kind stores
+  are 1 (0x1e624/0x3dcff/0x55565), 8 (0x3edd0), 0xe (0x380bd),
+  registers-dynamic (0x1e848 family - ZARIA-controller +0/+4
+  object-verb slots, not messages), or not-in-window; and EXA-
+  CTLY ONE kind-9: 0x3d3fb `mov ebp,0x9` -> record {0,9,..} ->
+  0x3d418 [[recv-class]+0x10] - inside the BAL touch method
+  0x3d370 (PR-70's balloon message, now byte-confirmed). The
+  0x5a2a4/0x5a63b/0x4bbde sites are key-registry records (the
+  0x961fc/0x96200 roots), not messages. CONCLUSION: the PR-70
+  type-9 arm has exactly one static poster - the balloon - and
+  the queue census of PR-153/154 was looking in the wrong place.
+
+- FINDING 2, THE RECEIVER CHAIN IS FULLY DECODED. 0x50d60
+  (entry 0x50d62 - boundary artifact again): kind = [rec+4];
+  if [self+0x126]!=0 and kind==1 the message is SWALLOWED
+  (0x50e58 ret); kinds 9..21 go to the jump table 0x50d20 (the
+  kind-9 arm 0x50df4 = bit 54, PR-70/153); every other kind
+  falls through 0x50e4f to 0x54560 (entry 0x54562), a second-
+  stage dispatcher: kind 2 sets the [obj+0xc2]/[obj+0xc6] pair
+  (the PR-154 F4 countdown pair) from the record; kinds 3/4
+  set byte [obj+0xb6] |= 4/8; kind 6 copies [rec+8]->[obj+0x6d]
+  (the facing!) and [rec+0xc]->[obj+0x71]; 0x1b splices the
+  [obj+0xa9] list through its +0/+4 verbs; kinds 5, 7..0xd and
+  everything else call 0x53770. THE HAND-OFF'S TYPE-5 NODE IS
+  INERT on the base chain (5 -> 0x54560 -> 0x53770 -> default
+  -> 0x52bb0 -> RET): it is a wake-up, not a data message.
+  0x52bb0 read whole: kind 1 = position-delta move through the
+  position-block's own class [[pos+8]+0x54]; kind 0xe = ATTACH
+  ([obj+0x30]=[rec+8]); kind 0x21 = [obj+0x28]=1 (pump-on);
+  everything else returns. 0x53770 (entry 0x53772; the LADDER
+  table's +0x10 slot): kinds != 0x10 -> 0x52bb0; kind 0x10 ->
+  Finding 3.
+  The ZARIA receiver 0x1e130 (entry 0x1e132) arms its OWN
+  kind-5..11 block: payload ([rec+8], if non-null) gets ITS +0
+  slot called with edx=2; then the demolist stamp:
+  inc ds:0xa94f4 and 0x44900([[ds:0xcef40]+0x38c], edx=count)
+  - PR-154's stamp sink gains a named producer - then
+  0x52cc0(self, edx=9). 0x52cc0 read whole: it is a HIT PIPE-
+  LINE: [[self+8]+0x30], +0x24(edx=0), +0x28(edx=0x80), then
+  0x56600(self, 9) -> kind-object = ds:0xcf0ac[9] (if kind <
+  ds:0xcf0b4) -> [[self+8]+0x18](self, kind-obj), then
+  [self+0x20]=1. So the hand-off's terminal arm is GEOMETRY:
+  the ladder's +0x18 = 0x3f0f0 is a RUNG-RECT builder (rect-
+  list [obj+0xc5] via 0x4a0b0, 0x98278 two-dword items) - it
+  never touches a live set. (0x1e130's kind 0xc arm sets
+  [obj+0x12a]=1, PR-151; other kinds tail-call 0x50d60.)
+
+- FINDING 3, THE GENERIC SIGNAL-DELIVERY LAW: kind-0x10 +
+  magic token. At 0x53770's kind-0x10 arm: IF [rec+8] ==
+  0x8138764 (a magic token - the same immediate appears at
+  0x2882d) THEN bit-index byte = [rec+0xc]; build a one-bit
+  12-byte set (shr 5 / idiv 0x20 / shl - the same idiom the
+  PRNG raiser uses) and 0x49580-OR it into [self+0x60]. ANY
+  receiver whose chain reaches 0x53770 can be handed ANY signal
+  bit by a {0, 0x10, 0x8138764, bit} record - no HP guard.
+  PR-144 item (3) ("can a full-HP object reach K_GEN1") is
+  CLOSED YES through this path.
+
+- FINDING 4, THE FIRST STATIC kind-0x10 POSTER AND THE
+  ASSOC-OBJECT MODEL. The 0x55760 sites are NOT "signal-record
+  builders" (PR-154's shorthand, corrected): 0x55760 is a GET-
+  TER - `[[obj+0x40][edx]]` (assoc-object array). Method
+  0x287a0 (slot main+0x9FC of the MOVEPLAT family, Finding 5):
+  it takes the assoc object index 1, walks ITS record array
+  [[assoc]+0x50][i], tests +4 == 6 - the same constant-6 field
+  gate PR-152 found on the authored rows - then builds the re-
+  cord {0, 0x10, 0x8138764, 0xa} and sends it via
+  [[target-class]+0x10] at 0x2885a: bit 0xa = AC_DRAB onto the
+  assoc'd object. Sibling method 0x282e0 (main+0x9E0) ORs bit
+  56 (byte7|1 = K_GEN3) directly into the live set of
+  [[obj+0x30]+0x40][0]. So AC_* authored bits DO have static
+  posters - the PR-144 lead "the signal-record poster for
+  AC_DRAB" is CLOSED.
+
+- FINDING 5, THE 31-BRANCH PLACEMENT FACTORY (0x4d5d0..
+  0x4eC20) - tokens, alloc sizes, class pairs (PR-70's "the
+  first field of a placement line is a CLASS name", read as a
+  whole): none(0x8c list - the PR-154 stamp), ANITAB, PLANT,
+  GRABOBJ, DEMOTEXT, ANIBACK, MOVEPLAT(0x122; embedded sub-
+  object tables 0x9957c/0x99550 + aux-table store [obj+0xee]=
+  0x99558), MOVERECT(0x126), RECT, DRECT, DRECT2, KATPLAT
+  (0x12e; shares base-ctor 0x53ff0 with MOVEPLAT + an extra
+  embedded block), DZWIGNIA, WODOSPAD, ZWIERZ(0x161), GRUPA,
+  PICT, POCISK/IDPOCISK(0xf2), GRABG, GWIAZDKI, NIESP, ZONE,
+  KORONA(pair 0xa1924), SURPRISE(0x106; pair 0x97d94/0x97d8c -
+  PR-149's branch, LADDER-region adjacency), BAL(pair 0xa17dc -
+  EQUALS PR-70's vtable, validating the method), DNGANI, TRASA,
+  TRASA2(stores the LADDER pair 0x97cdc/0x97cd4 plus 0x97f50
+  and 0xa1dfc - the LADDER class is EMBEDDED in placed TRASA2
+  objects). AUTHORED DATA: ZARIA's satellite .DES contain SUR-
+  PRISE x2 and BAL x6; 'MOVEPLAT' occurs 3 times in the ANIMA-
+  CJEs master (level attribution open).
+
+- FINDING 6, THE PRNG RAISER CONTEXT (PR-144 item 2 remainder
+  CLOSED). The pair (0x98f34, 0x98f2c) is TLewEna2 - factory
+  0x269a0 with token 'TLewEna2' (alloc 0x12a; ctor 0x26a70);
+  the module strings name it: 'ena2ed.mod', era names 'E2BOSS',
+  'ECOIN', 'EBECZKA', literal 'A_DEAD'. The raiser 0x266b0 is
+  main-table slot +0x3b4 (0x992e8): guard [self+0x63]&0x20;
+  target = [[[self+0x124]+8]+0xdc](self, 0xc); bit 54/55/56 by
+  PRNG (rand %0x7fff: <3 -> 54, <8 -> 55, else 56); OR into
+  [target+0x60] at 0x26731/0x26738. [obj+0x124] arming: me-
+  thod 0x26570 (main+0x33c) appends a position parameter to
+  the list at [obj+0x128] (debug strings ' pos = '/' dist = %d')
+  and stores [obj+0x124] = 0x4dcc0(level, position) = THE OB-
+  JECT AT THAT POSITION. The same query serves ZARIA's own ta-
+  bles: 0x1ed90 (TLewZariaB main+0x268) -> [obj+0x120]; the
+  armer 0x1edb0 (main+0x2E0; called FIRST by the type-0xc pos-
+  ter 0x1eee0, PR-154) reads [obj+0x5c]==3 and
+  [[[obj+0x50]+3*4]+4]: 0 -> zero [obj+0x124]; 6 -> 0x1ece0 +
+  INC - [obj+0x124] carries pointers AND small ints, the +4
+  duality again.
+
+- FINDING 7, THE MASK WINDOWS CLOSED (PR-144 item 4). 0x28bc7:
+  record byte6 |= 0x40 = BIT 54 K_GEN1, OR into [esi+0x60] =
+  SELF, inside method 0x28af0 (MOVEPLAT main slot +0xE68),
+  immediately after a 0x52b10 type-0xf post (type 0xf is inert
+  per Finding 2 - the post is a wake-up for the owner). The
+  0x28af0 guards above it were not read (open item). 0x50ab7:
+  byte2 |= 0x20 = BIT 21 (the AC_LINA* pair per PR-144's enu-
+  meration), NOT bit 54; guard [obj+0x11a]==8, [obj+0xb1] just
+  written; inside the 0x50a70 receiver area. THE STATIC K_GEN1
+  RAISER SET IS NOW BOUNDED: the ENA +0x100-variant blocks
+  (0x244a5/0x24552, self), the MOVEPLAT 0x28af0 block (self),
+  the HP<100 kind-9 arm (0x50df4/0x50e24 - fed statically only
+  by BAL), the TLewEna2 PRNG raiser (target object), and the
+  kind-0x10 record law (any bit, any object, poster statically
+  known only at 0x287a0). ENA/ENA2 are other-era classes; for
+  ZARIA the live candidates are the MOVEPLAT machinery (place-
+  ment census open) and the kind-0x10 law.
+
+- OPEN ITEMS COUNTED (10 new). (1) The runtime writer of the
+  kind tables ds:0xcf0ac/0xcf0b4 - if NOTHING ever writes the
+  count, EVERY 0x56600 kind-dispatch is a no-op and Finding 3
+  is the only signal law; the 0x567xx family (the only code
+  referencing neighbours 0xcf080/0xcf084/0xcf088) is the place
+  to check. (2) The [obj+0x40] assoc-array semantics: who
+  fills +0x40[i] (TRASA2/MOVEPLAT construction init at
+  0x53ff0/0x44fe0 contexts). (3) Which levels the 3 ANIMACJE
+  MOVEPLAT placements belong to (ZARIA?). (4) The 0x28af0
+  guards above the bit-54 raise and the purpose of its inert
+  type-0xf post. (5) The ZARIA-controller 0x1e6xx/0x1e8xx
+  +0/+4-slot object verbs (dynamic kinds). (6) The 0x9a54c/
+  0x9a544 family identity (ctor 0x27030 sets [obj+0xf6]=1500,
+  zeroes the [obj+0x12a] word; its embedded subobject at the
+  -0xfe..-0x106 form; receiver 0x27470). (7) The 0x9d088/
+  0x9d080 clone family (carried from PR-154). (8) The exact
+  position-parameter format of 0x4dcc0 and the 0x1ece0 finder's
+  key. (9) The dynamic bit sources at the remaining 0x380a1/
+  0x3eac8 assoc-getter sites (ebx). (10) The 0x50e58/0x50e60
+  demolist-stamp neighbours (0x44910 on the +0x38c singleton,
+  the 0xcef5c/0xcef8c indexed arrays). Carried still open:
+  0x4aa60, [[companion+8]+0xe0], the companion runtime iden-
+  tity, the 0x41a40 machine, [obj+0xc6]/[obj+0xf6], the rect-
+  angle format, the LINA-family table, the flag feature, the
+  two unread 0x52cc0 sites (0x373f0/0x3dc5f), the prototype
+  vectors. CLOSED: PR-144 items (2 remainder - TLewEna2),
+  (3 - YES via kind-0x10; poster BAL for type-9), (4 - both
+  windows); the PR-154 "signal-record builder" mislabel (it is
+  the +0x40 assoc getter); PR-154 Next threads (a) (no static
+  edx=9; kind lives at [rec+4]; BAL is the poster), (c) closed;
+  the hand-off chain's terminal arm decoded (geometry + pump,
+  NOT a signal); the TYPE-5 node verdict: inert; the stamp
+  sink gained named producers (0x1e153 arm; 0x50e60).
+
+- GATES. Docs-only (PR-138..154 precedent): no ported/, Make-
+  file, tools/ or .gitignore line touched; no build run. Every
+  added prose line <= 79 columns; the over-79 baselines UN-
+  CHANGED (NEXT_STEPS 71, HANDOFF 72); no game data or frames
+  in git (scratch /tmp/opencode/pr155/); .github/workflows/*
+  untouched; the image unchanged. The method rule was exer-
+  cised AGAIN: the 0x50d60/0x54560/0x53770 entries are the
+  +2/+2/+2 offsets (0x50d62/0x54562/0x53772), the 0x287a0 me-
+  thod attribution needed entry-boundary scans with padding
+  tolerance, and the "edx before the call" walk was itself a
+  method error - the kind lives inside the record at +4.
+
+- EVIDENCE. Raw-byte windows: 0x3d3f0-0x3d41b (the kind-9
+  record), 0x50d60-0x50e5f (full receiver + default arms),
+  0x54560-0x5469d (full second-stage dispatcher), 0x53770-
+  0x537e8 (the kind-0x10 arm in full), 0x52bb0-0x52c01 (full),
+  0x1e130-0x1e196 (full ZARIA receiver), 0x52cc0-0x52cf9
+  (full hit pipeline), 0x28820-0x28861 (the kind-0x10 record
+  build), 0x282e0-0x2832f (the bit-56 assoc OR), 0x28b90-
+  0x28bcc (the bit-54 self raise), 0x50a80-0x50abc (the bit-21
+  arm), 0x26570-0x265da (the ENA2 position-arming method),
+  0x1edb0-0x1ee13 (the armer + the 0x128-reset), 0x269a0-
+  0x269d4 + 0x26a70 (the TLewEna2 factory/ctor), 0x27030/
+  0x27420 (the 0x9a54c ctor/dtor), 0x4e035-0x4e0cc (the MOVE-
+  PLAT branch), 0x4e222-0x4e259 (the KATPLAT branch). Censu-
+  ses: the 64-site [reg+0x10] walk twice (edx-read, then re-
+  cord+4-read); the 31-branch token/alloc/pair table; dword-
+  ref censuses for 0x9957c/0x99550/0x99558/0x9a544/0x9a54c/
+  0x98f2c/0x98f34/0x266b0/0x55760; the 0x90000-0xa8000 slot
+  scan for the new method ranges (all attributed to main tables
+  0x9957c MOVEPLAT / 0x9a54c / 0x98f34 ENA2 / 0x96960-0x97cxx
+  ZARIA-and-neighbours); string literals 'TLewEna2', 'ena2ed.
+  mod', 'E2BOSS', 'ECOIN', 'EBECZKA', 'A_DEAD', ' pos = ',
+  ' dist = %d', and the 31 factory tokens (ANITAB..TRASA2).
+  Authored-data greps: SURPRISE x2 / BAL x6 in ZARIA satel-
+  lites, MOVEPLAT x3 in ANIMACJE.
 
 ## Deferred big items (deliberately out of scope so far)
 

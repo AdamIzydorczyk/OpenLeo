@@ -2877,11 +2877,86 @@ writer as its open items.
      object's fields in 0x3f0f0 + the kind-table writer, the
      last two live-set mask windows (0x28bc7/0x50ab7), the
      0x9d088 family - then the WAIT row-gate CODE pass (the
-     engine law is now COMPLETE). Gates: docs-only; every added
+     engine law is now COMPLETE) [PR-155 OUTCOME: NO static
+     edx=9 exists - the kind sits at [record+4] and the only
+     static kind-9 poster is the BAL touch 0x3d3fb (PR-70
+     confirmed); the mask windows are CLOSED (0x28af0 bit-54
+     self-raise, 0x50ab7 = bit 21); the kind-9 +0x18 arm is
+     rung-rect geometry; the TYPE-5 hand-off node is INERT;
+     the generic kind-0x10 magic-record law found - the PR-155
+     bullet below carries it]. Gates: docs-only; every added
      line <= 79; baselines unchanged (NEXT_STEPS 71, HANDOFF
      72); no game data in git; image unchanged. Full record:
      the PR-154 section of NEXT_STEPS.md (scratch /tmp/opencode/
      pr154/).
+   - PR-155 (READING, no code, no new test - the PR-138..154
+     precedent): THE BIT-54 BRIDGE, PASS 2 - THE STATIC RAISER
+     SET IS BOUNDED AND THE GENERIC SIGNAL-DELIVERY LAW IS
+     FOUND. WHY: PR-154's threads (a)-(d). F1 THE DIRECT-RECEI-
+     VER WALK, DONE TWICE: the first pass read edx before each
+     of the 64 `call DWORD PTR [reg+0x10]` sites - WRONG, the
+     kind sits AT [record+4]; re-walk: static kinds are 1/8/0xe
+     or dynamic, and EXACTLY ONE kind-9: 0x3d3fb->0x3d418 in-
+     side the BAL touch method 0x3d370 - PR-70's balloon mes-
+     sage byte-confirmed as the ONLY static type-9 poster. F2
+     THE RECEIVER CHAIN DECODED WHOLE: 0x50d60 (entry 0x50d62)
+     swallows kind 1 when [obj+0x126]!=0, jump-tables 9..21,
+     and passes EVERYTHING ELSE to 0x54560 (entry 0x54562):
+     kind 2 sets the [obj+0xc2]/+0xc6 pair, 3/4 OR [obj+0xb6],
+     6 copies facing [rec+8]->[obj+0x6d], 0x1b splices the
+     +0xa9 list, and kinds 5/7../0xd/else go to 0x53770 (entry
+     0x53772) whose default tail is 0x52bb0 (kind 1 = position
+     delta via [[pos+8]+0x54], 0xe = ATTACH [obj+0x30]=pay-
+     load, 0x21 = pump-on, else RET) - THE HAND-OFF'S TYPE-5
+     NODE IS INERT (a wake-up, not a data message); the ZARIA
+     receiver 0x1e130's own kind-5..11 arm calls the payload's
+     +0 slot with edx=2, stamps the demolist (ds:0xa94f4++,
+     0x44900 - PR-154's sink gains named producers) and runs
+     0x52cc0(self,9): the hit pipeline = +0x30/+0x24/+0x28
+     verbs then 0x56600 -> kind-object ds:0xcf0ac[9] -> the
+     companion's +0x18 (LADDER 0x3f0f0 = RUNG-RECT geometry -
+     NEVER a live set) then [self+0x20]=1 - the hand-off ter-
+     minates in geometry+pump, not signal. F3 THE LAW: kind
+     0x10 + magic token 0x8138764 at [rec+8] + bit index at
+     [rec+0xc] -> one-bit set ORed into [self+0x60] - ANY re-
+     ceiver reachable through 0x53770 can be handed ANY signal
+     bit, no HP guard (PR-144 item 3 CLOSED: full-HP K_GEN1 is
+     reachable). F4 THE FIRST STATIC kind-0x10 POSTER: method
+     0x287a0 (MOVEPLAT-family main+0x9FC) tests the assoc's
+     record array [[assoc]+0x50][i]+4 == 6 (the SAME constant-
+     6 field gate as the authored rows - the engine's own
+     cross-check of PR-152's model!) then sends {0,0x10,
+     0x8138764,0xa} = AC_DRAB to the assoc object; 0x55760 is
+     NOT a signal builder but the [[obj+0x40][i]] assoc GETTER
+     (PR-154's mislabel corrected); sibling 0x282e0 ORs bit 56
+     into [[obj+0x30]+0x40][0]+0x60. F5 THE 31-BRANCH PLACE-
+     MENT FACTORY (0x4d5d0..0x4ec20): tokens+allocs+pairs for
+     ANITAB..TRASA2 - SURPRISE pair 0x97d94 (PR-149), TRASA2
+     EMBEDS THE LADDER PAIR 0x97cdc/0x97cd4, BAL pair 0xa17dc
+     = PR-70's vtable (method validated); ZARIA's data places
+     SURPRISE x2 + BAL x6; 'MOVEPLAT' x3 in ANIMACJE (attribu-
+     tion open). F6 The PRNG raiser class = TLewEna2 ('ena2ed.
+     mod', 'E2BOSS/ECOIN/EBECZKA') main+0x3b4; its [obj+0x124]
+     target = 0x4dcc0(level, authored position) = THE OBJECT AT
+     THAT POSITION; ZARIA's own tables arm +0x120/+0x124 the
+     same way (0x1ed90/0x1edb0 - the armer 0x1eee0 calls firs-
+     t; [obj+0x124] carries pointers AND small ints). F7 mask
+     windows CLOSED: 0x28bc7 = bit 54 self-raise inside MOVE-
+     PLAT method 0x28af0 (after an inert type-0xf wake-up
+     post), 0x50ab7 = bit 21 under [obj+0x11a]==8. THE BOUNDED
+     STATIC K_GEN1 SET: ENA +0x100 blocks, MOVEPLAT 0x28af0,
+     the HP<100 kind-9 arm (fed only by BAL), the TLewEna2
+     PRNG, the kind-0x10 law. DECIDING QUESTION NEXT: does
+     ANY code write ds:0xcf0ac/0xcf0b4 - if not, every 0x56600
+     kind-dispatch is a no-op and kind-0x10 is the ONLY cross-
+     object signal path (the 0x567xx family touches the BSS
+     neighbours). 10 new open items counted; PR-144 items (2
+     remainder)/(3)/(4) CLOSED; the TYPE-5 verdict and the
+     record+4 method rule are the pass's reusable laws. Gates:
+     docs-only; every added line <= 79; baselines unchanged
+     (NEXT_STEPS 71, HANDOFF 72); no game data in git; image
+     unchanged. Full record: the PR-155 section of NEXT_STEPS.
+     md (scratch /tmp/opencode/pr155/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -4544,6 +4619,28 @@ through the chain (0x457e0/0x45870/0x45970), so the engine
 law is complete and only the port-side implementation is
 missing. ZARIA.01 output unchanged (no code). 7 new open items
 counted.
+
+STATUS after PR-155 (docs-only; the named K_GEN1 blocker is
+now a BOUNDED question, not a search): the engine's generic
+cross-object signal law is the kind-0x10 magic-record ({0,
+0x8138764, bit-index}) handled at 0x53772 - any reachable re-
+ceiver gets ANY signal bit, no HP guard (so the ladder's A_UP
+K_GEN1 row and the player's climb rows CAN be gated by design,
+and PR-144's full-HP question is closed YES). The hand-off's
+type-5 node is INERT on the base receiver chain; its only ac-
+tion happens when the companion's receiver is a ZARIA-family
+0x1e130 (kind-5..11 arm -> 0x52cc0 hit pipeline -> kind-9 ->
+the LADDER's +0x18 = RUNG-RECT GEOMETRY + pump, never a live
+set). The only static type-9 poster is the BAL touch (0x3d3fb,
+PR-70's port path confirmed). The static K_GEN1 raiser set is
+enumerated and era-classified; AC_DRAB (bit 10) gained its
+first static poster (0x287a0, with the engine's OWN [[assoc]+
+0x50][i]+4 == 6 field-gate - a direct cross-check of PR-152's
+row-gate model, which strengthens the WAIT row-gate CODE pass
+now). The ONE deciding question for PR-156: whether ds:0xcf0ac/
+0xcf0b4 (kind tables) are ever written - if not, kind-dispatch
+is dead code and kind-0x10 is the only signal path. ZARIA.01
+output unchanged (no code). 10 new open items counted.
 
 **T6. Level flow.** `end_level` directive, `AC_LEAVE`, the vulture ride of
 ZARIA I, the map -> level -> map loop, TUNGA I <-> II exchange
