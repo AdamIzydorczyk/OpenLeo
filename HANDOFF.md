@@ -4435,6 +4435,58 @@ writer as its open items.
      values) + the player-side row seek (PR-174 item 2).
      Full record: PR-182 section of NEXT_STEPS.md
      (scratch /tmp/opencode/pr182/).
+   - PR-183 (READING; no port code, no behaviour change):
+     THE EVENT CONSUMER BODIES ARE READ. THE LION-SHAPE
+     CONSUMER 0x1e130 (+0x10 at LION tables): id<5 ->
+     0x50d60; ids 5..11 -> ENTER on the SENDER; id 12 ->
+     [obj+0x12a]:=1. 0x50d60: anchored ([obj+0x126]!=0)
+     objects DROP id-1 (move-by) events; a jump table at
+     0x50d20 covers ids 9..21: id 9 = THE FEED LAW -
+     energy [obj+0xad] += 32 clamped to 100 (its THIRD
+     writer) after a live-key-set merge (the 0x749a0 +
+     0x40-byte/0x49580 shape); 10 -> [obj+0x14/0x18] :=
+     (sender,arg); 11/15 -> sender verbs +0xd8/+0xfc;
+     21 -> [obj+0x116]:=1; ids 12,13,14,16..20 + all
+     others -> DELEGATE to 0x54560. THE CORRECTED 0x54560
+     MAP (replaces PR-179 F2 labels): 2 = [obj+0xc2/0xc6]
+     PAIR SET, 3/4 = [obj+0xb6] |= 4/8 (PR-179 item (2)'s
+     SETters), 6 = [obj+0x6d/0x71] setter, 8 = pair CLR,
+     13 = pair ADD, 27 = ATTACH (old +0x04 LEAVE, [obj+
+     0xa9] := node+8, ENTER), else 0x53770. THE 0x52bb0
+     FALLBACK (whole): 1 AND 13 = [obj+0/4] delta + the
+     [class+0x54] hook (PR-17x hooks = event-triggered!),
+     14 = [obj+0x28]:=1 (the pump gate's setter), 15 =
+     [obj+0x30]:=sender, 33 = [obj+0x108]:=1, all else
+     dropped - A PER-FAMILY VOCABULARY (PR-182 item (3)
+     answered). The 66-site literal-id histogram (90-byte
+     window; 64/66 literal): 1x7, 2x5, 5x7, 8x5, 13x4,
+     15x5, 21x4, 25x11 (most-sent, NO consumer found -
+     open), 27x5, 16/17/18x2/20/29/30/33/... THE IDENTITY
+     LAW: 178/178 class tables' +0x0c getter = `mov eax,
+     ds:<tok>; ret` - per-family TOKENS initialized by
+     runs of `call 0x44350; mov ds:<tok>,eax` (0x44350 =
+     a counter ++ds:0xa90ac): the magic 0x8138764 is a
+     runtime token, not a hardcoded identity (owner family
+     = open item); the 0x4bc40 contract = (ebx=ID,
+     ecx=TARGET TOKEN, push=ARG). CORRECTED camel raises
+     (PR-182 F2 bracket): 0x2c5b0 pushes 33=AC_KOREK
+     (one-shot flag ds:0xcec70, [obj+0x5c]==2), 0x2c5f0
+     pushes 28=AC_BECZKA ([rec+4]==1), 0x2c630 pushes
+     27=AC_BUTLA ([rec+4]==0xa) - CORK/BARREL/BOTTLE,
+     the authored camel-props signals. Bonus: 0x52c10/
+     0x52c40 = the +0x34/+0x38 list insert/remove (the
+     broadcast walks); 0x52cc0 (PR-177 item (1) helper)
+     READ WHOLE - sender verbs +0x30/+0x24/+0x28(0x80) +
+     the 0x56600 indexed `call [class+0x18](ds:0xcf0ac[
+     edx])` dispatch + [obj+0x20]:=1. 5 new items, 6
+     closed/part, 6
+     brackets; the row-seek's model precondition now
+     complete (frames stay blocked). Next -> PR-184 =
+     the +0x10 consumer census over 178 tables (naming
+     the id-17/18/20/25/29/30 families = the PR-177
+     item (3) table work) + the token-init order. Full
+     record: PR-183 section of NEXT_STEPS.md (scratch
+     /tmp/opencode/pr183/).
    - THE CHANNELS ARE NOW READ, THE MECHANISM IS NOT. `v` is hundredths of
      a px per tick (the /100 at 0x5435d), and 25 such ticks/s turns the
      authored pairs into exactly the two divisors the port fitted from the
@@ -7117,6 +7169,51 @@ msg-sender half of PR-181 item (1) resolved; PR-179 F2's
 0x8138764 magic; the [obj+0x28] gate + the global
 registry; the [rec+4] guards).
 Gates: docs-only (PR-138..181 precedent); added lines <=
+79; baselines 71/71 held; the Windows half stays in the
+end pass (rule 8).
+
+STATUS after PR-183 (the event-consumer body pass; docs
+reading - ZERO port lines changed, the ZARIA.01 output
+image is byte-identical to PR-182's; build state = the
+OWNER GATE (rule 8) measured on 7b4d736, only docs moved
+since).
+
+What this pass GROUNDS for T5:
+(1) THE AUTHORED SIGNAL SOURCES ARE NOW ENGINE-FOUND:
+    the camel-family classes raise AC_KOREK (33, one-
+    shot), AC_BECZKA (28) and AC_BUTLA (27) at their
+    mode/record arms via the token-filtered broadcast -
+    CORK/BARREL/BOTTLE, the exact authored props of the
+    camel scenes; the raise law (bit N into the live set,
+    PR-88 numbering) is fully engine-verified end to end
+    (sender method -> 0x4bc40 -> 0x52b10 node -> class
+    slot +0x10 -> 0x53770 bit-set + merge). The port's
+    direct bit-raising is the same law minus the token
+    indirection - no port change.
+(2) THE ENERGY FIELD [obj+0xad] HAS ITS COMPLETE WRITER
+    SET: default 100 (PR-179), the 0x54458 class-range
+    -1 rule (PR-181), and NOW the FEED EVENT (id 9):
+    +32 clamped to 100 after a live-key-set merge. The
+    port's feed=constant stands: no literal id-9 sender
+    exists (item (4) counts whether any ZARIA.01 event
+    could carry one).
+(3) THE PER-STEP INTERACTION FRAME IS COMPLETE: anchored
+    objects ignore move-by (id 1) events; impulses/
+    move-by events fire the +0x54 hook family; the pump
+    gate [obj+0x28] is event-id-14-set; the attach law
+    (event 27 = LEAVE/ENTER pair over [obj+0xa9]) is the
+    PR-179 attach machine's event half. The PR-150-era
+    interaction model (green on frames) matches all of
+    it; PR-174's row-seek model precondition is now
+    complete (frames stay the only blocker).
+PR-179 item (2) PART-closed (bit setters = ids 3/4);
+PR-182 items (1)/(2)/(3) closed; PR-177 item (1) helper
+0x52cc0 closed; two label CORRECTIONS shipped as data
+brackets (PR-179 F2 map, PR-182 F2 raise map). 5 new
+items counted (id-17/18/20/25/29/30 consumer families;
+the pair semantics; the [rec+4] guards + token-owner
+family; the id-9 sender; the 0x116/0x108 setters).
+Gates: docs-only (PR-138..182 precedent); added lines <=
 79; baselines 71/71 held; the Windows half stays in the
 end pass (rule 8).
 
