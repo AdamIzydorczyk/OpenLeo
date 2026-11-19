@@ -8361,6 +8361,11 @@ Measuring on the reference video (episodes 1-11 of the playlist
 - [ ] end-of-implementation only: `make win` warning-free,
       `make -k verify-windows`, and ci-windows.yml green
 - [ ] README hook list updated if a `LEO_*` variable was added
+- [ ] `make verify-docs` EXIT=0 (the docs structure pin: record
+      headings, the plan/rule sections, the over-79 ratchet). This
+      replaces the two hand greps the audit measured: the width-set
+      check, and the heading census, a prefix proxy that sees 107 of
+      the 184 records.
 - [ ] NEXT_STEPS.md record; this file's sections 1, 6, 7, 8 updated
 - [ ] commit "PR-NN: ..." ; `git push`; `gh run list --workflow=ci.yml` green
 - [ ] nothing copyrighted staged (`git status`)

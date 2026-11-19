@@ -15851,44 +15851,63 @@ no port behaviour change)
 
 ## Next — pick from the Deferred list below
 
-- PR-195 IS THE PRODUCER'S LAST STEP: THE .MOV ACTION RUNTIME. PR-194
-  F-(a)/(b) left exactly one link missing between authored data and an
-  exit code: the parser turns `end_level <n>` into a node of class
-  0xa1048 (0x46bbd-0x46c01), and nobody has read the interpreter that
-  EXECUTES such a node. Read that, and answer the one question that
-  decides the port's next code change: is the authored number the level
-  loop's RETURN value, the exit word [level+0x4], or a level index?
-  Where to start: the parse legs and their sibling directive classes
-  (0xa1030, 0xa1060, 0xa11c8 - the same shape, other words), the verb
-  slots of those tables, and the row walk the port already models
-  (ported/ll_play.c). Rules: text.asm only (tools/re/make_text_asm.sh),
-  no invented semantics, an unproven half stays counted. IF the runtime
-  says the number reaches the loop's return or the exit word, the next
-  PR ([PORT]) replaces LEO_LEVEL_EXIT's injected codes with the real
-  `A_EXIT` rows of a level's own LEW.MOV - the fixture then drives the
-  engine's own end-of-level walk, which is the whole point of the
-  injection hook being separate.
-- THEN, IN THIS ORDER: (2) who fills the engine's ds:0xcf464 queue and
-  what one entry looks like (the port's ll_stage_queue_len() is 0 until
-  that is read and wanted); (3) what the reset pair 0x5da60/0x5d050 does
-  and what the per-stage edx 0/1 selects, so the port's reset can stop
-  being an ESTIMATE; (4) whether `end_level 1/2` in A_TUNGA1/A_TUNGA2 IS
-  the TUNGA I <-> II exchange (T6), mechanism first; (5) the .mnu opcode
-  interpreter (the run verb's member-dispatch walk over
-  [obj+0x2c]..[obj+0x34]); (6) the 84-byte status record vs the port's
-  ll_save codec; (7) the six stream classes' differences; (8) the
-  ANIMACJE flag-2 5200-byte record layout; (9) the language-selector
-  writer + the runtime `.TLO` assembly.
-- ALSO OPEN, DOCUMENT-WORK (the owner asked for it, and it is scheduled
-  after PR-194 landed): an audit of the ENGINE documentation - the
-  HANDOFF sections 4/5/6/7/8 plus the per-PR records in NEXT_STEPS -
-  for duplicated findings, for fields that make the text hard to SEARCH
-  (findings reachable only by PR number, addresses in prose with no
-  index entry, corrections that live only in brackets), and for a better
-  organisation. The audit ships as a written map + a concrete proposal
-  BEFORE any file is reorganised; a restructure is its own [DOCS]/[GATE]
-  PRs with the width and heading-census invariants re-derived, never
-  mixed with a reading or a port.
+- PR-196 IS THE RECORD TEMPLATE (the owner's doc audit step 1, forward-
+  only): every NEW record in this file starts with a fixed field block -
+  `KIND:` read/port/gate/docs, `SUBSYSTEM:`, `ADDRESSES:` (every engine
+  address the record establishes OR retracts), `NAMES:` (the `.des` keys,
+  `.MOV`/`.SEQ` members and state names it touches), `OPENS:`/`CLOSES:`
+  (the open-item ids), `CORRECTS: PR-nn F-k`, and ONE `GATE:` line in
+  one agreed format (`make 0 warnings; verify-all with fixtures rc=0 N
+  (ok); fixture-free rc=0 M (ok) + K named SKIPs`). Add it to HANDOFF
+  section 10 (the checklist) and to the record recipe. WHY IT IS FIRST:
+  the audit measured that those fields exist in 29-43% of records and
+  that the gate state is restated 79 times in 62 wordings with 50
+  different `(ok)` count claims; a generator can only be exact if the
+  fields exist. History is NOT rewritten: tools/doc_census.py already
+  reads prose, and step 2's index reads prose too.
+- PR-197 IS THE INDEX (step 2): `tools/re_index.py` generates
+  `docs/RE_INDEX.md` from the ledger - (a) addresses appearing in >=3
+  records: 729 entries, which answers 60% of every address lookup the
+  audit measured; (b) `[field+0xNN]` tokens in >=3 records: 155;
+  (c) the 240 authored names (`control=`, K_*, AC_*, A_* states, the
+  `.MOV` members). Each entry lists the records that mention the key
+  and whether a later record RETRACTS it - that is what makes "is this
+  claim still current?" one grep instead of 51 records (today: 0xcef40
+  = 113 lines across 51 records, 0x49580 = 88 across 42). `verify-index`
+  regenerates it and `cmp`s, so the index cannot drift; it runs in both
+  fixture modes (docs are tracked). Keep the generated file's own
+  over-79 count at 0, and re-derive the width ratchet in that commit if
+  anything else moves.
+- THEN THE DOCUMENT WORK, IN ORDER: step 3, one open-items register with
+  stable ids (~40 rows seeded from the audit's re-listed phrases), the
+  ledger citing `OI-nnn` instead of restating sentences; step 4, HANDOFF
+  sections 5/6/7 become pointers (5 = a short current-truth map per
+  subsystem, 6 = one greppable block per estimate - which also removes
+  the 41 over-79 table rows, longest 3,512 columns - 7 = the register
+  plus pointers); step 5, NEXT_STEPS becomes journal-only: the stale
+  2026-11-14 status block becomes a 5-line pointer, `## Next` moves into
+  HANDOFF section 8 (one plan, one place - 14 of its 15 keys are already
+  duplicated there), `## Deferred big items` joins the register,
+  `## Standing rules` joins the rules. Do NOT split the journal by era:
+  it re-breaks the 176-sha table and buys nothing these steps give.
+- THEN PR-198 IS THE PRODUCER'S LAST STEP: THE .MOV ACTION RUNTIME.
+  PR-194 F-(a)/(b) left exactly one link missing between authored data
+  and an exit code: the parser turns `end_level <n>` into a node of
+  class 0xa1048 (0x46bbd-0x46c01), and nobody has read the interpreter
+  that EXECUTES such a node. Read that, and answer the one question
+  that decides the port's next code change: is the authored number the
+  level loop's RETURN value, the exit word [level+0x4], or a level
+  index? Where to start: the parse legs and their sibling directive
+  classes (0xa1030, 0xa1060, 0xa11c8 - the same shape, other words),
+  the verb slots of those tables, and the row walk the port already
+  models (ported/ll_play.c). Rules: text.asm only
+  (tools/re/make_text_asm.sh), no invented semantics, an unproven half
+  stays counted. IF the runtime says the number reaches the loop's
+  return or the exit word, the following PR ([PORT]) replaces
+  LEO_LEVEL_EXIT's injected codes with the real `A_EXIT` rows of a
+  level's own LEW.MOV - the fixture then drives the engine's own end-of
+  -level walk, which is the whole point of the injection hook being
+  separate.
 - STOP CONDITIONS: every claim byte-backed or fixture-byte-backed
   (cite ISO offsets); formats cross-checked against the real
   ZARIA1.IS/ANIMACJE bytes, never inferred from names alone;
@@ -15896,8 +15915,12 @@ no port behaviour change)
   behaviour changes without a failing test; Linux-first gates
   (make zero-warning + verify-all both fixture modes) apply to any
   code PR - docs-only PRs cite the last measured state, which is the
-  GATES section of the newest record (PR-194's: 58 (ok) with fixtures,
-  11 (ok) + 20 named SKIPs fixture-free).
+  GATES section of the newest record (PR-195's: 59 (ok) with fixtures,
+  12 (ok) + 20 named SKIPs fixture-free). THE DOC INVARIANTS ARE NO
+  LONGER HAND-CHECKED: `make verify-docs` measures the record headings
+  (floor 184, the accepted-gap list), the one `## Next` /
+  `## Deferred` / `## Standing rules`, and the over-79 ratchet
+  71/71/12; a raised ratchet needs a commit that says why.
 
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
@@ -28052,6 +28075,166 @@ BEHAVIOUR CHANGE)
   (5) Whether `end_level`'s 1/2 in A_TUNGA1/A_TUNGA2 is the TUNGA I <->
       II exchange of T6 (`AC_XCHG_LEVEL`) - the data shape matches, the
       mechanism is unread.
+
+## PR-195 — THE DOCUMENTATION AUDIT IS MEASURED, AND ITS STRUCTURE
+## CHECKS BECOME A BUILD LEG: tools/doc_census.py + verify-docs, which
+## replaces two hand greps (the heading census sees 107 of the 184
+## records), with FIVE negative controls measured. No document is
+## reorganised here; the restructure is scheduled by the owner's approval
+
+- WHY. The owner asked, after PR-194: "do analysis of current
+  documentation with focusing on engine documentation, find potential
+  duplications and find fields to refine to better searching in it",
+  then "and potential better organisation". The audit was measured
+  first (read-only scripts, /tmp/opencode/docsmap/census*.py, output
+  kept at docsmap/census.out), the map + duplication list + the
+  restructure proposal were presented before any file was touched, and
+  the owner answered "ok, go" to the recommended first cut: step 0 (the
+  structure leg, this PR), step 1 (the forward record template), step 2
+  (the generated index). Nothing is moved or deleted here on purpose:
+  the new leg is the safety net for the moves that follow.
+
+- THE AUDIT, MEASURED. Sizes: NEXT_STEPS.md 28,111 lines / 253,645
+  words / 1.67 MB; HANDOFF.md 8,367 / 78,467; PLAN.md 1,516;
+  tools/re/README.md 156; README.md 299; TEST_REPORT.md 274; the two
+  owner-supplied inputs 285 + 259. Structure of the ledger: 753 lines
+  start with `## ` = 184 record headings + 4 `## OWNER` + 498
+  wrapped-title continuation lines + 9 real section headings; 129 record
+  titles are one line, the rest wrap over 2-31 lines. File order: a
+  `## Status as of 2026-11-14 (through PR-19 ...)` block at line 25
+  (~175 PRs stale), records from 244, `## Next` at 15,852 (the middle),
+  the newest record at 27,878, `## Deferred big items` at 28,056,
+  `## Standing rules` at 28,102. HANDOFF: sections 1-3 = 671 lines /
+  1 address, section 4 = 19, section 5 (facts) = 110 / 48, section 6
+  (estimates, a 4-column table) = 372 / 223, section 7 (open questions,
+  16 items, item 13 alone = 4,187 lines) = 4,696 / 2,037, section 8
+  (T1..T11 + 50 "STATUS after PR-nn" paragraphs) = 2,428 / 721.
+
+- FINDING 1, THE DUPLICATION IS STRUCTURAL, NOT ACCIDENTAL. HANDOFF
+  contains 1,163 distinct addresses, 1,155 of them (99.3%) also in the
+  ledger, and only 8 unique to it - sections 5/6/7 are a second copy of
+  the journal's findings, in prose, which is why the copy can drift
+  (verbatim long lines: 4, so the duplication is paraphrase-level and
+  invisible to any diff). 599 record pairs share >= 8 addresses
+  (PR-190/PR-191 = 91, PR-188/PR-189 = 75, PR-191/PR-192 = 72,
+  PR-189/PR-190 = 58, PR-186/PR-187 = 56, PR-185/PR-186 = 56). The
+  same open item is re-listed per phrase: the ANIMACJE flag-2 5200-byte
+  record in 24 records, the 84-byte status record / STATUS.LEO in 11,
+  the pool chain-store hunt in 10, the `.mnu` opcode interpreter in 7,
+  the exit-word writer in 7, the one-byte listing trap in 6, the
+  `end_level` producer in 6, the reset pair 0x5da60/0x5d050 in 4, the
+  ds:0xcf464 queue in 3. The plan exists twice: 14 of the 15 keys in
+  `## Next` also appear in HANDOFF section 8's task blocks. The measured
+  gate state is restated 79 times in 62 different wordings with 50
+  `N (ok)` claims in 27 shapes - that is where the 18-vs-19-vs-20 SKIP
+  count confusion in PR-193/194 came from: it is an artefact of
+  restating, not of the suite changing. 392 sha literals sit in the
+  ledger (+51 in HANDOFF), which is why the history override cost 176
+  re-pointings.
+
+- FINDING 2, WHAT MAKES THE ENGINE TEXT HARD TO SEARCH. There is no
+  index: 3,985 distinct addresses / 12,673 mentions (2,494 appear in
+  exactly one record, 729 in >=3 records, 302 in >=5); an index over
+  the >=3 set is 729 entries and answers 60% of every address lookup,
+  the >=5 set is 302 entries and answers 40%. Same for the other two
+  vocabularies a reader actually types: 636 distinct `[field+0xNN]`
+  tokens (155 in >=3 records) and 240 authored names (`control=` 31
+  records, `K_GEN1` 30, `A_DEAD` 25, `AC_TIME` 25, `A_WALK` 24,
+  `A_WSP` 19) - zero landing entries. Reconstructing one mechanism
+  means reading its whole history: 0xcef40 = 113 lines across 51
+  records, 0x49580 = 88 across 42, [obj+0xa1] = 80 across 28,
+  STATUS.LEO = 11 across 10, and nothing marks which claim is current.
+  Findings are cited by number: of 3,371 `PR-nn` citations, 3,022 carry
+  no address/field/name token within 200 characters. The headings are
+  the only index and they are narrative: 8 of 191 titles contain an
+  address, 63 contain a mechanism keyword. Corrections have no field:
+  the bracket form is used 7 times while the prose words appear 112
+  (CORRECTED) + 21 (WRONG) + 12 (RETRACT) + 6 (SUPERSEDE) times, and
+  352 distinct addresses appear inside a correction sentence - so
+  `grep 0x4be20` finds the mentions, never the sentence that killed it.
+  Open items have no ids: 71 distinct task/question ids in the ledger,
+  only 22 with a closed/done word near any mention; 14 of 16 HANDOFF
+  section 7 items read as open. Record fields are optional - a
+  `- FINDING` marker in 29% of records, `- WHY` 39%, `OPEN ITEMS` 43%,
+  `- GATES` 41% - and a record's KIND lives in its title prose
+  ("READING RECORD - NO CODE CHANGE" x24).
+  THE TWO CHECKS THEMSELF WERE WEAK: `grep -c '^## PR-1'` = 107 is a
+  PREFIX PROXY over 184 records - it cannot see the 74 PR-2..PR-99
+  records or the 4 OWNER records; and 11 PR numbers (1..6, 22, 23, 24,
+  80, 113) have no record heading at all, PR-113 being absent from the
+  file entirely. The over-79 line rule is also partly format debt: of
+  HANDOFF's 71 such lines, 41 are section 6 table rows (longest 3,512
+  columns), and 22 of NEXT_STEPS' 71 are wrapped record titles.
+
+- WHAT SHIPPED (step 0). `tools/doc_census.py` + the `verify-docs` leg
+  (Makefile, next to verify-arch; in verify-all and .PHONY). It reads
+  only the tracked markdown, so it runs in BOTH fixture modes, like
+  verify-arch and stage_selftest. Three rules fail the build: P1 the
+  record anchor `## PR-<n>` followed by a space or `(` (PR-41/42 use
+  `## PR-41 (SHELVED 2026-11-16)`, PR-77 is `## PR-77 investigation`,
+  so no title form may be demanded; `## PR-138/141/142 precedent)` is
+  rejected because a `/` follows the number), the count never falling
+  below 184, and every PR number up to the highest one either present
+  or in the frozen accepted-gap list; P2 `## Next`, `## Deferred big
+  items` and `## Standing rules` exactly once each; P3 the over-79
+  ratchet 71 / 71 / 12 (NEXT_STEPS / HANDOFF / README) - the
+  hand-check "the over-79 set did not move", now automatic, and raising
+  one needs a commit that says why. Everything else it REPORTS without
+  a rule (the audit's measures, so a later PR can show them moving):
+  `## ` totals, the wrapped-title continuations, distinct addresses and
+  mentions, `PR-nn` citations, field tokens, name tokens. HANDOFF
+  section 10 gained the matching checklist line.
+
+- FIVE NEGATIVE CONTROLS, MEASURED (each rc=1, in /tmp/opencode/pr195/
+  neg* copies; the unmodified tree is rc=0):
+  N1 demote the newest record's `## PR-194` to `# PR-194` ->
+  "FAILED only 183 record headings, expected at least 184".
+  N2 insert a second `## Next` -> "FAILED ## Next appears 2 times".
+  N3 break PR-159's title separator (`## PR-159:THE`) -> BOTH the count
+  floor AND "NOT in the accepted-gap list: PR-159".
+  N4 renumber `## PR-100` to `## PR-1950` (the count stays 184) ->
+  "NOT in the accepted-gap list: PR-100, PR-195, PR-196, ...".
+  N5 add one 80-column line to HANDOFF -> "FAILED HANDOFF.md has 72
+  lines over 79 columns, the ratchet is 71". This one fired while the
+  PR's own HANDOFF checklist line was still wrapped wrong at 80 columns,
+  i.e. the leg caught its own author - the re-wrap restored 71/71/12.
+
+- GATES. Measured on this tree: `make` ZERO warnings; `make -k
+  -j$(nproc) verify-all DATA=<iso> HD=<hd>` rc=0 with 59 (ok) (the
+  +1 is verify-docs' single (ok) line); the same target fixture-free
+  rc=0 with 12 (ok) + the 20 named data-SKIP lines (verify-docs is not
+  a data leg, so it adds no SKIP). PR-194's 58 / 11 + 20 are the
+  numbers before this leg. Docs invariants re-derived by the leg itself
+  rather than by hand: records 184 (183 distinct PR numbers up to
+  PR-194, + this record = 185), `## Next` = 1, over-79 71/71/12, all
+  unchanged; every line this PR adds is <= 79 columns; the over-79 sets
+  of NEXT_STEPS.md and HANDOFF.md are byte-identical to before
+  (0 added / 0 removed).
+
+- OPEN ITEMS, COUNTED. This PR closes none of the engine items; it
+  adds one process item and names the rest as scheduled work (the
+  owner approved the order with "ok, go"): (1) step 1, the forward
+  record template - `KIND:` / `SUBSYSTEM:` / `ADDRESSES:` / `NAMES:` /
+  `OPENS:`/`CLOSES:` / `CORRECTS: PR-nn F-k` / one `GATE:` line in one
+  format, in HANDOFF section 10, forward-only, history not rewritten;
+  (2) step 2, `tools/re_index.py` generating `docs/RE_INDEX.md`
+  (addresses in >=3 records = 729 entries, field tokens in >=3 = 155,
+  the 240 authored names), each entry pointing at the records and
+  saying whether a later one retracts it, with `verify-index`
+  regenerating and `cmp`-ing it so it cannot drift; (3) step 3, one
+  open-items register with stable ids (~40 rows) so records cite `OI-`
+  instead of restating a sentence; (4) step 4, HANDOFF 5/6/7 become
+  pointers - 5 = a short current-truth map per subsystem, 6 = one
+  greppable block per estimate (which also removes those 41 over-79
+  table rows), 7 = the register + pointers, the narrative staying in
+  the journal; (5) step 5, NEXT_STEPS becomes journal-only: the stale
+  status block becomes a 5-line pointer, `## Next` moves into HANDOFF
+  section 8 (one plan in one place), `## Deferred big items` joins the
+  register, `## Standing rules` joins the rules. NOT proposed: splitting
+  the journal by era (it re-breaks the 176-sha table and buys nothing
+  these steps give). The journal's prose, order and correction brackets
+  are deliberately untouched - they are the evidence and the honest
+  trail.
 
 ## Deferred big items (deliberately out of scope so far)
 

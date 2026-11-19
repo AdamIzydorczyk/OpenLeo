@@ -2276,6 +2276,28 @@ verify-arch:
 	    $$leak; exit 1; fi; \
 	echo "T-01 structure: engine+app SDL-free, backend only (ok)"
 
+# PR-195: THE ENGINE-DOCUMENTATION STRUCTURE PIN (tools/doc_census.py,
+# the owner's 2026-11-19 documentation audit). It reads only the tracked
+# markdown, so like verify-arch and stage_selftest it runs in EVERY
+# configuration - fixtures or not. Three rules; the rest it only reports:
+#   P1 every record heading is found (a `## PR-<n>` heading followed by a
+#     space or `(`), the count never falls below the recorded floor, and
+#     every PR number up to the newest one either has a record or is in
+#     the tool's frozen accepted-gap list (PR-1..6 predate the record
+#     convention, 22/23/24 live inside the old status block, PR-80
+#     inside PR-79's record, PR-113 has none).
+#   P2 the `## Next`, `## Deferred big items` and `## Standing rules`
+#     sections of NEXT_STEPS.md appear exactly once each.
+#   P3 the over-79-column ratchet (71 / 71 / 12 for NEXT_STEPS /
+#     HANDOFF / README, the state this audit measured). Raising one
+#     fails the build until a commit says why; that is the hand-check
+#     "the over-79 line set did not move", made automatic.
+# P1 is also what replaces the hand census `grep -c '^## PR-1'`, a
+# PREFIX PROXY: it sees 107 of the 184 records (the 74 older records and
+# the 4 OWNER records are invisible to it).
+verify-docs:
+	@python3 tools/doc_census.py
+
 # T-24 golden-master (PLAN S6 rig, no-CD route). The ORIGINAL game runs in
 # QEMU (MS-DOS 6.22 floppy + build_data_disk.sh HDD + CFG drive 'C' + the
 # known 0x5bd51 CD-gate bypass on a COPY, see build_data_disk.sh header);
@@ -2409,7 +2431,7 @@ verify-all: verify verify-is-synth verify-skip verify-llrs verify-pcx \
             verify-menu verify-sel verify-quit verify-save verify-music \
             verify-utf8 verify-fuzz verify-platform verify-userdir \
             verify-stage \
-            verify-arch verify-golden verify-cmake $(WIN_LEGS)
+            verify-arch verify-docs verify-golden verify-cmake $(WIN_LEGS)
 	@echo "ALL TESTS PASSED (linux half; Windows legs are deferred by the"
 	@echo "2026-11-19 ruling - the end pass is 'make -k verify-windows')"
 
@@ -2436,4 +2458,4 @@ clean:
         verify-sel verify-quit verify-save verify-music verify-utf8 verify-fuzz \
         verify-platform verify-userdir verify-cmake verify-all verify-windows \
         verify-all-windows level clean package package-win package-linux \
-        verify-golden verify-arch verify-stage golden_rig golden_rig_cd golden_rig_ddir
+        verify-golden verify-arch verify-stage verify-docs golden_rig golden_rig_cd golden_rig_ddir
