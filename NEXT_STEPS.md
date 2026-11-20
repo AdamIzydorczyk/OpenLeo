@@ -3,7 +3,7 @@
 > **Start with HANDOFF.md** (the current map, rules, estimates, open
 > questions and the ordered task list). This file is the per-PR history:
 > each `## PR-nn` heading is one step with its evidence; the newest are at
-> the end, just before `## Next`. Numbering continues at PR-200.
+> the end, just before `## Next`. Numbering continues at PR-201.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -15879,11 +15879,15 @@ no port behaviour change)
   docs/archive/ with an index, id map and supersession table. The
   P/E/M-, T- and X/W/L/B- ids the journal cites resolve there.
 
-- THE DOCUMENT WORK, IN ORDER: step 3, one open-items
-  register
-  with stable ids (~40 rows seeded from the audit's re-listed phrases
-  AND from the new `OPENS:`/`CLOSES:` lines), the ledger citing
-  `OI-nnn` instead of restating sentences; step 4, HANDOFF sections
+- PR-201 IS SHIPPED (step 3): docs/OPEN_ITEMS.md exists - 106
+  stable OI rows in ten sections, seeded from measured
+  inventories of HANDOFF section 7 and of the journal's open
+  statements (the "~40 rows" of PR-195's proposal was a scope
+  hint; the measured seed was 106). P6 in verify-docs makes
+  every OI citation resolve, ids appended-only, every row
+  carry a status. From here on, records cite ids instead of
+  re-describing threads.
+- THE DOCUMENT WORK REMAINING, IN ORDER: step 4, HANDOFF sections
   5/6/7 become pointers (5 = a short current-truth map per subsystem,
   6 = one greppable block per estimate - which also removes the 41
   over-79 table rows, longest 3,512 columns - 7 = the register plus
@@ -15891,7 +15895,9 @@ no port behaviour change)
   2026-11-14 status block becomes a 5-line pointer, `## Next` moves
   into HANDOFF section 8 (one plan, one place - 14 of its 15 keys are
   already duplicated there), `## Deferred big items` joins the
-  register, `## Standing rules` joins the rules. Do NOT split the
+  register (rows OI-093..OI-101 already carry its live parts, so
+  joining means deleting the list and pointing at the ids),
+  `## Standing rules` joins the rules. Do NOT split the
   journal by era: it re-breaks the 176-sha table and buys nothing
   these steps give.
 - STOP CONDITIONS: every claim byte-backed or fixture-byte-backed
@@ -29132,6 +29138,111 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
   PR's pointers, which were updated or are history.
 - REVERT: revert the commit; the `git mv` records restore every
   path, and dropping P5 restores the old census exactly.
+
+## PR-201 — THE OPEN-ITEMS REGISTER EXISTS: docs/OPEN_ITEMS.md,
+## 106 stable OI-nnn rows seeded from measured inventories of
+## HANDOFF section 7 and of the journal's own open statements;
+## P6 (verify-docs) resolves every OI citation and pins the
+## row discipline
+
+KIND: docs
+SUBSYSTEM: the open-items register: docs/OPEN_ITEMS.md and the
+      P6 check in tools/doc_census.py
+ADDRESSES: the doc-audit step 3 opened by PR-195. The register
+      now owns every open thread the journal kept restating; the
+      rows that carry EXISTING rulings - OI-006/OI-009 (the
+      PR-116/121/122 owner decisions), OI-095 (the palette
+      freeze), OI-096 (the Windows end pass) - make those rulings
+      citable by id instead of by re-described sentences.
+NAMES: docs/OPEN_ITEMS.md, OI-nnn, P6, check_register,
+      OI_DEF_RE, OI_MEN_RE, OI_STATUS_RE, OI_MIN, the status
+      vocabulary (OPEN, PARTIAL, CLOSED BY PR-nn, FROZEN
+      (owner), DEFERRED (owner), DEFERRED (ruled))
+CODE: yes: tools/doc_census.py (P6 check_register + its
+      constants; P5's required-file set now includes the
+      register); new docs/OPEN_ITEMS.md; nothing under ported/
+      or original/ changed.
+HOOKS: none
+OPENS: none new. The two remaining doc steps are rows OI-103
+      (HANDOFF sections 5/6/7 become pointers) and OI-104 (the
+      journal-only step); they already existed as threads, this
+      PR gave them ids.
+CLOSES: the doc-audit step 3 (the register). Its row discipline
+      begins with this record: the record cites ids.
+CORRECTS: PR-195 (its step-3 line proposed "a ~40-row open-items
+      register". That estimate had not enumerated HANDOFF
+      section 7's sub-threads or the carried lists; the measured
+      seed is 106 rows. It was a scope hint, not a measurement -
+      recorded so the number carried forward is the measured
+      one.)
+
+GATE: make 0 warnings; verify-all fixtures rc=0 64 (ok); the
+      counts equal PR-200's ON PURPOSE - nothing under ported/
+      changed and verify-docs stays ONE leg (P6 prints inside
+      it, no new (ok) line); verify-docs and verify-index are
+      green on the final tree and the over-79 sets of the three
+      live docs are unchanged (0 added / 0 removed).
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs, identical to PR-200's - the docs legs run in
+      both fixture modes and only their insides changed.
+
+- WHY THIS EXISTS, MEASURED FIRST. Before writing a line of the
+  register, two full inventories ran. (a) HANDOFF section 7, end
+  to end (L1177-5872): 16 topic-items, ~150 sub-threads, each
+  with its status marker; two audit gaps, G-4 and G-6, turn out
+  to exist ONLY in the PR-131 record and would have been dropped
+  by any section-7-only pass. (b) The journal itself: the
+  `## Deferred big items` statuses (which P-/T- items are done,
+  which bare and untouched), the OPENS: fields of PR-196..200
+  verbatim, and every prose-opened thread of PR-185..200 with
+  its carried/closed history. The row criterion came out of that
+  measurement: a row is a thread that SPANS PRs or a decision
+  someone must eventually make; per-PR counted items stay with
+  their records - the record IS their register - and the header
+  says so, together with the non-rows (task queues, method
+  notes).
+- THE PIN, TESTED RED FIRST. P6's code was written before the
+  register file existed, and its first run FAILED as required:
+  "the open-items register docs/OPEN_ITEMS.md is missing". P6
+  then pins, on the finished file: rows are DEFINED by
+  `OI-nnn: ` at column 0; ids are strictly ascending and
+  CONTIGUOUS from OI-001 (appended-only: closing flips the
+  status line, nothing is ever deleted or renumbered - the same
+  discipline as the record floor P1); every row carries a
+  `  status:` line in the six-word vocabulary; EVERY OI id
+  mentioned anywhere in the live docs must resolve (113 mentions
+  now, 0 unresolved); no over-79 line inside the register; and
+  OI_MIN = 106 is a floor - the row count may only grow. P5 was
+  widened in the same commit so the register is a required file.
+- THE REGISTER AS SEADED: 106 rows in ten sections (engine
+  motion/row-gate, signals/events, objects/AI/classes, level
+  loop/exit/menu, input/devices/language, data formats, camera +
+  ground, gameplay behavior + capture-needed, port-side +
+  archived-review ids, doc program + tooling). Status counts:
+  OPEN 77, PARTIAL 16, CLOSED 9, DEFERRED 3, FROZEN 1. The
+  CLOSED rows are kept ON PURPOSE (signal clear PR-151, the
+  BY_TY law PR-147/148/168/178, the end_level contract
+  PR-198/199, the F=0 coast question superseded by the velocity
+  law, P-03/P-04/P-05, T-25, the 'levels' chain PR-193) so
+  citations to those threads keep resolving. Threads that always
+  travelled together are ONE row (OI-045 carries the ledger's
+  remaining CARRIED-list items in one place) - a register that
+  mirrors PR boundaries would just be a second journal.
+- THE ARCHIVE PAID FOR ITSELF: the step order PR-200 defended
+  (inventory first, register second) is why this step could
+  seed origin-ids P/E/M-, T- and X/W/L/B- by CITING them at
+  their stable archive paths instead of copying their text.
+- WHAT THIS UNBLOCKS: steps 4 and 5 now have targets. HANDOFF
+  sections 5/6/7 can become pointers because the pointer targets
+  exist (rows OI-103/OI-104 state the steps themselves, so the
+  remaining plan is itself registered).
+- RISK: LOW. No code touched; every test count is unchanged by
+  construction (verify-docs remains ONE leg). The register is
+  read by doc_census and by humans; no build or test leg sees
+  it.
+- REVERT: revert the commit; dropping docs/OPEN_ITEMS.md and the
+  P6 block restores the previous census exactly (P5's required
+  set goes back with them).
 
 ## Deferred big items (deliberately out of scope so far)
 

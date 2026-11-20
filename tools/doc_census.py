@@ -42,7 +42,8 @@ WHAT IT PINS - any of these fails the build:
 
    P5 the .md INVENTORY (PR-200, doc-work step 6). The set of TRACKED
       .md files must equal the declared document standard, exactly:
-      the four living root docs, the generated index, the directory
+      the four living root docs, the generated index and the
+      register under docs/, the directory
       and tool READMEs, and files under docs/archive/ (frozen
       history, see docs/archive/README.md). A new root-level .md -
       the exact failure mode this repo showed on 2026-11-19: eight
@@ -52,6 +53,13 @@ WHAT IT PINS - any of these fails the build:
       file going missing fails it too. The rule deliberately covers
       tracked files only: vendored material (vendor/SDL2's docs) is
       not ours to standardize and is not tracked.
+   P6 the open-items REGISTER (PR-201, doc-work step 3).
+      docs/OPEN_ITEMS.md defines rows `OI-<nnn>:` at column 0; every
+      OI id mentioned anywhere in the live docs must be DEFINED
+      there, ids are contiguous and ascending from OI-001 (stable:
+      never renumber, never delete - closing flips the status line),
+      every row carries a status line, the register has no over-79
+      line, and its row count never falls below OI_MIN.
    report-only: the archive count, so drift in the frozen set shows.
 
 WHAT IT ONLY REPORTS (no rule attached yet, they are the audit's
@@ -79,12 +87,31 @@ DOCS = ('NEXT_STEPS.md', 'HANDOFF.md', 'README.md')
 # every file by hand would make the check nag about appends while
 # staying blind about real additions elsewhere.
 ALLOW_ROOT = {'README.md', 'NEXT_STEPS.md', 'HANDOFF.md', 'PLAN.md'}
-ALLOW_GEN = {'docs/RE_INDEX.md'}
+ALLOW_GEN = {'docs/RE_INDEX.md', 'docs/OPEN_ITEMS.md'}
 ALLOW_ARCHIVE = 'docs/archive/'
 ALLOW_DIR = {'original/README.md', 'ported/README.md'}
 ALLOW_TOOL_RE = re.compile(r'^tools/[^/]+/README\.md$')
 P5_REQUIRED = sorted(ALLOW_ROOT | ALLOW_GEN | ALLOW_DIR |
                     {'docs/archive/README.md'})
+# P6 (PR-201, doc-work step 3): the open-items REGISTER
+# (docs/OPEN_ITEMS.md). A row is DEFINED by an `OI-<nnn>: <title>`
+# line at column 0; the id must then carry a `  status:` line inside
+# its block. EVERY OI id mentioned anywhere in the live docs must be
+# defined - that is what stops "open item" prose from drifting into
+# a dozen restatements again, the failure mode the doc audit
+# measured. IDS ARE STABLE: definitions must be strictly ascending
+# and CONTIGUOUS from OI-001 (no renumbering, no deletion - closing
+# a row flips its status to CLOSED, exactly like the record floor
+# P1: history only grows). OI_MIN is the row floor, set to the
+# number this pass seeded; rows may only be added.
+REGISTER = 'docs/OPEN_ITEMS.md'
+OI_DEF_RE = re.compile(r'^OI-(\d{3,}): ')
+OI_MEN_RE = re.compile(r'\bOI-(\d{3,})\b')
+OI_STATUS_RE = re.compile(r'^  status: '
+                          r'(OPEN|PARTIAL|CLOSED BY PR-\d+.*|'
+                          r'FROZEN \(owner\).*|DEFERRED \(owner\).*|'
+                          r'DEFERRED \(ruled\).*)')
+OI_MIN = 106
 
 # P1: measured 2026-11-19 by this tool. 184 record headings = 183
 # distinct PR numbers (PR-73 has two records, which is correct history:
@@ -299,6 +326,76 @@ def check_inventory(bad):
                    'missing: %s' % ', '.join(missing))
 
 
+def check_register(text, bad):
+    """P6 (PR-201): the open-items register and its id resolution.
+    Runs in default mode (it measures the repository, like P5).
+    `text` is the already-read live docs (main's dict)."""
+    reg = read(REGISTER)
+    if reg is None:
+        bad.append('the open-items register %s is missing: it is the '
+                   'ONLY place an OI-id may be defined' % REGISTER)
+        return
+    lines = reg.split('\n')
+    wide = sum(1 for l in lines if len(l) > 79)
+    if wide:
+        bad.append('%s has %d line(s) over 79 columns; register rows '
+                   'wrap by hand, there is no ratchet for it'
+                   % (REGISTER, wide))
+    defs = [int(OI_DEF_RE.match(l).group(1)) for l in lines
+            if OI_DEF_RE.match(l)]
+    ids = list(range(1, len(defs) + 1))
+    if defs != ids:
+        at = next((k for k in range(max(len(defs), len(ids)))
+                   if k >= len(defs) or defs[k] != ids[k]), len(ids))
+        bad.append('register ids are not contiguous and ascending from '
+                   'OI-001 (first mismatch at position %d: got %s); '
+                   'ids are stable - never renumber, never delete a '
+                   'row, flip its status line instead'
+                   % (at + 1,
+                      'missing' if at >= len(defs) else 'OI-%03d'
+                      % defs[at]))
+    ends = [i for i, l in enumerate(lines) if OI_DEF_RE.match(l)]
+    no_status = []
+    for k, i in enumerate(ends):
+        end = ends[k + 1] if k + 1 < len(ends) else len(lines)
+        if not any(OI_STATUS_RE.match(l) for l in lines[i + 1:end]):
+            no_status.append('OI-%03d' % defs[k])
+    if no_status:
+        bad.append('register rows without a status line (%s): every '
+                   'row answers OPEN / PARTIAL / CLOSED BY PR-nn / '
+                   'FROZEN (owner) / DEFERRED (owner)'
+                   % ', '.join(no_status))
+    kinds = {}
+    for k, i in enumerate(ends):
+        end = ends[k + 1] if k + 1 < len(ends) else len(lines)
+        for l in lines[i + 1:end]:
+            m = OI_STATUS_RE.match(l)
+            if m:
+                key = m.group(1).split(' ')[0]
+                kinds[key] = kinds.get(key, 0) + 1
+                break
+    defined = set(defs)
+    men = collections.Counter()
+    for t in list(text.values()) + [reg]:
+        for m in OI_MEN_RE.finditer(t):
+            men[int(m.group(1))] += 1
+    undef = sorted(n for n in men if n not in defined)
+    if undef:
+        bad.append('OI id(s) mentioned in the live docs but NOT '
+                   'defined in %s: %s - add a row (with a status) or '
+                   'stop citing the id'
+                   % (REGISTER, ', '.join('OI-%03d' % n for n in undef)))
+    if len(defs) < OI_MIN:
+        bad.append('register has %d rows, the floor is %d: rows are '
+                   'never deleted' % (len(defs), OI_MIN))
+    print('docs structure: open-items register (P6): %d row(s) '
+          '(floor %d), status kinds %s; %d OI-id mention(s) across '
+          'the live docs, %d unresolved'
+          % (len(defs), OI_MIN,
+             ', '.join('%s=%d' % kv for kv in sorted(kinds.items())),
+             sum(men.values()), len(undef)))
+
+
 def main(argv):
     files = argv[1:] or list(DOCS)
     bad = []
@@ -388,6 +485,7 @@ def main(argv):
     # ---- P5 the .md inventory (PR-200), default mode only ----------
     if not argv[1:]:
         check_inventory(bad)
+        check_register(text, bad)
 
     # ---- report only ----------------------------------------------
     ns = text.get(ns_path, '')
@@ -419,8 +517,8 @@ def main(argv):
             print('docs structure: FAILED %s' % b)
         return 1
     print('docs structure: record headings, plan sections, the width '
-          'ratchet, the record template and the .md inventory hold '
-          '(ok)')
+          'ratchet, the record template, the .md inventory and the '
+          'open-items register hold (ok)')
     return 0
 
 
