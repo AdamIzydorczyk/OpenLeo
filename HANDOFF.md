@@ -172,6 +172,16 @@ Section 8 lists them as tasks.
     the vendored mingw clang - the same duty rule 4's gate states,
     kept whole on purpose.
 
+11. **No remote-host tooling** (owner ruling, 2026-11-20): the
+    `lin` and `wrt` wrapper skills - the SSH paths reaching the
+    Debian server and the OpenWrt router - are NOT to be used
+    for this project's work: not for builds, tests,
+    measurements, staging or checks. Rule 7 already states
+    where work runs (this machine); this rule names the
+    specific paths that must not be reached for. Any future
+    need for a remote host is an owner decision, recorded in a
+    record first.
+
 ## 3. Machine layout and commands
 
 Paths on the development machine (edit for another one; tools hard-code them):

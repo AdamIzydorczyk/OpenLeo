@@ -5,13 +5,14 @@
 > section 8). This file is the JOURNAL: per-PR history,
 > append-only. Each `## PR-nn` heading is one step with its
 > evidence; the newest record is the LAST `## PR-nn` heading in
-> this file. Numbering continues at PR-203. Open threads are rows
+> this file. Open threads are rows
 > in docs/OPEN_ITEMS.md - cite the OI id, never restate a thread.
 > The live plan is HANDOFF section 8; the rules are HANDOFF
 > sections 2 and 10. (PR-203, doc step 5: the journal gave up its
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
-> build if any of them appears here again.)
+> build if any of them appears here again.) Numbering continues
+> at PR-204.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -29236,3 +29237,52 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
 - REVERT: revert the commit; the three sections and the status
   block come back, doc_census P2 reverts to SECTION_RE, and the
   HANDOFF joins and README wording go back with it.
+
+## PR-204 — ONE NEW GROUND RULE BY OWNER RULING: THE `lin` AND
+## `wrt` REMOTE-HOST WRAPPER SKILLS ARE NOT USED FOR THIS
+## PROJECT'S WORK (HANDOFF section 2, rule 11)
+
+KIND: docs
+SUBSYSTEM: HANDOFF section 2 (the ground rules; rule 11 appended)
+ADDRESSES: the owner's ruling of 2026-11-20, recorded at its one
+      home. It is a rule, not an open thread, so the register
+      gains no row (the header's own vocabulary: rules are not
+      questions).
+NAMES: rule 11, lin, wrt
+CODE: yes: HANDOFF.md section 2 only (one rule) + the journal
+      header numbering line; nothing under ported/ or original/
+      changed.
+HOOKS: none
+OPENS: none.
+CLOSES: none.
+CORRECTS: none.
+
+GATE: make 0 warnings; verify-all fixtures rc=0 64 (ok); the
+      counts equal PR-203's ON PURPOSE - nothing under ported/
+      changed and verify-docs stays ONE leg; verify-docs and
+      verify-index are green on the final tree, the over-79 sets
+      of the three live docs unchanged (0 added / 0 removed), and
+      every line this commit adds is <=79 columns.
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs, identical to PR-203's - the docs legs run in
+      both fixture modes and only their insides changed.
+
+- WHAT WAS RULED, VERBATIM INTENT: the owner's words - "to ground
+  rules add to not use skills wrt and lin" - become rule 11: the
+  `lin` and `wrt` wrapper skills (SSH paths to the Debian server
+  and the OpenWrt router) are not to be reached for in this
+  project's work. Rule 7 already fixes WHERE work runs (this
+  machine); this rule names the specific forbidden HOW. A future
+  real need for a remote host is stated to be an owner decision
+  with a record first, so the rule can be lifted only the way it
+  was added.
+- WHY A NUMBERED RECORD FOR ONE RULE: rule 4's record duty and
+  rule 9's own logic - a governance change is one logical step,
+  and an unnumbered maintenance commit would put a rule change
+  outside the ledger, which is exactly the drift pattern the
+  whole doc line removed. No tool constant moves: prose rules
+  are governed at their one home, and verify-docs pins where
+  rules live (P2's HOME_SECTIONS), not how many there are.
+- RISK: LOW. One appended rule; no file the build reads changed.
+- REVERT: revert the commit; rule 11 and the header line go back
+  together.
