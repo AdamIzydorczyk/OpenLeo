@@ -313,7 +313,9 @@ Living:
 - `HANDOFF.md` - the current map: subsystem truth, rules, estimates,
   the ordered task list. Read it first.
 - `NEXT_STEPS.md` - the journal: one `## PR-nn` record per step with
-  its evidence and gate counts; `## Next` holds the live plan.
+  its evidence and gate counts, append-only, newest last. It carries
+  no plan/status/rule sections (verify-docs P2 fails them): the
+  ordered plan lives in HANDOFF section 8.
 - `PLAN.md` - the RE facts (formats, grammars, measured counts);
   code comments cite its sections ("PLAN 8b", "PLAN 8g").
 - `docs/RE_INDEX.md` - generated index of every address, field token

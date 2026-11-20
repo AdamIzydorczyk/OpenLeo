@@ -1,15 +1,24 @@
-# open-leo native port — next steps
+# open-leo native port — the journal
 
-> **Start with HANDOFF.md** (the current map, rules, estimates, open
-> questions and the ordered task list). This file is the per-PR history:
-> each `## PR-nn` heading is one step with its evidence; the newest are at
-> the end, just before `## Next`. Numbering continues at PR-202.
+> **Start with HANDOFF.md** (the current map: the standing state,
+> the rules, the estimates, and the ordered task list in its
+> section 8). This file is the JOURNAL: per-PR history,
+> append-only. Each `## PR-nn` heading is one step with its
+> evidence; the newest record is the LAST `## PR-nn` heading in
+> this file. Numbering continues at PR-203. Open threads are rows
+> in docs/OPEN_ITEMS.md - cite the OI id, never restate a thread.
+> The live plan is HANDOFF section 8; the rules are HANDOFF
+> sections 2 and 10. (PR-203, doc step 5: the journal gave up its
+> own status block, `## Next`, `## Deferred big items` and
+> `## Standing rules` - all four had drifted, and P2 now fails the
+> build if any of them appears here again.)
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
 other superseded Nov-2026 work order and report (PR-200 inventory
-pass; `docs/archive/README.md` is the index). Those files are
-READ-ONLY history; the live plan is this file's `## Next`.
+pass; `docs/archive/README.md` is the index). The pre-register
+open-questions ledger - old HANDOFF section 7 - is frozen there
+too (PR-202). Those files are READ-ONLY history.
 
 > **Subject tags + the 2026-11-19 history override.** `PR-nn` subjects
 > now carry a kind tag: `[READ]` = engine reading (docs plus
@@ -24,197 +33,20 @@ READ-ONLY history; the live plan is this file's `## Next`.
 > ids quoted below were measured on the PRE-override sha of the same
 > tree.
 
-## Status as of 2026-11-14 (through PR-19, all pushed; later PRs have their own
-## records below - the newest is the last `## PR-nn` heading before `## Next`)
+## Status - THE JOURNAL CARRIES NONE (PR-203, doc step 5)
 
-Done and verified green (full `make verify-all` incl. wine parity):
-
-- P-01, T-18  fs_ci case-insensitive/UTF-8-aware opener            (da96f3a)
-- E-07        llrs range guards                                     (4f0fcad)
-- P-08, P-09, T-17(partial) DATA discovery chain, demo-chain ESC
-  semantics, clear missing-data report                              (7491583, fb02a98)
-- layout      src/ -> ported/, merged upstream snapshot             (282b616, 8cf8636)
-- P-02, P-12  player: single ns clock (p->t0_ns), unified pause,
-  reused lbuf, LEO_IS_WAV fclose + header patch                    (cc1b5de)
-- E-02..E-06  help overlay lifetime, obj_elem clamp, count==0
-  anims, ll_level_show cleanup, ESC = cancel                        (ef734ee)
-- M-01..M-12, T-10  MOD player full ProTracker semantics + int32
-  mixer, L,R,R,L pan, ~-6 dB master (0% clip, 22/22 ASan-clean)    (e1f89db)
-- E-09, P-14(strip) music pump thread (queue >=250 ms, first chunk
-  sync), -Wl,-s -> ll_cutscene.exe 13.4 MB -> 1.8 MB               (857de73)
-- PR-7 quick wins: P-13 accepted-audio-spec logging (player + music);
-  P-11 header docs (done in cc1b5de, verified); P-06 fatal_msg =
-  stderr + Windows MessageBox + --console attach; P-14b .rc + icon +
-  VERSIONINFO + app.manifest (PerMonitorV2, UTF-8 ACP) linked into
-  ll_cutscene.exe via vendored windres; NEW verify-music CI target
-  (tools/verify_music.py: LEO_MUSIC_WAV dump >=1.5s, not silent,
-  unclamped) wired into verify-all.
-- PR-8 display UX: shared ported/ll_view.[ch] (logical viewport at
-  content size, resizable + ALLOW_HIGHDPI, nearest scaling, F11 /
-  Alt+Enter desktop-fullscreen in all four pumps), --scale/--fullscreen
-  flags, menu /sc math removed. Default geometry unchanged.          (ca2ff24)
-- PR-9 windows polish: P-07 completed - ll_ftell64/ll_fseek64 helpers
-  (no 2 GB cliff on Win64), all write opens via ll_fopen_ci (wide-path
-  writes), manifest longPathAware; NEW verify-utf8 (game + PPM I/O +
-  DATA probe through /tmp/opencode/Gry/Łódź/, linux + wine).
-  T-20: CMakeLists.txt + cmake/toolchain-mingw-x86_64.cmake, both
-  byte-exact under CI (verify-cmake, skips when cmake absent; windows
-  cmake build links SDL2.dll dynamically - Makefile stays static).
-  T-21/T-22: tools/package.py + make package{,-win,-linux} -> dist/
-  zip|tar.gz (exe + README + data/ placeholder; unpack-and-play proven
-  under wine).                                                        (aa4e97a)
-- PR-10 P-03+P-04: one session window for the whole program. ll_view
-  is now a process-wide session: first ll_view_create builds the
-  window, later screens RECONFIGURE it (title/logical size/geometry);
-  screens never destroy win/renderer (ll_view_release keeps it).
-  is_player dropped SDL_Init/SDL_Quit. Focus: per-tick
-  SDL_RaiseWindow polls deleted; raise once at reconfigure + on
-  WINDOWEVENT_ENTER via ll_view_handle_event (was
-  ll_view_fullscreen_key). External SDL_Quit() healed via
-  SDL_WasInit re-create.                                                (accfd93)
-- PR-11 T-25: seeded in-process parser fuzzer (tools/fuzz.c, Makefile
-  fuzz/verify-fuzz, in verify-all). Corpus = 80 REAL payloads from
-  DATA: container heads (ANIMACJE/ETAPY/SOUND/LEVELDES, 2 MB cap),
-  .IS streams (<=8 MB, 3 files), and PCX/SEQ/PCM/MOD records pulled
-  via llrs_block + llrs_read (the payloads live INSIDE id=2 index
-  blocks - same trick as verify_pcx.py). 1..6 mutations per blob
-  (xor-bit / 0x00 / 0xff / truncate), 3 fixed seeds x 400 iters,
-  ASan+UBSan build; accepted/rejected counters per kind prove the
-  corpus reaches every decoder (a kind that never parses = fail 2).
-  All six kinds green, zero crashes/UB/leaks, ~3 s per seed.            (71ece54)
-- PR-12 P-03(audio): one audio session. New ported/ll_audio.[ch] owns
-  the SDL audio subsystem lifecycle (ll_audio_session_init = the old
-  ll_audio_init/pipewire-pin, moved out of ll_level.c; ll_audio_session
-  _close). Device acquisition centralised in ll_audio_open (enforces
-  the samples=0 + queue-only contract, logs accepted spec once = P-13)
-  and ll_audio_close (closes + SDL_ClearError). is_player + ll_music
-  both go through it; the per-caller spec/P-13 code is deleted. Device
-  is per-playback on purpose (spec differs 22k/44k, no resampling,
-  queue is a stateful FIFO) but scenes never overlap, so exactly one
-  live device at a time. ll_level.h drops the ll_audio_init decl.        (691b545)
-- PR-13 T-17 save/config dir: new ported/ll_paths.[ch] computes the
-  per-user WRITABLE dir ($LEO_USER_DIR override, else
-  SDL_GetPrefPath("LongSoft","LewLeon") = ~/.local/share/... or
-  %APPDATA%\...), ll_resolve_user_file() resolves STATUS.LEO there and
-  imports a DATA-adjacent legacy copy EXACTLY once (COPIED byte-ident,
-  original untouched); main.c LEO_SAVE stays an absolute override (API
-  preserved). pick_data_dir search order extended with
-  $XDG_DATA_HOME/openleo / ~/.local/share/openleo / /usr/share/openleo,
-  factored into find_data_candidate + a silent detect_data_dir() (so
-  single-file runs keep byte-ident output). NEW verify-userdir CI leg.   (f34543e)
-- PR-14 T-01 phase 1: engine-facing platform interface. ported/platform.h
-  declares the T-01 surface (plat_init/present/poll/now_ns/sleep_until/
-  audio_queue/queued_ms/fopen + engine-level ll_event). Backends chosen
-  at COMPILE time: PLAT_BACKEND_DUMMY (ported/platform_dummy.c, headless
-  - implemented now) vs PLAT_BACKEND_SDL (over ll_view/ll_audio - the
-  game keeps using those directly for now). plat_fopen delegates to
-  fs_ci in a shared platform_common.c. tools/platform_selftest.c runs
-  decode(real .IS)->present->clock->audio->input THROUGH the interface
-  and links ZERO SDL (ldd/nm prove it) - the "test the engine without
-  SDL" capability T-01 exists for. NEW verify-platform CI leg (headless,
-  ASan/UBSan). Screens not yet migrated to plat_*: that is PR-15.        (c8b68f1)
-- PR-15 T-01 phase 2 (player): ported/platform_sdl.c implements the
-  SDL backend as a thin delegate over ll_view/ll_audio (streaming
-  texture + LUT blit moved out of the player, input -> ll_event with
-  F11/Alt+Enter consumed, ns clock, byte-based audio open/queue/
-  pause/clear/queued). is_player.c is now SDL-FREE (0 SDL headers in
-  its TU): present() linearizes then hands the INDEXED frame over,
-  pump_input reads plat_poll (q/' ' verbatim ASCII, LLKEY_ESC), audio
-  + drain + end-hold via plat_*. platform.h audio API extended to
-  the real contract (open/queue bytes/pause/clear/queued + -1/-2
-  error split preserves both old diagnostics verbatim). Backends now
-  switch on PLAT_BACKEND_DUMMY on BOTH sides (glob-safe). Verified:
-  full verify-all 36 (incl. win/wine PPM byte-exact, demo chains),
-  ASan/UBSan chain zero app leaks, REAL X11+audio smoke with XTEST
-  keys: q->quit(q), ESC->skip@35, space->pause froze the LEO_IS_WAV
-  feed exactly for the hold then resumed 125/125. menu/map/level
-  still drive ll_view/ll_audio directly (their migration = later PR).  (5634649)
-- PR-16 T-01 phase 3 (screens): title menu, chapter map and level
-  scene migrated off direct ll_view/SDL onto plat_* — ll_menu.c is
-  now SDL-FREE (cpp proves 0 SDL headers in its TU), ll_level.c keeps
-  SDL ONLY for the music service (documented at its include; moving
-  that = PR-17). Interface grew: LL_EV_BUTTON_DOWN/MOTION with x,y in
-  LOGICAL viewport coords (backend un-scales, P-10), LLBTN_LEFT,
-  LLKEY_UP/DOWN/LEFT/RIGHT/RETURN(KP_ENTER folded)/HOME/END/PGUP/
-  PGDN (printables incl. space stay ASCII); plat_present_argb(fb,w,h)
-  = the native form of these compositing screens (upload as-is, zero
-  conversion); plat_raise() replaces every win_force_focus /
-  RaiseWindow+SetWindowInputFocus pair. ll_level's paint() keeps the
-  scene's own LUT (PCX palette AND the documented gray fallback) and
-  expands into a persistent ARGB scratch — the platform never sees a
-  palette, so the PPM/help/scene pins are untouched by construction.
-  Menu timing derives from the ONE plat clock (local now_ms helper).
-  ll_view/ll_audio are now backend-private except for that music
-  exception. Verified: full verify-all 36 after make clean (incl.
-  help-render oracle px-count, scene-canvas fnv, linux==wine PPM
-  byte-exact), platform_selftest 24 (added mouse round-trip, argb
-  accounting, raise safety), ASan/UBSan clean on the glob build +
-  demo chain + level tool, and a REAL-session X11 smoke: island
-  CLICK launches chapter -> IS -> ESC skip -> level p/ESC -> map q,
-  rc 0 (synthetic core Button events under XI2-off; kwin owns the
-  Wayland-side pointer so XTEST hit-testing is unavailable there).    (aa03f7b)
-- PR-17 T-01 phase 4 (music service): ll_level.c is now COMPLETELY
-  SDL-free - the music singleton uses plat_audio_open/queue/close for
-  its device (same queue-only device the player uses; samples=0
-  contract now enforced backend-side), and the E-09 pump thread goes
-  through NEW plat_thread_start/plat_thread_join (C11 <threads.h> is
-  NOT available on the vendored llvm-mingw - probed; the platform
-  keeps the thread: SDL backend = the exact SDL_CreateThread call,
-  diagnostics byte-identical; headless dummy = -1, which runs the
-  documented UI-loop pump fallback = pre-E-09 path, both paths byte-
-  same). Quit flag moved to C11 stdatomic (probed available on both
-  toolchains); low_water rewritten as (size_t)LL_MOD_RATE = the same
-  250 ms; error split preserved (-1 subsystem -> silent play like the
-  old silent session-init path, -2 device -> ll_music: device: %s
-  with plat_last_error). Remaining direct SDL after this PR = app
-  glue ONLY (main.c GetBasePath/MessageBox/Delay/video-pin, ll_paths.c
-  GetPrefPath) - PR-18 candidate. Verified: verify-all 36/36 after
-  clean, selftest 26 (+2 thread-contract checks), ASan/UBSan glob
-  build + real X11+ALSA session chain: MAPKA.MOD played through the
-  platform device + REAL platform pump thread (no fallback message),
-  joined clean, rc 0; LSan in real-audio sessions shows only third-
-  party libasound/sdl2-compat one-time allocs (zero app frames) -
-  documented below with the timeout/SIGTERM gotcha.                  (ad4170f)
-- PR-18 T-01 phase 5 (app glue): main.c and ll_paths.c are now
-  SDL-FREE too (cpp proof: 0 SDL headers AND 0 SDL_ tokens in their
-  TUs) - only the backend files (platform_sdl.c, platform_sdl/
-  is_player.c, ll_view/ll_audio) reference SDL anymore, and that is
-  now a CI STRUCTURAL pin: new verify-arch greps ported/ for SDL2
-  includes outside the backend set and names any offender. Interface
-  grew: plat_base_path (malloc'd copy of SDL_GetBasePath),
-  plat_message_box (box policy backend-side: Windows only, P-06;
-  headless no-op), plat_pref_dir (per-user dir, GetPrefPath
-  semantics, creates it; headless -1 -> LEO_USER_DIR-only fallback
-  is exactly what headless tests want), plat_prepare_video (the
-  Wayland->X11 focus pin moved VERBATIM incl. both byte-identical
-  "main: ..." diagnostics), plat_opt_scale/plat_opt_fullscreen
-  (renamed ll_opt_* display overrides now declared on platform.h,
-  still defined + consumed by ll_view.c); demo title hold uses the
-  one plat clock (plat_sleep_until); main.c's vestigial ll_view.h
-  include dropped. Headless host answers pinned in selftest (+3 =
-  29). Verified: verify-all 37/37 (incl. new verify-arch),
-  verify-userdir unchanged, both toolchains warning-free.        (this commit)
-- PR-19 T-24 golden-master: scripted no-CD QEMU rig
-  (tools/golden_build_rig.sh + build_data_disk.sh), ORIGINAL-game
-  capture driver (tools/golden_qemu_run.py: 0.25 s tick sampling,
-  sustained 70 Hz movie-clock gate, frozen-counter map-menu detector
-  with art<->black retry), and golden-vs-port comparator
-  (tools/golden_menu_cmp.py: 2x2-doubling + index/color bijection
-  validation, port-frame scoring). Port frames captured via new
-  LEO_MENU_PPM_DIR/MAX hook. Repo stores HASHES ONLY (never frames,
-  per T-24): tools/golden_expect.json pins the 30-hash chapter-map
-  animation POSE SET (timing-independent; per-window counts are
-  not). CD-gate patch FINALISED at 0x5bd51:b801000000eb32 (the
-  0x5bd5c variants are non-deterministic without ASPI). Makefile
-  verify-golden (SKIP-safe: data-missing=SKIP, capture-missing =
-  port-pins-only) + golden_rig; verify-all now 38 legs. The
-  golden.* half stays open: the no-CD route has not yet been shown
-  to reach the frozen-counter map-menu state PLAN S6 measured in
-  the CD rig (still in its 480-line movie chain at ~900 s attract).
-
-Known-clean baselines: ASan/UBSan on demo chain + all 22 MODs = app
-leaks 0 (SDL backend internals only); CI pins are format-only for MOD
-output, byte-exact for llrs/seq/pcm/pcx, grep+PPM pinned elsewhere.
+The "Status as of 2026-11-14 (through PR-19)" block stood here
+while 180 more PRs were appended below it; it went stale inside
+weeks of itself - a status paragraph inside an append-only
+journal cannot not drift - and PR-203 removed it. Standing
+state: README (what this is, how to verify it), HANDOFF
+sections 1 and 8 (the map and the ordered plan), and the LAST
+`## PR-nn` record in this file - a record states its gate ONCE,
+in its two GATE lines. What that block listed survives in git
+history (`git log -S "Status as of 2026-11-14" --oneline --
+NEXT_STEPS.md") and in the PR-1..PR-19 records below, whose
+"(DONE, see status above)" wording resolves to their own bodies
+from here on.
 
 ## PR-7 — quick wins (DONE, see status above)
 
@@ -15851,81 +15683,6 @@ no port behaviour change)
   Scratch kept out of git at /tmp/opencode/pr149/nodes_notes.md
   (the raw pass notes).
 
-## Next — pick from the Deferred list below
-
-- PR-199 IS SHIPPED: the level loop's exit code now has an
-  IMPLEMENTED PRODUCER in the port. The authored `.MOV` row tail
-  `end_level <n>` is parsed as data (ll_mov_fr.endlv), the row's
-  admit writes the exit-word slot (ll_player.exit_word - the port's
-  copy of apply 0x45750 on the level object's +0x4), the play loop
-  tests that slot against zero at the TOP of its iteration (the
-  0x4ac55 position), and a nonzero hands loop code 1 to the stage
-  contract and ends the level run there - for EVERY value, as
-  PR-198 measured. The census leg counts the 26 shipped rows through
-  the port's own parser (3 of 777 .MOV members, 25 x 1 + 1 x 2;
-  RAN.01/ZARIA.01 carry zero, so every existing frame is inert),
-  and LEO_PLAY_ENDLV drives the real path on RAN.01 with the
-  byte-identical proofs the record states. The design calls - the
-  lion-owned slot, the `end_level 0` collapse, the no-re-entry end -
-  are stated in the record and at the fields, not hidden.
-- OWNER'S RULING (2026-11-19, second): DOCUMENTATION IS THE CURRENT
-  FOCUS - run the doc order; engine reading and porting stays where
-  PR-199 left it until re-opened.
-- PR-200 IS SHIPPED (the inventory step - written as "step 6" in
-  the old order, run FIRST on purpose, so the register never seeds
-  from files in motion): the .md set is a CLOSED standard, P5 in
-  verify-docs fails the build for anything outside it, and the
-  superseded Nov-2026 work orders and reports live under
-  docs/archive/ with an index, id map and supersession table. The
-  P/E/M-, T- and X/W/L/B- ids the journal cites resolve there.
-
-- PR-201 IS SHIPPED (step 3): docs/OPEN_ITEMS.md exists - 106
-  stable OI rows in ten sections, seeded from measured
-  inventories of HANDOFF section 7 and of the journal's open
-  statements (the "~40 rows" of PR-195's proposal was a scope
-  hint; the measured seed was 106). P6 in verify-docs makes
-  every OI citation resolve, ids appended-only, every row
-  carry a status. From here on, records cite ids instead of
-  re-describing threads.
-- PR-202 IS SHIPPED (step 4): HANDOFF is a map, not a ledger. Its
-  section-7 pre-register ledger (4,696 lines, 55% of the file) is
-  FROZEN verbatim at docs/archive/HANDOFF_SECTION7_OPEN_QUESTIONS.md
-  (byte-identical extraction, names its source commit); section 7
-  itself is a pointer and the citation rule for "HANDOFF 7 item N"
-  / "Q0" / "G-nn" is stated there. Section 6's table rows (up to
-  3,512 columns) are reflowed word-for-word into greppable
-  `ESTIMATE:` blocks; section 5 measured out as already-a-map and
-  was re-wrapped, not rewritten. The ratchet drops 71->41 with the
-  measured reason: the audit's "41 table rows" were never all in
-  section 6 (10/6/25 across sections 1/3/6); the 16 outside these
-  sections await a status/map step, not this one.
-- THE DOCUMENT WORK REMAINING: step 5, NEXT_STEPS becomes
-  journal-only: the stale
-  2026-11-14 status block becomes a 5-line pointer, `## Next` moves
-  into HANDOFF section 8 (one plan, one place - 14 of its 15 keys are
-  already duplicated there), `## Deferred big items` joins the
-  register (rows OI-093..OI-101 already carry its live parts, so
-  joining means deleting the list and pointing at the ids),
-  `## Standing rules` joins the rules. Do NOT split the
-  journal by era: it re-breaks the 176-sha table and buys nothing
-  these steps give.
-- STOP CONDITIONS: every claim byte-backed or fixture-byte-backed
-  (cite ISO offsets); formats cross-checked against the real
-  ZARIA1.IS/ANIMACJE bytes, never inferred from names alone;
-  unproven halves stay counted; corrections get brackets AND now a
-  `CORRECTS:` line; no port behaviour changes without a failing test;
-  Linux-first gates (make zero-warning + verify-all both fixture
-  modes) apply to any code PR, and a record states its gate state
-  ONCE, in its two GATE lines. THE DOC INVARIANTS ARE NOT
-  HAND-CHECKED: `make verify-docs` measures the record headings
-  (floor 184, the accepted-gap list), the one `## Next` /
-  `## Deferred` / `## Standing rules`, the over-79 ratchet 71/71/12,
-  and since PR-196 the field block of every record from PR-196 on; a
-  raised ratchet needs a commit that says why. Since PR-197
-  `make verify-index` pins the generated index by regenerate + cmp:
-  if it fails, run `python3 tools/re_index.py docs/RE_INDEX.md` and
-  commit the result - the index is generated, never hand-edited.
-
 ## PR-150 — THE LADDER'S ANSWER BECOMES BEHAVIOUR: THE FULL-EXTENT
 ## THEN 70%-PROBE PREDICATE PAIR, THE SINGLE ANSWER ROW, AND THE
 ## MERGED CATCH / LONE DRAB TAILS ARE SHIPPED AS CODE; THE PASS'S
@@ -29371,58 +29128,111 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
   README lists and the archive row all go back together, and the
   frozen archive file disappears with them.
 
-## Deferred big items (deliberately out of scope so far)
+## PR-203 — THE JOURNAL BECOMES JOURNAL-ONLY (doc step 5; row
+## OI-104 flipped CLOSED by this commit): no status block, no plan,
+## no rules section in NEXT_STEPS.md; P2 is INVERTED and was red
+## first on the old file; the one-homes - HANDOFF sections 2, 8,
+## 10 and the register - receive the moved text, duplication
+## measured before the join
 
-- **WINDOWS TESTING DEFERRED** (owner ruling, 2026-11-19 - full text in
-  HANDOFF section 2 rule 8). Implementation is Linux-first. `make -k
-  verify-all` now covers the LINUX legs only; the pure-Windows legs
-  `verify-win` and `verify-mod` moved into `make -k verify-windows`, to be
-  run ONCE at the end of implementation together with `make win`
-  warning-free and `.github/workflows/ci-windows.yml` (Actions "Run
-  workflow", or push a `windows-gate-*` tag). `make -k verify-all
-  WINTEST=1` still expands to the old full gate, and nothing about a
-  Windows leg was edited or deleted. Measured reason (2026-11-19, every
-  leg timed, fixtures staged): the suite is 307 s and `verify-win` alone
-  is 164.8 s = 53.7 %. It is not wine machinery (a wine start measures
-  0.1 s, the .exe decode of 1020 frames 0.1 s) - it is real-time-paced
-  demo/menu/level playback. Every engine path those legs exercise lives in
-  the one shared codebase and is covered by the Linux legs, so what they
-  add is second-target build proof. Do NOT fold them back into a per-PR
-  gate: they belong to the end pass, where the (gitignored) fixtures make
-  the byte-exact frame proofs under wine real.
+KIND: docs
+SUBSYSTEM: the journal's shape (header rewrite, status block ->
+      pointer, three sections deleted); doc_census P2 INVERTED
+      (JOURNAL_SECTIONS/HOME_SECTIONS); HANDOFF sections 2/8/10;
+      the README Documents list
+ADDRESSES: row OI-104 (doc step 5) - CLOSED by shipping, flipped
+      in this commit. Measured drift, re-measured while moving:
+      the 2026-11-14 status block was stale from PR-19 on (~180
+      PRs of history under it); `## Next` sat at file line ~15.7k
+      - between the PR-149 and PR-150 records - while the header
+      claimed records end "just before `## Next`"; the newest
+      record was in fact last. The plan's own claim ("14 of 15
+      keys already duplicated" in HANDOFF section 8) held: the
+      only genuinely living content was the ruling frame, the
+      numbered-decisions list (already register rows), the STOP
+      CONDITIONS paragraph and the three Standing bullets.
+NAMES: PLAN ONE-HOME lead, section 2 rule 10, the section 10
+      STOP CONDITIONS join, JOURNAL_SECTIONS, HOME_SECTIONS,
+      inverted P2, journal-only
+CODE: yes: tools/doc_census.py (P2 inversion + docstring + the
+      MISSING_OK rationale re-pointed at git history now that the
+      status block it named is gone; P3 floor NEXT_STEPS 71 -> 62
+      - nine over-79 lines of status/plan/deferred prose left with
+      the deleted sections, reason in the constant's comment);
+      NEXT_STEPS.md (header,
+      status block -> 15-line pointer, `## Next` 75 lines,
+      `## Deferred big items` 45, `## Standing rules` 10 deleted);
+      HANDOFF sections 2/8/10 joins + two checklist wording fixes;
+      README Documents list; docs/OPEN_ITEMS.md OI-104 flip;
+      nothing under ported/ or original/ changed.
+HOOKS: none
+OPENS: none new.
+CLOSES: row OI-104, and with it the documentation line: template
+      (PR-196), index (PR-197), archive + P5 (PR-200), register +
+      P6 (PR-201), HANDOFF-as-map (PR-202), journal-only (PR-203)
+      - all six steps shipped. Per the owner's ruling, engine
+      reading and porting stay where PR-199 left them until a new
+      ruling re-opens them; that ruling frame is now stated in the
+      plan's one-home, HANDOFF section 8.
+CORRECTS: none (nothing is retracted - this PR MOVES text; and
+      the joins were measured for duplication first: the third
+      Standing bullet restates section 2 rule 4's build duty, so
+      rule 10 keeps it whole and says so).
 
-- P-03 single window + single SDL lifecycle - DONE for both: PR-10
-  (ll_view session) + PR-12 (ll_audio session). The device itself is
-  per-playback by design; see the PR-12 note.
-- P-04 focus stealing - DONE in PR-10 (raise on WINDOWEVENT_ENTER).
-- P-05 Wayland/X11 - the automatic pipewire->alsa pin was REMOVED in
-  PR-35 (SDL's own choice is the default; LEO_PIN_ALSA=1 opts in).
-- E-08/T-14 palette codec fidelity (frozen: pixel output must not
-  change).
-- T-01 platform abstraction - DONE (PR-14 interface + headless
-  backend; PR-15 SDL backend + player; PR-16 title/menu/level
-  screens; PR-17 music service + platform thread; PR-18 app glue).
-  Only platform_sdl.c, platform_sdl/is_player.c and the private
-  ll_view/ll_audio helpers reference SDL now - pinned structurally
-  by the verify-arch CI leg so it cannot silently regress.
-- T-03 config knobs cleanup, T-04 globals,
-  T-05/T-06 fixed-step timing + precise sleep, T-07 clock ownership,
-  T-16 Polish text, T-17 save/config separation (STATUS.LEO codec
-  itself is done), T-19 startup data validation, T-23 structured RE
-  traces, T-24 golden-master vs original EXE (tooling + port pins
-  DONE in PR-19; the original-side capture landed in PR-37/PR-40), T-26 engine state
-  machine. T-25 parser fuzzing - DONE in PR-11 (tools/fuzz.c);
-  extending it later = more kinds (.des text) + a longer seed list.
-  T-17 writable-state (user dir + save resolution + XDG data search +
-  one-time import) - DONE in PR-13; what's left of T-17 is wiring a
-  config file to that same helper once a settings subsystem exists.
+GATE: make 0 warnings; verify-all fixtures rc=0 64 (ok); the
+      counts equal PR-202's ON PURPOSE - nothing under ported/
+      changed and verify-docs stays ONE leg (P2 prints inside it,
+      no new (ok) line); verify-docs and verify-index are green
+      on the final tree with the ratchet lines reading
+      NEXT_STEPS.md 62/62 and HANDOFF.md 41/41, and every line
+      this commit adds is <=79 columns.
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs, identical to PR-202's - the docs legs run in
+      both fixture modes and only their insides changed.
 
-## Standing rules
-
-- verify-llrs/seq/pcm/pcx byte-exact vs tools/*.py; never change
-  parser acceptance; verify-menu/level/sel keep their pinned log
-  strings + PPM frames (rebuild ll_cutscene.exe before verify-menu!).
-- LEO_* hooks and return codes are API (is_player_run 0/1/2, menu
-  -2..-6, dialog -10..-12, usage exit 2).
-- Builds stay -std=gnu11 -Wall -Wextra warning-free on gcc and the
-  vendored mingw clang.
+- RED FIRST, ON THE INVERTED RULE: P2 was flipped BEFORE any
+  section moved. The old rule ("`## Next`, `## Deferred big
+  items`, `## Standing rules` exist exactly once in the journal")
+  became its negation - the journal must carry NONE of them (nor
+  a `## Status as of` block), and HANDOFF must carry `## 2. Ground
+  rules` and `## 8. Plan:` exactly once. The first run failed
+  exactly as designed: four lines, "## Next appears 1 times ...
+  the journal is journal-only", one per section. Then the moves,
+  and the rule goes green. The inversion is the machine pin of
+  this step; without it the deleted sections can silently regrow.
+- WHY THE MOVES WENT WHERE THEY WENT: each moved piece has one
+  home by type. The ruling frame + the numbered-decisions pointers
+  = plan context -> section 8 lead (it cites rows OI-006, OI-009,
+  OI-015, OI-016, OI-093..OI-096 instead of restating them). The
+  three Standing bullets -> section 2 as rule 10, verbatim,
+  with the measured duplicate at rule 4 named. STOP CONDITIONS ->
+  section 10, the PR checklist, where the same duties already
+  live. The "X IS SHIPPED" summaries -> nowhere: each is its own
+  record's content (the record IS the one home for its PR), and
+  re-copying them into the plan was how `## Next` grew to 75
+  lines of drift in the first place. The Deferred list -> already
+  rows: OI-093..OI-101 carry its live parts; deleting the list
+  points at the ids, as step 4's design said.
+- THE STATUS BLOCK'S LESSON, APPLIED TO THE JOINED TEXT: the
+  status block died because it QUOTED STATE (shas, counts) inside
+  an append-only file. So the STOP CONDITIONS join deliberately
+  does NOT quote the current floors ("current floors are in
+  tools/doc_census.py's own comments, not quoted here") - tool
+  constants cannot go stale the way prose does. The pointer left
+  where the block was states the drift it measured and gives the
+  `git log -S` command that recovers the exact removed text.
+- WHAT STAYS HISTORY UNTOUCHED: records that cite `## Next` or
+  `## Deferred big items` in their prose (they cited the
+  then-current shape; the P2 docstring and this record explain
+  the shape change), the frozen ledger, the archive index, the
+  register's seeding paragraph (it names the Deferred list as a
+  SEEDING SOURCE - a dated fact, not a live restatement).
+- RISK: LOW. Docs + the tool only; every test count unchanged by
+  construction; the machine changes are P2's inversion and the
+  journal's ratchet floor 71 -> 62 (the nine over-79 lines that
+  left with the deleted sections - a reduction is always allowed,
+  the reason is in the constant's comment) - and this tree is the
+  green proof of both (one (ok) line, same counts).
+- REVERT: revert the commit; the three sections and the status
+  block come back, doc_census P2 reverts to SECTION_RE, and the
+  HANDOFF joins and README wording go back with it.

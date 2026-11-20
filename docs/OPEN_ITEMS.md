@@ -738,7 +738,16 @@ OI-104: doc step 5: NEXT_STEPS becomes journal-only: the stale
   (HANDOFF section 8) with doc_census updated in the SAME commit,
   `## Deferred big items` joins THIS register, standing rules join
   the rules
-  status: OPEN
+  status: CLOSED BY PR-203
+  notes: done as measured: the P2 inversion (journal must carry
+    NONE of the four section headings; HANDOFF one-homes pinned to
+    exist) was red first on the old file; the live half of
+    `## Next` became the section-8 lead, its shipped summaries were
+    left to the records (one home each), STOP CONDITIONS joined
+    HANDOFF section 10, the Standing bullets joined section 2 as
+    rule 10 verbatim, and the Deferred list's live parts were
+    already rows OI-093..OI-101/OI-095/OI-096 - deleted, not
+    restated.
 
 OI-105: retrofit: records PR-7..PR-195 carry no field block, so
   register sourcing for their threads leans on body prose

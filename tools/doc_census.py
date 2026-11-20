@@ -21,8 +21,11 @@ WHAT IT PINS - any of these fails the build:
      be in MISSING_OK - the gaps that history already accepted, frozen
      here so a NEW gap (a heading that went missing or stopped matching
      the anchor) is loud.
-  P2 the plan/rule sections exist exactly once: `## Next`,
-     `## Deferred big items`, `## Standing rules` in NEXT_STEPS.md.
+  P2 (PR-203, inverted) the journal NEXT_STEPS.md carries NONE of
+     `## Next`, `## Deferred big items`, `## Standing rules`, `##
+     Status as of` - it is journal-only. The one-homes must each
+     exist exactly once in HANDOFF.md: `## 2. Ground rules` and
+     `## 8. Plan:` (open threads' one-home is the register, P6).
   P3 the width ratchet. Over-79-column lines per tracked document may
      not exceed WIDTH_MAX. Lowering one is always welcome; RAISING one
      needs a commit that says why. The floors carry the audit's
@@ -30,8 +33,10 @@ WHAT IT PINS - any of these fails the build:
      5/6/7: 25 table rows, 4 re-wrapped lines, 1 frozen line; the
      audit had claimed all 41 table rows sat in section 6, measured
      10/6/25 across sections 1/3/6 - the 16 outside those sections
-     belong to a status/map step, not this one), NEXT_STEPS 71
-     (22 of its lines are wrapped record titles), README 12.
+     belong to a status/map step, not this one), NEXT_STEPS 71 ->
+     62 (PR-203 removed the journal's status/plan/deferred sections,
+     nine over-79 lines with them; 22 of the remainder are wrapped
+     record titles), README 12.
   P4 the record template (PR-196, HANDOFF section 10a). A record whose
      number is >= TEMPLATE_FROM must carry the field block - the eleven
      lines (ten fields, the gate in two lines) each present once, at
@@ -128,8 +133,10 @@ OI_MIN = 106
 RECORD_MIN = 184
 # PR numbers up to the highest one that have NO record heading. They are
 # frozen as accepted history: PR-1..PR-6 predate the record convention,
-# PR-22/23/24 are described inside the old status block, PR-80 is
-# written inside PR-79's record, PR-113 has no record at all.
+# PR-22/23/24 were described inside the old 2026-11-14 status block
+# (PR-203 replaced that block with a pointer; its text and what it
+# described stay in git history and in the PR-7..PR-19 records), PR-80
+# is written inside PR-79's record, PR-113 has no record at all.
 MISSING_OK = frozenset(list(range(1, 7)) + [22, 23, 24, 80, 113])
 
 # P3: the width ratchet. PR-202 (doc step 4) measured the audit's
@@ -140,8 +147,10 @@ MISSING_OK = frozenset(list(range(1, 7)) + [22, 23, 24, 80, 113])
 # ESTIMATE blocks), 4 section-5 lines (re-wrapped) and 1 section-7
 # line (frozen into the archive). 71-30=41 is the new floor; the
 # section 1/3 table rows belong to a status/map refresh step, not
-# this one, and stay under the ratchet.
-WIDTH_MAX = {'NEXT_STEPS.md': 71, 'HANDOFF.md': 41, 'README.md': 12}
+# this one, and stay under the ratchet. NEXT_STEPS 71 -> 62
+# (PR-203: nine long status/Next/Deferred lines left with the
+# sections the journal-only rule deleted).
+WIDTH_MAX = {'NEXT_STEPS.md': 62, 'HANDOFF.md': 41, 'README.md': 12}
 
 # P4: the record template (PR-196), HANDOFF section 10a. It applies to
 # every record whose number is TEMPLATE_FROM or higher. The one
@@ -189,10 +198,22 @@ FIELDS = (
 RECORD_RE = re.compile(r'^## PR-(\d+)[\s(]')
 OWNER_RE = re.compile(r'^## OWNER')
 HEAD_RE = re.compile(r'^## ')
-SECTION_RE = {
+# P2 (PR-203, doc step 5, INVERTED from PR-195's rule): the journal
+# must carry NONE of these section headings - plan, status, rules and
+# open threads each have exactly one home elsewhere (HANDOFF sections
+# 8/1/2, docs/OPEN_ITEMS.md). The old rule ("exists exactly once in
+# NEXT_STEPS") measured the drift this removes: the status block went
+# stale at PR-19 and `## Next` drifted into the middle of the file.
+JOURNAL_SECTIONS = {
     '## Next': re.compile(r'^## Next'),
     '## Deferred big items': re.compile(r'^## Deferred big items'),
     '## Standing rules': re.compile(r'^## Standing rules'),
+    '## Status as of': re.compile(r'^## Status as of'),
+}
+# And those one-homes must exist, exactly once, where they are claimed:
+HOME_SECTIONS = {
+    '## 2. Ground rules': re.compile(r'^## 2\. Ground rules'),
+    '## 8. Plan:': re.compile(r'^## 8\. Plan'),
 }
 ADDR_RE = re.compile(r'0x[0-9a-fA-F]{4,6}')
 PRCITE_RE = re.compile(r'\bPR-\d+\b')
@@ -465,15 +486,29 @@ def main(argv):
                   % ', '.join('PR-%d x%d' % (n, collections.Counter(
                       ids)[n]) for n in sorted(dups)))
 
-    # ---- P2 the plan and rule sections exist exactly once ----------
+    # ---- P2 the journal carries no plan/status/rule sections; the
+    #         one-homes exist exactly once in HANDOFF (PR-203) ------
     if ns_path in text:
-        for label, rx in SECTION_RE.items():
+        for label, rx in JOURNAL_SECTIONS.items():
             n = sum(1 for l in text[ns_path].split('\n') if rx.match(l))
+            if n:
+                bad.append('%s appears %d times in %s: the journal is '
+                           'journal-only - the plan lives at HANDOFF '
+                           'section 8, rules at HANDOFF section 2, open '
+                           'threads at %s, standing at README/HANDOFF '
+                           'section 1' % (label, n, ns_path, REGISTER))
+        print('docs structure: journal carries none of the plan/status/'
+              'rule sections (%s)'
+              % ', '.join(sorted(JOURNAL_SECTIONS)))
+    if 'HANDOFF.md' in text:
+        for label, rx in HOME_SECTIONS.items():
+            n = sum(1 for l in text['HANDOFF.md'].split('\n')
+                    if rx.match(l))
             if n != 1:
-                bad.append('%s appears %d times in %s, expected exactly '
-                           '1' % (label, n, ns_path))
-        print('docs structure: plan/rule sections present once (%s)'
-              % ', '.join(sorted(SECTION_RE)))
+                bad.append('%s appears %d times in HANDOFF.md, expected '
+                           'exactly 1 (it is the one home)' % (label, n))
+        print('docs structure: the plan/rules one-homes present once in '
+              'HANDOFF (%s)' % ', '.join(sorted(HOME_SECTIONS)))
 
     # ---- P3 the width ratchet --------------------------------------
     parts = []
