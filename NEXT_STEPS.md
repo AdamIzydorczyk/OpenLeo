@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-238.
+> at PR-239.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -33657,5 +33657,134 @@ CORRECTS: PR-214 once: the 0x28590 site is 0x9a44c +
 0x78, not 0x9a390 + 0x134 (the (a) anchor); PR-214's
 "held at +0x78 in exactly two tables 0x96a88/0x99e64" is
 CONFIRMED by the same anchor.
+GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-238 — CLASS IDENTITY FROM THE ENGINE'S OWN NAME
+## FACTORY: THE PLACED DRABINKA'S KIND TABLE IS 0x97cdc
+```
+KIND: read
+SUBSYSTEM: objects/class-identity - the name->kind-word factory,
+the placed DRABINKA's real kind table, the answer-buffer
+signature, 0x53ae0/0x53c90 read, OI-078's feed candidates.
+ADDRESSES: 0x1f870, 0x1f8ac, 0x1f8d4, 0x1f8f9, 0x1f947, 0x1f951,
+0x1fae0, 0x1fb16, 0x1fb32, 0x906fa, 0x906ff, 0x90708, 0x9070d,
+0x90713, 0x9071c, 0x90722, 0x90728, 0x90731, 0x90738, 0x90741,
+0x9074a, 0x90750, 0x90755, 0x9075b, 0x90762, 0x9076b, 0x90772,
+0x90777, 0x9077f, 0x90785, 0x9078b, 0x97cdc, 0x97cf0, 0x97d58,
+0x97d68, 0x97f50, 0xa2498, 0x96fd8, 0x96a88, 0x99e64, 0x9a44c,
+0x9d8a8, 0x34e39, 0x34e62, 0x910d7, 0x2848d, 0x531f0, 0x53ff0,
+0x532a6, 0x96874,
+0x97954, 0x1eba0, 0x553e0, 0x1ebb3, 0x1ebc3, 0x53ae0, 0x53b18,
+0x53b2b, 0x53b3b, 0x53b63, 0x53b70, 0x53ba2, 0x53ba4, 0x53bc8,
+0x53bd7, 0x53c0e, 0x53c36, 0x53c71, 0x53c90, 0x53cb9, 0x53ccd,
+0x53cd7, 0x53ce2, 0x53d12, 0x53d16, 0x53d23, 0x53d2d, 0x53d35,
+0x53d40, 0x53d57, 0x53d67, 0x3f1c0, 0x3f24d, 0x23a60, 0x536f0,
+0x53770, 0x49580, 0x52b10, 0x76a69
+NAMES: DRABINKA, KAMIEN, KATAPULT, KDRABINA, RYBA, SEP2, POKAZ,
+STRUMIEN, PIANA, SPLYW, ZWODOSPD, KILOF_PL, PALMA, WODA, PLANT,
+ZARROW, CROCODIL, BRANCH, TREE, JBRANCH, JROPE, ZTABL,
+TLewZaria, kind word, factory, AC_STONE, AC_ENEMY, AC_BLOK,
+AC_BLOK_Y, K_GEN1, answer buffer, ask-all, frame-step flag
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE NAME FACTORY. 0x1f870 is the per-name
+object factory (strcmp helper 0x76a69): the engine's own
+class-name block at 0x906fa-0x9078b lists, in chain order,
+SEP2, DRABINKA, RYBA, POKAZ, STRUMIEN, PIANA, SPLYW,
+ZWODOSPD, KAMIEN, KATAPULT, KILOF_PL, PALMA, WODA, PLANT,
+ZARROW, CROCODIL, BRANCH, TREE, JBRANCH, JROPE, ZTABL,
+TLewZaria. For 'DRABINKA' (the 0x1f8ac strcmp PR-233
+cited): the ctor 0x531f0 runs (its tail 0x532a6 stores the
+DEFAULT kind word 0xa2498 - PR-233's table), and the
+factory THEN OVERWRITES [obj+0x8] = 0x97cdc (0x1f947),
+sets [obj+0xad] = 0x97f50 (0x1f8f9), initialises the box
+words [obj+0xb1..0xc4] = 1 (0x1f8f3-0x1f922), and zeroes
+[obj+0xc5..0xd1] with [obj+0xd5] = 0x98274. So the PLACED
+DRABINKA's kind table is 0x97cdc.
+(b) WHAT THAT TABLE SAYS. 0x97cdc (anchor +0x6c = 0x23a10):
++0x10 = 0x53770 (the signal receiver - PR-236), +0x14 =
+0x536f0 (the rope refresh of PR-226/227 - confirmed to be
+the PLACED rope's), +0x78 = 0x3f1c0 - PR-150/216's ladder
+answer, the port's ladder_answer_for, IS the placed
+DRABINKA's own answer verb: the model stands - and its
+state-2 first branch answers {byte+1 bit 0x01 = signal 8 =
+AC_EDGE} when the asked getter at [obj+0xc5] is truthy
+(0x3f24d); +0x8c = 0x23a60, the NULL provider, for the
+placed rope TOO. Consequence for OI-078: the PR-236
+attach-merge cannot feed the rope - the entry queue is
+evaluated ONLY inside the provider block (PR-227's "only
+writer block"), and the placed rope's provider slot is the
+null one. The merge story is out; the remaining feed
+candidates for its WAIT K_GEN1 are named below.
+(c) THE OTHER TABLES NAMED. The 0x3d440 pair: 0x96a88 is
+stored at 0x1fb16 - the allocation between the 'KAMIEN'
+strcmp (its name string 0x90731) and the 'KATAPULT' one
+(0x1fb32), i.e. the KAMIEN branch (its 0x3d440 answer was
+{AC_STONE} = signal 14, PR-237, consistent);
+0x9d8a8 = KDRABINA (stored at
+0x34e62, in the branch of the 'KDRABINA' strcmp at
+0x34e39 - name string 0x910d7 - ctor 0x531f0 then a
+kind-word override too). The 0x28590
+class 0x9a44c is stored by a method of its own (0x2848d,
+with [obj+0xc] = 0x9a444 and a string-register branch at
+0x994ec) and by ctors at 0x294f9/0x2aa94 - its authored
+name is still open. 0x96874 (PR-214's "LION base") is
+itself anchored; the 0x96xxx/0x97xxx range holds several
+tables (TLewZaria's at 0x96960 per PR-225).
+(d) THE ASK-ALL METHOD OF THE 0x96874 FAMILY: 0x1eba0 sits
+at vtable slot 0x97954 = 0x96874 + 0x10E0. It asks every
+item of its own list through 0x553e0, and if the answer
+UNION contains byte+6 bit 0x80 = SIGNAL 54 = K_GEN1, it
+sets [self+0x28] = 1 - the PR-225 frame-step gate ("frame
+step ... if [obj+0x28] is set") - and copies the whole
+union to its caller's block (0x1ebca-0x1ebe9). So K_GEN1,
+when any asked object ANSWERS with it, gates a frame step
+of the asker.
+(e) THE ANSWER BUFFER AND THE GATES. The +0x78 verb's edx
+block IS the answer OUT buffer: 0x53c90's tail
+0x53d48-0x53d67 writes length+12 bytes there. 0x53ae0, the
+gate shared by the base 0x552e0 and the rope-base 0x53c90,
+is the block-response helper: same-position guard via
+0x53030 (false at exact overlap); the asked's [[kind
++0x44]] result bit 0x400 (10) required; the requester's
+[[kind+0x44]] bit 0x10000 (16) -> true; asked bits 10+14
+exact (`cmp eax,0x40400`) -> enqueue push messages on the
+requester (0x52b10: type 1 tag dx=v/5, and type 13 tag
++-120, 0x53b47-0x53ba4); else it WRITES the caller's out
+block {AC_BLOK} (signal 0) or, when the requester's +0x10
+handler call at 0x53c0e/0x53c71 leaves a dy, adds
+AC_BLOK_Y (signal 1, 0x53c36) - the port's blocking
+signals have their raiser at last named. 0x53c90 itself
+(rope-BASE 0xa2498 +0x78): gate 0x53ae0, then class verb
+[[kind]+0x9c], then asked [[kind]+0x44] bit 0x2000 (`test
+ah,0x20`, 0x53cdf) -> answer {byte0 |= 0x80 = signal 7 =
+AC_ENEMY} plus a [[requester kind]+0xd0] call with
+(asked, ctx, 0, 0) (0x53cf6/0x53d12-0x53d23); else [[kind
++0x44] again] bit 0x80000 (19) -> the same +0xd0 call
+(0x53d42); else the empty set. Its tail 0x53d48-0x53d67
+copies length+12 bytes of the local set into the edx block:
+the +0x78 verb's edx argument IS the answer OUT buffer.
+OPENS: OI-078, the K_GEN1 feed to the placed rope now
+narrows to: (1) a signal message with payload 54 sent to
+the rope - the PR-234 raiser census found none in code,
+and only .MOV GEN lines raise it (all on lions, PR-218);
+(2) 0x536f0's own ORs - the 0x523f0 current-row chain and
+the first-pitch 0x53520/0x52000 scan (PR-227) - reading
+where an admitted clause set lands for the rope's row is
+the next read; (3) which class answers asks WITH K_GEN1
+(0x3f1c0's unread tail 0x3f2bc+ and the LION's 0x27f30).
+Also open: the authored name of class 0x9a44c, the
+[obj+0xad]=0x97f50 table, and PR-237's remaining items.
+CLOSES: nothing in the register (OI-078 row updated; the
+attach-merge candidate for the rope's feed is ruled out
+here by measurement, not left open).
+CORRECTS: PR-233's kind-word identity for DRABINKA:
+0xa2498 is the ctor 0x531f0's DEFAULT stored at 0x532a6,
+and the name factory 0x1f870 overwrites [obj+8] = 0x97cdc
+for name 'DRABINKA' at 0x1f947 - every slot claim about
+"the drabinka table" in PR-233/236 must be read against
+0x97cdc (the +0x10/+0x14/+0x8c values happen to match;
++0x78 does not: 0x3f1c0, not 0x53c90).
 GATE: light: verify-index verify-docs rc=0 (ok);
 ```

@@ -871,6 +871,24 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     (PR-214's 0x9a390+0x134 arithmetic corrected). Open:
     what kinds 0x97cdc/0x9a44c are, who reaches 0x1eba0/
     0x380d0's ask, 0x552e0's 0x53ae0/0x55230 gates.
+    PR-238 NAMES the tables through the engine's own
+    name->object factory (0x1f870, strcmp chain over the
+    class-name block 0x906fa-0x9078b): the PLACED
+    DRABINKA's kind word is 0x97cdc, not the ctor default
+    0xa2498 - so 0x3f1c0 IS the placed rope's answer verb
+    (the port's ladder_answer_for stands) and its +0x8c
+    provider slot IS the null one: the PR-236 attach-merge
+    is RULED OUT as the rope's K_GEN1 feed. 0x96a88 =
+    KAMIEN, 0x9d8a8 = KDRABINA (same factory); 0x1eba0 is
+    the 0x96874 family's ask-all method (vtable slot
+    0x97954): if the answer union contains K_GEN1 it sets
+    [self+0x28] - PR-225's frame-step gate. 0x53ae0 is
+    the block-response gate and answers {AC_BLOK}/
+    {AC_BLOK_Y}. Feed candidates now named: (i) a signal
+    message with payload 54 (none found, PR-234); (ii)
+    0x536f0's own ORs into the rope's row (next read);
+    (iii) a class answering asks WITH K_GEN1. Still open:
+    the authored name of class 0x9a44c.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

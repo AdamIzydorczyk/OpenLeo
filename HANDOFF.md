@@ -2067,6 +2067,25 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-238 (READ): class identity from the engine's own
+name factory 0x1f870 (strcmp chain on the class-name block
+0x906fa-0x9078b: SEP2, DRABINKA, RYBA, ..., ZTABL,
+TLewZaria). The placed DRABINKA's kind word is 0x97cdc -
+the factory OVERWRITES the ctor default 0xa2498 (0x1f947) -
+so PR-150/216's answer verb 0x3f1c0 is the placed rope's
+own, and its +0x8c provider slot is the NULL 0x23a60: the
+PR-236 attach-merge cannot be the rope's K_GEN1 feed
+(ruled out by measurement). 0x96a88 = KAMIEN, 0x9d8a8 =
+KDRABINA (kind-word overrides 0x1fb16/0x34e62); 0x9a44c's
+name stays open. 0x1eba0 = the 0x96874 family's ask-all
+method (vtable slot 0x97954 = +0x10e0): a union containing
+K_GEN1 sets [self+0x28], PR-225's frame-step gate. The
++0x78 verb's edx block is the answer OUT buffer. 0x53ae0 =
+the block-response gate: {AC_BLOK}/{AC_BLOK_Y} answers -
+the port's blocking-signal raiser is named at last.
+Next reads for the rope's WAIT K_GEN1: 0x536f0's ORs into
+the rope row, and which class answers WITH K_GEN1.
+
 STATUS PR-237 (READ): the ASK verb is kind-table slot
 +0x78. Class-table anchor: slot +0x6c holds the record
 accessor 0x23a10 - exactly 186 tables. +0x78 census:
