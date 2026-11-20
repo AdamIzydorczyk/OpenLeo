@@ -787,18 +787,49 @@ OI-107: the measured YETI ground run does not match the shipped F/T
     spread inside 13%.
   origin: PR-206 referee measurement
 
-OI-108: ZARIA's `animacje=` objects draw through the WRONG PLANE in
-  the port - but which plane the original uses is NOT film-decidable
-  from the fruit: the machine code must say (PR-208)
-  status: OPEN (fix awaits PR-208, [PORT], reading the object draw first)
-  notes: BYTE-BACKED PORT FACT (PR-207 `LEO_OBJ_POS` probe): every
-    ANI2 object - POCISK x16 fruit, BAL x6 balloons, the DRABINKA
-    ladder, LINA ropes - reaches obj_draw with `layer=1` and the
+OI-108: ZARIA's `animacje=` objects drew through the WRONG PLANE in
+  the port; PR-208 READ THE LAW (the level's own `plany=` key) and
+  fixed it - what is left is re-checking the corrected scene against
+  the film
+  status: PARTIAL (the plane law is ANSWERED and shipped, PR-208:
+  the [obj+0x24] plane of an `animacje=` placement is the layer whose
+  planies spec carries that cell's A letter; ZARIA's balloons,
+  ladder, ropes and coconut chain now draw at 1:1, main_back 2, as
+  their own .des says. REMAINS: the visual re-check of the corrected
+  ZARIA scene against reference/video/levels/ZARIA.01.mkv - the
+  film facts below were measured against the WRONG (pre-PR-208) port
+  renders, and the POCISK chain moves on screen, so any re-check
+  must template-match the stateless ANI1 PICT art, not the fruit)
+  notes: THE LAW, PR-208, from the shipped .des files themselves
+  (12 of 13 levels; CHEATS has no .des): `plany=<spec>|<spec>|...`
+  is ONE spec per tlo= layer (the spec count always equals the tlo
+  count), letters ONLY {T,A,L,B}: T once per spec = that layer's
+  own art, L once = the lew= lion and it sits on the main_back=
+  spec on all 12 (that spec is the 100,100 speed pair), B once =
+  the belka= belt and it too sits on a 100,100 spec, and A appears
+  EXACTLY as often as the `animacje=` list has cells (3,3,3,2,3,3,
+  5,4,4,4,3,0 vs list lengths 3,3,3,2,3,3,5,4,4,4,3,1-whose-only-
+  cell-is-a-bare-none): the k-th A in reading order is the k-th
+  cell and rides the layer of its spec. A bare `none` in the
+  MIDDLE of a list is a cell and consumes a letter (RAN.01); a list
+  that is ONLY `none` names no cell (JUNCTION). Port side:
+  plan_t/plany_parse/des_list_cells + the `ll_level: planies: ...`
+  report + one mapping in the placement loop; pinned by a two-run
+  verify-level leg (lv_plany/lv_plany2) and by plany_selftest in
+  the always-on --mov-selftest bundle. Engine side, raw machine
+  code: 0x57500/0x57530 take the layer in EDX (0x5750a indexes
+  [scene+0x20] by it, 0x57516 takes the divisor row from
+  [scene+0x1c] = main_back); 0x52d67/0x52d72 load it from
+  [obj+0x24]; 0x23b90 (`mov [eax+0x24],edx; ret`) is verb +0x04 of
+  211 class tables. The un-lettered keys are OI-109.
+      SUPERSEDED PORT FACT (PR-207 probe, pre-fix): every ANI2
+    object - POCISK x16 fruit, BAL x6 balloons, the DRABINKA
+    ladder, LINA ropes - reached obj_draw with `layer=1` and the
     85/66 draw-cam (printed: (26,169) at camera (31,150), (207,206)
-    at (244,207)); the PICT statics of ANI1 reach it through the
-    reference plane. The layer index is the entry index in the
-    `animacje=ani3,ani2,ani1` list - PR-61's rule, still an
-    INFERENCE, now visible as printed draw cameras.
+    at (244,207)); that was PR-61's entry-index INFERENCE, printed
+    as a camera. PR-208's fixture prints the same objects at
+    layer=2 draw-cam=(37,250) and ANI3's ANIBACK at layer=1
+    draw-cam=(1020,254).
       FILM FACTS, re-measured PR-207 at NATIVE resolution (the
     level clip is 1280x720 = exactly 4x the 320x200 view; every
     number below is render-space = video px / 4): background-locked
@@ -838,12 +869,48 @@ OI-108: ZARIA's `animacje=` objects draw through the WRONG PLANE in
     exist; re-extraction from the git reference at t=22.0 shows the
     x-lock was NOT sharp at x=1 and the disc coordinates differ.
     Use native 1280x720 = /4 extraction and the overlay diff.
-    PR-208 shape: read the engine's object-draw camera (leads:
-    FUN_0005b040 case 0x10 writes [rec+0x24] 0/1 on token 0x5e,
-    FUN_0005da60 tests [rec+0x24]==0 - a shape/mode flag, mapping
-    unknown; the object method-table draw slots), decide the law,
-    failing pin test first. The three ZARIA I references + the
-    static ANI1 PICTs (non-red, stateless - the RIGHT instrument,
-    template-matched by their own art) are the film plan.
-  origin: PR-205/206 opened; PR-207 re-measured (this row IS the
-  PR-207 measurement)
+      PR-207's LEADS FOR THE LAW, NOW RESOLVED AND CORRECTED:
+    FUN_0005b040 `case 0x10` writing [rec+0x24] 0/1 on token 0x5e
+    and FUN_0005da60 testing [rec+0x24]==0 are NOT this field -
+    their +0x24 is a 0/1 flag paired with a bit-mask test at
+    0x5b040+0x276, in a text-run record. The real field's getter/
+    user pair is 0x52d67 -> 0x57530 and its setter is 0x23b90
+    (above). The film plan (the three ZARIA I references + the
+    stateless ANI1 PICTs, template-matched by their own art) is
+    what a re-check must use; the fruit chain moves.
+  origin: PR-205/206 opened; PR-207 re-measured (the film facts
+  below ARE that measurement); PR-208 answered the law and fixed
+  the port (the re-check stays open)
+
+OI-109: the plane of the two placement keys that `plany=` NEVER
+  NAMES - `zwierzaki=` and `ani_plat=` - is still not read from the
+  engine; the port keeps PR-61's entry-index model there
+  status: OPEN (opened by PR-208, which proved the law for the one
+  key planies does name and left the other two exactly as they were)
+  notes: BYTE-BACKED: no shipped planies spec carries any letter
+    for those keys - the alphabet is exactly {T,A,L,B} and A counts
+    match the `animacje=` list ONLY (KADMAR2: zwierzaki 3 cells,
+    ani_plat 2, A 3; LONA.05: 4/4/4 with A 4; ZARIA.01: three
+    zwierzaki cells, no letter for them anywhere). Why the port's
+    entry-index model has not blown up: in ZARIA.01 it lands
+    ZWIERZ2 (KAMIEN stones) on layer 1 and ZWIERZ1 (NOSOROG the
+    rhino, PAJAK spiders, SEP wasps) on layer 2 = main_back = the
+    lion's own plane, which is what the collision-plane gate
+    ([entry+0x24] == [owner+0x24], CHECK_ALL_PLANE) needs for the
+    lion to fight them - evidence the animals ride the reference
+    plane, NOT proof of how the engine decides it.
+      LEADS: who calls verb +0x04 (0x23b90) with the value, and
+    with what source - the placement ctor family at verb +0x7c
+    (0x537f0, PR-103's unread slot) and the placement walk
+    0x4ddd0/0x4aaa0/0x4bb30 are the two paths; the class tables of
+    the actor classes (TLewZaria and friends, PR-104's factories)
+    are where a per-class constant would sit. A live-RAM read would
+    settle it in one measurement, but the QEMU rig still cannot
+    drive the original into a level (it stays in the movie loop).
+      TEST SURFACE: verify-play pins only `zwierzaki` interactions
+    today (ZARIA's LICHA at tick 186, the PR-92 touch raise), so
+    changing an animal's plane is exactly the kind of change those
+    legs would catch - and the planies fixture's PAJAK/KAMIEN
+    control pins (lv_plany2) would have to be re-derived honestly.
+  origin: PR-208
+

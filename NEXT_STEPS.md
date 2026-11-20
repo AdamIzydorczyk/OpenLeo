@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-208.
+> at PR-209.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -29699,3 +29699,181 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
   row, the README hook paragraph, the probe, the section 8
   status text, the header line and the regenerated index go
   back together.
+
+## PR-208 — THE PARALLAX PLANE LAW IS THE LEVEL'S OWN `plany=` KEY:
+## ONE SPEC PER tlo LAYER, WHOSE k-th `A` LETTER IS THE k-th
+## `animacje=` CELL; ZARIA'S BALLOONS, LADDER, ROPES AND COCONUT
+## CHAIN MOVE ONTO THE 1:1 PLANE THEIR OWN .des NAMES
+
+KIND: port
+      (the reading half is carried in ADDRESSES and in the body; the
+      fix came with its pin first: the new verify-level legs were run
+      against the OLD binary, where they FAIL, and only then the code
+      changed).
+SUBSYSTEM: scene composition - the object -> tlo plane assignment
+      (ported/ll_level.c); the level .des data format; machine-code
+      RE of the layer plumbing (0x57500/57530, 0x52d30, 0x23b90).
+ADDRESSES: established, all at raw machine code (build/leo/leo.elf
+      and leo.img; VA = file offset + 0xf000, and that VA is what
+      build/decompiled/all/ names - LEO.EXE itself is a different,
+      un-fixed-up address space and was not scanned):
+  - 0x57500 (x law) and 0x57530 (y law): THE LAYER INDEX IS EDX.
+    0x57503 `lea edx,[edx*4]`; 0x5750a `mov ebx,[eax+0x20]` (the
+    per-layer percent table); 0x5750d `lea ecx,[ebx+edx]`; 0x57513
+    `imul edx,[ecx]`; then 0x57516 `mov eax,[eax+0x1c]`, 0x57519
+    `lea eax,[eax*4]`, 0x57522 `mov edi,[ebx]` as the divisor. So
+    [scene+0x20] is the speed% table and [scene+0x1c] IS main_back;
+    0x574e0 `mov ecx,[eax+0x20]; mov [ecx+edx*4],ebx` and 0x574f0
+    `mov [eax+0x1c],edx` are their setters.
+  - 0x52d67 / 0x52d72 `mov edx,[ebx+0x24]` feeding the 0x52d6a
+    `call 0x57530` (again at 0x52e03, 0x52e26): THE FIELD THE
+    LAYER IS READ FROM IS [obj+0x24] - the same field the
+    collision-plane gate compares (PR-16x's [entry+0x24] ==
+    [owner+0x24], CHECK_ALL_PLANE).
+  - 0x23b90 = `mov [eax+0x24],edx; ret` is that field's setter:
+    scanning leo.img for the 4-byte value 0x23b90 finds 211 data
+    references (0x968d0 .. 0xa657c), EVERY one at (+0x04 mod 4)
+    inside a table whose +0x00 slot holds a code pointer - verb
+    +0x04 of 211 class tables. How a class declares its plane.
+  - NOT the plane, and re-named as such: the placement pools.
+    0x4cdf5..0x4ceb5, 0x4aaa0 and 0x4bb30 allocate/walk EXACTLY
+    three pools at `[level+0x58] + id*4` with `id = [level+0x40]++`
+    per placement-KEY occurrence. Pool ids are not planies cells;
+    PR-170's pool-slot work stands.
+NAMES: plany, planies, T, A, L, B, plan_t, plany_parse,
+      des_list_cells, plany_selftest, DES_KEY_ANIMACJE, cur_layer,
+      o->layer, ZARIA1.DES, ANI1.DES, ANI2.DES, ANI3.DES,
+      ZWIERZ1.DES, ZWIERZ2.DES, ANIPL2.DES, T|TA|TALAB, TALABA,
+      ATALABA, TAAALAB, TAAL, TBA, TL, POCISK, KOKOS, BAL, BALONIK,
+      DRABINKA, LINA, ANIBACK, PAJAK, KAMIEN, lv_plany
+CODE: yes: ported/ll_level.c: plan_t + plany_parse + des_list_cells
+      (the .des list cell counter); the `ll_level: planies: N layer
+      specs: .T. .TA. ...: animacje 0->layer 1 1->layer 2 ...`
+      report, printed beside the PR-57 `parallax:` line;
+      place_ctx.plan carried into the placement loop, where the
+      animacje key (DES_KEY_ANIMACJE) takes `pc->cur_layer` from
+      that mapping and every other key keeps the old value; the
+      hermetic plany_selftest (8 cases, every one a shipped level's
+      own strings, wired into the always-on --mov-selftest bundle);
+      the PR-61 comment block and the .des key block corrected; the
+      obj_draw probe comment updated. Makefile: a two-run
+      verify-level leg (lv_plany / lv_plany2, ZARIA.01 at
+      LEO_LEVEL_CAM 37/250 and 1200/280 with LEO_OBJ_POS=1) that
+      pins the report line, the ANI2 set on layer 2, the ANI3
+      object on layer 1, and the un-lettered keys UNCHANGED as
+      controls. That leg is why the fixture count is 65, not 64.
+HOOKS: none new. LEO_OBJ_POS (PR-207, read-only) is used by the
+      new fixture legs; its behaviour is unchanged.
+OPENS: OI-109 - the plane of the TWO KEYS plany= NEVER NAMES
+      (zwierzaki=, ani_plat=): no letter on any of the 12 levels,
+      and their cell counts do not match the A counts (KADMAR2
+      zwierzaki 3 / ani_plat 2 with A 3; LONA.05 4/4/4 with A 4).
+      The port keeps the PR-61 entry-index model there, which
+      happens to put ZARIA's ZWIERZ1 animals (the rhino, the
+      spiders) on main_back = the lion's own plane, which is what
+      the collision gate needs.
+CLOSES: none. OI-108 is REWRITTEN: its plane-law half is ANSWERED
+      (the level's own data, not the film), the visual re-check of
+      the corrected scene against the film stays open. OI-109 is
+      added. OI-ids touched: OI-108 (rewritten), OI-109 (new).
+      OI-107 is untouched.
+CORRECTS: PR-61's `[obj+0x24]` = "the entry index of the .des list
+      that placed it" - NEVER READ, and now replaced: the plane is
+      the one plany= names for the cell. The entry-index rule
+      survives only as the model for the two keys plany= names no
+      letter for, so its shipped behaviour for ZWIERZ1/ANIPL2 in
+      ZARIA.01 does not move. PR-61's example in that comment
+      ("the volcanoes of RAN sit on layer 1") is wrong twice over:
+      RAN's planies T|TA|TALAB puts wulkany (cell 1) on layer 2.
+      PR-162..PR-165's "[obj+0x24] = the class id" wording for
+      0x23b90: the field is the PARALLAX PLANE / collision plane -
+      one field, both uses; those records' wording is to be read
+      with this correction (their slot census itself stands).
+      PR-207's "un-read leads" FUN_0005b040 / FUN_0005da60: NOT
+      this field - their [x+0x24] is a 0/1 flag tested against a
+      bit mask at 0x5b040+0x276, in a text-run record. PR-59's
+      guess of the alphabet (T=tlo, A=animacje, L=Lew, B=belka) is
+      CONFIRMED, and completed: A is PER CELL, and no letter names
+      zwierzaki= or ani_plat=.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs (both fixture trees moved aside per the
+      restaging recipe, then restored).
+
+- THE ANSWER FIRST, FROM THE LEVELS THEMSELVES: every shipped .des
+  (12 of 13; CHEATS has none) carries `plany=` with EXACTLY one
+  '|'-separated spec per tlo= layer - JUNCTION 1 ("TL"), KADMAR2 1
+  ("TALABA"), KADMAR.07 2 ("T|TALAB"), LONA.05 2 ("T|TAAALAB"),
+  ZARIA.01/.02, RAN.01, TUNGA.11, SADES.06, ENA.03 3, KARA.07 4
+  ("T|TA|TALA|TB"), ENA2 4 ("T|T|TAAL|TBA"). The letter inventory
+  over all of them is EXACTLY {T, A, L, B}: T once per spec, L
+  once per level, B once (except JUNCTION, which authors no
+  belka=), and A as often as the `animacje=` list has CELLS -
+  counted: 3=3, 3=3, 3=3, 2=2, 3=3, 3=3, 5=5, 4=4, 4=4, 4=4, 3=3,
+  0=0. THE LAW: the k-th A in reading order (layer 0 first, left
+  to right inside a spec) is the k-th cell of that list, and it
+  rides the layer whose spec carries that A. Cross-checks that
+  make it a format and not a coincidence: the L letter sits on the
+  main_back= spec on all 12 levels, and that spec is the 100,100
+  speed pair; B also sits on a 100,100 spec (KARA.07 puts the
+  belt on layer 3 while the lion is on layer 2 - the same 1:1
+  math, both 100,100); a bare `none` cell in the MIDDLE of a list
+  consumes a letter (RAN.01 `none,wulkany,dymy` = 3 A's) while a
+  list that is ONLY a bare `none` names no cell (JUNCTION: "TL",
+  0 A's).
+- ZARIA.01, THE OWNER'S REPORT: planies T|TA|TALAB with tlo
+  plan3.pcx,plan2.pcm,plan1.pcm, speed 39,40;85,66;100,100,
+  main_back 2. Cell 0 = ANI3.DES -> layer 1 (85/66); cells 1,2 =
+  ANI2.DES + ANI1.DES -> layer 2 = main_back, the 1:1 plane the
+  lion and the belt are on. The set the owner named IS ANI2: the
+  16-fruit POCISK/KOKOS chain, 6 BAL balloons, the DRABINKA ladder
+  and both LINA ropes. Before: they drew through (31,235) at
+  LEO_LEVEL_CAM 37 / CAMY 250 (the 85/66 camera, PLAN2.PCM being
+  600 rows against a 700-row world). Now: through (37,250), the
+  main camera itself, pinned byte for byte by the new fixture, and
+  ANIBACK (ANI3, cell 0) is pinned at (1020,254) = the 85/66
+  camera at cam 1200. The PR-207 film note already recorded the
+  1:1 agreement: the t=31.25 disc sat ~1 px from the 1:1 x of the
+  POCISK entry authored at (322,298) - which the entry-index law
+  could not produce, because it routed that same entry (cell 1)
+  through 85/66.
+- WHY THE OLD RULE LOOKED RIGHT AND WAS NOT: for ZARIA.01 the two
+  laws differ only for the animacje key, and ZARIA's animals happen
+  to sit at entry indices that coincide with a sane plane (ZWIERZ2
+  = 1, ZWIERZ1 = 2 = main_back, ANIPL2 = 1). PR-61's one visual
+  support was RAN's clouds - also a `zwierzaki` object (PR-207),
+  so untouched by this correction. The controls in the new fixture
+  keep those keys pinned at their old values on purpose: this PR
+  changes only what the data proves.
+- THE PLAY-HALF OF THE SAME FIELD: [obj+0x24] is also the
+  collision plane (the touch filter at the player walk, PR-16x's
+  gate). The corrected mapping puts ZARIA's coconut chain,
+  balloons and ladder on the lion's own plane (main_back 2) and
+  ANI3 on 1 - consistent with the lion throwing coconuts. No play
+  fixture changed: every pinned interaction in verify-play is with
+  a `zwierzaki` object, whose plane this PR does not move. That is
+  OI-109's first test surface.
+- NOT ESTABLISHED (stated as open, not smoothed over): WHO writes
+  [obj+0x24] at runtime (the verb +0x04 call site that passes the
+  value, and what the L/B letters do for the lion/belt classes -
+  the port already draws the lion and the HUD on the reference
+  plane, which matches every shipped spec); and what plane the
+  un-lettered keys use in the engine (OI-109's leads: the class
+  ctors at verb +0x7c = 0x537f0 and the 0x4ddd0/0x4aaa0 placement
+  walk). The QEMU rig still cannot drive the original into a
+  level, so no live-RAM read exists.
+- RISK: MEDIUM-LOW and bounded. The behaviour change is exactly
+  the animacje key's plane on 11 levels (JUNCTION places nothing):
+  ZARIA.01/.02 move ANI3 39/40 -> 85/66 and ANI2/ANI1 85/66 ->
+  1:1; RAN.01 moves wulkany/dymy to 1:1; KADMAR.07/KADMAR2/TUNGA/
+  SADES/LONA/ENA.03/KARA/ENA2 move their props onto the spec the
+  level names. Full verify-all is green at 65 ok (the +1 is this
+  leg) and every pinned play/stage/endlevel leg is unchanged; the
+  fixture-free gate is unchanged at 13 ok + 21 named SKIPs. The
+  scene LOOK is what changes - which is the point of the thread.
+- REVERT: revert this commit; this record, the rewritten OI-108
+  row, the new OI-109 row, the section 8 status text, the header
+  numbering line, the regenerated index and the two Makefile legs
+  go back together; the code change is confined to plan_t /
+  plany_parse / des_list_cells / the report / place_ctx.plan / the
+  one mapping in the placement loop.

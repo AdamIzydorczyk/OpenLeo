@@ -36,7 +36,8 @@ estimate still in the code, the open questions and the ordered task list.
 
 In short: the movies, sprites, parallax layers, music, title menu and
 chapter map are done and cross-checked; a level shows the game's own 320x200
-view (shown 2x) with per-layer scrolling, the authored objects as state
+view (shown 2x) with per-layer scrolling, each authored object on the
+plane its level's own `plany=` key names (PR-208), the objects as state
 machines, the HUD from `BELKA`, and a lion that walks on the level's ground,
 jumps (units estimated), collides with solids/enemies (their authored damage)
 and picks balloons. Still missing for a playable game: the lion's attack and

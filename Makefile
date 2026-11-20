@@ -619,6 +619,71 @@ ifeq ($(PX_DATA),1)
 	  && echo "attached static image: the rhino's mat joins the rhino it follows (parent + offset), a non-bounded entry's following static stays absolute (ok)" \
 	  || { echo "PR-95 panc grep FAILED"; cat /tmp/opencode/lv_panc.log; exit 1; }
 	@rm -f /tmp/opencode/lv_panc.log
+# PR-208: the level .des says which objects ride which parallax plane.
+# `plany=T|TA|TALAB` is one '|'-separated spec per tlo layer (always exactly
+# the tlo count), and the k-th `A` letter in reading order is the k-th cell of
+# the `animacje=` list (verified: sum(A) == the list length on all 12 levels
+# that carry a .des; T once per spec = that layer's own art, L once = the
+# lew= lion, B once = the belka= belt, and NO letter names zwierzaki=/
+# ani_plat=). ZARIA.01: planies T|TA|TALAB with tlo plan3.pcx,plan2.pcm,
+# plan1.pcm, speed 39,40;85,66;100,100, main_back 2 -> cell 0 (ANI3.DES)
+# rides layer 1 (85,66) and cells 1,2 (ANI2.DES = the balloons, ladder, rope,
+# coconut chain; ANI1.DES) ride layer 2 = main_back, the 1:1 plane the lion
+# and the belt are on. The fruit the user reported ("baloon, ladder and
+# balls(fruits) in the wrong places") are exactly that ANI2 set: drawn through
+# the 85,66 camera today, through the 1:1 camera as the level's own data says.
+# Run A (cam 37 / camy 250): the layer-2 camera is the main one (obj_layer_
+# selftest pins that the reference layer keeps the camera exactly) and the
+# layer-1 camera is (37*85/100, 250*66/100 + (600-200) - (700-200)*66/100) =
+# (31,235): PLAN2.PCM is 600 rows, the world 700, the view is 320x200.
+# Run B (cam 1200 / camy 280) is the same level from the other end of the
+# world: it reaches ANI3's own ANIBACK on layer 1 (the cell-0 half of the law,
+# seen directly) and carries the CONTROLS: PAJAK (ZWIERZ1 = zwierzaki cell 2)
+# and KAMIEN (ZWIERZ2 = cell 1) keep the entry-index layer, because planies
+# names no letter for that key (the open half, OI-109).
+	@rm -f /tmp/opencode/lv_plany.ppm /tmp/opencode/lv_plany2.ppm
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  LEO_LEVEL_CAM=37 LEO_LEVEL_CAMY=250 \
+	  LEO_LEVEL_PPM=/tmp/opencode/lv_plany.ppm LEO_LEVEL_PPM_TICK=8 \
+	  LEO_OBJ_POS=1 \
+	  ./ll_level $(DATA) ZARIA.01 > /tmp/opencode/lv_plany.log 2>&1; \
+	  rc=$$?; if [ $$rc -ne 0 ]; then echo "PR-208 planies leg FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/lv_plany.log; exit 1; fi
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
+	  LEO_LEVEL_CAM=1200 LEO_LEVEL_CAMY=280 \
+	  LEO_LEVEL_PPM=/tmp/opencode/lv_plany2.ppm LEO_LEVEL_PPM_TICK=8 \
+	  LEO_OBJ_POS=1 \
+	  ./ll_level $(DATA) ZARIA.01 > /tmp/opencode/lv_plany2.log 2>&1; \
+	  rc=$$?; if [ $$rc -ne 0 ]; then echo "PR-208 planies leg 2 FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/lv_plany2.log; exit 1; fi
+	@grep -q 'T|TA|TALAB' /tmp/opencode/lv_plany.log \
+	  && grep -q 'll_level: planies: 3 layer specs: \.T\. \.TA\. \.TALAB\.: animacje 0->layer 1 1->layer 2 2->layer 2' \
+	      /tmp/opencode/lv_plany.log \
+	  && grep -q 'OBJPOS leaf=POCISK x=322 y=298 layer=2 draw-cam=(37,250)' \
+	      /tmp/opencode/lv_plany.log \
+	  && grep -q 'OBJPOS leaf=BAL x=78 y=460 layer=2 draw-cam=(37,250)' \
+	      /tmp/opencode/lv_plany.log \
+	  && grep -q 'OBJPOS leaf=DRABINKA x=180 y=510 layer=2 draw-cam=(37,250)' \
+	      /tmp/opencode/lv_plany.log \
+	  && grep -q 'OBJPOS leaf=LINA x=125 y=292 layer=2 draw-cam=(37,250)' \
+	      /tmp/opencode/lv_plany.log \
+	  && grep -q 'OBJPOS leaf=ANIBACK x=1280 y=390 layer=1 draw-cam=(1020,254)' \
+	      /tmp/opencode/lv_plany2.log \
+	  && grep -q 'OBJPOS leaf=BAL x=1270 y=460 layer=2 draw-cam=(1200,280)' \
+	      /tmp/opencode/lv_plany2.log \
+	  && grep -q 'OBJPOS leaf=PAJAK x=1250 y=450 layer=2 draw-cam=(1200,280)' \
+	      /tmp/opencode/lv_plany2.log \
+	  && grep -q 'OBJPOS leaf=KAMIEN x=1360 y=250 layer=1 draw-cam=(1020,254)' \
+	      /tmp/opencode/lv_plany2.log \
+	  && echo "plany=: animacje cells ride the plane the level's own planies spec names; the un-lettered keys keep the PR-61 model (ok)" \
+	  || { echo "PR-208 planies grep FAILED"; \
+	       grep -E 'OBJPOS leaf=(POCISK|BAL|DRABINKA|LINA|PAJAK|KAMIEN|ANIBACK)|T\|TA|planies' \
+	         /tmp/opencode/lv_plany.log /tmp/opencode/lv_plany2.log | head -14; \
+	       exit 1; }
+	@rm -f /tmp/opencode/lv_plany.log /tmp/opencode/lv_plany.ppm \
+	   /tmp/opencode/lv_plany2.log /tmp/opencode/lv_plany2.ppm
 	@rm -f /tmp/opencode/lv_cam300.ppm
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \

@@ -503,8 +503,11 @@ typedef struct {                     /* one placement of a script        */
                                   * ll_player.broke is the lion's copy. */
     unsigned char src;               /* which .des key placed it: 0 zwierzaki,
                                       * 1 animacje, 2 ani_plat (PR-60)    */
-    unsigned char layer;             /* entry index inside that key's comma
-                                      * list = the tlo/parallax layer     */
+    unsigned char layer;             /* the tlo/parallax layer it rides =
+                                      * [obj+0x24]: the plane plany= names
+                                      * for its animacje= cell (PR-208), or
+                                      * the entry index in the key's list for
+                                      * the two keys plany= never names      */
     /* PR-68: the key=value lines that follow an entry in the placement
      * file (zwierzaki .des: damage= contact damage, bounds= the patrol x
      * range, scope= detection range, energy= hit points). -1 = absent. */
@@ -730,9 +733,10 @@ static void obj_draw(const lvl_obj *o, unsigned char *canvas, int cw,
     if (getenv("LEO_OBJ_POS")) {
         /* read-only probe (PR-207): where this placement's art is about to
          * be drawn AND the camera it is being drawn through. objs_draw passes
-         * the LAYER camera per the PR-61 model, so cam/camy here is that
-         * layer camera, not the main one; the screen origin is what the
-         * canvas actually gets. Nothing in this block changes any pixel. */
+         * the LAYER camera per the layer law (PR-61's math, PR-208's plane
+         * from plany=), so cam/camy here is that layer camera, not the main
+         * one; the screen origin is what the canvas actually gets. Nothing in
+         * this block changes any pixel. */
         int ox_, oy_;
         ll_seq_anchor_origin(e, o->x - cam, o->y - camy,
                              obj_mirror_of(o, mirror), &ox_, &oy_);
@@ -4021,6 +4025,7 @@ out:
 }
 
 static int obj_layer_selftest(void);
+static int plany_selftest(void);
 static int contact_model_selftest(void);
 static int ladder_answer_selftest(void);
 
@@ -4185,6 +4190,7 @@ int ll_mov_selftest(void)
         obj_actime_selftest() != 0 ||
         obj_rowzero_selftest() != 0 || obj_rowseek_selftest() != 0 ||
         obj_motion_selftest() != 0 || contact_model_selftest() != 0 ||
+        plany_selftest() != 0 ||
         ladder_answer_selftest() != 0 || place_grammar_selftest() != 0) {
         free(sc.mov);
         free(m);
@@ -4976,8 +4982,8 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                         : o->src == 1 ? !(ls->ctrl & LL_CTRL_CHECK_ANI) : 1)
             continue;
         /* the plane gate (FUN_0004b500): obj.plane == mover.plane, plane =
-         * the parallax layer [+0x24] (entry index of the placing list);
-         * CHECK_ALL_PLANE lifts it */
+         * the parallax layer [+0x24] (the plane plany= names for the cell
+         * that placed it, PR-208); CHECK_ALL_PLANE lifts it */
         if (o->layer != pl->layer && !(ls->ctrl & LL_CTRL_CHECK_ALL_PLANE))
             continue;
         int om;
@@ -6204,6 +6210,139 @@ static void par_parse(par_t *pp, const char *speed, const char *mainback,
         pp->ref = 0;
 }
 
+/* PR-208: `plany=` is the level's own statement of WHICH CLASSES RIDE WHICH
+ * PARALLAX PLANE - the other half of the object-layer law PR-61 left open
+ * ("probably the entry index i of the key's list" was never proven). Format,
+ * read off all 12 shipped levels that carry a .des:
+ *
+ *   plany=<spec>|<spec>|...      ONE spec per tlo layer, in tlo order (the
+ *                                spec count always equals the tlo= count,
+ *                                1..4: JUNCTION "TL", KADMAR2 "TALABA",
+ *                                ZARIA "T|TA|TALAB", ENA2 "T|T|TAAL|TBA").
+ *   T                            once per spec: that layer's own art (the
+ *                                .PCX/.PCM the spec belongs to).
+ *   A                            the animacje= key: the k-th A in reading
+ *                                order (layer 0 first, left to right inside a
+ *                                spec) is the k-th cell of the `animacje=`
+ *                                comma list - including a bare `none` cell in
+ *                                the middle of a list (RAN.01 "none,wulkany,
+ *                                dymy" with 3 A's proves the cell counts).
+ *                                Checked: sum(A) == the list length on every
+ *                                one of the 12 levels (0 for JUNCTION, whose
+ *                                list is exactly one bare `none`: the game's
+ *                                own "nothing here" keyword is not a cell).
+ *   L                            once: the lew= lion. Its spec is always the
+ *                                main_back= layer, i.e. the 100,100 reference
+ *                                plane (true on all 12 levels).
+ *   B                            once: the belka= belt/HUD strip; always on a
+ *                                100,100 spec too (KARA.07 puts it on layer 3
+ *                                while the lion is on layer 2 - the same 1:1
+ *                                math either way).
+ *
+ * NO LETTER NAMES `zwierzaki=` OR `ani_plat=` on ANY level (their cell counts
+ * do not match the A counts either: KADMAR2 has zwierzaki 3 / ani_plat 2 /
+ * A 3 and LONA.05 has 4/4/4 with A 4). Where an un-lettered placement's plane
+ * comes from is still open (OI-109); those keys keep the PR-61
+ * entry-index model, which for ZARIA.01 puts ZWIERZ2 on layer 1 and ZWIERZ1
+ * (the rhino, the spiders) on layer 2 = main_back, the lion's own plane -
+ * which is also what the collision-plane gate needs (see the touch filter in
+ * the player code). */
+#define MAX_PLAN_SPECS MAX_PCM_LAYERS
+#define MAX_PLAN_SPEC_LEN 40
+#define MAX_ANI_CELLS 16
+
+typedef struct {
+    int ok;                         /* 1 = the specs line up with the list  */
+    int nlayer;                     /* '|'-separated specs, = the tlo count */
+    char spec[MAX_PLAN_SPECS][MAX_PLAN_SPEC_LEN];
+    int cell_layer[MAX_ANI_CELLS];  /* animacje cell -> layer, -1 = unnamed */
+    int ncell_named;                /* cells the A letters name             */
+    int nA;                         /* A letters seen, even when not ok     */
+} plan_t;
+
+/* Number of comma cells in a .des list value (same split the placement loop
+ * uses: empty cells are skipped). *only_none is set when the whole value is
+ * one bare `none` token (no dot, ci): that is not a cell, it is the game's
+ * "nothing here" keyword. A bare `none` INSIDE a longer list IS a cell:
+ * RAN.01's `none,wulkany,dymy` carries 3 planies A letters, so its first
+ * cell counts (PR-208). */
+static int des_list_cells(const char *raw, int *only_none)
+{
+    if (only_none)
+        *only_none = 0;
+    if (!raw || !raw[0])
+        return 0;
+    char copy[512];
+    snprintf(copy, sizeof copy, "%s", raw);
+    int n = 0, none_tok = 0;
+    char *save = NULL;
+    for (char *tok = strtok_r(copy, ",", &save); tok;
+         tok = strtok_r(NULL, ",", &save)) {
+        while (*tok == ' ')
+            tok++;
+        if (!tok[0])
+            continue;
+        n++;
+        if (!strchr(tok, '.') && ci_eq(tok, "none"))
+            none_tok++;
+    }
+    if (n == 1 && none_tok == 1) {
+        if (only_none)
+            *only_none = 1;
+        return 0;
+    }
+    return n;
+}
+
+/* Fill p from the plany= value for a level with `nlayer` tlo layers and an
+ * `animacje=` list of `ncell` cells. ok stays 0 (and nothing is remapped)
+ * when the level's own data does not line up, so the caller can say so and
+ * fall back. */
+static void plany_parse(plan_t *p, const char *plany, int nlayer, int ncell)
+{
+    memset(p, 0, sizeof *p);
+    for (int i = 0; i < MAX_ANI_CELLS; i++)
+        p->cell_layer[i] = -1;
+    if (!plany || !plany[0] || nlayer <= 0 || nlayer > MAX_PLAN_SPECS)
+        return;
+    p->nlayer = nlayer;
+    char copy[512];
+    snprintf(copy, sizeof copy, "%s", plany);
+    char *save = NULL;
+    int k = 0;
+    for (char *tok = strtok_r(copy, "|", &save); tok;
+         tok = strtok_r(NULL, "|", &save)) {
+        if (k >= nlayer) {          /* more specs than layers: unread */
+            p->nlayer = k;
+            return;
+        }
+        snprintf(p->spec[k], MAX_PLAN_SPEC_LEN, "%s", tok);
+        k++;
+    }
+    if (k != nlayer) {
+        p->nlayer = k;
+        return;
+    }
+    int cell = 0;
+    for (int s = 0; s < nlayer; s++)
+        for (const char *c = p->spec[s]; *c; c++) {
+            if (*c != 'A')
+                continue;
+            p->nA++;
+            if (cell < ncell && cell < MAX_ANI_CELLS)
+                p->cell_layer[cell++] = s;
+        }
+    if (p->nA != ncell || cell != ncell) {
+        p->nlayer = nlayer;
+        for (int i = 0; i < MAX_ANI_CELLS; i++)
+            p->cell_layer[i] = -1;  /* not ok: nothing is mapped at all */
+        return;
+    }
+    p->ncell_named = cell;
+    p->ok = 1;
+}
+
+
 static void layers_at(const ll_pcm *lay, const int *tix, int nlay,
                       const par_t *pp, int cam, int camy, int cw, int ch,
                       int world_w, int world_h, unsigned char *canvas)
@@ -6226,11 +6365,16 @@ static void layers_at(const ll_pcm *lay, const int *tix, int nlay,
  * object's authored position in ITS layer and subtract that layer's own
  * scroll (57500/57530, the same x_i/y_i layers_at uses): screen x =
  * ox - cam*X[i]/X[R], screen y = oy - (cam_y*Y[i]/Y[R] + (H_i - ch) -
- * (H_R - ch)*Y[i]/100). An object's layer [obj+0x24] is the entry index of
- * the .des list that placed it (zwierzaki=none,wulkany.des,dymy.des -> the
- * volcanoes sit on layer 1, with PLAN2; the clouds of RAN on layer 0). H_i is
- * the height of that tlo layer when its art is on the CD, else the world
- * height (offset 0). */
+ * (H_R - ch)*Y[i]/100). H_i is the height of that tlo layer when its art is
+ * on the CD, else the world height (offset 0).
+ * CORRECTED BY PR-208, which read WHERE i COMES FROM: it is [obj+0x24], and
+ * the level .des declares it in `plany=` - one spec per tlo layer, whose k-th
+ * `A` letter is the k-th cell of the `animacje=` list (12 of 12 shipped
+ * levels; ZARIA.01 "T|TA|TALAB" puts ANI3.DES on layer 1 and ANI2/ANI1.DES,
+ * the balloons, ladder, rope and coconut chain, on layer 2 = main_back, the
+ * 1:1 plane the `lew=` lion (`L`) and the `belka=` belt (`B`) are on). The
+ * entry-index reading PR-61 guessed is NOT that law; it stays only for the
+ * two keys no shipped plany= spec ever names (zwierzaki=, ani_plat=). */
 static void obj_layer_cam(const lvl_obj *o, const par_t *pp, const ll_pcm *lay,
                           const int *lay_tix, int nlay, int cam, int camy,
                           int ch, int world_h, int *ocam, int *ocamy)
@@ -6312,6 +6456,73 @@ static int obj_layer_selftest(void)
             fprintf(stderr, "layer selftest: FAILED unscrolled base\n");
             return 1;
         }
+    }
+    return 0;
+}
+
+/* PR-208 selftest: the plany= law, hermetic (synthetic strings, the shipped
+ * levels' own values quoted as data). Every case is one the shipped .des
+ * files actually carry, plus the two malformed shapes the reader must refuse.
+ * ZARIA.01/RAN.01 ("T|TA|TALAB"): cell 0 on layer 1, cells 1,2 on layer 2.
+ * RAN.01's list starts with a bare `none` AND has 3 A letters, so that cell
+ * counts. JUNCTION's whole list is one bare `none`: 0 cells, 0 A letters.
+ * ENA2 ("T|T|TAAL|TBA"): cells 0,1 -> layer 2, cell 2 -> layer 3.
+ * TUNGA.11 ("T|TA|ATALABA"): 5 cells, 1 on layer 1 and 4 on layer 2. */
+static int plany_selftest(void)
+{
+    struct {
+        const char *plany;
+        int nlayer;
+        const char *list;
+        int want_ok;
+        int want[MAX_ANI_CELLS];      /* -1 = the cell is not named */
+    } cases[] = {
+        { "T|TA|TALAB",   3, "ani3.des,ani2.des,ani1.des",        1,
+          { 1, 2, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+        { "T|TA|TALAB",   3, "none,wulkany.des,dymy.des",         1,
+          { 1, 2, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+        { "TL",           1, "none",                              1,
+          { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+        { "T|T|TAAL|TBA", 4, "ani.des,ani1.des,anidemo.des",      1,
+          { 2, 2, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+        { "T|TA|ATALABA", 3, "ani4.des,ani3.des,ani2.des,ani1.des,animdemo.des",
+          1, { 1, 2, 2, 2, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+        { "T|TALAB",      2, "ani1.des,none",                     1,
+          { 1, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+        { "TA|TAL",       2, "a.des,b.des,c.des,d.des",           0,
+          { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+        { "T|TA",         3, "a.des,b.des",                       0,
+          { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+    };
+    plan_t p;
+
+    for (unsigned c = 0; c < sizeof cases / sizeof cases[0]; c++) {
+        int only_none = 0;
+        int ncell = des_list_cells(cases[c].list, &only_none);
+        plany_parse(&p, cases[c].plany, cases[c].nlayer, ncell);
+        if (p.ok != cases[c].want_ok) {
+            fprintf(stderr, "plany selftest: FAILED [%s] with %d cells:"
+                            " ok=%d (want %d)\n", cases[c].plany, ncell,
+                            p.ok, cases[c].want_ok);
+            return 1;
+        }
+        for (int i = 0; i < MAX_ANI_CELLS; i++)
+            if (p.cell_layer[i] != cases[c].want[i]) {
+                fprintf(stderr, "plany selftest: FAILED [%s] cell %d:"
+                                " layer %d (want %d)\n", cases[c].plany, i,
+                                p.cell_layer[i], cases[c].want[i]);
+                return 1;
+            }
+    }
+    /* the list counter itself: a bare `none` alone is not a cell, one inside
+     * a list is (RAN.01 needs it to count). */
+    int on = 0;
+    if (des_list_cells("none", &on) != 0 || !on ||
+        des_list_cells("none,wulkany.des,dymy.des", &on) != 3 || on ||
+        des_list_cells("", &on) != 0 ||
+        des_list_cells("ani3.des, ani2.des", &on) != 2) {
+        fprintf(stderr, "plany selftest: FAILED the list cell count\n");
+        return 1;
     }
     return 0;
 }
@@ -6534,7 +6745,15 @@ static void objs_draw(const lvl_obj *objs, int nobj, unsigned char *canvas,
  * none): it is NOT a missing record and never a data hole. `none.des` on the
  * other hand IS a real record name (JUNCTION's level block carries a
  * NONE.DES holding literally "0"), and the exact-name match below resolves it
- * normally.
+ * normally. ONE exception, PR-208: a bare `none` in the MIDDLE of a list is a
+ * CELL (RAN.01's none,wulkany,dymy carries 3 planies A letters), while a list
+ * that is only a bare `none` names no cell at all.
+ *
+ * The same .des also says which plane those cells ride (PR-208):
+ *   plany=<spec>|<spec>|...   one spec per tlo= layer; see plan_t above for
+ *                             the letters and what they name. The port prints
+ *                             `ll_level: planies: ...` with the cell->layer
+ *                             mapping next to the PR-57 `parallax:` line.
  *
  * Inside a placement file (grammar measured over the 68 files the three keys
  * name - 18 zwierzaki + 38 animacje + 12 ani_plat references, none of them
@@ -6587,6 +6806,7 @@ static void objs_draw(const lvl_obj *objs, int nobj, unsigned char *canvas,
 
 static const char *const des_place_keys[] = { "zwierzaki", "animacje",
                                               "ani_plat" };
+#define DES_KEY_ANIMACJE 1          /* index of the one key plany= names  */
 
 typedef struct {                    /* ANIMACJE of both installs; either may
                                      * be absent on a partial install      */
@@ -6620,7 +6840,8 @@ typedef struct {                    /* counted while reading, never guessed */
 
 typedef struct {                    /* the scene being built for one level */
     int cur_src;                    /* des_place_keys index being read      */
-    int cur_layer;                  /* entry index inside that key's list   */
+    int cur_layer;                  /* the tlo/parallax layer to place on   */
+    plan_t plan;                    /* PR-208: this level's plany= mapping  */
     scene_owner *own;               /* owns the script set + placements     */
     anim_ctx ac;
     const char *level;
@@ -7580,6 +7801,15 @@ static void des_placement(place_ctx *pc, llrs *hd_ety,
             if (!tok[0])
                 continue;
             pc->cur_layer = ++tix;
+            /* PR-208: for the animacje= key the plane is the one the level's
+             * OWN plany= spec names for that cell - the k-th 'A' letter in
+             * reading order is the k-th cell of the list (a bare `none` cell
+             * in the middle of a list still consumes a letter: RAN.01). The
+             * other two keys carry no letter in any shipped plany= spec and
+             * keep the PR-61 entry-index model (OI-109). */
+            if (kk == DES_KEY_ANIMACJE && pc->plan.ok &&
+                tix < MAX_ANI_CELLS && pc->plan.cell_layer[tix] >= 0)
+                pc->cur_layer = pc->plan.cell_layer[tix];
             if (!strchr(tok, '.') && ci_eq(tok, "none")) {
                 printf("ll_level: des %s: the %s list carries the bare 'none'"
                        " keyword (the game's own 'nothing here': skipped,"
@@ -8167,6 +8397,40 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     for (int q = 0; q < par.n; q++)
         printf(" %d,%d", par.sx[q], par.sy[q]);
     printf("\n");
+    /* PR-208: the same .des also says WHICH CELLS RIDE WHICH PLANE. */
+    plan_t plan;
+    {
+        int ncell = des_list_cells(des_get(kvs, nk, "animacje"), NULL);
+        plany_parse(&plan, des_get(kvs, nk, "plany"), par.n, ncell);
+        printf("ll_level: planies: %d layer specs:", plan.nlayer);
+        for (int q = 0; q < plan.nlayer; q++)
+            printf(" .%s.", plan.spec[q]);
+        if (!des_get(kvs, nk, "plany")[0])
+            printf(": the .des authors no plany= key: nothing says which"
+                   " plane the placements ride\n");
+        else if (!plan.ok)
+            printf(": the %d A letters in %d spec(s) do not line up with the"
+                   " %d animacje cell(s) of the list: keeping the entry-index"
+                   " model (PR-61)\n", plan.nA, plan.nlayer, ncell);
+        else {
+            printf(": animacje");
+            for (int q = 0; q < ncell; q++)
+                printf(" %d->layer %d", q, plan.cell_layer[q]);
+            int nT = 0, nL = 0, nB = 0;
+            for (int q = 0; q < plan.nlayer; q++)
+                for (const char *c = plan.spec[q]; *c; c++) {
+                    nT += *c == 'T';
+                    nL += *c == 'L';
+                    nB += *c == 'B';
+                }
+            printf(" (the A letters name %d of the %d cell%s in the list;"
+                   " the specs' letters count T:%d L:%d B:%d - T is that"
+                   " layer's own art, L the lew= lion, B the belka= belt; no"
+                   " letter names zwierzaki= or ani_plat=)\n",
+                   plan.ncell_named, ncell, ncell == 1 ? "" : "s",
+                   nT, nL, nB);
+        }
+    }
     if (world_w == 0)
         for (int k = 0; k < nlay; k++)
             if (lay_tix[k] == par.ref) {
@@ -8312,6 +8576,7 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
     memset(&pc, 0, sizeof pc);
     pc.own = &scene;
     pc.level = level;
+    pc.plan = plan;                 /* PR-208: the level's own plane law   */
     pc.world_w = world_w > 0 ? world_w : (int)img.w;
     pc.ac.cd = an_open ? &an : NULL;
     pc.ac.cd_blk = ablk;

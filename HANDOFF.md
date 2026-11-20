@@ -1830,6 +1830,47 @@ native /4 extraction, the overlay diff, and the static (non-red,
 stateless) ANI1 PICT art as the template, not the bullet-chain
 fruit. The PR-205/206 x-locks (x=1, x=231) and the "within 2-4 px"
 fruit matches did not reproduce and are retracted in the register.
+STATUS PR-208 (step 5b RUN, AND THE PLANE LAW IS FOUND - in the
+LEVEL'S OWN DATA, not in the film and not by guessing): every
+shipped level .des carries `plany=` with exactly one '|'-separated
+spec per tlo= layer, letters only {T,A,L,B}: T once per spec = that
+layer's own art, L once = the `lew=` lion and it always sits on the
+main_back= spec (which is the 100,100 pair on all 12 levels), B
+once = the `belka=` belt, also on a 100,100 spec, and A appears
+exactly as often as the `animacje=` list has cells - 3=3, 3=3, 3=3,
+2=2, 3=3, 3=3, 5=5, 4=4, 4=4, 4=4, 3=3, 0=0. The k-th A in reading
+order IS the k-th cell, and it rides the layer whose spec carries
+it. A bare `none` inside a list is a cell and consumes a letter
+(RAN.01's none,wulkany,dymy has 3 A's); a list that is only `none`
+names no cell (JUNCTION "TL"). ZARIA.01's planies T|TA|TALAB with
+speed 39,40;85,66;100,100 main_back 2 therefore puts ANI3.DES on
+layer 1 and ANI2/ANI1.DES - the 16-fruit POCISK chain, the 6 BAL
+balloons, the DRABINKA ladder, both LINA ropes, the user's exact
+set - on layer 2 = main_back = 1:1, which is also what the film
+said at t=31.25 (~1 px from the 1:1 x of the (322,298) entry: the
+entry-index rule could not produce that). Engine side at raw
+machine code: 0x57500/0x57530 take the layer in EDX and index
+[scene+0x20] by it, dividing by the row [scene+0x1c] selects =
+main_back; 0x52d67/0x52d72 load it from [obj+0x24]; 0x23b90
+(`mov [eax+0x24],edx; ret`) is verb +0x04 of 211 class tables, and
+the pool ids at [level+0x40]++/[level+0x58] are key-occurrence
+ids, not cells (PR-207's FUN_0005b040/FUN_0005da60 leads are NOT
+this field). The port now implements the law (plan_t, plany_parse,
+des_list_cells, the `ll_level: planies: ...` report, one mapping in
+the placement loop), pinned by plany_selftest in the always-on
+--mov-selftest bundle and by a two-run verify-level leg
+(lv_plany/lv_plany2) that pins the corrected cameras AND the
+unchanged `zwierzaki`/`ani_plat` controls; verify-all 65 ok (the
++1 is that leg), fixture-free gate unchanged at 13 ok + 21 named
+SKIPs, 0 warnings. STILL OPEN: which plane the two UN-lettered keys
+use in the engine - new register row OI-109 (the port keeps
+PR-61's entry-index model there; in ZARIA it coincides with the
+lion's own plane for ZWIERZ1, which is what the collision gate
+needs, but that is not proof); and the film re-check of the
+corrected scene, because the PR-207 film boxes were measured
+against pre-PR-208 renders and the POCISK chain moves - the
+re-check must template-match the stateless ANI1 PICT art.
+
 PLAN STEP PR-206 (object placement fidelity, the user-visible
 thread; register row OI-108): two PRs after this step, neither part
 of closing T1. (5a) [READ] measure where the ORIGINAL draws `.MOV`
