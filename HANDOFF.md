@@ -2060,6 +2060,20 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-223 (DOCS): the register was carrying mangled rows.
+PR-220/PR-221 inserted their OI-078 notes through a Python
+line-list splice of a STRING, which writes one character per
+line: 1293 one-or-two-column lines in 21 runs (566-1898) and,
+inside one run, the two OI-078 HEADER LINES - so OI-078 had no
+title for three commits while verify-docs, re_index and the
+width ratchet stayed green. Repaired from 44e29de plus only the
+legitimate additions (now +113 -0 against it, 0 short lines, no
+line over 70), and tools/doc_census.py P6 now FAILS on a run of
+4+ one-or-two-column register lines: measured red on the
+committed register (21 runs) and green on the repaired one.
+Rule for the next writer: use text.replace(anchor, note+anchor).
+No engine read, no behaviour.
+
 STATUS PR-222 (READ): a row's tail is a keyword language. The
 engine's directive table is one string block at 0x91847-0x91990,
 scanned with ` %[^,| \r\n\t]` (0x91844) and matched by

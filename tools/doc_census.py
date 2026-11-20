@@ -68,7 +68,10 @@ WHAT IT PINS - any of these fails the build:
       there, ids are contiguous and ascending from OI-001 (stable:
       never renumber, never delete - closing flips the status line),
       every row carries a status line, the register has no over-79
-      line, and its row count never falls below OI_MIN.
+      line, its row count never falls below OI_MIN, and no run of 4+
+      one-or-two-column lines (the signature of a note inserted as a
+      character list: a paragraph becomes 60 vertical characters and
+      swallows the row header under it).
    report-only: the archive count, so drift in the frozen set shows.
 
 WHAT IT ONLY REPORTS (no rule attached yet, they are the audit's
@@ -374,6 +377,24 @@ def check_register(text, bad):
         bad.append('%s has %d line(s) over 79 columns; register rows '
                    'wrap by hand, there is no ratchet for it'
                    % (REGISTER, wide))
+    runs, run = [], []
+    for i, l in enumerate(lines):
+        if 1 <= len(l) <= 2:
+            run.append(i)
+        else:
+            if len(run) >= 4:
+                runs.append((run[0] + 1, run[-1] + 1))
+            run = []
+    if len(run) >= 4:
+        runs.append((run[0] + 1, run[-1] + 1))
+    if runs:
+        bad.append('%s has %d run(s) of 4+ one-or-two-column line(s) '
+                   '(%s): that is what inserting a note as a list of '
+                   'characters does to a paragraph, and it swallows '
+                   'the row header under it - reflow the text and '
+                   'restore the row'
+                   % (REGISTER, len(runs),
+                      ', '.join('%d-%d' % r for r in runs[:4])))
     defs = [int(OI_DEF_RE.match(l).group(1)) for l in lines
             if OI_DEF_RE.match(l)]
     ids = list(range(1, len(defs) + 1))

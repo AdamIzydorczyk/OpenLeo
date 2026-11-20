@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-223.
+> at PR-224.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -32279,6 +32279,67 @@ CORRECTS: PR-221's OPEN paragraph named "the clause/directive
   that a `Wait` tail is "the same ctor/parser as GEN": the
   creates are separate (0x46cf0 vs 0x46c70, classes 0xa11c8 vs
   0xa11e0) even though the clause parser at 0x47d60 is shared.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
+```
+
+## PR-223 — A REGISTER ROW CANNOT BE INSERTED AS A LIST OF
+## CHARACTERS: OI-078 IS RESTORED, AND `make verify-docs` NOW
+## SEES THAT SHAPE
+```
+KIND: docs
+SUBSYSTEM: docs/OPEN_ITEMS.md (the open-items register) and the
+  P6 check in tools/doc_census.py. No engine read, no code under
+  ported/ or original/, no behaviour.
+ADDRESSES: none in the engine sense - this pass adds no engine
+  read. Its measurements are line inventories of the register.
+NAMES: OI-078, OI-112, P6, check_register, doc_census.py,
+  verify-docs
+CODE: yes: tools/doc_census.py P6 grows one check (a run of 4+
+  one-or-two-column lines in the register is a failure); no .c
+  file, no Makefile rule, no hook.
+HOOKS: none new, none touched.
+MEASURED: (a) THE DEFECT, COUNTED. PR-220 inserted its OI-078
+  note through a Python line-list edit whose inserted value was
+  the note STRING, so Python inserted it one CHARACTER per line:
+  820 one-or-two-column lines in 14 runs, and the same defect in
+  PR-221 grew it to 1293 lines in 21 runs spanning
+  docs/OPEN_ITEMS.md 566-1898. The paragraph text survived
+  (joining the characters reproduces it), but the two OI-078
+  HEADER LINES were inside one of the runs and are gone: OI-078
+  lost its title for three commits while `make verify-docs`,
+  re_index and the width ratchet all stayed green, because a
+  header line that survives elsewhere is still a defined id and a
+  one-character line is four columns under the width limit.
+  (b) THE REPAIR. The register is rebuilt from 44e29de (PR-219,
+  the last green-and-intact state) plus exactly what PR-220 to
+  PR-222 legitimately added: the OI-072 control-bits note, the
+  OI-112 PR-220/PR-221/PR-222 notes, and the OI-078
+  PR-220/PR-221 notes reflowed by hand. Measured against
+  44e29de the file is now +113 lines and -0 lines, no line
+  exceeds 70 columns and there are 0 one-or-two-column lines.
+  (c) THE GUARD, TESTED BOTH WAYS. P6 now fails on any run of 4+
+  one-or-two-column register lines. Against the committed
+  HEAD~1 register it says `FAILED docs/OPEN_ITEMS.md has 21
+  run(s) of 4+ one-or-two-column line(s) (566-627, 630-688,
+  691-749, 752-815)`; against the repaired register it is green,
+  so the check is not vacuous. Note for the next writer: insert
+  notes with `text.replace(anchor, note + anchor)`, never through
+  a list-index splice of a string.
+OPENS: none new. Every thread this touched (OI-078, OI-112) keeps
+  the row and status it had; only their note text moved back into
+  readable form.
+CLOSES: nothing in the register.
+CORRECTS: PR-220's own docs edit (it mangled the OI-078 row and
+  dropped its header) and, through it, PR-221's; the OI-078 title
+  text is restored verbatim from 44e29de. It also repairs
+  PR-222's claim in its own OPEN paragraph that the array from
+  0x57d30 is handed to 0x57990 "which copies the new one out a
+  wide-character-at-a-time copy": 0x57990 frees the previous
+  string through 0x579e0 and copies with a two-bytes-per-step
+  loop (0x579c2-0x579d8) - the word "wide-character" was a
+  reading of that 2-byte stride, not a named engine type.
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.

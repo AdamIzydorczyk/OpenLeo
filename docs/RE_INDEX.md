@@ -40,9 +40,9 @@ token, never that the engine author WROTE it. A key with NO
 current - the ledger simply never wrote a correction for it; deciding
 whether an uncorrected claim still stands means reading its records.
 
-# entries: 748 address keys (>=3 records) = 4127/8188 (50%)
+# entries: 748 address keys (>=3 records) = 4129/8193 (50%)
 # of all address mentions; 166 field tokens (>=3) = 67%
-# of field mentions; 230 authored names (all of them). Built from 207 records.
+# of field mentions; 230 authored names (all of them). Built from 208 records.
 
 
 ## Addresses
@@ -126,6 +126,12 @@ whether an uncorrected claim still stands means reading its records.
                   PR-220
         latest mention: PR-220
 
+### 0x57d30 - 18 records
+        mentions: PR-102 PR-107 PR-152 PR-153 PR-157 PR-159 PR-160 PR-188
+                  PR-189 PR-190 PR-192 PR-209 PR-216 PR-218 PR-220 PR-221
+                  PR-222 PR-223
+        latest mention: PR-223
+
 ### 0x520c0 - 17 records
         mentions: PR-98 PR-100 PR-101 PR-102 PR-107 PR-115 PR-159 PR-160 PR-161
                   PR-162 PR-167 PR-172 PR-198 PR-215 PR-219 PR-220 PR-221
@@ -141,12 +147,6 @@ whether an uncorrected claim still stands means reading its records.
                   PR-177 PR-178 PR-179 PR-180 PR-181 PR-182 PR-185 PR-186
                   PR-187
         latest mention: PR-187
-
-### 0x57d30 - 17 records
-        mentions: PR-102 PR-107 PR-152 PR-153 PR-157 PR-159 PR-160 PR-188
-                  PR-189 PR-190 PR-192 PR-209 PR-216 PR-218 PR-220 PR-221
-                  PR-222
-        latest mention: PR-222
 
 ### 0xa25d4 - 17 records
         mentions: PR-98 PR-100 PR-102 PR-107 PR-130 PR-153 PR-159 PR-160 PR-161
@@ -369,6 +369,11 @@ whether an uncorrected claim still stands means reading its records.
         corrected in: PR-183
         latest mention: PR-211
 
+### 0x57990 - 11 records
+        mentions: PR-152 PR-161 PR-181 PR-188 PR-189 PR-190 PR-191 PR-192
+                  PR-193 PR-222 PR-223
+        latest mention: PR-223
+
 ### 0x988ec - 11 records
         mentions: PR-104 PR-149 PR-151 PR-173 PR-175 PR-176 PR-184 PR-185
                   PR-186 PR-187 PR-188
@@ -454,11 +459,6 @@ whether an uncorrected claim still stands means reading its records.
         mentions: PR-94 PR-105 PR-108 PR-129 PR-170 PR-173 PR-175 PR-176 PR-185
                   PR-214
         latest mention: PR-214
-
-### 0x57990 - 10 records
-        mentions: PR-152 PR-161 PR-181 PR-188 PR-189 PR-190 PR-191 PR-192
-                  PR-193 PR-222
-        latest mention: PR-222
 
 ### 0x5c370 - 10 records
         mentions: PR-94 PR-106 PR-153 PR-154 PR-176 PR-182 PR-187 PR-189 PR-192
