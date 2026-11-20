@@ -678,6 +678,24 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     EVERY row regardless of the line, and the second authored
     number has no named engine consumer (OI-112).
 
+    PR-224 names the engine's one-bit raiser: the handler
+    0x53772 tests a message of type 0x10 with the tag
+    0x8138764, takes the payload byte at [msg+0xc] as a SIGNAL
+    INDEX and OR-s `1 << (idx % 32)` into
+    [obj+0x60 + 4*(idx >> 5)] (0x53790-0x537d2) - the TEventSet
+    of PR-88, raised one bit at a time. The engine's own key
+    sends match this port's ordinals exactly: 0x2c5cd sends 0x21,
+    0x2c611 sends 0x1c, 0x2c651 sends 0x1b = LL_SIG_K_FWD /
+    K_UP / K_DOWN. NO sender passes 54 = K_GEN1: the 22 call
+    sites of the sender 0x4bc40 use small AC_* indexes (7, 0x12,
+    0x13, 0x19, 0x1a, 0x21) or values read from object fields
+    ([obj+0xee] at 0x34a7f, [obj+0xf2] at 0x3a1cf, [obj+0x122]
+    at 0x1f45c), and the broadcast loop 0x3eac6-0x3eaf4 sends
+    0x39 to a list of objects. So the drabinka's K_GEN1 comes
+    from one of those field-fed senders, from a different message
+    type, or from the non-matching branch of the same handler
+    (0x52bb0 at 0x537dd) - the named next read.
+
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
   recovery on the next input?)
@@ -1280,6 +1298,25 @@ OI-111: which row-step path the port's row clock models -
     [obj+0xba]/[obj+0xbe]. NOTE for the port: its
     LL_CTRL_BY_TIME = 1 / LL_CTRL_BY_X = 2 constants are its
     own vocabulary and do NOT equal these engine bit values.
+    PR-224 splits the clause verbs cleanly and narrows this
+    row again: a clause node's TEST (+0x08) answers with its own
+    authored set (0x45970 copies [node+0x8..0xc]) and its
+    EXECUTE (+0x0c) is the base delegate 0x45870, EMPTY because
+    a clause node has no operand - the node ctor 0x45780 writes
+    0 at [node+0] and only clones an operand it is given, while
+    the clause parser 0x47d60 fills the set INLINE at
+    [node+0x8]. The `GEN` clause 0xa11e0 keeps the base test and
+    its execute 0x45920 ORs [node+0x8] in through 0x49580 - the
+    engine's raise path for `GEN <signal>`, OR-ed into the
+    CALLER's set at 0x5230c. The clause's CHAIN verb is also the
+    base walker with no operand, so a `Wait` clause cannot be
+    what holds a row in the answer-6 repeat loop: the answer-6
+    holders are the SIXTH (+0x14) verbs of the per-directive
+    classes - 0xa1048 (`goto` family) = 0x45d90, jump on the row
+    cursor, 0xa1030 = 0x45dc0, delta, and 0xa1090 (`F`) =
+    0x45d50, gated on the node's own trigger byte. The clause
+    selects the PATH; a directive holds the row.
+
 OI-112: which authored number a row's TIME is - the engine
   scales and gates on the value it scans FIRST, the port
   scales and gates on the value written SECOND
@@ -1405,3 +1442,14 @@ OI-112: which authored number a row's TIME is - the engine
     state's 0x10/0x20 bits say so (0x523bc-0x523cb) - entering
     a state starts at a row chosen by that number, which is a
     row-sequence rule, not a row duration.
+
+    PR-224 adds one named consumer of a row tail's argument,
+    which shows the answer-6 mechanism working on data: the
+    `end_level <n>` node 0xa1048 has 0x45d90 as its SIXTH verb
+    (+0x14) and the chain walk calls exactly that slot -
+    `*[ebx] = [node+0x8]` with ebx = the row cursor [rec+0x4],
+    answer <- 6 - so the authored number is written into the ROW
+    CURSOR and the row is re-run instead of advanced. The same
+    number also reaches the scene's exit-word field through
+    0x45750 (PR-194/PR-199). TUNGA.11's lion rows
+    `10,6,end_level 1` ... `12,6,end_level 1` are that shape.

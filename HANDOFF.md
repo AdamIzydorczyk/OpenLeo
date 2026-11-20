@@ -2060,6 +2060,53 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-224 (READ): how a class table is addressed, and
+what each row directive is. A node's class word IS its create
+verb and the 0x18-byte table there is create/+0x04 clone/+0x08
+test/+0x0c execute/+0x10 chain/+0x14 a sixth verb - verified
+against the two tables whose numbering was already pinned from
+use (record 0xa260c, row 0xa2638), which makes PR-220's "node
+base 0xa1000 ... the `Wait` word 0xa11c0 ... the `GEN` word
+0xa11d8" wrong: those two are not class words, the clause words
+are 0xa11c8 and 0xa11e0 (PR-217 was right) and their +0x14 is a
+FACTORY (0x47c00 clones a clause into the clause-with-operand
+class 0xa11b0). Reading the builder 0x45df0-0x46d80 as
+(compare target, class store) pairs gives the keyword-to-class
+map: `rev` 0xa0f28, `zero_v` 0xa0fa0, `zero`/`zero_t` 0xa0f88,
+`smpauto`/`atc_on`/`atc_off` 0xa10f0 (stores 1 at [node+0x8]),
+`lock`/`lock2`/`unlock`/`unlock2`/`ground_on`/`ground_off`
+0xa10a8 with 0xa10d8/0xa10c0 variants for the `2` forms,
+`chdir` 0xa0f40, `ldir` 0xa0f58, `rdir` 0xa0f70, `F` 0xa1090,
+`MOVE` 0xa1060, `Wait` 0xa11c8, `GEN` 0xa11e0, and the `%i`
+node 0xa1048 = the `end_level`
+node of PR-194/PR-199; the middle band (`smp`/`vol`/`pos`/
+`goto`/`I`/`M`...) is NOT pair-verified yet. So the
+answer-6 verbs are the SIXTH verbs of directive classes -
+0xa1048 +0x14 = 0x45d90 (`end_level`: *[ebx] =
+[node+0x8] sets the ROW CURSOR to the authored number and the
+answer becomes 6, so the row is re-run, not advanced - see
+TUNGA.11's `10,6,end_level 1`), 0xa1030 +0x14 = 0x45dc0,
+0xa1090 +0x14 = 0x45d50 (`F`,
+gated on [node+0x10]) - and clause nodes cannot hold a row:
+their chain verb is the base walker and they have NO operand
+(the node ctor 0x45780 writes 0 at [node+0]; the clause parser
+fills the set inline at [node+0x8]). A clause's test 0x45970
+answers with its authored set, its execute is the base delegate
+(EMPTY); the `GEN` execute 0x45920 ORs [node+0x8] in via 0x49580
+- the raise path, OR-ed into the caller's set at 0x5230c. THE
+RAISER, named: handler 0x53772 tests message type 0x10 + tag
+0x8138764 and ORs `1 << (idx % 32)` into [obj+0x60 + 4*(idx >>
+5)] from the payload byte at [msg+0xc]; the engine's own key
+sends 0x21/0x1c/0x1b at 0x2c5cd/0x2c611/0x2c651 are EXACTLY
+this port's LL_SIG_K_FWD/K_UP/K_DOWN, confirming PR-88's
+ordinals from the raising side. No sender passes 54 = K_GEN1:
+all 22 sites of 0x4bc40 use small AC_* indexes or values read
+from object fields ([obj+0xee], [obj+0xf2], [obj+0x122]) and the
+broadcast loop 0x3eac6 uses 0x39. OI-078 now asks exactly that.
+Also: the record factory 0x518f0 (class +0x28) writes the owner
+object at [rec+0x0], which the row step reads at
+0x52214/0x52311. No behaviour changed.
+
 STATUS PR-223 (DOCS): the register was carrying mangled rows.
 PR-220/PR-221 inserted their OI-078 notes through a Python
 line-list splice of a STRING, which writes one character per

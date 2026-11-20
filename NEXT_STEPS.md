@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-224.
+> at PR-225.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -32340,6 +32340,179 @@ CORRECTS: PR-220's own docs edit (it mangled the OI-078 row and
   string through 0x579e0 and copies with a two-bytes-per-step
   loop (0x579c2-0x579d8) - the word "wide-character" was a
   reading of that 2-byte stride, not a named engine type.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
+```
+
+## PR-224 — CLASS WORD = CREATE VERB, AND EVERY ROW DIRECTIVE HAS
+## ITS OWN CLASS: THE KEYWORD-TO-CLASS MAP, THE ANSWER-6 VERB AT
+## +0x14, AND THE ENGINE'S SIGNAL-RAISE MESSAGE
+```
+KIND: read
+SUBSYSTEM: the directive-chain builder 0x45df0-0x46d80 (its
+  keyword compare at 0x76a69 and its per-keyword node builders),
+  the node/row/record class tables 0xa0f28-0xa2638, the row step
+  0x521f0 and row-run 0x520c0 clause calls, and the engine's
+  signal-raise message 0x4bc40 / handler 0x53772.
+ADDRESSES: 0x29a58, 0x2c5cd, 0x2c611, 0x2c651, 0x3eacf, 0x3eaf1,
+  0x45750, 0x45d90, 0x45dc0, 0x45e7d, 0x45ea1, 0x45ee5, 0x45f05,
+  0x45f29, 0x46398, 0x4640b, 0x46553, 0x465aa, 0x465fe, 0x46646,
+  0x4668e, 0x468df, 0x46a7a, 0x46b28, 0x46b99, 0x46bee, 0x46c70,
+  0x46cf0, 0x47c00, 0x47c90, 0x47cb0, 0x48000, 0x49580, 0x4bc40,
+  0x518f0, 0x520c0, 0x520e6, 0x52100, 0x52138, 0x521f0, 0x52207,
+  0x52235, 0x522fc, 0x5230c, 0x52317, 0x52320, 0x53772, 0x53790,
+  0x537a0, 0x537cf, 0x537d4, 0x8138764, 0x9198e, 0x91998, 0x919ec,
+  0x961fc, 0x96948, 0x98278, 0xa0f28, 0xa0f40, 0xa0f58, 0xa0f70,
+  0xa0f88, 0xa0fa0, 0xa0fb8, 0xa0fd0, 0xa0fe8, 0xa1000, 0xa1048,
+  0xa1060, 0xa1090, 0xa10a8, 0xa10c0, 0xa10d8, 0xa10f0, 0xa1180,
+  0xa11b0, 0xa11c8, 0xa11e0, 0xa260c, 0xa2638, 0xcef40
+NAMES: ll_mov_parse, ll_mov_fr.gsig_id, ll_mov_fr.gop,
+  LL_SIG_K_FWD, LL_SIG_K_UP, LL_SIG_K_DOWN, LL_SIG_K_GEN1,
+  o->sig, ground_on, atc_on, lock, chdir, ldir, rdir, MOVE,
+  TEventSet::match
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) HOW A CLASS TABLE IS ADDRESSED. A node's class
+  word IS its create verb: the 0x18-byte table at that address
+  is create/+0x04 clone/+0x08 test/+0x0c execute/+0x10 chain/
+  +0x14 a sixth verb. That reads cleanly on the two tables whose
+  numbering PR-219/PR-220 had already pinned from use - the
+  RECORD 0xa260c = 0x51910 (its +0x00, the block-settings
+  dispatcher)/0x23c90/0x559c0/0x521f0 (row step)/0x23c80/0x518f0
+  - and the ROW 0xa2638 = 0x55820 (row ctor)/0x457e0/0x45800/
+  0x45870/0x458e0/0x51620 (its clone) - and it makes PR-220's
+  "node base 0xa1000 = 0x457b0/0x457e0/0x45800/0x45870/0x458e0,
+  the Wait word 0xa11c0 = ... and the GEN word 0xa11d8" wrong:
+  0xa11c0 is the 5th slot of the `ground_on`-family table 0xa10b0
+  (0x458e0) and 0xa11d8 is the `Wait` clause's chain slot
+  (0xa11c8 + 0x10), not tables. 0xa1000 is the base NODE class
+  only in the sense that the node ctor 0x45780 stamps it at
+  [node+0x4]; the region is a list of 0x18-byte per-directive
+  tables. (b) THE FULL VOCABULARY, read as the builder's own compare
+  sequence (every `mov edx,<word>` + `call 0x76a69` pair in
+  0x45df0-0x46d80, in address order): `rev` 0x45e85, `zero_v`
+  0x45ec9, `zero` 0x45f0d, `zero_t` 0x45f51, `vol_music` 0x45f95,
+  `smp` 0x45fef, `smp2` 0x4604d, `smp3` 0x460af, `smpauto`
+  0x4611a, `smpauto2` 0x46162, `smpprior` 0x461c1, `vol` 0x4621c,
+  `smp_loop` 0x4627f, `smp_unloop` 0x462e5, `smp_stop` 0x4632d,
+  `atc_on` 0x46375, `atc_off` 0x463c5, `lock` 0x46412, `lock2`
+  0x46462, `unlock` 0x464b9, `unlock2` 0x46506, `ground_on`
+  0x4655a, `ground_off` 0x465b1, `chdir` 0x46605, `ldir` 0x4664d,
+  `rdir` 0x46695, `pos` 0x466dd, `goto` 0x46740, `gotorel`
+  0x467a6, `goto_rel` 0x46816, `I` 0x46882, `F` 0x468e6, `IC`
+  0x4694e, `FC` 0x469b6, `M` 0x46a1e, `MOVE` 0x46a81, `GEN`
+  0x46aeb, `Wait` 0x46b59, `end_level` 0x46bc7 - 39 keywords,
+  and the chain ends at 0x46c1c for anything else. PAIRING a
+  keyword to the class it stores is only safe where the store
+  sits in that keyword's own branch: verified - `rev` -> 0xa0f28
+  (the base CLAUSE node: no operand, set inline at [node+0x8]),
+  `zero_v` -> 0xa0fa0, `zero`/`zero_t` -> 0xa0f88, `smpauto`/
+  `atc_on`/`atc_off` -> 0xa10f0 (the builder stores 1 into
+  [node+0x8], 0x46393-0x4639f), `lock`/`lock2`/`unlock`/
+  `unlock2`/`ground_on`/`ground_off` -> 0xa10d8 with a second
+  class 0xa10a8 (and 0xa10c0) chosen in the same branch for the
+  no-argument forms, `chdir` -> 0xa0f40, `ldir` -> 0xa0f58,
+  `rdir` -> 0xa0f70, `F` -> 0xa1090, `MOVE` -> 0xa1060, `Wait`
+  -> 0xa11c8 (0x46b99), `GEN` -> 0xa11e0 (0x46b28), and
+  `end_level` -> 0xa1048 (create 0x46c70, the `%i` scan at
+  0x46beb with format 0x91998), which is the node PR-194/PR-199
+  named. NOT paired: `smp`/`smp2`/`smp3`/`smpauto2`/`smpprior`/
+  `vol`/`smp_loop`/`smp_unloop`/`smp_stop`/`pos`/`goto`/
+  `gotorel`/`goto_rel`/`I`/`IC`/`FC`/`M` - their branches share
+  the 0x46100-0x46c00 range and pairing needs a branch walk, so
+  no class is claimed for them here.
+  (c) WHERE THE
+  ARGUMENTS AND ANSWER-6 LIVE. Since the chain walk calls the
+  operand's +0x10 slot and a directive's table is 0x18 long, the
+  verbs PR-221/PR-222 found - 0x45d90 (`*[ebx] = [node+0x8]`,
+  answer <- 6), 0x45dc0 (`*[ebx] += [node+0x8]`, answer <- 6),
+  0x45d50 (gate on [node+0x10], then apply [node+0x8]/[node+0xc])
+  - are the +0x14 (6th) verbs of directive classes: 0xa1048 +0x14
+  = 0x45d90 (`end_level`: `*[ebx] = [node+0x8]`, so THE ROW
+  CURSOR IS SET TO THE AUTHORED NUMBER and the answer becomes 6),
+  0xa1030 +0x14 = 0x45dc0 (a cursor delta), 0xa1090 +0x14 =
+  0x45d50 (the class `F` builds, gated on [node+0x10]). So a
+  row is held by a DIRECTIVE its own line carries, not by a
+  clock, and `Wait`/`GEN` clause nodes do NOT hold it: their
+  +0x10 chain verb is the base chain walker 0x458e0 and they have
+  no operand (the node ctor 0x45780 writes 0 at [node+0] and only
+  clones an operand when the ctor is given one; the clause parser
+  0x47d60 fills the set INLINE at [node+0x8]). (d) THE CLAUSE
+  VERBS, cleanly split: a clause node's TEST (+0x08) answers with
+  its own authored set - 0x45970 copies [node+0x8..0xc] - while
+  its EXECUTE (+0x0c) is the base delegate 0x45870, which with no
+  operand returns an EMPTY set: a `Wait` tests and raises nothing.
+  The `GEN` clause 0xa11e0 keeps the base test 0x45800 but its
+  execute is 0x45920: it calls the base execute 0x45870 and ORs
+  its own [node+0x8] in through 0x49580 - which is the engine's
+  raise path for `GEN <signal>`: the row step's non-empty branch
+  0x522fc calls the row's execute and ORs the result into the
+  CALLER's set at 0x5230c (a 12-byte local zeroed at 0x52207).
+  (e) THE ENGINE'S SIGNAL-RAISE MESSAGE, and the port's ordinals
+  confirmed against it: the handler 0x53772 tests the message
+  type 0x10 and the tag 0x8138764, reads the payload BYTE at
+  [msg+0xc] as a SIGNAL INDEX, and ORs `1 << (idx % 32)` into
+  DWORD PTR [obj+0x60 + 4*(idx >> 5)] (0x53790-0x537d2), then
+  ORs the whole local set into [obj+0x60] through 0x49580 - the
+  68-signal TEventSet of PR-88, raised one bit at a time. Its
+  senders call 0x4bc40 with EBX = the message type and the
+  payload pushed: 0x2c5cd sends 0x21 with tag 0x8138764 and
+  0x2c611 sends 0x1c, 0x2c651 sends 0x1b - which are EXACTLY
+  this port's LL_SIG_K_FWD = 36, LL_SIG_K_UP = 28,
+  LL_SIG_K_DOWN = 27, so the port's signal ordinals are the
+  engine's own message payload numbers (PR-88's table confirmed
+  from the raising side for the first time). The record's +0x28
+  verb 0x518f0 also names a field: it allocates the 0x48-byte
+  record, calls the state ctor 0x517e0 and writes the ARGUMENT
+  into [rec+0x0], which the row step reads as the owner at
+  0x52214/0x52311/0x5232d ([obj+0xa1] the clock, [obj+0x8] its
+  class) - the record knows its object from creation.
+OPENS: OI-078 stays open, narrowed to one named question: NO
+  sender of 0x10/0x8138764 passes 54 = K_GEN1 - all 22 call
+  sites of 0x4bc40 use small AC_* indexes (7, 0x12, 0x13, 0x19,
+  0x1a, 0x1b, 0x1c, 0x21) or a value loaded from an object field
+  (0x1f45c, 0x34a7f, 0x3a1cf: `[obj+0xee]`, `[obj+0xf2]`), and
+  the broadcast loop 0x3eac6-0x3eaf4 uses 0x39. So K_GEN1 is
+  raised either through one of those FIELD-fed senders, through a
+  different message type, or through a `GEN` row on the object
+  itself (which ZARIA.01's DRAB.MOV does not have). Next PR:
+  read the three field-fed senders and the handler at 0x52bb0
+  (0x537dd, the non-matching branch). NOTE for that read: the
+  fields those senders pass ([obj+0xee], [obj+0xf2], [obj+0x122])
+  are written with ADDRESSES elsewhere (0x29a58 stores 0x9a754
+  into [obj+0xee]), and the index arithmetic at 0x537a0-0x537cb
+  is UNSIGNED, so such a payload addresses a HIGH dword of the
+  set rather than a signal near the top of the table.
+  OI-112 unchanged: the
+  second authored number still has no consumer, and (b) makes it
+  a per-directive question, since each directive parses its own
+  arguments.
+CLOSES: nothing in the register.
+CORRECTS: PR-220's (f) - "for a NODE the class word is the table
+  base with create/clone/test/execute/chain at +0x00/+0x04/+
+  0x08/+0x0c/+0x10 - base node 0xa1000 = ..., the `Wait` word
+  0xa11c0 = 0x458e0/0x47c00/0x46cf0/0x457e0/0x45970 and the
+  `GEN` word 0xa11d8 with +0x10 = 0x45800 and +0x14 = 0x45920":
+  the layout is right but the addresses are not - 0xa11c0 and
+  0xa11d8 are not class words; the clause words are 0xa11c8 and
+  0xa11e0 (as PR-217 said) and their 6th verb is a FACTORY
+  (0x47c00 clones a clause node into the `clause-with-operand`
+  class 0xa11b0, 0x47cb0 builds 0x15-byte copies). With it,
+  PR-222's (c) wording "the node base's sibling sub-tables
+  override +0x10 with the verbs that answer 6": they are the
+  +0x14 verbs of per-directive classes, and 0xa1038/0xa1040 are
+  slots inside the 0xa1020 and 0xa1038 tables, not tables.
+  PR-219's record-class numbering is confirmed again, and
+  PR-220's [rec+0x0] reading is confirmed by 0x518f0. With them,
+  PR-194's slot reading of the `end_level` node is restated: its
+  "+0x04 is 0x45750, `mov ebx,ds:0xcef40; mov ecx,[node+0x8];
+  mov [ebx+0x4],ecx`" - the verb and its effect are right (the
+  authored number goes to the scene's exit-word field at
+  [0xcef40+0x4]), but under (a) that slot is the table's SECOND
+  verb (clone), and the number's other consumer is the SIXTH
+  verb 0x45d90, which answers 6 and writes the number into the
+  row cursor. Both consumers of that node are now named.
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.
