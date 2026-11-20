@@ -2060,6 +2060,36 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-221 (READ): how much of a row line the engine
+actually reads. The row-line parser 0x51660 pushes exactly
+three arguments to the scan helper (push [row+0x10], push
+0x92115 `%hi`, push the line; one `add esp,0xc`), so the ctor
+parses ONE number from a row line - the first - and scales it
+into [row+0x10]. What PR-220 read as "the second value" is not
+one: 0x51692 tests the scan's own result and 0x5169d-0x516d2
+store the constants +2 / -2 / -1 with a flag, while [row+0x8]
+takes the CALLER's value in EBX - ds:0xceff4, the sequence's
+default registered on `seq=` (0x51f48), or a settings-block
+name lookup (0x51a76-0x51a92) at the other row-ctor site
+(0x51ac1). Counted on the shipped texts: all 18617 row lines
+have exactly two numbers, none has one, the first column never
+exceeds |82| and walks up and down (ENA.03_ROZGW `-5,4` ...
+`-8,4` ... `-6,4`) - so the port's `%d,%d` parse
+(ported/ll_play.c:521) is its own grammar, not the engine's
+read of those fields. Second number: no named engine consumer
+(OI-112). The row's LENGTH has a separate mechanism that does
+not need one: the row-run verb zeroes a local answer (0x52120),
+calls the row's chain verb with mode 6 (0x52138-0x5213d) and at
+0x52140 `cmp [esp+0xc], 6; je 0x521da` SKIPS the whole
+list-walk when the answer is 6 - the cursor [rec+0x4] stays put
+and the row runs again; the PR-135 walk (OR bit 8 / bit 4 into
+the caller's set byte, 0x521a1/0x521c1) is the else branch.
+That puts PR-218's "the clause selects the path, it never
+refuses the row" back on the table, together with the row CLONE
+made at 0x520e1 as the other place per-row state could live.
+No behaviour changed; the port's .thresh model is unpinned by
+the engine, not refuted.
+
 STATUS PR-220 (READ): who builds a row and what scales it. The
 state record is 0x48 bytes with class word 0xa260c; its ctor
 0x517e0 allocates one and calls the row-list builder 0x51eb0
@@ -2092,6 +2122,7 @@ the second number: it lands at [row+0xc] with a sign flag at
 [row+0x14] and a sequence-default substitution at [row+0x8],
 and PR-220 found no reader of those fields anywhere on the step
 path - the class tables (node base 0xa1000, row class 0xa2638,
+PR-221: those two fields are not the second number at all), the
 record class 0xa260c, dumped here) hold no verb that reads
 them, and PR-218's "0xa11c8 = 0xa11c0+8" description of the
 clause tables is corrected: the class words are the bases and

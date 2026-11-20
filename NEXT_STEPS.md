@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-221.
+> at PR-222.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -31999,6 +31999,135 @@ CORRECTS: PR-110's model of `time_scale`, in three parts. (1)
   test verb (0x45970 for `Wait`, 0x45800 for `GEN`) - the
   verbs PR-218 named are right, the base+8 arithmetic is not
   how these tables are laid out.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
+```
+
+## PR-221 — THE ROW CTOR PARSES EXACTLY ONE NUMBER FROM THE ROW
+## LINE: ITS FIRST, SCALED; `[row+0x8]` IS THE CALLER'S DEFAULT,
+## `[row+0xc]`/`[row+0x14]` A CONSTANT AND A SCAN FLAG - AND THE
+## ROW REPEATS WHILE THE CHAIN ANSWERS 6
+```
+KIND: read
+SUBSYSTEM: the row-line parser 0x51660 and its scan helper
+  0x49920/0x49870, the two callers of the row ctor 0x515e0, the
+  row-run verb's list-walk 0x52140-0x521d7, and the shipped row
+  grammar - read against the port's `%d,%d` row-line parse
+  (ported/ll_play.c:521) and row gate (ported/ll_level.c:1506).
+ADDRESSES: 0x45770, 0x458e0, 0x495b0, 0x49870, 0x498d0,
+  0x498f0, 0x49920, 0x515e0, 0x51660, 0x51662, 0x51676,
+  0x51679, 0x5167c, 0x5168f, 0x51692, 0x5169d, 0x516b4,
+  0x516bd, 0x516d5, 0x517c9, 0x51a64, 0x51a76, 0x51a92,
+  0x51aa1, 0x51ac1, 0x51b44, 0x51dc7, 0x51e4d, 0x520c0,
+  0x5213d, 0x52140, 0x52195, 0x521a1, 0x521b6, 0x521c1,
+  0x521d4, 0x52338, 0x52360, 0x57d30, 0x76a69, 0x91844,
+  0x92143, 0x92156, 0x92259, 0xa11c0, 0xa11d8, 0xa260c,
+  0xa2638, 0xcef40, 0xceff4
+NAMES: ll_mov_fr.thresh, ll_mov_fr.frame, ll_mov_parse,
+  obj_advance, o->row_t, o->fi, o->brk_arm, obj_rowgate_selftest
+CODE: no: this PR ships no code. It reads, and it re-opens what
+  PR-220 seemed to settle.
+HOOKS: none new, none touched.
+MEASURED: (a) THE PARSE DESTINATION. The raw bytes of 0x51660
+  are `push esi; push edi; push ebp; mov esi,eax; mov edi,edx;
+  add eax,0x10; push eax; push 0x92115; push edx;
+  call 0x49920; add esp,0xc` - THREE pushes and one cleanup of
+  0xc, so the scan gets exactly its three cdecl arguments (the
+  line, the format `%hi`, ONE destination, [row+0x10]). The
+  helper 0x49920 pushes the caller's EDX and EBX and the local
+  format pointer, then calls 0x49870, which calls the scanf
+  pointer stored at `[eax+4]` through `call DWORD PTR [edi]`
+  (0x4987c); every other caller of 0x49920 in the image
+  (0x1f579, 0x2787e, 0x5194e, 0x52640, 0x51aa1 to name four)
+  reads the parsed values back from the destination memory and
+  never from a register. There is no second destination for the
+  row line: the ctor parses one number, the first, and scales it
+  into [row+0x10] (0x51679-0x5168f, PR-220). (b) THE FLAG AND
+  THE DEFAULT. After that scan EAX is the scanf return: 0x51692
+  `test ecx,ecx; jge 0x516ad`, and the raw bytes show the value
+  compared is followed by `inc ecx` (0x5169d), `mov [esi+0x8],
+  ebx`, `mov [esi+0xc],eax` after `neg eax` (0x516a6-0x516a8) -
+  i.e. the "second number" it stores is +2 or -2, and 0x516ad's
+  `jne 0x516c7` branch stores `dec ecx` = -1 with
+  [row+0x14] = 0, while the zero case writes [row+0xc] = 0 and
+  takes [row+0x8] from 0x44110 (0x516bd). A store of the
+  CONSTANT 2 / -2 / -1 with a flag is what a scan count
+  produces, not what a parsed value produces. What IS the
+  caller's value is EBX, preserved across the scan by the
+  helper: the row-list builder passes `mov ebx,ds:0xceff4`
+  (0x51f48) - the sequence default of PR-220's (b) - and the
+  other row-ctor caller (0x51ac1) passes the object looked up
+  by name through the settings block (0x51a76 registers the
+  empty key at 0x57d30, 0x51a86 reads the settings block's
+  name-table field, 0x51a92 calls its +0x4 verb with the token
+  scanned from the line); 0x92143 is the bytes `seq` of the
+  settings branch, so both callers hand the row a looked-up
+  default, never a row-line number. (c) THE GRAMMAR, COUNTED.
+  Across the 777 extracted .MOV texts every row line has exactly
+  two numbers: 18617 match `<n>,<m>`, 0 are a bare single
+  number, 2617 have a negative first value and the largest
+  absolute first value in the whole set is 82 (ENA.03_ROZGW
+  `-5,4`, `-6,4`, `-7,4`, `-8,4`, then `-7,4`, `-6,4` - the
+  first column walks up and DOWN). No engine path reads a second
+  row-line number. (d) THE ROW REPEATS ON ANSWER 6.
+  0x52120 zeroes the local answer, 0x52138 sets edx = 6 and
+  0x5213d calls the row's +0x10 (the chain verb 0x458e0, which
+  forwards the mode to the operand's own +0x10 with ebx =
+  &rec+0x4, the row cursor); 0x52140 `cmp DWORD PTR [esp+0xc],
+  0x6; je 0x521da` - when the answer IS 6 the walk at
+  0x52195-0x521d4 is skipped ENTIRELY and [rec+0x4] keeps its
+  value: the row will be run again. Otherwise the walk runs:
+  with a negative cursor 0x521a1 OR-s bit 8 and sets the cursor
+  to count-1 (0x521a5-0x521a9), at the last entry 0x521c1 OR-s
+  bit 4 and zeroes it, otherwise 0x521d4 adds one. That is
+  PR-135's list-end bit and PR-95's SEQ_REV walk with their
+  addresses, and it says the row's length is decided by its
+  chain answering 6, not by a stored duration. (e) WHERE NUMBERS
+  ARE READ. The base node class 0xa0f28 (create 0x46d70, clone
+  0x459b0, test 0x45800, execute 0x45870, chain 0x458e0,
+  0x47c90) has verbs that DO read their node's arguments:
+  0x45d50 calls the chain (0x458e0) and then, if the answer
+  equals the byte at [node+0x10], adds [node+0x8] to *[ebx] and
+  [node+0xc] to *[ecx] (0x45d6e-0x45d7e); 0x45d90 and 0x45dc0
+  call the chain and if the answer is 6 write *[ebx] =
+  [node+0x8] or *[ebx] += [node+0x8] and set the answer to 6
+  (0x45dad-0x45db3, 0x45ddd-0x45de2). So directive nodes carry
+  their authored numbers in their OWN +0x8/+0xc and gate on
+  their +0x10 - which is where the row line's other numbers must
+  be parsed, not into the row.
+OPENS: OI-112, again, and narrowed further: where does the second
+  authored number of a row line go? Nothing in the row ctor
+  parses it and no class verb of the row, the node base or the
+  record (PR-220 (f)) reads [row+0x8]/[row+0xc]. The two
+  candidates PR-221 did not settle: the clause/directive node
+  family (0xa11c0's test is 0x45970, 0xa11d8's execute is
+  0x45920, and the `Wait`-clause rows are exactly the ones the
+  engine leaves at answer 6 - PR-218's "the clause selects the
+  path, never refuses the row" needs rereading against (d)), and
+  a per-row counter the engine may keep in the CLONE it makes at
+  0x520e1 rather than in the row. The port's `.thresh` model is
+  NOT contradicted by this PR - its fixtures pin it and pass -
+  but its claimed engine source (`%hi` into node+0x10,
+  ported/ll_play.c:524) is now known to be the FIRST number,
+  and the second number's engine site is unnamed. Do not move
+  behaviour before that is settled.
+CLOSES: nothing in the register.
+CORRECTS: PR-220's (b)/(c) sentence "The SECOND value is handled
+  at 0x51692-0x516d2: its magnitude goes to [row+0xc] with a
+  sign flag at [row+0x14]" - those store sites are right, and
+  what they store is not the second authored number: the parse
+  destination of 0x51660 holds exactly one address, so no second
+  number is parsed, and the values stored there are ±2/-1 plus a
+  flag from the scan's result, with [row+0x8] taken from the
+  caller's default (the sequence's, or a name lookup).
+  PR-220's claim that KADMAR.07's `[A_DEAD]` durations are
+  "100/1000 unscaled" is therefore unsupported: those numbers
+  have no engine consumer named yet. PR-110's note that the
+  engine "reads %hi into node+0x10 first" stays correct; the
+  port's own row parse (`%d,%d`, frame from the first, thresh
+  from the second, ported/ll_play.c:521) is NOT the engine's
+  read of those two fields.
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.
