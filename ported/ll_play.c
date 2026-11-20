@@ -431,6 +431,23 @@ static void parse_cond(ll_mov_gate *c, int *ncp, int max,
                 c[*ncp].sig = (short)ll_sig_id(tok);
                 if (c[*ncp].sig < 0)
                     c[*ncp].sig = (short)LL_SIG_NOBIT;
+                /* PR-218: name the engine's three no-bit operands apart.
+                 * Its comparator 0x48000 answers the name pairs
+                 * AC_K_ANY/K_ANY (0x919ec/0x919f5) with the marker word
+                 * 0x2001f8 and AC_K_NEVER/K_NEVER (0x919fb/0x91a06) with
+                 * an EMPTY data set, and gives a name in neither table
+                 * nothing at all - three different values, so the port
+                 * keeps which one it parsed. */
+                c[*ncp].gop = LL_GOP_NAME;
+                if (c[*ncp].sig == (short)LL_SIG_NOBIT) {
+                    if (!strcasecmp(tok, "K_NEVER"))
+                        c[*ncp].gop = LL_GOP_NEVER;
+                    else if (!strcasecmp(tok, "K_ANY") ||
+                             !strcasecmp(tok, "AC_K_ANY"))
+                        c[*ncp].gop = LL_GOP_ANY;
+                    else
+                        c[*ncp].gop = LL_GOP_NONE;
+                }
                 (*ncp)++;
             }
             if (end == bend)
@@ -518,6 +535,7 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                         mf->endlv = 0;
                         mf->gsig_id = -1;   /* PR-217: no `Wait` tail */
                         mf->gneg = 0;
+                        mf->gop = LL_GOP_NAME;
                         /* A frame line may carry further fields. The ones the
                          * model acts on are the authored motion of THIS frame,
                          * "N,ms, M dx,dy" (285 of 18617 shipped frame lines
@@ -691,6 +709,23 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                                     while (an && (arg[an - 1] == ' ' ||
                                                   arg[an - 1] == ','))
                                         an--;
+                                    /* PR-218: the trim must NUL-terminate
+                                     * where it stopped. Measured: 2 of the
+                                     * 251 captured rows are
+                                     * `WAIT K_NEVER ;,smpauto` (SADES.06
+                                     * BUTLA_BL/BK `[A_RUN]` row 10) and
+                                     * the copy above stops BEFORE the `;`
+                                     * but leaves its leading space in the
+                                     * buffer, so the old code handed the
+                                     * token `K_NEVER ` to the name
+                                     * resolver and the row was counted as
+                                     * naming a token in NO table. The
+                                     * engine's clause parser 0x47d60 reads
+                                     * its operand with the token scan at
+                                     * 0x57d30 and never carries a space
+                                     * into the name it compares at
+                                     * 0x48000. */
+                                    arg[an] = '\0';
                                     if (an) {
                                         ll_mov_gate g[4];
                                         int gn = 0;
@@ -698,6 +733,7 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                                         if (gn == 1) {
                                             mf->gneg = (short)g[0].neg;
                                             mf->gsig_id = g[0].sig;
+                                            mf->gop = g[0].gop;
                                             captured_clause = 1;
                                             continue;
                                         }

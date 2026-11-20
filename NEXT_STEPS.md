@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-218.
+> at PR-219.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -31517,3 +31517,174 @@ CORRECTS: PR-163, whose `time=` record left the `WAIT` word
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.
+
+## PR-218 — WHAT A ROW CLAUSE'S MODE BYTE IS, AND THE TWO PATHS
+## ITS TEST RESULT SELECTS: NO SHIPPED `Wait` CLAUSE EVER
+## REFUSES ITS ROW, AND THE CAPTURED TOKEN ENDED AT THE `;`
+```
+KIND: port
+SUBSYSTEM: the .MOV row-tail clause capture -
+  ported/ll_play.c (the `Wait` arm of ll_mov_parse's row-tail
+  loop, parse_cond) and ported/ll_play.h - plus the engine's
+  row step 0x521f0 and TEventSet::match 0x47e40, which this PR
+  reads end to end.
+ADDRESSES: 0x45770, 0x45780, 0x45800, 0x45870, 0x45920,
+  0x45970, 0x47d60, 0x47d73, 0x47db2, 0x47dc2, 0x47dc8,
+  0x47dbc, 0x47e40, 0x47e63, 0x47edc, 0x47f42, 0x47fb2,
+  0x48000, 0x48037, 0x48048, 0x4806f, 0x4807d, 0x49550,
+  0x49580, 0x495b0, 0x521f0, 0x52229, 0x52235, 0x5223c,
+  0x5224b, 0x52251, 0x522bc, 0x522e6, 0x522ed, 0x52303,
+  0x5230c, 0x52320, 0x5232b, 0x52338, 0x54482, 0x544d0,
+  0x919ca, 0x919ec, 0x919f5, 0x919fb, 0x91a06, 0x96948,
+  0xa1000, 0xa11c8, 0xa11e0, 0xa2638
+NAMES: ll_mov_fr.gop, LL_GOP_NAME, LL_GOP_NEVER, LL_GOP_ANY,
+  LL_GOP_NONE, ll_mov_gate.gop, parse_cond, obj_rowgate_selftest,
+  endlevel_census, TEventSet match, WAIT K_NEVER, smpauto, rdir,
+  K_ANY, K_NEVER
+CODE: yes: ported/ll_play.h adds ll_mov_fr.gop and
+  ll_mov_gate.gop with the four LL_GOP_* values, and names the
+  clause law in the field comment; ported/ll_play.c labels each
+  no-bit operand by the name pair the engine's own comparator
+  answers (AC_K_ANY/K_ANY at 0x919ec/0x919f5, AC_K_NEVER/
+  K_NEVER at 0x919fb/0x91a06) and NUL-terminates the clause
+  buffer where its trim stopped; tools/endlevel_census.c counts
+  the operand KINDS and names the rows whose token is in no
+  table; the Makefile pins the new census line.
+HOOKS: none new.
+MEASURED: (a) THE MODE BYTE. The clause parser 0x47d60 clears
+  it first: 0x47d73 `mov BYTE PTR [esi+0xc],0x0` right after
+  the zero-fill 0x749a0. Then per operand it tests the token's
+  first byte at 0x47db2-0x47dd0: `!` (0x21) writes 1 (0x47dce
+  -> 0x47dc8), `*` (0x2a) writes 2 (0x47db6 -> 0x47dc2), `|`
+  (0x7c) writes 3 (0x47db8 -> 0x47dbc); a COMMA writes nothing,
+  it only adds a second signal to the same clause - this
+  corrects this PR's own first draft, which had `,` at mode 1.
+  (b) WHAT THE MODES MEAN. TEventSet::match 0x47e40 (its own
+  name, in the out-of-range error path 0x47fd8 through the
+  string 0x919ca) reads [self+0xc], `cmp 3 / ja` out of range,
+  and jumps the table at 0x47e30. mode 0 (0x47e63) ANDs the
+  two sets (0x49550 -> 0x49552) and returns true when that AND
+  EQUALS the clause byte for byte (`repz cmps` + `sete` at
+  0x47ec1-0x47ecc), i.e. the clause is a SUBSET of the set it
+  is handed; mode 1 (0x47edc) returns 0x495b0 of the AND, i.e.
+  true when it is EMPTY (shares nothing); mode 2 (0x47f42)
+  returns the negation of the same call, i.e. true when it is
+  NOT empty (shares something); mode 3 (0x47fb2) is byte
+  equality of the two sets. 0x495b0 itself (whose entry is 2
+  bytes before the 0x495b2 my PR-217 note quoted - an
+  alignment artifact of the dump, the same trap as PR-153) is
+  the empty test: it answers 1 only when all three data dwords
+  are zero. (c) THE TWO PATHS. 0x52229 takes the ROW object
+  from [rec+0x2e][rec+0x4] and 0x52235 calls its test slot
+  +0x8; the row class 0xa2638 IS the chain delegate 0x45800, so
+  the call walks the row's directive chain, where the ctor
+  0x45780 stores the operand at [node+0x0] under the base class
+  word 0xa1000 and 0x45800/0x45870 answer with the operand's
+  answer (0x45800 with an EMPTY set when there is no operand),
+  while a clause node composes: 0x45970 and 0x45920 call the
+  chain getter 0x45870 and OR their own [node+0x8] in (0x49580
+  at 0x4593c). 0x5223c then tests that answer and `je 0x522fc`
+  sends the NON-EMPTY one to 0x52303/0x5230c: the execute slot,
+  its result OR-ed into the CALLER's set - and the row runs only
+  if its authored frame [row+0x10] is BELOW the object's clock
+  [obj+0xa1] (0x52320-0x5232b), the difference being its budget
+  at 0x52338. Only an EMPTY answer falls through to 0x52251,
+  which copies the caller's key and the object's own EventSet
+  [obj+0x60] (12 data bytes plus the mode byte copied
+  separately), ORs them at 0x522bc and calls match at 0x522e6;
+  a 0 answer SKIPS the row (0x522ed -> 0x52354) and a 1 answer
+  runs it with a ZERO budget (0x522ef -> 0x52338). (d) THE
+  SHIPPED DATA against that law: of the 251 captured clauses
+  230 carry no operator (mode 0) and 21 carry `!` (mode 1);
+  `*` and `|` appear in ZERO rows, so modes 2 and 3 are never
+  authored. Every one of those clauses leaves a NON-empty set -
+  K_NEVER is not empty at all, 0x4806f-0x4807d OR-s 0x60 into
+  data BYTE 4, and K_ANY OR-s the mask 0x2001f8 into dword 1
+  at 0x48037-0x48048 - so not ONE shipped row reaches match
+  with a clause, and the clause-less rows that do reach it
+  carry an empty clause, which is a subset of anything: the
+  second test never refuses a shipped row. What a clause DOES
+  change is the path: a row that carries one is gated by the
+  frame/clock compare at 0x52320, a row that carries none runs
+  at once with a zero budget. (e) THE CENSUS, through the port's
+  own parser and pinned by verify-endlevel: 161 of the 251
+  captured operands get NO signal bit from the comparator 0x48000
+  - 161 of them K_NEVER, 0 K_ANY, 0 unknown - after this PR's
+  parser fix; before it 2 were counted as unknown because the
+  token carried a trailing space. 0 rows name `K_ANY` (its only
+  authored use, `WAIT |K_ANY,rdir` in LONA.05, is a two-token
+  clause the parser still refuses to capture) and the token
+  `rdir` is a row DIRECTIVE name in neither table.
+FAILING TEST FIRST, MEASURED RED: obj_rowgate_selftest grew an
+  `op` column and two legs before the code did, and
+  `./ll_level --mov-selftest` said `row gate selftest: FAILED
+  SADES.06's [A_RUN] row WAIT K_NEVER ;,smpauto: the clause
+  ENDS at the ; ... (clause -2 neg 0 op 3 want clause -2 neg 0
+  op 1)`. The reason was real: the `Wait` arm copies the clause
+  up to the `;` and then only DECREMENTED its length counter when
+  trimming the trailing delimiter, never re-wrote the terminator,
+  so `WAIT K_NEVER ;` handed the name resolver the token
+  `K_NEVER ` and the row was classified as naming a token in no
+  table. 2 of the 777 texts are that shape - SADES.06
+  BUTLA_BL/BK `[A_RUN]` row 10, `11,1200,WAIT K_NEVER
+  ;,smpauto` - and the engine's clause parser never carries a
+  space into the name it compares at 0x48000. With the
+  terminator written, the legs pass and the census moves those 2
+  rows from `unknown` to K_NEVER, which is the only count that
+  changes.
+AT ZARIA.01 NOTHING OBSERVABLE CHANGES: no model reads gop, the
+  clause itself is still not acted on, and every existing frame
+  pin is byte-identical - verify-endlevel's driven legs still
+  reproduce the same run.
+FOCUS 1, MEASURED AND NAMED: `GEN K_GEN1` is authored in 20 of
+  the 777 texts and every one of them is the LION's own script
+  (ZARIA.01 LEW.MOV and LEWPL.MOV 36 rows each, TUNGA2.12 36,
+  TUNGA.11 32, ZARIA.02 32, KADMAR.07 29, KARA.07 26, SADES.06
+  10, LONA.05 9, RAN.01 8, KADMAR2 8, the rest fewer); ZERO
+  DRABINKA member raises it, and ZARIA.01's DRAB.MOV has no
+  `GEN` line at all - its `[A_UP]` row 1 is `1,0,WAIT K_GEN1`.
+  So under the port's per-object signal set the bit can never be
+  raised there, and OI-078's one blocker is now a DATA fact with
+  a named question instead of a guess: the raiser is either
+  engine-side code or a set shared through the key registry the
+  clause parser registers names into (0x57d30). Separately, the
+  LION's own answer slot at the class table 0x96948 (+0xd4) is
+  0x544d0, whose first bytes are an alignment artifact with a
+  bare ret - an EMPTY override - so the `state index == 2` +
+  AC_BREAK_NEXT special case at 0x54482 is a no-op for the lion
+  and that lead is closed.
+RISK: the parser fix touches one statement in the `Wait` arm, so
+  its blast radius is the 2 rows named above; the census and the
+  selftest pin both. gop is a new field with no reader outside
+  the census and the selftest, so no behaviour can move through
+  it. The read is confined to code the port does not act on
+  yet.
+REVERT: revert this commit; this record, the OI-111 and OI-078
+  register rows, the ported/ll_level.c selftest legs, the
+  ported/ll_play.c and ll_play.h hunks, the census and its
+  Makefile pins, the section 8 status block, the header
+  numbering line and the regenerated index go back together.
+OPENS: nothing new; OI-111 is REWRITTEN by this PR to the
+  question the read actually leaves: which of the two row-step
+  paths the port's row clock models, since the clause selects
+  between them and the match test is inert on shipped data.
+CLOSES: the reading PR-217 left open - "does the second test
+  refuse a `Wait` row" - it does not, for any shipped row, and
+  the "unknown token in a captured clause" case is gone (0).
+CORRECTS: PR-217, three of its readings. (1) "the row is
+  admitted only on EMPTY (0x5224b)": the branch is
+  `je 0x522fc`, so it is the NON-EMPTY answer that takes the
+  execute-and-clock path and the empty one that is match-tested.
+  (2) "0x45970 copies the node's own [node+0x8]": it composes,
+  like 0x45920 - the chain's answer OR its own set. (3) the
+  operand census "exactly 1 names a token in no table": through
+  the parser it was 2, both `smpauto` after a `;`, and both are
+  this PR's trim bug - the real no-table token in a clause is
+  `rdir`, in a row the parser does not capture. This PR's own
+  draft is corrected twice as well (K_NEVER is not an empty set
+  but a 0x60 byte-4 mask, and `,` is not mode 1), and the
+  0x495b2 call target is 0x495b0.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
+```

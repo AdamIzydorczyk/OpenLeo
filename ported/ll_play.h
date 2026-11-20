@@ -263,18 +263,26 @@ enum {
  * PR-217: ll_mov_parse stores that -1 as LL_SIG_NOBIT in a row's
  * gsig_id, so a reader can tell "no bit" from "no clause" (-1). */
 #define LL_SIG_NOBIT (-2)
+/* Which of the engine's non-bit clause operands a captured name is
+ * (PR-218, measured against its name comparator 0x48000). LL_GOP_NAME is
+ * the common case and is 0, so a zeroed frame means "a real signal name,
+ * or no clause at all". */
+#define LL_GOP_NAME  0
+#define LL_GOP_NEVER 1
+#define LL_GOP_ANY   2
+#define LL_GOP_NONE  3
 int ll_sig_id(const char *name);
 
 typedef struct { int frame; unsigned thresh; int dx, dy;
                  unsigned long long gsig; unsigned char atc;
                  int has_i, ix, iy, endlv;
-                 short gsig_id; short gneg; } ll_mov_fr;
+                 short gsig_id; short gneg; short gop; } ll_mov_fr;
                  /* has_i: `I ix,iy` impulse tail */
                  /* gsig_id / gneg: this row's `Wait <signal>` tail, kept as
                  * DATA and NOT yet acted on (PR-217). -1 = the row carries
                  * no Wait tail; -2 = a token the engine's signal table has
-                 * no BIT for (K_NEVER and the other node-op specials: 159
-                 * of the 255 tails); otherwise its LL_SIG_* index.
+                 * no BIT for (the 255 tails name 161 of them: K_NEVER 159,
+                 * K_ANY 1 and `rdir` 1); otherwise its LL_SIG_* index.
                  * MEASURED census of the 777 extracted .MOV
                  * texts: 255 Wait tails in 133 files, 254 of them exactly
                  * ONE token and no text after it (one has none), 22 tokens
@@ -284,31 +292,68 @@ typedef struct { int frame; unsigned thresh; int dx, dy;
                  * directive table and its parse arm is 0x46b62-0x46ba2: it
                  * builds a 0x15-byte node (class word 0xa11c8) and parses
                  * the operand with the clause parser 0x47d60 into the
-                 * node's 12-byte TEventSet at [node+0x8] - the SAME shape,
-                 * node ctor 0x45770 and parser the modelled `GEN` arm
-                 * builds (0x46af4-0x46b34, also 0x15 bytes, class word
-                 * 0xa11e0), which is why the operand is one signal name
-                 * and `!` is part of it (the clause parser's negate op,
-                 * which wraps its operand into a clause node at
-                 * 0x47d00-0x47d42). The row step 0x521f0 reads two slots
-                 * of [node+0x4]: 0x52235 calls slot +0x8 (the clause TEST)
-                 * into a local EventSet and 0x5223c calls the empty test
-                 * 0x495b2 - the row is admitted only on EMPTY (0x5224b);
-                 * a second test at 0x522e6 (0x47e40) of the union of that
-                 * result with the caller's key and the object's own
-                 * EventSet [obj+0x60] (0x522bc = the TEventSet OR
-                 * 0x49582) gates it again, and only then may 0x52303 call
-                 * slot +0xc, whose result 0x5230c OR-s into [obj+0x60].
-                 * The `Wait` vtable 0xa11c8 answers slot +0x8 with
-                 * 0x45970, which copies the node's OWN [node+0x8] and
-                 * never calls its operand - so an un-negated one-token
-                 * clause is never empty and that row never admits. How
-                 * that reads against the `!` path and the second test is
-                 * OI-111, so the clause is carried here and no model acts
-                 * on it yet. ZARIA.01's own DRAB.MOV is one of these
-                 * rows (`[A_UP]` row 1 is `WAIT K_GEN1`, `[A_DOWN]` row 11
-                 * is `WAIT K_NEVER`), which is why the field lives beside
-                 * gsig and not in the transition table. */
+                 * node's 12-byte TEventSet at [node+0x8] - the SAME
+                 * shape, node ctor and clause parser 0x47d60 the modelled
+                 * `GEN` arm builds (0x46af4-0x46b34, also 0x15 bytes,
+                 * class word 0xa11e0); the two differ ONLY in that class
+                 * word. Nodes are a CHAIN: the ctor 0x45780 writes the
+                 * base class word 0xa1000 at [node+0x4] and puts its
+                 * operand at [node+0x0], and the two chain walkers
+                 * 0x45800 (test) and 0x45870 (execute) hand back what the
+                 * operand answers - 0x45800 an EMPTY set when there is no
+                 * operand. The `Wait` class 0xa11c8 answers test with
+                 * 0x45970 = the chain's answer OR the node's own
+                 * [node+0x8].
+                 * HOW THE ROW STEP READS IT (PR-218, end to end): 0x52229
+                 * takes the row object from [rec+0x2e][rec+0x4] and
+                 * 0x52235 calls ITS test slot +0x8 (class 0xa2638 is the
+                 * delegate 0x45800, so the walk lands on the row's
+                 * directive chain); 0x5223c calls 0x495b0, which answers 1
+                 * only when all three data dwords are zero. A NON-empty
+                 * answer goes to 0x522fc: 0x52303 calls the execute slot
+                 * +0xc and 0x5230c OR-s what it returns into the CALLER's
+                 * set, and the row then runs only if its authored frame
+                 * [row+0x10] is BELOW the object's clock [obj+0xa1]
+                 * (0x52320-0x5232b), with the difference as its budget.
+                 * Only an EMPTY answer reaches the second test:
+                 * 0x52251-0x522b3 copy the caller's key and the object's
+                 * own EventSet at [obj+0x60] and OR them (0x49580), and
+                 * 0x522e6 calls TEventSet::match (0x47e40, its own name in
+                 * the error string 0x919ca), which skips the row when it
+                 * answers 0 (0x522ed) and otherwise runs it with a ZERO
+                 * budget. match switches on the clause's MODE byte at
+                 * [set+0xc]: 0 (0x47e63) true when the AND of the two
+                 * sets equals the clause byte for byte, i.e. the clause is
+                 * a SUBSET of the set it is handed; 1 (0x47edc) true when
+                 * that AND is EMPTY (shares nothing); 2 (0x47f42) when it
+                 * is NOT empty (shares something); 3 (0x47fb2) when the two
+                 * sets are byte-identical. That byte comes from the clause
+                 * parser: 0x47d73 clears it to 0 and 0x47db2-0x47dd0 write
+                 * 1 for a leading `!`, 2 for `*`, 3 for `|`; a comma does
+                 * NOT change it, it only adds a second signal to the same
+                 * clause. MEASURED over the shipped texts: 230 clauses are
+                 * mode 0 and 21 mode 1, no text uses `*` or `|`, and every
+                 * one of them leaves a NON-empty set (K_NEVER writes 0x60
+                 * into data byte 4, 0x4806f-0x4807d), so not one shipped
+                 * row reaches match WITH a clause, and the clause-less rows
+                 * that do reach it carry an empty clause, which is a subset
+                 * of anything: match never refuses a shipped row. That is
+                 * what the clause is NOT. What it IS does move a row: a row
+                 * that carries one is gated by the frame/clock compare at
+                 * 0x52320, a row that carries none runs at once with a
+                 * zero budget. OI-111 asks which of those two paths the
+                 * port's row clock models, so the clause is carried here
+                 * and no model acts on it yet. ZARIA.01's own DRAB.MOV is
+                 * one of these rows (`[A_UP]` row 1 is `WAIT K_GEN1`,
+                 * `[A_DOWN]` row 11 is `WAIT K_NEVER`), which is why the
+                 * field lives beside
+                 * gsig and not in the transition table.
+                 * gop: which of the three no-bit operands a captured
+                 * clause names (LL_GOP_NAME / _NEVER / _ANY / _NONE), so
+                 * a reader can tell K_NEVER's 0x60 mask from K_ANY's
+                 * 0x2001f8 mask from a name the engine's comparator 0x48000
+                 * does not know at all. Measured 2026-11-20 over the 777
+                 * texts: 161 / 0 / 0 of the 251 captured rows. */
                  /* endlv: this row's `end_level <n>` tail: the AUTHORED
                  * NUMBER kept as DATA, 0 = the row carries no such tail
                  * (PR-199). The word is in the engine's own .MOV
@@ -378,7 +423,8 @@ typedef struct { int frame; unsigned thresh; int dx, dy;
  * signal NAME rather than a modeled condition. PR-217: this element type
  * is shared by the transition table (ll_mov_tr.c) and by a row's `Wait`
  * clause, which the clause parser reads the same way. */
-typedef struct { int cond; int neg; int grp; short sig; } ll_mov_gate;
+typedef struct { int cond; int neg; int grp; short sig; short gop; }
+    ll_mov_gate;
 typedef struct {
     char target[24];                        /* resolved at parse time      */
     int tidx;                               /* state index, -1 unresolved  */

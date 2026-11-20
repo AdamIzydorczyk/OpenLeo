@@ -3222,26 +3222,46 @@ static int obj_rowgate_selftest(void)
         "A_ONE\n\n[A_ONE]\ncontrol=BY_TIME\n"
         "1,100,WAIT !K_DOWN\n2,100,WAIT !AC_ENEMY_ATC\n"
         "3,100,WAIT AC_DUP\n4,100,WAIT K_ANY\n5,100,WAIT AC_BOGUS\n"
-        "6,100,WAIT ;\n7,100,lock\n8,100\n";
+        "6,100,WAIT ;\n7,100,lock\n8,100\n"
+        "11,12000,WAIT K_NEVER ;,smpauto\n"
+        "12,1200,WAIT !K_UP ;\n";
     static const struct { const char *mov; int st, fr;
-                         int sig; int neg; const char *what; } cs[] = {
-        { drab, 0, 0, LL_SIG_K_GEN1, 0, "ZARIA.01's ladder A_UP row 1:"
-          " `WAIT K_GEN1` = the K_GEN1 clause, un-negated" },
-        { drab, 1, 0, -1, 0, "the A_DROP rows carry no tail at all" },
-        { drab, 1, 1, -1, 0, "including its second row" },
-        { drab, 2, 0, -2, 0, "A_DOWN row 11 `WAIT K_NEVER`: K_NEVER is"
-          " one of the engine's four node-op specials, NOT a bit" },
-        { tails, 0, 0, LL_SIG_K_DOWN, 1, "`!K_DOWN` keeps the negation" },
-        { tails, 0, 1, LL_SIG_AC_ENEMY_ATC, 1, "`!AC_ENEMY_ATC` resolves"
-          " through the signal table, not as OTHER" },
-        { tails, 0, 2, LL_SIG_AC_DUP, 0, "`AC_DUP` is a plain signal bit" },
-        { tails, 0, 3, -2, 0, "`K_ANY` is a node-op special, not a bit" },
-        { tails, 0, 4, -2, 0, "a name in NO table stays the unresolvable"
-          " special, never a guess" },
-        { tails, 0, 5, -1, 0, "`WAIT ;` (1 of the 255) carries no token:"
-          " counted, not captured" },
-        { tails, 0, 6, -1, 0, "the other directives (`lock`) stay counted" },
-        { tails, 0, 7, -1, 0, "and a plain row keeps no clause" },
+                         int sig; int neg; int op; const char *what; }
+        cs[] = {
+        { drab, 0, 0, LL_SIG_K_GEN1, 0, LL_GOP_NAME,
+          "ZARIA.01's ladder A_UP row 1: `WAIT K_GEN1` = the K_GEN1"
+          " clause, un-negated" },
+        { drab, 1, 0, -1, 0, LL_GOP_NAME,
+          "the A_DROP rows carry no tail at all" },
+        { drab, 1, 1, -1, 0, LL_GOP_NAME, "including its second row" },
+        { drab, 2, 0, -2, 0, LL_GOP_NEVER,
+          "A_DOWN row 11 `WAIT K_NEVER`: K_NEVER is one of the four"
+          " operands the engine's comparator gives NO signal bit" },
+        { tails, 0, 0, LL_SIG_K_DOWN, 1, LL_GOP_NAME,
+          "`!K_DOWN` keeps the negation and the real bit" },
+        { tails, 0, 1, LL_SIG_AC_ENEMY_ATC, 1, LL_GOP_NAME,
+          "`!AC_ENEMY_ATC` resolves through the signal table, not as"
+          " OTHER" },
+        { tails, 0, 2, LL_SIG_AC_DUP, 0, LL_GOP_NAME,
+          "`AC_DUP` is a plain signal bit" },
+        { tails, 0, 3, -2, 0, LL_GOP_ANY, "`K_ANY` is the mask operand"
+          " (the engine OR-s 0x2001f8 into dword 1, 0x48037-0x48048)" },
+        { tails, 0, 4, -2, 0, LL_GOP_NONE, "a name in NO table stays the"
+          " unresolvable special, never a guess" },
+        { tails, 0, 5, -1, 0, LL_GOP_NAME, "`WAIT ;` (1 of the 255)"
+          " carries no token: counted, not captured" },
+        { tails, 0, 6, -1, 0, LL_GOP_NAME,
+          "the other directives (`lock`) stay counted" },
+        { tails, 0, 7, -1, 0, LL_GOP_NAME, "and a plain row keeps no"
+          " clause" },
+        { tails, 0, 8, -2, 0, LL_GOP_NEVER,
+          "SADES.06's `[A_RUN]` row `WAIT K_NEVER ;,smpauto`: the"
+          " clause ENDS at the `;` the engine's row text puts there,"
+          " so the operand is K_NEVER and the directive after the"
+          " `;` is not part of it" },
+        { tails, 0, 9, LL_SIG_K_UP, 1, LL_GOP_NAME,
+          "`WAIT !K_UP ;` (the ZARIA.01 `[A_LOOKUP]` shape): the `;`"
+          " ends the clause without becoming part of the name" },
     };
     int rc = 1;
 
@@ -3257,11 +3277,13 @@ static int obj_rowgate_selftest(void)
             return 1;
         }
         const ll_mov_fr *f = &m->st[cs[i].st].fr[cs[i].fr];
-        if ((int)f->gsig_id != cs[i].sig || (int)f->gneg != cs[i].neg) {
+        if ((int)f->gsig_id != cs[i].sig || (int)f->gneg != cs[i].neg ||
+            (int)f->gop != cs[i].op) {
             fprintf(stderr, "row gate selftest: FAILED %s (clause %d"
-                            " neg %d want clause %d neg %d)\n",
+                            " neg %d op %d want clause %d neg %d"
+                            " op %d)\n",
                     cs[i].what, (int)f->gsig_id, (int)f->gneg,
-                    cs[i].sig, cs[i].neg);
+                    (int)f->gop, cs[i].sig, cs[i].neg, cs[i].op);
             free(m);
             return 1;
         }
@@ -4355,7 +4377,13 @@ int ll_mov_selftest(void)
            " tail captured as the engine's own signal clause - one"
            " token in 254 of the 255 shipped tails, `!` in 22,"
            " K_NEVER/K_ANY kept as the no-bit specials, `WAIT ;`"
-           " left counted, and NO model acting on it yet (ok)\n");
+           " left counted, and NO model acting on it yet, and"
+           " PR-218 WHICH no-bit operand a captured clause names"
+           " (K_NEVER's 0x60 mask, K_ANY's 0x2001f8 mask, or a"
+           " name the comparator 0x48000 does not know), with"
+           " the clause ENDED by the `;` the engine's row text"
+           " puts there, so `WAIT K_NEVER ;,smpauto` is the"
+           " K_NEVER clause and not an unknown name (ok)\n");
     return 0;
 }
 

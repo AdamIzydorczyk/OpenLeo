@@ -2277,6 +2277,10 @@ ifeq ($(PX_DATA),1)
 	  && grep -qF 'Wait-clause capture (PR-217): 133 member(s), 251 row(s)' /tmp/opencode/endlv_census.txt \
 	  && grep -qF '161 of them a name with NO bit' /tmp/opencode/endlv_census.txt \
 	  && grep -qF '21 negated' /tmp/opencode/endlv_census.txt \
+	  && grep -qF 'Wait operand kinds (PR-218): 230 with NO operator' /tmp/opencode/endlv_census.txt \
+	  && grep -qF '161 name K_NEVER (OR-s' /tmp/opencode/endlv_census.txt \
+	  && grep -qF '0 name K_ANY (OR-s' /tmp/opencode/endlv_census.txt \
+	  && grep -qF 'and 0 name a token in NO table' /tmp/opencode/endlv_census.txt \
 	  && grep -qF 'LEVEL ZARIA.01: 33 .MOV member(s), 0 end_level row(s), 35 Wait-clause row(s) captured' /tmp/opencode/endlv_census.txt \
 	  && echo "end_level rows counted by the port's own parser: 26 rows in 3 of" \
 	     "the 777 .MOV members (25 x value 1, 1 x value 2), each named by level," \

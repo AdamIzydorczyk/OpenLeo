@@ -2060,6 +2060,48 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-218 (READ + ONE PARSER FIX): the row clause's MODE
+byte and the two paths its test result selects. The clause
+parser 0x47d60 clears the mode byte at [set+0xc] (0x47d73) and
+0x47db2-0x47dd0 write 1 for `!`, 2 for `*`, 3 for `|`; a comma
+writes nothing. TEventSet::match 0x47e40 (its own error string
+0x919ca) switches on that byte through 0x47e30: mode 0 (0x47e63)
+is true when the AND of the two sets equals the clause byte for
+byte - the clause is a SUBSET of the set handed to it; mode 1
+(0x47edc) when that AND is EMPTY; mode 2 (0x47f42) when it is
+NOT; mode 3 (0x47fb2) when the sets are byte-identical. The row
+step 0x521f0 asks the ROW object (class 0xa2638 = the chain
+delegate 0x45800), directive nodes are a chain (ctor 0x45780
+puts the operand at [node+0x0] under the base class word
+0xa1000), and a clause node composes: 0x45970/0x45920 call the
+chain getter 0x45870 and OR their own [node+0x8] in. 0x5223c
+then tests the answer with 0x495b0 (empty only when all three
+dwords are zero) and `je 0x522fc` sends the NON-EMPTY one to the
+execute slot, ORs its result into the caller's set (0x5230c) and
+gates the row on its authored frame [row+0x10] against the
+object's clock [obj+0xa1] (0x52320); only an EMPTY answer builds
+key | [obj+0x60] (0x52251-0x522bc) and calls match (0x522e6),
+whose 0 answer skips the row. On shipped data the match test is
+INERT: 230 clauses are mode 0, 21 mode 1, `*`/`|` appear in zero
+rows, and every clause leaves a non-empty set - K_NEVER OR-s
+0x60 into data byte 4 (0x4806f-0x4807d), K_ANY OR-s 0x2001f8
+into dword 1 (0x48037-0x48048) - so no shipped row reaches match
+with a clause. A clause therefore changes the PATH (clock-gated
+vs immediate), not the admission: OI-111 rewritten to that one
+question. Code: the `Wait` arm of ll_mov_parse never wrote the
+terminator where it trimmed the clause, so `WAIT K_NEVER
+;,smpauto` was captured as the token `K_NEVER ` and counted as an
+unknown name - 2 rows (SADES.06 BUTLA_BL/BK `[A_RUN]` row 10);
+fixed and legged, and ll_mov_fr/ll_mov_gate gain `gop`, which
+names WHICH no-bit operand a clause holds (K_NEVER 161 / K_ANY 0
+/ unknown 0 through the port's parser, pinned by verify-endlevel)
+- still no model acts on the clause, so no frame moves. Also
+measured for FOCUS 1: `GEN K_GEN1` is authored ONLY in the
+lion's own scripts (20 texts, ZARIA.01's LEW.MOV 36 rows), ZERO
+in any DRABINKA, and the lion's answer slot 0x96948+0xd4 =
+0x544d0 is an empty override, so 0x54482's state-index case is a
+no-op for the lion.
+
 STATUS PR-217 (PORT, CAPTURE ONLY): a row's `Wait <signal>` tail
 is the engine's own signal clause, not a delay. The directive
 chain is 0x45df0; its `GEN` arm 0x46af4-0x46b34 and its `Wait`

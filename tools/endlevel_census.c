@@ -29,6 +29,12 @@ static int n_members, n_unread, n_rows, n_members_with;
  * CAPTURES (ll_mov_fr.gsig_id/gneg). Nothing acts on them yet, so the
  * count is what the next PR's gate model will be measured against. */
 static int n_wait_rows, n_wait_members, n_wait_nobit, n_wait_neg;
+/* PR-218: the operand KIND, which is what the engine's clause parser turns
+ * into the set's MODE byte and its data (0x47d60 writes the mode at
+ * [set+0xc]: default 0 at 0x47d73, then 0x47db2-0x47dd0 picks 1 for `!` or
+ * ',', 2 for '*', 3 for '|'; the operand name is resolved by 0x48000).
+ * Counted here so the mode census is measured, not assumed. */
+static int n_wait_never, n_wait_any, n_wait_unknown, n_wait_plain;
 static int val_count[VAL_MAX];
 static int level_rows;            /* rows in the level block being walked */
 static int level_waits;           /* PR-217: same walk, `Wait` rows */
@@ -68,8 +74,24 @@ static void scan_member(const llrs *c, const llrs_slot *s, const char *lvl,
                 w_here++;
                 if (st->fr[j].gsig_id == LL_SIG_NOBIT)
                     n_wait_nobit++;
+                if (st->fr[j].gop == LL_GOP_NEVER)
+                    n_wait_never++;
+                if (st->fr[j].gop == LL_GOP_ANY)
+                    n_wait_any++;
+                if (st->fr[j].gop == LL_GOP_NONE) {
+                    n_wait_unknown++;
+                    printf("  %s/%s state %d [%s] row %d (authored frame"
+                           " %d, threshold %u): its `Wait` clause names a"
+                           " token the engine's signal table does NOT have"
+                           " - the engine's comparator 0x48000 matches no"
+                           " name and leaves the set EMPTY\n",
+                           lvl, leaf, k, st->name, j, st->fr[j].frame,
+                           st->fr[j].thresh);
+                }
                 if (st->fr[j].gneg)
                     n_wait_neg++;
+                else
+                    n_wait_plain++;
             }
             if (!v)
                 continue;
@@ -168,6 +190,20 @@ int main(int argc, char **argv)
            " engine's table (K_NEVER/K_ANY/unknown), %d negated with `!`;"
            " captured, and no model acts on it yet\n",
            n_wait_members, n_wait_rows, n_wait_nobit, n_wait_neg);
+    printf("Wait operand kinds (PR-218): %d with NO operator, which the"
+           " engine's clause parser records as mode byte 0 (0x47d73) and"
+           " TEventSet::match mode 0 reads as 'every signal the clause names"
+           " is in the set it is handed'; %d `!`-negated, which is mode 1"
+           " (0x47dc8) = 'the clause shares no signal with that set'; the"
+           " `*` (mode 2, 0x47dc2) and `|` (mode 3, 0x47dbc) operators"
+           " appear in 0 of them, so the engine's other two match arms are"
+           " never reached by the shipped data; of the %d operands its"
+           " comparator 0x48000 gives NO signal bit, %d name K_NEVER (OR-s"
+           " 0x60 into data byte 4, 0x4806f-0x4807d), %d name K_ANY (OR-s"
+           " the mask 0x2001f8 into dword 1, 0x48037-0x48048) and %d name a"
+           " token in NO table; every captured tail is ONE token\n",
+           n_wait_plain, n_wait_neg, n_wait_nobit, n_wait_never,
+           n_wait_any, n_wait_unknown);
     for (i = 0; i < VAL_MAX; i++)
         if (val_count[i])
             printf("value %d: %d row(s)\n", i, val_count[i]);
