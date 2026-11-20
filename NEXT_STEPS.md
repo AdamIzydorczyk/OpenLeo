@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-220.
+> at PR-221.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -31833,3 +31833,172 @@ GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.
 ```
+
+## PR-220 — THE STATE RECORD BUILDS ITS ROWS AND SUPPLIES THE
+## SCALE: `time_scale` IS A RECORD FIELD (`[rec+0xe]`) HANDED TO
+## THE ROW CTOR, AND IT MULTIPLIES THE FIRST AUTHORED NUMBER -
+## THE ROW STEP THEN COMPARES THAT AGAINST THE CLOCK AND RUNS
+## THE ROW WITH THE OVERSHOOT
+```
+KIND: read
+SUBSYSTEM: the state record's block parser and row-list builder
+  (0x51910, 0x51eb0, 0x517e0), the row ctor's scale argument,
+  the row step's gate (0x52320-0x52338) and the `control=`
+  token parser (0x51b0d) - read against the port's PR-110
+  time_scale pass (ported/ll_play.c:896) and row gate
+  (ported/ll_level.c:1506-1514).
+ADDRESSES: 0x21750, 0x44110, 0x458e0, 0x49920, 0x515e0,
+  0x51620, 0x518f0, 0x52072, 0x523f0, 0x5264f, 0x55820,
+  0x76bcc, 0xa1000, 0xa11c0, 0xa11d8, 0xa260c,
+  0x51660, 0x51679, 0x5168f, 0x51692, 0x516bd, 0x517c9,
+  0x517e0, 0x518f0, 0x51910, 0x51933, 0x5194e, 0x51960,
+  0x519c3, 0x51a01, 0x51a35, 0x51ac1, 0x51b0d, 0x51b6f,
+  0x51ba3, 0x51c59, 0x51eb0, 0x51f37, 0x51f3b, 0x51f3e,
+  0x51f48, 0x51f54, 0x52317, 0x52320, 0x52323, 0x5232b,
+  0x52334, 0x52338, 0x52568, 0x5264f, 0x54380, 0x543a0,
+  0x543c6, 0x543dc, 0x543fb, 0x543f2, 0x5441b, 0x57fd0,
+  0x76d20, 0x76fa3, 0x92115, 0x92119, 0x9211e, 0x92122,
+  0x92127, 0x92131, 0x92143, 0x92156, 0x9215d, 0x92162,
+  0x9216e, 0x92178, 0x92180, 0x92186, 0x9218c, 0xcef40,
+  0xceff4, 0xceff8, 0xa260c
+NAMES: ll_mov_fr.thresh, ll_mov_fr.frame, obj_advance,
+  o->row_t, o->facc, time_scale, scale_at, LL_CTRL_BY_TIME,
+  LL_CTRL_BY_X, control=, seq=, control=BY_TIME|FRAME_REV
+CODE: no: this PR ships no code. OI-112's remaining half is a
+  named unknown consumer, not a guess to code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE RECORD. The state record is 0x48 bytes
+  (0x518f0) and its class word is 0xa260c - PR-219's row-run
+  verb family. The state ctor 0x517e0 finishes by allocating a
+  record with `add eax,0x14` (0x517b1), setting [rec+0x44] =
+  0xa260c (0x517c2) and calling 0x51eb0 with eax = the record
+  and edx = the block text (0x517c9). 0x51eb0 is the row-list
+  builder; it is called again at 0x52568, on the same record,
+  in the row-rebuild path. (b) THE BLOCK LINES. 0x51eb0 hands
+  every line to a dispatcher; the block-settings branch ends in
+  `call 0x51910` (0x5264f) with eax = the record and edx = the
+  line, and 0x51910 picks the line by substring match with
+  0x76d20: `time` (0x92119, 0x51933) scans `%hi` (0x9211e) at
+  0x5194e and `,%hi` (0x92122) at 0x51960 into [rec+0x8] and
+  [rec+0xa] - PR-163's AC_TIME bounds pair, now with its store
+  sites; `sample` (0x92127) scans at 0x5198f into [rec+0x16];
+  `time_scale` (0x92131) scans at 0x519cd into [rec+0xe]
+  (0x519c3); `seq` (0x92143, 0x51a01) registers the sequence
+  name through 0x57d30 and calls the settings block's +0x4 verb
+  (0x51a32, edx = the global 0xceff8), storing the answer in
+  the GLOBAL 0xceff4 (0x51a35). (c) THE ROWS. 0x51eb0 first
+  scans the row line's leading number with `%d,` (0x92156,
+  0x51aa1). Then at 0x51f37-0x51f54: `mov eax,[rec+0xe]`,
+  `mov edx,[eax+0xe]`, `push edx` - the record's time_scale IS
+  the row ctor's scale factor, read from the record, not from a
+  line position - then `lea eax,[esp+4]`, `call 0x57fd0`
+  (0x57fd0 = `mov eax,[eax]` + a jump into the string copy at
+  0x76fa3: the ctor's first argument is a COPY of the line),
+  `mov ebx,ds:0xceff4` (0x51f48 - the sequence's default just
+  registered), ecx = the copy, edx = the line, `call 0x515e0`.
+  Inside 0x515e0's line parser 0x51660 the ONE scan is
+  `%hi` (0x92115) into [row+0x10] (0x51662-0x51676) and the
+  multiply/divide by the caller's factor is 0x51679-0x5168f, so
+  `[row+0x10] = first * [rec+0xe] / 1000`. The value handed in
+  ebx goes to [row+0x8] (0x5169e/0x516cf) and the second
+  authored number to [row+0xc] with the sign flag at
+  [row+0x14], 0 replaced by 0x44110's registry answer (0x516bd)
+  exactly as PR-219 read. (d) THE GATE IS A COMPARE, NOT A
+  SUBTRACTION. 0x52320-0x5232b: `mov eax,[row+0x10]`,
+  `mov ebx,[obj+0xa1]`, `cmp eax,ebx`, `jge 0x52354` - if the
+  clock has NOT reached [row+0x10] the step runs nothing at
+  all. When it has, 0x52334 computes `ebx = [obj+0xa1] -
+  [row+0x10]`, the OVERSHOOT, and passes it as the budget to
+  the row-run verb 0x520c0 at 0x52338; the row step's other
+  path (a row whose clause matched, 0x522fc-0x5232b) runs the
+  row's directives first, feeds the clock at 0x52317, and then
+  makes the same compare with ebx = 0. Nothing decrements
+  [obj+0xa1] here; only the reset 0x5236b and construction
+  write 0 (PR-219). (e) THE CONTROL BITS, NAMED. The `control=`
+  branch 0x51b0d takes the first token with ` %[^,| \r\n\t]`
+  (0x9215d) and OR-s a bit into [rec+0x12]: BY_X = 1 (0x51b6f),
+  BY_Y = 2 (0x51b89), BY_TIME = 4 (0x51ba3), BY_TX = 8
+  (0x51bd7), BY_TY = 0x10 (0x51bf1), FRAME_REV = 0x20
+  (0x51c3f), SEQ_REV_X = 0x40 (0x51c25), SEQ_REV_Y = 0x80
+  (0x51c0b), more at [rec+0x13] (0x51c59). That is the byte
+  0x543a0 masks with 7, and its table 0x54380 is case 0 ->
+  |[obj+0xca]|, 1 -> |[obj+0xce]|, 2 -> 0x543fb, 3 -> 0x543f2,
+  4 -> 0x5441b: BY_X feeds the clock with the distance walked
+  in X, BY_Y in Y, and the remaining cases take the scene
+  frame-delta paths. The port's LL_CTRL_BY_TIME = 1 /
+  LL_CTRL_BY_X = 2 are its own vocabulary and do not equal
+  these values; cases 3 and 4 differ only in their guard
+  ([obj+0xba] at 0x543f2, [obj+0xbe] at 0x5441b), both then
+  adding `[scene+0x388]` to [obj+0xa1]. (f) THE DATA.
+  KADMAR.07 `_0_0.MOV` 112-127 is
+  `[A_DEAD]`, `control=BY_TIME|FRAME_REV`, `time=220`,
+  `time_scale=500`, `seq=dead`, then rows `0,100`,
+  `1,1000,gen K_GEN1`, `2,400`, ... - the first column counts
+  0,1,2,3 while the second holds 100/1000/400.
+OPENS: OI-112, resolved for the row's GATE and narrowed for its
+  time: the engine scales and gates on the FIRST authored number
+  (`[row+0x10] = first * [rec+0xe] / 1000`, compared at
+  0x52320), and the second number is stored as
+  [row+0xc]/[row+0x14]/[row+0x8] with a sign flag and a
+  sequence-default substitution, but PR-220 found NO reader of
+  [row+0x8] or [row+0xc] on the step path: the row class's
+  +0x8/+0xc are PR-218's chain delegates and its +0x10 is
+  0x458e0, a third chain delegate. So the port's `.thresh`
+  value may be right while the number carrying it, its scaling
+  and the gate arithmetic (`f->thresh` subtracted from
+  `o->row_t` versus `[row+0x10]` compared against a monotonic
+  clock) are not. On KADMAR.07's `[A_DEAD]` the two models
+  differ outright: engine gate 0,0,1,2..., port gate 50,500,200.
+  The class tables are now read. For a NODE the class word
+  points at its table base and the slots are +0x00 create,
+  +0x04 clone, +0x08 test, +0x0c execute, +0x10 chain: the
+  base node 0xa1000 answers 0x457b0/0x457e0/0x45800/0x45870/
+  0x458e0, the `Wait` family's word 0xa11c0 answers
+  0x458e0/0x47c00/0x46cf0/0x457e0/0x45970 (so its test verb,
+  at +0x10, is 0x45970) and the `GEN` family's 0xa11d8 answers
+  0x458e0/0x47cb0/0x46c70/0x457e0/0x45800 with +0x14 =
+  0x45920 - PR-218's verbs are the right ones, but its note
+  that "0xa11c8 = 0xa11c0+8" describes a vtable pointer offset
+  is not how these tables work. The ROW class word 0xa2638
+  answers +0x00 = 0x55820 (its own create), +0x04 = 0x457e0,
+  +0x08 = 0x45800, +0x0c = 0x45870, +0x10 = 0x458e0,
+  +0x14 = 0x51620 (its own clone), then +0x18 = 3 and
+  +0x1c = 0x55d70: none of its verbs reads the row's authored
+  numbers. The RECORD class 0xa260c keeps PR-219's numbering
+  (+0x00 = 0x51910 the settings dispatcher - reached from
+  0x5264f - +0x0c = 0x521f0 the row step, +0x18 = 0x520c0 the
+  row-run, +0x1c = 0x52360 the row reset, +0x28 = 0x518f0 the
+  row alloc), and nothing in it reads [row+0x8]/[row+0xc]
+  either. Along the way 0x52072 answered PR-163's open half:
+  with `[rec+0xa] != 0` it computes `[rec+0xc] = [rec+0x8] +
+  rand(0..0x7fff) * ([rec+0xa] - [rec+0x8]) / 0x7fff`
+  (0x52081-0x520aa, 0x76bcc, `div 0x7fff`); with max = 0 (the
+  single-value `time=220` form) it stores [rec+0x8] unchanged
+  (0x520ac). Do not move behaviour before the row-time consumer
+  is found.
+CLOSES: nothing in the register.
+CORRECTS: PR-110's model of `time_scale`, in three parts. (1)
+  It is not applied by a pass over rows read after the line
+  (`scale_at`): the value is a field of the state record,
+  [rec+0xe], written when the `time_scale=` line is parsed
+  (0x519c3) and read per row when the row is constructed
+  (0x51f3b), so scope is the record, not the file position.
+  (2) It multiplies the FIRST number of the row line, not the
+  second: the row-line parser's only scan is `%hi` (0x92115)
+  into [row+0x10] and that value alone is scaled (0x51679).
+  (3) The row gate is not "clock >= threshold, then
+  clock -= threshold": it is `[row+0x10] >= [obj+0xa1]`, run
+  with the overshoot as the budget, and the clock is not
+  decremented (0x52320-0x52338). PR-219's "which authored
+  number the row step's compare actually gates on, is OI-112"
+  is now answered: the first. PR-219's record-class numbering
+  (+0x0c row step, +0x18 row-run, +0x1c row reset) is
+  confirmed by the table dump. What is corrected is PR-218's
+  note about the clause tables: 0xa11c0 and 0xa11d8 are class
+  words pointing at their own bases, whose +0x10 slot is the
+  test verb (0x45970 for `Wait`, 0x45800 for `GEN`) - the
+  verbs PR-218 named are right, the base+8 arithmetic is not
+  how these tables are laid out.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.

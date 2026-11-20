@@ -2060,6 +2060,46 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-220 (READ): who builds a row and what scales it. The
+state record is 0x48 bytes with class word 0xa260c; its ctor
+0x517e0 allocates one and calls the row-list builder 0x51eb0
+with eax = the record (0x517b9-0x517c9). That builder dispatches
+each block line, and the settings branch (0x5264f -> 0x51910)
+writes `time=` into [rec+0x8]/[rec+0xa] (the `%hi` / `,%hi`
+scans at 0x5194e/0x51960 - PR-163's bounds pair, now with its
+store sites), `sample` at [rec+0x16], `time_scale` at
+[rec+0xe] (0x519c3), and on `seq=` registers the sequence name
+and stores its looked-up default in the global 0xceff4
+(0x51a35). The row path 0x51f37-0x51f54 then passes the record
+field itself to the row ctor: `mov edx,[rec+0xe]`, `push edx`
+as the scale factor, the duplicated line text as edx and the
+sequence default as ebx. So time_scale multiplies the FIRST
+authored number (`[row+0x10] = first * [rec+0xe] / 1000`),
+never the second, and the row step's gate is a compare against
+the monotonic object clock, run with the overshoot as the
+budget and with no decrement (0x52320-0x52338) - not the port's
+`clock >= thresh; clock -= thresh`. That CORRECTS PR-110's
+three-part model (scale_at position rule, second-number
+scaling, subtract gate). The `control=` parser 0x51b0d names
+the bits 0x543a0 masks with 7: BY_X=1, BY_Y=2, BY_TIME=4,
+BY_TX=8, BY_TY=0x10, FRAME_REV=0x20, SEQ_REV_X=0x40,
+SEQ_REV_Y=0x80 (more at [rec+0x13]) - the port's LL_CTRL_*
+values are its own vocabulary, not these. KADMAR.07's
+`[A_DEAD]` (`control=BY_TIME|FRAME_REV`, `time_scale=500`,
+rows `0,100`, `1,1000`, `2,400`) is the divergence: engine
+gate 0,0,1,2..., port gate 50,500,200. OI-112 stays open on
+the second number: it lands at [row+0xc] with a sign flag at
+[row+0x14] and a sequence-default substitution at [row+0x8],
+and PR-220 found no reader of those fields anywhere on the step
+path - the class tables (node base 0xa1000, row class 0xa2638,
+record class 0xa260c, dumped here) hold no verb that reads
+them, and PR-218's "0xa11c8 = 0xa11c0+8" description of the
+clause tables is corrected: the class words are the bases and
+their +0x10 slot is the test verb. One bonus answer: 0x52072
+is the `time=` bounds consumer PR-163 left open - max != 0
+stores min + rand * (max - min) / 0x7fff at [rec+0xc], max = 0
+(the shipped `time=220` form) stores min. No behaviour changed.
+
 STATUS PR-219 (READ): the row object and its clock, field by
 field. The row ctor entry is 0x515e0 (0x515e2, as PR-217 had
 it, is a 2-byte dump artifact): it zeroes +0x8/+0xc, writes
