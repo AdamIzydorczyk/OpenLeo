@@ -1904,6 +1904,34 @@ TUNGA.11 bound check (5 A's vs a 1-cell zwierzaki pool) is
 stated as measured. Docs + comments only: 65 ok / 13 ok + 21
 SKIPs unchanged, 0 warnings.
 
+STATUS PR-210 (OI-108 remainder READ - the film re-check of the
+corrected scene - and it CLOSES the row): PR-207's ZARIA camera
+numbers were a PIPELINE artifact - their scans resized the full
+1280x720 frame straight to 320x200, 0.9y squash. With the
+correct /4 + 20-black-row-pad pipeline (tools/re/video_camera_read
+.py --now carries --native for it) the t=22.0 lock is (30,162),
+sharp, and law-free: no-obj and obj-on full-frame curves agree
+within 0.1 MAD across a y sweep of 140..172 (a placed object is
+~0.05 MAD on a full frame). The t=22.0 red disc PR-207 measured
+(279..287.8,131.5..141.8, valid coordinates) then sits ON the
+shipped law's design point POCISK (310,298) -> (280..292,
+136..148): 1 px x, 4.5 px y, and the chain moves; the "absent
+pair" at (95,320)/(115,320) is chain travel. t=31.25 -> (235..
+242,214..216) shallow, discs within chain travel. The ANI3
+waterfall window (t=70.5/72.5/75) adds a second, independent
+plane hit: ANI3's WAZ column measures at film x 257/185 =
+exactly the shipped L1 law (0.85 rate) with the 1:1 palms
+adjacent, while PR-61's entry-index (ANI3 -> layer 0) could
+never show that water at all (on-screen only for camx
+3315..4190). Measured tool lesson: landmark-template camera reads
+are sharp on port frames (self-tests rank-0/1px) but false-
+positive on this film - a film camera needs the full-frame MAD
+or colour-anchored art edges, never single-template NCC. Leads
+kept inside the closed row: the camy~520-vs-YMAX500 + lisc2 at
+y=1546 geometry puzzle, and the unmined ZARIA.02/03 clips.
+LEO_OBJ_ART probe was reverted unused; only --native ships.
+Gates unchanged: 65 ok / 13 ok + 21 SKIPs, 0 warnings.
+
 PLAN STEP PR-206 (object placement fidelity, the user-visible
 thread; register row OI-108): two PRs after this step, neither part
 of closing T1. (5a) [READ] measure where the ORIGINAL draws `.MOV`

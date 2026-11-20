@@ -58,6 +58,13 @@ ap.add_argument('--raw', action='store_true',
                 help='the input is raw rgb24 frames at the view size (no '
                      'crop/scale): what the self-check feeds, so the read is '
                      'tested against cameras the port itself set')
+ap.add_argument('--native', action='store_true',
+                help='the input is a NATIVE 1280x720 level clip (PR-207: '
+                     'exactly 4x the 320x200 view, the game picture fills '
+                     'the frame): crop the 1280x800 band (2 rows of 40 px '
+                     'are letterboxed black at the bottom) and scale /4, so '
+                     '1 frame px = 1 world unit. Auto-detect is NOT used: '
+                     'say it explicitly and the numbers are unambiguous.')
 A = ap.parse_args()
 ADIR = A.atlas or '/tmp/opencode/landmarks/' + A.level
 
@@ -110,8 +117,15 @@ if A.raw:
     cmd += ['-f', 'rawvideo', '-pixel_format', 'rgb24',
             '-video_size', '%dx%d' % (CW, CH), '-i', A.video]
 else:
-    cmd += ['-i', A.video, '-vf',
-            'crop=1152:720:0:0,scale=%d:%d:flags=area' % (CW, CH)]
+    if A.native:
+        # a native 1280x720 clip = the top 180 rows of the 320x200 view at
+        # 4x: scale /4, then pad the bottom 20 rows black to full view.
+        cmd += ['-i', A.video, '-vf',
+                'scale=%d:%d:flags=area,pad=%d:%d:0:0:black'
+                % (CW, CH * 720 // 800, CW, CH)]
+    else:
+        cmd += ['-i', A.video, '-vf',
+                'crop=1152:720:0:0,scale=%d:%d:flags=area' % (CW, CH)]
 cmd += ['-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']
 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=CW * CH * 12)
 

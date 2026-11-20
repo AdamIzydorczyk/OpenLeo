@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-210.
+> at PR-211.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -30133,3 +30133,172 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
   edits, the section 8 status block, the header numbering line,
   the regenerated index and the two comment blocks in
   ported/ll_level.c go back together; nothing else was touched.
+
+## PR-210 — THE FILM RE-CHECK OF THE CORRECTED ZARIA SCENE IS
+## DONE, AND IT ENDS THE OI-108 CONTRADICTION: PR-207'S CAMERA
+## NUMBERS CAME FROM A PIPELINE THAT SQUASHED THE FRAME 0.9x IN Y;
+## WITH /4+PAD THE CAMERA LOCKS LAW-FREE AT (30,162), AND THE
+## SHIPPED LAW'S DESIGN POINT THEN HOLDS THE FILM'S DISC
+
+KIND: read
+SUBSYSTEM: level film RE - the ZARIA.01 camera and overlay
+      measurements, and tools/re/video_camera_read.py --native.
+      No port behaviour change; the LEO_OBJ_ART probe written
+      mid-PR was reverted unused (see CODE).
+ADDRESSES: none. This PR measures the film, not the engine; no
+      machine-code claim is made or retracted here.
+NAMES: ZARIA.01.mkv, POCISK, KOKOS.SEQ, ANIBACK, WAZ.SEQ,
+      ANITAB, ZARROW, lisc1.seq, lisc4.seq, plan6.seq, OI-108,
+      LEO_LEVEL_NO_OBJ, LEO_LEVEL_PPM, LEO_OBJ_ART,
+      video_camera_read.py, level_landmarks.py
+CODE: no: no port behaviour change. tools/re/video_camera_read.py
+      gains --native: a NATIVE 1280x720 level clip is scaled /4 to
+      320x180 and padded with the 20 black rows to full view -
+      the exact inverse of the recording, so 1 frame px = 1 world
+      unit. ported/ll_level.c: an LEO_OBJ_ART dump probe was
+      built and used during the work and REVERTED before this
+      commit - the Python scripts cut the ANI art from the
+      obj-on/no-obj LEO_LEVEL_PPM pair instead, so the probe
+      would have been dead weight.
+HOOKS: none. (LEO_OBJ_ART never shipped; the README hook list is
+      untouched.)
+OPENS: nothing new. Two measured leads are recorded inside the
+      closed OI-108 row (the waterfall-window ratio, and the
+      ZARIA.02 clip which has only 5 usable static landmarks).
+CLOSES: OI-108. Its REMAINDER - "re-checking the corrected scene
+      against the film" - is done: at t=22.0 and t=31.25 of
+      ZARIA.01 the corrected port and the corrected pipeline
+      AGREE; the claimed contradiction was a 0.9x vertical squash
+      inside the PR-207 scan pipeline (CORRECTS below), not a
+      plane mismatch.
+CORRECTS: PR-207's ZARIA.01 film cameras. The PR-207 scans
+      (cal_scan.py/dense.py, kept in /tmp/opencode/pr207) resized
+      the full 1280x720 frame to 320x200 directly: horizontal
+      /4 but vertical /3.6, a 0.9y squash of the 720 rows that
+      also drags the picture's 20 black bottom rows in. Their
+      y-locks are artifacts of that: t=22.0 "y=150 sharp" and
+      t=31.25 "y=207 sharp" become, under the /4+pad pipeline,
+      t=22.0 -> (30,162) and t=31.25 -> (235..242,214..216).
+      The t=6.0 (501..540) "both-y-laws-coincide" point moves
+      with them and its no-discrimination claim is withdrawn as
+      stated (the corrected pipeline should be re-used if that
+      window is ever needed). What STANDS from PR-207: the red
+      disc boxes and the overlay-diff method (they were measured
+      at native /4, a valid space), the screen-fixed red
+      graphics column trap, and the moving-chain fact. Their
+      headline - "no single plane + in-range camera explains
+      both frames" - is RETRACTED: see the disc match below.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs (both fixture trees moved aside per the
+      restaging recipe, then restored).
+
+- THE CORRECTED CAMERA LOCKS, AND THEY ARE LAW-FREE. y-curves at
+  fixed x against the film, every camy 140..172 step 2, x=30,
+  t=22.0, scored over the full frame minus the two screen-fixed
+  overlay boxes (x>=285 y 53..128; bottom-left 0..44 y 150+),
+  padded rows excluded: noobj/objon pairs 28.46/28.52 at 150,
+  23.17/23.22 at 160, 22.83/22.87 at 162 (MIN), 23.48/23.54 at
+  164, 25.22/25.28 at 168 - sharp to +-4 px, and the no-obj and
+  obj-on curves agree within 0.1 over the whole range: the
+  placed objects are worth ~0.05 MAD on the full frame, so the
+  camera read CANNOT be a law artifact. Same at t=31.25: x at
+  camy 215 -> 24.69@235, 24.72@240, 25.44@245; y at x=240 ->
+  25.97@204, 23.79@214, 23.76@216 (MIN, shallow), 24.10@220,
+  25.10@228.
+- THE DISC MATCH (the close). PR-207's valid disc box at t=22.0,
+  (279..287.8,131.5..141.8), sits ON the shipped law's design
+  point: POCISK (310,298) draws 1:1 at camera (30,162) → origin
+  (280,136), a 12x12 box (280..292,136..148): the film disc's
+  left edge is within 1 px and its top edge within 4.5 px, and
+  the chain MOVES (PR-207: kokos.mov is the bullet chain, jajo
+  children spawn and fly), so a few px of travel is expected.
+  The other two discs the port draws at that camera - the
+  (95,320)/(115,320) pair at (65..77,158..170)/(85..97,158..
+  170) - are absent from the film: those bullets had already
+  flown; PR-207 recorded the same absence as a puzzle at every
+  plane - it is exactly what a moving chain does. At t=31.25 the
+  corrected camera (238,215) puts the design boxes at (72..84,
+  83..95)+(84..96,83..95) vs measured (52.5..65.2,100.8..113.8)
+  +(77..90.2,99..106.8): discs within a few px to ~20 px of
+  design x = chain travel again, and the two y-laws coincide
+  there as before. There is NO unexplained film disc left and
+  NO plane evidence against the shipped law.
+- WHY THE LANDMARK READERS FAILED THE FILM (the tool lesson,
+  measured). A masked-union camera lock over only the 12 PICT
+  landmark templates (opaque-mask MAD of the port's no-obj
+  renders; harness /tmp/opencode/pr210/mland.py) is SHARP on
+  port frames - self-tests: fed a render at the true camera
+  (30,150) it ranks that camera first at MAD 0.000 with next
+  candidate +4.4; fed a second render at (76,175) it lands
+  (75,175) - 1 px - and nothing else - first. On the FILM at
+  t=22.0 the same lock reports (76,175), 46/25 px away from
+  the MAD lock: the plan templates match the film's background
+  palm art, and the union mask there is only 3.6k px. The
+  free-running --native NCC pass is worse: t=20..25 proposes
+  plan6 seq matches at camx 54..290 / camy 296..412 (physically
+  impossible drift), and t=72.5 proposes lisc1 at (1750,520).
+  These are single-template ambiguities, the exact failure the
+  tool's own docstring warns about: THRESH 0.55 is permissive
+  for this film. Discard tier-2 reads; a film camera needs the
+  full-frame MAD (obj-on or no-obj, they agree) or colour-
+  anchored art edges.
+- THE ANI3 TEST WINDOW, MEASURED (a second, independent plane
+  hit - and its limits). The waterfall window (t=70.5/72.5/75)
+  is the one ZARIA.01 stretch where an ANI3 cell is on screen:
+  ANIBACK draws WAZ.SEQ (a 32 px water column, f0=-21 f2=-13)
+  at layer 1, and the port draws its e0 at (168..199,28..61) at
+  camera (1725,520) - measured by the obj-on/no-obj render
+  difference (ANI .MOV art is not in the landmark atlas). The
+  film's water, colour-segmented (pool/HUD rows masked): left
+  edge 257 at t=70.5 AND t=72.5 (run 257..284, width 28 ~ the
+  32 px art), and 185 at t=75 (run 185..233). Two laws'
+  geometry, at the SAME frame:
+  (a) shipped law: water left edge = 1613 - 0.85C + 21.25, and
+      the 1:1 lisc4 crown (authored x 1870) sits 235.75 - 0.15C
+      px RIGHT of the water edge: adjacency (0..25 px) needs C ~
+      1405..1571, and the measured edge 257 needs C ~ 1620 -
+      the film shows the palm crowns exactly adjacent, x ~
+      250..320, and lisc1 (1776) at ~156 = the mid-frame palm.
+      The edge positions at t=70.5/72.5 and t=75 imply
+      camx ~1620 and ~1705: the water moved exactly 72 px in
+      4.5 s = 0.85 x the implied camera run 85, and the 1:1
+      inter-frame shifts (rock/grass bands, weak NCC 0.01-0.07)
+      say 90-98 - a ratio 0.73..0.80, i.e. the L1 rate, not
+      1.0.
+  (b) PR-61's entry-index rule puts ani3 (cell 0) on LAYER 0:
+      water edge = 1634 - 0.39C, which is on screen (0..320)
+      only for C in 3315..4190 - impossible in this level
+      (cam_xmax 1920). Under that rule the waterfall could
+      NEVER have appeared in this window. The film shows it.
+  So this window FITS the shipped law (a) and refutes the rule
+  PR-208 replaced (b) - but its camera was never locked sharply
+  by an independent method (the background-only full-frame scan
+  is flat: 30.15 best vs 30.45 across +-50 px; the NCC reads
+  failed), so it is recorded as SUPPORTING evidence, and the
+  close above rests on t=22.0, where the lock IS sharp.
+- AN UNMEASURED ANOMALY, NOTED NOT CLAIMED: at that window the
+  1:1 lisc1 y-anchor read (666-146) says film camy ~520, above
+  the port's YMAX=500 clamp, and ZARIA.01 authors lisc2.seq at
+  y=1546 - far outside its own 700-row world. Not pursued;
+  if anyone re-opens level-bottom geometry, start there.
+- WHY THIS CLOSES OI-108 AND NOT A RE-PIN. No port behaviour
+  changed, so there is nothing to pin: the shipped law is
+  already pinned (plany_selftest + lv_plany/lv_plany2, PR-208).
+  What OI-108 held was a FILM contradiction; this PR measured
+  it away. The method rule it adds (native /4+pad, never a
+  direct 720->200 resize; full-frame MAD for cameras; colour
+  edges for distinctive art; discard single-template reads) is
+  now recorded in OI-108's closed row and in this record.
+- RISK: none for behaviour - no port code, no test, no pin;
+  both gates re-run unchanged (65 ok; 13 + 21 named SKIPs); 0
+  warnings from a clean build. The epistemic risk moved to the
+  other side: the close rests on fresh numbers (162 / 214..216
+  / the disc match) that are reproducible from the git
+  reference + the recipe in this record.
+- REVERT: revert this commit; this record, the OI-108 closed
+  row, the section 8 status block, the header numbering line,
+  the regenerated index and the --native block in
+  tools/re/video_camera_read.py go back together; nothing else
+  was touched (the LEO_OBJ_ART probe was reverted inside this
+  PR before commit, so ported/ is untouched either way).

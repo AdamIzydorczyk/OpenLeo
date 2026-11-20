@@ -789,17 +789,26 @@ OI-107: the measured YETI ground run does not match the shipped F/T
 
 OI-108: ZARIA's `animacje=` objects drew through the WRONG PLANE in
   the port; PR-208 READ THE LAW (the level's own `plany=` key) and
-  fixed it - what is left is re-checking the corrected scene against
-  the film
-  status: PARTIAL (the plane law is ANSWERED and shipped, PR-208:
+  fixed it; PR-210 re-checked the corrected scene against the film
+  and the contradiction FELL - the film AGREES with the shipped law
+  status: CLOSED BY PR-210 (the plane law ANSWERED and shipped,
+  PR-208:
   the [obj+0x24] plane of an `animacje=` placement is the layer whose
   planies spec carries that cell's A letter; ZARIA's balloons,
   ladder, ropes and coconut chain now draw at 1:1, main_back 2, as
-  their own .des says. REMAINS: the visual re-check of the corrected
-  ZARIA scene against reference/video/levels/ZARIA.01.mkv - the
-  film facts below were measured against the WRONG (pre-PR-208) port
-  renders, and the POCISK chain moves on screen, so any re-check
-  must template-match the stateless ANI1 PICT art, not the fruit)
+  their own .des says. The re-check, PR-210, is DONE and POSITIVE:
+  PR-207's scan pipeline resized the full 1280x720 frame to
+  320x200 - 0.9y SQUASH, an artifact - and its cameras
+  (28..37,150)/(240..260,207) were that artifact; with the correct
+  /4+pad pipeline the locks are t=22.0 -> (30,162) sharp and
+  law-free (no-obj and obj-on curves agree within 0.1 MAD across
+  the whole y sweep), and PR-207's VALID disc box at t=22.0
+  (279..287.8,131.5..141.8) sits ON the shipped law's design point
+  POCISK (310,298) -> (280..292,136..148): left edge 1 px, top
+  edge 4.5 px, the bullet chain moves. At t=31.25 the lock is
+  (235..242,214..216) (shallow) and both discs sit within chain
+  travel of the design points. The claimed "no single plane +
+  in-range camera explains both frames" is RETRACTED.)
   notes: THE LAW, PR-208, from the shipped .des files themselves
   (12 of 13 levels; CHEATS has no .des): `plany=<spec>|<spec>|...`
   is ONE spec per tlo= layer (the spec count always equals the tlo
@@ -832,7 +841,13 @@ OI-108: ZARIA's `animacje=` objects drew through the WRONG PLANE in
     draw-cam=(1020,254).
       FILM FACTS, re-measured PR-207 at NATIVE resolution (the
     level clip is 1280x720 = exactly 4x the 320x200 view; every
-    number below is render-space = video px / 4): background-locked
+    number below is render-space = video px / 4): SUPERSEDED BY
+    PR-210 FOR THE CAMERAS (their scans resized 1280x720
+    straight to 320x200: /4 horizontal but /3.6 vertical, a 0.9y
+    squash that drags the picture's black bottom rows in - the
+    y-locks 150/207/501..540 are that artifact). The disc boxes
+    and the traps below STAND - they were measured in native /4
+    space. background-locked
     cameras (full MAD scan of `ll_level LEO_LEVEL_NO_OBJ=1` renders):
     t=22.0 -> x in 28..37 flat (30.4; x=0 37.4, x=44 37.4), y=150
     sharp (30.4; 147:35.2, 153:35.0); t=31.25 -> x in 240..260 flat
@@ -869,6 +884,37 @@ OI-108: ZARIA's `animacje=` objects drew through the WRONG PLANE in
     exist; re-extraction from the git reference at t=22.0 shows the
     x-lock was NOT sharp at x=1 and the disc coordinates differ.
     Use native 1280x720 = /4 extraction and the overlay diff.
+      PR-210 CLOSED IT (the corrected pipeline, the disc match,
+    the ANI3 waterfall window): the pipeline is scale /4 THEN PAD
+    the 20 black rows (tools/re/video_camera_read.py --native
+    encodes exactly this); cameras come from full-frame MAD with
+    the two screen-fixed overlay boxes masked - t=22.0 y-curve at
+    x=30: 22.83@162 MIN (28.46@150, 25.22@156/168), and the
+    no-obj and obj-on curves agree within 0.1 across the whole
+    sweep - a placed object is worth ~0.05 MAD on the full frame,
+    so a full-frame lock cannot be a law artifact; t=31.25: x
+    24.69@235/24.72@240, y 23.76@216 (shallow). The t=22.0 disc
+    sits ON the POCISK (310,298) design box (280..292,136..148)
+    - 1 px x, 4.5 px y - and the "absent at every plane"
+    (95,320)/(115,320) pair is exactly what a bullet chain that
+    already fired looks like. The waterfall window (t=70.5/72.5/
+    75) puts ANI3's WAZ column on screen: the port draws its e0
+    at (168..199,28..61) at cam (1725,520), the film's blue
+    runs are 257..284 / 257..284 / 185..233 (width ~ the 32 px
+    art); the shipped L1 law predicts the 1:1 lisc4 crown
+    235.75-0.15C px RIGHT of the water edge = adjacent in the
+    film, and the water's 72 px run = 0.85 x the implied camera
+    run; while PR-61's entry-index (ANI3 -> layer 0) puts that
+    water at 1634-0.39C, on screen only for camx 3315..4190 -
+    impossible here - so under the old rule the waterfall could
+    NEVER have been in this window. SUPPORTING, not the close:
+    that window's camera never locked sharply by a second method.
+    LEADS: the 1:1 lisc y-anchor there implies film camy ~520,
+    above the port's YMAX=500 clamp, while ZARIA.01 authors
+    lisc2.seq at y=1546, far outside its own 700-row world -
+    unmeasured, start there if level-bottom geometry is ever
+    revisited; ZARIA.02/03 clips are unmined (ZARIA.02 has only
+    5 usable static landmarks).
       PR-207's LEADS FOR THE LAW, NOW RESOLVED AND CORRECTED:
     FUN_0005b040 `case 0x10` writing [rec+0x24] 0/1 on token 0x5e
     and FUN_0005da60 testing [rec+0x24]==0 are NOT this field -
@@ -883,8 +929,9 @@ OI-108: ZARIA's `animacje=` objects drew through the WRONG PLANE in
     stateless ANI1 PICTs, template-matched by their own art) is
     what a re-check must use; the fruit chain moves.
   origin: PR-205/206 opened; PR-207 re-measured (the film facts
-  below ARE that measurement); PR-208 answered the law and fixed
-  the port (the re-check stays open)
+  below ARE that measurement, cameras excepted - see the PR-210
+  block); PR-208 answered the law and fixed the port; PR-210
+  re-checked the corrected scene against the film and CLOSED it
 
 OI-109: the plane of the two placement keys that `plany=` NEVER
   NAMES - `zwierzaki=` and `ani_plat=` - is still not read from the
