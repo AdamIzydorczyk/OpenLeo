@@ -57,8 +57,15 @@ OI-002: object state-header `T=` semantics against the object
   status: OPEN
   notes: the law itself is read (PR-99/100/129/130/133/135/168/178);
     the header-word interpretation PR-83 flagged "must be revisited
-    in T1" was never re-pinned against it. Settles with a BY_X
-    object at T other than 40 on video, or the code path.
+    in T1" was never re-pinned against it. THE VIDEO TEST IS RUN
+    IN PR-206 and the register model is REFUTED on it: LONA.05's
+    YETI (BY_X, A_RUN only F nonzero `F=100,0` `T=50,5`) walks on
+    film through camera-locked windows; the shipped arithmetic
+    predicts 19.8-20.0 px/s and every measured burst exceeds it
+    (row 2 of OI-107). So the video does NOT settle T semantics
+    through the register law - the contradiction is its own row,
+    OI-107, whose first lead is the un-read second value of each
+    pair, which PR-98's map leaves at rec+0x54/+0x5c.
 
 OI-003: the F/FC frame-directive output pair: what it does to world
   motion (keep it distinct from the state-header force word)
@@ -760,3 +767,41 @@ OI-106: verify-utf8 needs the python-oracle frames that only
   (counted, NOT fixed here)
   status: OPEN
   origin: PR-193 GATES note
+
+OI-107: the measured YETI ground run does not match the shipped F/T
+  register: three camera-locked bursts measured 22.0-24.9 px/s while
+  the register law with s=10 predicts 19.8-20.0 px/s for the same
+  authored pair; two bursts land within 0.4% of |F|/4 = 25.0 px/s,
+  the pre-PR-135 law
+  status: OPEN
+  notes: the factor 1.25 has exactly two candidate homes in the
+    authored row, both un-read: the second value of each pair,
+    `T=50,5` and `F=100,0` (PR-98 mapped the pairs to rec+0x50/54/
+    58/5c and only the firsts were ever used), or a partial-intent
+    s above 10 (PR-132 bounded |s| <= 10 for the lion's input path;
+    a ground-walk gate for a creature is un-read). The 2.5-2.6 s
+    bursts have a constant feet row (centroid y constant within the
+    tracker's noise, blob height 55-60), so this is not the jump
+    arc. The 22.0 burst is the one the record must explain; the
+    24.9/24.9/25.0 agreement with |F|/4 is a second unexplained
+    spread inside 13%.
+  origin: PR-206 referee measurement
+
+OI-108: object draw anchor: does the original draw `.MOV` placement
+  art at the .SEQ record's anchor/margin offset rather than at the
+  authored placement point the port draws at - measured offsets at
+  verified cameras
+  status: OPEN
+  notes: measured at PR-205's verified ZARIA.01 cameras: the port
+    draws a red-fruit pair at world (100,305)+(120,305) at the
+    camera of t=22.0s where the video shows fruit at (68,275)+
+    (75,275) and (102,283); at t=31.25s the port draws (349,304)+
+    (361,304) where the video shows (319,323)/(327,322)/(329,305)
+    plus fruit the port never places. Same-frame statics match
+    (MAD 9.9-15.4), so this is the object layer only. The
+    `level_landmarks.py` header already refuses to template objects
+    because "their world anchor is NOT the authored point" - nobody
+    has read which offset it is. The instrument is the THREE ZARIA
+    I references, cross-checked at verified cameras; named as plan
+    step 5a/5b in HANDOFF section 8.
+  origin: PR-205/206 measurement

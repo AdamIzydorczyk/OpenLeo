@@ -1775,6 +1775,40 @@ full-precision velocity moves the coordinates (PR-99 item 10; only
 (4) the other video tests PR-98 lists (the jump's x track against the
 port's one-shot `ix/4`; an `FC` window in A_FIGHT), then a PR that puts
 both sides on one measured law with every play pin re-pinned from it.
+STATUS PR-205: the ordered re-watch is DONE, with its own status
+block below (the "STATUS after PR-205" paragraph under the crossing
+line, which closes the "until re-watched" condition and corrects
+PR-131's "down at t=25-28" wording).
+STATUS PR-206 (the register's video test, RUN, and it REFUTES the
+register model): LONA.05's YETI, the census's only clean referee
+left standing (BY_X, A_RUN its only F-nonzero state, `F=100,0`
+`T=50,5`, bounds 2000..2350), is on film in levels/LONA.05.mkv
+t=437-484: `video_stills.py` finds four camera-still windows,
+`video_lane_shift.py` confirms the lock on decor-only bands (best
+shift 0, sharp minimum, three windows), and the object-mask
+centroid track at 30 fps shows GROUNDED walks (feet row constant,
+blob height 55-60, no jump arc) in three sustained bursts: 24.9,
+24.9 and 22.0 world units/s over 2.4-2.6 s spans. The shipped
+register law predicts 19.8-20.0. Two of three bursts agree with
+|F|/4 = 25.0 within 0.4%. That is register row OI-107. The unit
+bridge is pinned too: PR-125's LONA.05 blobs of "55-65 game px/s"
+are 640x400-frame px, i.e. 27.5-32.5 in my 320x200 world units,
+and my YETI per-frame spread runs 27.3-30.3 in those same units -
+the scales reconcile; and those blobs were NOT penguins (FOKA and
+LONASUR1 are BY_TIME, `F=0,0`), exactly the caution PR-125's own
+bullet named. What the test leaves is the 1.25 factor: the un-read
+SECOND value of each pair (`T=50,5`, `F=100,0`) is the only
+candidate home inside the authored row.
+PLAN STEP PR-206 (object placement fidelity, the user-visible
+thread; register row OI-108): two PRs after this step, neither part
+of closing T1. (5a) [READ] measure where the ORIGINAL draws `.MOV`
+object art against the authored placement point, using all THREE
+ZARIA I references at verified cameras (levels/ZARIA.01.mkv + _b,
+the ladder clip, the ep.1/zax37 captures): POCISK fruit, BAL
+balloons, the DRABINKA ladder, LINA, KAMIEN. The port draws at the
+authored point; at the verified t=22.0/31.25s cameras the video's
+fruit sit tens of units off and some clusters the port never
+places. (5b) [PORT] the anchor fix, failing pin test first.
 DONE since PR-98: PR-99 read the `control=` dispatch and the BY_* mode
 enum (its entry address: that record printed 0x543a1, and PR-100
 corrects it to 0x543a0 from the aligned prologue and 155 method-table

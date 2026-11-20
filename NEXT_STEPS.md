@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-205.
+> at PR-207.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -29424,3 +29424,154 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
 - REVERT: revert this commit; the section 8 status line,
   this record, the header numbering line and the regenerated
   index go back together.
+
+## PR-206 — THE REGISTER'S VIDEO REFEE IS PLACED, FOUND ON FILM AND
+## RUN: LONA.05's YETI GROUNDED WALK MEASURES 22.0-24.9 PX/S WHERE
+## THE SHIPPED F/T REGISTER LAW PREDICTS 19.8-20.0, SO THE LAW IS
+## REFUTED ON ITS OWN TEST CASE
+
+KIND: read
+SUBSYSTEM: object motion law; video referee measurement
+ADDRESSES: none
+      No engine address is established or retracted. The pair
+      offsets rec+0x50/+0x54/+0x58/+0x5c cited below are PR-98's
+      existing map, used as context, not re-opened here.
+NAMES: YETI, A_RUN, A_ATAK, A_JUMP, A_DOSTAL, A_DEAD, BY_X, BY_TIME,
+      FOKA, LONASUR1, LONASUR2, PINGWIN, PICT, LONA.05, K_GEN3,
+      K_GEN4, AC_BREAK_NEXT, des_census, video_stills,
+      video_lane_shift
+CODE: yes: docs only - this record, two new register rows and the
+      OI-002 status note, the HANDOFF section 8 T1 status text and
+      the new plan step, the journal header numbering line, and the
+      regenerated docs/RE_INDEX.md; nothing under ported/ or
+      original/ changed.
+HOOKS: none
+OPENS: OI-107, OI-108
+CLOSES: none.
+      OI-002's named settling test (a BY_X object at T other than
+      40 on video) is RUN here and the register model is REFUTED
+      on it; that does not settle T semantics, so the row stays
+      OPEN with this result in its notes and the contradiction
+      becomes its own row, OI-107. OI-108 is the object draw
+      anchor thread the PR-205 camera work exposed; both rows land
+      in the same commit as this record, per the one-commit rule.
+      OI-ids touched: open OI-107, open OI-108, and the OI-002
+      status note - no row is flipped.
+CORRECTS: PR-125: the reading that the "55-65 game px/s" blobs in
+      LONA.05_b's 493-503 s window were the PINGWIN school
+      translating (its CHECK_LEW-gate story). They match NEITHER
+      penguin law: PINGWIN A_RUN is F=75 T=50, which the register
+      law drives at 15.0 px/s and the pre-PR-135 /4 law at 18.75;
+      the blobs measured 24-31 world units/s in the half-scale
+      grid. FOKA and LONASUR1/LONASUR2 are BY_TIME with F=0,0 -
+      nothing placed in LONA.05 is a 25-u/s walker but the YETI -
+      and PR-125's own bullet named exactly this caution ("not
+      the PINGWIN school unless it is identified as the object").
+GATE: make 0 warnings; verify-all fixtures rc=0 64 (ok);
+      the counts equal PR-205's ON PURPOSE - nothing under ported/
+      changed and verify-docs stays ONE leg.
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs, identical to PR-205's - the docs legs run
+      in both fixture modes and only their insides changed.
+
+- THE ANSWER FIRST: the T1 step "which T dependence does the video
+  show" got its cleanest possible test - the one placed, one-
+  instance, BY_X, F-nonzero object with a different T that is
+  actually ON FILM - and the shipped register law (PR-133/134/135:
+  the v-integrator settling at (5*F*s)/T px per 50-ms iteration
+  with s = +/-10) predicts 19.8-20.0 px/s while the animal walks
+  at 22.0-24.9 px/s in three sustained grounded bursts. The law
+  loses on its own referee. Two of the three bursts land within
+  0.4% of the pre-PR-135 law |F|/4 = 25.0. This is register row
+  OI-107; OI-002 stays open because the REASONS (which un-read
+  value carries the 1.25) are unresolved, not the fact.
+- THE CENSUS, RE-RUN AND RECONCILED (tools/re/des_census.py over a
+  rebuilt DES dump, 210 `<LEVEL>_<NAME>` files from the ETAPY
+  container, joined against 777 .MOV texts): 34 placed rows carry
+  BY_X with F nonzero; five have T other than 40 - ENA.03 RYBKA
+  F=100 T=20; KADMAR.07 BOSS F=75 T=20; LONA.05 PINGWIN F=75
+  T=50 at x 326/606/682/715; LONA.05 YETI `YETI,dummy,yeti.mov,
+  2100,170` F=100 T=50 with movement bounds 2000,2350 and scope/
+  energy 40/300. PR-128 already closed KADMAR.07 (no HUD window
+  contains the boss) and PR-125 the RYBKA school (no translation
+  until adjacency); the PINGWIN rows are the CORRECTS line above;
+  the YETI is the only clean referee left and it is ON FILM.
+- THE PREDICTION, FROM THE SHIPPED ARITHMETIC ONLY (ported/
+  ll_obj.c as PR-135 shipped it): per 50-ms iteration `v -=
+  clamp(T,.,130)*v/100` then `v += F*s/100` at the key intent
+  s=10. For `F=100,` `T=50,` that is a drag of 0.50 and an
+  increment of 10.0 hundredths-px, so the integrator's fixed
+  point is exactly 20.0 hundredths-px per iteration = 20.0 px/s
+  at the 20 Hz iteration clock PR-134 settled; during the ramp
+  from rest the first 10 iterations average 19.8. Both ends of
+  that band sit under every measured number below. The same
+  arithmetic for the PINGWIN's `F=75` `T=50` pair is 15.0 px/s,
+  and the pre-PR-135 F/4 law would say 18.75 - neither matches
+  the 24-31 the blobs showed, which is the CORRECTS line.
+- ON FILM: a colour scan for the YETI's body colour (51,100,101),
+  taken from the port's own object render at its authored point,
+  runs over both LONA.05 captures at 2 fps (crop=1152:720:0:0,
+  scaled 320x200, 1:1 with the port's world units): up to 2120
+  matching pixels per frame through t=437-485 of levels/LONA.05.
+  mkv (alive, chased by the lion) and t=696-727 of LONA.05_b.mkv
+  (the kill; the crown drops at t=726-727). The same mask is
+  empty in the port's `LEO_LEVEL_NO_OBJ` renders of the same
+  window, which is what makes the colour a valid signature.
+- CAMERA LOCK, PROVEN TWICE WITHOUT THE PORT: LONA.05 places zero
+  PICT/static-image placements, so the PR-136 landmark atlas is
+  empty there and grid alignment cannot pin its camera (the
+  statics-render MAD floor measured 57.6-65 across x 1750..2160 -
+  those are the background layer, not an anchor). So the lock
+  comes from the two in-video instruments PR-125 built:
+  `video_stills.py --t0 430 --t1 485` reports four camera-still
+  windows (439.5-443.0, 452.5-456.5, 464.5-472.5, 479.0-481.5)
+  with min |drift| 0.000 game px/s; and `video_lane_shift.py` on
+  decor-only bands OUTSIDE the object (x 0..170 and 430..620 of
+  the 640x400 frame, y 100..400) scores best shift 0 with a
+  sharp minimum in all three windows (sad 6.74 at shift 0 against
+  11.6 at shift 1, 7.25 vs 10.6, 13.5 vs 16.5). Screen dx =
+  world dx in those windows.
+- THE TRACK AND THE NUMBERS (30 fps, the largest teal blob's
+  centroid; /tmp/opencode/pr206/yeti_track.txt, 1025 frames):
+  whole-window least-squares fits are diluted by the creature's
+  turn-around pauses (they read 19.9-22.7), so the honest
+  instrument is 0.5-s bin means split into constant-velocity
+  bursts, each then fit linearly: -24.9 px/s over 2.4 s (59 u
+  span), -24.9 px/s over 2.6 s (63 u), +22.0 px/s over 2.5 s
+  (63 u); two shorter runs read -29.1 and -32.9 but touch the
+  window edges and carry the lion's occlusion, so they are
+  listed, not used. All three sustained bursts are GROUNDED
+  walks, not the jump arc: the centroid row stays at y = 101.0
+  +/- 0.8 across each burst and the blob height stays 55-60 px
+  (A_JUMP has `time_scale=1400` and its own arc - it is not
+  what is running).
+- THE STATE SIDE, FROM THE .MOV ITSELF (/tmp/opencode/mov/
+  LONA.05_YETI_YETI.MOV): A_RUN is the ONLY state with F
+  nonzero - `control=BY_X|FRAME_REV|CHECK_ANI|CHECK_LN|
+  CHECK_LEW|CH_DIR|DANGER`, `F=100,0`, `T=50,5` - while A_ATAK,
+  A_JUMP, A_DOSTAL and A_DEAD are BY_TIME with `F=0,0`. So the
+  walk's speed can only come from that pair; and its SECOND
+  values (the `,0` and the `,5`) are mapped to rec+0x54/+0x5c by
+  PR-98 but never interpreted. That pair is the only place
+  inside the authored row where a factor 1.25 can live - named
+  as the first lead in OI-107.
+- THE UNIT BRIDGE (this is what reconciles PR-125 with these
+  numbers): `video_stills.py` and `video_lane_shift.py` report in
+  the 640x400 game frame, i.e. 2x the world units used by the
+  320x200 mask grid (same crop, half the scale; tied to the port
+  render scale by PR-205's verified cameras at MAD 9.9-15.4). So
+  PR-125's "55-65 game px/s" is 27.5-32.5 world units/s, exactly
+  the range of both its blobs (measured 24-31 on the half-scale
+  grid) and of my YETI per-frame spread (27.3-30.3). Nobody's
+  ruler was wrong; the scales differed.
+- WHY RECORD A NEGATIVE FOR THE LAW: a refutation on the design
+  case is the strongest measurement kind this register has - it
+  retires a candidate reading (the plain register pair) with the
+  arithmetic and the footage both cited, and it names the one
+  un-read field that can absorb it, so the next PR in this line
+  is an RE read of the pair seconds, not another video probe.
+- RISK: LOW. No build input changed; the docs legs are the check.
+- REVERT: revert this commit; this record, the two new register
+  rows, the OI-002 note, the section 8 status text and plan step,
+  the header numbering line and the regenerated index go back
+  together.
