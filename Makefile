@@ -2274,6 +2274,10 @@ ifeq ($(PX_DATA),1)
 	  && grep -qF 'TUNGA2.12/LEW.TUN state 32 [A_EXIT] row 11 (authored frame 9, threshold 6) end_level 1' /tmp/opencode/endlv_census.txt \
 	  && grep -qF 'LEVEL RAN.01: 84 .MOV member(s), 0 end_level row(s)' /tmp/opencode/endlv_census.txt \
 	  && grep -qF 'LEVEL ZARIA.01: 33 .MOV member(s), 0 end_level row(s)' /tmp/opencode/endlv_census.txt \
+	  && grep -qF 'Wait-clause capture (PR-217): 133 member(s), 251 row(s)' /tmp/opencode/endlv_census.txt \
+	  && grep -qF '161 of them a name with NO bit' /tmp/opencode/endlv_census.txt \
+	  && grep -qF '21 negated' /tmp/opencode/endlv_census.txt \
+	  && grep -qF 'LEVEL ZARIA.01: 33 .MOV member(s), 0 end_level row(s), 35 Wait-clause row(s) captured' /tmp/opencode/endlv_census.txt \
 	  && echo "end_level rows counted by the port's own parser: 26 rows in 3 of" \
 	     "the 777 .MOV members (25 x value 1, 1 x value 2), each named by level," \
 	     "leaf, state, row, authored frame and threshold; RAN.01 and ZARIA.01" \

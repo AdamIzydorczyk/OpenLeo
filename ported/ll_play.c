@@ -381,11 +381,18 @@ static void parse_pair(const char *v, int *a, int *b)
 
 /* "A|!B|C" -> OR parts into tr->c (exact-match tokens, '|' separated;
  * an empty part from a leading '|' is skipped - seen as "A(66)=|K_ANY") */
-static void parse_cond(ll_mov_tr *tr, const char *expr)
+/* PR-217: a `Wait`/condition token in NO table (LL_COND_OTHER with no
+ * signal-table hit). LL_SIG_* indexes never collide with the LL_COND_*
+ * ids (every LL_SIG_* value is >= 0 and the LL_COND_* enum starts at 0),
+ * so the two share the -2 slot: it means "no bit to test", never a bit. */
+#define LL_COND_NOBIT  LL_COND_OTHER   /* LL_SIG_NOBIT is in ll_play.h */
+
+static void parse_cond(ll_mov_gate *c, int *ncp, int max,
+                       const char *expr)
 {
     const char *q = expr;
     int grp = 0;
-    while (*q && tr->nc < LMOV_MAXCON) {
+    while (*q && *ncp < max) {
         const char *bar = strchr(q, '|');
         const char *bend = bar ? bar : q + strlen(q);
         /* PR-87: a bar segment is one AND-group; ',' splits its tokens
@@ -409,17 +416,22 @@ static void parse_cond(ll_mov_tr *tr, const char *expr)
             }
             tok[n] = '\0';
             if (n) {
-                tr->c[tr->nc].cond = cond_id(tok);
-                tr->c[tr->nc].neg = neg;
-                tr->c[tr->nc].grp = grp;
+                c[*ncp].cond = cond_id(tok);
+                c[*ncp].neg = neg;
+                c[*ncp].grp = grp;
                 /* PR-88: remember the signal-table index of names the
                  * model does not model as direct conditions (AC_ONAIR,
                  * AC_EDGE, ...): the evaluator tests them against the
-                 * object's own signal set instead of never-true OTHER. */
-                tr->c[tr->nc].sig =
-                    tr->c[tr->nc].cond == LL_COND_OTHER
-                        ? (short)ll_sig_id(tok) : -1;
-                tr->nc++;
+                 * object's own signal set instead of never-true OTHER.
+                 * PR-217: the SAME name is a BIT in the engine's signal
+                 * table, so a modeled condition token gets its LL_SIG_*
+                 * index too (K_DOWN -> 38); the transition evaluator never
+                 * reads sig for those (its switch answers first), only the
+                 * `Wait`-clause capture does. */
+                c[*ncp].sig = (short)ll_sig_id(tok);
+                if (c[*ncp].sig < 0)
+                    c[*ncp].sig = (short)LL_SIG_NOBIT;
+                (*ncp)++;
             }
             if (end == bend)
                 break;
@@ -504,6 +516,8 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                         mf->atc = 0;
                         mf->has_i = 0;
                         mf->endlv = 0;
+                        mf->gsig_id = -1;   /* PR-217: no `Wait` tail */
+                        mf->gneg = 0;
                         /* A frame line may carry further fields. The ones the
                          * model acts on are the authored motion of THIS frame,
                          * "N,ms, M dx,dy" (285 of 18617 shipped frame lines
@@ -514,20 +528,27 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                          * (PR-89, the attack-connect window).
                          * Everything else the table names (ground_on/off,
                          * lock/unlock, chdir, ldir/rdir, pos, goto/gotorel,
-                         * F/IC/FC, MOVE, Wait, the smp and vol sound
-                         * words, WAIT <signal>, inline F=) is counted -
+                         * F/IC/FC, MOVE, the smp and vol sound
+                         * words, inline F=) is counted -
                          * measured 1568 such lines before this PR took
                          * the GEN and ATC ones out of that count, PLAN
                          * 8g - never dropped in silence. `end_level`
                          * joined the modeled set in PR-199 once PR-198
                          * had read its apply: it is 26 lines in the
                          * whole shipped set (three LEW.MOV members), so
-                         * this parser meets it in those three only. */
+                         * this parser meets it in those three only.
+                         * `Wait`/`WAIT <signal>` joined the CAPTURED set
+                         * in PR-217 (255 tails in 133 files): the clause
+                         * is kept in ll_mov_fr.gsig_id/gneg and NO model
+                         * acts on it yet, so those rows leave the counted
+                         * total and the report names them as captured,
+                         * not as unread. */
                         const char *fc = strchr(line, ',');
                         const char *rest = fc ? strchr(fc + 1, ',') : NULL;
                         if (rest) {
                             const char *q = rest + 1;
                             int other_directive = 0;
+                            int captured_clause = 0;   /* PR-217 census */
                             while (*q) {
                                 while (*q == ' ' || *q == ',')
                                     q++;
@@ -640,10 +661,54 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                                         continue;
                                     }
                                 }
+                                if (strcasecmp(word, "Wait") == 0) {
+                                    /* PR-217: `Wait <signal>` - the row's
+                                     * own signal clause, KEPT as DATA
+                                     * (ll_mov_fr.gsig_id/gneg), not acted
+                                     * on yet. The arm mirrors the engine's
+                                     * 0x46b62-0x46ba2: a 0x15-byte node
+                                     * (class word 0xa11c8) whose operand
+                                     * the clause parser 0x47d60 reads into
+                                     * the node's 12-byte TEventSet, the
+                                     * same ctor and parser the GEN arm
+                                     * above uses (0x46af4, class 0xa11e0).
+                                     * Measured over the 777
+                                     * shipped texts: 255 tails in 133
+                                     * files, 254 exactly one token, 22
+                                     * `!`-negated; see the ll_play.h
+                                     * field note. A tail with no token
+                                     * (1 of 255: `Wait ;`) stays a
+                                     * counted directive, never a guess. */
+                                    char arg[64];
+                                    size_t an = 0;
+                                    const char *qa = q;
+                                    while (*qa == ' ' || *qa == ',')
+                                        qa++;
+                                    while (*qa && *qa != ';' &&
+                                           an + 1 < sizeof arg)
+                                        arg[an++] = *qa++;
+                                    arg[an] = '\0';
+                                    while (an && (arg[an - 1] == ' ' ||
+                                                  arg[an - 1] == ','))
+                                        an--;
+                                    if (an) {
+                                        ll_mov_gate g[4];
+                                        int gn = 0;
+                                        parse_cond(g, &gn, 4, arg);
+                                        if (gn == 1) {
+                                            mf->gneg = (short)g[0].neg;
+                                            mf->gsig_id = g[0].sig;
+                                            captured_clause = 1;
+                                            continue;
+                                        }
+                                    }
+                                }
                                 other_directive = 1;
                             }
                             if (other_directive)
                                 s->directive++;
+                            if (captured_clause)
+                                s->wait_cap++;
                         }
                     } else {
                         m->drop_fr++;
@@ -702,7 +767,7 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                             if (pe && pe < eq)
                                 tr->entry = (int)strtol(par + 1, NULL, 10);
                         }
-                        parse_cond(tr, eq + 1);
+                        parse_cond(tr->c, &tr->nc, LMOV_MAXCON, eq + 1);
                     } else {
                         m->drop_tr++;
                     }

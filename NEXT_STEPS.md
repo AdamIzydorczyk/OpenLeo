@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-217.
+> at PR-218.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -31330,3 +31330,190 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
   ported/ll_play.c parser pass, the ported/ll_play.h fields,
   the section 8 status block, the header numbering line and the
   regenerated index go back together; nothing else was touched.
+
+## PR-217 — THE ROW's `Wait <signal>` CLAUSE IS THE ENGINE'S OWN
+## SIGNAL CLAUSE, IN THE SAME NODE ITS `GEN` BUILDS: THE PORT
+## CAPTURES IT AND ACTS ON NOTHING YET
+```
+KIND: port
+SUBSYSTEM: the .MOV row-directive parser - ported/ll_play.c
+  (ll_mov_parse's row-tail loop, parse_cond) and ported/ll_play.h
+  (ll_mov_fr.gsig_id/gneg, ll_mov_gate); the capture leg and the
+  report wording in ported/ll_level.c (obj_rowgate_selftest,
+  ll_mov_selftest, the script-census line)
+ADDRESSES: 0x45750, 0x45770, 0x457e0, 0x45800, 0x45870, 0x45920,
+        0x45970, 0x45972, 0x45df0, 0x45e03, 0x46af4, 0x46b2f,
+        0x46b62, 0x46ba2, 0x46bd0, 0x46beb, 0x47d00, 0x47d42,
+        0x47d60, 0x47de5, 0x47e40, 0x48000, 0x4803d,
+        0x48075, 0x48087, 0x490be, 0x49550, 0x49580, 0x49582,
+        0x495b0, 0x495b2, 0x51eb0, 0x521f0, 0x52214, 0x52221,
+        0x52229, 0x5222c, 0x52235, 0x5223c, 0x5224b,
+        0x522fc, 0x52303, 0x5230c, 0x52320, 0x52329, 0x52362,
+        0x535a2,
+        0x535ad, 0x54482, 0x54488, 0x5448b, 0x544ae, 0x54b7e,
+        0x44589, 0x44590, 0x51050, 0x51074, 0x5065a, 0x91844,
+        0x91856, 0x91985,
+        0x91989, 0x91bcc, 0x91c23, 0xa1048, 0xa1078, 0xa11c8,
+        0xa11e0, 0x51660, 0x516e2, 0x45780, 0x47e30, 0x47e63,
+        0x47edc, 0x47f42, 0x47fb2, 0x49552, 0x515e2, 0x51620,
+        0xa2638, 0xa260c, 0x919ca, 0x48043, 0x4806f, 0x749a0
+NAMES: ll_mov_parse, parse_cond, ll_mov_gate, gsig_id, gneg,
+        ll_sig_id, cond_id, obj_rowgate_selftest, ll_mov_selftest,
+        DRAB, DRAB_MOV, TAILS, A_UP, A_DOWN, A_DROP, A_ONE,
+        WAIT, Wait, GEN, K_GEN1, K_NEVER, K_ANY, AC_DUP, AC_TIME,
+        AC_ENEMY_ATC, AC_BREAK_NEXT, control, time, seq,
+        DRABINKA, LINA, AC_START, AC_BECZKA, AC_BUTLA, rdir,
+        LL_SIG_NOBIT, wait_cap, endlevel_census,
+        OI-078, OI-111, PR-88, PR-163, PR-199
+CODE: yes: ported/ll_play.h adds ll_mov_fr.gsig_id (the signal
+        ordinal of a row's `Wait` clause, LL_SIG_NOBIT = -2 for
+        the engine's no-bit group, -1 = no such tail) and
+        ll_mov_fr.gneg (its `!`), names the condition-token
+        element type ll_mov_gate and uses it for ll_mov_tr.c;
+        ported/ll_play.c parses the tail in a new arm of the
+        row-tail loop through the SAME clause parser the
+        transition lines use (parse_cond, whose signature now
+        takes the token array, its count and its bound, and
+        whose .sig field is the signal ordinal for every token,
+        -2 when the name has no bit), and it initialises the
+        two fields with the rest of the row. ll_mov_st gains a
+        wait_cap counter, tools/endlevel_census.c counts the
+        captured rows level by level, and the level report now
+        names the captured total separately from the unacted
+        directives; verify-endlevel pins those numbers. No model
+        reads gsig_id/gneg: obj_advance, ladder_answer_core, the
+        transition evaluator and the row clock are untouched, so
+        no behaviour moves in this PR - every existing frame pin
+        is unchanged.
+MEASURED: four reads, the .MOV texts (twice: the raw texts and
+        the port's own parser) and the pre-fixup image, none
+        fitted. (1) 255 authored `Wait` tails in 133 of the 777
+        files; 254 carry exactly ONE token with nothing after it,
+        1 carries none (`Wait ;`), 22 tokens are `!`-negated;
+        operands K_NEVER 159, K_GEN1 25, AC_DUP 20, AC_TIME 18,
+        !AC_ENEMY_ATC 8, !K_UP 7, !K_DOWN 7, the rest at most 3.
+        (1b) The SAME corpus through the port's parser, pinned in
+        the verify-endlevel leg: 251 rows in those 133 members
+        CAPTURED - the 4 uncaptured are the tokenless `Wait ;`
+        and the 3 rows with two tokens (one LONA.05 row reads
+        `WAIT |K_ANY,rdir`, where `rdir` is an rdir DIRECTIVE
+        name, in neither table); 21 negated rows carry the 22
+        negated tokens; 161 rows name a signal with NO bit in the
+        engine's table (K_NEVER/K_ANY) and exactly 1 names a
+        token in no table at all, that `rdir`. ZARIA.01: 35 rows,
+        named per level in the census. (2) The engine's signal name block
+        0x919ec..0x91c5e has 73 names; the comparator at
+        0x48000 gives an explicit ordinal to 68 of them
+        (AC_BLOK_Y 1, AC_BREAK_NEXT 2, AC_DRAB_CATCH 0xc,
+        AC_KOLO 0x22, K_BKWD 0x23, K_JUMP 0x35, K_GEN1 0x36,
+        K_GEN5 0x3a, AC_PLAT_OFF 0x3b, AC_EV_MAX 0x44) and
+        treats the remaining names as non-bit node ops, and the
+        most-used of them (K_NEVER, 159 rows in the authored
+        texts) is built without any bit at all: K_ANY
+        by filling the
+        12-byte set with the fill byte 0xff at 0x749a0,
+        zeroing words 0-1 and writing word 1 = 0x2001f8
+        (0x48037-0x48048), K_NEVER by leaving the zeroed set
+        and OR-ing bits 5/6 into BYTE 4 of the data (0x4806f-
+        0x4807d) - that byte is the one TEventSet::match (the
+        arm at 0x47e40, named by its own error string at
+        0x47fc3-0x47fe1, "Bledna komenda %s w pliku %s" with
+        0x919ca = "TEventSet::match") reads: it switches on
+        [set+0xc], NOT on byte 4, and jumps out of range for
+        anything above 3. The port's LL_SIG_* enum
+        matches those 68 ordinals name for name. (3) The node
+        the two row arms build: the directive chain is 0x45df0,
+        its `GEN` arm 0x46af4-0x46b34 and its `Wait` arm
+        0x46b62-0x46ba2. Both allocate 0x15 bytes, both call
+        the same node ctor 0x45770 and both parse the operand
+        with the clause parser 0x47d60 into the 12-byte
+        TEventSet at [node+0x8]; they differ only in the class
+        word written at [node+0x4] - 0xa11e0 for `GEN`,
+        0xa11c8 for `Wait`. Their vtables answer the row step's
+        two slots: 0xa11c8 +0x8 = 0x45970 (copy the node's own
+        [node+0x8] out, do not call the operand) and +0xc =
+        0x45870 (call the operand node's +0xc, else hand back
+        an EMPTY set); 0xa11e0 +0x8 = 0x45800 (call the operand
+        node's +0x8, else EMPTY). A clause atom the clause
+        parser wraps at 0x47d00-0x47d42 also takes class
+        0xa11e0, and its +0xc is 0x45920: run the operand node,
+        then OR the atom's own [node+0x8] into the result - the
+        raising shape the port's `GEN` model (PR-88) matches.
+        The row step 0x521f0 reads row [rec+0x4] from the list
+        at rec+0x2e, calls its slot +0x8 at 0x52235, calls the
+        any-nonzero test 0x495b2 at 0x5223c and admits ONLY on
+        empty (0x5224b); a row with no clause therefore returns
+        empty from 0x45800/0x45870 and is admitted, while an
+        un-negated `Wait K_GEN1` copies out a non-empty set and
+        its row is never admitted. 0x522bc then OR-s that
+        result with the caller's key set and [obj+0x60]
+        (0x49582) and 0x522e6 (0x47e40) tests the union before
+        0x52303 may call slot +0xc; 0x5230c OR-s that result
+        into [obj+0x60]. The row clock is [rec+0xa1] and
+        0x52362 is its feeder: it writes [rec+0x4] = 0 and
+        [rec+0xa1] = 100. 0x5222c is `mov esi,[ebx+0x4]` with
+        ebx = [rec+0x2e][idx], i.e. the row record's OWN node
+        list head at [row+0x0]: the row-line parser 0x51660
+        calls the directive chain 0x45df0 and PREPENDS each
+        returned node there (0x516e2-0x516e6), so the row's
+        test call reaches the LAST keyword written on the line,
+        and a row with no tail tests EMPTY and runs. (4b) The
+        clause parser atom wrapper at 0x47d00-0x47d42 calls
+        the node ctor 0x45780, which sets [node+0x0] = 0,
+        [node+0x4] = the class word and clones the operand
+        through its class's slot +0x14 into [node+0x0]; the
+        record ctor 0x51700 is the state record's, and 0x45750
+        (the end_level apply, PR-198) writes the authored
+        number to [[0xcef40]+4] - the level's exit word,
+        byte-for-byte as PR-199 models it. (5) The second test
+        0x47e40 takes two EventSets (eax, edx) and switches on
+        the FLAG byte at
+        [eax+0xc] through the table at 0x47e30: flag 0 (0x47e63)
+        AND-s them (0x49552) and returns TRUE when the
+        intersection is NON-empty; flag 1 (0x47edc) AND-s and
+        returns TRUE when it is EMPTY (0x495b0); flag 2
+        (0x47f42) returns TRUE when the AND is empty; flag 3
+        (0x47fb2) returns TRUE when the two sets are
+        byte-identical (`repz cmps` over 12 bytes). So that arm
+        IS a live-set test - the object's [obj+0x60] and the
+        caller's key are one operand, the clause the other, and
+        the clause's flag byte picks ANY / NONE / EQUAL. Whether
+        the row's own node (the entry at [row+0x4], the object
+        0x45800 delegates through) composes the `Wait` clause
+        that way is the reading PR-218 takes; nothing in the
+        port acts on it yet.
+HOOKS: none new.
+OPENS: OI-111, opened by this PR: the clause IS tested by the
+        row step 0x521f0, and the reading is recorded there -
+        0x52235 calls the row node's test method (slot +0x8 of
+        [node+0x4]) and 0x5223c/0x495b2 admit the row only when
+        its EventSet is EMPTY, then the union of that result
+        with the caller's key and the object's [obj+0x60] is
+        tested again at 0x522e6/0x47e40 before 0x52303 may call
+        the execute method (slot +0xc), whose result 0x5230c
+        OR-s into [obj+0x60]. The `Wait` vtable 0xa11c8 answers
+        +0x8 with 0x45970, which copies the node's own set and
+        never calls its operand, so an un-negated one-token
+        clause never admits its row. What is NOT read: how a
+        `!` clause is compiled (0x47d00 wraps it into a clause
+        node), what the second test 0x47e40 decides, and
+        whether a `Wait` node also raises through slot +0xc.
+        The port acts on none of it yet. OI-078 stays the
+        climb's owner and keeps its one question.
+CLOSES: nothing. The `Wait` tails are out of the counted
+        "directive the model does not act on" total and into a
+        captured-and-named total, which is the report change
+        this PR ships.
+CORRECTS: PR-163, whose `time=` record left the `WAIT` word
+        unexplored, and PR-88's implicit reading that the
+        row-tail vocabulary is only about raising: `GEN`
+        (0x46af4) and `Wait` (0x46b62) build nodes of the SAME
+        shape and size - 0x15 bytes: 4-byte header, class word
+        at [node+0x4], 12-byte TEventSet at [node+0x8] - with
+        the same ctor 0x45770 and the same clause parser
+        0x47d60, differing only in the class word written
+        (0xa11e0 and 0xa11c8). So a `GEN` tail is a clause too,
+        and a row can carry a clause with no raising at all.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.

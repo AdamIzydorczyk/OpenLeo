@@ -2060,6 +2060,34 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-217 (PORT, CAPTURE ONLY): a row's `Wait <signal>` tail
+is the engine's own signal clause, not a delay. The directive
+chain is 0x45df0; its `GEN` arm 0x46af4-0x46b34 and its `Wait`
+arm 0x46b62-0x46ba2 allocate the same 0x15 bytes, call the same
+node ctor 0x45770 and parse the operand with the same clause
+parser 0x47d60 into the 12-byte TEventSet at [node+0x8]; they
+differ only in the class word they write at [node+0x4] - 0xa11e0
+for `GEN`, 0xa11c8 for `Wait`. Measured on the shipped set: 255
+Wait tails in 133 of the 777 .MOV texts, 254 exactly one token,
+22 `!`-negated, operands K_NEVER 159 / K_GEN1 25 / AC_DUP 20 /
+AC_TIME 18. The engine's name table gives 68 ordinals and the
+port's LL_SIG_* enum matches them name for name (K_GEN1 = bit
+54); K_ANY/K_NEVER are non-bit specials (0x4803d, 0x48075). The
+row step 0x521f0 tests a clause twice, both times for being
+EMPTY (0x52235 -> 0x495b2 -> 0x5224b, then the union with the
+caller's key and [obj+0x60] at 0x522e6/0x47e40) before 0x52303
+may execute the row and 0x5230c OR into [obj+0x60]; the `Wait`
+vtable answers the test slot with 0x45970, which hands back the
+node's own set. That reading is unfinished (it would make
+ZARIA.01's rope never unroll) and is registered as OI-111, so
+THIS PR acts on nothing: ll_mov_fr gains gsig_id/gneg, the
+parser fills them through the same parse_cond the transition
+lines use, and obj_advance is untouched. Failing test first:
+obj_rowgate_selftest measured red at `clause -1 want clause 54`
+before the arm went in. The rows leave the "directive the model
+does not act on" count and enter a named captured count. 0
+warnings; 65 ok with fixtures, 13 ok + 21 named SKIPs without.
+
 PLAN STEP PR-206 (object placement fidelity, the user-visible
 thread; register row OI-108): two PRs after this step, neither part
 of closing T1. (5a) [READ] measure where the ORIGINAL draws `.MOV`

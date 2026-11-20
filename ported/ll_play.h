@@ -259,13 +259,56 @@ enum {
 };
 
 /* Table index of a signal name (case-insensitive), or -1 for unknown
- * names and for the non-bit specials K_ANY / K_NEVER (+ AC_ aliases). */
+ * names and for the non-bit specials K_ANY / K_NEVER (+ AC_ aliases).
+ * PR-217: ll_mov_parse stores that -1 as LL_SIG_NOBIT in a row's
+ * gsig_id, so a reader can tell "no bit" from "no clause" (-1). */
+#define LL_SIG_NOBIT (-2)
 int ll_sig_id(const char *name);
 
 typedef struct { int frame; unsigned thresh; int dx, dy;
                  unsigned long long gsig; unsigned char atc;
-                 int has_i, ix, iy, endlv; } ll_mov_fr;
+                 int has_i, ix, iy, endlv;
+                 short gsig_id; short gneg; } ll_mov_fr;
                  /* has_i: `I ix,iy` impulse tail */
+                 /* gsig_id / gneg: this row's `Wait <signal>` tail, kept as
+                 * DATA and NOT yet acted on (PR-217). -1 = the row carries
+                 * no Wait tail; -2 = a token the engine's signal table has
+                 * no BIT for (K_NEVER and the other node-op specials: 159
+                 * of the 255 tails); otherwise its LL_SIG_* index.
+                 * MEASURED census of the 777 extracted .MOV
+                 * texts: 255 Wait tails in 133 files, 254 of them exactly
+                 * ONE token and no text after it (one has none), 22 tokens
+                 * negated with `!`; operands K_NEVER 159, K_GEN1 25,
+                 * AC_DUP 20, AC_TIME 18, !AC_ENEMY_ATC 8, !K_UP 7,
+                 * !K_DOWN 7, the rest <=3. The word is in the engine's own
+                 * directive table and its parse arm is 0x46b62-0x46ba2: it
+                 * builds a 0x15-byte node (class word 0xa11c8) and parses
+                 * the operand with the clause parser 0x47d60 into the
+                 * node's 12-byte TEventSet at [node+0x8] - the SAME shape,
+                 * node ctor 0x45770 and parser the modelled `GEN` arm
+                 * builds (0x46af4-0x46b34, also 0x15 bytes, class word
+                 * 0xa11e0), which is why the operand is one signal name
+                 * and `!` is part of it (the clause parser's negate op,
+                 * which wraps its operand into a clause node at
+                 * 0x47d00-0x47d42). The row step 0x521f0 reads two slots
+                 * of [node+0x4]: 0x52235 calls slot +0x8 (the clause TEST)
+                 * into a local EventSet and 0x5223c calls the empty test
+                 * 0x495b2 - the row is admitted only on EMPTY (0x5224b);
+                 * a second test at 0x522e6 (0x47e40) of the union of that
+                 * result with the caller's key and the object's own
+                 * EventSet [obj+0x60] (0x522bc = the TEventSet OR
+                 * 0x49582) gates it again, and only then may 0x52303 call
+                 * slot +0xc, whose result 0x5230c OR-s into [obj+0x60].
+                 * The `Wait` vtable 0xa11c8 answers slot +0x8 with
+                 * 0x45970, which copies the node's OWN [node+0x8] and
+                 * never calls its operand - so an un-negated one-token
+                 * clause is never empty and that row never admits. How
+                 * that reads against the `!` path and the second test is
+                 * OI-111, so the clause is carried here and no model acts
+                 * on it yet. ZARIA.01's own DRAB.MOV is one of these
+                 * rows (`[A_UP]` row 1 is `WAIT K_GEN1`, `[A_DOWN]` row 11
+                 * is `WAIT K_NEVER`), which is why the field lives beside
+                 * gsig and not in the transition table. */
                  /* endlv: this row's `end_level <n>` tail: the AUTHORED
                  * NUMBER kept as DATA, 0 = the row carries no such tail
                  * (PR-199). The word is in the engine's own .MOV
@@ -329,6 +372,13 @@ typedef struct { int frame; unsigned thresh; int dx, dy;
                  LL_ITER_MS decides the wall time. */
 #define LMOV_ATC_ON  1u
 #define LMOV_ATC_OFF 2u
+/* One parsed condition/signal token: `cond` is the modeled LL_COND_* id
+ * (LL_COND_OTHER for anything else), `neg` the `!` prefix, `grp` the
+ * AND-group number (PR-87), `sig` the LL_SIG_* index when the token is a
+ * signal NAME rather than a modeled condition. PR-217: this element type
+ * is shared by the transition table (ll_mov_tr.c) and by a row's `Wait`
+ * clause, which the clause parser reads the same way. */
+typedef struct { int cond; int neg; int grp; short sig; } ll_mov_gate;
 typedef struct {
     char target[24];                        /* resolved at parse time      */
     int tidx;                               /* state index, -1 unresolved  */
@@ -351,14 +401,18 @@ typedef struct {
                               * (0x51e3e) - and made the scene objects
                               * honour it as well as the lion: both sides
                               * now map it through ll_mov_row_start. */
-    struct { int cond; int neg; int grp; short sig; } c[LMOV_MAXCON];
+    ll_mov_gate c[LMOV_MAXCON];
     /* PR-87: tokens sharing a grp number are ANDed; the line is true
      * when ANY group is fully true ('|' starts a new group, ',' splits
      * one; see the enum comment). A single-token line is one group -
      * identical behavior to the old OR-everything model. PR-88: sig is
-     * the LL_SIG_* table index when the token is a signal NAME that is
-     * not one of the modeled conditions (-1 otherwise) - the evaluator
-     * tests it against the object's own signal set. */
+     * the LL_SIG_* table index of the token's NAME - every modelled
+     * condition token is also a bit in the engine's signal table, so
+     * K_DOWN carries 38 as well as LL_COND_K_DOWN; LL_SIG_NOBIT (-2) is
+     * the engine's no-bit group (K_ANY/K_NEVER and their aliases, and
+     * names in no table at all). The transition switch answers modelled
+     * tokens first and only reads sig in its OTHER arm; the `Wait`-clause
+     * capture (PR-217) reads sig directly. */
     int nc;
 } ll_mov_tr;
 typedef struct {
@@ -474,6 +528,12 @@ typedef struct {
     /* authored content the model reads but does not act on (reported): */
     int ctrl_other;                         /* control= names without a bit */
     int directive;                          /* frame-line GEN/ATC/WAIT/...  */
+    int wait_cap;                           /* PR-217: rows whose `Wait`
+                                             * clause was CAPTURED into
+                                             * ll_mov_fr.gsig_id/gneg; no
+                                             * model acts on it, so it is
+                                             * reported as captured, not
+                                             * as an unread directive    */
     int field_other;                        /* sample= time= (time_scale=
                                              * is modelled since PR-110)   */
     /* PR-216: the engine's state index for THIS state, the value of

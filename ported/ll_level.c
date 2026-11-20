@@ -3187,6 +3187,90 @@ out:
     return rc;
 }
 
+/* PR-217: a row's `Wait <signal>` tail is the engine's OWN row-directive
+ * keyword (the chain 0x45df0, whose arms run 0x45e03 zero_v .. 0x46af4 GEN ..
+ * 0x46b62 Wait .. 0x46bd0 end_level), and its parse arm 0x46b62-0x46ba2
+ * allocates 0x15 bytes (class word 0xa11c8) whose operand the clause
+ * parser 0x47d60 reads into the node's 12-byte TEventSet at [node+0x8] -
+ * the same shape, node ctor 0x45770 and parser the modelled `GEN` arm
+ * (0x46af4-0x46b34, class word 0xa11e0) uses. So the tail is a signal
+ * clause, one token in 254 of the MEASURED 255 tails (133 of the
+ * 777 shipped files; operands K_NEVER 159, K_GEN1 25, AC_DUP 20, AC_TIME
+ * 18, 22 `!`-negated), not a magic delay. This leg pins what the parser
+ * CAPTURES into ll_mov_fr.gsig_id/gneg. What the engine DOES with the
+ * clause is a separate question and the bytes were read: the row step
+ * 0x521f0 calls the row node's test slot +0x8 at 0x52235 and admits the
+ * row only when the returned EventSet is EMPTY (0x5223c calls 0x495b2,
+ * 0x5224b branches), then tests the union of that with the caller's key
+ * and the object's [obj+0x60] at 0x522e6 before it may call the execute
+ * slot +0xc at 0x52303, whose result 0x5230c OR-s into [obj+0x60]. The
+ * `Wait` vtable 0xa11c8 answers slot +0x8 with 0x45970, which copies the
+ * node's own [node+0x8] and never calls its operand. This PR carries the
+ * clause and acts on none of that; OI-111 keeps the reading. ZARIA.01's
+ * own DRAB.MOV (the fixture's shape, rows trimmed) is a file whose A_UP
+ * state is one `WAIT K_GEN1` row and whose A_DOWN is one `WAIT K_NEVER`
+ * row. */
+static int obj_rowgate_selftest(void)
+{
+    static const char drab[] =
+        "A_UP\nA_DOWN\nA_DROP\n\n[A_UP]\ncontrol=BY_TIME\n"
+        "A_DROP(1)=K_GEN1\nseq=drab\n1,0,WAIT K_GEN1\n\n[A_DROP]\n"
+        "control=BY_TIME\nA_DOWN(1)=AC_BREAK_NEXT\nseq=drab\n"
+        "2,500\n3,400\n\n[A_DOWN]\ncontrol=BY_TIME\nseq=drab\n"
+        "11,0,WAIT K_NEVER\n";
+    static const char tails[] =
+        "A_ONE\n\n[A_ONE]\ncontrol=BY_TIME\n"
+        "1,100,WAIT !K_DOWN\n2,100,WAIT !AC_ENEMY_ATC\n"
+        "3,100,WAIT AC_DUP\n4,100,WAIT K_ANY\n5,100,WAIT AC_BOGUS\n"
+        "6,100,WAIT ;\n7,100,lock\n8,100\n";
+    static const struct { const char *mov; int st, fr;
+                         int sig; int neg; const char *what; } cs[] = {
+        { drab, 0, 0, LL_SIG_K_GEN1, 0, "ZARIA.01's ladder A_UP row 1:"
+          " `WAIT K_GEN1` = the K_GEN1 clause, un-negated" },
+        { drab, 1, 0, -1, 0, "the A_DROP rows carry no tail at all" },
+        { drab, 1, 1, -1, 0, "including its second row" },
+        { drab, 2, 0, -2, 0, "A_DOWN row 11 `WAIT K_NEVER`: K_NEVER is"
+          " one of the engine's four node-op specials, NOT a bit" },
+        { tails, 0, 0, LL_SIG_K_DOWN, 1, "`!K_DOWN` keeps the negation" },
+        { tails, 0, 1, LL_SIG_AC_ENEMY_ATC, 1, "`!AC_ENEMY_ATC` resolves"
+          " through the signal table, not as OTHER" },
+        { tails, 0, 2, LL_SIG_AC_DUP, 0, "`AC_DUP` is a plain signal bit" },
+        { tails, 0, 3, -2, 0, "`K_ANY` is a node-op special, not a bit" },
+        { tails, 0, 4, -2, 0, "a name in NO table stays the unresolvable"
+          " special, never a guess" },
+        { tails, 0, 5, -1, 0, "`WAIT ;` (1 of the 255) carries no token:"
+          " counted, not captured" },
+        { tails, 0, 6, -1, 0, "the other directives (`lock`) stay counted" },
+        { tails, 0, 7, -1, 0, "and a plain row keeps no clause" },
+    };
+    int rc = 1;
+
+    for (size_t i = 0; i < sizeof cs / sizeof cs[0]; i++) {
+        ll_mov_t *m = calloc(1, sizeof *m);
+        if (!m)
+            return 1;
+        if (ll_mov_parse(cs[i].mov, m) < 1 ||
+            cs[i].st >= m->nst || cs[i].fr >= m->st[cs[i].st].nfr) {
+            fprintf(stderr, "row gate selftest: FAILED parse for %s"
+                            " (nst %d)\n", cs[i].what, m->nst);
+            free(m);
+            return 1;
+        }
+        const ll_mov_fr *f = &m->st[cs[i].st].fr[cs[i].fr];
+        if ((int)f->gsig_id != cs[i].sig || (int)f->gneg != cs[i].neg) {
+            fprintf(stderr, "row gate selftest: FAILED %s (clause %d"
+                            " neg %d want clause %d neg %d)\n",
+                    cs[i].what, (int)f->gsig_id, (int)f->gneg,
+                    cs[i].sig, cs[i].neg);
+            free(m);
+            return 1;
+        }
+        free(m);
+    }
+    rc = 0;
+    return rc;
+}
+
 static int obj_motion_selftest(void)
 {
     static const char run[] =
@@ -4189,6 +4273,7 @@ int ll_mov_selftest(void)
         obj_layer_selftest() != 0 || obj_state_selftest() != 0 ||
         obj_actime_selftest() != 0 ||
         obj_rowzero_selftest() != 0 || obj_rowseek_selftest() != 0 ||
+        obj_rowgate_selftest() != 0 ||
         obj_motion_selftest() != 0 || contact_model_selftest() != 0 ||
         plany_selftest() != 0 ||
         ladder_answer_selftest() != 0 || place_grammar_selftest() != 0) {
@@ -4266,7 +4351,11 @@ int ll_mov_selftest(void)
            " symmetric law at every w I pinned by hand, the edge"
            " block's priority, the DRABINKA-only class scope, and"
            " the model-default 1x1 blocks when the port has no"
-           " authored rectangle (ok)\n");
+           " authored rectangle, and PR-217 a row's `Wait <signal>`"
+           " tail captured as the engine's own signal clause - one"
+           " token in 254 of the 255 shipped tails, `!` in 22,"
+           " K_NEVER/K_ANY kept as the no-bit specials, `WAIT ;`"
+           " left counted, and NO model acting on it yet (ok)\n");
     return 0;
 }
 
@@ -7061,7 +7150,8 @@ typedef struct {                    /* counted while reading, never guessed */
      * statics are also placed and drawn, the children are not. */
     int statics, statics_placed, static_out, static_missing,
         static_shapeonly, attached, static_attached;
-    int ntrans, ctrl_other, directive, field_other, drop_st, drop_fr, drop_tr;
+    int ntrans, ctrl_other, directive, wait_cap, field_other, drop_st,
+        drop_fr, drop_tr;
     int fr_total, fr_blank, fr_mirror, fr_oob;   /* frame numbers: the game's
                                                   * 1-based/signed grammar */
 } obj_stats;
@@ -7335,6 +7425,7 @@ static obj_script *obj_script_get(place_ctx *pc, const char *leaf,
             st->ntrans += s->ntr;
             st->ctrl_other += s->ctrl_other;
             st->directive += s->directive;
+            st->wait_cap += s->wait_cap;
             st->field_other += s->field_other;
             int ai = k < LMOV_MAXST ? sc->ast[k] : -1;
             if (ai >= 0 && ai < sc->nart && sc->art[ai].found)
@@ -8119,17 +8210,22 @@ static void des_placement(place_ctx *pc, llrs *hd_ety,
         printf("ll_level: those scripts author %d state transition(s), %d"
                " control flag(s) with no model bit, %d frame"
                " directive(s) the model does not act on (the engine's own"
-               " table 0x917c0 minus the modeled GEN (PR-88) and ATC_ON/"
-               " ATC_OFF (PR-89): WAIT / lock / ground_on / chdir / pos /"
-               " goto / F / FC / M / MOVE / Wait / end_level / smp*), %d"
+               " table 0x917c0 minus the modeled GEN (PR-88), ATC_ON/"
+               " ATC_OFF (PR-89) and end_level (PR-199), and minus the"
+               " CAPTURED-not-acted Wait/WAIT clause (PR-217): lock /"
+               " ground_on / chdir / pos / goto / F / FC / M / MOVE /"
+               " smp*), %d"
                " sound-or-scale field(s); %d state(s)"
                " name no seq= art, %d state(s) / %d frame(s) / %d"
-               " transition(s) over cap - all parsed and counted, acted on"
+               " transition(s) over cap; %d row(s) carry a `Wait` clause"
+               " the model CAPTURES but does not act on (PR-217) - all"
+               " parsed and counted, acted on"
                " only once the rest of the AC_*/K_* signal bus lands"
                " (named-signal bits landed in PR-88; the cross-object"
                " routing and the engine-internal raisers have not)\n",
                st->ntrans, st->ctrl_other, st->directive, st->field_other,
-               st->state_noart, st->drop_st, st->drop_fr, st->drop_tr);
+               st->state_noart, st->drop_st, st->drop_fr, st->drop_tr,
+               st->wait_cap);
     if (st->fr_total)
         printf("ll_level: frame numbers of the scripts that have art (the"
                " game's grammar: 1-based, negative = drawn mirrored, 0 = no"

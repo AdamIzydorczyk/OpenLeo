@@ -614,6 +614,15 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     reader 0x28590 (0x9a390 + 0x134) runs only when both
     sides' [obj+0x5c] == 4. TLewZaria 0x96960 overrides that
     slot with 0x531b0, which appends nothing - see OI-110.
+    PR-217 touched no behaviour here. It captured the
+    `Wait <signal>` clause ZARIA.01's DRAB.MOV authors
+    (`[A_UP]` row 1 is `WAIT K_GEN1`, `[A_DOWN]` row 11
+    `WAIT K_NEVER`), which is the other half of the same
+    ladder, and named the ordinal the clause would use:
+    K_GEN1 is signal bit 54 in the engine's own table, and the
+    port's LL_SIG_* ordinals match all 68 numbered names name
+    for name. How that clause is COMPILED and gated is
+    OI-111; the "what raises K_GEN1" question stays here.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
@@ -1108,3 +1117,88 @@ OI-110: the planies ACTIVATION chain is unread: what feeds the
     0x9e740).
   origin: PR-212 remainders; row opened PR-213
 
+
+OI-111: how a row's captured `Wait` clause is COMPILED and what
+  the second admission test decides
+  status: OPEN (opened by PR-217, which captured the clause)
+  notes: PR-217 read the row step 0x521f0 and the clause is
+    tested there, twice, both times for being EMPTY:
+    0x52221/0x52229 fetch row [rec+0x4] from the list at
+    rec+0x2e, 0x5222c loads the node's clause methods at
+    [node+0x4] (slot +0x8 = test, +0xc = execute), and 0x52235
+    calls slot +0x8 into a local EventSet; 0x5223c calls
+    0x495b2 (the any-nonzero test over the 12-byte set) and
+    0x5224b takes the admitted path only when it said empty.
+    On that path 0x52251-0x522a4 copy the caller's key EventSet
+    (edx) and the object's own at [obj+0x60] into locals,
+    0x522bc OR-s them (0x49582) with the clause result, and
+    0x522e6 calls 0x47e40 on the union and goes to the not-
+    admitted branch 0x52354 unless THAT is empty too. Only then
+    does 0x52303 call slot +0xc, and 0x5230c OR-s what it
+    returns into [obj+0x60]. So a row acts only when its clause
+    and the key are both empty; the AND helper 0x49552 is not
+    on this path. The row clock is at [rec+0xa1] and
+    0x52362 is its feeder: it writes [rec+0x4] = 0 and
+    [rec+0xa1] = 100 (0x64).
+    The `Wait` vtable 0xa11c8 answers +0x8 with
+    0x45970, which copies the node's own [node+0x8] out and
+    never calls its operand; the `GEN` vtable 0xa11e0 answers
+    +0x8 with 0x45800, which calls the operand node or hands
+    back an EMPTY set. So a row with no clause admits and an
+    un-negated one-token `Wait K_GEN1` never does. Taken as
+    the whole law that cannot be right: ZARIA.01's DRAB.MOV
+    A_UP state has ONLY that one row, so its rope would never
+    unroll - the reading is unfinished, and the next step is
+    bounded: the second test 0x47e40 switches on the FLAG byte
+    at [eax+0xc] through the table at 0x47e30 - flag 0
+    (0x47e63) AND-s the two sets (0x49552) and is TRUE on a
+    NON-empty intersection, flag 1 (0x47edc) AND-s and is TRUE
+    when EMPTY (0x495b0), flag 2 (0x47f42) is TRUE when the
+    AND is empty, flag 3 (0x47fb2) is TRUE when the sets are
+    byte-identical. So that arm is a live-set test with
+    ANY / NONE / EQUAL chosen by the mode byte at [set+0xc] -
+    the method is TEventSet::match, named by its own out-of-
+    range error path at 0x47fc3 (the string at 0x919ca). The
+    K_ANY/K_NEVER markers are NOT in that byte: 0x48037-0x48048
+    writes K_ANY as word 1 = 0x2001f8 with words 0 and 2 zero,
+    and 0x4806f-0x4807d writes K_NEVER as bits 5/6 of data
+    BYTE 4, both after 0x749a0's 0xff fill of the 18-byte
+    object; mode 0 (ANY) on either value is what a row gets
+    today, which is exactly the case that does not explain the
+    ladder.
+    What is left is how the row's own node (the entry at
+    [row+0x4], which 0x45800 delegates through) composes a
+    `Wait` clause into that pair, and how a `!` operand is
+    compiled (0x47d00-0x47d42 wraps it into class 0xa11e0).
+    The row clock is [rec+0xa1] and 0x52362 is its
+    feeder: it writes [rec+0x4] = 0 and [rec+0xa1] = 100.
+    PR-217 also read how a clause gets THERE: the row-line
+    parser 0x51660 calls the directive chain 0x45df0 and
+    PREPENDS the nodes it returns into the row record's node
+    list at [row+0x0]; the row step's 0x5222c is
+    `mov esi,[ebx+0x4]` = [row+0x0], so the test call reaches
+    the FIRST node of that list - the LAST keyword written on
+    the line, since each new tail is prepended. A row with no
+    tail therefore tests EMPTY and runs. The corpus through the
+    port's own parser (pinned in verify-endlevel): 251 Wait
+    rows in 133 of the 777 members - 4 tails are NOT captured
+    (1 tokenless `Wait ;`, 3 with two tokens) - 21 negated
+    rows, 161 rows with a no-bit name, exactly 1 row naming a
+    token in no table. The row's OWN class is now named: the row
+    object is built at 0x515e2-0x51611 (24 bytes, [row+0x0] =
+    node list, +0x8/+0xc = the two frame numbers, +0x10 = 1,
+    +0x14 = 0, class word 0xa2638) and its vtable answers
+    +0x8 = 0x45800 and +0xc = 0x45870, the same two delegators
+    the directive nodes use, +0x14 = the row's own clone method
+    0x51620; the state record's class 0xa260c holds the row
+    step at +0xc and the row reset at +0x1c. So the row test
+    really is "ask my first directive node", and the open half
+    of this row is what the two branches of 0x5224b/0x522fc do
+    to the row clock in practice, and whether the union fed to
+    0x47e40 carries a flag byte set anywhere else (the state
+    record's own EventSet at rec+0x60 is the only 18-byte set
+    in the state record class and no writer of it has been
+    found). Until the reading is settled the port keeps
+    the clause and acts on no part of it, so no ladder behaviour
+    moves.
+  origin: PR-217 record; the ladder chain stays OI-078
