@@ -564,8 +564,9 @@ OI-077: fixture hygiene: the five drawn-anchor test legs use a
 === gameplay behavior + capture-needed ============================
 
 OI-078: the in-game ZARIA.01 climb: what still blocks it - the
-  K_GEN1 arm + WAIT row-gate, the per-frame setter of the lion's
-  contact target [obj+0xd2], the authored rectangle format, node
+  K_GEN1 arm + WAIT row-gate, the authored rectangle format
+  ([obj+0]==2 as a runtime gate vs [obj+0]/[obj+4] as rect
+  x/y, and what the row-start numbers change on screen), node
   lifetime + the 0x54b6a merge guard, object-asked answers and
   mid-air asking
   status: PARTIAL
@@ -573,6 +574,21 @@ OI-078: the in-game ZARIA.01 climb: what still blocks it - the
     evaluator, ladder answer all read and shipped (PR-142..150);
     the named remainder lives in those records' counted items.
     ZARIA.01 x=180 still does not climb.
+    PR-214 ANSWERED the "per-frame setter of the lion's
+    contact target [obj+0xd2]" lead NEGATIVE: nothing writes
+    it per frame. Full writer census (ELF sweep): the only
+    appends are 0x3d618 (PR-146's asker-append inside the
+    +0x78 entry 0x3d440, held at +0x78 in exactly two NON-
+    lion tables 0x96a88/0x99e64) and 0x1ef71, inside the
+    handler whose address appears exactly once in the image -
+    0x97050 = LION base 0x96874 + 0x7dc - so the lion's
+    list is written by the lion's own class at pair-touch
+    time, gated on the counterpart's [obj+0]==2 and appending
+    through 0x53f00 (kind 1). Heads are only zeroed
+    (0x5415b/0x54e88) or popped (0x551fc/0x551f0). The
+    reader 0x28590 (0x9a390 + 0x134) runs only when both
+    sides' [obj+0x5c] == 4. TLewZaria 0x96960 overrides that
+    slot with 0x531b0, which appends nothing - see OI-110.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
@@ -1040,5 +1056,23 @@ OI-110: the planies ACTIVATION chain is unread: what feeds the
     0x332f0 -> [obj+0xee], 0x554f0 -> child array
     [obj+0x40]x[obj+0x3c]) imply the plane flows to attached
     and child objects for some consumer still unnamed.
+    PR-214 NAMEDS THE FIRST SUCH CONSUMER: the class slot
+    +0x7dc pair-answer responder. TLewZaria (0x96960) holds
+    0x531b0 there, which calls [[asker+8]+0x5c] with
+    edx = [self+0x24] (the plane), then 0x4b140 - a second
+    reader of the planies string [level+0x30]: it returns the
+    count of 'A' before the first 'L' when the object is the
+    lion ([level+0x394]), else the first index whose pool
+    cell exists (0x4b0f0: i < [level+0x44+k*4] and
+    [[level+0x58+k*4]+i*4] != 0, k = 0..2) - and 0x4aa70
+    resolves that (key, cell) through 0x52c10. So the ZARIA
+    lion answers pair-asks by plane-matching against the
+    planies segment that carries the 'L' (= 2 for ZARIA, the
+    same number PR-213's cell_plane gives). Still unread
+    here: the [level+0x64] feeder, what sets [obj+0x2c], and
+    the 13-byte answer sets the +0x78 entries build (the
+    0x3d990 variant at 0x3d9e5, held at +0x78 by the five
+    lion-base tables 0x96874/0x991dc/0x9a1a4/0x9ad48/
+    0x9e740).
   origin: PR-212 remainders; row opened PR-213
 

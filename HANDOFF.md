@@ -1997,6 +1997,20 @@ and every animacje pin unmoved, verify-play's ZARIA animal
 legs unmoved. Collision-equality effects are now the
 engine's, by law. 65 ok / 13 ok + 21 SKIPs, 0 warnings.
 
+STATUS PR-214 (READ, OI-078 LEAD ANSWERED NEGATIVE): nothing
+sets the lion's contact target [obj+0xd2] per frame. The only
+appends are PR-146's asker-append (0x3d618, inside the +0x78
+entry 0x3d440 held by two non-lion tables) and 0x1ef71, in
+the handler referenced exactly once in the image - 0x97050 =
+LION base 0x96874 + 0x7dc - gated on the counterpart's
+[obj+0]==2; heads are only zeroed (0x5415b/0x54e88) or
+popped (0x551f0). New [obj+0x24] consumer named for OI-110:
+TLewZaria's +0x7dc 0x531b0 answers pair-asks by plane
+matching, and 0x4b140 derives the lion's plane from the
+planies string ('A' before the first 'L' = 2 for ZARIA),
+resolving cells through 0x4b0f0/0x4aa70/0x52c10. Docs only:
+65 ok / 13 ok + 21 SKIPs, 0 warnings.
+
 PLAN STEP PR-206 (object placement fidelity, the user-visible
 thread; register row OI-108): two PRs after this step, neither part
 of closing T1. (5a) [READ] measure where the ORIGINAL draws `.MOV`

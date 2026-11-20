@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-214.
+> at PR-215.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -30829,3 +30829,155 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
   the header numbering line, the regenerated index, the
   ported/ll_level.c hunks and the Makefile planies-leg pin
   and comments go back together; nothing else was touched.
+
+## PR-214 — OI-078'S "PER-FRAME SETTER OF THE LION'S CONTACT
+## TARGET" IS ANSWERED NEGATIVE: NOTHING SETS [obj+0xd2] EVERY
+## FRAME, THE ONLY APPENDS ARE THE PAIR-TOUCH HANDLER AT THE
+## CLASS SLOT +0x7dc AND THE ASKER-APPEND OF PR-146; AND THE
+## ZARIA LION'S OWN +0x7dc RESPONDER READS THE PLANIES STRING
+## FOR THE LION'S PLANE, THE FIRST NON-LEVEL-LOAD CONSUMER OF
+## [obj+0x24]
+
+KIND: read
+SUBSYSTEM: engine contact lists - the writers of
+      [obj+0xd2], the class slot that produces them, and the
+      ZARIA-lion pair-answer responder.
+ADDRESSES: 0x1ee20, 0x1ef3b, 0x1ef71, 0x3d440, 0x3d60a,
+      0x3d618, 0x28590, 0x28682, 0x53f00, 0x551f0, 0x55207,
+      0x549f0, 0x4b140, 0x4b0f0, 0x4aa70, 0x531b0, 0x3d990,
+      0x5415b, 0x54e88, 0x96874, 0x96960, 0x96a88, 0x97050,
+      0x97058, 0x9a390
+NAMES: obj+0xd2, obj+0x24, level+0x394, level+0x30,
+      level+0x40, level+0x58, +0x78, +0x7dc, +0x134, 0x53f00
+      node builder, contact node, planies, TLewZaria,
+      KAMIEN, OI-078, OI-110, LION base
+CODE: no: read only - build/leo/leo.elf bytes (the class
+      tables at 0x96874/0x96960/0x9a390 and the immediate
+      census for 0x1ee20/0x3d440/0x28590/0x3d990/0x531b0) and
+      the disassembly windows at the addresses above. No port
+      file changed, so no failing test was due: nothing in
+      the port behaves differently after this PR.
+HOOKS: none new.
+OPENS: OI-078 - the rectangle half stands: the same handler
+      gates on a runtime object's [obj+0] == 2 while other
+      paths read [obj+0]/[obj+4] as the first authored
+      rectangle's x/y, and what the row-start numbers change
+      on screen is still unmeasured (PR-102 item 4). OI-110 -
+      the pair-answer consumer half is now partly read (this
+      PR's 0x531b0/0x4b140/0x4b0f0/0x4aa70); the unread
+      remainders there narrow to the [level+0x64] feeder,
+      what sets [obj+0x2c] for the +0x60 predicate, and the
+      13-byte answer sets the +0x78 entries build (0x3d990
+      branch at 0x3d9e5).
+CLOSES: none (OI-078 stays PARTIAL and OI-110 stays OPEN with
+      narrowed leads; the "per-frame setter" lead itself is
+      closed as answered-negative inside the OI-078 row).
+CORRECTS: none (this PR narrows two open rows, it does not
+      contradict any record; PR-146's finding (c) - only
+      three sites write [obj+0xd2] - stands verbatim and this
+      PR's counts agree with it).
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs.
+
+- THE QUESTION, VERBATIM (OI-078, since PR-150): "the
+  per-frame setter of the lion's contact target [obj+0xd2]".
+  The answer is NO - there is no per-frame setter, and the
+  wording came from reading the consumer as if it were fed
+  continuously.
+- EVERY WRITER, RE-COUNTED FROM THE ELF BYTES. A word-store
+  sweep finds exactly two direct stores to [obj+0xd2], both
+  zero: 0x5415b (a copy/assign tail that clears the head) and
+  0x54e88; plus the pop's head rewrite at 0x551fc (0x551f0 =
+  pop one node, and when the list goes empty call
+  [[obj+8]+0x3c] and set [obj+0x106]=1 - PR-99's edge). The
+  only appends go through the node builder 0x53f00 (node =
+  16-byte header + a 13-byte zeroed answer set, the 0x1d-byte
+  allocation, header [n+0]=0, [n+4]=1, [n+8]=pointer,
+  [n+0xc]=count - PR-146 finding (d)). In this image 0x53f00
+  has exactly TWO call sites and no table holds its address:
+  0x3d618 (PR-146's asker-append inside the +0x78 entry
+  0x3d440) and 0x1ef71, which this PR reads.
+- THE NEW ONE, 0x1ee20, AND ITS CLASS SLOT. 0x1ee20's address
+  appears in exactly one place in the whole image: the dword
+  at 0x97050 = THE LION BASE CLASS TABLE 0x96874 + 0x7dc. So
+  the pair-touch handler below is the LION base's method at
+  slot +0x7dc, and the lion's contact list is written by the
+  lion's own class, whenever it is paired with another object.
+  Inside (0x1ee20..0x1ef79): call [[other+8]+0x3c] (is-enemy,
+  PR-99's signature), then [[other+8]+0x4c] for the other's
+  4-dword rectangle, its record from [[self.vt+0x68]] - 0x64
+  (0x98278 sentinel), 0x4a050 with an 0xc-dword key made of
+  the lion's own first rectangle, then the overlap test
+  0x28622-0x28637; on success [obj+0x106]=1 (0x3d5f6's
+  field), and if the other's [obj+0] == 2 a node (0x5c320
+  (lion, 0x1d, 1)) is appended at lion+0xd2 by 0x53f00 with
+  ebx=1, after [[0xcef40]+0x394]+0x106 = 0 and the other's
+  [[vt+0x68]]-0x64 as the node's +8 pointer. The same
+  handler's other branch calls 0x52b10 - the plain 16-byte
+  push into [obj+0x10], the list the CHECK_ masks walk
+  (PR-102) - not the contact list. The gate value [obj+0]==2
+  is named open (rectangle format, below).
+- THE ONLY READER PATH FOUND, 0x28590 (0x9a390 + 0x134): it
+  runs only when BOTH sides' state slots [obj+0x5c] equal 4,
+  with the lion side read as [[0xcef40]+0x394]; it calls the
+  other's +0x3c (is-enemy) and +0x4c (rectangle), then
+  0x3d440 at 0x28682, which appends the node to THE ASKER's
+  list (PR-146 finding (c)) - so that append is a generic
+  contact-entry behaviour, not a lion path: 0x3d440 sits at
+  +0x78 in exactly two class tables, 0x96a88 and 0x99e64,
+  neither a lion table.
+- THE LION CLASS FAMILY DOES THIS INSTEAD: the LION base's
+  +0x78 is the variant 0x3d990 (5 tables: 0x968ec, 0x991e4,
+  0x9a1ac, 0x9adc0, 0x9e7b8 - bases 0x96874, 0x991dc,
+  0x9a1a4, 0x9ad48, 0x9e740), and TLewZaria (0x96960)
+  overrides +0x7dc with 0x531b0, which appends NOTHING: it
+  calls [[asker+8]+0x5c] with edx = [self+0x24] - THE PLANE
+  WORD PR-213 just shipped - then 0x4b140 and
+  0x4aa70(level, ecx, edx).
+- 0x4b140 IS A SECOND CONSUMER OF THE PLANIES STRING, and the
+  first one outside the level load. With the level in esi and
+  the object in edi: if edi == [level+0x394] (the lion,
+  PR-60's field) it walks [level+0x30] - the planies string,
+  PR-209's field - counting 'A' (0x41) until the first 'L'
+  (0x4c) and returning that count, 0 when there is no 'L';
+  otherwise it returns the first index 0..4 for which 0x4b0f0
+  is true, and 0x4b0f0 tests exactly the pool law:
+  i < [level+0x44 + k*4] AND [[level+0x58 + k*4] + i*4] != 0
+  for the three keys in order. 0x4aa70 then resolves
+  (key, cell) to the cell object through
+  0x52c10([[level+0x58]+key*4][cell*4]) - the same chain
+  walk as PR-212's loader. So for ZARIA ("T|TA|TALAB") the
+  lion's plane by this reading is 2 = the segment holding the
+  'L', which is the same number PR-213's cell_plane gives the
+  lion's own placements; TLewZaria's +0x7dc answers a pair
+  ask by matching the asker's plane to the lion's and then
+  enumerating the placement cells of that plane.
+- WHY THIS MATTERS FOR THE COLLISION WORK: PR-213 said
+  "[obj+0x24] is the collision-equality word; no consumer
+  beyond the draw insert and the gate is known". This PR
+  names a third consumer: the +0x7dc pair-answer responder
+  keys on it ([[asker+8]+0x5c](edx=[self+0x24]) in 0x531b0),
+  and its result decides which placement cells the ZARIA lion
+  answers for. That is OI-110's consumer half, opened
+  narrowed.
+- WHAT STAYS OPEN, NAMED (OI-078's rectangle half): 0x1ee20
+  gates on a RUNTIME object's [obj+0] == 2, while 0x28590 and
+  0x1ee20's own key build read [obj+0]/[obj+4] and
+  [rec+0]/[rec+4] as rectangle x/y (0x28601's `lea ecx,
+  [eax-0x14]` is a width/height adjust). Which object has
+  [obj+0]==2, and what the authored row-start numbers do on
+  screen (PR-102 item 4), are unmeasured; PR-102's BY_TY
+  finding says every climb/hang state feeds vertically, and
+  the lion still does not climb at ZARIA x=180, so the
+  climb's blocking term is not this contact list.
+- RISK: none to the build (no code touched). The reading risk
+  is slot arithmetic: 0x97050 as LION base +0x7dc and 0x9a4c4
+  as 0x9a390 + 0x134 follow PR-99's anchored two-table pair
+  rule and PR-146's independent anchor (+0x8c = the key
+  provider 0x54910 for 0x96a88); the +0x78/+0x7dc values at
+  the five lion bases were read straight from the ELF.
+- REVERT: revert this commit; this record, the OI-078 row
+  rewrite, the OI-110 row narrowing, the section 8 status
+  block, the header numbering line and the regenerated index
+  go back together; nothing else was touched.
