@@ -2060,6 +2060,28 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-231 (PORT): CHECK_ALL now implies the CHECK_LN rule
+bit, exactly as the engine's keyword 0x921c6 maps to 0x1c0
+(PR-230). Test first: a --play-selftest CHECK on
+`control=BY_TIME|CHECK_ALL` failing at line 3037, then
+ctrl_flag's CHECK_ALL entry sets CHECK_LN too; ll_play.h's
+PR-60 exemption comment replaced. Consequences on ZARIA.01
+(all authored-data, no video number moved): the lion's
+A_WALK follows ZARIA_A.PLT's first polyline -50,680!408,684
+(grounded y 648->652 across the first screen), stands grounded
+to tick 189 AT the polyline end x=408, walks off the authored
+pit edge at tick 190, crosses the level bounds death line
+('below lew_rect at (480,1007) -> respawn') and respawns on
+tick 218; jump apexes shift +1 from the sloped take-off. The
+traverse leg's x=685-at-tick-300 pins are re-pinned to that
+story (they described hovering over the pit - a port artifact,
+not authored walkability); a PR-231 RE-PIN NOTE at the top of
+verify-play scopes the +1..+4 y shifts; RAN.01 legs unchanged
+(RAN spells CHECK_LN explicitly). Gate: 0 warnings, fixtures
+65 ok rc=0, fixture-free 13 ok + 23 measured SKIP lines.
+OI-113 half closed: keyword entries for CHECK_BASE_LN/INV_V/
+BY_TX/SEQ_REV and the row-order word/apply verbs stay open.
+
 STATUS PR-230 (READ): the complete control keyword-to-bit table
 and two corrections. The control= parser 0x51b0d-0x51dd8 is the
 authoritative map (all names above 0x9216e-0x9222f): BY_X=0

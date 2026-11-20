@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-231.
+> at PR-232.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -33099,6 +33099,64 @@ CORRECTS: PR-226 (e)/(f): the "[obj+0x6d] speed word" is the
   claim that 0x459d0 is `rev`'s execute verb: 0x459d0 is the
   +0x04 verb of the CHDIR table 0xa0f40; rev's table is
   0xa0f28. No code changed, no behaviour changed, no hooks.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
+```
+
+## PR-231 — CHECK_ALL NOW SETS THE CHECK_LN RULE BIT: THE ZARIA.01
+## LION STANDS ON THE AUTHORED SLOPE AND FALLS AT ITS EDGE
+```
+KIND: port
+SUBSYSTEM: player/state control words - ll_play.c's ctrl_flag
+keyword table and every CHECK_LN-gated ground rule
+(ll_play.c sections 3/5, ll_level.c obj_settle).
+ADDRESSES: 0x51c62, 0x51c73, 0x921c6, 0x1c0
+NAMES: LL_CTRL_CHECK_ALL, LL_CTRL_CHECK_LN, ctrl_flag,
+  CHECK_ALL, ZARIA_A.PLT
+CODE: yes: ported/ll_play.c ctrl_flag - the CHECK_ALL entry now
+  sets LL_CTRL_CHECK_LN with the other three bits, exactly the
+  engine's 0x1c0; ported/ll_play.h - the PR-60 comment that
+  exempted the port's CHECK_ALL from the LN bit is replaced
+  (that exemption predated the LN rules being modelled). The
+  test came first: a new --play-selftest CHECK pins that a
+  `control=BY_TIME|CHECK_ALL` state reaches CHECK_LN and both
+  list-select bits; it failed (line 3037) before the change and
+  passes after.
+HOOKS: none new, none touched.
+MEASURED: with the bit connected, the ZARIA.01 play legs answer
+  with the authored geometry instead of a hover: ZARIA_A.PLT's
+  first ground polyline is `-50,680!408,684`, so the walking
+  lion's grounded y is line(x)-contact (648->649 past x=-40,
+  652 at the line end), the walk stays grounded exactly to the
+  polyline's END (tick 189, x=408) and leaves the ground over
+  the authored pit (next line starts at 624,673) from tick
+  190, falls, crosses the level's own bounds line ('below
+  lew_rect at (480,1007) -> respawn') and respawns at the
+  spawn snap on tick 218; a jump launched on the slope lifts
+  off from it (apex y +1: 629/636 where 628/635 were). The
+  traverse leg is re-pinned with that whole story as its text
+  (its old x=685-at-tick-300 pins described hovering over the
+  pit - a port artifact, not authored walkability); a
+  PR-231 RE-PIN NOTE at the top of verify-play scopes the
+  y-shifts; press/release, cam-y, left-walk and jump pins move
+  by the slope's +1..+4. RAN.01 legs answer unchanged: RAN
+  spells CHECK_LN explicitly and already followed its ground -
+  the two models now agree because they were made the same.
+OPENS: OI-113 half: the keyword entries with no engine bit in
+  the port yet (CHECK_BASE_LN, INV_V, BY_TX, SEQ_REV_X/Y), and
+  the row-order word [obj+0x99] with `rev`/ldir/rdir/chdir -
+  unchanged, still open. OI-072/073/076 also unchanged: WHY
+  the pit falls at 408 is now data-faithful, but the engine's
+  own grounded-y instruction is still unread.
+CLOSES: nothing in the register (OI-113 stays open with its
+  first half done - the register row is updated).
+CORRECTS: PR-60's CHECK_ALL exemption in ll_play.h ("here it
+  keeps its own bit (the port's LN physics is unchanged)") -
+  the LN physics IS modelled now, so the exemption was keeping
+  ZARIA.01's lion off the game's own ground rules. No measured
+  video number is moved by this PR: the changed pins are all
+  model-arithmetic numbers.
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.

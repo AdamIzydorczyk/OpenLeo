@@ -151,8 +151,11 @@ enum {
     /* PR-60: the mover's own list selectors (FUN_00052780 0x527b3..0x5282f):
      * CHECK_ANI (0x40) = test against the animacje= objects, CHECK_ZW (0x80)
      * = the zwierzaki= objects, CHECK_LEW (0x200) = against Lew; with
-     * CHECK_ALL_PLANE the plane gate is dropped. CHECK_ALL = ANI|ZW|LN in the game (0x1c0); here it
-     * keeps its own bit (the port's LN physics is unchanged) plus ANI|ZW. */
+     * CHECK_ALL_PLANE the plane gate is dropped. CHECK_ALL = ANI|ZW|LN in the game (0x1c0);
+     * PR-231 makes the port match it exactly - CHECK_ALL also sets
+     * LL_CTRL_CHECK_LN (PR-60's "LN physics is unchanged" exemption
+     * predates the LN rules being modelled; ZARIA.01's [A_WALK]
+     * relies on the implication). */
     LL_CTRL_CHECK_ANI       = 0x2000u,
     LL_CTRL_CHECK_ZW        = 0x4000u,
     LL_CTRL_CHECK_LEW       = 0x8000u,

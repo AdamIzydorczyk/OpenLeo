@@ -806,6 +806,18 @@ ifeq ($(PX_DATA),1)
 # seconds), every position is the law's, and every row boundary is a whole
 # number of ticks. The legs that keep a tick index unchanged are the ones
 # whose pin does not depend on elapsed time (the p2 turn leg).
+# PR-231 RE-PIN NOTE (applies to every ZARIA.01 ground position in this
+# target): the engine's control parser maps CHECK_ALL to 0x1c0 and so
+# implies the CHECK_LN keep-ground rule (read PR-230, OI-113), and every
+# ZARIA.01 lion state carries CHECK_ALL. ZARIA.01's A_WALK now follows
+# the authored first polyline `-50,680!408,684` (ZARIA_A.PLT): a grounded
+# y there is line(x)-contact, so the pre-PR-231 flat 648 becomes 649 for
+# x past ~-40 (line 681) and 650/651/652 further right; jumps launched
+# there lift off from the sloped line (apex y +1); the walk ENDS at the
+# polyline's end x=408 (the traverse leg says so in full). The numbers
+# are the re-pinned law's own arithmetic on the authored bytes, not
+# fitted. RAN.01 legs do not shift: RAN spells CHECK_LN explicitly and
+# already followed its ground.
 # scripted demo on REAL player data: walk right (FWD), reverse (BKWD),
 # stop (NONE) - RAN.01 LEW.RAN art (8 .SEQ incl. UJ09 walk cycle),
 # LEW.MOV (30 states), RAN.PLT (153 ground lines), pozycja snap,
@@ -1210,28 +1222,58 @@ ifeq ($(PX_DATA),1)
 	  > /tmp/opencode/ly_trv.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "play traverse probe FAILED (rc=$$rc)"; \
 	    exit 1; fi
+# PR-231 RE-PIN of this leg (engine read PR-230, OI-113): the
+# engine's control parser maps CHECK_ALL to 0x1c0 = the
+# CHECK_LN|CHECK_ANI|CHECK_ZW bits - CHECK_ALL IMPLIES the
+# CHECK_LN keep-ground rule, and ZARIA.01's lion [A_WALK] is
+# `control=BY_X|FRAME_REV|CHECK_ALL|CH_DIR` with no spelled
+# CHECK_LN. With the port matching that, A_WALK follows the
+# authored ground and FALLS OFF ITS EDGE: ZARIA_A.PLT's first
+# polyline is `-50,680!408,684` - the grass ENDS at x=408, and
+# the next ground line starts at 624,673. The old pins
+# (x=685 at tick 300, "across the second screen's ground")
+# were the port's hover-over-the-pit artifact: with no
+# CHECK_LN the lion kept the spawn contact line forever, which
+# the authored data says cannot happen. The pins below are the
+# re-pinned law's numbers from the model's own registers
+# (PR-135), not fitted: slope following along 680->684 (y
+# 648->652), grounded through tick 189 AT the line end
+# (408,652), grounded 0 from tick 190, the fall, the authored
+# lew_rect death line ('below lew_rect at (480,1007) ->
+# respawn', bounds 0..1000 as the level block loads), the
+# respawn at the spawn snap. Staying in A_WALK while falling
+# is the named, already-counted gap that no port code raises
+# AC_ONAIR (ll_play.c's counted list); the original game
+# crosses this pit with jumps (the video's player never walks
+# across it - G-1(b)'s gallop note stands).
 	@grep -q 'obj DRABINKA/drab.mov\[mov\]: art DRAB.SEQ, 3 state(s), bbox 42x48 at (180,510)' \
 	  /tmp/opencode/ly_trv.log \
-	  && grep -q 'play tick 50: solid LICHA/licha3.mov SEMI at 179,669 push -2,0 (ret -10) lion 157,648' \
+	  && grep -q 'play tick 50: solid LICHA/licha3.mov SEMI at 179,669 push -1,0 (ret -7) lion 156,649' \
 	  /tmp/opencode/ly_trv.log \
 	  && test "$$(grep -c 'solid LICHA/licha3.mov SEMI' /tmp/opencode/ly_trv.log)" -ge 30 \
-	  && grep -q 'play tick 91: state A_WALK seq walk frame 10 pos 180,648 grounded 1' \
+	  && grep -q 'play tick 91: state A_WALK seq walk frame 10 pos 180,650 grounded 1' \
 	  /tmp/opencode/ly_trv.log \
-	  && grep -q 'play tick 200: state A_WALK seq walk frame 7 pos 435,648 grounded 1' \
+	  && grep -q 'play tick 189: state A_WALK seq walk frame 3 pos 408,652 grounded 1' \
 	  /tmp/opencode/ly_trv.log \
-	  && grep -q 'play tick 300: state A_WALK seq walk frame 1 pos 685,648 grounded 1' \
+	  && grep -q 'play tick 190: state A_WALK seq walk frame 3 pos 410,652 grounded 0' \
+	  /tmp/opencode/ly_trv.log \
+	  && grep -q 'below lew_rect at (480,1007) -> respawn' /tmp/opencode/ly_trv.log \
+	  && grep -q 'play tick 218: state A_WALK seq walk frame 10 pos 50,648 grounded 1' \
 	  /tmp/opencode/ly_trv.log \
 	  && ! grep -qE 'hit by|ATTACKS through|lion energy' /tmp/opencode/ly_trv.log \
 	  && ! grep -qE 'state A_(DRAP|DOSTAL|FALL_DOWN|JUMP|SITW)' /tmp/opencode/ly_trv.log \
-	  && echo "play traverse probe: 300 iterations walk the lion from the" \
-	     "spawn to x=685 at ZERO energy cost; the ladder object is placed" \
-	     "at its authored (180,510) and its column is reached on tick 91;" \
-	     "the worms answer the contact with the SEMI push-out ALONE (70 of" \
-	     "their lines span ticks 37..135; that costs DELAY, not a stop:" \
-	     "0.8 units/tick pressed vs 2.5 unpressed, ~40 lost iterations -" \
-	     "the original crosses that zone galloping, a state the port has" \
-	     "no path into, G-1(b)); no damage line of any kind appears and" \
-	     "the lion never leaves A_WALK (ok)" \
+	  && echo "play traverse probe: the walk follows the authored" \
+	     "slope (680->684) to the polyline END at x=408, grounded" \
+	     "through tick 189, off the edge at tick 190 - the ground" \
+	     "line ends there and the next starts at 624,673" \
+	     "(ZARIA_A.PLT) - falls, crosses the authored death line" \
+	     "(respawn at spawn on tick 218), at ZERO energy cost; the" \
+	     "ladder object is placed at its authored (180,510) and its" \
+	     "column is reached on tick 91; the worms answer with SEMI" \
+	     "push-out ALONE (>=30 lines), costing DELAY not a stop;" \
+	     "no damage line appears and the lion never leaves A_WALK" \
+	     "(the AC_ONAIR -> A_FALL_DOWN gap is named and counted)" \
+	     "(ok)" \
 	  || { echo "play traverse probe grep FAILED"; \
 	       grep -E 'DRABINKA|SEMI|pos 1[78][0-9],|hit by|ATTACKS' \
 	       /tmp/opencode/ly_trv.log | head -8; exit 1; }
@@ -1408,12 +1450,12 @@ ifeq ($(PX_DATA),1)
 	  > /tmp/opencode/ly_zkeys.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "play ZARIA press/release FAILED (rc=$$rc)"; \
 	    cat /tmp/opencode/ly_zkeys.log; exit 1; fi
-	@grep -q 'play tick 39: state A_WALK seq walk frame 12 pos 134,648 grounded 1' \
+	@grep -q 'play tick 39: state A_WALK seq walk frame 12 pos 134,649 grounded 1' \
 	    /tmp/opencode/ly_zkeys.log \
 	  && ! grep -q 'A_WALK -> A_DRAP' /tmp/opencode/ly_zkeys.log \
 	  && grep -q 'play: A_WALK -> A_TURN' /tmp/opencode/ly_zkeys.log \
 	  && test "$$(grep -c '> A_TURN' /tmp/opencode/ly_zkeys.log)" -eq 1 \
-	  && grep -q 'play tick 55: state A_TURN seq turn frame 3 pos 137,651 grounded 1' \
+	  && grep -q 'play tick 55: state A_TURN seq turn frame 3 pos 137,652 grounded 1' \
 	      /tmp/opencode/ly_zkeys.log \
 	  && echo "play input edges: FWD walks him 87 px by tick 39 and his" \
 	     "BY_X rows advance with that TRAVELLED distance (frame 12 = 14" \
@@ -1461,7 +1503,7 @@ ifeq ($(PX_DATA),1)
 # 180. Before PR-97 the POSITION POINT was parked there instead, which put the
 # same shape bottom at world 710 = view 210 - below the 200-row view: the
 # "leo is below grass, his legs are cut" report.
-	# window built from the A_TURN position the leg pins (137,651): the
+	# window built from the A_TURN position the leg pins (137,652): the
 	# same X-15..X+35 the old grid used, moved with it.
 	@python3 tools/ppm_lion_measure.py /tmp/opencode/ly_zkeys.ppm \
 	  122 172 100 200 orange top=121+-6 bottom=172+-6 \
@@ -1475,9 +1517,9 @@ ifeq ($(PX_DATA),1)
 	  > /tmp/opencode/ly_zcam.log 2>&1; rc=$$?; \
 	  if [ $$rc -ne 0 ]; then echo "play ZARIA cam-y leg FAILED (rc=$$rc)"; \
 	    cat /tmp/opencode/ly_zcam.log; exit 1; fi
-	@X=$$(grep -o 'play tick 54: state A_WALK seq walk frame [0-9-]* pos [0-9]*,648' \
+	@X=$$(grep -o 'play tick 54: state A_WALK seq walk frame [0-9-]* pos [0-9]*,649' \
 	    /tmp/opencode/ly_zcam.log | sed 's/.*pos \([0-9]*\),.*/\1/'); \
-	  grep -q 'play tick 54: state A_WALK seq walk frame .* pos 14[0-9],648 grounded 1' \
+	  grep -q 'play tick 54: state A_WALK seq walk frame .* pos 14[0-9],649 grounded 1' \
 	    /tmp/opencode/ly_zcam.log \
 	  && python3 tools/ppm_lion_measure.py /tmp/opencode/ly_zcam.ppm \
 	      $$((X-25)) $$((X+25)) 100 200 orange top=118+-6 bottom=170+-6 \
@@ -1504,7 +1546,7 @@ ifeq ($(PX_DATA),1)
 # (the entry step feeds the first, then two iterations per row), the list
 # re-runs its first row at entry+9 = 61, that wrap arms AC_BREAK_NEXT and
 # the next iteration reads it: A_DRAP hands over at 62 and A_WALK starts
-# at face=-1 at 63, drawn at 135,648. From there he walks LEFT, and the
+# at face=-1 at 63, drawn at 135,649. From there he walks LEFT, and the
 # cap is the authored T=20 u/s = 2.5 px per iteration, so between 63 and
 # 82 the law allows at most 19*2.5 = 47.5 px; the log moves him
 # 135 -> 93, i.e. 42 px in 19 iterations: the law's ramp (37.5 px from
@@ -1523,12 +1565,12 @@ ifeq ($(PX_DATA),1)
 	@test "$$(grep -c '> A_TURN' /tmp/opencode/ly_zwalk.log)" -eq 1 \
 	  && grep -q 'play: A_TURN -> A_DRAP' /tmp/opencode/ly_zwalk.log \
 	  && grep -q 'play: A_DRAP -> A_WALK' /tmp/opencode/ly_zwalk.log \
-	  && grep -q 'play tick 70: state A_WALK seq walk .* pos 12[0-9],648 grounded 1' \
+	  && grep -q 'play tick 70: state A_WALK seq walk .* pos 12[0-9],649 grounded 1' \
 	      /tmp/opencode/ly_zwalk.log \
-	  && grep -q 'play tick 82: state A_WALK seq walk .* pos 9[0-9],648 grounded 1' \
+	  && grep -q 'play tick 82: state A_WALK seq walk .* pos 9[0-9],649 grounded 1' \
 	      /tmp/opencode/ly_zwalk.log \
 	  || { echo "play ZARIA left-walk grep FAILED"; cat /tmp/opencode/ly_zwalk.log; exit 1; }
-	@X=$$(grep -o 'play tick 82: state A_WALK seq walk frame [0-9-]* pos [0-9]*,648' \
+	@X=$$(grep -o 'play tick 82: state A_WALK seq walk frame [0-9-]* pos [0-9]*,649' \
 	    /tmp/opencode/ly_zwalk.log | sed 's/.*pos \([0-9]*\),.*/\1/'); \
 	  python3 tools/ppm_lion_measure.py /tmp/opencode/ly_zwalk.ppm \
 	    $$((X-20)) $$((X+28)) 100 200 orange top=118+-6 bottom=173+-6 \
@@ -1602,9 +1644,9 @@ ifeq ($(PX_DATA),1)
 	  if [ $$rc -ne 0 ]; then echo "play ZARIA jump land-run FAILED (rc=$$rc)"; \
 	    cat /tmp/opencode/ly_zland.log; exit 1; fi
 	@grep -q 'play: A_WALK -> A_JUMP' /tmp/opencode/ly_zjump.log \
-	  && grep -q 'play tick 44: state A_JUMP seq jump frame 4 pos 140,628 grounded 0' \
+	  && grep -q 'play tick 44: state A_JUMP seq jump frame 4 pos 140,629 grounded 0' \
 	      /tmp/opencode/ly_zjump.log \
-	  && grep -q 'play tick 46: state A_JUMP seq jump frame 5 pos 141,635 grounded 0' \
+	  && grep -q 'play tick 46: state A_JUMP seq jump frame 5 pos 141,636 grounded 0' \
 	      /tmp/opencode/ly_zjump.log \
 	  && grep -q 'play tick 48: state A_JUMP seq jump frame 6 .* grounded 1' \
 	      /tmp/opencode/ly_zjump.log \

@@ -27,7 +27,7 @@ WRITTEN; it is never a census of corrections nor a currency verdict:
   - it is DIRECTION-AGNOSTIC: it will not say whether the key is the
     wrong claim or its replacement; read the line.
 Measured, this is precise (every flagged line is a real correction) but
-sparse: 43 of 802 address entries carry one.
+sparse: 43 of 803 address entries carry one.
 
 HONEST LIMITS. Addresses and field tokens appear only if they are in at
 least 3 records; the one-or-two-record tail is a read-once
@@ -40,9 +40,9 @@ token, never that the engine author WROTE it. A key with NO
 current - the ledger simply never wrote a correction for it; deciding
 whether an uncorrected claim still stands means reading its records.
 
-# entries: 802 address keys (>=3 records) = 4448/8811 (50%)
+# entries: 803 address keys (>=3 records) = 4451/8814 (50%)
 # of all address mentions; 171 field tokens (>=3) = 68%
-# of field mentions; 234 authored names (all of them). Built from 215 records.
+# of field mentions; 234 authored names (all of them). Built from 216 records.
 
 
 ## Addresses
@@ -2829,6 +2829,10 @@ whether an uncorrected claim still stands means reading its records.
         mentions: PR-148 PR-220 PR-230
         latest mention: PR-230
 
+### 0x51c73 - 3 records
+        mentions: PR-99 PR-230 PR-231
+        latest mention: PR-231
+
 ### 0x51e0b - 3 records
         mentions: PR-103 PR-107 PR-216
         latest mention: PR-216
@@ -3706,6 +3710,10 @@ whether an uncorrected claim still stands means reading its records.
         mentions: PR-152 PR-176 PR-184 PR-186 PR-187 PR-188 PR-189
         latest mention: PR-189
 
+### [obj+0x99] - 7 records
+        mentions: PR-100 PR-101 PR-167 PR-168 PR-222 PR-230 PR-231
+        latest mention: PR-231
+
 ### [ebx+0x4] - 6 records
         mentions: PR-148 PR-193 PR-198 PR-199 PR-217 PR-224
         latest mention: PR-224
@@ -3737,10 +3745,6 @@ whether an uncorrected claim still stands means reading its records.
 ### [obj+0x54] - 6 records
         mentions: PR-94 PR-105 PR-130 PR-153 PR-157 PR-225
         latest mention: PR-225
-
-### [obj+0x99] - 6 records
-        mentions: PR-100 PR-101 PR-167 PR-168 PR-222 PR-230
-        latest mention: PR-230
 
 ### [obj+0xb5] - 6 records
         mentions: PR-148 PR-151 PR-178 PR-188 PR-189 PR-228
@@ -4189,12 +4193,12 @@ whether an uncorrected claim still stands means reading its records.
                   PR-225 PR-226 PR-227 PR-228 PR-229 PR-230
         latest mention: PR-230
 
-### control= - 34 records
+### control= - 35 records
         mentions: PR-43 PR-46 PR-49 PR-52 PR-58 PR-59 PR-79 PR-81 PR-88 PR-98
                   PR-99 PR-100 PR-108 PR-109 PR-114 PR-115 PR-117 PR-119 PR-134
                   PR-148 PR-150 PR-160 PR-162 PR-165 PR-168 PR-171 PR-172
-                  PR-173 PR-178 PR-195 PR-197 PR-206 PR-220 PR-230
-        latest mention: PR-230
+                  PR-173 PR-178 PR-195 PR-197 PR-206 PR-220 PR-230 PR-231
+        latest mention: PR-231
 
 ### A_DEAD - 29 records
         mentions: PR-51 PR-69 PR-70 PR-73 PR-88 PR-89 PR-92 PR-98 PR-102 PR-103

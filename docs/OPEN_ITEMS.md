@@ -1574,3 +1574,10 @@ OI-113: the engine control bit table is read (PR-230) and the
   and its A_DEAD row 181 and A_LOOKUP row 629 use rdir/rev
   status: OPEN (opened by PR-230)
   origin: PR-230
+  notes: half one IS DONE (PR-231): ctrl_flag now sets the
+    CHECK_LN rule bit from CHECK_ALL (engine 0x1c0), and the
+    ZARIA.01 walk legs re-pinned to the authored slope and its
+    edge at x=408. Half two stays open: no entries/bits for
+    CHECK_BASE_LN/INV_V/BY_TX/SEQ_REV_X/Y; the [obj+0x99]
+    row-order word, the backward cursor walk, and the
+    ldir/rdir/chdir/rev apply verbs are still unmodelled.

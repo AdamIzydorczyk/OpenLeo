@@ -335,7 +335,15 @@ static void ctrl_flag(const char *tok, unsigned *f, int *other)
         { "CHECK_LN", LL_CTRL_CHECK_LN },
         { "CH_DIR", LL_CTRL_CH_DIR },
         { "CHECK_ALL_PLANE", LL_CTRL_CHECK_ALL_PLANE },  /* before CHECK_ALL */
-        { "CHECK_ALL", LL_CTRL_CHECK_ALL | LL_CTRL_CHECK_ANI | LL_CTRL_CHECK_ZW },
+        { "CHECK_ALL", LL_CTRL_CHECK_ALL | LL_CTRL_CHECK_ANI
+                     | LL_CTRL_CHECK_ZW | LL_CTRL_CHECK_LN },
+                                         /* PR-231 (read PR-230): the
+                                          * engine's keyword 0x921c6
+                                          * maps to 0x1c0 = LN|ANI|ZW
+                                          * - CHECK_ALL IMPLIES the
+                                          * CHECK_LN rule (and
+                                          * ZARIA.01's lion [A_WALK]
+                                          * uses bare CHECK_ALL) */
         { "CHECK_ANI", LL_CTRL_CHECK_ANI },
         { "CHECK_ZW", LL_CTRL_CHECK_ZW },
         { "CHECK_LEW", LL_CTRL_CHECK_LEW },
@@ -3026,6 +3034,18 @@ int ll_play_selftest(void)
               (cm->st[1].ctrl & LL_CTRL_CHECK_ALL) != 0 &&
               (cm->st[1].ctrl & LL_CTRL_BY_TY) != 0 &&
               (cm->st[1].ctrl & (LL_CTRL_BY_X | LL_CTRL_BY_TIME)) == 0);
+        /* PR-231 (OI-113, read PR-230): the engine's control parser
+         * (0x51c62-0x51c73, keyword 0x921c6) maps CHECK_ALL to the
+         * flag word EXACTLY as CHECK_LN|CHECK_ANI|CHECK_ZW (0x1c0) -
+         * it IMPLIES the CHECK_LN rule. ZARIA.01's lion [A_WALK] is
+         * `control=BY_X|FRAME_REV|CHECK_ALL|CH_DIR` with no spelled
+         * CHECK_LN, so every CHECK_ALL state must reach the port's
+         * CHECK_LN paths (terrain following 3) below, the gravity
+         * fallback in section 3, and obj_settle in ll_level). */
+        CHECK((cm->st[0].ctrl & LL_CTRL_CHECK_LN) != 0 &&
+              (cm->st[0].ctrl &
+               (LL_CTRL_CHECK_ANI | LL_CTRL_CHECK_ZW))
+                  == (LL_CTRL_CHECK_ANI | LL_CTRL_CHECK_ZW));
         /* the authored exit list, in order, with the negated signal */
         CHECK(cm->st[1].tr[2].entry == 1 && cm->st[1].tr[2].nc == 1 &&
               cm->st[1].tr[2].c[0].cond == LL_COND_OTHER &&
