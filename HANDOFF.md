@@ -2060,6 +2060,42 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-219 (READ): the row object and its clock, field by
+field. The row ctor entry is 0x515e0 (0x515e2, as PR-217 had
+it, is a 2-byte dump artifact): it zeroes +0x8/+0xc, writes
++0x10 = 1 and +0x14 = 0 and the class word 0xa2638, then hands
+the text to the line parser 0x51660. That parser scans the
+FIRST number of the line with the format at 0x92115 (`%hi`) into
+[row+0x10] and then scales it - `imul` by a factor from the
+caller's frame, `idiv 0x3e8` - i.e. `* time_scale / 1000`, the
+only such site in the image; the SECOND value goes to
+[row+0xc] (magnitude) with a sign flag at [row+0x14], and when
+it is 0 the engine substitutes a registry value looked up
+through 0x44110 by a key at [scene+0x398] and stores that at
+[row+0x8]. The clock the row step compares [row+0x10] against
+(0x52320) is the OBJECT's [obj+0xa1], not [rec+0xa1]: the row
+reset 0x52360 writes 0 there (0x5236b) - PR-217's "fed 100" is
+wrong - and its feeder is 0x543a0, which switches on the state's
+control bits [rec+0x12] & 7 (table 0x54380) and adds
+|[obj+0xca]|, |[obj+0xce]|, or the scene frame delta
+[scene+0x388] gated by [obj+0xba]/[obj+0xbe] - the port's
+distance-fed vs wall-time-fed split, now named. The row-run verb
+is the record class 0xa260c's +0x18 = 0x520c0 (called as
+`call [esi+0x18]` with esi = [rec+0x44], the record's own class
+word): it clones the row, composes the key with 0x98278, SETS
+[obj+0xa1] to the budget handed over, runs the row through its
+class's +0x10 with edx = 6, and does the list-end/wrap by OR-s
+bit 4/8 into the caller's set byte 0 (0x521a1/0x521c1) -
+PR-135's bit, named. OI-112 is opened on the one thing not
+settled: the engine scales and gates on the FIRST authored
+number while the port scales and gates on the SECOND
+(ll_mov_fr.thresh, ported/ll_level.c:1506-1514) - shipped rows
+put an index first (`-1,200,I 100,0` in KADMAR.07, ZARIA.01's
+`1,0` and `11,0`) and a time second, so either [row+0x10] is a
+delay and the real gate is the row-class +0x10 verb this PR did
+not read, or the port's mapping is mirrored. No behaviour
+changed; the gate numbers are unchanged by construction.
+
 STATUS PR-218 (READ + ONE PARSER FIX): the row clause's MODE
 byte and the two paths its test result selects. The clause
 parser 0x47d60 clears the mode byte at [set+0xc] (0x47d73) and

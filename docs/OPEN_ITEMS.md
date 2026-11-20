@@ -645,6 +645,16 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     no-op for the lion; and PR-218's read of the row step shows
     the `Wait K_GEN1` clause does not gate the row either - no
     shipped clause does (OI-111).
+    PR-219 adds one FOCUS 1 datum about those very rows: in the
+    engine a row whose SECOND authored number is 0 does not get
+    a zero time - 0x516af-0x516c2 reads a key string at
+    [scene+0x398] and substitutes a value looked up through
+    0x44110 in the same name tables the clause parser uses
+    (0x961fc/0x96200). ZARIA.01's ladder rows are exactly that
+    shape (`[A_UP]` row `1,0,WAIT K_GEN1`, `[A_DOWN]` row
+    `11,0,WAIT K_NEVER`), so their row time is a level-config
+    value the port never reads, and which authored number is the
+    row's time at all is now OI-112.
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
   recovery on the next input?)
@@ -1204,5 +1214,81 @@ OI-111: which row-step path the port's row clock models -
     table 0x96948+0xd4 is 0x544d0, an EMPTY override (the
     PR-153 boundary-artifact trap), so the `state index == 2` +
     AC_BREAK_NEXT case at 0x54482 is a no-op for the lion.
+    PR-219 named the clock itself, and CORRECTS the two claims
+    above about it: the field is the OBJECT's [obj+0xa1], not
+    [rec+0xa1]; the row reset entry is 0x52360 (0x52362 is a
+    2-byte dump artifact) and at 0x5236b it writes ZERO, not
+    100. Its writers are the row-run verb 0x520c0 at
+    0x52114-0x52118 (it sets [obj+0xa1] to the budget the row
+    step handed over: clock - frame on the clause path, 0 on the
+    clause-less path) and its readers are the row step at
+    0x52323 and the accumulator 0x543a0, which is its FEEDER:
+    it reads the state's control bits [rec+0x12] & 7, jumps the
+    table 0x54380, and adds |[obj+0xca]| (0x543c6-0x543d1),
+    |[obj+0xce]| (0x543dc-0x543e7) or the scene frame delta
+    [scene+0x388] gated by [obj+0xba]/[obj+0xbe]
+    (0x543f2-0x54414, 0x5441b-0x5443d) - the port's own
+    distance-fed vs wall-time-fed split (PR-110/PR-114), now
+    with names. 0x520c0 is the record class 0xa260c's +0x18,
+    reached as `call [esi+0x18]` with esi = [rec+0x44] = the
+    record's own class word (the vtables here are the base+8
+    kind, which is also why 0xa11c8 = 0xa11c0+8 and
+    0xa11e0 = 0xa11d8+8); it clones the row, composes the key
+    with the global 0x98278, runs the row through its class's
+    +0x10 with edx = 6 (0x5213d), tests the answer against 6
+    (0x52140), and does the list-end/wrap: 0x521b6-0x521d4
+    compares [list+0x8] - 1 with the cursor and OR-s bits 4 and
+    8 into the CALLER's set byte 0 (0x521a1, 0x521c1) -
+    PR-135's list-end bit, now named. What the row class's
+    +0x10 verb DOES, and which authored number the row step's
+    compare actually gates on, is OI-112.
   origin: PR-217 record; rewritten from the PR-218 record; the
     ladder chain stays OI-078
+OI-112: which authored number a row's TIME is - the engine
+  scales and gates on the value it scans FIRST, the port
+  scales and gates on the value written SECOND
+  status: OPEN (opened by PR-219)
+  notes: PR-219 read the row object end to end. The ctor entry
+    is 0x515e0 (the 0x515e2 PR-217 quoted is a 2-byte dump
+    artifact): push esi/edi, call the node ctor 0x45770, then
+    +0x8 = 0, +0xc = 0, +0x10 = 1, +0x14 = 0, the class word
+    0xa2638 at +0x4, then the line parser 0x51660 on the
+    pushed text. 0x51660's first act is a scan of the line with
+    the format at 0x92115, whose bytes are `%hi` (its
+    neighbours are `time` 0x92119, `,%hi` 0x92122, `sample`
+    0x92127, `time_scale` 0x92131), writing the FIRST number of
+    the row line straight into [row+0x10]; 0x51679-0x5168f then
+    multiply that value by a factor taken from the caller's
+    frame (`imul edx,ebp`) and divide by 1000 (`mov ebp,0x3e8`,
+    `idiv ebp`) and store the result back at [row+0x10] - that
+    is PR-110's `* time_scale / 1000`, the only such site in the
+    image. And [row+0x10] is what the row step compares against
+    the object clock at 0x52320-0x5232b. The SECOND value is
+    handled at 0x51692-0x516d2: its magnitude goes to [row+0xc]
+    with a sign flag at [row+0x14], and when it is ZERO the
+    engine does not store 0 - 0x516af-0x516c2 reads a key
+    string held at [scene+0x398] and looks it up through 0x44110
+    (the same name tables 0x961fc/0x96200 the clause parser
+    uses) and stores THAT at [row+0x8]. The clone 0x51622-0x51655
+    copies +0x8/+0xc/+0x10/+0x14.
+    WHY THIS IS A QUESTION AND NOT A FACT: the shipped row
+    grammar puts an INDEX first and a TIME second - KADMAR.07
+    `_0_0.MOV` line 121-124 is `time_scale=500` then
+    `0,100` and `1,1000,gen K_GEN1`, and line 231 is
+    `-1,200,I 100,0` (NEGATIVE first values exist, and they are
+    PR-107's authored start-row numbers) - while the port parses
+    `.frame` from the first and `.thresh` from the second,
+    scales `.thresh` by time_scale (ported/ll_play.c:896,
+    PR-110) and gates the row on `.thresh`
+    (ported/ll_level.c:1506-1514, `o->row_t < f->thresh`).
+    Either the engine's [row+0x10] is NOT the row's main gate
+    (a delay, with the real gate inside the row-class verb the
+    row-run verb calls at 0x5213d with edx = 6, which PR-219
+    did not read), or the port's field mapping is mirrored.
+    DO NOT change behaviour from this row until that verb is
+    read: PR-110/PR-135's fixtures pin the second-number model
+    and pass, and the row step's compare is the one place the
+    first number is known to be used. The experiment that
+    settles it is named in the PR-219 record: a KADMAR.07-style
+    block with time_scale far from 1000 and a first number that
+    is not 0, measured against the port's row clock.

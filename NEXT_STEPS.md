@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-219.
+> at PR-220.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -31684,6 +31684,151 @@ CORRECTS: PR-217, three of its readings. (1) "the row is
   draft is corrected twice as well (K_NEVER is not an empty set
   but a 0x60 byte-4 mask, and `,` is not mode 1), and the
   0x495b2 call target is 0x495b0.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
+```
+
+## PR-219 — A ROW OBJECT, FIELD BY FIELD, AND THE CLOCK THAT
+## GATES IT: `[obj+0xa1]`, FED BY DISTANCE OR BY WALL TIME BY
+## THE STATE'S CONTROL BITS - AND THE PORT SCALES THE WRONG
+## NUMBER, OR THE ENGINE'S GATE IS NOT THE ROW'S TIME
+```
+KIND: read
+SUBSYSTEM: the engine's row objects and their clock - the row
+  ctor 0x515e0, the row-line parser 0x51660, the row-run verb
+  0x520c0, the row step 0x521f0's compare, the row reset
+  0x52360 and the accumulator 0x543a0 - read against the port's
+  row model (ported/ll_play.c's time_scale pass,
+  ported/ll_level.c's obj_advance gate).
+ADDRESSES: 0x44110, 0x457e0, 0x45800, 0x45870, 0x458e0,
+  0x55820, 0x515e0, 0x51620,
+  0x51622, 0x51655, 0x51660, 0x51679, 0x5167c, 0x51683,
+  0x5168d, 0x5168f, 0x51692, 0x5169e, 0x516a3, 0x516ad,
+  0x516bd, 0x516c2, 0x516d5, 0x516e2, 0x516e6, 0x520c0,
+  0x520e1, 0x52114, 0x52118, 0x5213d, 0x52140, 0x52195,
+  0x521a1, 0x521b6, 0x521c1, 0x521d4, 0x52320, 0x52323,
+  0x5232b, 0x52338, 0x52354, 0x52360, 0x5236b, 0x523cb,
+  0x533b0, 0x5389e, 0x54380, 0x543a0, 0x543c6, 0x543d1,
+  0x543dc, 0x543e7, 0x543f2, 0x54400, 0x54414, 0x5441b,
+  0x5443d, 0x92115, 0x92119, 0x92122, 0x92127, 0x92131,
+  0x961fc, 0x96200, 0x98278, 0xa260c, 0xa2638, 0xa11c0,
+  0xa11d8, 0xcef40
+NAMES: ll_mov_fr.thresh, ll_mov_fr.frame, obj_advance,
+  o->row_t, o->facc, time_scale, scale_at, WAIT K_GEN1,
+  time_scale=500, time_scale=2000
+CODE: no: this PR ships no code. It reads, and it opens OI-112
+  for the one claim it could not settle.
+HOOKS: none new, none touched.
+MEASURED: (a) THE ROW OBJECT. The ctor entry is 0x515e0 (PR-217
+  quoted 0x515e2, a 2-byte dump artifact, the same one as
+  0x495b0/0x495b2 in PR-218): push esi, push edi, call the node
+  ctor 0x45770, then [row+0x8] = 0, [row+0xc] = 0,
+  [row+0x10] = 1, [row+0x14] = 0, the class word 0xa2638 at
+  [row+0x4], push the caller's text argument (it sits at
+  [esp+0xc] behind the two pushes, and the ctor ends `ret 4`),
+  call 0x51660. The clone 0x51622-0x51655 allocates 0x18 bytes,
+  calls 0x45780 and copies +0x8, +0xc, +0x10, +0x14. (b) THE
+  LINE PARSER. 0x51660's FIRST act is a scan of the row text
+  with the format at 0x92115 - the bytes there are `%hi` (the
+  neighbours in the same string block are `time` at 0x92119,
+  `,%hi` at 0x92122, `sample` at 0x92127 and `time_scale`
+  0x92131), and it writes that FIRST number straight into
+  [row+0x10]. Then 0x51679-0x5168f: `mov ebp,[esi+0x10]`,
+  `mov edx,[esp+0x10]`, `imul edx,ebp`, `mov ebp,0x3e8`,
+  `idiv ebp`, `mov [esi+0x10],eax` - the value is multiplied by
+  a factor taken from the caller's frame and divided by 1000.
+  That is PR-110's `* time_scale / 1000` and it is the only
+  such site in the image. The second value is handled at
+  0x51692-0x516d2: its magnitude goes to [row+0xc] with a sign
+  flag at [row+0x14] (0x51696 writes 1, 0x516c7 writes 0), and
+  when it is ZERO the engine stores no zero - 0x516af-0x516c2
+  reads a key string at [scene+0x398] (ds:0xcef40 is the scene
+  block), looks it up through 0x44110 against the same name
+  tables the clause parser uses (0x961fc/0x96200) and stores
+  the answer at [row+0x8]. The directive chain call and the
+  prepend are at 0x516d5-0x516e6 exactly as PR-217 read them.
+  (c) THE CLOCK. The field the row step compares against
+  (0x52320-0x5232b, `mov eax,[row+0x10]` / `mov ebx,
+  [obj+0xa1]` / `cmp eax,ebx` / `jge 0x52354`) is the OBJECT's
+  [obj+0xa1], not the state record's. Its writers are: the
+  row-run verb 0x520c0 at 0x52114-0x52118, which sets it to the
+  budget the row step handed it in ebx (clock - frame on the
+  clause path, 0 on the clause-less path); the row reset at
+  0x5236b, which writes 0; and 0x533b0/0x5389e, which write 0
+  at construction. Its feeder is 0x543a0, the object verb held
+  at +0xa0 of the LION class table: it reads the current state
+  record's control bits `[rec+0x12] & 7`, jumps the table at
+  0x54380 and adds, by case, |[obj+0xca]| (0x543c6-0x543d1),
+  |[obj+0xce]| (0x543dc-0x543e7), or the scene's frame delta
+  [scene+0x388] gated by [obj+0xba] / [obj+0xbe]
+  (0x543f2-0x54414, 0x5441b-0x5443d) - the port's own
+  distance-fed versus wall-time-fed split (PR-110, PR-114), now
+  with the field names and the switch that picks between them.
+  (d) THE ROW-RUN VERB. 0x520c0 is the record class 0xa260c's
+  +0x18, reached as `call DWORD PTR [esi+0x18]` with
+  esi = [rec+0x44] - the record's own class word, which is also
+  what makes 0xa11c8 = 0xa11c0+8 and 0xa11e0 = 0xa11d8+8 in
+  PR-218's note. It clones the row (0x520e1), composes the key
+  with the global 0x98278 (0x520e6-0x520f2), calls the class's
+  +0x28 (0x52100), sets the clock (0x52118), runs the row
+  through its class's +0x10 with edx = 6 and a local mode at
+  [esp+0xc] (0x52124-0x5213d), tests that mode against 6
+  (0x52140), then does the frame-list end/walk: 0x521b6-0x521d4
+  compares [list+0x8] - 1 against the cursor and OR-s bit 4 or
+  bit 8 into the CALLER's set byte 0 (0x521a1, 0x521c1) -
+  PR-135's list-end bit, seen by the NEXT step's key
+  composition, now named. (e) A THIRD CHAIN
+  VERB. The row class 0xa2638 answers +0x00 = 0x55820,
+  +0x04 = 0x457e0, +0x08 = 0x45800, +0x0c = 0x45870,
+  +0x10 = 0x458e0, +0x14 = the clone 0x51620, and 0x458e0 is
+  another chain walker: `mov esi,[eax]`, and if there is an
+  operand `movsx edx,dl` (the mode number, 6 from 0x52138) and
+  `call [operand_class+0x10]`. Both directive families carry the
+  same entry (0xa11c0+0x18 and 0xa11d8+0x18 are 0x458e0), and
+  the call is made with ebx = &rec+0x4 (the row cursor) and
+  ecx = a local mode that 0x52140 compares against 6. So this
+  verb does not read the row's authored numbers at all; which
+  verb applies them, and which field it applies as the time, is
+  the half OI-112 leaves open. (f) THE DATA. The shipped row
+  grammar puts an index first and a time second: KADMAR.07 `_0_0.MOV`
+  line 121 `time_scale=500`, 123 `0,100`, 124
+  `1,1000,gen K_GEN1`, and line 229 `time_scale=500` with 231
+  `-1,200,I 100,0` - negative FIRST values exist (they are
+  PR-107's authored start-row numbers), and ZARIA.01's ladder
+  rows are `1,0,WAIT K_GEN1` and `11,0,WAIT K_NEVER`, i.e. a
+  SECOND value of 0, which is exactly the case the engine
+  replaces with the registry value at 0x516bd.
+OPENS: OI-112, opened by this PR: the engine scales and compares
+  the value it scans FIRST (into [row+0x10]), while the port
+  parses `.frame` from the first and `.thresh` from the second,
+  scales `.thresh` by time_scale (ported/ll_play.c:896,
+  PR-110) and gates the row on it
+  (ported/ll_level.c:1506-1514, `o->row_t < f->thresh`). Either
+  [row+0x10] is not the row's main gate - a delay, with the
+  real gate inside the row-class +0x10 verb that 0x5213d calls
+  with edx = 6, which this PR did not read - or the port's
+  mapping is mirrored. Nothing here may change behaviour until
+  that verb is read: PR-110/PR-135's fixtures pin the
+  second-number model and pass, and the row step's compare is
+  the only proven use of the first. The experiment that settles
+  it is a block with time_scale far from 1000 and a non-zero
+  first number (KADMAR.07 has both) run against the port's row
+  clock.
+CLOSES: the two clock claims PR-217 left in the register - the
+  field is [obj+0xa1] not [rec+0xa1], and the reset at 0x52360
+  writes 0, not 100.
+CORRECTS: PR-217's "the row clock is at [rec+0xa1] and 0x52362
+  is its feeder: it writes [rec+0x4] = 0 and [rec+0xa1] = 100"
+  - the reset entry is 0x52360, it writes [obj+0xa1] = 0, and
+  the feeder is 0x543a0; PR-217's row-object layout "[row+0x0]
+  = node list, +0x8/+0xc = the two frame numbers, +0x10 = 1,
+  +0x14 = 0" is half right - +0x10/+0x14 are as stated at
+  construction, but +0x8/+0xc are one signed value (magnitude
+  plus a sign flag), +0x10 is the first authored number scaled
+  by time_scale, and the ctor entry is 0x515e0. PR-218's OI-111
+  wording about "the row clock" is corrected by this record's
+  (c).
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.
