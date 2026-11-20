@@ -2060,6 +2060,32 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-226 (READ): the real signal raiser is the object
+itself. 102 class vtables implement slot +0x8c as 0x54910 - the
+frame refresh 0x536f0 calls it on every object every frame and
+merges the result into [obj+0x60] (this corrects PR-225's (e):
+0x536f0 is the CALLER of +0x8c, not its base). The provider's
+law, machine code: [obj+0xa5] bit 0x1 raises 33=K_FWD, bit 0x10
+raises 41, BIT 0x20 RAISES 54=K_GEN1; when [obj+0xba]!=0 the
+[obj+0xb6] bit 0x10 (maintained as the sign of the speed word
+[obj+0x6d], 0x54bb0-0x54bd4) picks 36=K_FWD vs 35=K_BKWD;
+[obj+0xbe]<0 raises 29, >0 raises 30. The drabinka's WAIT
+K_GEN1 therefore needs no message and no GEN row - only bit
+0x20 of the object dword +0xa5; who sets THAT bit is OI-078's
+one remaining question (ctor zeroes it 0x2b6a0, clone copies it
+0x2b840, other code indexes [obj+0xa9] with it). Also: state
+flag word +0x12 bit 0x800 = state MIRROR - entering such a
+state does `neg DWORD PTR [obj+0x6d]` and calls vtable+0x54
+(0x53670), and the row word `rev` (node [node+0x0] = the row's
+object) calls the SAME flip - the execute PR-224 found for the
+`rev` class. And 0x53520 proves the state record carries a
+12-byte row-chain TEventSet at +0x60 (+mode byte at +0x6c),
+handed to vtable+0x90 with the state class's own chain
+(vtable+0x20) - the same structure PR-225 saw merged at the
+collision (0x3ee04). Two portable FOCUS 1 rules identified:
+mirror-state entry negates the speed word; `rev` negates it.
+No behaviour changed.
+
 STATUS PR-225 (READ): the message system, end to end, and the
 closed set of signal raisers. Enqueuer 0x52b10 (receiver in eax,
 TYPE in edx, TAG in ebx, payload in ecx) appends a 0x10-byte

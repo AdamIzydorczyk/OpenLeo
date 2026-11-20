@@ -723,6 +723,27 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     vs the block 0x961fc/0x96200) maps the WORD `K_GEN1` to an
     index the engine really raises.
 
+    PR-226 names the raiser mechanism: the ordinary scene-object
+    classes implement vtable slot +0x8c as the signal provider
+    0x54910 (102 class tables hold it; the frame refresh 0x536f0
+    calls it every frame and merges its result into [obj+0x60]).
+    Its law, from machine code: [obj+0xa5] bit 0x1 raises 33 =
+    K_FWD, bit 0x10 raises 41, BIT 0x20 RAISES 54 = K_GEN1; if
+    [obj+0xba]!=0 then [obj+0xb6] bit 0x10 (kept as the SIGN of
+    the speed word [obj+0x6d], 0x54bb0-0x54bd4) chooses 36 =
+    K_FWD vs 35 = K_BKWD; [obj+0xbe]<0 raises 29, >0 raises 30.
+    So the drabinka's WAIT K_GEN1 needs no message and no GEN
+    row - the provider re-evaluates it continuously, which is
+    why no sender passes 54. The ONE question left: who SETS
+    bit 0x20 of [obj+0xa5]? The ctor zeroes it (0x2b6a0), the
+    clone copies it (0x2b840), other code reads [obj+0xa5] as an
+    index into [obj+0xa9] (0x2b727); the only dword writers are
+    0x2b840 (copy) and 0x54be9 (stores [[ecx+0x8]], another
+    class). Also named: state flag word +0x12 bit 0x800 = state
+    MIRROR, entered by `neg [obj+0x6d]` + vtable+0x54 (0x53670),
+    and the row word `rev` calls that same flip (0x459d0 ->
+    0x53670) - two FOCUS 1 rules to port next.
+
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
   recovery on the next input?)

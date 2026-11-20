@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-226.
+> at PR-227.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -32623,6 +32623,96 @@ CORRECTS: PR-224's (e) paragraph - "the payload at [msg+0xc]...
   about "fields hold addresses (0x29a58 -> [obj+0xee])" stands
   but is moot for signal raising. No code changed, no behaviour
   changed, no hooks.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
+```
+
+## PR-226 — THE OBJECT CLASS PROVIDES ITS OWN SIGNALS: +0x8c =
+## 0x54910, AND ITS FLAG BIT 0x20 IS EXACTLY THE K_GEN1 THE
+## DRABINKA WAITS FOR
+```
+KIND: read
+SUBSYSTEM: objects/signals - the frame refresh 0x536f0, the
+  provider 0x54910, the mirror flip 0x53670 and the `rev`
+  clause, and the state array's row-chain TEventSet.
+ADDRESSES: 0x536f0, 0x53705, 0x5370c, 0x5371c, 0x53725, 0x54910,
+  0x5491d, 0x5492c, 0x54931, 0x5493a, 0x5493f, 0x54948, 0x5494d,
+  0x54956, 0x5495b, 0x54964, 0x5496e, 0x5499d, 0x549a6, 0x549b4,
+  0x549c8, 0x549d1, 0x53670, 0x53672, 0x5367b, 0x5367e, 0x53683,
+  0x53689, 0x54bb0, 0x54bb6, 0x54bc7, 0x54bcd, 0x54bd2, 0x54bd6,
+  0x54be1, 0x54be9, 0x459d0, 0x459d8, 0x459da, 0x53520, 0x53531,
+  0x53536, 0x5356b, 0x5357d, 0x2b6a0, 0x2b717, 0x2b721, 0x2b727,
+  0x2b815, 0x2b81b, 0x2b840, 0x2b84c, 0x3ee04, 0x9a1c0, 0x9a700,
+  0xa1c10, 0xcef40
+NAMES: LL_SIG_K_FWD, LL_SIG_K_BKWD, LL_SIG_K_F6, LL_SIG_K_GEN1,
+  rev, TEventSet, signal provider, mirror, ll_player_mirror_of
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE PROVIDER IS CLASS-SLOT +0x8c. PR-225 named
+  0x536f0 as a per-frame refresh that merges vtable+0x8c into
+  [obj+0x60] (0x53705-0x53725). This PR finds the other side:
+  102 class vtables in 0x9a000-0xa2500 hold 0x54910 at slot +0x
+  8c (verified samples 0x9a1c0, 0x9a700, 0xa1c10) - the ordinary
+  scene-object classes implement the slot as a SIGNAL PROVIDER,
+  and the frame refresh calls it on every object every frame.
+  (b) THE PROVIDER'S LAW, 0x54910-0x549e6, machine code, bit by
+  bit. Build a 12-byte TEventSet (mode byte 0, 0x5491d-0x5492c),
+  then: if [obj+0xa5] bit 0x1 set, raise 33 = K_FWD (0x54931-
+  0x5493a: OR 0x80 into byte 4 = dword 1 bit 1 = index 33); if
+  bit 0x10 set, raise 41 = this port's K_F6 slot (OR 1 into
+  byte 5, 0x5493f-0x54948); if bit 0x20 set, RAISE 54 = K_GEN1
+  (OR 0x20 into byte 6 = dword 1 bit 22, 0x5494d-0x54956). If
+  [obj+0xba] != 0: test [obj+0xb6] bit 0x10 - clear raises 35
+  (`add al,0x23` = 35 = K_BKWD, 0x54964-0x54970) and set raises
+  36 = K_FWD; if [obj+0xbe] < 0 raise bit 29, if > 0 raise bit
+  30 (0x5499d-0x549b4). Finally copy the 12 bytes + mode byte to
+  the caller (0x549c8-0x549d8). THE DRABINKA'S WAIT K_GEN1 HAS
+  ITS ENGINE RAISER: bit 0x20 of the object dword at +0xa5,
+  evaluated continuously by the frame refresh - no message and no
+  `GEN` row is needed, which is why no sender passes 54.
+  (c) WHERE THE TESTED FLAGS COME FROM. [obj+0xb6] bit 0x10 is
+  maintained at 0x54bb0-0x54bd4: `setl` of (edx * [obj+0x6d]),
+  shifted 4, OR-ed into that dword - the SIGN of the object's
+  word at +0x6d (its speed). [obj+0xa5] is initialized 0
+  (0x2b6a0), copied by the object clone (0x2b840), and read as
+  an INDEX into a table at [obj+0xa9] elsewhere (0x2b727,
+  0x2b81b) - the same dword plays both roles; the bit-0x20
+  writer is NOT found yet (no `or ...,0x20` exists; the dword
+  sites are 0x2b840 clone-copy and 0x54be9, which stores
+  [[ecx+0x8]] - a different class).
+  (d) THE MIRROR FLAG AND `rev`. State records carry flag word
+  +0x12; bit 0x800 (tested as `test dh,0x8` on the WORD,
+  0x5367b-0x5367e) is the state MIRROR flag: on entry the
+  engine does `neg DWORD PTR [obj+0x6d]` and calls vtable+0x54
+  (0x53670-0x53689). 0x459d0-0x54 is the `rev` clause's method:
+  it loads the row's object at [node+0x0] (stored by 0x518f0,
+  PR-224) and calls that same flip 0x53670 - `rev` in a row
+  tail flips the object's speed sign, exactly the PR-222 keyword
+  `rev` 0x45e85 / class 0xa0f28 whose execute was the base
+  delegate: this is what that execute DOES. (The port's mirror
+  model - frame sign XOR facing, PR-82 - draws the same fact;
+  the engine additionally flips the SPEED word.)
+  (e) THE STATE'S ROW CHAIN. [obj+0x50] is an array of state
+  records indexed by [obj+0x5c] (PR-221); 0x53520 copies the
+  12 bytes AT [state+0x60] plus the mode byte at [state+0x6c]
+  (rep movs, 0x53536-0x53557), gets the state class's own chain
+  via its vtable+0x20 (0x5356b) and hands both to the object's
+  vtable+0x90. PR-225's "[[obj+0x3c]+0x60] merge at the
+  collision" (0x3ee04) is this same state-chain TEventSet.
+OPENS: OI-078 narrowed to one named question: which code SETS
+  bit 0x20 of the object dword at +0xa5 (the provider reads it;
+  the ctor zeroes it, the clone copies it; candidate dword
+  writers: 0x2b840 copy-source and 0x54be9 of another class).
+  Then the port needs the rule "state entry with flag 0x800
+  negates the object speed word" and "`rev` negates it" - both
+  are FOCUS 1 row behavior. OI-111 unchanged, except `rev`'s
+  execute is now named (0x459d0 -> 0x53670).
+CLOSES: nothing in the register.
+CORRECTS: PR-225's (e) wording - 0x536f0 is NOT the base +0x8c
+  implementation: it is the frame refresh that CALLS +0x8c, and
+  the ordinary classes' +0x8c is the provider 0x54910. No code
+  changed, no behaviour changed, no hooks.
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.
