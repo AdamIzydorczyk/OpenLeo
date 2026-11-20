@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-225.
+> at PR-226.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -32516,3 +32516,114 @@ CORRECTS: PR-220's (f) - "for a NODE the class word is the table
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.
+
+## PR-225 — A SIGNAL IS TYPE 0x10 WITH TAG 0x8138764: THE ENQUEUER,
+## THE PUMP, THE BASE HANDLER, AND THE CLOSED SET OF SIGNAL RAISERS
+```
+KIND: read
+SUBSYSTEM: objects/messages - the signal set [obj+0x60] (PR-88),
+  the row gate (PR-217..PR-224), OI-078.
+ADDRESSES: 0x52b10, 0x52b13, 0x52b22, 0x52b30, 0x52b36, 0x52b39,
+  0x52b3c, 0x52b3f, 0x52b50, 0x52b67, 0x52b80, 0x52b8f, 0x52ba2,
+  0x52bb0, 0x52bb3, 0x52bc6, 0x52be4, 0x52bef, 0x4bc40, 0x4bc46,
+  0x4bc4a, 0x4bc4e, 0x4bc50, 0x4bcb9, 0x4bcc1, 0x4bcc6, 0x4bcc9,
+  0x4bccd, 0x4bcd7, 0x4bd13, 0x2882d, 0x2883a, 0x28846, 0x28849,
+  0x2884c, 0x28850, 0x28854, 0x2885a, 0x2c5cd, 0x2c5cf, 0x2c5e1,
+  0x2c5e6, 0x2c611, 0x2c618, 0x2c651, 0x2c658, 0x2c971, 0x2c990,
+  0x2c99a, 0x2c99f, 0x2c9aa, 0x1ea47, 0x1ea52, 0x1ea57, 0x1ea61,
+  0x1ea65, 0x1eab9, 0x1ead1, 0x1eadc, 0x1eae6, 0x1eaef,
+  0x3a1dc, 0x3a1e1, 0x3a1e7, 0x3eabd, 0x3eac6, 0x3eae3, 0x3eaf1,
+  0x55760, 0x3ee01, 0x3ee04, 0x3ee0e, 0x3ee18, 0x536f0, 0x536ff,
+  0x5370c, 0x5371c, 0x53772, 0x53780, 0x53790, 0x537dd, 0x1f454,
+  0x1f45d, 0x34a38, 0x34a7f, 0x967f4, 0x98274, 0x9a754, 0xcebfc,
+  0xcec70, 0xcee2c, 0xcef40, 0x8138764
+NAMES: ll_sig_raise, TEventSet::match, TEventSet::OR,
+  LL_SIG_K_FWD, LL_SIG_K_UP, LL_SIG_K_DOWN, LL_SIG_K_JUMP,
+  LL_SIG_K_GEN1, LL_SIG_K_NEVER, o->sig, msg, pump, broadcast
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE THREE PIECES. Enqueuer 0x52b10: walks the
+  singly-linked queue at [obj+0x10] to its tail node (0x52b13-
+  0x52b20; the head cell itself holds no message), allocates a
+  0x10-byte node, writes link=0, [msg+4]=type, [msg+8]=tag,
+  [msg+0xc]=payload (0x52b30-0x52b3c) and links it. Receiver in
+  eax, type in edx, tag in ebx, payload in ecx. Pump 0x52b50:
+  for every queued message calls the RECEIVER's vtable slot +0x10
+  (0x52b67); 0x52b80 is the frame step: vtable +0x14 first, then
+  the pump, then vtable +0x00 if [obj+0x28] is set. Base message
+  handler 0x52bb0: dispatches
+  on the TAG at [msg+4]: tag 1 adds a position delta (edx=[msg+
+  8], ecx=[msg+0xc] into [obj+0x50]/[obj+0x54], 0x52bc6-0x52bd7),
+  tag 0xe stores [msg+8] into the object named by [msg+0xc]
+  ([obj+0x30]), tag 0x21 writes 1 to [obj+0x28]; anything else
+  is ignored. 0x53772 (b) is a derived +0x10 handler that ends
+  with 0x52bb0 in its non-signal branch, so 0x52bb0 is the base
+  version of the same slot. The engine's tag numbers ARE the
+  signal numbers of
+  this port's table: 0x21 = 33 = LL_SIG_K_FWD.
+  (b) THE SIGNAL FAMILY. A signal message is type 0x10 with tag
+  0x8138764 and payload = signal index; the handler 0x53772
+  checks BOTH (0x5377b, 0x53780) and ORs the bit. The magic tag
+  occurs at EXACTLY SIX producer sites in the whole image
+  (0x2882d, 0x2c5e1, 0x2c613, 0x2c653, 0x2c99a, 0x3eacf) plus
+  that one check - so the set of raisers is closed and small.
+  (c) THE RAISERS, one by one. Broadcast helper 0x4bc40:
+  receiver=eax (the scene), type=edx, tag=ebx, selector=ecx
+  (0=every object; otherwise match [obj]'s vtable+0xc = class id,
+  0x4bcc1-0x4bcc9), extra pushed arg = payload written to [msg+
+  0xc]; it delivers by calling 0x52b10 per object (0x4bcd7).
+  Signal sends through it: 0x2c5cd raises 0x21=33 (K_FWD) when
+  [obj+0x5c]=2 and the one-shot latch ds:0xcec70 is 0; 0x2c611
+  raises 0x1c=28 (K_UP); 0x2c651 raises 0x1b=27 (K_DOWN). The
+  three indexes are EXACTLY LL_SIG_K_FWD/K_UP/K_DOWN, confirming
+  PR-88's ordinals from the raising side. Direct enqueues:
+  0x2c99f raises signal 0x15=21 on [0xcef40+0x394]; 0x3a1dc
+  raises signal 0x1e=30 on the object itself (payload =
+  [obj+0xf6]) when its [obj+0xee] equals [obj+0xf2]. Synthetic
+  stack message + direct vtable+0x10 call at 0x2882d-0x2885a:
+  type 0x10, tag magic, signal 0x0a=10. The collision loop
+  0x3eac6-0x3eaf4 builds the same synthetic shape (0x3eabd type
+  0x10, 0x3eacf tag, 0x3eae3 signal 0x39=57) and calls the
+  collided object's handler for every entry of its neighbour list
+  ([obj+0x3c], count [x+0x3c], index via 0x55760).
+  (d) NON-SIGNAL SENDS. A plain message has type = the signal/
+  tag number and tag 0 (or a subsystem constant): e.g. 0x1ea52/
+  0x1ea65 enqueue tag-27 then tag-13(payload 100) on the object
+  after a vtable+0x8 probe fails, and 0x1eab9 first checks
+  vtable+0xc (= class id, compared to ds:0xceba4). This CORRECTS
+  PR-224's (e): the field-fed sites 0x1f454, 0x34a7f etc. pass
+  their subsystem constant in EDX = the TYPE slot (ds:0xcebfc,
+  ds:0xced04, 0x967f4) with tag 0, so they were NEVER signal
+  raises - the "field-fed sender" candidate of PR-224 is closed.
+  (e) OTHER SET WRITES (not messages): at a collision the engine
+  ORs 4 into the object's set (0x3edff/0x3ee01), ORs in the set
+  at [[obj+0x3c]+0x60] (0x3ee04-0x3ee11 - the CURRENT STATE
+  object carries a TEventSet at +0x60), and vtable+0x8c (base
+  0x536f0) merges its result into [obj+0x60] every frame
+  (0x536ff-0x53725).
+OPENS: OI-078 narrowed hard: the raise senders are CLOSED and
+  none raises 53/54/57/58 (no sender passes K_JUMP/K_GEN1/K_
+  NEVER); raised indexes seen anywhere: 33, 28, 27, 21, 30, 10,
+  57. So the drabinka's K_GEN1 either arrives through the STATE-
+  carried set at [[obj+0x3c]+0x60] (0x3ee04) - what the state
+  object holds there and how it is authored is the next read -
+  or the shipped `.MOV` maps the WORD `K_GEN1` to an index among
+  those the engine really raises (the settings/string lookup of
+  PR-222 at 0x57d30 against the block 0x961fc/0x96200), which
+  would make the port's name->ordinal table (ll_play.h 247-254)
+  wrong for the SHIPPED data even though it matches the engine's
+  hard-coded key indexes. OI-111 unchanged: the middle-band
+  directive keywords remain unpaired.
+CLOSES: nothing in the register.
+CORRECTS: PR-224's (e) paragraph - "the payload at [msg+0xc]...
+  the engine's own key sends 0x21/0x1c/0x1b" is right about the
+  indexes, but they are the PUSHED EXTRA of 0x4bc40, whose edx
+  slot is the TYPE (0x10 for signals); field-fed sites put their
+  subsystem constant there, not a signal. PR-224's OPENS note
+  about "fields hold addresses (0x29a58 -> [obj+0xee])" stands
+  but is moot for signal raising. No code changed, no behaviour
+  changed, no hooks.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
+```

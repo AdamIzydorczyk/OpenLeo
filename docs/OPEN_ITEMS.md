@@ -696,6 +696,33 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     type, or from the non-matching branch of the same handler
     (0x52bb0 at 0x537dd) - the named next read.
 
+    PR-225 closes PR-224's "field-fed sender" candidate and
+    closes the sender set itself: the magic signal tag 0x8138764
+    occurs at EXACTLY six producer sites in the image (0x2882d,
+    0x2c5e1, 0x2c613, 0x2c653, 0x2c99a, 0x3eacf) plus the one
+    check at 0x53780. A signal raise is a message with type 0x10
+    AND that tag; the payload is the signal index. The raisers:
+    0x2c5cd/0x2c611/0x2c651 broadcast K_FWD/K_UP/K_DOWN (33/28/
+    27) through 0x4bc40 (its parameter order is scene, TYPE in
+    edx, TAG in ebx, selector in ecx, signal index pushed);
+    0x2c99f raises index 21 on [scene+0x394]; 0x3a1dc raises 30
+    on self; 0x2882d-0x2885a synthesizes the message on the
+    stack and calls vtable+0x10 directly (index 10); the
+    collision loop 0x3eac6-0x3eaf4 raises index 57 on every
+    object of the collided object's neighbour list. NO sender
+    passes 53/54/57-as-source/58 = K_JUMP/K_GEN1/K_NEVER, and
+    the field-fed sites put a SUBSYSTEM constant in the TYPE
+    slot (ds:0xcebfc, 0x967f4) with tag 0, so they never raise.
+    Two non-message writers remain, and one is named: a
+    collision ORs 4 and the set at [[obj+0x3c]+0x60] into
+    [obj+0x60] (0x3edff-0x3ee11) - THE CURRENT STATE OBJECT
+    CARRIES A TEventSet at +0x60 - and vtable+0x8c (base
+    0x536f0, merged at 0x536ff-0x53725) adds a per-frame set.
+    Next read: what the state's +0x60 set holds and how it is
+    authored, or whether the shipped `.MOV` name lookup (0x57d30
+    vs the block 0x961fc/0x96200) maps the WORD `K_GEN1` to an
+    index the engine really raises.
+
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
   recovery on the next input?)

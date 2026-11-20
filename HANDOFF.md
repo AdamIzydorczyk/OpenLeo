@@ -2060,6 +2060,40 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-225 (READ): the message system, end to end, and the
+closed set of signal raisers. Enqueuer 0x52b10 (receiver in eax,
+TYPE in edx, TAG in ebx, payload in ecx) appends a 0x10-byte
+node {link, type, tag, payload} to the queue at [obj+0x10];
+pump 0x52b50 calls the receiver's vtable+0x10 per message;
+0x52b80 = vtable+0x14, then the pump, then vtable+0x00 when
+[obj+0x28] is set. Base handler 0x52bb0 dispatches on the TAG at
+[msg+4]: tag 1 = position delta from [msg+8]/[msg+0xc], tag 0xe
+= store into the object named by [msg+0xc], tag 0x21 = set
+[obj+0x28] - the tag numbers ARE this port's signal numbers
+(0x21 = LL_SIG_K_FWD). The signal family: type 0x10 + tag
+0x8138764, payload = signal index; the magic occurs at EXACTLY
+six producer sites (0x2882d, 0x2c5e1, 0x2c613, 0x2c653, 0x2c99a,
+0x3eacf) plus the check at 0x53780, so the raiser set is CLOSED:
+0x2c5cd/0x2c611/0x2c651 broadcast 33/28/27 = K_FWD/K_UP/K_DOWN
+(confirming PR-88's ordinals from the raising side) through the
+broadcast helper 0x4bc40 (scene, type in edx, tag in ebx,
+selector in ecx - 0 = every object, else match vtable+0xc =
+class id - and the SIGNAL INDEX as the pushed extra), 0x2c99f
+raises 21 on [scene+0x394], 0x3a1dc raises 30 on self, 0x2882d-
+0x2885a calls vtable+0x10 on a stack-built signal message
+(index 10), and the collision loop 0x3eac6-0x3eaf4 raises index
+57 on every object of the neighbour list. Field-fed sites like
+0x1f454/0x34a7f put a SUBSYSTEM constant in the TYPE slot with
+tag 0 - they never raise (corrects PR-224's (e)). Non-message
+writers: a collision ORs 4 plus the set at [[obj+0x3c]+0x60]
+(THE CURRENT STATE OBJECT CARRIES A TEventSet at +0x60,
+0x3edff-0x3ee11), and vtable+0x8c (base 0x536f0) merges a
+per-frame set at 0x5370c. No sender passes 53/54/58 =
+K_JUMP/K_GEN1/K_NEVER, so OI-078 now asks: the state-carried
+set, or the shipped `.MOV` name->index lookup (0x57d30 against
+0x961fc/0x96200) mapping the WORD K_GEN1 to a signal the engine
+really raises. No behaviour changed.
+
 STATUS PR-224 (READ): how a class table is addressed, and
 what each row directive is. A node's class word IS its create
 verb and the 0x18-byte table there is create/+0x04 clone/+0x08
