@@ -1799,6 +1799,37 @@ LONASUR1 are BY_TIME, `F=0,0`), exactly the caution PR-125's own
 bullet named. What the test leaves is the 1.25 factor: the un-read
 SECOND value of each pair (`T=50,5`, `F=100,0`) is the only
 candidate home inside the authored row.
+STATUS PR-207 (step 5a RUN; the port mechanism is FOUND, the film
+answer is NOT, and the PR-206 numbers are RETRACTED): the probe
+`LEO_OBJ_POS` prints what the port does - every ZARIA `animacje=`
+ANI2 object (POCISK x16 fruit, BAL x6 balloons, the DRABINKA
+ladder, LINA ropes) reaches obj_draw at `layer=1` through the 85/66
+draw-cam the PR-61 entry-index rule computes; ANI1's PICT statics
+reach the reference plane. That rule has NEVER been read from the
+machine code. The re-measurement at native resolution (the level
+clip is 1280x720 = exactly 4x the view; the old 576x360
+intermediates are gone) locks the t=22.0 camera y=150 sharply but
+x only to 28..37, and t=31.25 y=207 sharply with x 240..260,
+against controls 6-9 MAD worse. Two traps showed: the ZARIA
+recording carries a screen-fixed red graphics column (x 289..320
+y 53..128) exactly where fruit falls in view, and POCISK/kokos.mov
+IS the bullet chain - the film's fruit moves. After the overlay
+diff, t=22.0 shows exactly ONE KOKOS-sized disc and t=31.25 two;
+they match neither the port's 85/66 boxes nor the 1:1 boxes
+consistently (t=31.25 second disc ~1 px from 1:1 x of (322,298)
+where y cannot discriminate; t=22's disc 16 px above every 1:1
+box), and the (95,320)/(115,320) pair is absent from the film
+entirely at that moment. So: the port's fruit/balloon placement set
+is NOT the film's - the user's complaint stands - but the plane
+law cannot be pinned from moving fruit; the machine code owns that
+question. (5b) is now: PR-208 [PORT] reads the engine's object-draw
+camera first (leads: FUN_0005b040 case 0x10 writes [rec+0x24] 0/1
+on token 0x5e; FUN_0005da60 tests it), states the law with a
+failing pin test, then fixes it; the film cross-check must use
+native /4 extraction, the overlay diff, and the static (non-red,
+stateless) ANI1 PICT art as the template, not the bullet-chain
+fruit. The PR-205/206 x-locks (x=1, x=231) and the "within 2-4 px"
+fruit matches did not reproduce and are retracted in the register.
 PLAN STEP PR-206 (object placement fidelity, the user-visible
 thread; register row OI-108): two PRs after this step, neither part
 of closing T1. (5a) [READ] measure where the ORIGINAL draws `.MOV`

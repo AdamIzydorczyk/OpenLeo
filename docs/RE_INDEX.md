@@ -40,9 +40,9 @@ token, never that the engine author WROTE it. A key with NO
 current - the ledger simply never wrote a correction for it; deciding
 whether an uncorrected claim still stands means reading its records.
 
-# entries: 635 address keys (>=3 records) = 3435/7199 (47%)
+# entries: 635 address keys (>=3 records) = 3436/7200 (47%)
 # of all address mentions; 144 field tokens (>=3) = 64%
-# of field mentions; 226 authored names (all of them). Built from 191 records.
+# of field mentions; 226 authored names (all of them). Built from 192 records.
 
 
 ## Addresses
@@ -489,6 +489,10 @@ whether an uncorrected claim still stands means reading its records.
         mentions: PR-90 PR-106 PR-154 PR-160 PR-166 PR-181 PR-188 PR-189 PR-192
         latest mention: PR-192
 
+### 0x7fff - 9 records
+        mentions: PR-46 PR-49 PR-52 PR-100 PR-155 PR-159 PR-160 PR-163 PR-207
+        latest mention: PR-207
+
 ### 0x97c9c - 9 records
         mentions: PR-100 PR-105 PR-107 PR-130 PR-160 PR-165 PR-166 PR-172
                   PR-175
@@ -566,10 +570,6 @@ whether an uncorrected claim still stands means reading its records.
 ### 0x56380 - 8 records
         mentions: PR-100 PR-101 PR-165 PR-172 PR-188 PR-189 PR-190 PR-193
         latest mention: PR-193
-
-### 0x7fff - 8 records
-        mentions: PR-46 PR-49 PR-52 PR-100 PR-155 PR-159 PR-160 PR-163
-        latest mention: PR-163
 
 ### 0x8000 - 8 records
         mentions: PR-59 PR-60 PR-102 PR-129 PR-165 PR-166 PR-177 PR-178
@@ -3564,6 +3564,10 @@ whether an uncorrected claim still stands means reading its records.
         mentions: PR-43 PR-85 PR-108 PR-173 PR-192
         latest mention: PR-192
 
+### animacje= - 5 records
+        mentions: PR-44 PR-45 PR-60 PR-61 PR-207
+        latest mention: PR-207
+
 ### AC_LINA - 4 records
         mentions: PR-108 PR-149 PR-150 PR-155
         latest mention: PR-155
@@ -3608,13 +3612,13 @@ whether an uncorrected claim still stands means reading its records.
         mentions: PR-43 PR-85 PR-173 PR-192
         latest mention: PR-192
 
-### animacje= - 4 records
-        mentions: PR-44 PR-45 PR-60 PR-61
-        latest mention: PR-61
-
 ### quit= - 4 records
         mentions: PR-15 PR-25 PR-28 PR-33
         latest mention: PR-33
+
+### speed= - 4 records
+        mentions: PR-43 PR-57 PR-64 PR-207
+        latest mention: PR-207
 
 ### zwierzaki= - 4 records
         mentions: PR-44 PR-45 PR-60 PR-61
@@ -3704,6 +3708,10 @@ whether an uncorrected claim still stands means reading its records.
         mentions: PR-81 PR-82 PR-85
         latest mention: PR-85
 
+### main_back= - 3 records
+        mentions: PR-57 PR-64 PR-207
+        latest mention: PR-207
+
 ### platformy= - 3 records
         mentions: PR-43 PR-44 PR-199
         latest mention: PR-199
@@ -3711,10 +3719,6 @@ whether an uncorrected claim still stands means reading its records.
 ### sample= - 3 records
         mentions: PR-44 PR-91 PR-160
         latest mention: PR-160
-
-### speed= - 3 records
-        mentions: PR-43 PR-57 PR-64
-        latest mention: PR-64
 
 ### AC_BLOK_Y - 2 records
         mentions: PR-94 PR-152
@@ -3851,10 +3855,6 @@ whether an uncorrected claim still stands means reading its records.
 ### grounded= - 2 records
         mentions: PR-91 PR-92
         latest mention: PR-92
-
-### main_back= - 2 records
-        mentions: PR-57 PR-64
-        latest mention: PR-64
 
 ### min_queued= - 2 records
         mentions: PR-28 PR-34

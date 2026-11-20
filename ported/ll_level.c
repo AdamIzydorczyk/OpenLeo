@@ -727,6 +727,26 @@ static void obj_draw(const lvl_obj *o, unsigned char *canvas, int cw,
     const ll_seq_elem *e = obj_elem(o, &mirror);
     if (!a || !e)
         return;
+    if (getenv("LEO_OBJ_POS")) {
+        /* read-only probe (PR-207): where this placement's art is about to
+         * be drawn AND the camera it is being drawn through. objs_draw passes
+         * the LAYER camera per the PR-61 model, so cam/camy here is that
+         * layer camera, not the main one; the screen origin is what the
+         * canvas actually gets. Nothing in this block changes any pixel. */
+        int ox_, oy_;
+        ll_seq_anchor_origin(e, o->x - cam, o->y - camy,
+                             obj_mirror_of(o, mirror), &ox_, &oy_);
+        fprintf(stderr, "OBJPOS leaf=%s x=%d y=%d layer=%u draw-cam=(%d,%d) "
+                "sti=%d fi=%d art=%s e=%u f0=%d f2=%d b15=%d arr_n=%u "
+                "codec=%d mirror=%d draw-origin screen=(%d,%d)\n",
+                o->sc->leaf, o->x, o->y, (unsigned)o->layer, cam, camy,
+                o->sti, o->fi,
+                a && a->name[0] ? a->name : "(none)",
+                (unsigned)(e - a->seq.els), (int)(short)e->f0,
+                (int)(short)e->f2, (int)(short)e->b15, e->arr_n,
+                ll_seq_elem_codec(e), obj_mirror_of(o, mirror),
+                ox_, oy_);
+    }
     ll_seq_draw_elem_anchor(&a->seq, e, canvas, cw, ch, o->x - cam,
                             o->y - camy, obj_mirror_of(o, mirror), NULL);
     /* PR-81: the facing a CH_DIR walker turned into is drawn on top of the

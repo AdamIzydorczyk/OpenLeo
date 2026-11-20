@@ -238,7 +238,12 @@ its .des placement files (zwierzaki=/animacje=/ani_plat=) name, drawn
 with the .SEQ art each script state selects through its own `seq=`.
 `LEO_OBJ_ALL=1` prints EVERY placed object (the default proof listing
 is bounded: 24 placements, then the count of the rest; the same bound
-applies to the per-tick advance lines). `LEO_LEVEL_CAMY=<px>` sets the
+applies to the per-tick advance lines). `LEO_OBJ_POS=1` prints one
+stderr line per scene-object DRAW (leaf, authored x,y, the parallax
+layer index, the layer camera it is drawn through, the selected state/
+frame and art element, the .SEQ anchors, and the exact screen origin) -
+a read-only probe added by PR-207; it changes no pixel and no state.
+`LEO_LEVEL_CAMY=<px>` sets the
 initial VERTICAL camera (CI; in play mode the camera follows the lion's
 feet, Up/Down pan it in the viewer). In play mode Space jumps (viewer key; `LEO_PLAY_SCRIPT` token `JUMP`/`FWDJUMP`); the jump
 impulse units are estimates (see NEXT_STEPS PR-74). `LEO_PLAY_SOLID=0|1` (play mode) forces the object-contact pass off/on:

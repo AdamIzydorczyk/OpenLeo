@@ -787,21 +787,63 @@ OI-107: the measured YETI ground run does not match the shipped F/T
     spread inside 13%.
   origin: PR-206 referee measurement
 
-OI-108: object draw anchor: does the original draw `.MOV` placement
-  art at the .SEQ record's anchor/margin offset rather than at the
-  authored placement point the port draws at - measured offsets at
-  verified cameras
-  status: OPEN
-  notes: measured at PR-205's verified ZARIA.01 cameras: the port
-    draws a red-fruit pair at world (100,305)+(120,305) at the
-    camera of t=22.0s where the video shows fruit at (68,275)+
-    (75,275) and (102,283); at t=31.25s the port draws (349,304)+
-    (361,304) where the video shows (319,323)/(327,322)/(329,305)
-    plus fruit the port never places. Same-frame statics match
-    (MAD 9.9-15.4), so this is the object layer only. The
-    `level_landmarks.py` header already refuses to template objects
-    because "their world anchor is NOT the authored point" - nobody
-    has read which offset it is. The instrument is the THREE ZARIA
-    I references, cross-checked at verified cameras; named as plan
-    step 5a/5b in HANDOFF section 8.
-  origin: PR-205/206 measurement
+OI-108: ZARIA's `animacje=` objects draw through the WRONG PLANE in
+  the port - but which plane the original uses is NOT film-decidable
+  from the fruit: the machine code must say (PR-208)
+  status: OPEN (fix awaits PR-208, [PORT], reading the object draw first)
+  notes: BYTE-BACKED PORT FACT (PR-207 `LEO_OBJ_POS` probe): every
+    ANI2 object - POCISK x16 fruit, BAL x6 balloons, the DRABINKA
+    ladder, LINA ropes - reaches obj_draw with `layer=1` and the
+    85/66 draw-cam (printed: (26,169) at camera (31,150), (207,206)
+    at (244,207)); the PICT statics of ANI1 reach it through the
+    reference plane. The layer index is the entry index in the
+    `animacje=ani3,ani2,ani1` list - PR-61's rule, still an
+    INFERENCE, now visible as printed draw cameras.
+      FILM FACTS, re-measured PR-207 at NATIVE resolution (the
+    level clip is 1280x720 = exactly 4x the 320x200 view; every
+    number below is render-space = video px / 4): background-locked
+    cameras (full MAD scan of `ll_level LEO_LEVEL_NO_OBJ=1` renders):
+    t=22.0 -> x in 28..37 flat (30.4; x=0 37.4, x=44 37.4), y=150
+    sharp (30.4; 147:35.2, 153:35.0); t=31.25 -> x in 240..260 flat
+    (30.2; 288:39.6), y=207 sharp (30.2; 204:31.4, 213:31.4);
+    t=6.0 (level start) -> (4..24, 501..540) plateau, and at that
+    camy both y-laws coincide - no discrimination. THE TRAP: the
+    ZARIA recording carries a SCREEN-FIXED red graphics column
+    (x 289..320 y 53..128) plus red in the bottom-left corner -
+    identical in every frame (diff-tested), and the column sits
+    EXACTLY where fruit would fall in view at those cameras. Red
+    blobs surviving the overlay diff: t=22.0 exactly ONE KOKOS-sized
+    disc (279..287.8,131.5..141.8); t=31.25 two (52.5..65.2,
+    100.8..113.8) and (77..90.2,99..106.8). Predicted disc boxes
+    from the authored points: at 1:1 with the locked cameras
+    (279..288,148..159)+(291..302,148..159) at t=22, (66..75,
+    91..102)+(78..87,91..102) at t=31.25; the port's 85/66 draws
+    measured in its own renders (284..307,129..140)+(69..80,151..
+    162)+(89..100,151..162) at t=22's cam, (103..126,92..103) at
+    t=31.25's. The film's discs match NEITHER set consistently:
+    t=31.25's second disc sits within ~1 px of the 1:1 x of
+    POCISK (322,298) (y +7; the two y-laws coincide at camy 207 so
+    y cannot discriminate there), while t=22's disc is 16 px ABOVE
+    any 1:1 prediction and fits the 85/66 x only if the camera sits
+    at the far end of its flat range (x~37). The contradiction has
+    an observed source: POCISK/kokos.mov is the bullet chain (`
+    pocisk` = bullet; jajo children spawn from it) - the film's
+    fruit MOVES, and at t=22 the pair at design (95,320)/(115,320)
+    is absent from the film at every plane. The set the port draws
+    is definitively NOT what the film shows at either locked
+    camera; the exact law is not pin-able from moving fruit.
+      RETRACTION: the numbers in PR-206's OI-108 row (the "(310..
+    319,146..157) match", the x=1/x=231 locks) were computed from
+    intermediate extracted frames in /tmp (576x360) that no longer
+    exist; re-extraction from the git reference at t=22.0 shows the
+    x-lock was NOT sharp at x=1 and the disc coordinates differ.
+    Use native 1280x720 = /4 extraction and the overlay diff.
+    PR-208 shape: read the engine's object-draw camera (leads:
+    FUN_0005b040 case 0x10 writes [rec+0x24] 0/1 on token 0x5e,
+    FUN_0005da60 tests [rec+0x24]==0 - a shape/mode flag, mapping
+    unknown; the object method-table draw slots), decide the law,
+    failing pin test first. The three ZARIA I references + the
+    static ANI1 PICTs (non-red, stateless - the RIGHT instrument,
+    template-matched by their own art) are the film plan.
+  origin: PR-205/206 opened; PR-207 re-measured (this row IS the
+  PR-207 measurement)

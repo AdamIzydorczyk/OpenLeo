@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-207.
+> at PR-208.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -29575,3 +29575,127 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
   rows, the OI-002 note, the section 8 status text and plan step,
   the header numbering line and the regenerated index go back
   together.
+
+## PR-207 — THE PLACEMENT-FIDELITY THREAD GETS ITS PROBE AND A
+## CLEAN-ROOM FILM REMEASUREMENT: THE PORT DRAWS EVERY ZARIA
+## `animacje=` OBJECT THROUGH THE PR-61 LAYER'S SPEED% CAMERA, AND
+## THE PR-206 FRUIT MATCH DOES NOT REPRODUCE FROM THE GIT REFERENCE
+
+KIND: read
+SUBSYSTEM: scene composition (.des parallax plane assignment);
+      video measurement method (frame extraction, overlays, locks)
+ADDRESSES: none.
+      No engine address is established or retracted.
+      FUN_0005b040 (`case 0x10` writes [rec+0x24] 0/1 on token
+      0x5e) and FUN_0005da60 (tests [rec+0x24]==0) are recorded
+      in the OI-108 notes as UN-READ leads for PR-208; neither
+      was opened here.
+NAMES: POCISK, KOKOS, BAL, BALONIK, DRABINKA, LINA, PICT, PLAN3,
+      PLAN5, jajo.mov, ANI1.DES, ANI2.DES, ANI3.DES, animacje,
+      speed, main_back, ZARIA.01, ZARIA, CHMURA, ZWIERZ,
+      LEO_OBJ_POS, OBJPOS
+CODE: yes: one read-only probe block (~20 lines) in obj_draw,
+      ported/ll_level.c: with LEO_OBJ_POS=1 it prints, per scene
+      object DRAW, the leaf, the authored x/y, the parallax layer
+      index, THE CAMERA IT IS ACTUALLY DRAWN THROUGH, the state/
+      frame/art element, the .SEQ anchors and the screen origin -
+      stderr only. It changes no pixel and no state: the full
+      verify-all fixtures gate is byte-identical (64 ok) and the
+      pinned-camera LEO_LEVEL_PPM previews reproduce the PR-205
+      obj-on render md5 (521c6397f82a1bc7155c971f65b73d37)
+      exactly. Plus the README hook paragraph, the rewritten
+      OI-108 row, the section 8 status text, this record, the
+      header numbering line and the regenerated index.
+HOOKS: LEO_OBJ_POS (new, read-only)
+OPENS: none.
+CLOSES: none.
+      OI-108 is REWRITTEN in place - mechanism, traps, the
+      retracted numbers, and the PR-208 shape - no row is
+      flipped and none is added. OI-107 is untouched.
+      OI-ids touched: the OI-108 row (notes and status wording).
+CORRECTS: PR-206: OI-108 was opened as an ANCHOR question (does
+      the original draw at ".SEQ record anchor/margin offset").
+      KOKOS.SEQ's element carries the 0x7fff sentinel anchors,
+      and under PR-49's draw rule the port already puts the art
+      top-left EXACTLY at the authored point - the anchor is not
+      the missing offset; what differs is WHICH CAMERA a placement
+      is drawn through.
+      PR-205/PR-206 (the measurement family): the fruit
+      coordinates and the x camera locks (t=22.0 x=1, t=31.25
+      x=231) came from intermediate 576x360 extracted frames in
+      /tmp that no longer exist. Re-extracted from the git
+      reference at native 1280x720 (= exactly 4x the view), the
+      y-locks DO reproduce (150, 207) and the x-locks do NOT:
+      the background MAD minimum is a range (28..37, 240..260)
+      and the claimed 2-4 px fruit agreement is replaced by the
+      contradiction carried in OI-108.
+      PR-61: the entry-index layer rule STANDS as shipped
+      behaviour and is now a PRINTED draw-cam; its one visual
+      support is named unproven - RAN.01's clouds (CHMURA via
+      ZWIERZ/chmura1-2.mov) are `zwierzaki` objects themselves,
+      so they would move with any object-plane rule.
+GATE: make 0 warnings; verify-all fixtures rc=0 64 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs (the two fixture trees moved aside per the
+      restaging recipe, then restored).
+
+- THE ANSWER FIRST (the port half is MECHANISM, found): every
+  placement from ZARIA.01's `animacje=ani3.des,ani2.des,
+  ani1.des` list carries `o->layer = <entry index>` (PR-61), and
+  `obj_layer_cam` turns that into the layer's `speed=` percentage
+  camera BEFORE obj_draw sees it. The probe prints it: at camera
+  (31,150) the 16 POCISK fruit, 6 BAL balloons, the DRABINKA
+  ladder and both LINA ropes draw through (26,169) - the 85/66
+  plane of `speed=39,40;85,66;100,100` `main_back=2` - while
+  ANI1's PICT statics reach the reference plane. The elements
+  the owner reported (balloons, ladder, balls) are exactly this
+  set; the rule that routes them was NEVER read from the engine.
+- THE FILM, CLEAN ROOM (the /tmp sweep took the old harness and
+  its intermediate frames with it, so this was rebuilt from git
+  only): `levels/ZARIA.01.mkv` is 1280x720 = exactly 4x the
+  320x200 view, render space = frame px / 4. Background locks
+  (MAD over `LEO_LEVEL_NO_OBJ=1` previews, full scans):
+  t=22.0 -> y=150 sharp (30.4; 147:35.2 153:35.0), x a RANGE
+  28..37 (30.4; x=0 37.4, x=44 37.4); t=31.25 -> y=207 sharp
+  (30.2; 204:31.4 213:31.4), x range 240..260 (288:39.6);
+  t=6.0 (level start) -> (4..24, 501..540) plateau - and at
+  that camy both y-laws coincide, so start frames can NEVER
+  discriminate the plane. TRAP 1: the recording carries a
+  SCREEN-FIXED red graphics column (x 289..320 y 53..128) plus
+  red in the bottom-left corner, identical in EVERY frame
+  (cross-frame diff), sitting exactly where fruit would show at
+  those cameras. TRAP 2: POCISK/kokos.mov IS the bullet chain
+  (`pocisk` = bullet; jajo.mov children spawn from it) - the
+  film's fruit moves by design.
+- THE COMPARISON, BOTH MODELS, MEASURED NOT ARITHMETIC: after
+  the overlay diff, t=22.0 has exactly ONE KOKOS-sized red disc
+  (279..287.8,131.5..141.8) and t=31.25 TWO (52.5..65.2,
+  100.8..113.8) and (77..90.2,99..106.8). The port's own
+  renders at those cameras draw the disc set at (284..307,129..
+  140)+(69..80,151..162)+(89..100,151..162) and (103..126,
+  92..103); the 1:1 predictions are (279..288,148..159)+(291..
+  302,148..159) and (66..75,91..102)+(78..87,91..102). t=31.25
+  is the clean x-test: the film disc sits ~1 px from the 1:1 x
+  of POCISK (322,298) at the locked range's low end (the two
+  y-laws coincide at camy 207, so y says nothing there), while
+  the port draws it ~30 px right; t=22's single disc is 16 px
+  ABOVE every 1:1 box and matches 85/66 only at x=37, the far
+  end of the flat range - and the (95,320)/(115,320) PAIR IS
+  ABSENT FROM THE FILM at every plane. No single (plane, in-
+  range camera) explains both frames. THE PORT'S SET IS NOT THE
+  FILM'S - the owner's complaint stands - but moving bullets
+  cannot pin the plane; the machine code owns that question.
+- WHY A RETRACTION AND NOT JUST A MEASUREMENT: the swept 576x360
+  intermediates were not byte-derivable from anything in git, so
+  the earlier numbers were un-reproducible by construction. The
+  rule this PR adopts (recorded in OI-108 and section 8): film
+  measurement uses native /4 extraction from the git reference,
+  the cross-frame overlay diff BEFORE any red is trusted, and
+  static stateless art (ANI1's PICT .SEQs) as the template, not
+  the bullet-chain fruit.
+- RISK: LOW. The port code change is a stderr probe; the full
+  and fixture-free gates are byte-identical to PR-206's.
+- REVERT: revert this commit; this record, the rewritten OI-108
+  row, the README hook paragraph, the probe, the section 8
+  status text, the header line and the regenerated index go
+  back together.
