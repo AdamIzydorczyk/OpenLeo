@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-239.
+> at PR-240.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -33786,5 +33786,172 @@ for name 'DRABINKA' at 0x1f947 - every slot claim about
 "the drabinka table" in PR-233/236 must be read against
 0x97cdc (the +0x10/+0x14/+0x8c values happen to match;
 +0x78 does not: 0x3f1c0, not 0x53c90).
+GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-239 — THE PER-STEP KEY COMPOSITION: THE
+## WORLD-GATHER 0x52750, ITS CONTROL-GATED ASK CHANNEL, AND
+## THE ROW-STEP PATH SPLIT (THE `WAIT` CLAUSE IS NOT A KEY
+## SOURCE)
+```
+KIND: read
+SUBSYSTEM: objects/key-composition - the record-step driver
+0x523f0 read end to end, the world-gather 0x52750 and its
+control-gated ASK channel, the row-step path split, the
+K_GEN1 feed census, OI-078.
+ADDRESSES: 0x536f0, 0x5370c, 0x5371c, 0x53725, 0x53733,
+0x5373c, 0x5374b, 0x523f0, 0x52402, 0x5240c, 0x52416,
+0x52423, 0x52435, 0xa25d4, 0x52750, 0x5275e, 0x5276a,
+0x52774, 0x52783, 0x52680, 0x526a4, 0x526a7, 0x526e9,
+0x52700, 0x5272a, 0x5273d, 0x2b4d0, 0x52790, 0x527b3,
+0x527cb, 0x527db, 0x527ef, 0x52805, 0x5281f, 0x52833,
+0x4bd30, 0x4b890, 0x4b870, 0x51b6f, 0x51c25, 0x51c3f,
+0x51c73, 0x51c8f, 0x521f0, 0x52229, 0x52235, 0x5223c,
+0x5224b, 0x522fc, 0x52303, 0x5230c, 0x52317, 0x52320,
+0x5232b, 0x52338, 0x45800, 0x45870, 0x45920, 0x45934,
+0x45972, 0xa11c8, 0xa11e0, 0xa2638, 0x53770, 0x53780,
+0x537a0, 0x537cf, 0x537d4, 0x287a0, 0x2882d, 0x28835,
+0x2c4a0, 0x2c5e1, 0x2c613, 0x2c653, 0x3e980, 0x3eacf,
+0x27f30, 0x27f40, 0x27f57, 0x27f6d, 0x27f7d, 0x3df00,
+0x3df16, 0x3df2f, 0x3df3b, 0x54560, 0x23940, 0x23930,
+0x23a60, 0x23c80, 0x97cdc, 0x45320, 0x541f0, 0x1e596
+NAMES: key composition, world-gather, ask channel, context
+struct, control bits, row path split, GEN channel, Wait
+clause, signal message, K_GEN1, AC_RECT, AC_DRAB, K_GEN4,
+row clock, budget, OI-078, OI-111
+CODE: no: this PR ships no code. A PORT attempt made during
+this work (the current row's `Wait` clause OR-ed into the
+transition-test key) was MEASURED against the bytes and
+REFUTED before commit - see (c) - so it is not shipped and
+no test of it ships.
+HOOKS: none new, none touched.
+MEASURED: (a) THE DRIVER. The per-step key of an object is
+built in 0x536f0 in this order: the provider at [[obj kind]
++0x8c] OR-ed into [obj+0x60] (0x5370c, PR-227/238), then
+0x5371c calls the record driver 0x523f0(record, out = a
+local) and 0x53725 OR-s its answer into [obj+0x60]; then
+the row-index verb [[kind]+0x54] seeds a row output
+(0x5372f-0x53733) that the scan 0x53520 -> 0x52000
+overwrites with the matched row (0x53560/0x5204a), and
+0x535a0 applies the state and row it is handed. 0x523f0
+(eax = the record, edx = the out set) runs, in order:
+[[rec+0x44]+0x8] = 0x52750 (the fixed
+record-class table 0xa25d4, PR-107), [[rec+0x44]+0xc] =
+0x521f0 (the row step, (c)), then the OWNER's kind-table
++0xa8 and +0xac with the same out (0x52416/0x52423), then
+[[rec+0x44]+0x10] = 0x23c80 (a getter) - and returns the
+out. For the placed DRABINKA (kind table 0x97cdc, PR-238)
+those two owner verbs are 0x23940 and 0x23930: both are a
+bare `ret` - they contribute NOTHING (measured, not
+assumed).
+(b) THE WORLD-GATHER 0x52750. It builds a context struct in
+its own frame and only THE LAST verb writes the caller's
+out. 0x5275e -> 0x52680 (+0x2c) fills that struct from the
+OWNER's state fields: [obj+0x50] (the state-record vector),
+[obj+0x54], [obj+0x58] (its count, PR-216), [obj+0x5c]
+(the live state id), [obj+0x48]/[obj+0x4c], then queries
+the CURRENT ROW's verb +0x10 three times with modes 1, 3,
+2 (0x526e9/0x5272a/0x5273d - the class 0xa2638 chain walk
+0x458e0; for a row whose only node is a `Wait` node the
+chain stops at the node and its operand is null, so nothing
+is written); 0x5276a -> +0x30 = 0x2b4d0 (unread, same
+struct, NOT the out); 0x52774 -> the OWNER kind-table +0xc8
+= 0x54560 for the placed rope (unread, same struct); and
+0x52783 -> +0x34 = 0x52790, THE ASK CHANNEL: it starts
+from an EMPTY set and OR-s into it (i) 0x4bd30 when
+[[rec+0x13] bit 2] (0x527b3/0x527cb), (ii) 0x4b890 when
+[[rec+0x12] bit 0x40] (0x527db/0x527ef), (iii) 0x4b870
+when [[rec+0x12] bit 0x80] (0x52805/0x5281f) - each called
+with the LEVEL (ds:0xcef40), the owner object and the
+record's bit 0x8000 - and COPIES length+12 bytes to the
+out (0x52833-0x52850). Those gate bits are the authored
+`control=` names: the parse arms 0x51b6f-0x51d2b write them
+([rec+0x12] |= 1,2,3,4,8,0x10,0x20,0x80,0x40; [rec+0x13]
+|= 1,2,0x40,4,8,0x10,0x20,0x80; one name OR-s the WORD
+0x1c0 at 0x51c73). ZARIA.01's rope declares
+control=BY_TIME, so its ask channel is OFF: measured
+negative for the ladder chain.
+(c) THE ROW-STEP PATH SPLIT, and the `Wait` clause is NOT a
+key source. 0x521f0 takes the caller's set as its out
+([esp+0x68]). It reads the current row
+[[rec+0x2e]+[rec+4]*4] (0x52221-0x52229) and calls its
+TEST slot +0x8 (0x52235; the 0xa2638 chain walker 0x45800
+hands back the first node's answer - for a `Wait` node that
+is 0x45972, which copies the node's own [node+0x8] clause
+and never calls an operand, PR-218). 0x5223c (0x495b0)
+tests that answer for emptiness and 0x5224b branches:
+NON-EMPTY -> 0x522fc, the EXECUTE slot +0xc (0x52303, the
+chain walker 0x45870) and 0x5230c OR-s what EXECUTE returns
+into the caller's set; then the owner verb +0xa0 (0x52317)
+and the row may advance only when the authored threshold
+[row+0x10] is BELOW the object clock [obj+0xa1] (0x52320-
+0x5232b), the difference being the budget handed to the
+advance verb [[rec+0x44]+0x18] = 0x520c0 (0x52338).
+EMPTY -> the caller's set and [obj+0x60] are copied and
+OR-ed (0x52251-0x522bc) and TEventSet::match 0x47e40 is
+handed the row's (empty) clause (0x522e6): an empty clause
+is a subset of anything, so the row runs, and it advances
+through the SAME 0x520c0 with a ZERO budget (0x522f8). A
+`Wait` node's own execute is the chain walker 0x45870 with
+a null operand, which returns an EMPTY set (0x4587b-0x4588d
+-> the empty-set path at 0x4588d): so a `Wait` clause adds
+NOTHING to the caller's set and never reaches [obj+0x60] -
+the model "the current row's clause feeds the transition
+key" is REFUTED. The clause's only observable effect is the
+path split above, which is what PR-218 recorded and this
+confirms at the node level; how 0x520c0 spends the budget
+(difference vs zero) stays open.
+(d) THE GEN CHANNEL, confirmed as the port models it: a GEN
+node's execute (class 0xa11e0 +0xc = 0x45920) = the chain
+operand's answer OR the node's own clause at [node+0x8]
+(0x45934), and the row step OR-s that into the caller's set
+(0x5230c) - so `GEN` raises on the object that RUNS the
+row, and 0x53725 puts it in [obj+0x60].
+(e) THE K_GEN1 (bit 54) FEED CENSUS, extending PR-234. No
+instruction writes bit 54 directly (no `+0x66],0x40` write
+exists). Signal messages DO feed [obj+0x60]: the receiver
+0x53770 (the placed rope's kind-table +0x10) takes a
+message of type 0x10 with tag 0x8138764, builds a set from
+the payload byte [msg+0xc] (0x537a0-0x537cf, the
+dword[i>>5] bit i%32 math of PR-236) and OR-s it into
+[obj+0x60] (0x537cf-0x537d4) - so one such message is a
+complete feed. But the engine's FIVE signal-message
+builders never send 54: 0x287a0 sends payload 0xa = AC_DRAB
+to the sender's PARENT (0x2882d-0x2885a, PR-218), the
+0x2c4a0 family broadcasts payloads 0x21/0x1c/0x1b gated on
+the sender's state id and row (0x2c5e1/0x2c613/0x2c653,
+via 0x4bc40), and 0x3e980 sends payload 0x39 = K_GEN4 to
+every item of a list (0x3eacf-0x3eaf1).
+(f) THE LION'S ANSWER VERB 0x27f30 (kind table 0x99828
++0x78, PR-237): it answers only when the ASKED lion is at
+state 1, the requester has a PARENT ([[requester kind]+0x3c
+= 0x23c10], 0x27f4a) and the requester's state id is 0x10
+(0x27f57); its act is to OR bit 17 = AC_RECT into THE
+LION'S OWN live set [lion+0x60] (0x27f6d-0x27f7d) and then
+defer to the base verb 0x3df00 (0x3df3b): 0x3df00 refuses
+when asked == requester, calls the asked's class verb +0xd8
+(0x3df16) and on true 0x45320 with [asked+0xee] (a
+position-scale helper: 0x541f0 + [obj+0xca]/[obj+0xce],
+also called by the 0x1e560 pair-touch family at
+0x1e596/0x1e985), then the base 0x552e0.
+OPENS: OI-078's rope feed is now narrowed to named unread
+verbs, all on the record path: 0x2b4d0 (record class +0x30)
+and 0x54560 (the placed rope's kind-table +0xc8) - both are
+handed the context struct, so the question is whether either
+writes [obj+0x60] itself; then the ask loops 0x4b890/0x4b870
+and the control-name -> bit map (which authored `control=`
+name sets 0x40/0x80/[rec+0x13] bit 2 - the 0x51b6f-0x51d2b
+chain's name comparisons), 0x52680's row verb +0x10 modes
+1/3/2, and how 0x520c0 spends the budget (the OI-111 tail).
+Also still open: 0x3df00's +0xd8 verb, the rest of 0x27f30,
+PR-237/238's list (class 0x9a44c's name, [obj+0xad] =
+0x97f50, the type-0xe sender, [obj+0xa5] bit 1).
+CLOSES: nothing in the register; OI-111's PR-218 reading is
+CONFIRMED at node level by (c) (its row-clause half stays
+settled, its budget half stays open).
+CORRECTS: none. The refuted row-key model of this work was
+never shipped, so no shipped record carries it; (a)-(c) do
+correct one in-passing assumption: the owner kind-table
++0xa8/+0xac verbs contribute nothing for the placed rope.
 GATE: light: verify-index verify-docs rc=0 (ok);
 ```

@@ -2067,6 +2067,31 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-239 (READ): the per-step key composition, end to
+end. 0x523f0 (called at 0x5371c) = record-class +0x8 0x52750
++ row step 0x521f0 + the owner kind-table +0xa8/+0xac + a
+getter; for the placed rope those owner verbs are bare
+`ret`s (nothing). 0x52750 builds a context struct from the
+owner's state fields ([obj+0x50]/0x54/0x58/0x5c, +0x48/0x4c)
+and only its LAST verb writes the out: +0x34 = 0x52790, the
+ASK CHANNEL - 0x4bd30/0x4b890/0x4b870 gated on the record's
+`control=` bits ([rec+0x12] 0x40/0x80, [rec+0x13] bit 2;
+the parse arms 0x51b6f-0x51d2b). ZARIA's rope = BY_TIME, so
+its asks are OFF. The row step splits on the row's TEST
+answer: non-empty (a Wait clause, 0x45972) -> execute the
+chain (a Wait node's execute 0x45870 answers EMPTY - so the
+row key NEVER feeds the transition key: refuted) and gate
+the advance on [row+0x10] < [obj+0xa1] with the difference
+as budget; empty -> match the empty clause (always true) and
+advance with a zero budget; both end in 0x520c0 (its budget
+spending stays open, OI-111 tail). GEN confirmed as the
+port models it (0x45920 ORs [node+0x8]). K_GEN1 census: no
+bit-54 write, no signal message with payload 54 (builders
+0x287a0 AC_DRAB-to-parent, 0x2c4a0 0x21/0x1c/0x1b, 0x3e980
+K_GEN4) though 0x53770 would OR a payload straight into
+[obj+0x60]. Next named: 0x2b4d0, 0x54560, the control-name
+bit map, 0x4b890/0x4b870.
+
 STATUS PR-238 (READ): class identity from the engine's own
 name factory 0x1f870 (strcmp chain on the class-name block
 0x906fa-0x9078b: SEP2, DRABINKA, RYBA, ..., ZTABL,

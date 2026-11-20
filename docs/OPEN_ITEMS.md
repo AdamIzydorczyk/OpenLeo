@@ -889,6 +889,25 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     0x536f0's own ORs into the rope's row (next read);
     (iii) a class answering asks WITH K_GEN1. Still open:
     the authored name of class 0x9a44c.
+    PR-239 READ the whole per-step composition and RULED
+    OUT four feed candidates by measurement: the placed
+    rope's owner kind-table +0xa8/+0xac verbs are bare
+    `ret`s; its ASK channel (0x52790 -> 0x4bd30/0x4b890/
+    0x4b870) is gated on the record's `control=` bits and
+    ZARIA's rope declares only BY_TIME, so it is off; the
+    row's own `WAIT K_GEN1` clause adds NOTHING to the key
+    (0x521f0 uses it only to pick the row path, and a Wait
+    node's execute answers empty - the "row key feeds the
+    transition" model was refuted before it could ship);
+    and no code writes bit 54 or sends a signal message
+    with payload 54 (the five builders send 0xa/0x21/0x1c/
+    0x1b/0x39), though 0x53770 shows a signal message ORs
+    its payload bit straight into [obj+0x60]. Named next:
+    0x2b4d0 (record class +0x30) and 0x54560 (the placed
+    rope's +0xc8) - both handed the context struct, so the
+    question is whether either writes [obj+0x60] itself -
+    then the control-name to bit map, 0x4b890/0x4b870, and
+    how 0x520c0 spends the row budget.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
