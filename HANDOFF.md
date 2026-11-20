@@ -60,17 +60,24 @@ Section 8 lists them as tasks.
    the fixtures AND fixture-free (`DATA=/tmp/opencode/nope HD=/tmp/opencode/nope`
    -> EXIT=0 with named SKIPs); a new `LEO_*` hook is documented in README; a
    record in NEXT_STEPS.md (what was found, what was ported, what is
-   estimated, what is open); push; check CI (`gh run list --workflow=ci.yml`).
+   estimated, what is open); push; do NOT wait for CI (owner ruling
+   2026-11-20): continue to the next PR; its run is read opportunistically
+   before the next push.
    NOTE (2026-11-19): the Windows halves of this gate - `make win`, the
    wine legs - are deferred to the end-of-implementation pass by rule 8.
-   EXCEPTION (owner, 2026-11-17): for a **pure-docs commit** - only `.md`
-   files, nothing under `.gitignore`, `Makefile`, `tools/`, `ported/` or
-   `.github/` - `make`, `make win`, `make ll_level` and `verify-all` are
-   NOT run; record the reason instead (which files changed, and why no
-   leg can read them). `gh` still runs the suite on its own, so the CI
-   result is quoted as usual. The owner may widen the exception later
-   (e.g. to `.gitignore` edits); until then a `.gitignore` change is
-   still gated in full, because a pattern there can hide a fixture.
+   GATE PROFILE (owner, 2026-11-17 exception, profiled 2026-11-20): the
+   gate FOLLOWS THE RECORD KIND (section 10a `KIND:`). A **read- or
+   docs-kind PR whose diff touches only `.md` files** (nothing under
+   `.gitignore`, `Makefile`, `tools/`, `ported/` or `.github/`) runs
+   ONLY `make verify-index verify-docs` EXIT=0 - no build, no
+   `verify-all`, no waiting - and its record carries the single light
+   line `GATE: light: verify-index verify-docs rc=0 (ok);` (section
+   10a) instead of the two-line gate; `gh` still runs the full suite
+   on its own push. A **port- or gate-kind PR** (and any PR whose diff
+   touches code, Makefile, tools/, .github/ or .gitignore - a pattern
+   there can hide a fixture) runs the full gate above and carries the
+   two-line gate. A read/docs PR MAY still run the full gate; if it
+   does, it reports the two-line form, never both.
 5. `gh` token has no `workflow` scope: a commit touching `.github/workflows/*`
    cannot be pushed.
 6. The owner supplies reference material (screenshots, video timestamps).
@@ -2059,6 +2066,21 @@ tick 91, x=685 at 300) - the placed ladder answers in neither
 the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
+
+STATUS PR-232 (GATE): the gate now FOLLOWS THE RECORD KIND
+(owner ruling 2026-11-20). A read-/docs-kind PR whose diff is
+.md-only runs ONLY `make verify-index verify-docs` and records
+the single line `GATE: light: verify-index verify-docs
+rc=0 (ok);`; port/gate PRs (or any diff touching code,
+Makefile, tools/, .github/, .gitignore) keep the full two-line
+gate. doc_census P4 enforces it from the record's own KIND
+line: light accepted only under read|docs, full pair still
+accepted there (history), port|gate demand full. Test first:
+probe battery C1..C8 against HEAD failed C1 (read+light:
+missing GATE,GATE-FREE); after the change C1/C5/C6/C7 pass and
+C2/C3/C4/C8 fail as designed. Rule 4 also drops WAITING for CI
+after push. Gate: 0 warnings, fixtures 65 ok rc=0,
+fixture-free 13 ok + 23 measured SKIP lines.
 
 STATUS PR-231 (PORT): CHECK_ALL now implies the CHECK_LN rule
 bit, exactly as the engine's keyword 0x921c6 maps to 0x1c0
@@ -4942,6 +4964,15 @@ the style that keeps a record readable.
       place it is written, because restating it is measured drift -
       the audit found 12 different count claims around those 86
       markers, which is where the 18/19/20 SKIP confusion came from.
+  GATE (light profile, PR-232): `GATE: light: verify-index
+      verify-docs rc=0 (ok);`
+      Only for read-/docs-kind records (section 2 rule-4 GATE
+      PROFILE): their PR ran the docs checks alone, so the record
+      carries this ONE line and no GATE-FIXTURE-FREE line. A
+      read/docs record that did run the full gate keeps the
+      two-line form; a record never carries both forms. The tool
+      (P4) accepts light only under `KIND: read|docs`; port|gate
+      records must carry the full pair.
 
 ONE exemption, frozen in the tool as FIELDS_EXEMPT: PR-196, the record
 that writes this rule. It cannot carry the contract it is introducing,

@@ -182,7 +182,7 @@ FIELDS_EXEMPT = frozenset([196])
 # the format - the audit measured 12 distinct count claims floating
 # around 86 prose gate markers, which is where the 18/19/20 drift
 # came from.
-FIELDS = (
+FIELDS_COMMON = (
     ('KIND', re.compile(r'^KIND: (read|port|gate|docs) *$')),
     ('SUBSYSTEM', re.compile(r'^SUBSYSTEM: \S')),
     ('ADDRESSES', re.compile(r'^ADDRESSES: [a-z0-9.,;+ /\[\]x_-]+')),
@@ -192,11 +192,25 @@ FIELDS = (
     ('OPENS', re.compile(r'^OPENS: [A-Za-z0-9,;+ ._-]+')),
     ('CLOSES', re.compile(r'^CLOSES: [A-Za-z0-9,;+ ._-]+')),
     ('CORRECTS', re.compile(r'^CORRECTS: (none|PR-\d+)')),
+)
+# PR-232 (owner ruling): the gate FOLLOWS THE KIND. port/gate
+# records carry the two-line full gate; read/docs records run only
+# `make verify-index verify-docs` (no build, no verify-all - the
+# diff touches no code that a fixture can read) and carry the
+# single light line instead. The full pair stays ACCEPTED on a
+# read/docs record (the PR-196..PR-231 history carries it, and a
+# read PR may still run the full suite; it must then report it).
+FIELDS_FULL = (
     ('GATE', re.compile(r'^GATE: make 0 warnings; verify-all fixtures '
                         r'rc=0 \d+ \(ok\);')),
     ('GATE-FREE', re.compile(r'^GATE-FIXTURE-FREE: rc=0 \d+ \(ok\) \+ '
                              r'\d+ named')),
 )
+FIELDS_LIGHT = (
+    ('GATE-LIGHT', re.compile(r'^GATE: light: verify-index '
+                              r'verify-docs rc=0 \(ok\);')),
+)
+FIELDS = FIELDS_COMMON + FIELDS_FULL  # the historical full block
 
 RECORD_RE = re.compile(r'^## PR-(\d+)[\s(]')
 OWNER_RE = re.compile(r'^## OWNER')
@@ -272,22 +286,43 @@ def check_template(lines, starts, heads, bad):
                       'from the block, not forbidden from using the '
                       'format)' % (n, len(fields_here)))
             continue
-        # found is built in LINE order, so a swap or a duplicated
-        # field is visible: wanted == found only for exactly-one-each,
-        # in the agreed order.
-        want = [f for f, _ in FIELDS]
+        # PR-232 (owner ruling): the gate block FOLLOWS THE KIND.
+        # port/gate records must carry the full two-line gate;
+        # read/docs records may carry the full pair (the history
+        # PR-196..PR-231 does) or the single light line - they run
+        # only make verify-index verify-docs. found is built in
+        # LINE order, so a swap or a duplicated field is visible:
+        # wanted == found only for exactly-one-each, in the agreed
+        # order.
+        allf = FIELDS + FIELDS_LIGHT
+        want_full = [f for f, _ in FIELDS]
+        want_light = ([f for f, _ in FIELDS_COMMON] +
+                      [f for f, _ in FIELDS_LIGHT])
         found = []
         for l in block:
-            for f, rx in FIELDS:
+            for f, rx in allf:
                 if rx.match(l):
                     found.append(f)
-        if found == want:
+        kind = ''
+        kr = FIELDS_COMMON[0][1]
+        for l in block:
+            m = kr.match(l)
+            if m:
+                kind = m.group(1)
+                break
+        wants = [want_full]
+        if kind in ('read', 'docs'):
+            wants.append(want_light)
+        if any(found == w for w in wants):
             have.append(n)
             continue
+        want = wants[0]
         cnt = collections.Counter(found)
         miss = [f for f in want if not cnt[f]]
         dup = [f for f in want if cnt[f] > 1]
         msg = []
+        if len(found) != len(want) and not miss and not dup:
+            msg.append('extra field line(s) beyond the template')
         if miss:
             msg.append('missing %s' % ','.join(miss))
         if dup:

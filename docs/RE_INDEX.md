@@ -42,7 +42,7 @@ whether an uncorrected claim still stands means reading its records.
 
 # entries: 803 address keys (>=3 records) = 4451/8814 (50%)
 # of all address mentions; 171 field tokens (>=3) = 68%
-# of field mentions; 234 authored names (all of them). Built from 216 records.
+# of field mentions; 234 authored names (all of them). Built from 217 records.
 
 
 ## Addresses

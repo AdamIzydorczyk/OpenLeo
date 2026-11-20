@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-232.
+> at PR-233.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -33157,6 +33157,44 @@ CORRECTS: PR-60's CHECK_ALL exemption in ll_play.h ("here it
   ZARIA.01's lion off the game's own ground rules. No measured
   video number is moved by this PR: the changed pins are all
   model-arithmetic numbers.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
+```
+
+## PR-232 — THE GATE FOLLOWS THE RECORD KIND: READ PRS RUN
+## verify-index + verify-docs ONLY, AND CI IS NOT WAITED FOR
+```
+KIND: gate
+SUBSYSTEM: docs structure - the record template's gate fields and
+section 2 rule 4.
+ADDRESSES: none
+NAMES: GATE, GATE-FIXTURE-FREE, GATE-LIGHT, KIND, doc_census,
+  verify-index, verify-docs
+CODE: yes: tools/doc_census.py - FIELDS is split into
+  FIELDS_COMMON + FIELDS_FULL, a FIELDS_LIGHT pair (one line,
+  `GATE: light: verify-index verify-docs rc=0 (ok);`) is added,
+  and P4 reads the record's own KIND line: a read/docs record is
+  accepted with EITHER the full pair (the PR-196..231 history) or
+  exactly the common fields + the light line; a port/gate record
+  accepts only the full pair. HANDOFF section 2 rule 4: the old
+  pure-docs EXCEPTION is replaced by the GATE PROFILE (diff-shape
+  AND kind must both be read/docs), and rule 4's "check CI" step
+  becomes "do NOT wait for CI; read its run opportunistically
+  before the next push". Section 10a documents the light line.
+HOOKS: none
+MEASURED: test first: a probe over the template checker (the
+  C1..C8 battery, /tmp/opencode) run against HEAD's doc_census
+  printed C1 `read+light -> FAIL: missing GATE,GATE-FREE` before
+  the change; after it the same battery answers C1 read+light
+  PASS, C2 port+light FAIL, C3 read+light+full FAIL (extra),
+  C4 malformed light FAIL, C5 gate+full PASS, C6 docs+light PASS,
+  C7 read+full PASS (history), C8 read+swapped FAIL. `make
+  verify-index verify-docs` rc=0 with all 217 journal records
+  (the 216 historical full-gate records + this one) accepted.
+OPENS: none in the register.
+CLOSES: nothing in the register.
+CORRECTS: none
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.
