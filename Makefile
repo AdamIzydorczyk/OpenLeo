@@ -638,9 +638,11 @@ ifeq ($(PX_DATA),1)
 # (31,235): PLAN2.PCM is 600 rows, the world 700, the view is 320x200.
 # Run B (cam 1200 / camy 280) is the same level from the other end of the
 # world: it reaches ANI3's own ANIBACK on layer 1 (the cell-0 half of the law,
-# seen directly) and carries the CONTROLS: PAJAK (ZWIERZ1 = zwierzaki cell 2)
-# and KAMIEN (ZWIERZ2 = cell 1) keep the entry-index layer, because planies
-# names no letter for that key (the open half, OI-109).
+# seen directly) and carries the OTHER TWO KEYS: PAJAK (ZWIERZ1 = zwierzaki
+# cell 2) and KAMIEN (ZWIERZ2 = cell 1) ride the planies SEGMENT of their
+# cell - PR-212 read the engine pass 0x4b1d0, PR-213 ports it: cell c of any
+# pool rides the segment that carries its A, so ZWIERZ2 moves from the old
+# entry-index layer 1 to layer 2, the level's own plane (OI-109 closed).
 	@rm -f /tmp/opencode/lv_plany.ppm /tmp/opencode/lv_plany2.ppm
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=2 \
@@ -675,9 +677,9 @@ ifeq ($(PX_DATA),1)
 	      /tmp/opencode/lv_plany2.log \
 	  && grep -q 'OBJPOS leaf=PAJAK x=1250 y=450 layer=2 draw-cam=(1200,280)' \
 	      /tmp/opencode/lv_plany2.log \
-	  && grep -q 'OBJPOS leaf=KAMIEN x=1360 y=250 layer=1 draw-cam=(1020,254)' \
+	  && grep -q 'OBJPOS leaf=KAMIEN x=1360 y=250 layer=2 draw-cam=(1200,280)' \
 	      /tmp/opencode/lv_plany2.log \
-	  && echo "plany=: animacje cells ride the plane the level's own planies spec names; the un-lettered keys keep the PR-61 model (ok)" \
+	  && echo "plany=: every placement cell of all three keys rides the planies segment that carries its A letter (ok)" \
 	  || { echo "PR-208 planies grep FAILED"; \
 	       grep -E 'OBJPOS leaf=(POCISK|BAL|DRABINKA|LINA|PAJAK|KAMIEN|ANIBACK)|T\|TA|planies' \
 	         /tmp/opencode/lv_plany.log /tmp/opencode/lv_plany2.log | head -14; \

@@ -6239,14 +6239,16 @@ static void par_parse(par_t *pp, const char *speed, const char *mainback,
  *                                while the lion is on layer 2 - the same 1:1
  *                                math either way).
  *
- * NO LETTER NAMES `zwierzaki=` OR `ani_plat=` on ANY level (their cell counts
- * do not match the A counts either: KADMAR2 has zwierzaki 3 / ani_plat 2 /
- * A 3 and LONA.05 has 4/4/4 with A 4). Where an un-lettered placement's plane
- * comes from is still open (OI-109); those keys keep the PR-61
- * entry-index model, which for ZARIA.01 puts ZWIERZ2 on layer 1 and ZWIERZ1
- * (the rhino, the spiders) on layer 2 = main_back, the lion's own plane -
- * which is also what the collision-plane gate needs (see the touch filter in
- * the player code).
+ * NO LETTER NAMES `zwierzaki=` OR `ani_plat=` on ANY level - and none needs
+ * to: PR-212 read (engine pass 0x4b1d0, 0x4b23d-0x4b286) that the SEGMENT
+ * STRUCTURE names the plane for every placement cell of all three keys at
+ * once. Cell c of any pool rides the number of '|' before the (c+1)-th 'A'
+ * in the raw spec (the last segment index when the A's run out). For
+ * ZARIA.01 ("T|TA|TALAB", 3 A's at segments 1,2,2) that puts ZWIERZ2
+ * (KAMIEN, cell 1) and ZWIERZ1 (the rhino, the spiders - cell 2) BOTH on
+ * layer 2 = main_back, the lion's own plane - which is exactly what the
+ * collision-plane gate needs (see the touch filter in the player code),
+ * by law and not by the entry-index coincidence PR-61 left behind.
  *
  * PR-209 READ THE ENGINE'S OWN CONSUMER (build/leo/leo.img, exact bytes):
  * 0x4af10 walks the plany string the loader parsed into [level+0x30] (key
@@ -6263,17 +6265,31 @@ static void par_parse(par_t *pp, const char *speed, const char *mainback,
  * RUNTIME ACTIVATION, and the cell ordinals they use are the per-key cell
  * indices the loader itself keeps (cell count at [level+0x44 +
  * keyordinal*4], from the ' ' %[^, ' parser 0x4c720 - our des_list_cells).
- * The plane itself ([obj+0x24]) is NOT written anywhere in that pass: the
- * data law above stands, its engine-side writer stays open. */
+ * PR-212 READ THE PLANE WRITER (OI-109 closed by PR-213's port): a SEPARATE
+ * level-load pass, 0x4b1d0 (only call site 0x4d764), sets the plane of EVERY
+ * entry of ALL THREE keys from the same string: entry i of a list chains at
+ * cell i raw (0x4ce52/0x4dd50/0x4aaa0; the 'none' literal 0x91df6 leaves an
+ * empty head and shifts no index), and cell c of any pool rides the count of
+ * '|' before the (c+1)-th 'A' - the last segment when the A's run out -
+ * dispatched through class-table slot +0x5c (setter 0x23b90). The letters
+ * EXECUTE, the PIPES place: no letter ever named a key's plane. */
 #define MAX_PLAN_SPECS MAX_PCM_LAYERS
 #define MAX_PLAN_SPEC_LEN 40
 #define MAX_ANI_CELLS 16
 
 typedef struct {
     int ok;                         /* 1 = the specs line up with the list  */
+    int law;                        /* 1 = cell_plane is filled (a plany=
+                                     * string exists): the PR-212 engine law,
+                                     * valid for ALL THREE placement keys and
+                                     * regardless of `ok` (the engine applies
+                                     * the raw string, never a refuted one) */
     int nlayer;                     /* '|'-separated specs, = the tlo count */
     char spec[MAX_PLAN_SPECS][MAX_PLAN_SPEC_LEN];
     int cell_layer[MAX_ANI_CELLS];  /* animacje cell -> layer, -1 = unnamed */
+    int cell_plane[MAX_ANI_CELLS];  /* ANY pool cell -> plane (PR-212: the
+                                     * '|' count before the (c+1)-th 'A', the
+                                     * total '|' when the A's run out)      */
     int ncell_named;                /* cells the A letters name             */
     int nA;                         /* A letters seen, even when not ok     */
 } plan_t;
@@ -6326,6 +6342,28 @@ static void plany_parse(plan_t *p, const char *plany, int nlayer, int ncell)
     memset(p, 0, sizeof *p);
     for (int i = 0; i < MAX_ANI_CELLS; i++)
         p->cell_layer[i] = -1;
+    /* PR-212: the engine's PLANE LAW, read at exact bytes (pass 0x4b1d0,
+     * 0x4b23d-0x4b286) and applied here to the RAW string the way the
+     * engine applies it: plane(c) = the number of '|' before the (c+1)-th
+     * 'A', the total '|' (last segment) once the A's run out. It runs for
+     * EVERY placement pool at level load, through the setter slot +0x5c;
+     * the engine never refuses a spec, so `law` is independent of `ok`.
+     * KADMAR2's "TALABA" has no '|', so all of its cells ride plane 0. */
+    if (plany && plany[0]) {
+        int pipes = 0, a = -1;
+        p->law = 1;
+        for (const char *c = plany; *c; c++) {
+            if (*c == '|')
+                pipes++;
+            else if (*c == 'A') {
+                a++;
+                if (a < MAX_ANI_CELLS)
+                    p->cell_plane[a] = pipes;
+            }
+        }
+        for (int i = a + 1; i < MAX_ANI_CELLS; i++)
+            p->cell_plane[i] = pipes;
+    }
     if (!plany || !plany[0] || nlayer <= 0 || nlayer > MAX_PLAN_SPECS)
         return;
     p->nlayer = nlayer;
@@ -6486,6 +6524,10 @@ static int obj_layer_selftest(void)
 /* PR-208 selftest: the plany= law, hermetic (synthetic strings, the shipped
  * levels' own values quoted as data). Every case is one the shipped .des
  * files actually carry, plus the two malformed shapes the reader must refuse.
+ * PR-213 adds the engine's PLANE LAW (pass 0x4b1d0) on the same strings:
+ * every cell of EVERY pool gets `pref[]` then `tail` (the total '|' - the
+ * last segment) as its plane, regardless of want_ok: the engine never
+ * refuses a spec, and "TA|TAL" puts cell 0 BEFORE the first pipe, at 0.
  * ZARIA.01/RAN.01 ("T|TA|TALAB"): cell 0 on layer 1, cells 1,2 on layer 2.
  * RAN.01's list starts with a bare `none` AND has 3 A letters, so that cell
  * counts. JUNCTION's whole list is one bare `none`: 0 cells, 0 A letters.
@@ -6499,23 +6541,34 @@ static int plany_selftest(void)
         const char *list;
         int want_ok;
         int want[MAX_ANI_CELLS];      /* -1 = the cell is not named */
+        int npref;                    /* PR-213 cell_plane: pref[] then tail */
+        int pref[6];
+        int tail;
     } cases[] = {
         { "T|TA|TALAB",   3, "ani3.des,ani2.des,ani1.des",        1,
-          { 1, 2, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+          { 1, 2, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+          3, { 1, 2, 2 }, 2 },
         { "T|TA|TALAB",   3, "none,wulkany.des,dymy.des",         1,
-          { 1, 2, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+          { 1, 2, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+          3, { 1, 2, 2 }, 2 },
         { "TL",           1, "none",                              1,
-          { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+          { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+          0, { 0 }, 0 },
         { "T|T|TAAL|TBA", 4, "ani.des,ani1.des,anidemo.des",      1,
-          { 2, 2, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+          { 2, 2, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+          3, { 2, 2, 3 }, 3 },
         { "T|TA|ATALABA", 3, "ani4.des,ani3.des,ani2.des,ani1.des,animdemo.des",
-          1, { 1, 2, 2, 2, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+          1, { 1, 2, 2, 2, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+          5, { 1, 2, 2, 2, 2 }, 2 },
         { "T|TALAB",      2, "ani1.des,none",                     1,
-          { 1, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+          { 1, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+          2, { 1, 1 }, 1 },
         { "TA|TAL",       2, "a.des,b.des,c.des,d.des",           0,
-          { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+          { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+          3, { 0, 1, 1 }, 1 },
         { "T|TA",         3, "a.des,b.des",                       0,
-          { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 } },
+          { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+          1, { 1 }, 1 },
     };
     plan_t p;
 
@@ -6536,6 +6589,23 @@ static int plany_selftest(void)
                                 p.cell_layer[i], cases[c].want[i]);
                 return 1;
             }
+        /* PR-213: the engine's plane law, every cell of every pool, whether
+         * or not this spec `lines up` - 0x4b1d0 never refuses. */
+        if (!p.law) {
+            fprintf(stderr, "plany selftest: FAILED [%s]: the plane law is"
+                            " off (it runs whenever a plany= string exists)\n",
+                    cases[c].plany);
+            return 1;
+        }
+        for (int i = 0; i < MAX_ANI_CELLS; i++) {
+            int wp = i < cases[c].npref ? cases[c].pref[i] : cases[c].tail;
+            if (p.cell_plane[i] != wp) {
+                fprintf(stderr, "plany selftest: FAILED [%s] plane cell %d:"
+                                " %d (want %d)\n", cases[c].plany, i,
+                                p.cell_plane[i], wp);
+                return 1;
+            }
+        }
     }
     /* the list counter itself: a bare `none` alone is not a cell, one inside
      * a list is (RAN.01 needs it to count). */
@@ -7824,15 +7894,17 @@ static void des_placement(place_ctx *pc, llrs *hd_ety,
             if (!tok[0])
                 continue;
             pc->cur_layer = ++tix;
-            /* PR-208: for the animacje= key the plane is the one the level's
-             * OWN plany= spec names for that cell - the k-th 'A' letter in
-             * reading order is the k-th cell of the list (a bare `none` cell
-             * in the middle of a list still consumes a letter: RAN.01). The
-             * other two keys carry no letter in any shipped plany= spec and
-             * keep the PR-61 entry-index model (OI-109). */
-            if (kk == DES_KEY_ANIMACJE && pc->plan.ok &&
-                tix < MAX_ANI_CELLS && pc->plan.cell_layer[tix] >= 0)
-                pc->cur_layer = pc->plan.cell_layer[tix];
+            /* PR-212/213: EVERY pool's cell rides the planies segment that
+             * carries its A - cell_plane is the engine's law verbatim (the
+             * level-load pass 0x4b1d0: entry i chains at cell i raw, the
+             * 'none' token occupies a head and shifts nothing, and the
+             * segment count is dispatched to every entry through setter slot
+             * +0x5c). The letter-named animacje= mapping PR-208 shipped is
+             * the SAME law; cell_layer now only feeds that report line.
+             * Where a level authors no plany= string (none shipped) the
+             * entry-index fallback stays. OI-109 closed by this PR. */
+            if (pc->plan.law && tix < MAX_ANI_CELLS)
+                pc->cur_layer = pc->plan.cell_plane[tix];
             if (!strchr(tok, '.') && ci_eq(tok, "none")) {
                 printf("ll_level: des %s: the %s list carries the bare 'none'"
                        " keyword (the game's own 'nothing here': skipped,"
@@ -8433,8 +8505,10 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                    " plane the placements ride\n");
         else if (!plan.ok)
             printf(": the %d A letters in %d spec(s) do not line up with the"
-                   " %d animacje cell(s) of the list: keeping the entry-index"
-                   " model (PR-61)\n", plan.nA, plan.nlayer, ncell);
+                   " %d animacje cell(s) of the list; the segment law still"
+                   " sets every placement plane from the raw spec (PR-213,"
+                   " engine pass 0x4b1d0) - only the named-cell report is"
+                   " dropped\n", plan.nA, plan.nlayer, ncell);
         else {
             printf(": animacje");
             for (int q = 0; q < ncell; q++)
@@ -8448,8 +8522,9 @@ int ll_level_show(const char *dir, const char *level, double secs, int audio)
                 }
             printf(" (the A letters name %d of the %d cell%s in the list;"
                    " the specs' letters count T:%d L:%d B:%d - T is that"
-                   " layer's own art, L the lew= lion, B the belka= belt; no"
-                   " letter names zwierzaki= or ani_plat=)\n",
+                   " layer's own art, L the lew= lion, B the belka= belt;"
+                   " the segment carrying a cell's A is that cell's plane"
+                   " for all three keys - PR-213, engine pass 0x4b1d0)\n",
                    plan.ncell_named, ncell, ncell == 1 ? "" : "s",
                    nT, nL, nB);
         }

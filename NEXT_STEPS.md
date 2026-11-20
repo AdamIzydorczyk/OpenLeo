@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-213.
+> at PR-214.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -30708,3 +30708,124 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
   rewrite, the section 8 status block, the header numbering
   line and the regenerated index go back together; nothing
   else was touched.
+
+## PR-213 — THE PLANE LAW SHIPS: ALL THREE PLACEMENT KEYS
+## RIDE THE PLANIES SEGMENT THAT CARRIES THEIR 'A', THE
+## ENTRY-INDEX MODEL IS RETIRED, ZARIA'S STONES AND LONA'S
+## ANIMALS LAND ON THE LEVEL'S OWN PLANE, OI-109 CLOSES
+
+KIND: port
+SUBSYSTEM: level placement planes - ported/ll_level.c
+      plan_t / plany_parse / des_placement: the draw,
+      parallax and collision-equality plane of every placed
+      entry of `zwierzaki=` and `ani_plat=`.
+ADDRESSES: 0x4b1d0, 0x4b286, 0x4b23d, 0x4ce52, 0x4ce86,
+      0x4dd50, 0x4aaa0, 0x4aadd, 0x23b90, 0x4d764, 0x4d68b,
+      0x4af10, 0x4b360, 0x4b2f0, 0x52c10
+NAMES: planies, plany=, zwierzaki=, ani_plat=, animacje=,
+      none, plan_t, plany_parse, des_placement, cell_plane,
+      planies_selftest, lv_plany, lv_plany2, KAMIEN, PINGWIN,
+      ZWIERZ1.DES, ZWIERZ2.DES, ZWIERZ.DES, ANIPL2.DES,
+      LEO_OBJ_POS, OI-109, OI-110
+CODE: yes: ported/ll_level.c - plan_t gains `law` and
+      cell_plane[MAX_ANI_CELLS], filled by plany_parse from
+      the RAW planies string exactly as the engine pass
+      0x4b1d0 scans it ('|' count before the (c+1)-th 'A',
+      the total '|' once the A's run out, independent of
+      `ok` - the engine never refuses a spec); des_placement
+      takes cur_layer = cell_plane[tix] for ALL THREE keys
+      (the entry-index fallback stays only where a level
+      authors no plany= at all - none shipped); cell_layer
+      and `ok` now serve the report line alone, whose
+      wording states the full law; planies_selftest pins
+      cell_plane for all eight cases; the PR-61/PR-208/
+      PR-209 model comments were rewritten to the PR-212
+      bytes. Makefile: the lv_plany2 KAMIEN control pin
+      moves to the engine value (layer 2, draw-cam
+      (1200,280)), the leg's header comment and the ok
+      message state the shipped law.
+HOOKS: none new. LEO_OBJ_POS (PR-207) served the before/
+      after measurements; its behaviour is unchanged.
+OPENS: OI-110 - the planies ACTIVATION chain: the
+      [level+0x64] feeder (zeroed 0x4d75d, walked by 'L'
+      at 0x4b2f0), what sets [obj+0x2c] for the +0x60
+      predicate, what verb +0x74 performs, and any
+      consumer of [obj+0x24] beyond the draw insert and
+      the collision gate. The remainders move verbatim
+      from OI-109.
+CLOSES: OI-109 - the plane law of the two un-lettered keys
+      is read (PR-212) AND shipped (this PR).
+CORRECTS: none (the retired entry-index model is code, not
+      a record; its replacement is this PR and the REVERT
+      field below).
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs.
+
+- FAILING TEST FIRST, MEASURED. The lv_plany2 control moved
+  to the engine value BEFORE any code changed - 'OBJPOS
+  leaf=KAMIEN x=1360 y=250 layer=2 draw-cam=(1200,280)'
+  where the port printed layer=1 draw-cam=(1020,254) - and
+  `make verify-level` ran RED (only the planies grep, all
+  other legs green). The planies selftest grew its
+  cell_plane expectations the same way. After the
+  implementation both run green; the full gate re-run
+  serially is 65 ok, 0 warnings, and the fixture-free pass
+  is the usual 13 ok + 21 named SKIPs.
+- THE CHANGE IN ONE PARAGRAPH. PR-212 read the engine's
+  level-load pass 0x4b1d0: entry i of a key list chains at
+  cell i RAW, and cell c of ANY of the three pools rides the
+  count of '|' before the (c+1)-th 'A' of the level's
+  planies string (last segment when the A's run out),
+  written through the setter slot +0x5c. The port already
+  applied that law to animacje= through a different,
+  `ok`-gated path (PR-208); this PR replaces the other two
+  keys' PR-61 entry-index guess with the law itself - a
+  direct scan of the raw string, no validation gate, since
+  the engine runs the pass even on specs the port would
+  call malformed (on malformed specs the planes still come
+  from the raw string; only the named-cell REPORT line
+  degrades, honestly worded).
+- MEASURED BEFORE/AFTER (read-only LEO_OBJ_POS probes, all
+  on the fixtures). ZARIA.01 ("T|TA|TALAB"): KAMIEN
+  (ZWIERZ2, cell 1) layer 1 -> 2, the draw-cam note moves
+  from the (1020,254) parallax camera to the reference
+  (1200,280); ZWIERZ1 (SEP/SURPRISE, cell 2) and ANIPL2
+  (cell 1) stay at 2 - cell 2 was already the level's plane
+  under the index model, which is why verify-play's ZARIA
+  LICHA legs (LICHA is a ZWIERZ1 entry) did not move. The
+  animacje pins (POCISK/BAL/DRABINKA/LINA at cam 37,
+  ANIBACK at layer 1, BAL at 1270) are byte-identical -
+  cell_plane equals the PR-208 map on every ok level, as
+  the same law on the same string must. LONA.05
+  ("T|TAAALAB"): PINGWIN/IGLO (ZWIERZ, cell 2) layer 2 ->
+  1, and the ANIPL2/22/3 entries ride plane 1 (SOPEL/
+  WODOSPAD/SURPRISE measured at 1, the cells that do not
+  enter the view follow the same law) - on LONA.05 the
+  engine puts the animals and the yeti ON the lion's own
+  plane 1, which is also the reference layer. KADMAR2
+  ("TALABA", no '|'): every plane 0 under both models,
+  nothing moves. All 12 shipped levels author plany=, so
+  the no-spec fallback never fires on shipped data.
+- WHY THIS IS NOT JUST A DRAW CHANGE. [obj+0x24] is the
+  collision-equality word (CHECK_ALL_PLANE, PR-16x): after
+  this PR the KAMIEN objects sit on the lion's plane in
+  ZARIA and the penguins/yeti on the lion's plane in LONA,
+  exactly as the engine's own pass assigns them. That is
+  the engine behaviour, not a tuning: if the engine collides
+  the lion with those entries, the port now can too; if it
+  gates them for another reason, that reason is untouched
+  here. The film consequence to watch later is the LONA.05
+  yeti sequence (PR-206's subject), whose plane now matches
+  the reference plane the film draws it on.
+- RISK: the behaviour change is exactly the OI-109 law; the
+  only pin that encoded the old wrong value was the single
+  lv_plany2 KAMIEN line, re-derived to the engine's before
+  the code moved. No other leg changed: verify-play (both
+  ZARIA animal legs), verify-stage, the golden rig and the
+  cutscene/menu legs are unmoved; 0 warnings from the build.
+- REVERT: revert this commit; this record, the OI-109 closed
+  row and the new OI-110 row, the section 8 status block,
+  the header numbering line, the regenerated index, the
+  ported/ll_level.c hunks and the Makefile planies-leg pin
+  and comments go back together; nothing else was touched.

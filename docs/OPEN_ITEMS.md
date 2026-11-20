@@ -960,8 +960,9 @@ OI-108: ZARIA's `animacje=` objects drew through the WRONG PLANE in
 OI-109: the plane of the two placement keys that `plany=` NEVER
   NAMES - `zwierzaki=` and `ani_plat=` - is still not read from the
   engine; the port keeps PR-61's entry-index model there
-  status: OPEN - PR-212 READ THE LAW (below); the row stays
-    open only for port conformance, not for RE
+  status: CLOSED BY PR-213 - the law was read by PR-212 (below)
+    and the port now applies it; the still-unread leads moved
+    to OI-110
   notes: THE LAW (PR-212, exact bytes): one level-load pass,
     0x4b1d0 (its ONLY call site 0x4d764, in the same flow
     that builds the lion at 0x4d668 and sets the lion's
@@ -997,21 +998,47 @@ OI-109: the plane of the two placement keys that `plany=` NEVER
     animacje maps everywhere checked (TUNGA.11 1,2,2,2,2;
     ENA2 2,2,3) - the port's animacje law IS the engine's
     law, extended verbatim to the other two keys.
-      DIVERGENCE, MEASURED with the read-only LEO_OBJ_POS
-    probe (PR-212): the port's raw-index model agrees only
-    where segment == index. ZARIA KAMIEN port 1 vs engine 2;
-    ZARIA ANIPL2 port 1 vs engine 2; LONA.05 PINGWIN port 2
-    vs engine 1 (and ANIPL22/ANIPL3 would ride 2/3 vs 1);
-    KADMAR2 PLAT1 both 0. The port step is a PORT PR,
-    failing test first: lv_plany-style legs with
-    LEO_OBJ_POS asserting the segment law, its control pins
-    (lv_plany2's PAJAK/KAMIEN) re-derived honestly.
-      STILL UNREAD, NAMED: which loader feeds [level+0x64]
-    (PR-105 item 7; zeroed at 0x4d75d, walked by the 'L'
-    pass 0x4b2f0); what sets [obj+0x2c] and what the +0x74
-    verb performs; whether anything consumes [obj+0x24]
-    beyond the draw-list insert (0x52d67 -> 0x57530) and the
-    collision-plane gate. A live-RAM read is no longer
-    needed for this row's question.
-  origin: PR-208; consumer read PR-209; law read PR-212
+      THE PORT NOW RIDES THE LAW (PR-213): plany_parse fills
+    cell_plane[] = the raw segment law for every cell of every
+    pool (independent of `ok` - the engine never refuses a
+    spec) and the placement loop takes cur_layer from it for
+    ALL THREE keys. Measured after the change: ZARIA.01
+    KAMIEN layer 1 -> 2 (with ZWIERZ1/ANIPL2 unchanged at
+    2), LONA.05 PINGWIN/IGLO layer 2 -> 1 = the lion's own
+    plane, KADMAR2 unchanged at 0. The lv_plany2 KAMIEN pin
+    and the planies selftest were re-derived honestly to the
+    engine values BEFORE the code changed (failing test
+    first); verify-play's ZARIA LICHA legs are unmoved (that
+    entry sits in cell 2, the one plane where the old index
+    model already agreed). All 12 shipped levels author a
+    plany= key, so the no-spec fallback never fires on
+    shipped data.
+      origin: PR-208; consumer read PR-209; law read PR-212;
+      port PR-213
+
+OI-110: the planies ACTIVATION chain is unread: what feeds the
+  [level+0x64] chain the 'L' program walks, what sets the
+  [obj+0x2c] flag the +0x60 predicate reads, and what the +0x74
+  verb performs
+  status: OPEN (opened by PR-213, which moved the named
+    remainders here when OI-109 closed)
+  notes: PR-212 mapped the surface exact-bytes: the k-th 'A'
+    calls 0x4b360, which walks cell k of ALL THREE pools and
+    runs +0x60 (0x23b80, `mov eax,[eax+0x2c]` - the
+    predicate) then +0x74 on entries whose flag is set; 'L'
+    runs the same pair on the [level+0x64] chain through
+    0x4b2f0; [level+0x64] is zeroed at level load (0x4d75d),
+    so whatever feeds it does so after that point (PR-105
+    item 7). The placed animals move without any 'A' ever
+    firing for their benefit, so creature motion does not
+    route through that pair - the pair is specifically the
+    per-cell-index activation path for placement entries.
+    Also named: nothing besides the draw-list insert (PR-208:
+    0x52d67 -> 0x57530 keyed on [obj+0x24]) and the
+    collision-plane gate is known to consume [obj+0x24]; the
+    propagation verbs +0x5c variants (0x1ecb0 -> [obj+0x120],
+    0x332f0 -> [obj+0xee], 0x554f0 -> child array
+    [obj+0x40]x[obj+0x3c]) imply the plane flows to attached
+    and child objects for some consumer still unnamed.
+  origin: PR-212 remainders; row opened PR-213
 

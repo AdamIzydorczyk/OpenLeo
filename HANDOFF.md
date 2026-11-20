@@ -1980,6 +1980,23 @@ failing test first, re-deriving the lv_plany2 controls.
 Docs only here: 65 ok / 13 ok + 21 SKIPs unchanged,
 0 warnings.
 
+STATUS PR-213 (THE PLANE LAW SHIPS - OI-109 CLOSED, OI-110
+OPENED): plany_parse now fills cell_plane[] = the engine's
+raw segment law (PR-212's pass 0x4b1d0: '|' count before the
+(c+1)-th 'A', last segment once the A's run out, no
+validation gate) and des_placement takes the plane from it
+for ALL THREE keys; the PR-61 entry-index model is retired
+(except for a no-plany= fallback no shipped level uses).
+Failing test first: the lv_plany2 KAMIEN pin moved to the
+engine value (layer 2, draw-cam (1200,280)), verify-level
+ran RED, then green after the change; the selftest grew
+cell_plane expectations for all eight strings. Measured
+after: ZARIA KAMIEN 1->2 (stones now on the lion's plane),
+LONA.05 PINGWIN/IGLO 2->1 = the reference plane, KADMAR2
+and every animacje pin unmoved, verify-play's ZARIA animal
+legs unmoved. Collision-equality effects are now the
+engine's, by law. 65 ok / 13 ok + 21 SKIPs, 0 warnings.
+
 PLAN STEP PR-206 (object placement fidelity, the user-visible
 thread; register row OI-108): two PRs after this step, neither part
 of closing T1. (5a) [READ] measure where the ORIGINAL draws `.MOV`
