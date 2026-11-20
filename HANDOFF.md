@@ -2067,6 +2067,26 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-237 (READ): the ASK verb is kind-table slot
++0x78. Class-table anchor: slot +0x6c holds the record
+accessor 0x23a10 - exactly 186 tables. +0x78 census:
+0x552e0 x78 (base: 0x53ae0 gate, verb +0x9c, 0x55230),
+0x3df00 x23, 0x50f80 x15, 0x53c90 x14 incl. DRABINKA
+0xa2510, 0x3d990 x5, 0x3d440 x2 (0x96a88/0x99e64, PR-214
+CONFIRMED), 0x3f1c0 x1 - PR-150/216's ladder answer is
+this verb, owner class 0x97cdc; LION answers with 0x27f30.
+Ask loops: 0x553e0 (array [obj+0x40]/[obj+0x3c]) and
+0x4b500 (global [obj+0x34] list, class-id filter
+[obj+0x24]); answers are OR-ed TEventSets. 0x3d440 whole:
+asked-state-1 gate, requester parent [edi+0x30] gate,
+asked verbs +0xdc/+0xf0/+0xd8 (bit [asked+0x66] 0x40;
+[player+0xee] equality; the {AC_STONE} answer), box test
+vs 0x98274 via 0x4a050/0x4a080, requester K_FIRE gate,
+then the two attach entries + [asked+0x106] facing.
+0x28590 = class 0x9a44c's +0x78 override (corrects
+PR-214's 0x9a390+0x134). Next named read: 0x53c90, the
+DRABINKA's own answer verb.
+
 STATUS PR-236 (READ): the K_GEN1 feed machinery is mapped.
 Refresh 0x536ff calls the +0x8c provider slot; the rope
 tables carry the NULL 0x23a60, other classes 0x549f0,

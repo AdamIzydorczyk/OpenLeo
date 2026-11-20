@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-237.
+> at PR-238.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -33544,5 +33544,118 @@ AC_BECZKA/AC_BUTLA, not K_FWD/K_UP/K_DOWN (the 0x91b46
 block, 0-based), and 0x52bb0 switches on the TYPE at
 [msg+4], not the tag - "the engine's tag numbers ARE the
 signal numbers" conflated the two.
+GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-237 — THE ASK VERB IS KIND-TABLE SLOT +0x78: THE ANSWER
+## CENSUS, 0x3d440 WHOLE, AND WHERE 0x28590 AND 0x3f1c0 SIT
+```
+KIND: read
+SUBSYSTEM: objects/ask-verb - the kind-table +0x78 ASK/ANSWER
+verb, the class-table anchor census, 0x3d440 read whole, the
+owners of 0x28590 and 0x3f1c0, OI-078/OI-110.
+ADDRESSES: 0x23a10, 0x99828, 0x9a44c, 0x9a4c4, 0x96a88,
+0x96b00, 0x99e64, 0x99edc, 0xa2498, 0xa2510, 0x9d8a8,
+0x9d920, 0x97cdc, 0x998a0, 0x553e0, 0x55407, 0x55412,
+0x55415, 0x55421, 0x5542b, 0x4b500, 0x4b53e, 0x4b58e,
+0x4b595, 0x4b5a1, 0x4b5a4, 0x4b5ba, 0x4b5be, 0x4b5c5,
+0x4bd30, 0x4bda9, 0x4be09, 0x52790, 0x527cb, 0x552e0,
+0x552fd, 0x55308, 0x55318, 0x55328, 0x3d440, 0x3d465,
+0x3d473, 0x3d482, 0x3d487, 0x3d492, 0x3d4a2, 0x3d4b5,
+0x3d4c1, 0x3d4d8, 0x3d4e5, 0x3d4ee, 0x3d506, 0x3d519,
+0x3d523, 0x3d532, 0x3d55f, 0x3d561, 0x3d56d, 0x3d572,
+0x3d59c, 0x3d5a2, 0x3d5bc, 0x3d5f6, 0x3d60a, 0x3d620,
+0x3d64a, 0x3d66d, 0x3d67d, 0x3f1c0, 0x53c90, 0x3df00,
+0x50f80, 0x3d990, 0x27f30, 0x28590, 0x380d0, 0x1eba0,
+0x1ef71, 0x4a050, 0x4a080, 0x98274, 0x98278, 0x52b10,
+0x53ae0, 0x55230, 0x23c10
+NAMES: ask verb, answer verb, ASK, AC_STONE, K_FIRE,
+ladder_answer_for, class table, anchor, 0x3d440, 0x28590,
+0x3f1c0, 0x53c90, 0x552e0, DRABINKA, KDRABINA, TEventSet,
+TEventSet::OR, 0x97cdc
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE ANCHOR. Every object kind table is
+findable from data alone: slot +0x6c holds the record
+accessor 0x23a10 (PR-235). The anchor gives EXACTLY 186
+tables, including 0x99828, 0xa2498, 0x9d8a8, 0x96a88,
+0x99e64, 0x9a44c - and it is how (b) and (d) are pinned.
+(b) THE ASK VERB IS SLOT +0x78. Two callers iterate
+objects and call [[obj kind]+0x78](obj = eax, request =
+edx, context = ebx), OR-ing every returned TEventSet into
+an answer union: 0x55412-0x55438 walks the array at
+[[obj+0x40], count [obj+0x3c]]; 0x4b53e-0x4b5ca walks the
+global [obj+0x34/0x38] object list (PR-225's links),
+skips self, filters the class id at [obj+0x24] (0x4b5a4)
+or a mask, and asks. The base implementation 0x552e0
+(78 of the 186 tables): empty set, then a 0x53ae0 gate,
+then the class verb [[kind]+0x9c], then 0x55230. THE
++0x78 CENSUS: 0x552e0 x78, 0x3df00 x23, 0x50f80 x15,
+0x53c90 x14 - one of them the DRABINKA table itself
+(0xa2510) - 0x3d990 x5, 0x3d440 exactly 2 (0x96a88/
+0x99e64 - PR-214's "+0x78 entry" pair, CONFIRMED by the
+anchor), 0x3f1c0 exactly 1 - PR-150/216's ladder answer IS
+this verb, and its owner is the single class table
+0x97cdc - and ~40 singletons; the LION table's +0x78 =
+0x27f30 (unread). So the port's ladder_answer_for models
+class 0x97cdc's ask verb; the DRABINKA object itself
+answers asks through 0x53c90, unread.
+(c) 0x3d440, THE WHOLE HANDLER (eax = the asked obj esi,
+ebx = the context/requester edi, edx = request block):
+(1) asked [esi+0x5c] == 1 required, else the base 0x552e0
+answers (0x3d465/0x3d473); (2) the requester's PARENT
+gate [[edi kind]+0x3c] = 0x23c10 -> [edi+0x30] (0x3d482/
+0x3d487); (3) a coordinate pair: x from the requester's
+position getter [[edi kind]+0x68] (0x3d492-0x3d499) and
+the dword at [edx+4] of the request block (0x3d4a2) -
+what the two callers put in that block is not pinned
+(0x4b572-0x4b578, 0x553fa-0x55402) - each summed with the
+asked origin [0xf2]/[0xf6] (0x3d4b5-0x3d4c9); (4) asked
+verb [[kind]+0xdc] at those coords - on true the ASKED
+sets [asked+0x66] bit 0x40 (0x3d4d8-0x3d4e5 - PR-150's
+child-ANY bit, now seen from the ask side); (5) the asked
+[[kind]+0xf0] result must equal [player+0xee] (0x3d4ee-
+0x3d508); (6) asked verb [[kind]+0xd8] - on true the
+ANSWER SET is byte+1 |= 0x40 = signal 14 = AC_STONE and
+nothing else (0x3d523); (7) else the asked's bbox verb
+[[kind]+0x4c] is grown through 0x4a050(...,0x5a)/
+0x4a080(...,0x32) against the static block 0x98274 and
+the coords must fall inside (0x3d532-0x3d59c); (8) the
+requester's K_FIRE bit [edi+0x64] 0x80 (0x3d5a2); (9) the
+requester's [edi+0xd2] gets BOTH attachment entries
+(PR-236): kind 1 distance = midpoint of the grown box
+minus [asked+0xf2] (0x3d5bc-0x3d5d6), payload = the
+facing sign, and the ASKED's facing [esi+0x106] is set
+(0x3d5f6) while [player+0x106] is zeroed (0x3d67d);
+kind 2 key = the built set with K_FIRE byte+4 OR-ed
+(0x3d64a), [entry+8] fed from the asked's [[vt]+0xe4]
+call (0x3d620/0x3d62a - the copy/gate plumbing stays
+open), 12-byte copy at 0x3d66d.
+(d) 0x28590 IS THE +0x78 OVERRIDE OF CLASS 0x9a44c
+(0x9a44c+0x78 = 0x9a4c4, anchor). PR-214's arithmetic for
+this site ("0x9a390 + 0x134") is corrected; its role as a
+pre-stage of 0x3d440 stands (asked state 4 = latch +
+0x283e0, state 3 = box probe on the player + a type-0xf
+message 0x52b10 to it, else the full 0x3d440).
+(e) WHO ASKS: 0x553e0's callers 0x1eba0 and 0x380d0 -
+0x1eba0 sits in the 0x1exxx pair-touch raiser family
+(PR-214/225, same family as the LION's own enqueuer
+0x1ef71); 0x4b500 is called from 0x4b6c0/0x4b87d/
+0x4b89d in its own family; the 0x4b5be ask loop sits in
+0x4bd30, called from 0x527cb inside 0x52790 - PR-129's
+unit class third method. The request blocks are built
+right before the ask at 0x4b572-0x4b578 and
+0x553fa-0x55402; their content is unresolved.
+OPENS: OI-078 top named read now: 0x53c90, the DRABINKA
+own ask answer (+0x78 of 14 tables). Then: what class
+0x97cdc (0x3f1c0's owner) and 0x9a44c are; 0x552e0's
+0x53ae0/0x55230 gates and verb +0x9c; who reaches
+0x1eba0/0x380d0 with which target; the [entry+8] plumbing
+in (9); PR-236's type-0xe sender and [obj+0xa5] bit 1.
+CLOSES: nothing in the register (OI-078 row updated).
+CORRECTS: PR-214 once: the 0x28590 site is 0x9a44c +
+0x78, not 0x9a390 + 0x134 (the (a) anchor); PR-214's
+"held at +0x78 in exactly two tables 0x96a88/0x99e64" is
+CONFIRMED by the same anchor.
 GATE: light: verify-index verify-docs rc=0 (ok);
 ```

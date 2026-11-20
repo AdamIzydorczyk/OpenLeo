@@ -855,6 +855,22 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     0x28590 (table 0x9a390), who sends the type-0xe
     message, who sets [obj+0xa5] bit 1, and whether any
     provider synthesizes K_GEN1 itself.
+    PR-237 PINNED the ask itself: kind-table slot +0x78 IS
+    the ASK/answer verb - 0x553e0/0x4b500 walk objects,
+    call it, and OR the returned TEventSets. A class-table
+    anchor (slot +0x6c = the record accessor 0x23a10) names
+    every table and slot: PR-150/216's ladder answer 0x3f1c0
+    is that verb for exactly ONE class, 0x97cdc, while the
+    DRABINKA table's own +0x78 is 0x53c90 (shared by 14
+    tables) - reading 0x53c90 is the next named step here.
+    0x3d440 (the PR-214 pair 0x96a88/0x99e64, CONFIRMED)
+    answers only when the asked is at state 1 and the
+    requester has a parent and K_FIRE; AC_STONE is its
+    true-branch answer; it is what queues PR-236's attach
+    entries. 0x28590 = class 0x9a44c's +0x78 override
+    (PR-214's 0x9a390+0x134 arithmetic corrected). Open:
+    what kinds 0x97cdc/0x9a44c are, who reaches 0x1eba0/
+    0x380d0's ask, 0x552e0's 0x53ae0/0x55230 gates.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
