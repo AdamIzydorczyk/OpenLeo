@@ -1932,6 +1932,30 @@ y=1546 geometry puzzle, and the unmined ZARIA.02/03 clips.
 LEO_OBJ_ART probe was reverted unused; only --native ships.
 Gates unchanged: 65 ok / 13 ok + 21 SKIPs, 0 warnings.
 
+STATUS PR-211 (OI-107 READ - the YETI physics chain is now
+read end to end, and 1.25 has NO home in the register): the
+axis law is machine-code - the parser 0x52590 (a slot of the
+object's own class table, +0x1c8 in the [obj+8] view 0x9f298)
+stores F/T/G as (X,Y) pairs, the merge 0x52680 (+0x1f4) feeds
+the ctx, and the integrator 0x54250 (+0xc8) reads firsts for
+x and seconds for y: lead "the second of each pair" is DEAD
+for the ground walk. The intent s ([obj+0xba]/[obj+0xbe]) has
+exactly one writer, the input-apply 0x549f0 (+0xcc), and
+every IN path into it is multiple-of-5, |s| <= 10 on x (the
+0x27d60 chase normalizes by 10.0/(|dx|+|dy|); the 0x34495
+terrain path is 10*[obj+0x6d]; the dead-band stores 10/-10/0)
+- lead "partial intent above 10" is DEAD, and 22.0-24.9 px/s
+would need s = 11.0..12.5. The law matches the shipped port
+(steady x = 5*F_x*s/T_x per step); the whole contradiction
+moved to ONE named lead: the per-frame CALL RATE of the step
+wrapper 0x52750 (integrator dispatch at 0x52774, exactly one
+in the image) at its ten class-driver call sites, against the
+PR-134 display cadence. Row stays OPEN. The YETI class graph
+('YETI' 0x91247, factory 0x38498, ctor 0x73e50, views 0x9f298
+/0x9f290) and the .elf-vs-.img table-read caveat are recorded
+in the PR. Docs only: 65 ok / 13 ok + 21 SKIPs unchanged,
+0 warnings.
+
 PLAN STEP PR-206 (object placement fidelity, the user-visible
 thread; register row OI-108): two PRs after this step, neither part
 of closing T1. (5a) [READ] measure where the ORIGINAL draws `.MOV`

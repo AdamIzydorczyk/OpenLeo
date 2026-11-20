@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-211.
+> at PR-212.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -30302,3 +30302,179 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
   tools/re/video_camera_read.py go back together; nothing else
   was touched (the LEO_OBJ_ART probe was reverted inside this
   PR before commit, so ported/ is untouched either way).
+
+## PR-211 — OI-107 READ, BOTH NAMED LEADS ANSWERED NO: THE
+## F/T/G PAIRS ARE X-THEN-Y IN THE ENGINE'S OWN CODE, THE
+## YETI'S WHOLE PHYSICS CHAIN IS MAPPED FROM CLASS TABLE TO
+## CLASS TABLE, AND THE INTENT s IS BOUNDED AND
+## MULTIPLE-OF-5 ON EVERY INPUT PATH — THE 1.25 HAS NO HOME
+## IN THE REGISTER; THE ROW STANDS OR FALLS ON
+## STEPS-PER-SECOND, THE ONE NAMED LEAD LEFT
+
+KIND: read
+SUBSYSTEM: creature physics RE — the YETI class, the F/T/G
+      register chain (parser, merge, integrator) and the
+      intent-input paths. No port behaviour change.
+ADDRESSES: 0x91247, 0x38498, 0x384a8, 0x73e50, 0x73e55,
+      0x73e5c, 0x9f298, 0x9f290, 0x54560, 0x3d8f0, 0x3d901,
+      0x54593, 0x5459c, 0x545aa, 0x543a0, 0x54fe0, 0x55020,
+      0x54250, 0x549f0, 0x52590, 0x52680, 0x525f8, 0x52610,
+      0x45d50, 0x54170, 0x52750, 0x52774, 0x23fc8, 0x264a8,
+      0x2701d, 0x2c3ad, 0x2df08, 0x31fd8, 0x33c98, 0x3620d,
+      0x4fff1, 0x61238, 0x524e0, 0x52540, 0x5250f, 0xa25d4,
+      0x24731, 0x321fe, 0x33348, 0x33310, 0x9cfd0, 0x9d088,
+      0x9d168, 0x9d220, 0x9d2ac, 0x9d338, 0x9d460, 0x542ab,
+      0x542cd, 0x549f9, 0x54a08, 0x54a57, 0x54a82, 0x54a93,
+      0x54ac3, 0x54ae7, 0x27d60, 0x27e1d, 0x909ef, 0x282a1,
+      0x344c8, 0x34495, 0x239f0, 0x4aeca
+NAMES: F=, T=, G=, FC, A_RUN, A_JUMP, LONA.05, YETI,
+      [obj+0x44], [obj+0x6d], [obj+0xba], [obj+0xbe],
+      [obj+0xca], [obj+0x126], [obj+0x12a], OI-107
+CODE: no: no port behaviour change; the reading used objdump
+      sweeps of the text (text.asm, VA = file offset + 0xf000),
+      leodb queries, and direct .elf class-table reads.
+HOOKS: none
+OPENS: none new.
+CLOSES: none. OI-107's two NAMED leads are both answered
+      NEGATIVE and the answers are written into the row; the
+      row stays OPEN with exactly one named lead (the
+      physics-step call rate at 0x52750's ten call sites).
+CORRECTS: none (no record is retracted; the only wrong claim
+      here was mid-PR scratch - it put the integrator at
+      "0x9f298 +0xd0", the 0x9f290 view shift - never
+      committed; the map in the body is the truth).
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs (fixture trees moved aside per the
+      restaging recipe, then restored).
+
+- WHAT YETI IS, BY BYTES. The name string 'YETI' sits at
+  0x91247 and is used at exactly one factory branch, 0x38498:
+  strcmp-guarded, allocation 0x130 (0x384a8), constructor
+  0x73e50 — which stores the method-table views 0x9f298 into
+  [obj+8] and 0x9f290 into [obj+0xc] (0x73e55/0x73e5c). The
+  second view is the same cells shifted by -8; every slot
+  below is stated in the [obj+8] view (the view PR-130's
+  +0xa0 census used), read from build/leo/leo.elf bytes.
+- THE YETI TABLE, FULL MAP (0x9f298): +0x10 = 0x54560, the
+  per-class event handler (jump dispatch on [edx+0x4]; code 5
+  is handled one layer up, at 0x3d8f0, which sets the terrain
+  word [obj+0x6d] and ORs [obj+0x66]|0x40; codes >=6 set or
+  accumulate the position-delta words [obj+0xc2]/[obj+0xc6]
+  at 0x54593/0x5459c/0x545aa); +0xa0 = 0x543a0, the feed
+  dispatcher (PR-99/100, unchanged); +0xc0/+0xc4 = 0x54fe0/
+  0x55020, a [obj+0xb6]-gated contact pair; +0xc8 = 0x54250,
+  THE INTEGRATOR; +0xcc = 0x549f0, the generic input-apply;
+  and in the same table's extended half +0x1c8 = 0x52590,
+  0x52590's record PARSER, +0x1f4 = 0x52680, the merge: the
+  state record is the object, so PR-98's "rec" offsets are
+  object offsets on this class. The same parser/merge pair,
+  at a constant +0x2c slot spacing, occurs in 62 of the 189
+  detected class tables (0x9f298 among them) — a census read
+  from the .elf, not from the stale .img-backed index rows.
+- THE AXIS LAW, PROVEN (closes OI-107 lead 1, pair seconds):
+  the parser stores the pairs F= -> +0x50/+0x54, T= -> +0x58/
+  +0x5c (clamp 130 at 0x525f8/0x52610), G= -> +0x48/+0x4c;
+  the merge copies them into the runtime ctx block as F ->
+  ctx+0x0/+0x4, T -> ctx+0x8/+0xc, G -> ctx+0x10/+0x14, and
+  the node handler 0x45d50 folds selector-matched node pairs
+  into ctx+0x18/+0x1c (the target-velocity pair). The
+  integrator then takes its x legs from ctx+0x0/ctx+0x8 (drag
+  x, force x; the intent multiply is the imul at 0x542ab) and
+  its y legs from ctx+0x4/ctx+0xc (0x542cd), and the
+  velocity-SET leg at 0x54170 reads ctx+0x18 (x) and
+  ctx+0x1c (y). FIRST = X, SECOND = Y. The authored YETI
+  data corroborates: F=100,0 (force on x only), T=50,5,
+  G=0,100 (a 100-scale force on y in every state - a
+  gravity-like term), and no FC/F/I row in A_RUN. So the
+  seconds of T=50,5 / F=100,0 are the Y axis and CANNOT
+  scale the ground x walk: lead 1 is DEAD.
+- THE PER-FRAME PHYSICS STEP, ONE DISPATCH: 0x52750 runs a
+  record pair-then-integrate: it calls [obj+0x44]+0x2c and
+  +0x30 (ctx methods; [obj+0x44] is a ctx built by 0x524e0,
+  which allocs, tags class 0xa25d4 (0x524e8), and runs
+  0x52540 - that copies the authored field block +0x48/0x4c/
+  0x50/0x54/0x58/0x5c, the G, F and T pairs, out of the
+  source record at 0x5250f-0x52530), then calls
+  the integrator at [[obj]]+8 slot +0xc8 (the call at
+  0x52774 — the ONLY +0xc8 slot-dispatch in the image), then
+  [obj+0x44]+0x34. 0x52750 has exactly 10 call sites:
+  0x23fc8, 0x264a8, 0x2701d, 0x2c3ad, 0x2df08, 0x31fd8,
+  0x33c98, 0x3620d, 0x4fff1, 0x61238 — ten per-class frame
+  drivers; their call rate is the open question below. The
+  integrator is also called directly at 0x24731, 0x321fe and
+  0x33348; only 0x33348 (the family whose class tables,
+  0x9cfd0/0x9d088/0x9d168/0x9d220/0x9d2ac/0x9d338/0x9d460,
+  carry 0x33310 at the +0xc8 slot instead of 0x54250) edits
+  the ctx G term before integrating (+/- 5*[obj+0xf2] into
+  ctx+0x10 for states 3/5). YETI's slot is plain 0x54250:
+  that adjustment never touches it. The integrator sits in
+  150 of the 189 detected class tables, at the +0xc8 slot in
+  113 of them — it is the shared physics step for creatures,
+  exactly as PR-133 found for the lion; the two-view trap is
+  that a slot number written for the 0x9f290-style view is 8
+  lower in the [obj+8] view (the mid-PR scratch "+0xd0" was
+  that shift).
+- s IS BOUNDED AND MULTIPLE-OF-5 ON EVERY PATH (closes
+  OI-107 lead 2, partial intent above 10): the integrator
+  reads the intent pair from [obj+0xba] (x, imul at 0x542ab)
+  and [obj+0xbe] (y, 0x542cd). In the whole image the ONLY
+  writer of those two fields is the input-apply 0x549f0: it
+  copies the caller's IN pair (0x549f9/0x54a08) and its
+  contact-node dead-band branches store only the constants
+  10 (0x54a57), -10 (0x54a82/0x54ac3) and 0 (0x54a93/
+  0x54ae7). Every call site of the input-apply slot (+0xcc
+  in this view; the lion's is reached from the level loop at
+  0x4aeca, PR-132 bounded that IN) builds IN with |s| <= 10
+  in multiples of 5, and the only non-binary builders are:
+  0x27d60, a target-chase driver that reads dx=[obj+0x126]-x
+  and dy=[obj+0x12a]-y and passes IN = (round(10*dx/(|dx|+
+  |dy|)), round(10*dy/(|dx|+|dy|))) — the 10.0 double at
+  ds:0x909ef, a 1-norm normalisation that reaches |IN.x|=10
+  ONLY when dy=0 — and 0x34495, which passes IN.x = 10 times
+  the class +0x70 getter (for YETI that getter is 0x239f0,
+  `mov eax,[eax+0x6d]` — the terrain WORD, so 0, 10, 20...),
+  IN.y = 0. Also dead as candidates: the T-raise gate inside
+  the integrator fires only for T_x < 20 (authored 50), and
+  A_RUN authors no FC row, so the 0x54170 target leg is zero
+  for the walk. A ground walk at 22.0-24.9 px/s under this
+  law needs s = 11.0..12.5 — NO s on any path is 12.5 or
+  even non-multiple-of-5. Lead 2 is DEAD.
+- WHAT THE LAW ACTUALLY IS FOR YETI (re-derived from these
+  bytes, matches the shipped port, PR-135): steady x speed =
+  5*F_x*s/T_x per STEP = 10*s units at the authored pair —
+  a pure multiple of the intent, with the register fixed
+  (F_x/T_x = 2). The port runs the same law at its 50 ms
+  step and predicts 20.0 px/s at s=10. The film's 22.0-24.9
+  is the SAME law with 1.1-1.25 steps where the port counts
+  1 — so the 1.25 is now a pure steps-per-second question,
+  not a register question. The remaining read is the STEP
+  RATE: how often the ten 0x52750 call sites run per display
+  frame, against the display cadence PR-134 bounded. That is
+  the row's ONE named lead.
+- WHY NOTHING IS PINNED: no behaviour changed; PR-135's port
+  law is confirmed as the engine's x law by this reading, and
+  a steps-per-second contradiction cannot be pinned until the
+  step-rate read resolves it. The 22.0 burst remains the one
+  a future PR must explain; the 24.9/24.9/25.0 cluster and
+  its |F|/4 = 25.0 coincidence are still unexplained and
+  still recorded in the row.
+- TOOLING CAVEAT, STATED ONCE: every class-table and
+  data-segment number in this record is read from
+  build/leo/leo.elf program headers. build/leo/leo.img holds
+  PRE-FIXUP bytes and the leodb index was built from it, so
+  leodb `dword`/`tables` rows for patched regions are stale;
+  the 0x98278 (lion) view did not read dword-aligned in the
+  .elf scan and no lion slot number is claimed here — only
+  YETI's, byte-verified twice (the 0x73e55 store and the
+  clean table read agree).
+- RISK: none for behaviour — no port code, no test, no pin;
+  both gates re-run unchanged (65 ok; 13 + 21 named SKIPs);
+  0 warnings from a clean build. The epistemic risk: the
+  axis/bounds claims rest on the instruction reads above,
+  reproducible from text.asm and the .elf with the recipes
+  in this record.
+- REVERT: revert this commit; this record, the OI-107 row
+  edit, the section 8 status block, the header numbering line
+  and the regenerated index go back together; nothing else
+  was touched.

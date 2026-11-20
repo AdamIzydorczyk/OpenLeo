@@ -773,18 +773,42 @@ OI-107: the measured YETI ground run does not match the shipped F/T
   the register law with s=10 predicts 19.8-20.0 px/s for the same
   authored pair; two bursts land within 0.4% of |F|/4 = 25.0 px/s,
   the pre-PR-135 law
-  status: OPEN
-  notes: the factor 1.25 has exactly two candidate homes in the
-    authored row, both un-read: the second value of each pair,
-    `T=50,5` and `F=100,0` (PR-98 mapped the pairs to rec+0x50/54/
-    58/5c and only the firsts were ever used), or a partial-intent
-    s above 10 (PR-132 bounded |s| <= 10 for the lion's input path;
-    a ground-walk gate for a creature is un-read). The 2.5-2.6 s
-    bursts have a constant feet row (centroid y constant within the
-    tracker's noise, blob height 55-60), so this is not the jump
-    arc. The 22.0 burst is the one the record must explain; the
-    24.9/24.9/25.0 agreement with |F|/4 is a second unexplained
-    spread inside 13%.
+  status: OPEN - PR-211 read BOTH named leads and both are
+    NEGATIVE; the row now stands or falls on one named lead,
+    the physics-step call rate
+  notes: the two leads this row carried are ANSWERED NO by
+    PR-211's machine-code read. (1) The pairs are (X,Y): the
+    parser 0x52590 -> merge 0x52680 -> integrator 0x54250
+    chain takes the x legs from the FIRST of each F/T/G pair
+    and the y legs from the second, so the seconds of
+    T=50,5 / F=100,0 are the Y axis and cannot scale the
+    ground x walk. (2) s ([obj+0xba]/[obj+0xbe], read at
+    0x542ab/0x542cd) has exactly ONE writer in the image, the
+    input-apply 0x549f0, and every IN path into it is a
+    multiple of 5 with |s| <= 10 on x: the chase driver
+    0x27d60 passes round(10*dx/(|dx|+|dy|)) (the 10.0 double
+    at ds:0x909ef; =10 only when dy=0), the terrain driver
+    0x34495 passes 10*[obj+0x6d], the dead-band branches
+    store only 10/-10/0. Also dead: the integrator's T-raise
+    gate needs T_x < 20 (authored 50), and A_RUN authors no
+    FC row so the 0x54170 target leg is 0 for the walk. A
+    ground walk at 22.0-24.9 needs s = 11.0..12.5 - no such
+    s exists on any path; the register law itself matches the
+    shipped port exactly (steady x = 5*F_x*s/T_x per step).
+    THE ONE LEAD LEFT is steps per second: the engine's step
+    wrapper 0x52750 integrates through the single +0xc8 slot
+    call at 0x52774 and has exactly 10 call sites (the
+    per-class frame drivers 0x23fc8, 0x264a8, 0x2701d,
+    0x2c3ad, 0x2df08, 0x31fd8, 0x33c98, 0x3620d, 0x4fff1,
+    0x61238); how often those run per display frame, against
+    the display cadence PR-134 bounded, is the unread that
+    1.1-1.25 steps-per-frame would explain. The 2.5-2.6 s
+    bursts have a constant feet row (centroid y constant
+    within the tracker's noise, blob height 55-60), so this
+    is not the jump arc. The 22.0 burst is the one the record
+    must explain; the 24.9/24.9/25.0 agreement with |F|/4 is
+    a second unexplained spread inside 13%, still unstated by
+    any law read so far.
   origin: PR-206 referee measurement
 
 OI-108: ZARIA's `animacje=` objects drew through the WRONG PLANE in
