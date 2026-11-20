@@ -1871,6 +1871,39 @@ corrected scene, because the PR-207 film boxes were measured
 against pre-PR-208 renders and the POCISK chain moves - the
 re-check must template-match the stateless ANI1 PICT art.
 
+STATUS PR-209 (OI-109 follow-up READ, no behaviour change): the
+engine's planies consumer is 0x4af10 (exact bytes; the string it
+runs is [level+0x30], parsed by the loader at 0x4d230 with '
+%s' from the "plany" literal 0x91eb4). It is a PROGRAM, not a
+plane table: 'T' drives the tlo layer objects (the T ordinal =
+the layer index; the first 'T' also skips one character the
+shipped strings never carry), 'L' activates the lion
+[level+0x394] and walks a second chain at [level+0x64]
+(0x4b2f0), 'B' runs the belt pair ([level+0x38c] -> 0x448c0,
+0x4a170/0x49bd0), 'A' k calls 0x4b360, which walks cell k of
+EACH of the three placement-key pools (one pool per key,
+[level+0x58 + keyordinal*4] chain-heads arrays, counts at
+[level+0x44 + keyordinal*4], cell parser 0x4c720 with ' ' "%[^,
+" 0x91d6c - our des_list_cells' grammar) running verb +0x60
+then +0x74; any other letter prints "Bledny opis poziomu -
+plany" (0x91d2a). The pool layout confirms PR-60/PR-170 exactly,
+and the new data law is that planies A counts are sized to the
+authored lists. WHAT DID NOT CHANGE: PR-208's plane law and the
+shipped mapping - no handler writes [obj+0x24]; 0x4aaa0/0x4dd50
+build and chain placements without it. WHAT DID CHANGE:
+PR-208's "0x23b90 = verb +0x04 of 211 class tables" is
+WITHDRAWN (the slot +0x04 census: 158 ctor tables hold only
+0x23850/0x23ea0/0x44ec0; 0x23b90 is an accessor thunk inside
+FUN_00023850, the pair 0x23b80/0x23e00 reads +0x2c/+0x24) - the
+211-value scan stands, its reading is corrected. OI-109's leads
+are now concrete: the writer of [obj+0x24] (the +0x24 accessor
+thunks, 146 slot +0x04 call sites, or the entry-ctor family
+behind 0x4df10), the meaning of the +0x60/+0x74 pair, and the
+unnamed feeder of the [level+0x64] chain (PR-105 item 7). The
+TUNGA.11 bound check (5 A's vs a 1-cell zwierzaki pool) is
+stated as measured. Docs + comments only: 65 ok / 13 ok + 21
+SKIPs unchanged, 0 warnings.
+
 PLAN STEP PR-206 (object placement fidelity, the user-visible
 thread; register row OI-108): two PRs after this step, neither part
 of closing T1. (5a) [READ] measure where the ORIGINAL draws `.MOV`

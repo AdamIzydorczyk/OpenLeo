@@ -875,7 +875,11 @@ OI-108: ZARIA's `animacje=` objects drew through the WRONG PLANE in
     their +0x24 is a 0/1 flag paired with a bit-mask test at
     0x5b040+0x276, in a text-run record. The real field's getter/
     user pair is 0x52d67 -> 0x57530 and its setter is 0x23b90
-    (above). The film plan (the three ZARIA I references + the
+    (above). PR-209 read the planies CONSUMER (0x4af10: a
+    per-invocation letter PROGRAM driving tlo/lion/belt/pool
+    cells; it never writes [obj+0x24]) - the plane law above is
+    unaffected, and the engine-side writer of the plane is still
+    open (OI-109). The film plan (the three ZARIA I references + the
     stateless ANI1 PICTs, template-matched by their own art) is
     what a re-check must use; the fruit chain moves.
   origin: PR-205/206 opened; PR-207 re-measured (the film facts
@@ -899,18 +903,41 @@ OI-109: the plane of the two placement keys that `plany=` NEVER
     ([entry+0x24] == [owner+0x24], CHECK_ALL_PLANE) needs for the
     lion to fight them - evidence the animals ride the reference
     plane, NOT proof of how the engine decides it.
-      LEADS: who calls verb +0x04 (0x23b90) with the value, and
-    with what source - the placement ctor family at verb +0x7c
-    (0x537f0, PR-103's unread slot) and the placement walk
-    0x4ddd0/0x4aaa0/0x4bb30 are the two paths; the class tables of
-    the actor classes (TLewZaria and friends, PR-104's factories)
-    are where a per-class constant would sit. A live-RAM read would
-    settle it in one measurement, but the QEMU rig still cannot
-    drive the original into a level (it stays in the movie loop).
+      PR-209 READ THE CONSUMER (0x4af10, exact bytes): planies is
+    a per-invocation PROGRAM - 'T' drives the tlo layer objects
+    ([[level+0x390]+0x58] array) via 0x57710/0x57780, 'L' the
+    lion [level+0x394] + the second chain at [level+0x64]
+    (0x4b2f0), 'B' the belt [level+0x38c] (0x448c0) + the
+    0x4a170/0x49bd0 pair, and 'A' k calls 0x4b360, which walks
+    cell k of EACH of the three placement-KEY pools (one pool
+    per key at [level+0x58 + keyordinal*4], cell count at
+    [level+0x44 + keyordinal*4] - the PR-60/PR-170 layout
+    confirmed) running verb +0x60 (predicate) then +0x74 on each
+    entry; an unknown letter prints "Bledny opis poziomu - plany"
+    (0x91d2a) and reports. So the pass ACTIVATES; it never
+    writes [obj+0x24]. New data law from the same read: sum(A)
+    is sized to the authored lists - >= the shortest key's cell
+    count only at TUNGA.11 (1 vs 5), equal-or-below everywhere
+    else; every shipped letter reaches at least one real cell.
+      LEADS (PR-209, concrete): the writer of [obj+0x24] for
+    placed objects - 0x4aaa0/0x4dd50 build and chain a placement
+    but write no +0x24; the accessor thunks 0x23b80 (`mov
+    eax,[eax+0x2c]`), 0x23b90 (`mov [eax+0x24],edx`), 0x23e00
+    (`mov eax,[eax+0x24]`) sit inside FUN_00023850/0x23ea0 and
+    are reached through class-table slots; the slot +0x04 census
+    (PR-209): 158 ctor-proven tables, targets ONLY 0x23850 (116)
+    / 0x23ea0 (41) / 0x44ec0 (1), and 146 `call DWORD PTR
+    [reg+4]` sites are the call surface. Also unread: what the
+    +0x60/+0x74 pair does (same pair runs on the lion and on the
+    [level+0x64] chain - if it is activation, why do the animals
+    move without it), and which feeder fills [level+0x64]
+    (PR-105 item 7). A live-RAM read would settle the plane in
+    one measurement, but the QEMU rig still cannot drive the
+    original into a level (it stays in the movie loop).
       TEST SURFACE: verify-play pins only `zwierzaki` interactions
     today (ZARIA's LICHA at tick 186, the PR-92 touch raise), so
     changing an animal's plane is exactly the kind of change those
     legs would catch - and the planies fixture's PAJAK/KAMIEN
     control pins (lv_plany2) would have to be re-derived honestly.
-  origin: PR-208
+  origin: PR-208; consumer read PR-209
 

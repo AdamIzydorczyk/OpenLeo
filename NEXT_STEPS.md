@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-209.
+> at PR-210.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -29877,3 +29877,259 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
   go back together; the code change is confined to plan_t /
   plany_parse / des_list_cells / the report / place_ctx.plan / the
   one mapping in the placement loop.
+
+## PR-209 — THE ENGINE RUNS `plany=` AS ITS OWN PER-LEVEL LETTER
+## PROGRAM: `A` WALKS THE PLACEMENT POOL CELL THE SAME ORDINAL
+## OUR PARSES USES; `T`/`L`/`B` DRIVE THE tlo/lion/belt; THE
+## CONSUMER NEVER WRITES [obj+0x24], SO THE PLANE WRITER STAYS OPEN
+
+KIND: read
+SUBSYSTEM: level flow - the engine's plany= interpreter
+      (build/leo/leo.img 0x4af10 and its letter handlers), the
+      placement-pool layout (0x4c720, 0x4cdd5..0x4ceb5, 0x4aaa0,
+      0x4b360), and the class-table slot census correction;
+      port-side: comments only, no behaviour change.
+ADDRESSES: established, all at raw machine code (leodb `dis` =
+      objdump over the exact bytes of build/leo/leo.img, VA =
+      file offset + 0xf000, sha256 edf19a129e85efb8...; the DB
+      was rebuilt this PR and its func table is the Ghidra list
+      in build/decompiled/all/index.csv - the FUN_* names cited
+      here are those VAs):
+  - 0x4af10 THE PLANIES INTERPRETER (Ghidra FUN_0004af10).
+    esi = the level manager; the string is [[esi]+0x30] (0x4af1d
+    `lea ebp,[eax+0x30]`, 0x4af2a `mov ebp,[ebp]`). [level+0x3a0]
+    is the gate: when nonzero the letter bodies are skipped
+    (0x4af54/0x4afb1/0x4afe1/0x4b043 all test it) and 0x1cfd0 is
+    called on entry (0x4af31). 0x4b076 uppercases the byte via
+    0x76e98 and dispatches: cmp 0x42 -> 'B' at 0x4b008; cmp 0x4c
+    -> 'L' at 0x4afe1; 'T' (0x54) at 0x4af54; 'A' (0x41) at
+    0x4afb1; anything else 0x4b0a7 loads esi=0xa92d4, prints via
+    the literal 0x91d2a "Bledny opis poziomu - plany" (the error
+    string PR-59 found in the .des key table), then the report
+    tail. [level+0x30] is filled by the loader: 0x4d230
+    `mov edx,0x91eb4` (the literal "plany") then 0x4d259
+    `call 0x57d30` with ecx=0, ebx=<value>, format ' %s' at
+    0x91eba - ONE %s token, so a planies value carries no space
+    (true of all 13 shipped values).
+  - 'A' 0x4afb1: `mov edx,[esp+0x8]` (the A counter, 0 at entry),
+    `mov eax,esi`, `lea ecx,[edx+0x1]`, `call 0x4b360`,
+    `mov [esp+0x8],ecx` - EXACTLY one increment per 'A' letter,
+    never reset per spec. 0x4b360 (bytes 0x4b360..0x4b3af):
+    0x4b367 `lea edi,[edx*4]` (edi = k*4, held constant); the
+    outer loop walks ecx = esi, esi+4, esi+8 (`lea ebp,[eax+0xc]`
+    / `add ecx,4`) = the three key pools in order; each step
+    0x4b37c `cmp esi,[ecx+0x44]` (that pool's cell count), then
+    0x4b381 `mov eax,[ecx+0x58]` (the chain-heads array),
+    0x4b384 `mov edx,[edi+eax]` = the chain head for cell k of
+    that pool; the chain is +0x34 next, and for each entry
+    0x4b399 `call [ebx+0x60]` (predicate), and if nonzero
+    0x4b3a5 `call [ebx+0x74]` (activate).
+  - THE POOLS, exact: 0x4cd6c..0x4ceb5 is inside the level .des
+    loop. Key literals 0x91dda "zwierzaki" / 0x91de4 "animacje"
+    / 0x91ded "ani_plat" each copy [level+0x40] into the global
+    at 0xcef44 / 0xa94ec / 0xa94e8 (0x4cd85..0x4cdca) = that
+    key's POOL ORDINAL. 0x4cdd5 `call 0x4c720` = the cell
+    parser: it scans items with ' ' "%[^, " (literal 0x91d6c,
+    8-byte-stride array, `lea edx,[eax*8]` at 0x4c735) and
+    counts them. 0x4cdf0 `call 0x76a64` allocates count*4,
+    0x4cdf8 `mov [esi+edx*4+0x58],eax` stores the chain-heads
+    array at [level+0x58 + keyordinal*4], 0x4ce11 zeroes it,
+    0x4ce3b `mov [edx+0x44],count` stores the cell count at
+    [level+0x44 + keyordinal*4], the loop at 0x4ce52
+    (`mov ebx,[ebp+0xe2]` cells, `add edx,8` per step) skips a
+    cell equal to "none" (literal 0x91df6) and otherwise opens
+    the file and calls 0x4dd50(eax=level, edx=[level+0x40],
+    ecx=cell - 0x4dd58 `mov ebp,edx`, 0x4dd62 `mov edx,ecx`),
+    which builds each entry (0x4aaa0 `call 0x4df10` factory,
+    then 0x4aadd `call 0x52c10` = push onto chain
+    [[level+0x58] + keyordinal*4 + cell*4]; the +0x34/+0x38
+    links exact at 0x52c18..0x52c2c), and 0x4ceb5
+    `inc DWORD PTR [esi+0x40]` - the ONLY increment, reached
+    once per placement-KEY record: ONE POOL PER KEY, three
+    pools, ids in .des record order.
+  - 0x4b360's bound, read exactly: each of its three steps
+    compares `[ecx+0x44]` - the CELL COUNT of the key's pool it
+    is walking. Measured against the shipped data (the port's
+    wiring dump gives the key order and every cell count): the
+    minimum cell count across the three placement keys is >= the
+    level's A count on EVERY one of the 13 levels - 3/3/3 vs 3
+    (ZARIA.01, ZARIA.02 3/3/3, RAN.01 3/3/3, KARA.07 3/3/3),
+    2/2/2 vs 2 (KADMAR.07), 3/2/3 vs 3 (KADMAR2, ENA2), 1/5/3
+    vs 5 (TUNGA.11: min 1 - so letters 1..4 exceed the
+    zwierzaki pool's bound; they still reach the 5-cell
+    animacje and 3-cell ani_plat pools), 4/4/4 vs 4 (SADES.06,
+    LONA.05, ENA.03), 1/1/1 vs 0 (JUNCTION). Every shipped
+    letter therefore activates at least one real cell.
+  - 'L' 0x4afe1: `mov eax,[esi+0x394]` = the LION object,
+    `call [[lion+8]+0x74]` (the same activate verb), then
+    `call 0x4b2f0(esi)`: walks [level+0x64] (a SECOND pool-heads
+    array, PR-105 item 7's open half - its feeder is still
+    unnamed) with the same +0x34 chain and the same +0x60/+0x74
+    pair.
+  - 'T' 0x4af54: edi = the T ordinal; the FIRST T (edi==0) calls
+    0x57780([level+0x390] = the tlo controller, edx=0) and adds
+    2 to the ordinal (0x4af78 `add edi,2` - the parser skips one
+    extra character: NO shipped planies token has one, stated as
+    a format caution); later T's call 0x57710 and add 1. Both
+    callees: `mov ebx,level; mov ecx,edx; call 0x57500` (the
+    PR-57 x-law getter) then /100 (0x57723 `mov esi,0x50`, idiv),
+    0x5774a `mov eax,[ebx+0x44]` / 0x5774d `mov edi,[eax+ecx*4]`
+    - the tlo controller shares the pool-array shape: the tlo
+    LAYER objects live at [[level+0x390]+0x58 + layer*4], and
+    0x5776a `call [[layer_obj+8]+0x08]` drives that layer with
+    the computed offsets. The T ordinal = the tlo layer index:
+    one T per spec, and the spec count really does equal the tlo
+    count on all 13 levels (KADMAR2 is ONE tlo layer -
+    "ll_level: parallax: 1 tlo layers" - its tlo= line lists
+    plan_.pcm alone).
+  - 'B' 0x4b008: gated by [[level+0x3ce]+8] != 0; loads the
+    level .des string buffer (lea eax,[esi+0x3ce]) and 0xcef30,
+    calls 0x4a170 (`mov eax,[0xcef2c]; add eax,[0xcf0e8];
+    add eax,0x190` - a field of the main game struct), then
+    0x49bd0([level+0x3b4], [level+0x3ce]+0, low16). Then if
+    [level+0x3a0]==0 and [level+0x38c]!=0, `call 0x448c0` with
+    eax = [level+0x38c] (the BELTA/HUD strip object). Only the
+    field identities are established; 0x49bd0/0x448c0 bodies are
+    NOT read (PR-16x's +0x24 pair at 0x23b80/0x23e00 is a
+    different +0x24: those are table slot +0x330/+0x08 accessor
+    thunks `mov eax,[eax+0x2c]` / `mov [eax+0x24],edx` /
+    `mov eax,[eax+0x24]`).
+  - CALL CONTEXT: 0x609d0 `mov eax,ds:0xcef40; call 0x4af10` -
+    a thin thunk (its head 0x609c0 initializes a record via
+    0x5f3d0 and stores the table 0xa2d6c at [rec+0x9c] first);
+    and 0x4aeee inside the level-message handler (after
+    `mov eax,0xcf068; call 0x563d0`). Per-invocation, not
+    load-time.
+NAMES: plany, planies, FUN_0004af10, FUN_0004b360, FUN_0004b2f0,
+      FUN_0004a170, FUN_00049bd0, FUN_000448c0, FUN_00057710,
+      FUN_00057780, 0x4c720, 0x4cdd5, 0x4ceb5, 0x4aaa0, 0x4dd50,
+      0x4df10, 0x52c10, 0x4d230, 0x609c0, 0xcef40, 0xcef44,
+      0xa94ec, 0xa94e8, 0x91d6c, 0x91d7a, 0x91d2a, 0x91eb4,
+      0x91eba, 0x91dda, 0x91de4, 0x91ded, 0x91df6, level+0x30,
+      level+0x3a0, level+0x390, level+0x394, level+0x38c,
+      level+0x3b4, level+0x3ce, level+0x40, level+0x44,
+      level+0x58, level+0x64, Bledny opis poziomu - plany,
+      des_list_cells, plan_t, plany_parse, leodb
+CODE: no: no behaviour change. ported/ll_level.c comments only: the
+      plan_t block gained the PR-209 engine reading (the
+      interpreter, the three pool groups, the cell ordinal), and
+      the des_list_cells comment now names the engine's own cell
+      parser (0x4c720 + the format literals). No test changed:
+      PR-208's plany_selftest and the lv_plany/lv_plany2 legs
+      already pin the cell ordinal that 0x4b360 uses, and the
+      `ll_level: planies:` report prints the T/L/B counts this
+      record reads.
+HOOKS: none.
+OPENS: nothing new; OI-109 is SHARPENED (its row edited): the
+      planies pass reaches the zwierzaki/ani_plat pools by cell
+      (the 'A' broadcast) but never writes their plane, and no
+      handler writes [obj+0x24] at all. NEW OPEN POINTS inside
+      OI-109:
+      (a) what the +0x60/+0x74 pair does per object (its
+      semantics are unread - the same pair runs on the lion and
+      on the [level+0x64] chain: if it is an activation, why do
+      the animals move without one),
+      (b) the second pool array [level+0x64] (walked by 0x4b2f0
+      under 'L') - still no named feeder: PR-105 item 7 stays,
+      (c) the writer of [obj+0x24] for placed objects: 0x4aaa0
+      builds and chains the placement but writes no +0x24; the
+      candidate accessors are the table thunks 0x23b80/0x23b90/
+      0x23e00 (their call surface: 146 `call DWORD PTR [reg+4]`
+      sites - the slot +0x04 census: 116 tables target
+      0x23850, 41 target 0x23ea0, 1 targets 0x44ec0).
+CLOSES: none. OI-ids touched: OI-109 (notes rewritten), OI-108
+      (one line: the consumer read does not change its remainder
+      - the film re-check of the corrected scene still stands).
+CORRECTS: PR-208's ADDRESSES claim "0x23b90 ... is verb +0x04 of
+      211 class tables". The 211 data references to the value
+      0x23b90 are real (0x968d0..0xa657c, +0x04 mod 4 each), but
+      the slot census says slot +0x04 of the 158 ctor-proven
+      tables holds ONLY 0x23850 / 0x23ea0 / 0x44ec0: 0x23b90 is
+      an accessor THUNK INSIDE FUN_00023850 (it appears in tables
+      at offset +0x330 = slot +0x60's neighbour list, 129 tables)
+      - the claim "verb +0x04" is withdrawn; what stands is the
+      block itself (`mov [eax+0x24],edx; ret` at 0x23b90) and
+      the field. PR-208's DATA law is NOT touched: the engine's
+      own A counter and the loader's pool ordinals are the same
+      numbering, which is the machine-code confirmation of the
+      cell addressing the shipped code and selftest use. What the
+      letters DO in the engine (activation) is a different use
+      from the plane assignment; the plane writer is still
+      unread, exactly as PR-208's NOT-ESTABLISHED paragraph said.
+      PR-60's "each of the keys ... creates the next list
+      ([level+0x40]++)" - CONFIRMED at exact bytes (0x4cd85..
+      0x4cdca store [level+0x40] into 0xcef44/0xa94ec/0xa94e8
+      per key literal, and 0x4ceb5 is the one increment, once
+      per key record): three pools, ids = .des record order.
+      PR-170's "three pools at [level+0x58] + id*4 with id =
+      [level+0x40]++ per placement-KEY occurrence" stands as
+      written. PR-61's loader claim ("the loader hands entry
+      i to cell i of the key's list, 0x4cdf5..0x4ceb5 / 0x4aaa0"
+      - its CORRECTED wording is right: that part is now read at
+      exact bytes; the plane = entry index part stays refuted by
+      PR-208). PR-105's open item "(7) the four object lists at
+      [level+0x58]/+0x64: which placement section feeds which
+      list" - the 0x58 array is now fully fed (above); +0x64
+      stays open. PR-208's KADMAR2 note in its spec-count
+      sentence is CONFIRMED, not an exception: KADMAR2 has
+      exactly 1 tlo layer. The letter-alphabet census {T,A,L,B}
+      stands; the new fact is what each letter DOES.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs (both fixture trees moved aside per the
+      restaging recipe, then restored).
+
+- WHAT THE CONSUMER IS. planies is not a table the game consults
+  to route objects; it is a PROGRAM the level manager runs, per
+  invocation, over the string it parsed at load ([level+0x30],
+  one ' %s' token). The four letters are commands: drive THIS
+  tlo layer, activate the lion and the chain at [level+0x64],
+  run the belt/HUD pair, activate pool cell k. The error branch
+  prints the author-visible Polish sentence "Bledny opis poziomu
+  - plany" - the format is authored data and the engine checks
+  it at runtime.
+- WHAT THE 'A' LETTER ACTUALLY DOES (the honest correction of
+  this PR's own first reading). 'A' k is a BROADCAST over the
+  three placement keys: for each key in .des record order it
+  walks chain-heads[keyordinal][k] and runs the +0x60/+0x74
+  pair on that cell's objects, skipping keys with fewer than k+1
+  cells. It is NOT an "animacje cell k" command: with ZARIA's
+  three 3-cell lists, the three letters step through cell 0 of
+  ZWIERZ2, cell 1 of ANIPL2, cell 2 of ZWIERZ1 as well as the
+  three animacje cells. What the DATA census adds (and it is a
+  real, new law): sum(A) equals the MINIMUM cell count across
+  the three keys on all 13 levels (3,3,3,2,3,3,5*,4,4,4,3,0;
+  *TUNGA: min is 1, so there the letters overrun the short
+  zwierzaki pool - the other two pools are covered exactly).
+  The authors size planies by their own lists. The port's plane
+  mapping (A k -> the plane of the k-th animacje cell) is
+  unchanged by any of this: no pass read here writes a plane,
+  and the PR-208 law stands on its data + film evidence.
+- WHY THIS SHARPENS OI-109 INSTEAD OF CLOSING IT. The
+  zwierzaki/ani_plat pools are allocated and chained exactly like
+  animacje's, and planies' A letters reach them too (by cell,
+  broadcast) - but never their PLANE: no handler writes
+  [obj+0x24]. Their collision dispatch addresses each key's list
+  by its stored global (0xcef44/0xa94e8/0xa94ec = that key's
+  pool ordinal, PR-60's CHECK_ANI/CHECK_ZW paths), i.e. exactly
+  the port's lvl_obj.src+entry model. The DRAW PLANE remains
+  unwritten by any pass read so far: 0x4aaa0/0x4dd50 build and
+  chain but write no +0x24. The next lead is concrete now: the
+  accessors 0x23b80/0x23b90/0x23e00 (the +0x2c/+0x24 pair) and
+  their 146 slot +0x04 call sites, or the entry-ctor family
+  behind 0x4df10.
+- CORRECTION SELF-TEST (what would have broken). PR-208's law
+  survives because it was read from the data, not from a guess
+  about the consumer; the ONLY claim of PR-208 that PR-209
+  refutes is the slot +0x04 wording, and that refutation came
+  from the tool the record itself named (`slots +0x04`, 158
+  tables, three targets). The 211-value scan is kept as the
+  measurement it was; its interpretation is fixed here.
+- RISK: none for behaviour: comments and docs only, no test, no
+  pin, no code path moved. Full verify-all re-run unchanged at
+  65 ok; fixture-free gate unchanged at 13 ok + 21 named SKIPs;
+  0 warnings from a clean build.
+- REVERT: revert this commit; this record, the OI-109/OI-108 row
+  edits, the section 8 status block, the header numbering line,
+  the regenerated index and the two comment blocks in
+  ported/ll_level.c go back together; nothing else was touched.

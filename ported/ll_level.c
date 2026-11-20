@@ -6246,7 +6246,25 @@ static void par_parse(par_t *pp, const char *speed, const char *mainback,
  * entry-index model, which for ZARIA.01 puts ZWIERZ2 on layer 1 and ZWIERZ1
  * (the rhino, the spiders) on layer 2 = main_back, the lion's own plane -
  * which is also what the collision-plane gate needs (see the touch filter in
- * the player code). */
+ * the player code).
+ *
+ * PR-209 READ THE ENGINE'S OWN CONSUMER (build/leo/leo.img, exact bytes):
+ * 0x4af10 walks the plany string the loader parsed into [level+0x30] (key
+ * literal 0x91eb4 at 0x4d230, grammar ' %s' = one token, no spaces) and runs
+ * it as a PROGRAM: 'T' drives the tlo controller [level+0x390] through
+ * 0x57710/0x57780 (index = the T ordinal), 'L' drives the lion
+ * [level+0x394] (its verb +0x74, then 0x4b2f0), 'B' the belt
+ * ([level+0x38c] -> 0x448c0, plus the 0x4a170/0x49bd0 pair), 'A' calls
+ * 0x4b360, whose k-th call walks cell k of EACH of the three placement-KEY
+ * pools (chain-heads arrays at [level+0x58 + keyordinal*4], one pool per
+ * key, [level+0x40]++ at 0x4ceb5 - our lvl_obj.src model, PR-60) and runs
+ * verb +0x60 (predicate) then +0x74 on each entry; any other letter prints
+ * "Bledny opis poziomu - plany" (0x91d2a) and rethrows. So the letters are
+ * RUNTIME ACTIVATION, and the cell ordinals they use are the per-key cell
+ * indices the loader itself keeps (cell count at [level+0x44 +
+ * keyordinal*4], from the ' ' %[^, ' parser 0x4c720 - our des_list_cells).
+ * The plane itself ([obj+0x24]) is NOT written anywhere in that pass: the
+ * data law above stands, its engine-side writer stays open. */
 #define MAX_PLAN_SPECS MAX_PCM_LAYERS
 #define MAX_PLAN_SPEC_LEN 40
 #define MAX_ANI_CELLS 16
@@ -6265,7 +6283,12 @@ typedef struct {
  * one bare `none` token (no dot, ci): that is not a cell, it is the game's
  * "nothing here" keyword. A bare `none` INSIDE a longer list IS a cell:
  * RAN.01's `none,wulkany,dymy` carries 3 planies A letters, so its first
- * cell counts (PR-208). */
+ * cell counts (PR-208). PR-209 confirmed the engine's own cell parser:
+ * 0x4c720 scans items with the format ' ' "%[^, " (literal 0x91d6c) into an
+ * 8-byte-stride array and counts them (count out at 0x4cdd5's caller), and
+ * the string "none" sits at 0x91d7a/0x91d7f - the same split these two
+ * counters implement, and the reason a planies A count equals a key's cell
+ * count. */
 static int des_list_cells(const char *raw, int *only_none)
 {
     if (only_none)
