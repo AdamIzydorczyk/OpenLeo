@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-230.
+> at PR-231.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -32987,6 +32987,118 @@ CORRECTS: PR-228's (d) wording "CLASS ID (vtable word)": the
   [obj+0x8] (the word PR-221 compared to the class globals),
   not the C++ vtable. No code changed, no behaviour changed,
   no hooks.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
+```
+
+## PR-230 — THE COMPLETE CONTROL KEYWORD→BIT TABLE: CH_DIR IS
+## 0x800, [OBJ+0x6d] IS THE ±1 DIRECTION WORD, AND [OBJ+0x99] IS THE
+## ROW-ORDER WORD `rev` NEGES
+```
+KIND: read
+SUBSYSTEM: level-load/state records (the control= parser at
+0x51b0d) and the row-directive verb tables of PR-224 - the
+ldir/rdir/chdir/rev family, OI-111/OI-112 adjacent.
+ADDRESSES: 0x51b0d, 0x51b2e, 0x51b38, 0x51b49, 0x51b6f, 0x51b89,
+  0x51ba3, 0x51bbd, 0x51bd7, 0x51bf1, 0x51c0b, 0x51c25, 0x51c3f,
+  0x51c59, 0x51c73, 0x51c8f, 0x51ca9, 0x51cc3, 0x51cdd, 0x51cf7,
+  0x51d11, 0x51d2b, 0x51d45, 0x51d5f, 0x51d79, 0x51d93, 0x51d99,
+  0x496b0, 0x9223b, 0xa92d4, 0x51dd8, 0x92162, 0x53670, 0x53683,
+  0x459b0, 0x459d0, 0x459f0, 0x45a10, 0x457e0, 0xa0f28, 0xa0f40,
+  0xa0f58, 0xa0f70, 0xa0f88, 0xa0fa0, 0xa0fb8, 0xa0fd0, 0xa0fe8,
+  0x45ea1, 0x45e85, 0x46623, 0x4666b, 0x466b3, 0x45ee5, 0x45f29,
+  0x45f6d, 0x46138, 0x46303, 0x4634b, 0x45800, 0x45870, 0x458e0,
+  0x47c30, 0x47c50, 0x47c70, 0x47c90, 0x52150, 0x52158,
+  0x52171, 0x52184, 0x521a1, 0x521ae, 0x5236b, 0x52377,
+  0x5338d, 0x45b50, 0x32487, 0x324a1, 0x1e25e, 0x27186, 0x54340,
+  0x54bb2
+NAMES: control, CH_DIR, CHECK_ALL, CHECK_LN, CHECK_BASE_LN,
+  INV_V, BY_TX, FRAME_REV, SEQ_REV_X, SEQ_REV_Y, rev, ldir, rdir,
+  chdir, zero, zero_v, zero_t, smpauto, smp_unloop, smp_stop,
+  LL_CTRL_CHECK_ALL, LL_CTRL_CHECK_LN
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE CONTROL KEYWORD-TO-BIT TABLE. The `control=`
+  parser: 0x51b2e zeroes the record flag word [rec+0x12], the
+  loop 0x51b38-0x51dd8 scans tokens with the pattern at 0x92162
+  ("%[^,| \t\r\n]", separators ',' 0x2c and '|' 0x7c), and the
+  chain 0x51b49-0x51d93 is the authoritative table:
+  BY_X = default (matches, sets nothing), BY_Y |= 0x1,
+  BY_TIME |= 0x2, BY_TX |= 0x3, BY_TY |= 0x4, FRAME_REV |= 0x8,
+  SEQ_REV_X |= 0x10, SEQ_REV_Y |= 0x20, CHECK_ANI |= 0x40,
+  CHECK_ZW |= 0x80, CHECK_LN |= 0x100, CHECK_ALL |= 0x1c0
+  (EXACTLY CHECK_ANI|CHECK_ZW|CHECK_LN - it implies CHECK_LN!),
+  CHECK_LEW |= 0x200, SOLID |= 0x400, CH_DIR |= 0x800,
+  INV_V |= 0x1000, DANGER |= 0x2000, CHECK_ALL_PLANE |= 0x8000,
+  CHECK_BASE_LN |= 0x4000, ANTI_SOLID |= 0x10000,
+  SOLID2 = SOLID|0x20000, SEMI_SOLID = SOLID|0x40000,
+  ANTI_POCISK |= 0x80000. An unknown name reaches 0x51d99:
+  0x496b0 formats 'Bledny control %s w pliku %s.' (0x9223b) but
+  only when the stream pointer [0xa92d4] is non-null (it is
+  null in the image). The port's ctrl_flag table (ll_play.c)
+  has NO entry for CHECK_BASE_LN (authored in 8 of the 777
+  members), INV_V (3), BY_TX (0) and no bits for SEQ_REV_X/Y,
+  and its CHECK_ALL does NOT set the CHECK_LN rule bit that
+  ll_play.c:1394/1448 and ll_level.c:1984 test - while
+  ZARIA.01's lion [A_WALK] is exactly
+  'control=BY_X|FRAME_REV|CHECK_ALL|CH_DIR'. Named register
+  item (OI-113).
+  (b) [obj+0x99] IS THE ROW-ORDER WORD (+1/-1). The row-step
+  setup 0x5236b-0x52377 zeroes [obj+0xa1] (PR-100's row clock)
+  AND writes [obj+0x99] = 1 on every state entry; 0x5338d
+  copies it across the state change; the `rev` directive's verb
+  0x459b0 does `neg` on it; the row-cursor walk 0x52150-0x521da
+  tests [obj+0x99] == -1 (0x52184) xored with the SEQ_REV_X
+  test of vtable+0x70 == -1 (0x52158) and the SEQ_REV_Y test
+  (0x52171), and when the result says backward it DECREMENTS
+  the row cursor [rec+4] (0x521ae-0x521b4) instead of
+  incrementing (0x521a5-0x521a9); a guard clause at 0x45b50
+  compares a node operand against [obj+0x99].
+  (c) THE DIRECTIVE VERB TABLES, CORRECTED. The parser window
+  0x45e00-0x46750 builds 0x18-byte verb nodes and names its
+  keyword-to-table map: rev -> 0xa0f28 (0x45ea1), zero_v ->
+  0xa0fa0, zero/zero_t -> 0xa0f88, smpauto -> 0xa0fe8,
+  smp_unloop -> 0xa0fb8, smp_stop -> 0xa0fd0, chdir -> 0xa0f40
+  (0x46623), ldir -> 0xa0f58, rdir -> 0xa0f70. PR-224's slot
+  reading "+0x04 = clone" is WRONG for this family: +0x04 is
+  the APPLY verb. All four start `push ebx; mov ebx,edx;
+  call 0x457e0` (0x457e0 = the owner's own +0x04 verb, applied
+  recursively) and then `mov eax,[ebx]`; ldir's 0x459f0 ends
+  `mov [eax+0x6d],-1`, rdir's 0x45a10 `mov [eax+0x6d],1`,
+  chdir's 0x459d0 `call 0x53670`, rev's 0x459b0 negs
+  [obj+0x99]. The +0x08/+0x0c verbs (0x45800/0x45870) are
+  event-set copies (PR-218's chain getters - confirmed as the
+  same code here), the +0x10 verb (0x458e0) calls the owner's
+  +0x10, and the +0x14 verbs (0x47c30/0x47c50/0x47c70/0x47c90)
+  are the alloc-and-anchor factories of PR-224.
+  (d) [obj+0x6d] IS THE +/-1 DIRECTION WORD, NOT A SPEED. The
+  only immediate stores are +/-1 (0x32487/0x324a1 and friends);
+  it is consumed as a MULTIPLIER (imul at 0x1e25e/0x27186/
+  0x54340/0x54bb2). 0x53670 = `test [ [ [obj+0x50]+[obj+0x5c]
+  *4 ]+0x12 ], 0x800; if set: neg [obj+0x6d]; call
+  [class+0x54]` - by (a) bit 0x800 is CH_DIR, so 0x53670 is
+  the chdir law: a direction change only takes effect in
+  CH_DIR states. The engine's authored uses: rdir 7 lines
+  (incl. ZARIA.01 lion A_DEAD row 181 '1,400,RDIR,GEN K_GEN1'
+  and ZARIA.02 '1,400,RDIR,GEN K_GEN1'), rev 21 lines (incl.
+  ZARIA.01 [A_LOOKUP] row '6,200,REV'), ldir/chdir 0 lines.
+OPENS: NEW OI-113 (register row): (1) the port's ctrl_flag
+  table must set the CHECK_LN rule bit from CHECK_ALL (engine
+  0x1c0), plus CHECK_BASE_LN/INV_V/BY_TX/SEQ_REV entries -
+  ZARIA.01's lion A_WALK depends on (1); (2) the row-order
+  word, the backward cursor walk 0x521a1-0x521b4, and the
+  ldir/rdir/chdir/rev apply verbs are unmodelled - the
+  ZARIA.01 A_LOOKUP oscillation and A_DEAD turn-around are
+  FOCUS 1 rows. OI-078/096/111/112 unchanged.
+CLOSES: nothing in the register.
+CORRECTS: PR-226 (e)/(f): the "[obj+0x6d] speed word" is the
+  +/-1 direction word, and "[rec+0x12] bit 0x800 = state
+  MIRROR" is CH_DIR; 0x53670 is the CH_DIR-gated direction
+  flip reached by chdir, not a state-entry mirror. PR-224's
+  claim that 0x459d0 is `rev`'s execute verb: 0x459d0 is the
+  +0x04 verb of the CHDIR table 0xa0f40; rev's table is
+  0xa0f28. No code changed, no behaviour changed, no hooks.
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.

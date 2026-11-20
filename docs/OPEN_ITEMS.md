@@ -1561,3 +1561,16 @@ OI-112: which authored number a row's TIME is - the engine
     number also reaches the scene's exit-word field through
     0x45750 (PR-194/PR-199). TUNGA.11's lion rows
     `10,6,end_level 1` ... `12,6,end_level 1` are that shape.
+
+OI-113: the engine control bit table is read (PR-230) and the
+  port's ctrl table lags it: CHECK_ALL must also set the
+  CHECK_LN ground-rule bit (engine 0x1c0), and
+  CHECK_BASE_LN/INV_V/BY_TX/SEQ_REV_X/SEQ_REV_Y have no
+  entries or bits; separately the row-order word [obj+0x99]
+  (reset 1 at 0x52377, negated by `rev` 0x459b0, backward
+  cursor walk 0x521a1-0x521b4) and the ldir/rdir/chdir apply
+  verbs writing the +/-1 direction word [obj+0x6d] are
+  unmodelled - ZARIA.01's lion [A_WALK] uses bare CHECK_ALL
+  and its A_DEAD row 181 and A_LOOKUP row 629 use rdir/rev
+  status: OPEN (opened by PR-230)
+  origin: PR-230

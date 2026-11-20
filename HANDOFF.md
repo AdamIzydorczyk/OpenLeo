@@ -2060,6 +2060,34 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-230 (READ): the complete control keyword-to-bit table
+and two corrections. The control= parser 0x51b0d-0x51dd8 is the
+authoritative map (all names above 0x9216e-0x9222f): BY_X=0
+default, BY_Y 0x1, BY_TIME 0x2, BY_TX 0x3, BY_TY 0x4,
+FRAME_REV 0x8, SEQ_REV_X 0x10, SEQ_REV_Y 0x20, CHECK_ANI 0x40,
+CHECK_ZW 0x80, CHECK_LN 0x100, CHECK_ALL 0x1c0 (IMPLIES
+CHECK_LN), CHECK_LEW 0x200, SOLID 0x400, CH_DIR 0x800,
+INV_V 0x1000, DANGER 0x2000, CHECK_ALL_PLANE 0x8000,
+CHECK_BASE_LN 0x4000, ANTI_SOLID 0x10000, SOLID2=0x400|0x20000,
+SEMI_SOLID=0x400|0x40000, ANTI_POCISK 0x80000; unknown names
+format 'Bledny control %s w pliku %s.' behind a null stream
+gate. The port's ctrl_flag lacks CHECK_BASE_LN/INV_V/BY_TX/
+SEQ_REV bits and its CHECK_ALL omits the CHECK_LN rule bit -
+ZARIA.01 A_WALK is BY_X|FRAME_REV|CHECK_ALL|CH_DIR (OI-113).
+[obj+0x99] = ROW-ORDER +/-1: reset 1 next to [obj+0xa1] at
+0x5236b-0x52377, neg by rev's apply verb 0x459b0, cursor walk
+0x52150-0x521da decrements [rec+4] when it says backward.
+The row-directive keyword->table map 0x45e00-0x46750: rev/
+zero_v/zero/zero_t/smpauto/smp_unloop/smp_stop/chdir/ldir/
+rdir -> 0xa0f28/0xa0fa0/0xa0f88/0xa0f88/0xa0fe8/0xa0fb8/
+0xa0fd0/0xa0f40/0xa0f58/0xa0f70; slot +0x04 is APPLY (not
+clone): ldir -1 / rdir +1 into [obj+0x6d] (the +/-1 DIRECTION
+word, not a speed - corrects PR-226), chdir calls the
+CH_DIR-gated flip 0x53670 (bit 0x800 = CH_DIR, not mirror),
+rev negs [obj+0x99]. Authored: rdir 7 lines incl. ZARIA.01
+A_DEAD row 181, rev 21 lines incl. A_LOOKUP row 629. No
+behaviour changed.
+
 STATUS PR-229 (READ): the AC_RECT chain end to end, and the bit
 law that answers OI-078. Five sites enqueue type 0xf =
 LL_SIG_AC_RECT right after the rectangle-intersect test
