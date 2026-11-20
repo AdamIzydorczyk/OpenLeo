@@ -837,6 +837,24 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     here: the [[other]+0x3c] probe + 0x28820's second clause
     word, K_GEN1 delivery to the drabinka, AC_DRAB_CATCH's
     raiser.
+    PR-236 READ the feed machinery: the refresh calls
+    [[kind]+0x8c] (0x536ff) - the rope classes carry the
+    NULL provider 0x23a60; where the slot holds 0x549f0 it
+    evaluates the [obj+0xd2] ATTACHMENT-entry queue: kind
+    1/4 proximity factors to the entry point, kind 2 = OR
+    the entry's own 12-byte key (COPIED at enqueue,
+    0x53f50) into [obj+0x60] when entry+8 is 0 or the
+    object's state ID, then pop. The enqueuer 0x3d440
+    (PR-214's +0x78 entry) needs the player at state 1, a
+    parent at [obj+0x30] (a type-0xe effect, 0x52bef) and
+    the receiver's K_FIRE bit (provider 0x54910 synthesizes
+    it from [obj+0xa5] bit 1; it also synthesizes
+    K_BKWD/K_FWD from the factors). So rope-inherits-
+    lion's-K_GEN1 is an ATTACH path, keyed at enqueue and
+    state-gated. Unread, and the named blockers: who runs
+    0x28590 (table 0x9a390), who sends the type-0xe
+    message, who sets [obj+0xa5] bit 1, and whether any
+    provider synthesizes K_GEN1 itself.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

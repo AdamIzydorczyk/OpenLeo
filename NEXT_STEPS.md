@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-236.
+> at PR-237.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -33401,4 +33401,148 @@ CORRECTS: none
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.
+```
+
+## PR-236 — THE PROVIDERS ARE THE +0x8c METHOD; [obj+0xd2]
+## IS AN ATTACHMENT-ENTRY QUEUE THAT FEEDS SIGNALS INTO [obj+0x60]
+```
+KIND: read
+SUBSYSTEM: objects/provider-attachment - the vtable+0x8c
+providers 0x54910/0x549f0, the [obj+0xd2] attachment-entry
+queue, its enqueuer 0x3d440 and handler 0x28590, OI-078.
+ADDRESSES: 0x54910, 0x54917, 0x54931, 0x5493a, 0x54948, 0x54956,
+0x5495b, 0x54964, 0x54970, 0x549f0, 0x54a02, 0x54a16, 0x54a1b,
+0x54a24, 0x54a37, 0x54a40, 0x54a4e, 0x54a57, 0x54a82, 0x54a93,
+0x54aa2, 0x54b11, 0x54b51, 0x54b63, 0x54b65, 0x54b6a, 0x54b70,
+0x54b76, 0x54b78, 0x54b7e, 0x54b84, 0x54b89, 0x54b8b, 0x54b9a,
+0x54ba5, 0x54bd6, 0x54be9, 0x54e88, 0x551f0, 0x551fc, 0x50f42,
+0x53f00, 0x53f07, 0x53f50, 0x53f62, 0x53f73, 0x53f8b, 0x53fb0,
+0x1ef71, 0x3d440, 0x3d447, 0x3d465, 0x3d473, 0x3d482, 0x3d5a2,
+0x3d5d6, 0x3d5f6, 0x3d5fc, 0x3d618, 0x3d62a, 0x3d64a, 0x3d66d,
+0x3d67d, 0x3dcb0, 0x281b0, 0x28590, 0x285a1, 0x285e7, 0x28654,
+0x28682, 0x52bb0, 0x52bb3, 0x52bc6, 0x52be4, 0x52bef, 0x52b10,
+0x536ff, 0x5370c, 0x53770, 0x5377b, 0x53780, 0x537d4, 0x5c320,
+0x99828, 0x99838, 0x9983c, 0x998b4, 0xa2498, 0xa24a8, 0xa24ac,
+0xa2524, 0x9d8a8, 0x9d8b8, 0x9d8bc, 0x9d934, 0x9a438, 0x9a4c4,
+0x91b46, 0x8138764
+NAMES: provider, attachment entry, TEventSet, TEventSet::OR,
+K_FIRE, K_ALT, K_JUMP, K_BKWD, K_FWD, AC_KOREK, AC_BECZKA,
+AC_BUTLA, KDRABINA, DRABINKA, parent, LL_SIG_*, 0x28590,
+obj+0xd2, obj+0x30
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE PROVIDERS ARE THE +0x8c METHOD CALLED BY
+THE REFRESH. PR-227's block "0x549f2-0x54bf2, dispatch not
+found" IS dispatched: the rope refresh 0x536ff calls
+`[[obj+8]+0x8c]` and 0x53705-0x5370c ORs the result into
+the object's event set at once. That slot on the DRABINKA
+table 0xa2524 and on KDRABINA's 0x9d934 holds 0x23a60, the
+NULL provider - PR-233's finding CONFIRMED; the 0x99828
+family of kind tables (0x99828 = 0x998b4) holds 0x54910,
+the sibling (b), and 0x549f0 appears in ~124 dword slots
+across the class-table families - the exact slot arithmetic
+outside the [obj+8] kind tables is NOT pinned (0x9a438 sits
+in the big-slot family PR-214 addressed as 0x9a390+0x134).
+(b) PROVIDER 0x54910 SYNTHESIZES KEY SIGNALS (partially
+read): bits of [obj+0xa5] set bits of a fresh set - bit 1
+-> signal 39 K_FIRE (byte+4 bit 0x80, 0x5493a), bit 0x10
+-> 40 K_ALT (0x54948), bit 0x20 -> 53 K_JUMP (0x54956);
+[obj+0xba] != 0 -> signal 0x23/0x24 = 35/36 =
+K_BKWD/K_FWD chosen by [obj+0xb6] bit 0x10
+(0x5495b-0x54970, the write tail unread). Index names are
+the 0x91b46 block's 0-based order (PR-234's) read at bit
+positions by the 0x537a0-0x537c7 code (dword = payload>>5,
+bit = payload%32): 33 = AC_KOREK, 28 = AC_BECZKA,
+27 = AC_BUTLA, 39 = K_FIRE.
+(c) [obj+0xd2] IS A QUEUE OF ATTACHMENT ENTRIES, 0x1d bytes
+each (`mov eax,0x1d; call 0x5c320` at 0x3d5fc/0x3d64f):
++0x00 next, +0x04 kind, +0x08 parameter, +0x0c payload,
++0x10..+0x1c a full TEventSet (12B + length), +0x1d a
+second coordinate. Zeroed at object reset (0x54e88). The
+provider 0x549f0 branches on kind: 1 (0x54a1b) - if
+[entry+0xc] != [obj+0x6d] the deadzone shifts by 15
+(0x54a24-0x54a37); the position getter [[kind]+0x68]
+outside entry+8 +/-5 sets [obj+0xba] = 10 / -10 / 0
+(0x54a57/0x54a82/0x54a93); 4 (0x54aa2) - X entry+8 +/-8
+-> +0xba and Y entry+0x1d +/-8 -> +0xbe; 2 (0x54b65) -
+THE SIGNAL INJECTION: entry+8 == 0 (any state) or ==
+[obj+0x5c] (the entry's required state) -> OR the ENTRY's
+own key into [obj+0x60] (0x54b78-0x54b84); a non-matching
+state skips merge AND pop (0x54b76 jne to 0x54b90) - the
+entry waits for the state. Any RESOLVED entry is popped at
+0x54b8b: 0x551f0 is `head = [head+0]`; 0x50f42 loops it
+to drain. Then 0x54b90-0x54bd4: [obj+0x71] = -1/1 from
+the sign of [obj+0xbe], [obj+0xb6] bit 0x10 from the sign
+of [obj+0xba]*[obj+0x6d]; [obj+0xa5] = [[obj+8]+0x8]'s
++0x8 (0x54be9).
+(d) ENQUEUERS. 0x53f00 builds kind 1 with an EMPTY key
+(0x749a0) - callers 0x1ef71 (PR-214: the LION's own pair-
+touch append) and 0x3d618; 0x53f50 builds kind 2 and
+COPIES a 12-byte key argument into the entry
+(0x53f73-0x53f88) - its only caller is 0x3d66d. Both sit
+in 0x3d440 (eax = the player, ebx = the receiver): it
+first requires [[player]+0x5c] == 1 (0x3d465 - else
+0x552e0), then that the RECEIVER HAS A PARENT: the +0x3c
+accessor 0x23c10 reads [obj+0x30] and null means leave
+(0x3d482/0x3d487); then the receiver's own K_FIRE bit
+([obj+0x64] bit 0x80, 0x3d5a2 - (b)'s synthesized bit).
+It computes midpoint(two stack locals, 0x3d5bc-0x3d5d8)
+minus [player+0xf2] as the kind-1 distance, a facing sign
+towards the player into [receiver+0x106] (0x3d5e2-0x3d5f6)
+AND as the kind-1 entry's payload word, then queues kind 2
+with a copy of a stack event set built at 0x3d63b-0x3d64a
+(constructed empty, then byte+4 bit 0x80 = K_FIRE OR-ed
+in) - WHICH of the two 12-byte locals 0x53f50 copies and
+what the kind-2 state-gate word gets (the player's
+[[vt+0xe4]] call at 0x3d624 feeds the plumbing) is NOT
+pinned; what is pinned is that the copy happens ONCE, at
+enqueue time. It also zeroes [player+0x106] (0x3d67d).
+0x3d440's only direct call is 0x28682, the fall-through of
+handler 0x28590 - receiver state 4 = a latched special
+([obj+0x112], player state 4 too, 0x285a1-0x285d7), state
+3 = a box test around the player then a type-0xf message
+0x52b10 (0x28654), else the attach. 0x28590 sits in one
+dword slot, 0x9a4c4 = 0x9a390 + 0x134 (PR-214's
+numbering); 0x3d440 itself is held at +0x78 of exactly two
+tables, 0x96a88/0x99e64 (PR-214), and 0x28590's class is
+unnamed in our notes.
+(e) THE ROPE CLASSES. DRABINKA 0xa2498: +0x10 = 0x53770,
+its OWN +0x10 handler - type 0x10 + tag 0x8138764 -> a
+one-bit set built from the payload OR-ed into [obj+0x60]
+(0x537d4): the same effect as the base handler, so PR-235's
+contact raise reaches the rope too; any other type falls to
+0x52bb0. KDRABINA's 0x9d8a8 mirrors +0x10 = 0x53770 and
++0x14 = refresh 0x536f0, +0x8c = null. Base handler
+0x52bb0 dispatches the message TYPE at [msg+4]: 1 = move
+delta (PR-225), 0xe = store the object at [msg+8] into
+[obj+0x30] - THE PARENT SETTER behind 0x3d482's gate
+(0x52bef), 0x21 = set [obj+0x28], others fall through.
+The LION table 0x99828: +0x10 = 0x3dcb0 (the 0x3d4xx
+mover family - where 0x3d440 lives), +0x14 = 0x281b0 (the
+0x28xxx family - the AC_DRAB raiser's neighbourhood),
++0x8c = 0x54910, +0xc8 = 0x54250.
+OPENS: OI-078, named next: (1) which message/class runs
+0x28590 (its table 0x9a390 is unnamed in our notes); (2)
+who sends the type-0xe (and 0x21) messages - who sets
+[rope+0x30] = the lion (PR-214 covered only the LION's own
+list via 0x1ef71); (3) who sets [obj+0xa5] bit 1, the flag
+the provider turns into K_FIRE; (4) whether any provider
+synthesizes K_GEN1 (unread tails past 0x54970, and the
+rest of 0x549f0's key paths); (5) pin the (d) copy source
+and the kind-2 state-gate word. PR-235's [[other]+0x3c]
+probe and the AC_DRAB_CATCH raiser stay.
+CLOSES: nothing in the register (OI-078 row updated).
+CORRECTS: PR-227 twice: (i) "if the RELATED OBJECT's word
+at +0x10 exists, its +0x60 TEventSet is OR-ed into OUR
+[obj+0x60]" - [obj+0xd2] is not a related object but the
+entry queue, and the merge source is the ENTRY's own key,
+copied at enqueue time, not a live partner's set; (ii) "its
+dispatch was not found" - the block is the kind-table +0x8c
+provider method, ~124 tables. PR-225 once: (iii) its names
+for raised indexes 33/28/27 - they are AC_KOREK/
+AC_BECZKA/AC_BUTLA, not K_FWD/K_UP/K_DOWN (the 0x91b46
+block, 0-based), and 0x52bb0 switches on the TYPE at
+[msg+4], not the tag - "the engine's tag numbers ARE the
+signal numbers" conflated the two.
+GATE: light: verify-index verify-docs rc=0 (ok);
 ```

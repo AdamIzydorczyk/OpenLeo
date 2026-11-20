@@ -2067,6 +2067,25 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-236 (READ): the K_GEN1 feed machinery is mapped.
+Refresh 0x536ff calls the +0x8c provider slot; the rope
+tables carry the NULL 0x23a60, other classes 0x549f0,
+which evaluates the [obj+0xd2] attachment-entry queue
+(kind 1/2/4; entries 0x1d bytes: next/kind/param/payload/
+12B-key/Y). kind 2 ORs the ENTRY's own key (copied at
+enqueue by 0x53f50) into [obj+0x60] when entry+8 is 0 or
+the object's state ID, then pops (0x551f0 = head pop,
+PR-227's "related object" phrasing corrected). Enqueuer
+0x3d440 requires player state 1, [obj+0x30] parent (set
+by type-0xe messages at 0x52bef) and the receiver K_FIRE
+bit, which provider 0x54910 synthesizes from [obj+0xa5]
+bit 1 (also K_ALT/K_JUMP/K_BKWD/K_FWD). Rope tables'
++0x10 = 0x53770: signal bits reach the rope like the
+base handler. PR-225(c)'s names for raised indexes
+33/28/27 corrected to AC_KOREK/AC_BECZKA/AC_BUTLA. Open:
+who runs 0x28590 (0x9a390+0x134), the type-0xe sender,
+[obj+0xa5] bit 1, any K_GEN1-synthesizing provider.
+
 STATUS PR-235 (PORT): the AC_DRAB contact raise (0x287a0) is
 in the model. The state RECORD ID word = the authored block
 position: the block parser zeroes ds:0xceff8 (0x5150b) and
