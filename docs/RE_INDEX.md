@@ -40,9 +40,9 @@ token, never that the engine author WROTE it. A key with NO
 current - the ledger simply never wrote a correction for it; deciding
 whether an uncorrected claim still stands means reading its records.
 
-# entries: 635 address keys (>=3 records) = 3435/7198 (47%)
+# entries: 635 address keys (>=3 records) = 3435/7199 (47%)
 # of all address mentions; 144 field tokens (>=3) = 64%
-# of field mentions; 225 authored names (all of them). Built from 189 records.
+# of field mentions; 226 authored names (all of them). Built from 190 records.
 
 
 ## Addresses
@@ -3528,6 +3528,10 @@ whether an uncorrected claim still stands means reading its records.
         mentions: PR-176 PR-185 PR-187 PR-188 PR-191 PR-192
         latest mention: PR-192
 
+### crop= - 6 records
+        mentions: PR-108 PR-111 PR-124 PR-131 PR-134 PR-205
+        latest mention: PR-205
+
 ### AC_RECT - 5 records
         mentions: PR-94 PR-152 PR-174 PR-177 PR-199
         latest mention: PR-199
@@ -3559,10 +3563,6 @@ whether an uncorrected claim still stands means reading its records.
 ### K_DOWN - 5 records
         mentions: PR-43 PR-85 PR-108 PR-173 PR-192
         latest mention: PR-192
-
-### crop= - 5 records
-        mentions: PR-108 PR-111 PR-124 PR-131 PR-134
-        latest mention: PR-134
 
 ### AC_LINA - 4 records
         mentions: PR-108 PR-149 PR-150 PR-155
@@ -4235,6 +4235,10 @@ whether an uncorrected claim still stands means reading its records.
 ### silent= - 1 record
         mentions: PR-17
         latest mention: PR-17
+
+### size= - 1 record
+        mentions: PR-205
+        latest mention: PR-205
 
 ### suspect= - 1 record
         mentions: PR-120

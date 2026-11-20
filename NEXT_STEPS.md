@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-204.
+> at PR-205.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -29286,3 +29286,141 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
 - RISK: LOW. One appended rule; no file the build reads changed.
 - REVERT: revert the commit; rule 11 and the header line go back
   together.
+
+## PR-205 — THE ORDERED RE-WATCH OF THE FIRST-CHASM CROSSING
+## (T1 STEP 1): THE APPROACH IS FILMED UP TO THE CANOPY, THE
+## CROSSING ITSELF IS NOT, AND THIS CLIP STOPS MEASURING
+## POSITIONS AT t=31.25s OF levels/ZARIA.01.mkv
+
+KIND: read
+SUBSYSTEM: footage measurement of the level camera; the
+      first-chasm approach in ZARIA.01 clip A
+ADDRESSES: none
+      No engine address is established or retracted. This is
+      the first engine-work record after the docs line
+      PR-196..204, and it carries in its designated place the
+      owner's resumption ruling of 2026-11-20: the docs line
+      PR-196..204 is CLOSED as a line, and implementation
+      RESUMES on the HANDOFF section 8 T-task basis, one PR
+      at a time, until the owner stops it.
+NAMES: ZARIA.01.mkv, ZARIA_A.PLT, ETAPY, ZWIERZ2.DES, KAMIEN,
+      DRABINKA, plan4.seq
+CODE: yes: docs only - this record, the journal header
+      numbering line, the HANDOFF section 8 T1 status line,
+      and the regenerated docs/RE_INDEX.md; nothing under
+      ported/ or original/ changed.
+HOOKS: none
+OPENS: none.
+CLOSES: none. The ordered re-watch step is completed in the
+      HANDOFF section 8 T1 status line - a T-task step is a
+      plan item, not a register row, and no register row
+      exists for it.
+CORRECTS: PR-131: "down at t=25-28 of levels/ZARIA.01.mkv"
+      as the descent east-side of the chasm. The verified
+      cameras at t=22.0s and 28.5s are (1,150) and (1,270),
+      whole views x 1..321, all west of the chasm's west lip
+      at x=408 - the t=25-28 descent happens above the
+      ladder/canopy area, on the WEST side of the gap.
+GATE: make 0 warnings; verify-all fixtures rc=0 64 (ok);
+      the counts equal PR-204's ON PURPOSE - nothing under
+      ported/ changed and verify-docs stays ONE leg;
+      verify-docs and verify-index are green on the final
+      tree and every line this commit adds is <=79 columns.
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs, identical to PR-204's - the docs legs run
+      in both fixture modes and only their insides changed.
+
+- WHAT WAS ORDERED, AND WHAT THIS RECORD ANSWERS: the section
+  8 PR-131 status line ordered a re-watch before any running
+  jump at the first chasm is treated as the reference ("do
+  not treat a running jump at that chasm as the reference
+  until re-watched"). The re-watch is done. The crossing
+  itself is STILL not observed; the approach is now measured;
+  and this clip's instrument boundary is measured, so the
+  answer states what the clip can and cannot ever show.
+- WHAT THE AUTHORED DATA SAYS, BYTE FOR BYTE (HD dir the
+  ETAPY container, block ZARIA.01; record table dumped with
+  offsets, /tmp/opencode/pr205/zaria01_offsets.txt): record
+  `ZARIA_A.PLT id=1 off=0x36fc size=1102`. The west ground
+  line ends `1 -50,680!408,684;` and the next ground line
+  starts `3 624,673!706,681!736,694!984,686;` - the first
+  chasm is the empty span x 408..624, 216 units wide, open
+  to the world floor `1 -100,1500!3000,1500;`. Over it runs
+  the canopy line `5 98,514;288,520;379,503;453,504;539,536;
+  589,566;` - its points 453,504 and 539,536 sit mid-gap, so
+  the authored over-route of this chasm exists in the data.
+- THE INSTRUMENT, run wholly on this machine (rules 7 and
+  11): frames of reference/video/levels/ZARIA.01.mkv (R3
+  clip A, 60 fps CFR, the game band crop=1152:720:0:0,
+  scored resized 320x200) against `ll_level` renders at
+  pinned cameras with LEO_LEVEL_NO_OBJ=1, scored by mean
+  absolute luma difference. The bands were re-anchored on
+  THIS clip through ONE pipeline: three independently
+  supported cameras score 9.9 / 10.4 / 15.4; same-frame
+  shifted-camera controls score 25.7 / 36.6 / 42.0; a known
+  wrong camera at t=38.0s scores 43.4. Therefore, for this
+  clip: MAD <=17 means a verified camera, >=24 a mismatch.
+- THE VERIFIED READINGS: t=22.0s camera (1,150) MAD 9.9;
+  t=28.5s camera (1,270) MAD 10.4; t=31.25s camera (231,
+  210) MAD 15.4. The last is the only verified frame of the
+  clip whose view (x 231..551) contains ANY part of the
+  chasm span: the west lip at 408 lies inside it. In that
+  frame the lion's feet sit at world x about 306, y about
+  393, on a static branch art piece that is present in the
+  verified render at the same place - 102 units west of the
+  west lip and far above both the west ground line (y 680-
+  684) and the canopy polyline (y 503-536). So the last
+  verified frame shows the player high in the canopy,
+  moving toward the gap on the authored over-route side.
+- WHERE MEASUREMENT FAILS: at t=37.5s and 38.0s NO camera
+  in x -900..1761 reaches the verified band. The west grid
+  (x 1..561 step 80, y 91..411) bottoms at 26.4 / 24.3; the
+  east grid (x 561..1761 step 100, y 111..511) is flat at
+  24.4-26.1; the negative-x grid (x -900..-100) is flat at
+  26.3-28.9, which says those cameras render nothing but
+  synthesised background. Looking at the pairs shows why:
+  from t about 32s the frames are dominated, at any plausible
+  camera, by content a NO_OBJ render excludes - the lion
+  figure, hanging red fruit, a banana bunch, a purple bird
+  at the view edge - over the tiled background layers, which
+  the port synthesises (bg_at) and can never reproduce frame
+  for frame. The landmark reader's t=37.6-40.6s reads,
+  anchored on the `plan4.seq` PICT template placed at
+  (450,490) by ANI1.DES, are exactly the false matches
+  PR-138 measured: the reader's "crossing" reads REJECT.
+- NO CUT: consecutive one-second frame differences across
+  t=28..46 run 8.6-36.2, no isolated spike and no quiet pair
+  - t=32..44 is one continuous take, not a splice.
+  Continuity alone does not make the span measurable.
+- THE 2 fps CONTACT SHEETS (qualitative, not measurements):
+  from t=31.5s to t=38.5s the lion stays high on static
+  branch art - east at t=32-34, back west at t=35.5-37.5 -
+  and no sheet frame shows a drop into the gap region.
+- THE VERDICT: the first-chasm crossing remains UNOBSERVED.
+  No verified frame of this clip puts the lion above x
+  408..624 at any height. The PR-131 BYPASS reading (ladder,
+  canopy) is strengthened approach-side - the last verified
+  position is on the canopy route toward the gap - and stays
+  unmeasured AT the gap. This clip will never add the T1
+  jump-range number: no running jump at this chasm is on
+  film, and none is filmable here. The T1 video fixtures
+  stay the zax37 running jumps, ep.1 ~316-317 s and ep.2
+  ~465 s.
+- PROCESS NOTE: measurements taken earlier in this session
+  ran through the `lin` wrapper before rule 11 was weighed;
+  every number quoted above was produced or re-produced on
+  this machine through the plain shell, and only those runs
+  are quoted. The earlier intermediates (same instrument, a
+  different resize path) agreed with the quoted runs within
+  2 MAD points and carry no claim here.
+- WHY RECORD A NEGATIVE: the re-watch was the ordered T1
+  step, and its product IS this boundary - what ZARIA.01
+  clip A can show (the approach, the canopy edge, the
+  authored over-route) and what it cannot (the gap, any
+  crossing) - pinned with bands and counts, so no later PR
+  spends another 300 renders rediscovering that wall.
+- RISK: LOW. No build input changed; the docs legs are the
+  check.
+- REVERT: revert this commit; the section 8 status line,
+  this record, the header numbering line and the regenerated
+  index go back together.

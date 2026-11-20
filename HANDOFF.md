@@ -1871,6 +1871,27 @@ water surface at 305-307). The measurement windows are named in
 contact damage long before x=408 (G-5, CLOSED by PR-139 - the
 corrected contact model is what lets him reach x=180). The probe is run
 again as PR-140.
+STATUS after PR-205 (the ordered re-watch of this crossing: DONE;
+it closes the "until re-watched" condition above and narrows that
+line's "down at t=25-28" wording per the PR-205 CORRECTS line):
+the crossing is STILL not observed, and this clip can never supply
+it as a measurement - the last verified frame is t=31.25s, camera
+(231,210), the lion's feet near x=306 on static branch art, 102
+units WEST of the chasm's west lip (x=408) and far above the
+canopy polyline, that frame's view covering the west lip itself;
+at t=37.5s and 38.0s no camera in x -900..1761 matches the port's
+statics renders at all - a floor of 24.3-28.9 MAD against verified
+readings of 9.9/10.4/15.4 and shifted-camera controls of
+25.7-43.4, because from t about 32s the frames are dominated by
+object-class content and tiled background that the statics render
+excludes. The verified approach CONFIRMS the BYPASS reading
+approach-side (ladder at x=180, then along the canopy toward the
+gap) and leaves it unmeasured AT the gap; a running jump at this
+chasm is not on film and is not filmable in this clip. T1's video
+fixtures for the jump range are UNCONDITIONALLY the zax37 jumps
+(ep.1 ~316-317 s, ep.2 ~465 s), not "until re-watched". The full
+measure, byte citations and the instrument bands: the PR-205
+record.
 
 **T2. The lion's attack and enemy energy.**
 Goal: kill the first LICHA. Where: `LEW.MOV` states `A_FIGHT*`, `A_FG_PACKA*`
