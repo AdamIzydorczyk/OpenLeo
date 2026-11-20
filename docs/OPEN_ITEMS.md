@@ -908,6 +908,31 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     question is whether either writes [obj+0x60] itself -
     then the control-name to bit map, 0x4b890/0x4b870, and
     how 0x520c0 spends the row budget.
+    PR-240 ANSWERS the headline (what raises K_GEN1 on a
+    DRABINKA): the ladder's OWN ask answer does. The answer
+    verb 0x3f1c0 at the asked's first declared state (A_UP,
+    [asked+0x5c] == 1) gates on the requester having a
+    PARENT (0x3f1e9) and 0x44ec0 - an ANY-test over the
+    12-byte-element vector at [[asked+0xa5]], count
+    [asked+0xa9], each element's class verb +0x8 against
+    the requester's [[kind]+0x4c] object (0x23a20) - and on
+    true 0x3f203-0x3f20c sets byte 6 mask 0x40 of the
+    asked's OWN live set: bit 54 = K_GEN1 (the store the
+    port has long counted as "sets [self+0x66] bit 6"), and
+    the answer itself is empty. The next step's composition
+    (0x53725) puts it in [obj+0x60], where the authored
+    `A_DROP(1)=K_GEN1` line matches: the chain A_UP ->
+    A_DROP -> A_DOWN is reachable and needs no external
+    sender. Ruled out here: the record-class +0x30 verb
+    0x2b4d0 is a bare `ret`; the rope's kind-table +0xc8
+    0x54560 is a message handler that never writes
+    [obj+0x60]. NEXT: the PORT of the self-raise, and the
+    paired read of the ask that triggers it (whose ask
+    channel is on, and the rope's [obj+0xa5] contact
+    vector); also open, who sends type 0xe (the parent
+    store, an ARM of the base handler 0x52bb0 at 0x52bef,
+    not a table slot) and type 0x21 (which sets the
+    frame-step flag [obj+0x28] - a second feed of it).
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

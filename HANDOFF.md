@@ -2067,6 +2067,31 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-240 (READ): OI-078's headline is ANSWERED. The
+ladder raises K_GEN1 on ITSELF while answering an ask: 0x3f1c0
+at the asked's first declared state ([asked+0x5c] == 1,
+A_UP) gates on the requester having a PARENT ([[kind]+0x3c]
+= 0x23c10) and 0x44ec0 - an ANY-test walking the 12-byte-
+element vector [[asked+0xa5]] (count [asked+0xa9]) calling
+each element's class verb +0x8 with the requester's
+[[kind]+0x4c] object (0x23a20) - then 0x3f203-0x3f20c does
+`[asked+0x66] |= 0x40` = bit 54 = K_GEN1 on the asked's own
+live set (the store the port counts as "[self+0x66] bit 6")
+and answers nothing. Next step 0x53725 composes it into
+[obj+0x60] and the authored `A_UP` `A_DROP(1)=K_GEN1` line
+matches: A_UP -> A_DROP -> A_DOWN is reachable with no
+external sender. The same store sits in the KAMIEN answer
+0x3d440 at 0x3d4e5 (also K_GEN1, not a "child-ANY bit").
+Ruled out: record-class +0x30 = 0x2b4d0 (bare `ret`), the
+rope's +0xc8 = 0x54560 (a message handler over
+[obj+0x6d]/[0x71]/[0xc2]/[0xc6]/[0xb6], never [obj+0x60]).
+Base message handler 0x52bb0 (the receiver's fallback at
+0x537dd): type 1 = position deltas, 0xe = `[obj+0x30] =
+[msg+8]` (the parent; 0x52bef is an ARM, not a +0xc8 slot -
+corrects PR-236), 0x21 = `[obj+0x28] = 1` (PR-225's
+frame-step flag has a second feed). NEXT: port the
+self-raise (test first) and read the ask that triggers it.
+
 STATUS PR-239 (READ): the per-step key composition, end to
 end. 0x523f0 (called at 0x5371c) = record-class +0x8 0x52750
 + row step 0x521f0 + the owner kind-table +0xa8/+0xac + a

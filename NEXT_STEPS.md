@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-240.
+> at PR-241.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -33953,5 +33953,112 @@ CORRECTS: none. The refuted row-key model of this work was
 never shipped, so no shipped record carries it; (a)-(c) do
 correct one in-passing assumption: the owner kind-table
 +0xa8/+0xac verbs contribute nothing for the placed rope.
+GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-240 — OI-078 ANSWERED: THE LADDER RAISES K_GEN1 ON
+## ITSELF WHEN IT ANSWERS AN ASK ([asked+0x66] BIT 0x40 =
+## BIT 54), AND THE ASK THAT TRIGGERS IT
+```
+KIND: read
+SUBSYSTEM: objects/ladder - the ladder answer verb's state-1
+branch RAISES K_GEN1 (bit 54) ON THE ASKED OBJECT ITSELF:
+the missing feed of OI-078; 0x44ec0 read; the last two
+record-path channels ruled out; the base message handler's
+type arms.
+ADDRESSES: 0x3f1c0, 0x3f1d4, 0x3f1dc, 0x3f1e4, 0x3f1e9,
+0x3f1ec, 0x3f1f6, 0x3f1fb, 0x3f203, 0x3f206, 0x3f209,
+0x3f20c, 0x3f214, 0x3f364, 0x44ec0, 0x44ec9, 0x44ee3,
+0x44eea, 0x44ed4, 0x23c10, 0x23a20, 0x97cdc, 0x99828,
+0x96a88, 0x9a44c, 0x2b4d0, 0x52750, 0x5276a, 0x52774,
+0x54560, 0x54250, 0x54698, 0x53770, 0x537dd, 0x52bb0,
+0x52bb3, 0x52bb6, 0x52bb9, 0x52bbb, 0x52bbd, 0x52bc6,
+0x52bef, 0x52bf2, 0x52be4, 0x53725, 0x52000, 0x53520,
+0x5371c, 0x54562, 0x545de, 0x545e5, 0x545a7, 0x545c6
+NAMES: ladder answer, child-ANY test, ANY-test, contact
+vector, K_GEN1, bit 54, parent, frame-step flag, message
+type, type 0xe, type 0x21, base handler, OI-078
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE FEED, FOUND. The ladder answer verb
+0x3f1c0 (the placed DRABINKA's own +0x78, PR-238) at the
+ASKED's first declared state ([asked+0x5c] == 1, A_UP -
+0x3f1dc/0x3f1e2) runs its FLAG branch: the requester must
+have a PARENT ([[requester kind]+0x3c] = 0x23c10, 0x3f1e9,
+false -> the empty tail at 0x3f364), and 0x44ec0 must
+answer true for the pair ([asked+0xa5], the requester's
+[[requester kind]+0x4c] object - 0x23a20 for the LION,
+KAMIEN and 0x9a44c tables) (0x3f1e4-0x3f1fb). When it does,
+0x3f203-0x3f20c is EXACTLY a signal raise on the ASKED:
+`mov ah,[ecx+0x66]; add ecx,0x64; or ah,0x40; mov
+[ecx+2],ah` - byte 6 of the 12-byte live set at
+[asked+0x60], mask 0x40 = BIT 54 = K_GEN1. Then it jumps to
+the tail and ANSWERS NOTHING. That is the signal the same
+state's own authored exit tests: ZARIA.01's `[A_UP]` line
+`A_DROP(1)=K_GEN1` (PR-149/216), matched in the next step
+against [obj+0x60] (0x53725 -> 0x53520 -> 0x52000,
+PR-239). So OI-078's question "what raises K_GEN1 on a
+DRABINKA" is ANSWERED: the ladder's own ask answer does,
+when it is asked by an object that has a parent and whose
+[[kind]+0x4c] object matches one of the ladder's contact
+elements. The port already located this store and counted it
+as an unmodelled flag ("sets [self+0x66] bit 6", ll_level.c
+4782/4965/5601); what was missing was that bit 6 of byte 6
+IS signal 54 = K_GEN1. The same store appears in the KAMIEN
+answer 0x3d440 at 0x3d4e2-0x3d4e5 (PR-236/237's step (4)) -
+also a raise of K_GEN1 on the ASKED, not a "child-ANY bit".
+(b) 0x44ec0, THE ANY-TEST, read whole: eax = the vector
+header (here [asked+0xa5]), edx = the object to match. It
+walks [[hdr]] as 12-byte elements while the index is below
+the count at [hdr+4] ([asked+0xa9]) (0x44ec9/0x44ee3/
+0x44ed4-0x44edd) and calls each element's class verb +0x8
+with edx (0x44eea); true on the first that answers, false
+when the count is not > 0. It is a pure test: it writes
+nothing.
+(c) THE LAST TWO PER-STEP CHANNELS, RULED OUT for the
+placed rope: the record-class +0x30 verb (called by the
+world-gather at 0x5276a) is 0x2b4d0, a bare `ret`; the
+OWNER kind-table +0xc8 verb (0x52774) is 0x54560 for table
+0x97cdc - a MESSAGE HANDLER (a switch on [msg+4]: 6/7 write
+[obj+0x6d]/[obj+0x71] (0x545de-0x545eb), 0xc/0xd accumulate
+into [obj+0xc2]/[obj+0xc6] (0x545a7-0x545bb), other arms
+OR [obj+0xb6] bits 4/8 or zero those fields, 0x1b forwards
+through [obj+0xa9]) - it NEVER writes [obj+0x60]. With
+PR-239's negatives (the provider slot 0x23a60, the owner
++0xa8/+0xac bare `ret`s, the control-gated ask channel off
+for control=BY_TIME) the rope's live set is fed only by
+(1) its own answer-verb raise (a), (2) signal messages
+(none sends 54, PR-239 (e)), (3) its own GEN rows (none
+authored).
+(d) THE BASE MESSAGE HANDLER 0x52bb0 (what the signal
+receiver 0x53770 falls back to at 0x537dd for any other
+type) dispatches on [msg+4] (0x52bb3): type < 0xe ->
+0x52bf9, where type 1 is the position arm (0x52bc6-0x52bd7:
+[obj+0] += [msg+8], [obj+4] += [msg+0xc], then the [[kind]
++0x54] verb); type == 0xe -> 0x52bef/0x52bf2: `[obj+0x30] =
+[msg+8]` - the PARENT store, exactly as PR-236 measured;
+type 0x21 -> 0x52be4: `[obj+0x28] = 1` - PR-225's
+frame-step flag is ALSO settable by a message, a second
+feed of that gate (its senders are open).
+OPENS: the PORT of (a) - the ladder's self-raise of
+K_GEN1 - is the next step, named in OI-078; the ask that
+reaches it (which object's ask channel is on, and its
+[[kind]+0x4c] object vs the rope's [obj+0xa5] contact
+vector) is the paired read; then who sends type 0xe (the
+parent) and type 0x21; what writes the [obj+0xa5] vector
+and what its elements' +0x8 verb is; 0x54560's remaining
+arms and 0x54250 (the shared family handler); PR-239's list
+stands (0x520c0's budget, the control-name bit map,
+0x9a44c's name).
+CLOSES: OI-078's headline question (what raises K_GEN1 on a
+DRABINKA) - ANSWERED, and the row now turns to the port of
+it. The other OI-078 sub-questions stay open.
+CORRECTS: PR-236 once: the type-0xe store is an ARM of the
+base message handler 0x52bb0 (0x52bef), reached as the
+receiver's fallback at 0x537dd - it is NOT a kind-table
++0xc8 slot (those hold 0x54250, or 0x54560 for the placed
+rope); PR-237's step-(4) name "PR-150's child-ANY bit" for
+the [asked+0x66] 0x40 store: it is signal 54 = K_GEN1 on
+the asked object.
 GATE: light: verify-index verify-docs rc=0 (ok);
 ```
