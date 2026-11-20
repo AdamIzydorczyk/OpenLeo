@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-228.
+> at PR-229.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -32815,6 +32815,98 @@ CORRECTS: PR-226's (c) paragraph: the +0xa5/+0xba/+0xbe field
   set at [state+0x60], and 0x5356b is a direct call to 0x52000,
   not a vtable+0x20; the state's row table is at [S+0x1a]. No
   code changed, no behaviour changed, no hooks.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
+```
+
+## PR-228 — THE +0xfc SIGNAL-PROVIDER FAMILY: 15 CLASSES, A
+## MESSAGE SWITCH OVER TYPES 9..0x15, AND THE CLASS-ID INTO [OBJ+0xA5]
+```
+KIND: read
+SUBSYSTEM: objects/messages - message-family dispatch 0x50d70 /
+  0x41ae2, vtable slots +0xf4/+0xf8/+0xfc, and the attached-
+  object fields of PR-226/PR-227.
+ADDRESSES: 0x50340, 0x50345, 0x50357, 0x50360, 0x50369, 0x549f0,
+  0x549f6, 0x54a02, 0x54be9, 0x54c00, 0x54c07, 0x54c26, 0x54c39,
+  0x54c46, 0x54c49, 0x54c5c, 0x50d70, 0x50d85, 0x50d94, 0x50dae,
+  0x50db9, 0x50dc7, 0x50dd2, 0x41ae2, 0x41af5, 0x41b06, 0x41b13,
+  0x41b28, 0x41b35, 0x41b41, 0x41b48, 0x41b55, 0x2f121, 0x1f100,
+  0x1f109, 0x27cfe, 0xa9ab4, 0xcef40, 0x49580, 0x57530, 0xa21e8,
+  0x9a180, 0x2b727, 0x96a2c, 0x9a618, 0xa22e4
+NAMES: TEventSet::OR, signal provider, vtable slot +0xfc,
+  LL_SIG_K_GEN1
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE ENTRY. The block PR-227 called "unreferenced"
+  starts at 0x549f0 (its first 5 bytes are `push ebx; push ecx;
+  push esi; mov ebx,eax; mov ecx,edx` - the index's decode
+  boundary at 0x549f2 hid them), and it is reached: the 15 class
+  vtables that hold 0x50340 at slot +0xfc (samples 0x96a2c,
+  0x9a618, 0xa22e4). 0x50340 itself: if [obj+0x106] is 0 it
+  zeroes the caller's triple at edx, edx+4, edx+8; if
+  [obj+0x11a]==5 it negates edx[0] (`imul -1`); then it calls
+  0x549f0 (the call at 0x50369 targets 0x549f0 exactly). So
+  +0x106 = a "related object exists" chain, +0x11a == 5 = a
+  direction-flip mode, and the block is the base +0xfc verb.
+  (b) WHO CALLS +0xfc, AND WHAT IT RETURNS. Two sites call
+  [reg+0xfc]: 0x41b48 and 0x50dd2. At 0x41ae2 (a switch on
+  byte [obj+0x160] through the table at 0x41a40) the arms
+  0x41afd/0x41b1f/0x41b41 call vtable+0xf4, +0xf8, +0xfc with
+  (obj, local) and OR the RETURNED TEventSet into [obj+0x60]
+  (`add ecx,0x60; call 0x49580` - PR-88's OR) - these slots are
+  SIGNAL PROVIDERS in the same sense as PR-226's +0x8c. At
+  0x50d70 the message-type switch (jump table 0x50d20 for
+  [msg+4]-9 <= 0xc, i.e. message types 9..0x15): the arm at
+  0x50dc7 calls vtable+0xfc with (msg+8, msg+0xc) as the pair.
+  The table is byte-misaligned in the index (values repeat per
+  case); reading it best, case +6 - message type 0xf - lands on
+  the 0x50dc7 arm, and case +1 (type 0xa) on the vtable+0xd8
+  arm at 0x50dae. Types 0xa and 0xf are exactly the second
+  checks of the key-send sites 0x2c611 (`cmp eax,0x1`) and
+  0x2c651 (`cmp eax,0xa`) - the input-state pair.
+  (c) THE SOUND LAW (the sibling method). 0x54c00 (the same
+  class family; direct calls 0x1f109, 0x27cfe, 0x2f12b,
+  0x50337): if signed byte [obj+0xb5] != 0 and (vtable+0xbc
+  probe, e.g. 0x504e0, or [obj+0xb6] bit 1 says so), it maps
+  the index through vtable+0x50 (0x52a00 in class 0xa21e8) to a
+  NAME and resolves it via [[0xcef40]+0x390] and 0x57530 - the
+  settings/string lookup block of PR-222 - i.e. `.MOV`-class
+  objects play an EFFECT SOUND by signed index, name-resolved
+  like the settings words. The gate 0x1f100 checks
+  [obj+0xee] < 3 first - PR-225's "field-fed sender" object is
+  this same class family (0x9a-0xa2 tables, methods 0x52a00-
+  0x55xxx), so the +0xa5..0xbe offsets seen at 0x2b727 (a table
+  INDEX into [obj+0xa9]) and here (sound fields) belong to that
+  player class; the +0xfc block's stores are game-object fields
+  in the 0x549f0 entry (0x549f6/0x54a02/0x54be9 write +0xba/
+  +0xbe/+0xa5 with `mov [ebx+0xba],eax` style encodings - the
+  earlier offset reading of the raw bytes is confirmed).
+  (d) THE ATTACHMENT SIGNAL PATH. 0x549f0 stores [obj+0xba]=
+  edx[0], [obj+0xbe]=edx[1], and [obj+0xa5]=[[edx[1]]] - the
+  CLASS ID (vtable word) of the object passed as the second
+  value. Through the 0x50d70 dispatch a message of the 9..0x15
+  family delivers (msg+8, msg+0xc) as that pair, so a message
+  whose payload holds an OBJECT POINTER puts the target's class
+  id into [obj+0xa5] - the byte PR-226's provider tests
+  (bit 0x1 -> raise 33=K_FWD, bit 0x10 -> 41, bit 0x20 -> 54 =
+  K_GEN1) - and via the 0x41ae2 arms the same +0xf4/+0xf8/+0xfc
+  methods OR their sets straight into [obj+0x60]. K_GEN1
+  therefore means: "attached to an object whose class vtable
+  address low byte has bit 0x20 set" - true for every class
+  table in the 0x9a778-style range, statically inspectable.
+OPENS: OI-078: the +0xfc arm's exact message type is measured
+  as best-read 0xf from a misaligned table - confirm; and which
+  sender delivers a payload holding the drabinka's attachment
+  object. The port-side rule to model: "K_GEN1 = attached to a
+  class whose vtable low byte has bit 0x20", raised by the
+  provider with no message. OI-111/OI-112 unchanged.
+CLOSES: nothing in the register.
+CORRECTS: PR-227's OPENS claim that the 0x549f2-0x54bf2 block
+  has "no static xref" - it is vtable slot +0xfc of 15 classes
+  (entry 0x549f0), reached through the message switch at 0x50d70
+  and the [obj+0x160] switch at 0x41ae2. No code changed, no
+  behaviour changed, no hooks.
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.

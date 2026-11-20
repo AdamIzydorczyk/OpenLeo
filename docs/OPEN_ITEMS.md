@@ -763,6 +763,28 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     are returned and fed to 0x535a0. The port models one gate;
     the engine has two, in series.
 
+    PR-228 finds the entry PR-227 missed: the block starts at
+    0x549f0 and is vtable slot +0xfc of 15 class tables (the
+    dwords 0x96a2c/0x9a618/0xa22e4 hold 0x50340, which zeroes
+    the triple when [obj+0x106]==0, negates it when
+    [obj+0x11a]==5, then calls the block). Its callers are two
+    switches: 0x41ae2 (on byte [obj+0x160]) whose arms call
+    vtable+0xf4/+0xf8/+0xfc and OR the RETURNED TEventSet into
+    [obj+0x60] (0x49580) - more signal providers like +0x8c -
+    and 0x50d70, a message-type switch over types 9..0x15 (jump
+    table 0x50d20, misaligned; best read: type 0xf routes to the
+    +0xfc arm with (msg+8, msg+0xc) as the pair). Inside the
+    block, [obj+0xa5]=[[second]] - the CLASS ID of the object
+    the message carries - so K_GEN1 machine-semantics: attached
+    to a class whose vtable low byte has bit 0x20 (true for the
+    0x9a778-style tables); the provider re-tests it every frame.
+    Also: 0x54c00 is a sound-effect method of the same class
+    family - signed byte [obj+0xb5] indexes a name via
+    vtable+0x50 and resolves it through [[0xcef40]+0x390] and
+    0x57530 (PR-222's settings lookup); [obj+0xee]<3 gates it
+    (0x1f100) - PR-225's "field-fed sender" objects are this
+    player class.
+
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
   recovery on the next input?)

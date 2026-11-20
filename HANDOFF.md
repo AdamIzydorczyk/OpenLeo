@@ -2060,6 +2060,29 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-228 (READ): the +0xfc family and the entry of PR-227's
+"unreferenced" block. It starts at 0x549f0 (push ebx/ecx/esi;
+the index boundary hid the first 5 bytes) and is vtable slot
++0xfc of 15 class tables via 0x50340 (zeroes the caller's
+triple if [obj+0x106]==0, negates it if [obj+0x11a]==5, calls
+the block). Two switches call [reg+0xfc]: 0x41ae2 (switch on
+byte [obj+0x160]) whose arms for +0xf4/+0xf8/+0xfc OR the
+RETURNED TEventSet into [obj+0x60] (0x49580) - signal
+providers like +0x8c - and 0x50d70, a message switch over types
+9..0x15 (table 0x50d20 misaligned; best read: type 0xf -> the
++0xfc arm with pair (msg+8,msg+0xc); type 0xa -> vtable+0xd8),
+matching the key-send second checks 0xa/0x1 at 0x2c611/0x2c651.
+Inside the block [obj+0xa5]=[[second]] = the CLASS ID of the
+carried object -> K_GEN1 = "attached to a class whose vtable
+low byte has bit 0x20" (true for 0x9a778-style tables), re-
+tested every frame by the provider - OI-078's mechanism, with
+"which sender delivers the drabinka's attachment" left open.
+Sibling 0x54c00: sound-effect law - signed byte [obj+0xb5] ->
+name via vtable+0x50 -> [[0xcef40]+0x390] + 0x57530 (PR-222's
+settings lookup); gate [obj+0xee]<3 (0x1f100) - PR-225's
+field-fed sender objects are this player class. No behaviour
+changed.
+
 STATUS PR-227 (READ): both sides of the provider, and a SECOND
 row gate. TEventSet::match 0x47e40 has exactly two callers: the
 PR-217 row-step clause gate (0x522e6) and 0x52033 inside 0x52000
