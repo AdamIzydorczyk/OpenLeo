@@ -744,6 +744,25 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     and the row word `rev` calls that same flip (0x459d0 ->
     0x53670) - two FOCUS 1 rules to port next.
 
+    PR-227 completes both sides of the provider. The ONLY code
+    that writes the provider's fields is the block 0x549f2-
+    0x54bf2 (its entry is not referenced by any static xref or
+    vtable - finding that dispatch is what is left): it stores
+    [obj+0xa5] = [[arg+0x8]] - the CLASS ID of the related
+    object handed in the argument's third slot - so bit 0x20
+    (K_GEN1) means "attached to a class whose vtable word has
+    bit 0x20"; it also ORs the related object's record set at
+    [[[obj+0x10]-chain]+0x60] into [obj+0x60] (0x54b78-0x54b84)
+    and keeps [obj+0xb6] bit 0x10 as sign([obj+0xba]*[obj+
+    0x6d]). NEW GATE: 0x47e40 match is called from exactly two
+    sites - PR-217's row step (0x522e6) and 0x52000, a first-
+    pitch row scan inside the refresh (0x536f0 -> 0x53520 ->
+    0x52000): walk the STATE's row table [S+0x1a] (count +0x22,
+    stride 0x15, clause set at entry+0), first entry whose set
+    intersects a copy of [obj+0x60] wins; its +0xd/+0x11 dwords
+    are returned and fed to 0x535a0. The port models one gate;
+    the engine has two, in series.
+
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
   recovery on the next input?)

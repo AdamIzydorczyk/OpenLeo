@@ -2060,6 +2060,29 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-227 (READ): both sides of the provider, and a SECOND
+row gate. TEventSet::match 0x47e40 has exactly two callers: the
+PR-217 row-step clause gate (0x522e6) and 0x52033 inside 0x52000
+- a FIRST-PITCH row scan reached only from the refresh: 0x536f0
+(0x5373c) -> 0x53520, which copies the object's OWN signal set
+[obj+0x60]+mode (the copy PR-226(e) misread as [state+0x60] -
+corrected) and calls 0x52000 directly with the CURRENT STATE
+S=[[obj+0x50]+[obj+0x5c]*4]: walk S's row table [S+0x1a] (count
+[S+0x22], stride 0x15), test entry+0's clause set against the
+copy, FIRST match wins (0x5203c-0x5204f: copy entry+0xd/+0x11
+to the caller's two out pointers and break), then call the state
+class's verb [[S+0x44]+0x04]; the refresh feeds the pair to
+0x535a0. The provider's field writer is also found: the block
+0x549f2-0x54bf2 (entry unreferenced statically - the one thing
+left for OI-078) stores [obj+0xa5] = [[arg+0x8]] = the CLASS ID
+of the related object from the argument's third slot - K_GEN1
+means "attached to a class whose vtable word has bit 0x20" -
+and ORs the related object's [[...+0x10]+0x60] record set into
+[obj+0x60] (0x54b78-0x54b84). Corrects PR-226's (c)+(e). The
+port models ONE row gate; the engine has two in series (pitch-
+scan before the step) - register for FOCUS 1. No behaviour
+changed.
+
 STATUS PR-226 (READ): the real signal raiser is the object
 itself. 102 class vtables implement slot +0x8c as 0x54910 - the
 frame refresh 0x536f0 calls it on every object every frame and

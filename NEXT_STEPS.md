@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-227.
+> at PR-228.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -32713,6 +32713,108 @@ CORRECTS: PR-225's (e) wording - 0x536f0 is NOT the base +0x8c
   implementation: it is the frame refresh that CALLS +0x8c, and
   the ordinary classes' +0x8c is the provider 0x54910. No code
   changed, no behaviour changed, no hooks.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
+```
+
+## PR-227 — TEventSet::match HAS EXACTLY TWO USERS: THE ROW STEP
+## AND A NEW FIRST-PITCH ROW SCAN OVER THE STATE TABLE [S+0x1a]
+```
+KIND: read
+SUBSYSTEM: objects/row-gates - 0x52000/0x53520 (new), the
+  0x549f2-0x54bf2 writer block for the provider fields of
+  PR-226, and OI-078.
+ADDRESSES: 0x52000, 0x52011, 0x52020, 0x52024, 0x52033, 0x5203e,
+  0x52046, 0x52059, 0x53520, 0x53531, 0x53536, 0x5353f, 0x53557,
+  0x5356b, 0x5357d, 0x5373c, 0x53741, 0x5374b, 0x47e40, 0x522e6,
+  0x549f2, 0x549f9,
+  0x54a08, 0x54a16, 0x54a24, 0x54a40, 0x54a57, 0x54b47, 0x54b51,
+  0x54b65, 0x54b78, 0x54b7e, 0x54b84, 0x54b89, 0x54b8b, 0x54b90,
+  0x54b9a, 0x54ba5, 0x54bb2, 0x54bd6, 0x54be6, 0x54be9, 0x49580,
+  0x45120, 0x45200, 0x1e514, 0x1e521, 0x54066, 0x2b6a0, 0x2b840,
+  0x54e24, 0x536f0, 0x98278, 0xcef40
+NAMES: TEventSet::match, TEventSet::OR, LL_SIG_K_GEN1,
+  LL_SIG_K_FWD, LL_SIG_AC_STONE, ll_mov_fr.gsig
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE SECOND MATCH GATE. 0x47e40 (PR-88's
+  TEventSet::match) has exactly two call sites in the image:
+  0x522e6 - PR-217's row-step clause gate - and 0x52033, inside
+  0x52000. 0x52000 is called from exactly one place: 0x5356b,
+  inside 0x53520, whose only caller is 0x5373c - a branch of the
+  refresh 0x536f0 (the same function PR-226 read). 0x53520 first
+  copies the object's signal set - the 12 bytes at [obj+0x60]
+  plus the mode byte at [obj+0x6c] (rep movs, 0x53536-0x53557) -
+  into a local (THE OBJECT'S OWN SET - PR-226 read (e) called
+  this [state+0x60]; corrected below), loads the CURRENT STATE
+  S = [[obj+0x50]+[obj+0x5c]*4] (0x5355a-0x53566) and calls
+  0x52000 DIRECTLY (0x5356b) with eax=S, edx=that copy and two
+  out pointers from its caller. 0x52000: walk the row-entry
+  TABLE OF THE STATE at [S+0x1a], count [S+0x22], stride 0x15;
+  for each entry call 0x47e40(entry+0, copy-of-[obj+0x60])
+  (0x52033); ON A MATCH copy the entry's dwords at +0xd and
+  +0x11 to the two out pointers and BREAK out of the scan
+  (0x5204f is the exit the match falls into); then call the
+  state class's second verb [[S+0x44]+0x04] (0x52052-0x52059).
+  0x536f0 takes the two outputs at once (0x53741-0x53745) and
+  feeds them to 0x535a0(obj, ...) at 0x5374b. So a row's
+  authored clause set is matched against the object's raised-
+  signal set in TWO places: once at the row step (PR-217,
+  0x522e6) and once HERE, as a FIRST-PITCH scan over the
+  STATE's row table [S+0x1a] - a row whose clause set does not
+  intersect the object's raised set is never even chosen.
+  (b) THE ONLY WRITER BLOCK FOR THE PROVIDER'S FIELDS. The whole
+  range 0x549f2-0x54bf2 (entry not referenced by any xref or
+  vtable in the static scan - the code exists; its dispatch was
+  not found) is the only code that writes [obj+0xa5],
+  [obj+0xba], [obj+0xbe] or [obj+0xb6] as fields (all other
+  hits of those offsets belong to the sound/index class of
+  0x2b6a0/0x2b840, where +0xa5 is an INDEX into a table at
+  +0xa9, or to unrelated frame offsets). Inside the block: the
+  argument pair is stored to [obj+0xba]/[obj+0xbe] (0x549f7-
+  0x54a08); a chain on the RELATED object at [obj+0xd2] picks
+  values for +0xba (0x54a24-0x54a57: for kind 1 a scaled
+  comparison against [obj+0x6d] via vtable+0x68, for kind 2 a
+  state check [[rel]+8]==[obj+0x5c], 0x54b65-0x54b76); if the
+  related object's word at +0x10 exists, its +0x60 TEventSet is
+  OR-ed into OUR [obj+0x60] (0x54b78-0x54b84, 0x49580 -
+  PR-88's set OR): an attached object INHERITS the related
+  object's record-carried set; [obj+0x71] gets -1/+1 by the
+  sign of [obj+0xbe] (0x54b90-0x54ba5); [obj+0xb6] bit 0x10 =
+  sign([obj+0xba] * [obj+0x6d]) (0x54bb2-0x54bd4, PR-226's
+  provider input); [obj+0xa5] = [[arg+0x8]] (0x54be6-0x54be9) -
+  the CLASS ID (vtable word) of the object handed in the
+  argument's third slot - and that is the byte whose bits 0x1/
+  0x10/0x20 the provider turns into 33 / 41 / 54.
+  (c) WHAT K_GEN1 MEANS, MACHINELY. Provider (PR-226): raise 54
+  iff byte [obj+0xa5] bit 0x20. Writer (this PR): [obj+0xa5] is
+  the class id of the related object stored by this block. So
+  the drabinka's WAIT K_GEN1 is raised by the ENGINE whenever it
+  is attached to an object whose class-word low byte has bit
+  0x20 set - no message, no GEN row, no authored number. The
+  remaining question is which dispatch reaches 0x549f2 and what
+  related-object pointer it passes.
+OPENS: OI-078 narrowed to: the entry of 0x549f2-0x54bf2 (no
+  static xref; check computed dispatch / a vtable the block
+  belongs to via its neighbours). NEW: the first-pitch row scan
+  0x52000 over the STATE row table at [S+0x1a] (count +0x22,
+  stride 0x15, entry set at +0, two dwords at +0xd/+0x11,
+  first match wins) - how that table is filled from the `.MOV`
+  is unread, and it sits BEFORE the PR-217 row step in the same
+  refresh, so the port has TWO gates where it models one.
+  OI-111/OI-112 unchanged.
+CLOSES: nothing in the register.
+CORRECTS: PR-226's (c) paragraph: the +0xa5/+0xba/+0xbe field
+  writers are NOT "the ctor 0x2b6a0 / clone 0x2b840 / 0x54be9
+  of another class" - 0x2b6a0/0x2b840 belong to a different
+  class where +0xa5 is a table INDEX, and the real game-object
+  writer is the 0x549f2-0x54bf2 block, which stores a CLASS ID
+  there. PR-226's (e) also: what 0x53520 copies is THE OBJECT'S
+  OWN set [obj+0x60] (+mode byte [obj+0x6c]), not a state-chain
+  set at [state+0x60], and 0x5356b is a direct call to 0x52000,
+  not a vtable+0x20; the state's row table is at [S+0x1a]. No
+  code changed, no behaviour changed, no hooks.
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.
