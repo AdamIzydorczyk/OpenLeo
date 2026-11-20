@@ -483,6 +483,8 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
             if (line[0] == '[') {                     /* [STATE] opens block */
                 if (m->nst < LMOV_MAXST) {
                     ll_mov_st *s = &m->st[m->nst++];
+                    s->block_pos = m->nst - 1;    /* PR-235: the ds:0xceff8
+                                                   * record ID counter */
                     const char *gt = strchr(line, ']');
                     size_t nl = gt ? (size_t)(gt - line - 1) : 0;
                     if (nl >= sizeof s->name)

@@ -602,6 +602,18 @@ typedef struct {
      * A_UP,A_DROP,A_DOWN. 0 = not in the list, the engine's own
      * not-found value (0x53471). */
     int decl_idx;
+    /* PR-235: the AUTHORED block position (0-based index of the
+     * `[NAME]` line in the file). The engine numbers every record
+     * with a counter at ds:0xceff8: the block parser zeroes it at
+     * 0x5150b and every record create call receives it
+     * (`push ds:0xceff8`, e.g. 0x51a2a/0x51a8c), so the record ID
+     * word - record +0x4, stored at object offset +0x8d by the
+     * object-block copy 0x5386c - is that position. The state-ID
+     * branches read it: 0x287de-0x287ed compares the LION's
+     * current state's ID with 6 and 0x2880b-0x28826 with 0x12;
+     * cross-checking ZARIA.01's LEW.MOV block order (a census,
+     * not a fit) puts A_DEAD at 6 and A_DRAP at 18 = 0x12. */
+    int block_pos;
 } ll_mov_st;
 typedef struct {
     ll_mov_st st[LMOV_MAXST];

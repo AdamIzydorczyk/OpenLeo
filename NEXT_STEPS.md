@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-235.
+> at PR-236.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -33352,4 +33352,53 @@ CORRECTS: PR-225's OPENS alternative (shipped-word index
   mismatch) - ruled out by (a); PR-147's counted "what raises
   AC_DRAB" gap now names 0x287a0.
 GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-235 — THE STATE RECORD ID IS THE AUTHORED BLOCK POSITION;
+## A LADDER CONTACT NOW RAISES AC_DRAB ON THE LION (0x287A0)
+```
+KIND: port
+SUBSYSTEM: objects/contact - the state record ID, the AC_DRAB
+raise (0x287a0), OI-078's port-half.
+ADDRESSES: 0x287a0, 0x287de, 0x2880b, 0x28823, 0x2882d, 0x28835,
+  0x2885a, 0x3eac6, 0xceff8, 0x5150b, 0x51a2a, 0x51a8c, 0x5386c,
+  0x23a10, 0x287a0
+NAMES: AC_DRAB, LL_SIG_AC_DRAB, block_pos, record ID, A_DEAD,
+  A_DRAP, A_FALL_DOWN
+CODE: yes: ported/ll_play.h ll_mov_st gains block_pos (the
+  authored [NAME] position) and ported/ll_play.c stamps it per
+  block - the engine's record ID is the ds:0xceff8 counter,
+  zeroed by the block parser at 0x5150b and pushed to every
+  record create (0x51a2a/0x51a8c); it lands at record +0x4 and
+  at object +0x8d (the record copy 0x5386c), and the +0x6c
+  accessor 0x23a10 hands it back. ported/ll_level.c gains
+  acdrab_law + wiring at BOTH ladder-contact sites: when the
+  lion's current-state ID is 6 or 0x12 and the other's ID is
+  0..0x19, raise LL_SIG_AC_DRAB on the lion (the engine builds
+  the synthetic type-0x10/tag-0x8138764/payload-10 message at
+  0x2882d-0x2885a and its +0x10 handler ORs the bit).
+HOOKS: none
+MEASURED: the ID reading is CENSUS-CROSS-CHECKED, not fitted:
+  ZARIA.01 LEW.MOV's authored block order puts A_DEAD at
+  position 6 and A_DRAP at 18 = the two immediates 0x287a0
+  compares (0x287ed `cmp 6`, 0x28823 `jg 0x19`/cmp 0x12) -
+  exactly the states whose authored rows consume AC_DRAB
+  (`A_FALL_DOWN(1)=!AC_DRAB`, the hang's hold). Test first:
+  L6 in ladder_answer_selftest failed at HEAD (with the parser
+  stamp stashed: `block_pos (nst 2 got 0/0)`) and passes now;
+  the law table legs 18/6 raise, 17/19 and other-ID 26/absent
+  do not. No existing leg moves: the raise needs the lion IN
+  block state 6/18, which no shipped probe reaches, and the
+  full gate re-ran 65 ok / 13+23 unchanged.
+OPENS: OI-078 continues: the `[[other]+0x3c]` probe and the
+  second clause word (0x28820) unread, so the raise is class-
+  scoped to the ladder family (named model choice); delivery
+  of K_GEN1 to the drabinka (its own A_UP WAIT) still open
+  between the GEN-tail admission effect and the PR-227
+  attach-merge; AC_DRAB_CATCH has no raiser found yet.
+CLOSES: nothing in the register (OI-078 row updated).
+CORRECTS: none
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
 ```

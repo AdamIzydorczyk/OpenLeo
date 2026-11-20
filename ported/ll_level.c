@@ -5032,8 +5032,38 @@ static ll_pt pt_of(const ll_player *p)
     return q;
 }
 
+/* PR-235: the AC_DRAB contact raise law (0x287a0, reached ONLY from
+ * the collision loop 0x3eac6 over the [obj+0x30] neighbour list).
+ * eax = the LION, ebx = the other object. Gates measured:
+ *  - the LION's CURRENT state's record ID word == 6 (0x287de-
+ *    0x287ed) or == 0x12 (0x2880b-0x28826). The ID is the
+ *    authored block position (the ds:0xceff8 counter handed to
+ *    every record create, 0x5150b/0x51a2a; copied to object
+ *    +0x8d with the record at 0x5386c, read back through the
+ *    +0x6c accessor 0x23a10 = `add eax,0x89`.. the +0x89/0x8d
+ *    record head inside the object). ZARIA.01's LEW.MOV block
+ *    order puts A_DEAD at 6 and A_DRAP at 18 = 0x12 - the hang
+ *    and dead states, exactly the states whose authored rows
+ *    read AC_DRAB (`A_FALL_DOWN(1)=!AC_DRAB` from A_DRAP).
+ *  - the OTHER object's same ID word tested `> 0x19 -> skip`
+ *    (0x28823) - the model applies the bounded half (id <= 25)
+ *    and NOT the `[[other]+0x3c]` probe or the second clause
+ *    (0x28820 reads another word of the other's record), named
+ *    model gaps.
+ * On a pass it builds the synthetic signal message (type 0x10,
+ * tag 0x8138764 at 0x2882d, payload 0xa = AC_DRAB at 0x28835)
+ * and calls the LION's vtable+0x10 (0x2885a) - the handler that
+ * ORs the bit into [lion+0x60] (PR-225): a raise on the LION,
+ * class-scoped here to the ladder family like the answer path
+ * (the engine's own scope is that unknown +0x3c probe). */
+static int acdrab_law(int lion_id, int other_id)
+{
+    return (lion_id == 6 || lion_id == 0x12) && other_id >= 0 &&
+           other_id <= 0x19;
+}
+
 static unsigned long long ladder_answer_for(const lvl_obj *o,
-                                            const ll_player *asker)
+                                           const ll_player *asker)
 {
     ll_blk rung, edge;
     ll_pt p = pt_of(asker);
@@ -5314,6 +5344,21 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                            o->sc->leaf, o->sc->movname,
                            o->sc->mov->st[o->sti].decl_idx, ans);
             }
+            /* PR-235: the 0x287a0 half - a raise on the LION itself,
+             * separate from the answer packet, keyed on the state
+             * record IDs (authored block positions). */
+            if (o->sti >= 0 && o->sti < o->sc->mov->nst &&
+                pl->p.sti >= 0 && pl->p.sti < pl->mov->nst &&
+                acdrab_law(pl->mov->st[pl->p.sti].block_pos,
+                           o->sc->mov->st[o->sti].block_pos)) {
+                pl->p.sig |= 1ull << LL_SIG_AC_DRAB;
+                if (verbose)
+                    printf("ll_level: play tick %d: ladder contact"
+                           " raises AC_DRAB on the lion (state IDs"
+                           " %d/%d)\n", tick,
+                           pl->mov->st[pl->p.sti].block_pos,
+                           o->sc->mov->st[o->sti].block_pos);
+            }
         }
         if (verbose)
             printf("ll_level: play tick %d: solid %s/%s %s at %d,%d push"
@@ -5382,6 +5427,17 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                                " (non-solid): set %llx\n", tick,
                                o->sc->leaf, o->sc->movname,
                                o->sc->mov->st[o->sti].decl_idx, ans);
+                }
+                if (pl->p.sti >= 0 && pl->p.sti < pl->mov->nst &&
+                    acdrab_law(pl->mov->st[pl->p.sti].block_pos,
+                               o->sc->mov->st[o->sti].block_pos)) {
+                    pl->p.sig |= 1ull << LL_SIG_AC_DRAB;
+                    if (verbose)
+                        printf("ll_level: play tick %d: ladder contact"
+                               " raises AC_DRAB on the lion (state"
+                               " IDs %d/%d, non-solid)\n", tick,
+                               pl->mov->st[pl->p.sti].block_pos,
+                               o->sc->mov->st[o->sti].block_pos);
                 }
             }
         }
@@ -5706,6 +5762,64 @@ static int ladder_answer_selftest(void)
                 }
                 free(m);
             }
+        }
+        /* L6 (PR-235): the record-ID space and the AC_DRAB contact
+         * law. The engine numbers records with the ds:0xceff8
+         * counter (zeroed by the block parser at 0x5150b, pushed to
+         * every record create 0x51a2a) - the record's +0x4 ID,
+         * copied to the object at +0x8d (0x5386c) and read back by
+         * the +0x6c accessor (0x23a10). So ll_mov_parse must give
+         * every block its authored position, and 0x287a0 raises
+         * AC_DRAB on the LION at a ladder contact exactly when the
+         * LION's current-state ID is 6 or 0x12 (A_DEAD/A_DRAP in
+         * ZARIA.01's block order - a census cross-check, not a
+         * fit) and the other's ID passes 0x28823 (`jg 0x19`
+         * skips). */
+        {
+            static const char ID_MOV[] =
+                "A_ONE\nA_TWO\n\n[A_ONE]\ncontrol=BY_TIME\n1,0\n"
+                "[A_TWO]\ncontrol=BY_TIME\n2,0\n";
+            ll_mov_t *m = calloc(1, sizeof *m);
+
+            if (!m) {
+                fprintf(stderr, "ladder answer selftest: FAILED out"
+                                " of memory\n");
+                return 1;
+            }
+            ll_mov_parse(ID_MOV, m);
+            if (m->nst != 2 || m->st[0].block_pos != 0 ||
+                m->st[1].block_pos != 1) {
+                fprintf(stderr, "ladder answer selftest: FAILED"
+                                " block_pos (nst %d got %d/%d)\n", m->nst,
+                        m->nst > 0 ? m->st[0].block_pos : -1,
+                        m->nst > 1 ? m->st[1].block_pos : -1);
+                free(m);
+                return 1;
+            }
+            free(m);
+            static const struct { int lid, oid, want;
+                                 const char *what; } law_cases[] = {
+                { 18, 0, 1, "A_DRAP (block 18 = 0x12) at the ladder:"
+                  " the raise runs (0x2882d)" },
+                { 6, 2, 1, "A_DEAD (block 6): the second gate path"
+                  " (0x287de) raises too" },
+                { 17, 0, 0, "block 17: neither cmp matches" },
+                { 19, 0, 0, "block 19: past 0x12 the jg leaves" },
+                { 18, 26, 0, "other's ID past 0x19: 0x28823 `jg`"
+                  " skips the message" },
+                { 18, -1, 0, "no parsed state (the engine's absent"
+                  " word): model choice, no raise" },
+            };
+            for (k = 0; k < (int)(sizeof law_cases /
+                                  sizeof law_cases[0]); k++)
+                if (acdrab_law(law_cases[k].lid, law_cases[k].oid) !=
+                    law_cases[k].want) {
+                    fprintf(stderr, "ladder answer selftest: FAILED"
+                                    " AC_DRAB law: %s (lion %d other"
+                                    " %d)\n", law_cases[k].what,
+                            law_cases[k].lid, law_cases[k].oid);
+                    return 1;
+                }
         }
     }
     return 0;

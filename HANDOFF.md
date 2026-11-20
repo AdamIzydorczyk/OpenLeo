@@ -2067,6 +2067,23 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-235 (PORT): the AC_DRAB contact raise (0x287a0) is
+in the model. The state RECORD ID word = the authored block
+position: the block parser zeroes ds:0xceff8 (0x5150b) and
+every record create receives it (0x51a2a); it sits at record
++0x4, is copied to object +0x8d with the record (0x5386c) and
+read back by the +0x6c accessor 0x23a10. ll_mov_st gained
+block_pos; acdrab_law + wiring at both ladder-contact sites
+raise LL_SIG_AC_DRAB on the lion when its current-state ID is
+6 or 0x12 and the other's ID is 0..0x19 - census-confirmed:
+LEW.MOV block order puts A_DEAD at 6, A_DRAP at 18, exactly
+the states whose rows consume AC_DRAB. Test first: L6 failed
+at HEAD (block_pos nst 2 got 0/0), passes now; no existing leg
+moves (no probe reaches state 6/18); gate: 0 warnings, 65 ok
+rc=0, 13 ok + 23 SKIP. Open: the [[other]+0x3c] probe and
+0x28820 clause, K_GEN1 delivery to the drabinka, the
+AC_DRAB_CATCH raiser.
+
 STATUS PR-234 (READ): the raiser census, closed and re-opened
 in one place. (a) The engine name block 0x91b40-0x91c68 read
 raw matches the port's LL_SIG_* order 68/68 - PR-225's

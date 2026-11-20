@@ -828,6 +828,15 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     climb's missing named pieces now: that raise (PORT), the
     GEN-tail admission effect (READ), the PR-227 attach-merge
     reachability for [drab+0x10] (READ).
+    PR-235 SHIPPED that raise: ll_mov_st.block_pos is the
+    record-ID word (ds:0xceff8 counter, 0x5150b/0x51a2a,
+    record +0x4, object +0x8d via 0x5386c, read by the +0x6c
+    accessor 0x23a10), and play_collide raises AC_DRAB on the
+    lion when its state ID is 6/0x12 (= A_DEAD/A_DRAP by the
+    authored block order) and the other's ID <= 0x19. Open
+    here: the [[other]+0x3c] probe + 0x28820's second clause
+    word, K_GEN1 delivery to the drabinka, AC_DRAB_CATCH's
+    raiser.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
