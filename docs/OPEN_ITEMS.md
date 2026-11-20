@@ -2693,3 +2693,25 @@ OI-112: which authored number a row's TIME is - the engine
     port's `.thresh` model is unpinned by the engine, not
     refuted - its claimed source (`%hi` into node+0x10) is the
     FIRST number, and the second has no named engine site.
+    PR-222 adds the negative datum that nothing COULD read it:
+    a row line's third field is always a directive word from the
+    engine's own keyword table (0x91847: `rev`, `zero_v`,
+    `zero`, `zero_t`, `vol_music`, `smp`/`smp2`/`smp3`,
+    `smpauto`/`smpauto2`/`smpprior`, `vol`, `smp_loop`,
+    `smp_unloop`, `smp_stop`, `atc_on`, `atc_off`, `lock`,
+    `lock2`, `unlock`, `unlock2`, `ground_on`, `ground_off`,
+    `chdir`, `ldir`, `rdir`, `pos`, `goto`, `gotorel`,
+    `goto_rel`, `I`, `F`, `IC`, `FC`, `M`, `MOVE`, `GEN`,
+    `Wait`), an unknown word ends the tail (0x46c1c reports it
+    and returns 0), and ZERO shipped row lines carry a bare
+    number there. The row is re-run while one of ITS OWN
+    directive nodes answers 6 (0xa1038/0xa1040 verbs at
+    0x45dc0/0x45d90 write [node+0x8] into the caller's row
+    cursor and answer 6), so no row duration field is needed
+    by the engine at all. PR-222 also found where the rolled
+    `time=` number IS used as an index: the record's row-reset
+    verb 0x52360 (class +0x1c) rolls it through 0x52070 and
+    writes the row cursor [rec+0x4] = k, or count-1-k when the
+    state's 0x10/0x20 bits say so (0x523bc-0x523cb) - entering
+    a state starts at a row chosen by that number, which is a
+    row-sequence rule, not a row duration.

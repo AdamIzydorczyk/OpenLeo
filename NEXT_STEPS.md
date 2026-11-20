@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-222.
+> at PR-223.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -32128,6 +32128,157 @@ CORRECTS: PR-220's (b)/(c) sentence "The SECOND value is handled
   port's own row parse (`%d,%d`, frame from the first, thresh
   from the second, ported/ll_play.c:521) is NOT the engine's
   read of those two fields.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
+```
+
+## PR-222 — THE ROW'S TAIL IS A KEYWORD LANGUAGE: THE ENGINE'S
+## DIRECTIVE TABLE (`rev` … `pos %i , %i`, `goto %d`, `I %i,%i`,
+## `M %i,%i`, `GEN`, `Wait`), ITS ARGUMENT-BEARING NODES AND THE
+## ANSWER-6 CARRIERS THAT HOLD A ROW
+```
+KIND: read
+SUBSYSTEM: the directive-chain builder 0x45df0 (its only caller:
+  the row ctor 0x51660 at 0x516d7), its keyword table and
+  node classes, the argument-consuming node verbs 0x45d50/
+  0x45d90/0x45dc0, and the shipped row-tail census - read
+  against the port's directive loop (ported/ll_play.c:568-620).
+ADDRESSES: 0x45d50, 0x45d90, 0x45dc0, 0x45df0, 0x45e03,
+  0x45e18, 0x45e20, 0x45e3a, 0x45e7d, 0x46b28, 0x46b52,
+  0x46b96, 0x46bf2, 0x46c1c, 0x46c3b, 0x46c57, 0x46c70,
+  0x46cf0, 0x46d30, 0x47c90, 0x47c98, 0x47d60, 0x47d97,
+  0x496b0, 0x498f0, 0x49920, 0x49950, 0x499b0, 0x51660,
+  0x516d5, 0x516d7, 0x516e8, 0x51a76, 0x52070, 0x52138,
+  0x52140, 0x52360, 0x523bc, 0x523cb, 0x57990, 0x57a00,
+  0x57d20, 0x57d30, 0x91844, 0x91847, 0x91852, 0x9185d,
+  0x91989, 0x9198e, 0x91998, 0x9199d, 0x91cda, 0x91ce1,
+  0x91cf1, 0x961fc, 0x96200, 0xa0f28, 0xa1020, 0xa1038,
+  0xa1040, 0xa1048, 0xa1098, 0xa11c8, 0xa11e0, 0xa92d4,
+  0xa9510
+NAMES: ll_mov_parse, ll_mov_fr.gsig_id, ll_mov_fr.gneg,
+  ll_mov_fr.gop, parse_cond, obj_advance, o->fi, o->brk_arm,
+  smpauto, ATC_ON, ATC_OFF, ground_on, chdir, ldir, rdir,
+  WAIT K_NEVER, GEN K_GEN1
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE VOCABULARY. The engine's directive keywords
+  sit in one string block at 0x91847-0x91990, scanned with
+  ` %[^,| \r\n\t]` (0x91844) and matched by 0x76a69 against the
+  token in [ebp-0x8]: `rev`, `zero_v`, `zero`, `zero_t`,
+  `vol_music`, `smp` (` %i`), `smp2` (` %i , %i`), `smp3`
+  (` %i , %i , %i`), `smpauto`, `smpauto2`, `smpprior` (` %d`),
+  `vol`, `smp_loop`, `smp_unloop`, `smp_stop`, `atc_on`,
+  `atc_off`, `lock`, `lock2`, `unlock`, `unlock2`, `ground_on`,
+  `ground_off`, `chdir`, `ldir`, `rdir`, `pos` (` %i , %i`),
+  `goto` (`%d`), `gotorel`, `goto_rel`, `I` (` %i,%i`), `F`,
+  `IC`, `FC`, `M` (` %i,%i`), `MOVE`, `GEN`, `Wait`. Every
+  argument set is read by a scan with THAT format into the node
+  (e.g. 0x46beb-0x46bf9: an 0xc-byte node, class word 0xa1048
+  at [node+0x4], `push 0x91998` = `%d`, `call 0x49920`).
+  (b) AN UNKNOWN WORD ENDS THE ROW'S TAIL. 0x46c1c: when the
+  token matches no keyword, the engine reports it through
+  0x496b0 against the format string at 0x9199d with the text
+  pointer at [esi+5] and the global 0xa92d4, calls 0x49620, and
+  returns EBX = 0 (0x46c55) - the chain build stops there
+  (0x516e8 `test ebx,ebx; jne 0x516d5`). So digits after the
+  row's second field are never consumed: the shipped texts
+  confirm it, 0 row lines have a bare number as their third
+  field. (c) THE SHIPPED TAILS, COUNTED over the 777 .MOV
+  texts, field 3 of `<n>,<m>,<tail>`: `smpauto` 370,
+  `GEN K_GEN1` 288, `ATC_OFF` 242, `ATC_ON` 235,
+  `GEN AC_PLAT_OFF` 181, `M` with a 0 first argument 172,
+  `WAIT K_NEVER` 157, `F` with 0 99, `lock` 92, `unlock` 66,
+  `GEN AC_TIME` 60, `F` with -300/-330/-250 36/36/36,
+  `zero` 30, `WAIT K_GEN1` 25. (Field splitting is on commas,
+  so a tail's argument may be glued to its word, `M0`/`F0`.)
+  The port counts this set as "modeled / captured / counted"
+  already; what this PR adds is that the engine's own keyword
+  spellings are the lower/mixed-case forms (`atc_on`, `ground_on`,
+  `smpauto`, `Wait`) and that its own scan format for `M` and
+  `I` is `%i,%i` with `%i`, not `%d`. (d) THE NODES AND THE
+  ANSWER-6 CARRIERS. Clause nodes are allocated by their create
+  verbs - 0x46c70 (`GEN`, class 0xa11e0) and 0x46cf0 (`Wait`,
+  class 0xa11c8) both allocate 0x8 + 0xc and copy the parsed
+  EventSet through 0x47d60; the base clause node 0xa0f28 is
+  allocated by 0x47c90 (0x8 bytes, class word at [node+0x4]).
+  The node base table's sibling sub-tables override +0x10 with
+  the verbs that answer 6: 0xa1038 → 0x45dc0 (`*[ebx] +=
+  [node+0x8]`, answer ← 6) and 0xa1040 → 0x45d90 (`*[ebx] =
+  [node+0x8]`, answer ← 6) - the second is the `goto` jump on
+  the row cursor EBX = &rec+0x4 (PR-221 (d)), the first a
+  cursor delta - and 0xa1098 → 0x45d50, which after its own
+  chain checks the answer against the node's trigger byte
+  [node+0x10] and then adds [node+0x8] to *[ebx] and
+  [node+0xc] to *[ecx]. A row is therefore re-run (cursor held,
+  0x52140) exactly while one of ITS OWN directive nodes answers
+  6, not while a clock says so. (e) WHERE THE ROW CURSOR IS
+  PLACED ON STATE ENTRY. The record's row-reset verb (class
+  0xa260c +0x1c = 0x52360) rolls the `time=` default through
+  0x52070 (PR-220), zeroes [obj+0xa1] (0x5236b), sets
+  [obj+0x99] = 1, and then PLACES THE CURSOR: for edx >= 0 it
+  writes [rec+0x4] = edx, or with the state's 0x10/0x20 exit
+  bits XOR-ed into the choice, [rec+0x4] = [list+0x8] - edx - 1
+  (0x523bc-0x523cb). The rolled `time=`/sequence-default number
+  is used as a ROW INDEX: entering a state starts it at row k,
+  or at count-1-k.
+OPENS: OI-112 again, narrowed further. What this PR could NOT
+  settle: the first step of the chain builder is not a keyword
+  compare but a FIELD SPLIT. 0x45df0 at 0x45dfc-0x45e18 calls
+  0x57d30 with EBX = the static defaults table 0x961fc, EDX = 1,
+  ECX = the pattern 0x91844 (the bytes are ` , %[^,| \r\n\t]` -
+  a comma separator THEN the token class, so the "pattern" is
+  what separates fields, and the token class is the keyword
+  scan), and the text in EAX, then 0x45e20-0x45e38 treats a
+  NULL or empty first field as "no more text" (0x45e3a-0x45e55:
+  an empty node) and otherwise takes the result at [ebp-0x8] to
+  the keyword compares (0x45e7d: `mov edx,0x91852` = the string
+  `rev`, the first word of the table, then `call 0x76a69`).
+  0x57d30 is now read: it copies a static 125-entry scratch
+  table from 0xa9510 to the stack, dispatches on EDX through a
+  jump table at 0x57d20 - 0 = bare scan 0x49920, 1 = bare scan
+  0x498f0, 2 = separator-stripping 0x49950, 3 = 0x499b0 - to
+  fill the scratch with the scan's values, and hands the array
+  to 0x57990, which frees the previous string (0x579e0) and
+  copies the new one out a wide-character-at-a-time copy
+  (0x579c2-0x579d8). Its callers include the settings-block
+  readers 0x51a1f/0x51a76 (EBX = the block object, PR-221's
+  sequence default), the clause parser 0x47d97 (EBX = 0x961fc
+  with the format 0x919bc, mode 0) and 0x44480 (EBX = 0x961fc,
+  mode 3). 0x961fc is STATIC data whose own fields point at
+  0x96200 - the defaults block of that settings/string object,
+  132 code sites name it, and 0x57a00 stamps the class word
+  0x96200 on the objects that hold these strings. So the
+  engine reads a row line as comma-separated fields, first
+  field = the first authored number, then a keyword token, and
+  the exact use of the array vs. the table at 0x961fc inside
+  0x57990 is the first thing the next PR should read. The named
+  lead for the keyword arguments: the scan helpers differ.
+  0x49920/0x498f0 are BARE scans
+  (they pass the caller's format straight through), but
+  0x49950/0x499b0 first strip separators in a loop (`%c` at
+  0x91cda, then 0x91ce1/0x91cf1, 0x4996d-0x49980) and only then
+  apply the real format - a format like ` %[^,| \r\n\t]` only
+  behaves as "skip the separator, take the next token" through
+  THAT kind of helper. And the unknown-word report is the string
+  at 0x9199d, `Bledna komenda %s w` - the engine's own "bad
+  command" diagnostic. OI-112's
+  second-authored-number question is unchanged and stands as
+  written: no path in the row ctor, the row chain build or any
+  class verb consumes it, and the shipped data never puts a bare
+  number where a directive word would be.
+CLOSES: nothing in the register.
+CORRECTS: PR-221's OPEN paragraph named "the clause/directive
+  node family" as an unsettled candidate for where a row's
+  numbers go: this PR reads that family and closes that part -
+  clause nodes hold only the 12-byte set plus the mode byte
+  (0x46c70/0x46cf0 allocate 0x8+0xc), and the numbers a row
+  tail carries belong to the keyword-argument nodes (`M`/`I`/
+  `pos`/`goto`/`smp`), which is where the port's `dx,dy`
+  already comes from. It also narrows PR-217's/PR-218's note
+  that a `Wait` tail is "the same ctor/parser as GEN": the
+  creates are separate (0x46cf0 vs 0x46c70, classes 0xa11c8 vs
+  0xa11e0) even though the clause parser at 0x47d60 is shared.
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.

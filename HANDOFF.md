@@ -2060,6 +2060,54 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-222 (READ): a row's tail is a keyword language. The
+engine's directive table is one string block at 0x91847-0x91990,
+scanned with ` %[^,| \r\n\t]` (0x91844) and matched by
+0x76a69: rev, zero_v, zero, zero_t, vol_music, smp (` %i`),
+smp2/smp3, smpauto, smpauto2, smpprior (` %d`), vol, smp_loop,
+smp_unloop, smp_stop, atc_on, atc_off, lock, lock2, unlock,
+unlock2, ground_on, ground_off, chdir, ldir, rdir, pos
+(` %i , %i`), goto (`%d`), gotorel, goto_rel, I (` %i,%i`), F,
+IC, FC, M (` %i,%i`), MOVE, GEN, Wait. Arguments are read by a
+scan with THAT format into the node (0x46beb-0x46bf9: an
+0xc-byte node, class 0xa1048, `%d` at 0x91998); an unmatched
+word ENDS the tail - 0x46c1c reports it (0x496b0, format
+0x9199d, the global 0xa92d4) and returns 0, so the chain build
+stops at 0x516e8. Counted on the shipped texts: field 3 is
+`smpauto` 370, `GEN K_GEN1` 288, `ATC_OFF` 242, `ATC_ON` 235,
+`GEN AC_PLAT_OFF` 181, `M`+0 172, `WAIT K_NEVER` 157, `F`+0 99,
+lock/unlock 92/66, `GEN AC_TIME` 60, `F` -300/-330/-250
+36/36/36, zero 30, `WAIT K_GEN1` 25 - and ZERO row lines carry
+a bare number there, which is the negative datum OI-112 needed:
+nothing in the engine could read a row's second authored
+number. Clause nodes hold only the set: 0x46c70 (`GEN`,
+0xa11e0) and 0x46cf0 (`Wait`, 0xa11c8) allocate 0x8+0xc and
+parse through 0x47d60 - so PR-217/218's "same ctor as GEN" is
+only true of the clause parser, not the create. The answer-6
+holders are the sibling sub-tables of the node base: 0xa1038 +
+0x10 = 0x45dc0 (*[ebx] += [node+0x8], answer 6) and 0xa1040 +
+0x10 = 0x45d90 (*[ebx] = [node+0x8], answer 6) - jumps and
+deltas on the row cursor EBX = &rec+0x4 - and 0xa1098 + 0x10 =
+0x45d50, gated on the node's own trigger byte [node+0x10],
+applying [node+0x8]/[node+0xc]. So a row is re-run exactly
+while one of its OWN directive nodes answers 6. Unread and
+first in line: 0x45df0's first step is NOT a token scan but the
+settings lookup 0x57d30 (ECX = 0x91844, EDX = 1, EBX = the
+text) and 0x45e20 treats an empty result as end-of-text - how a
+row tail reaches the keyword match is still unnamed. The named
+lead: 0x49920/0x498f0 are BARE scans, while 0x49950/0x499b0
+first strip separators (`%c` 0x91cda then 0x91ce1/0x91cf1,
+0x4996d-0x49980) and only then apply the format - a leading
+` %[^...]` only behaves as "skip the separator, take the token"
+through THAT kind of helper. Two more rows read cleanly: the
+unknown-word report is the engine's own diagnostic string at
+0x9199d (`Bledna komenda %s w`), and the record's row-reset
+verb 0x52360 (+0x1c) rolls the `time=` default through 0x52070
+and PLACES THE ROW CURSOR at it, [rec+0x4] = k or count-1-k by
+the state's 0x10/0x20 bits (0x523bc-0x523cb) - the `time=`
+number is a row index on state entry, not a duration. No
+behaviour changed.
+
 STATUS PR-221 (READ): how much of a row line the engine
 actually reads. The row-line parser 0x51660 pushes exactly
 three arguments to the scan helper (push [row+0x10], push
