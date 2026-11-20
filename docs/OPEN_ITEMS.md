@@ -803,6 +803,20 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     the provider raises K_GEN1 every frame" - no GEN row, no
     message. Final question: which authored kind the ZARIA.01
     DRABINKA carries; then port the overlap rule.
+    PR-233 ANSWERS it, NEGATIVE: the class token is authored
+    level text (factory 0x4df10 chain); 'DRABINKA' matches at
+    0x1f8ac and its kind word is 0xa2498 (0x531f0 tail
+    0x532a6; low byte 0x98 = bit 0x10 only), KDRABINA's is
+    0x9d8a8 (0x34e39) - neither carries bit 0x20, and the
+    drabinka kind table's provider slot +0x8c is the NULL
+    provider 0x23a60 (empty TEventSet, nothing raised). The
+    0x9a778-at-+8 stores (0x29a51/0x2a18d) are mid-chain ctor
+    stores overridden one instruction later (0x29a69 ->
+    0x99828) - PR-229 read them as final kinds. So the ladder
+    `WAIT K_GEN1` can only be fed via [drab+0x60]; PR-226's
+    bit-0x20 writer of [obj+0xa5] is still the unnamed
+    question (word writers measured: 0x2b6a0/0x2b840/0x54be9/
+    0x54e24 + the LION keyed-list region 0x1e5xx).
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

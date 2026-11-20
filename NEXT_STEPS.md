@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-233.
+> at PR-234.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -33198,4 +33198,81 @@ CORRECTS: none
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.
+```
+
+## PR-233 — THE DRABINKA KIND IS 0xA2498 WITH A NULL PROVIDER:
+## THE OVERLAP-KIND LAW CANNOT FEED THE LADDER (OI-078 ANSWERED, NEGATIVE)
+```
+KIND: read
+SUBSYSTEM: objects/class construction - the authored class-name
+token, the generic object factory chain, the kind pointer
+[obj+8], and OI-078's last named question answered NEGATIVE.
+ADDRESSES: 0x1f870, 0x1f8ac, 0x1f8c0, 0x1f8d4, 0x531f0, 0x532a6,
+  0xa2498, 0xa2490, 0x23a60, 0x34c20, 0x34e39, 0x9d8a8, 0x9a778,
+  0x9a754, 0x9a74c, 0x29a51, 0x29a69, 0x99828, 0x2a18d, 0x2a1a5,
+  0x298d7, 0x2b312, 0x4df10, 0x4e971, 0x91d1c, 0x76a69, 0x536f0,
+  0x536f8, 0x536ff, 0x45120, 0x45200, 0x1e514, 0x1e6c8
+NAMES: DRABINKA, KDRABINA, ANITAB, kind word, [obj+8],
+  [obj+0xc], [obj+0xa5], LL_SIG_K_GEN1, null provider
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE CLASS TOKEN IS AUTHORED DATA. The class factory
+  0x4df10 (called from the level loader 0x4aac3) scans the
+  object's class NAME out of the level text (the token-table
+  region 0x91d1c carries the scan formats and the error string
+  'Nie znaleziono obiektu na liscie!'), then chains 0x1f870 ->
+  0x24f60 -> 0x26860 -> 0x29090 -> 0x2ba90 -> 0x2ea00 ->
+  0x33370 -> 0x34c20 ..., each branch a `call 0x76a69` name
+  compare. 'DRABINKA' is matched at 0x1f8ac.
+  (b) THE DRABINKA'S KIND. 0x1f8ac: alloc 0xd9 (0x1f8c0), ctor
+  chain 0x531f0 (0x1f8d4); the 0x531f0 tail at 0x532a6 stores
+  `mov DWORD PTR [eax+0x8],0xa2498` (and 0xa2490 at +0xc); the
+  factory then fills private fields (0x97f50 list table at
+  +0x152, null-list sentinel 0x98274) and NEVER re-stores +0x8.
+  So ZARIA.01's ladder's kind word = 0xa2498, low byte 0x98 =
+  bits 0x10|0x8: bit-0x10 only on the provider's map - bit 0x20
+  (the K_GEN1 bit) NOT set. World-6's KDRABINA is the same
+  shape: matched at 0x34e39 in factory 0x34c20, its derived ctor
+  overrides the kind to 0x9d8a8 - bit 0x20 NOT set either.
+  (c) THE DRABINKA PROVIDER IS NULL. The frame refresh 0x536f0
+  calls [[obj+8]+0x8c] (0x536f8-0x536ff - PR-229's reading
+  stands), but at the drabinka's kind table that slot is
+  0x23a60: build a 12-byte TEventSet with mode 0 and return it
+  - NO bits tested, nothing ever raised. 70 tables in
+  0x9a000-0xa2500 do carry the real provider 0x54910 (0x9a778
+  and 0x96874 among them); the generic base class is not one
+  of them.
+  (d) THE 0x9a754-FAMILY STORES ARE NOT OBJECT KINDS. Every
+  site storing 0x9a778 to +0x8 (0x29a51, 0x2a18d - the KADMAR
+  factory 0x29090, the POCISK2/SMIGLO branches) is followed
+  ONE instruction later by a derived-tail override
+  (`mov [eax+8],0x99828` at 0x29a69/0x2a1a5), exactly the
+  STRUMIEN double-store pattern; 0x9a754 sits at +0xee (a
+  nested-list/subclass kind) and 0x9a74c at +0xc. PR-229 read
+  these ctor families as final kinds; they are mid-chain.
+  (e) THE LION'S +0xa5 IS NOT ONLY A KIND BYTE. In the LION
+  class 0x1e514/0x1e6c8 pass [lion+0xa5] to 0x45120/0x45200 -
+  a keyed named-list helper (13-byte entries, name lookup via
+  0x49920) - so the provider's tested dword plays a second
+  role there; the bits the LION code tests at it are 0x2/0x40/
+  0x80 (0x50504/0x50514/0x50530), never 0x20.
+OPENS: OI-078: with (b)+(c), NO authored drabinka kind raises
+  K_GEN1 and the drabinka's provider raises NOTHING, so the
+  ladder's `1,0,WAIT K_GEN1` can only be fed by a signal merged
+  into [drab+0x60] (state rows or a message) - back to PR-226's
+  still-unnamed question: which code sets bit 0x20 of [obj+
+  0xa5] ANYWHERE; the measured word-writer list is 0x2b6a0
+  (zero), 0x2b840 (clone copy), 0x54be9 (kind store), 0x54e24
+  (zero), plus the LION keyed-list region. PR-234 = the
+  exhaustive bit-0x20 writer census.
+CLOSES: nothing in the register (OI-078 stays PARTIAL; its one
+  named question is now ANSWERED NEGATIVE - row updated).
+CORRECTS: PR-229's OPENS proposal (tie the drabinka to the
+  0x9a754 bit-5 family and port the overlap law): measured
+  NEGATIVE - the drabinka kind is 0xa2498 (bit 0x10 only) with
+  a null provider, and the 0x9a754/0x9a778 stores are mid-chain
+  ctor stores, not final object kinds. The overlap law itself
+  (PR-229 (b)-(d)) stands for objects that DO carry a bit-5
+  kind.
+GATE: light: verify-index verify-docs rc=0 (ok);
 ```

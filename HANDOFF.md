@@ -2067,6 +2067,24 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-233 (READ): OI-078's last named question ANSWERED,
+NEGATIVE. ZARIA.01's DRABINKA is built by the generic factory
+chain (0x4df10 <- level loader 0x4aac3; the class token is
+authored level text, 'Nie znaleziono obiektu na liscie!'):
+'DRABINKA' matches at 0x1f8ac, alloc 0xd9, ctor 0x531f0 whose
+tail 0x532a6 stores kind [obj+8]=0xa2498 (+0xc=0xa2490) - low
+byte 0x98 = bit 0x10 only. KDRABINA (0x34e39, factory 0x34c20)
+overrides to 0x9d8a8 - no bit 0x20 either. The drabinka kind
+table's provider slot +0x8c is the NULL provider 0x23a60 (empty
+TEventSet; the real provider 0x54910 sits at +0x8c of 70 other
+tables incl. 0x9a778/0x96874). The 0x9a754/0x9a778 stores are
+MID-CHAIN ctor stores in the KADMAR factory (0x29a51 then
+0x29a69 -> 0x99828 at 0x2a18d...) - PR-229's tie-out proposal
+is corrected: the overlap-kind law cannot feed the ladder's
+`WAIT K_GEN1`; the signal must arrive via [drab+0x60], and
+PR-226's "who sets bit 0x20 of [obj+0xa5]" stands as the next
+named census (PR-234). Light gate per PR-232 (docs-only).
+
 STATUS PR-232 (GATE): the gate now FOLLOWS THE RECORD KIND
 (owner ruling 2026-11-20). A read-/docs-kind PR whose diff is
 .md-only runs ONLY `make verify-index verify-docs` and records
