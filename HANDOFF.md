@@ -1956,6 +1956,30 @@ PR-134 display cadence. Row stays OPEN. The YETI class graph
 in the PR. Docs only: 65 ok / 13 ok + 21 SKIPs unchanged,
 0 warnings.
 
+STATUS PR-212 (OI-109 READ - THE PLANE LAW IS FOUND): the
+plane of EVERY placement entry - all three keys, un-lettered
+included - is set at level load by ONE pass, 0x4b1d0 (its
+only call site 0x4d764): list entry i chains at cell i raw
+('none' occupies a head), and cell c of any pool rides the
+planies segment that carries its 'A' - the count of '|'
+before the (c+1)-th A of the level's planies program, last
+segment if the A's run out - dispatched through class-table
+slot +0x5c (0x23b90 plain store in 150/177 tables; the
+image's ten +0x5c dispatches are all accounted for: the
+pass, the lion := main_back at 0x4d68b, four creation-time
+child inheritances, and the propagation verbs 0x1ecb0/
+0x332f0/0x554f0/0x531b0). The letters EXECUTE, the PIPES
+place: that is why no spec names those keys, and why ZARIA's
+animals riding the lion's plane 2 is a consequence of the
+law. Measured divergences (LEO_OBJ_POS): port raw-index
+model vs engine - ZARIA KAMIEN 1 vs 2, LONA.05 PINGWIN/YETI
+2 vs 1 (engine puts them on the lion's plane 1), KADMAR2 0 =
+0. The row's animacje map equals the engine's law verbatim
+(TUNGA.11 1,2,2,2,2; ENA2 2,2,3). Next is a PORT PR,
+failing test first, re-deriving the lv_plany2 controls.
+Docs only here: 65 ok / 13 ok + 21 SKIPs unchanged,
+0 warnings.
+
 PLAN STEP PR-206 (object placement fidelity, the user-visible
 thread; register row OI-108): two PRs after this step, neither part
 of closing T1. (5a) [READ] measure where the ORIGINAL draws `.MOV`

@@ -960,55 +960,58 @@ OI-108: ZARIA's `animacje=` objects drew through the WRONG PLANE in
 OI-109: the plane of the two placement keys that `plany=` NEVER
   NAMES - `zwierzaki=` and `ani_plat=` - is still not read from the
   engine; the port keeps PR-61's entry-index model there
-  status: OPEN (opened by PR-208, which proved the law for the one
-  key planies does name and left the other two exactly as they were)
-  notes: BYTE-BACKED: no shipped planies spec carries any letter
-    for those keys - the alphabet is exactly {T,A,L,B} and A counts
-    match the `animacje=` list ONLY (KADMAR2: zwierzaki 3 cells,
-    ani_plat 2, A 3; LONA.05: 4/4/4 with A 4; ZARIA.01: three
-    zwierzaki cells, no letter for them anywhere). Why the port's
-    entry-index model has not blown up: in ZARIA.01 it lands
-    ZWIERZ2 (KAMIEN stones) on layer 1 and ZWIERZ1 (NOSOROG the
-    rhino, PAJAK spiders, SEP wasps) on layer 2 = main_back = the
-    lion's own plane, which is what the collision-plane gate
-    ([entry+0x24] == [owner+0x24], CHECK_ALL_PLANE) needs for the
-    lion to fight them - evidence the animals ride the reference
-    plane, NOT proof of how the engine decides it.
-      PR-209 READ THE CONSUMER (0x4af10, exact bytes): planies is
-    a per-invocation PROGRAM - 'T' drives the tlo layer objects
-    ([[level+0x390]+0x58] array) via 0x57710/0x57780, 'L' the
-    lion [level+0x394] + the second chain at [level+0x64]
-    (0x4b2f0), 'B' the belt [level+0x38c] (0x448c0) + the
-    0x4a170/0x49bd0 pair, and 'A' k calls 0x4b360, which walks
-    cell k of EACH of the three placement-KEY pools (one pool
-    per key at [level+0x58 + keyordinal*4], cell count at
-    [level+0x44 + keyordinal*4] - the PR-60/PR-170 layout
-    confirmed) running verb +0x60 (predicate) then +0x74 on each
-    entry; an unknown letter prints "Bledny opis poziomu - plany"
-    (0x91d2a) and reports. So the pass ACTIVATES; it never
-    writes [obj+0x24]. New data law from the same read: sum(A)
-    is sized to the authored lists - >= the shortest key's cell
-    count only at TUNGA.11 (1 vs 5), equal-or-below everywhere
-    else; every shipped letter reaches at least one real cell.
-      LEADS (PR-209, concrete): the writer of [obj+0x24] for
-    placed objects - 0x4aaa0/0x4dd50 build and chain a placement
-    but write no +0x24; the accessor thunks 0x23b80 (`mov
-    eax,[eax+0x2c]`), 0x23b90 (`mov [eax+0x24],edx`), 0x23e00
-    (`mov eax,[eax+0x24]`) sit inside FUN_00023850/0x23ea0 and
-    are reached through class-table slots; the slot +0x04 census
-    (PR-209): 158 ctor-proven tables, targets ONLY 0x23850 (116)
-    / 0x23ea0 (41) / 0x44ec0 (1), and 146 `call DWORD PTR
-    [reg+4]` sites are the call surface. Also unread: what the
-    +0x60/+0x74 pair does (same pair runs on the lion and on the
-    [level+0x64] chain - if it is activation, why do the animals
-    move without it), and which feeder fills [level+0x64]
-    (PR-105 item 7). A live-RAM read would settle the plane in
-    one measurement, but the QEMU rig still cannot drive the
-    original into a level (it stays in the movie loop).
-      TEST SURFACE: verify-play pins only `zwierzaki` interactions
-    today (ZARIA's LICHA at tick 186, the PR-92 touch raise), so
-    changing an animal's plane is exactly the kind of change those
-    legs would catch - and the planies fixture's PAJAK/KAMIEN
-    control pins (lv_plany2) would have to be re-derived honestly.
-  origin: PR-208; consumer read PR-209
+  status: OPEN - PR-212 READ THE LAW (below); the row stays
+    open only for port conformance, not for RE
+  notes: THE LAW (PR-212, exact bytes): one level-load pass,
+    0x4b1d0 (its ONLY call site 0x4d764, in the same flow
+    that builds the lion at 0x4d668 and sets the lion's
+    plane at 0x4d68b). A key list's entry i chains at cell i
+    RAW ('none' occupies a head and shifts nothing;
+    0x4ce52/0x4dd50/0x4aaa0 - neither builder writes +0x24).
+    For cell c of each pool id 0..2 the pass counts the '|'
+    bytes before the (c+1)-th 'A' in the level's planies
+    program ([[level+0x30]] - the same string the letters
+    run, PR-209's consumer 0x4af10) and dispatches that
+    count as the plane to EVERY entry in that cell through
+    class-table slot +0x5c (0x23b90 `mov [eax+0x24],edx` in
+    150 of the 177 tables long enough; propagation variants
+    0x1ecb0/0x332f0/0x554f0/0x531b0 - the image's ten
+    `call [reg+0x5c]` sites are all accounted for in the
+    PR). When the A's run out the plane is the LAST segment
+    (total '|'). The lion rides separately: [lion+0x24] =
+    main_back (0x4d68b); children created at runtime inherit
+    their owner's plane at once. The letters never named a
+    key's plane - the program's SEGMENTS name it for all
+    three keys at once - which is why no shipped spec
+    carries a letter for those keys. PR-209's own note
+    mis-named 0x23e00 as a +0x24 getter; it is PR-106's
+    bounds test (corrected in the record).
+      DATA: ZARIA.01 `T|TA|TALAB` -> cells 0,1,2 -> planes
+    1,2,2, so KAMIEN (cell 1), ZWIERZ1 and ANIPL2 all ride
+    plane 2 = main_back = the lion's plane - their collision
+    agreement with the lion is a CONSEQUENCE of the law, not
+    evidence. LONA.05 `T|TAAALAB` -> every cell of every
+    pool -> plane 1 (FOKA/PINGWIN/YETI and ANIPL2/22/3 ride
+    the lion's own plane 1). KADMAR2 `TALABA` -> everything
+    0. The engine's cell maps equal the port's PR-208
+    animacje maps everywhere checked (TUNGA.11 1,2,2,2,2;
+    ENA2 2,2,3) - the port's animacje law IS the engine's
+    law, extended verbatim to the other two keys.
+      DIVERGENCE, MEASURED with the read-only LEO_OBJ_POS
+    probe (PR-212): the port's raw-index model agrees only
+    where segment == index. ZARIA KAMIEN port 1 vs engine 2;
+    ZARIA ANIPL2 port 1 vs engine 2; LONA.05 PINGWIN port 2
+    vs engine 1 (and ANIPL22/ANIPL3 would ride 2/3 vs 1);
+    KADMAR2 PLAT1 both 0. The port step is a PORT PR,
+    failing test first: lv_plany-style legs with
+    LEO_OBJ_POS asserting the segment law, its control pins
+    (lv_plany2's PAJAK/KAMIEN) re-derived honestly.
+      STILL UNREAD, NAMED: which loader feeds [level+0x64]
+    (PR-105 item 7; zeroed at 0x4d75d, walked by the 'L'
+    pass 0x4b2f0); what sets [obj+0x2c] and what the +0x74
+    verb performs; whether anything consumes [obj+0x24]
+    beyond the draw-list insert (0x52d67 -> 0x57530) and the
+    collision-plane gate. A live-RAM read is no longer
+    needed for this row's question.
+  origin: PR-208; consumer read PR-209; law read PR-212
 

@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-212.
+> at PR-213.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -30478,3 +30478,233 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
   edit, the section 8 status block, the header numbering line
   and the regenerated index go back together; nothing else
   was touched.
+
+## PR-212 — OI-109 READ, THE LAW IS FOUND: THE PLANE OF EVERY
+## PLACEMENT ENTRY IS SET AT LEVEL LOAD BY THE LEVEL'S OWN
+## planies PROGRAM - CELL c OF ANY OF THE THREE POOLS RIDES
+## THE SEGMENT THAT CARRIES ITS 'A' LETTER - AND THE SET
+## VERB IS CLASS-TABLE SLOT +0x5c, THE ONE PASS AT 0x4b1d0
+## BEING THE ONLY PLANE-WRITER FOR PLACED OBJECTS
+
+KIND: read
+SUBSYSTEM: level-load plane law - the three placement-key
+      pools, the planies segment structure, the [obj+0x24]
+      writer surface, and the plane-set verb +0x5c. No port
+      behaviour change.
+ADDRESSES: 0x4b1d0, 0x4b23d, 0x4b241, 0x4b245, 0x4b24a,
+      0x4b261, 0x4b266, 0x4b26c, 0x4b274, 0x4b27f, 0x4b282,
+      0x4b286, 0x4b289, 0x4b298, 0x4b2ab, 0x4b1dc, 0x4d75d,
+      0x4d764, 0x4d668, 0x4d68b, 0x4dde0, 0x4dd50, 0x4aaa0,
+      0x4aac3, 0x4aad5, 0x4aadd, 0x52c10, 0x4cd6c, 0x4cd85,
+      0x4cda6, 0x4cdc7, 0x4cdf5, 0x4ce0a, 0x4ce3b, 0x4ce52,
+      0x4ce62, 0x4ce78, 0x4ceb5, 0x23b90, 0x1ecb0, 0x1ecbd,
+      0x332f0, 0x332fd, 0x531b0, 0x531c1, 0x554f0, 0x554f9,
+      0x55513, 0x2402b, 0x33d0f, 0x362c7, 0x362f2, 0x4dcc0,
+      0x4b360, 0x4b399, 0x4b3a5, 0x4b2f0, 0x4b303, 0x4af1d,
+      0x4af2a, 0x23b80, 0x91dda, 0x91de4, 0x91ded, 0x91df6,
+      0x91d2a, 0xcef40, 0xcef44, 0xa94ec, 0xa94e8, 0xa25d4
+NAMES: planies, plany=, zwierzaki=, animacje=, ani_plat=,
+      none, ZWIERZ1.DES, ZWIERZ2.DES, ZWIERZ.DES, PLAT1.DES,
+      ANIPL2.DES, ANIPL22.DES, ANIPL3.DES, KAMIEN, PINGWIN,
+      YETI, SEP, SURPRISE, T, A, L, B, main_back, [obj+0x24],
+      [obj+0x2c], [obj+0x34], [obj+0x40], [obj+0x3c],
+      [obj+0x112], [obj+0x120], [obj+0xee], [level+0x30],
+      [level+0x40], [level+0x44], [level+0x58],
+      [level+0x64], [level+0x390], CHECK_ALL_PLANE,
+      LEO_OBJ_POS, OI-109
+CODE: no: no port behaviour change; the reading used
+      objdump sweeps of text.asm (VA = file offset +
+      0xf000), leodb queries, direct .elf data/table reads,
+      and the existing read-only LEO_OBJ_POS probe on the
+      fixtures.
+HOOKS: none new. LEO_OBJ_POS (PR-207, read-only) is used by
+      the measurements below; its behaviour is unchanged.
+OPENS: none new.
+CLOSES: none. OI-109's READ question is ANSWERED - the law
+      is written into the row - and the row stays OPEN
+      because the port does not yet implement it; the
+      measured divergences and the remaining named leads
+      (the port alignment, the [level+0x64] feeder, the
+      [obj+0x2c]/+0x74 pair) are in the row.
+CORRECTS: none (no committed record is retracted; the wrong
+      claim lives in the OI-109 row's OWN PR-209 note and is
+      rewritten in this same commit - it called 0x23e00
+      "(`mov eax,[eax+0x24]`)", but the bytes at 0x23e00 are
+      the two-point bounds test PR-106 established (the
+      +0x08 slot), not a +0x24 getter. What that note left
+      unnamed - "accessor thunks ... reached through
+      class-table slots" - is now named: the setter slot is
+      +0x5c (0x23b90 in 150 of the 177 detected tables long
+      enough for it); there is no +0x24 getter thunk, the
+      consumers read the word directly (PR-208's 0x52d67).
+      Nothing previously committed about 0x4aaa0/0x4dd50 is
+      touched: PR-209's "build and chain a placement but
+      write no +0x24" is re-verified at bytes here).
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+      (run serially: the golden pose capture is load-flaky
+      under -j, alone it is 30/30 - PR-211's note);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs (fixture trees moved aside per the
+      restaging recipe, then restored).
+
+- THE ONE PLANE-WRITER FOR PLACED OBJECTS. Entry 0x4b1d0
+  (eax = the level object) has exactly ONE call site in the
+  image, 0x4d764, in the level-load flow between
+  `mov DWORD PTR [level+0x64],0` (0x4d75d) and the object
+  wiring that follows; the same flow builds the lion at
+  0x4d668 (builder 0x4dde0, creature ctors 0x1fef0/0x25510/
+  ...) and sets the lion's plane at 0x4d68b (below). The
+  pass walks POOL OCCURRENCE IDS 0..2 (the same ids
+  [level+0x40] hands out, one per placement-key record,
+  0x4ceb5 `inc [level+0x40]`; the three key literals are
+  'zwierzaki' 0x91dda, 'animacje' 0x91de4, 'ani_plat'
+  0x91ded, whose last id each level stores at 0x4cd85 ->
+  ds:0xcef44, 0x4cda6 -> ds:0xa94ec, 0x4cdc7 -> ds:0xa94e8;
+  every shipped level carries exactly the three keys, so
+  ids 0,1,2 cover every pool). For id k it reads the cell
+  count [[level+k*4]+0x44] (0x4b22d; written at 0x4ce3b)
+  and the head array [[level+k*4]+0x58] (0x4b274; allocated
+  at 0x4cdf5 and zeroed at 0x4ce0a, one head per parsed
+  list token), and for cell c in [0,count): it scans the
+  level's planies string - the pointer at [level+0x30], the
+  SAME program the letter consumer 0x4af10 interprets
+  (0x4af1d/0x4af2a fetch the identical pointer) - counting
+  the '|' bytes (0x7c, inc at 0x4b266) up to the (c+1)-th
+  'A' byte (0x41, inc at 0x4b255; the scan runs while the
+  A-count-minus-1 is below c, 0x4b268-0x4b26a, and ends at
+  the strlen precomputed at 0x4b1dc). The count of '|' is
+  PLAIN edx = the plane value; when the string has fewer
+  than c+1 A's the scan stops at the end and the value is
+  the total '|' count - the LAST segment index. Then it
+  walks the chain at head[c] (0x4b27f, chain link +0x34 at
+  0x4b289) and calls class-table slot +0x5c on every entry
+  (0x4b282/0x4b286). One string scan per cell index, the
+  same for all three pools.
+- ENTRY i OF A LIST IS CELL i, RAW. The list parser at
+  0x4cd6c..0x4ceb5: per key record it parses the token list
+  (0x4cdd5 -> count at [ebp+0xe2]), allocates count heads
+  (0x4cdf5), then for token i (loop 0x4ce52..0x4ceb3,
+  ebx = i at 0x4ce78): if the token does NOT contain the
+  literal 0x91df6 - which reads, from the .elf, as 'none'
+  (0x4ce5d) - it opens the named .des (0x4a910) and calls
+  0x4dd50(eax=level, edx=[level+0x40], ebx=i); 0x4dd50
+  parses the file and calls 0x4aaa0 per entry line; 0x4aaa0
+  constructs the object at 0x4aac3 (0x4df10) and chains it
+  at [[level+id*4]+0x58]+i*4 via 0x52c10 at 0x4aadd. A
+  'none' token leaves its cell an EMPTY HEAD and the next
+  token still gets its own index: cell indices are raw
+  token positions, 'none' consumes a slot. Neither 0x4dd50
+  nor 0x4aaa0 writes [obj+0x24] - PR-209's wording holds.
+- THE SET VERB IS SLOT +0x5c. A census of every detected
+  class table long enough for the slot (from
+  build/leo/leo.elf bytes): 177 tables have +0x5c, 150 of
+  them hold 0x23b90, `mov [eax+0x24],edx; ret` - the plain
+  store. The variants are propagation verbs, and they are
+  exactly why the word needs a verb at all: 0x1ecb0 sets
+  its own [obj+0x24] then dispatches +0x5c with the same
+  value to the partner at [obj+0x120]; 0x332f0 sets itself
+  then dispatches to the object at [obj+0xee]; 0x554f0
+  sets itself then walks a child array [obj+0x40] x count
+  [obj+0x3c] (0x554f9/0x55513); 0x531b0 copies ANOTHER
+  object's plane - it calls [B]+8 slot +0x5c with
+  edx = [A+0x24] (0x531bc-0x531c1). The whole dispatch
+  surface is the ten `call DWORD PTR [reg+0x5c]` sites in
+  the image, and all ten are now accounted for: three are
+  those helpers' own bodies (0x1ecbd, 0x332fd, 0x55513),
+  one is 0x531b0's body (0x531c1), one is the level-load
+  pass (0x4b286), one is the LION: 0x4d688-0x4d68b sets
+  [lion+0x24] = [[level+0x390]+0x1c] - the scene struct's
+  main_back, the reference layer (PR-208's [scene+0x1c],
+  setter 0x574f0) - and four are CREATION-TIME
+  INHERITANCE: a child built through the 0x4dcc0 factory
+  (registry ds:0xcef40) and hooked into its owner's
+  [owner+0x112]/[owner+0x12a] takes its creator's
+  [obj+0x24] (0x24026-0x2402b, 0x33d03-0x33d0f,
+  0x362c1-0x362c7, 0x362ec-0x362f2). Direct stores to an
+  object's +0x24 outside 0x23b90 exist only in 0x332f1 and
+  0x554f9 (the helpers); every other +0x24 store in the
+  text is a stack local or another structure's field
+  (checked one by one: 0x1f2fb/0x4c931/0x528bc/0x52950/
+  0x55bca/0x5663a/0x5729b/0x594ac/0x594b8/0x5957e/0x5958b/
+  0x5f1f6 and the rest - struct inits beside class tags
+  0x98278/0xa2550/0xa26c8, list bookkeeping, [esp+0x24]).
+- THE LETTERS ARE THE ACTIVATION PROGRAM, THE PIPES ARE THE
+  PLANES. The consumer 0x4af10 walks the same string byte
+  by byte: 'T' drives the tlo layers through 0x57780/
+  0x57710, 'A' at the k-th occurrence calls 0x4b360(level,
+  k) (0x4afb1-0x4afc9), which walks cell k of EVERY pool
+  (0x4b37c-0x4b384 index the same [level+4j+0x44]/
+  [level+4j+0x58]) and for each chained entry runs verb
+  +0x60 (0x4b399 - 0x23b80, the [obj+0x2c] getter, the
+  predicate) and, if nonzero, verb +0x74 (0x4b3a5); 'L'
+  runs the same pair on the [level+0x64] chain (0x4b2f0..
+  0x4b317). So PR-209's "the pass ACTIVATES; it never
+  writes [obj+0x24]" stands - and the reason no shipped
+  planies spec NAMES zwierzaki= or ani_plat= is that the
+  letters never named a key's plane: the program's
+  SEGMENTS do, for all three keys at once, through cell
+  index = A ordinal.
+- THE DATA, MEASURED. ZARIA.01 `plany=T|TA|TALAB`, lists
+  `zwierzaki=none,zwierz2.des,zwierz1.des` and
+  `ani_plat=none,anipl2.des,none`: 3 A's at segment
+  positions 1,2,2, so cell 0 of any pool -> plane 1, cells
+  1,2 (and any cell past the last A) -> plane 2. KAMIEN
+  (ZWIERZ2, cell 1) rides plane 2, ZWIERZ1 (NOSOROG/PAJAK/
+  SEP, cell 2) rides plane 2, ANIPL2 (cell 1) rides plane
+  2; the lion's plane is main_back = 2 (0x4d68b; the port
+  itself reports "parallax: 3 tlo layers, reference 2").
+  The animals sharing the lion's collision plane is a CON-
+  SEQUENCE OF THE LAW, not a coincidence (this is what the
+  OI-109 row could only call evidence). LONA.05 `T|
+  TAAALAB`: all 4 A's sit in segment 1, so every cell of
+  every pool - ZWIERZ.DES (FOKA/PINGWIN/YETI at cell 2)
+  and ANIPL2/ANIPL22/ANIPL3 (cells 1,2,3) - rides plane 1,
+  and the lion's reference layer is 1. KADMAR2 `TALABA`:
+  no '|' at all, every plane 0 - PLAT1 (cell 0) and the
+  three animacje cells included. TUNGA.11 `T|TA|ATALABA`
+  and ENA2 `T|T|TAAL|TBA` give cell planes 1,2,2,2,2 and
+  2,2,3 - exactly the maps the shipped port already
+  computes for animacje= in its PR-208 planies reader: the
+  port's animacje law WAS the engine's law, and it extends
+  verbatim to the other two keys.
+- WHERE THE PORT DIFFERS (measured with the read-only
+  LEO_OBJ_POS probe on the fixtures): the port keeps the
+  PR-61 model "plane = the cell's RAW token index" for the
+  two un-lettered keys, which agrees with the segment law
+  only where the segment number happens to equal the index.
+  ZARIA.01: port KAMIEN layer=1, engine plane 2; port
+  ZWIERZ1 layer=2 = engine 2 (the agreement the row called
+  evidence); port ANIPL2 layer=1, engine 2. LONA.05: port
+  PINGWIN (ZWIERZ, cell 2) layer=2, engine plane 1 - the
+  engine puts the penguins and the yeti ON the lion's plane
+  1, the port puts them one plane off; port ANIPL22/
+  ANIPL3 would ride 2/3 where the engine says 1. KADMAR2:
+  both models say PLAT1 plane 0 (and the port's animacje
+  0/0/0 already matches the engine's 0). None of this is
+  changed here - this PR changes no behaviour - but the
+  numbers are pinned so a PORT PR (the next step for the
+  row) can be written as a failing test first: the same
+  lv_plany-style legs with LEO_OBJ_POS, asserting the
+  segment law, with the control pins re-derived honestly.
+- WHAT STILL STAYS OPEN (named): (1) the port alignment
+  above; (2) which loader feeds [level+0x64] (PR-105 item
+  7; 0x4d75d zeroes it at level load and the 'L' pass
+  0x4b2f0 walks it); (3) what sets [obj+0x2c] and what
+  verb +0x74 performs - the animals move without any A
+  letter, so their motion does not route through that
+  pair, but the pair IS the activation path for
+  cell-indexed placement entries; (4) whether anything
+  besides the draw-list insert (PR-208: 0x52d67/0x52d72 ->
+  0x57530 keyed on [obj+0x24]) and the collision-plane
+  gate consumes the value on placed objects.
+- RISK: none for behaviour - no port code, no test, no pin;
+  both gates re-run unchanged (65 ok; 13 + 21 named SKIPs);
+  0 warnings from a clean build. The epistemic risk: the
+  law rests on the instruction reads above, reproducible
+  from text.asm and the .elf with the recipes in this
+  record; the port-divergence numbers are reproducible
+  with the exact LEO_OBJ_POS runs quoted in the PR.
+- REVERT: revert this commit; this record, the OI-109 row
+  rewrite, the section 8 status block, the header numbering
+  line and the regenerated index go back together; nothing
+  else was touched.
