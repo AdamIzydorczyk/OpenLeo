@@ -2011,6 +2011,25 @@ planies string ('A' before the first 'L' = 2 for ZARIA),
 resolving cells through 0x4b0f0/0x4aa70/0x52c10. Docs only:
 65 ok / 13 ok + 21 SKIPs, 0 warnings.
 
+STATUS PR-215 (PORT, OI-092 ROW-SEEK HALF): the lion's own
+states now honour the `(N)` their scripts author. A
+self-target transition line in player_iterate writes its
+authored start row into the running state's row counter
+before the cross-state arm, exactly where the engine's
+applier does it (0x5360f-0x53616), keeping the PR-172 rule
+that the arm inlines ONLY that write (no ENTER, the row
+feed/carry survives). An absent/non-numeric token writes
+nothing: the engine's -1 is refused by its row-setter
+(0x52381) and the census (217 self-target lines, 22 on held
+K_FWD/K_BKWD, 19 of those tokenless, all walk states) rules
+out "write the top" - it would pin every walk to row 0,
+against PR-79/PR-134's video gait. Failing test first: the
+new ll_play_selftest leg measured red at five steps without
+the arm, green with it. No shipped fixture pin moved: 65 ok
+/ 13 ok + 21 SKIPs, 0 warnings. Open half registered on
+OI-092 (raw -1 on the same-state cursor 0x53616 vs 0x52381;
+held-arrow edge-vs-level).
+
 PLAN STEP PR-206 (object placement fidelity, the user-visible
 thread; register row OI-108): two PRs after this step, neither part
 of closing T1. (5a) [READ] measure where the ORIGINAL draws `.MOV`

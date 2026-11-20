@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-215.
+> at PR-216.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -30981,3 +30981,152 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
   rewrite, the OI-110 row narrowing, the section 8 status
   block, the header numbering line and the regenerated index
   go back together; nothing else was touched.
+
+## PR-215 — THE LION'S OWN ROW SEEK SHIPS: A SELF-TARGET
+## TRANSITION LINE WRITES ITS AUTHORED START ROW INTO THE
+## RUNNING STATE (THE ENGINE ARM 0x5360F-0x53616), THE ABSENT
+## TOKEN WRITES NOTHING, AND THE PLAYER PATH STOPS IGNORETING
+## THE (N) IT ALREADY PARSES; OI-092'S ROW-SEEK HALF CLOSES
+
+KIND: port
+SUBSYSTEM: player state machine - ported/ll_play.c
+      player_iterate: the same-state (self-target) arm of the
+      transition match, the row counter p->fi and the row feed
+      p->row_t of the LION's own states.
+ADDRESSES: 0x53602, 0x5360f, 0x53612, 0x53616, 0x53626,
+      0x52360, 0x52381, 0x523cb, 0x51e3e, 0x52046, 0x52000,
+      0x535a0, 0x535a2, 0x521c5, 0x520c0, 0x543fb, 0xa25d4
+NAMES: player_iterate, ll_player_step, ll_mov_row_start,
+      obj_transition, obj_rowseek_selftest, ll_play_selftest,
+      row_t, row_rem, facc, entry, fi, A_ONE, A_TWO, K_GENn,
+      A_WALK, K_FWD, LL_SIG_K_GEN2, OI-092, OI-078, PR-107,
+      PR-174, PR-172, rowseek_census
+CODE: yes: ported/ll_play.c - the self-target arm of the
+      transition loop in player_iterate (the body that runs
+      once per iteration; ll_player_step is only the clock)
+      now writes the authored start row into the RUNNING
+      state's row counter, exactly where the engine's
+      applier does it (0x5360f reads the current counter,
+      0x53612 skips an equal value, 0x53616 stores), for a
+      NUMERIC token only (`entry > 0`): an absent or
+      non-numeric token is the engine's -1 and writes
+      nothing here. Nothing else in the arm changes: no
+      ENTER, no impulse, no LL_PLAY_EV_STATE, and the row
+      feed and its carry (p->row_t, p->facc) are untouched,
+      because PR-172 settled that this arm inlines ONLY the
+      row write. The cross-state arm (PR-107's shared
+      ll_mov_row_start rule) is untouched.
+      ll_play_selftest grew one hermetic leg, "OI-092,
+      PR-215: THE PLAYER-SIDE ROW SEEK", eight steps at
+      dt == LL_ITER_MS over a two-state fixture (rows
+      70/240/70/70/70/70, five self-target lines plus one
+      cross-state line).
+HOOKS: none new.
+OPENS: OI-092 - the SIGNAL legs stay (the AC_TIME count arm
+      at 0x53626, which the player models through its own
+      frame-list wrap, and the +0xac verb 0x53619-0x53620
+      that the engine calls only when the stored value
+      differs); NEW named question from this PR, recorded in
+      the OI-092 row: the engine's same-state arm stores the
+      -1 RAW (0x53616 has no negative test - that test is
+      0x52381, inside the +0x1c setter the CROSS-state path
+      uses), so what a raw -1 row cursor does on the next
+      step (the wrap reading 0x521c5) is unread, and the
+      object path (PR-174, obj_rowseek_selftest LEG C) still
+      re-seeks an empty token to the top while the player
+      path now leaves it. Both readings are safe today:
+      the 19 authored no-token self-target lines all sit on
+      held-direction conditions, and whether the engine
+      re-matches a held arrow every iteration (edge-trigger
+      vs level) is the other half of that question.
+CLOSES: none (OI-092 stays OPEN, narrowed to the signal
+      legs; its "the player path models none of those"
+      sentence is superseded by this PR).
+CORRECTS: PR-107 (the shared helper's note that an absent
+      token "starts from the top instead of leaving the row
+      where it was" is now only the CROSS-state behaviour;
+      on the player's same-state arm the row is left where
+      it is, and the sentence in that comment now says so
+      with the 0x52381/0x53616 distinction attached).
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs.
+
+- FAILING TEST FIRST, MEASURED. The new leg went in before the
+  code: with the leg present and the arm NOT implemented,
+  ./ll_level --play-selftest failed five checks, at the exact
+  steps the seek is due -
+    seek to (3) from row 1: port fi 1/t 230, want fi 3/t 160
+    the step after:          port fi 2/t 90,  want fi 4/t 190
+    seek to (2):             port fi 3/t 120, want fi 2/t 50
+    seek (9), over-range:    port fi 4/t 150, want fi 1/t 80
+    the step after:          port fi 5/t 180, want fi 1/t 180
+  (the last pair is the purest: the SAME carry 180, the
+  difference is entirely the row index). With the arm in, all
+  eight steps measure the expected values and the whole
+  selftest is green. The leg's numbers were derived from
+  runs, not on paper: the first draft of the leg was wrong in
+  three places (it double-counted the iteration's own feed
+  and mis-added 190+100 against the 240 gate) and had to be
+  re-derived from the U-print trace of the implemented path.
+- WHAT THE ENGINE DOES, AND WHY THE PORT WAS WRONG. PR-174
+  read the applier's same-index arm verbatim (0x53602-
+  0x53626): it opens by writing the transition's row field
+  ([entry+0x11], PR-103: the authored N minus one, -1 when
+  the `( )` part is absent) into the CURRENT record's row
+  cursor, and PR-172 settled it inlines nothing else - no
+  ENTER, so the row feed [obj+0xa1] and its carry survive.
+  The object side got that in PR-174; the lion's side kept
+  PR-83's "a self-target leaves the state running untouched",
+  which was written before PR-107/PR-174 and correctly
+  refuses the RE-ENTER but wrongly throws the row away.
+  PR-174's own census sized the miss: of the 101 authored
+  self-target seeks with entry >= 2, 77 are LION-class lines
+  and ALL 20 of ZARIA.01's are in the lion's own scripts -
+  the object-side fix could not reach one of them. This PR
+  is the half that can move ZARIA.
+- THE DATA FOR THE ABSENT TOKEN (a census, not a guess). New
+  scratch tool /tmp/opencode/rowseek_census.c (same method as
+  PR-174's: it LINKS ported/ll_play.c and counts through
+  ll_mov_parse, so the counts are what the port's parser
+  stores), over HD ANIMACJE: 217 self-target transition
+  lines; 22 of them carry a HELD DIRECTION condition
+  (K_FWD/K_BKWD), 19 of those with no numeric token, 3 with
+  "(1)", 0 with a numeric token >= 2; 195 on event-like
+  conditions (AC_TIME, K_FIRE, AC_BREAK_NEXT, K_GENn...).
+  The held-direction ones are walk states (ZARIA.01/LEW.ZAR
+  state 4 twice, KADMAR2/LEW.KAD 0 and 4, TUNGA2.12, ENA.03,
+  SADES.06 19/21/23, KADMAR.07). Under the "absent token
+  writes the top" reading, holding an arrow would re-seek
+  those states to row 0 on every iteration - the walk would
+  never advance past its first pose - and PR-79/PR-134's
+  video measurements (the lion's 12 poses at 2.4 iterations
+  each, the worm's 9 at 3.2) are exactly those lists running.
+  So the port refuses the write for a non-numeric token. The
+  engine-side reading of the same fact is the open half
+  above: either its row-setter's negative refusal (0x52381)
+  also guards this path in effect, or a held arrow is not a
+  level condition. Both give this port's behaviour.
+- NOT OBSERVABLE ON ANY SHIPPED LEG, AND SAID SO. verify-all
+  is 65 ok with fixtures, byte-identical, and 13 ok + 21
+  named SKIPs without them: no shipped play/level/cutscene
+  leg runs a state whose self-target line fires inside a
+  pinned window (ZARIA's are gated on K_FIRE/AC_TIME/AC_DUP
+  pulses in the fight and death states, and the play legs
+  never reach those rows). This is law-completion plus the
+  removal of a wrong model, not a video fix; the first place
+  it is expected to show is the fight/death row sequences
+  when FOCUS 1's ZARIA legs get there.
+- RISK: the selftest leg is the only pin that changed
+  behaviour; no fixture pin encoded the old values. The
+  guard `entry > 0` is deliberate and asymmetric with the
+  object path (see OPENS): if the engine's raw -1 really
+  lands on row 0, the object side is right and the player
+  side must follow, and the leg's LEG A flips. Reading risk
+  is confined to that question; the numeric-token half is
+  PR-174's already-shipped reading of the same bytes.
+- REVERT: revert this commit; this record, the OI-092 row
+  narrowing, the ported/ll_play.c hunks (the arm and the
+  selftest leg), the section 8 status block, the header
+  numbering line and the regenerated index go back together;
+  nothing else was touched.

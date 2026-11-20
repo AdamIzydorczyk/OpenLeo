@@ -998,10 +998,35 @@ static int player_iterate(ll_player *p, const ll_plt *ground,
          * means KEEP this state: re-entering it would restart the frame
          * list every tick (measured: the walk froze on frame 1 while the
          * lion slid along at the state's speed). So a self-target leaves
-         * the state running untouched - only the facing update above
-         * applied. (Note the (...) token takes non-numeric values too:
-         * "(x)" - PR-86 decoded the NUMERIC one as the start row, see
-         * ll_mov_tr.entry; a non-numeric token keeps entry 0 = top.) */
+         * the STATE running untouched - no ENTER, no impulse, no event -
+         * but PR-215 ships the one thing the engine's arm DOES do: it
+         * writes the authored start row into the CURRENT state's row
+         * counter. The applier's same-index entry (0x53602-0x53626,
+         * re-read by PR-174 for the object side) opens with exactly
+         * that - `mov esi,[eax+0x4]` (0x5360f), the skip-if-equal at
+         * 0x53612, `mov [eax+0x4],edx` (0x53616) - and PR-172 settled
+         * that this arm inlines ONLY the row write: the row feed and
+         * its carry [obj+0xa1] survive the match (p->row_t, p->facc
+         * untouched). The value is the raw authored one and the shared
+         * ll_mov_row_start mapping is the engine's observable
+         * behaviour, absent token and over-range included (PR-107).
+         * WHY THIS IS THE ZARIA HALF: PR-174's own census counted the
+         * 101 authored self-target seeks with entry >= 2 as 77
+         * LION-class and 24 scene-object lines, and all 20 of
+         * ZARIA.01's are in the lion's own scripts (A_BORRING(10),
+         * A_DEAD(33), A_JUMP(11)=AC_DUP, A_KILOF(13)/(25)...) - the
+         * object-side fix could not reach one of them. OI-092.
+         * (Note the (...) token takes non-numeric values too: "(x)" -
+         * PR-86 decoded the NUMERIC one as the start row, see
+         * ll_mov_tr.entry. An ABSENT or non-numeric token is the
+         * engine's -1 and the row-set method refuses a negative value
+         * (0x52381): NO seek. PR-215's census settles it: 19 of the
+         * 22 authored self-target lines that a HELD direction key
+         * re-matches every iteration carry no numeric token, and the
+         * video-measured walk gait does not restart its row list.) */
+        if (st->tr[t].tidx == p->sti && st->tr[t].entry > 0)
+            p->fi = ll_mov_row_start(&p->mov->st[p->sti],
+                                     st->tr[t].entry);
         if (st->tr[t].tidx >= 0 && st->tr[t].tidx != p->sti) {
             p->sti = st->tr[t].tidx;
             const ll_mov_st *nt = &p->mov->st[p->sti];
@@ -2031,6 +2056,112 @@ int ll_play_selftest(void)
         CHECK(q.sti == 0 && q.grounded && q.y == 100);/* cycle (mid-phase)*/
         ll_plt_free(&jp2);
         free(je);
+    }
+    {   /* OI-092, PR-215: THE PLAYER-SIDE ROW SEEK. PR-174 shipped
+         * the same-state match arm for scene OBJECTS; the engine arm
+         * (0x53602-0x53626, re-read there) belongs to the record
+         * applier and runs for the lion's own record exactly the same
+         * way: the arm OPENS with the row write (`mov esi,[eax+0x4]`
+         * 0x5360f, `cmp`, `je skip` 0x53612, `mov [eax+0x4],edx`
+         * 0x53616) and calls NO ENTER, so the carry SURVIVES the
+         * match (PR-172). PR-174's own census sized who this affects:
+         * of the 101 authored self-target seeks with entry >= 2, 77
+         * are LION-class lines and all 20 of ZARIA.01's are the
+         * lion's own scripts (A_BORRING(10), A_DEAD(33), A_JUMP(11),
+         * A_KILOF(13)/(25)...) - the object-path fix could not reach
+         * a single one of them. So this is the half that can move
+         * ZARIA. The port's player arm kept the state but never wrote
+         * the row: the model choice this PR retires. */
+        static const char RS[] =
+            "A_ONE\nA_TWO\n\n[A_ONE]\ncontrol=BY_TIME\n"
+            "F=600,0\nT=90,90\nG=0,0\n"
+            "A_ONE()=K_GEN4\nA_ONE(3)=K_GEN2\nA_ONE(2)=K_GEN3\n"
+            "A_ONE(9)=K_GEN5\nA_TWO(2)=K_GEN1\nseq=a\n"
+            "1,70\n2,240\n3,70\n4,70\n5,70\n6,70\n\n[A_TWO]\n"
+            "control=BY_TIME\nF=0,0\nT=0,0\nG=0,0\nseq=a\n"
+            "1,300\n2,300\n";
+        static const char RP[] = "1\n1 0,100;2000,100;\n";
+        ll_mov_t *rm = calloc(1, sizeof *rm);
+        ll_plt rp;
+        ll_player q;
+        ll_play_keys rk = { 0 };
+
+        CHECK(rm && ll_plt_parse(RP, &rp) == 0);
+        CHECK(ll_mov_parse(RS, rm) == 2 && rm->st[0].ntr == 5 &&
+              rm->st[0].nfr == 6 && rm->st[1].nfr == 2);
+        ll_player_start(&q, rm, 500, 100, 1);
+        CHECK(q.sti == 0);
+        /* EVERY STEP HERE IS ONE ITERATION (dt == LL_ITER_MS): the
+         * legs pin exact carry arithmetic, which is the whole point
+         * of the row write (the engine's arm writes the row and
+         * hands the SAME accumulator over - PR-172). */
+        ll_player_step(&q, &rp, &rk, 0, LL_ITER_MS, LL_ITER_MS);
+        /* the opening iteration: row 0 (gate 70) closes, fi 1,
+         * remainder 30 */
+        CHECK(q.fi == 1 && q.row_t == 30u);
+        /* LEG A: the ABSENT/NON-NUMERIC token is NO WRITE at all. The
+         * engine stores -1 for it (0x51e3e) and its row-set method
+         * REFUSES a negative value (`test edx,edx` + `jl` at 0x52381,
+         * PR-107). The data settles which reading is the engine's: of
+         * the 217 authored self-target lines, 22 carry a HELD
+         * DIRECTION condition (K_FWD/K_BKWD) and 19 of those 22 have
+         * no numeric token (census over HD ANIMACJE, this PR) - "write
+         * the top" would restart the walk list on every iteration of a
+         * held arrow, and the walk gait PR-79/PR-134 measured on
+         * video (9-12 poses per cycle at ~120 ms per pose) does not
+         * do that. So no numeric token, no seek; the row clock runs
+         * on: fi 1, t 130. */
+        q.sig = 1ull << LL_SIG_K_GEN4;
+        ll_player_step(&q, &rp, &rk, 0, LL_ITER_MS, LL_ITER_MS);
+        CHECK(q.sti == 0 && q.fi == 1 && q.row_t == 130u);
+        /* LEG B: the seek to (3) lands on row 2 and KEEPS the state.
+         * The row write is the arm's FIRST act (0x5360f-0x53616),
+         * with no ENTER and no state-change bookkeeping: no event, no
+         * impulse, no feed reset. The row clock runs on from there:
+         * the carried 130 plus this iteration's 100 = 230 admits and
+         * closes the SEEKED row (gate 70), so fi lands 3 with the
+         * carry 160. WITHOUT the write the state still sits on row 1,
+         * the 240-unit row: 230 < 240, and the step lands fi 1/t 230
+         * (measured, this PR's mutation run). */
+        q.sig = 1ull << LL_SIG_K_GEN2;
+        ll_player_step(&q, &rp, &rk, 0, LL_ITER_MS, LL_ITER_MS);
+        CHECK(q.sti == 0 && q.fi == 3 && q.row_t == 160u);
+        /* LEG C: the seek is LIVE afterwards too - from row 3 (gate
+         * 70) the carried 160 + 100 closes again, fi 4, t 190. A
+         * state-change reset of the carry would land t 30; the
+         * no-write port stood on row 1 and lands fi 2/t 90. */
+        ll_player_step(&q, &rp, &rk, 0, LL_ITER_MS, LL_ITER_MS);
+        CHECK(q.sti == 0 && q.fi == 4 && q.row_t == 190u);
+        /* LEG D: a (2) re-seeks to row 1, the 240-unit row, from row
+         * 4, and that row is LIVE at once: the carried 190 + 100 =
+         * 290 closes it, so fi lands 2 with the carry 50. The
+         * no-write port was on row 2 at t 90 and lands fi 3/t 120. */
+        q.sig = 1ull << LL_SIG_K_GEN3;
+        ll_player_step(&q, &rp, &rk, 0, LL_ITER_MS, LL_ITER_MS);
+        CHECK(q.sti == 0 && q.fi == 2 && q.row_t == 50u);
+        /* LEG E: an OVER-RANGE seek (9 with 6 rows) keeps the port's
+         * recorded PR-107 clamp - the top. It is a real write here
+         * too: from row 2 at t 50 it re-seeks to row 0, whose 70
+         * this iteration closes (150-70 = 80), landing fi 1/t 80.
+         * The no-write port was on row 3 and lands fi 4/t 150. */
+        q.sig = 1ull << LL_SIG_K_GEN5;
+        ll_player_step(&q, &rp, &rk, 0, LL_ITER_MS, LL_ITER_MS);
+        CHECK(q.sti == 0 && q.fi == 1 && q.row_t == 80u);
+        /* LEG F: the clamped row stays LIVE - held at fi 1, the
+         * 240-unit row, because 80+100 = 180 does not reach it, so
+         * the carry only accumulates to 180. The no-write port
+         * carries THE SAME 180 here but on row 5: the row index is
+         * the whole content of the difference. */
+        ll_player_step(&q, &rp, &rk, 0, LL_ITER_MS, LL_ITER_MS);
+        CHECK(q.sti == 0 && q.fi == 1 && q.row_t == 180u);
+        /* LEG G: a CROSS-state seek still takes the TARGET's row
+         * (the PR-107 rule: A_TWO(2) -> index 1, not its top) and
+         * the cross-state arm's reset of the feed carry (PR-172). */
+        q.sig = 1ull << LL_SIG_K_GEN1;
+        ll_player_step(&q, &rp, &rk, 0, LL_ITER_MS, LL_ITER_MS);
+        CHECK(q.sti == 1 && q.fi == 1 && q.row_t == 100u);
+        ll_plt_free(&rp);
+        free(rm);
     }
     {   /* PR-87: the ',' AND really ANDs. A_FIGHT(1)=K_FIRE,K_F1 is
          * ZARIA's exact attack-entry line: FIRE alone never matches;

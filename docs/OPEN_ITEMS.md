@@ -676,11 +676,18 @@ OI-091: does the corpse (A_DEAD) still deal contact damage? The
     PR-139: authored `damage=` through the ATC window, 30-tick
     countdown); only the corpse case stays.
 
-OI-092: the PLAYER-side row seek + signal legs: the object path
-  ships the authored start row (PR-174); the player path models
-  none of those signal legs (frames-blocked remainder)
+OI-092: the transition-apply SIGNAL legs stay unread: the
+  AC_TIME count arm 0x53626 (the player models it through its
+  own frame-list wrap) and the +0xac verb 0x53619-0x53620.
+  The row-seek half is CLOSED (objects PR-174, the lion
+  PR-215). New named question from PR-215: the engine's
+  same-state arm stores the raw -1 of an absent token with no
+  negative test (0x53616; the refusal at 0x52381 is the
+  cross-state setter), so what a -1 cursor does on the next
+  step (wrap 0x521c5) is unread; the player and object paths
+  differ there today
   status: OPEN
-  origin: PR-107/172/174
+  origin: PR-107/172/174/215
 
 === port-side + archived-review ids ===============================
 
