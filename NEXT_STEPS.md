@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-229.
+> at PR-230.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -32907,6 +32907,86 @@ CORRECTS: PR-227's OPENS claim that the 0x549f2-0x54bf2 block
   (entry 0x549f0), reached through the message switch at 0x50d70
   and the [obj+0x160] switch at 0x41ae2. No code changed, no
   behaviour changed, no hooks.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+        verify-SKIPs.
+```
+
+## PR-229 — AC_RECT CARRIES THE OTHER OBJECT, ITS KIND-WORD BITS ARE
+## THE SIGNALS: OVERLAP OF A 0x9a754-FAMILY KIND RAISES K_GEN1
+```
+KIND: read
+SUBSYSTEM: objects/signals - the AC_RECT (0xf) senders, the
+  +0xfc handler's stores, the kind-word source, and OI-078's
+  last named question.
+ADDRESSES: 0x28632, 0x28646, 0x2864b, 0x28650, 0x28654, 0x28b8d,
+  0x28b9b, 0x3740c, 0x374c5, 0x3dc7b, 0x50dc7, 0x549f6, 0x54a02,
+  0x54a08, 0x54a1b, 0x54a39, 0x54a40, 0x54a4b, 0x54b65, 0x54be6,
+  0x54be9, 0x9a754,
+  0x9a74c, 0x9a778, 0x97970, 0x978dc, 0x96874, 0x96fd8, 0x98278,
+  0x45120, 0x45250, 0x452d0, 0x45320, 0x453d0, 0x45400, 0x298d7,
+  0x298e1, 0x298e8, 0x2a18d, 0x2a194, 0x2b312, 0x1eab9, 0x28620,
+  0x52b10, 0x49580, 0xa21e8
+NAMES: LL_SIG_AC_RECT, LL_SIG_K_FWD, LL_SIG_K_GEN1, kind word,
+  vtable slot +0x68, vtable slot +0x8
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE AC_RECT SENDERS. Five sites enqueue messages
+  of type 0xf = 15 = LL_SIG_AC_RECT (PR-88's own name): 0x28654,
+  0x28b9b, 0x3740c, 0x374c5, 0x3dc7b. Each sits right after a
+  bounds-intersect test (0x28632-0x28644 is the same 4-comparison
+  rectangle test as 0x536c0-0x536dc); the store is `mov ebx,
+  <object pointer>; mov edx,0xf; mov ecx,2; call 0x52b10` -
+  TAG = the other object's POINTER, payload = 2 or 3 (PR-225's
+  layout: [msg+8]=ebx, [msg+0xc]=ecx). So AC_RECT means "my
+  rectangle touched THIS object", and the object travels in the
+  message. (b) THE HANDLER'S STORES. PR-228's +0xfc arm 0x50dc7
+  passes edx=[[msg+8]] - THE OTHER OBJECT'S POINTER ITSELF - and
+  ebx=[msg+0xc]. Raw bytes decode the entry 0x549f0 exactly:
+  `push ebx; push ecx; push esi; mov ebx,eax; mov ecx,edx;
+  mov eax,[edx]; mov [ebx+0xba],eax; mov eax,[edx+4];
+  mov [ebx+0xbe],eax; ...` and at 0x54be6-0x54be9
+  `mov eax,[ecx+0x8]; mov [ebx+0xa5],eax` (ecx is still the
+  other object) - so [obj+0xba]/[obj+0xbe] = the other object's
+  first two dwords and [obj+0xa5] = THE OTHER OBJECT'S WORD AT
+  +0x8. The block also gates on [other+4] being 1 (0x54a1b) or 2
+  (0x54b65) and calls [[other]+0x68] (0x54a40). The stored word
+  lands exactly in the byte the provider (PR-226) tests.
+  (c) THE KIND WORD. [[other]+0x8] is not a C++
+  vtable: it is the KIND METHOD TABLE - 0x9a754 is a table of
+  TEventSet/interval verbs (0x45120, 0x45250, 0x452d0, 0x45320,
+  0x453d0, 0x45400 - the very helpers of PR-88/PR-227) and
+  0x54a40 calls [[obj+0x8]+0x68] on the carried object (kind-
+  family verb, e.g. 0x504e0 in class 0xa21e8). PR-221's
+  `call [vtable+0xc]` compared against ds:0xceba4 = 0x96fd8 is
+  THIS word (the "class id" PR-225 used loosely). (d) THE BIT
+  LAW, FINALLY. Provider: bit 0x1 -> 33 (K_FWD), bit 0x10 -> 41,
+  bit 0x20 -> 54 (K_GEN1). Kind-pointer low bytes, measured
+  from the ctor stores 0x1e0a6 (0x97970: no such bits), 0x1ec36
+  (0x978dc: none), 0x1ed08 (0x96874: none), 0x1f89b/ds:0xceba4
+  (0x96fd8: 0x18 = bits 3,4 - raises 41 only), and the
+  0x9a74c/0x9a754/0x9a778 family (low bytes 0x4c/0x54/0x78 -
+  0x54 = 0b01010100 HAS bits 0x10 AND 0x20): an object that
+  AC_RECT-overlaps a 0x9a754-family object gets the provider
+  raising 41 AND K_GEN1, every frame, with no GEN row and no
+  signal message. The kind tables are stored into class data at
+  the ctor families 0x298d7-0x298e8 / 0x2a18d-0x2a194 /
+  0x2b312 (frame-relative stores: kind 0x9a754 at +0x178 of the
+  class block, 0x9a74c at +0xE6, method table 0x9a778 at +0x94).
+OPENS: OI-078 final named question: WHICH authored drabinka
+  kind word does ZARIA.01's DRABINKA use - the port's object-
+  record loader knows the authored kind byte; tie it to the
+  engine's kind-pointer family (0x9a74c/0x9a754 = bit-5 set)
+  and implement the rule "if my rectangle overlaps an object of
+  a bit-5 kind, the provider raises K_GEN1" - that is the whole
+  missing FOCUS 1 behavior for `1,0,WAIT K_GEN1`. OI-111/
+  OI-112 unchanged.
+CLOSES: nothing in the register.
+CORRECTS: PR-228's (d) wording "CLASS ID (vtable word)": the
+  stored value is the object's KIND METHOD TABLE pointer at
+  [obj+0x8] (the word PR-221 compared to the class globals),
+  not the C++ vtable. No code changed, no behaviour changed,
+  no hooks.
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
         verify-SKIPs.

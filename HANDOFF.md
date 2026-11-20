@@ -2060,6 +2060,30 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-229 (READ): the AC_RECT chain end to end, and the bit
+law that answers OI-078. Five sites enqueue type 0xf =
+LL_SIG_AC_RECT right after the rectangle-intersect test
+(0x28654/0x28b9b/0x3740c/0x374c5/0x3dc7b), tag = THE OTHER
+OBJECT'S POINTER (mov ebx, obj; edx=0xf; ecx=2/3; call 0x52b10).
+The +0xfc arm 0x50dc7 passes edx=[[msg+8]] - that pointer IS the
+block's argument - and the raw bytes of 0x549f0 store
+[other+0]->[obj+0xba], [other+4]->[obj+0xbe], and at
+0x54be6-0x54be9 [other+8] -> [obj+0xa5], the byte the provider
+(PR-226) tests. [other+8] is the KIND METHOD TABLE pointer -
+0x9a754 holds the TEventSet/interval verbs 0x45120/0x45250/...
+(that is the "class id" PR-221 compared against ds:0xceba4 =
+0x96fd8). Measured low bytes: 0x97970/0x978dc/0x96874 -> no
+bits; 0x96fd8 -> 0x18 (41 only); the 0x9a74c/0x9a754/0x9a778
+family -> 0x54 = bits 0x10+0x20 -> provider raises 41 AND
+K_GEN1. RULE (FOCUS 1): overlapping an object of a 0x9a754-
+family kind makes the provider raise K_GEN1 every frame - the
+drabinka's WAIT K_GEN1 needs no GEN row and no signal message.
+Left: which authored kind the ZARIA.01 drabinka carries, then
+implement the overlap rule. Kind tables are stored into class
+data at 0x298d7-0x298e8/0x2a18d/0x2b312 (kind at class+0x178,
+0x9a74c at +0xE6, method table 0x9a778 at +0x94). No behaviour
+changed.
+
 STATUS PR-228 (READ): the +0xfc family and the entry of PR-227's
 "unreferenced" block. It starts at 0x549f0 (push ebx/ecx/esi;
 the index boundary hid the first 5 bytes) and is vtable slot

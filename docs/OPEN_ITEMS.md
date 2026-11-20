@@ -785,6 +785,25 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     (0x1f100) - PR-225's "field-fed sender" objects are this
     player class.
 
+    PR-229 names the last link. AC_RECT (type 0xf) senders:
+    0x28654/0x28b9b/0x3740c/0x374c5/0x3dc7b - each right after
+    the 4-comparison rectangle test, tag = THE OTHER OBJECT'S
+    POINTER, payload 2 or 3. The +0xfc arm (0x50dc7) takes that
+    pointer as the argument and the entry 0x549f0 stores
+    [other+0]->[obj+0xba], [other+4]->[obj+0xbe], and
+    [other+8] (0x54be6-0x54be9) -> [obj+0xa5] - the byte the
+    provider tests. [other+8] is the KIND METHOD TABLE pointer
+    (0x9a754 = a table of the TEventSet/interval verbs 0x45120/
+    0x45250/... - the very "class id" PR-221/PR-225 compared to
+    the class globals). Bit law from measured low bytes:
+    0x97970/0x978dc/0x96874 have none of bits 0x1/0x10/0x20;
+    0x96fd8 has 0x18 (raises 41 only); the 0x9a74c/0x9a754/
+    0x9a778 family (0x54 = bits 0x10+0x20) raises 41 AND
+    K_GEN1. So: "my rectangle overlaps a 0x9a754-family kind ->
+    the provider raises K_GEN1 every frame" - no GEN row, no
+    message. Final question: which authored kind the ZARIA.01
+    DRABINKA carries; then port the overlap rule.
+
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
   recovery on the next input?)
