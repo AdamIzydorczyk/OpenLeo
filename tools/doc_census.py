@@ -25,9 +25,13 @@ WHAT IT PINS - any of these fails the build:
      `## Deferred big items`, `## Standing rules` in NEXT_STEPS.md.
   P3 the width ratchet. Over-79-column lines per tracked document may
      not exceed WIDTH_MAX. Lowering one is always welcome; RAISING one
-     needs a commit that says why. The current numbers are what the
-     2026-11-19 audit measured (41 of HANDOFF's are section 6 table
-     rows, 22 of NEXT_STEPS' are wrapped record titles).
+     needs a commit that says why. The floors carry the audit's
+     measures as corrected by PR-202: HANDOFF 71 - 30 (its sections
+     5/6/7: 25 table rows, 4 re-wrapped lines, 1 frozen line; the
+     audit had claimed all 41 table rows sat in section 6, measured
+     10/6/25 across sections 1/3/6 - the 16 outside those sections
+     belong to a status/map step, not this one), NEXT_STEPS 71
+     (22 of its lines are wrapped record titles), README 12.
   P4 the record template (PR-196, HANDOFF section 10a). A record whose
      number is >= TEMPLATE_FROM must carry the field block - the eleven
      lines (ten fields, the gate in two lines) each present once, at
@@ -128,8 +132,16 @@ RECORD_MIN = 184
 # written inside PR-79's record, PR-113 has no record at all.
 MISSING_OK = frozenset(list(range(1, 7)) + [22, 23, 24, 80, 113])
 
-# P3: the width ratchet, exactly as the 2026-11-19 audit measured it.
-WIDTH_MAX = {'NEXT_STEPS.md': 71, 'HANDOFF.md': 71, 'README.md': 12}
+# P3: the width ratchet. PR-202 (doc step 4) measured the audit's
+# attribution: the "41 over-79 table rows" of the 2026-11-19 audit
+# are NOT all section 6 - they sit 10 in HANDOFF section 1, 6 in
+# section 3, 25 in section 6 - and the §5/6/7 step removes only
+# what is in those three sections: 25 table rows (reflowed into
+# ESTIMATE blocks), 4 section-5 lines (re-wrapped) and 1 section-7
+# line (frozen into the archive). 71-30=41 is the new floor; the
+# section 1/3 table rows belong to a status/map refresh step, not
+# this one, and stay under the ratchet.
+WIDTH_MAX = {'NEXT_STEPS.md': 71, 'HANDOFF.md': 41, 'README.md': 12}
 
 # P4: the record template (PR-196), HANDOFF section 10a. It applies to
 # every record whose number is TEMPLATE_FROM or higher. The one

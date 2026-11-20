@@ -22,18 +22,21 @@ plan) are plans, not questions. Method notes and measurement traps
 (the one-byte listing trap, edited-clip cut points) stay with the
 method notes where they are already written.
 
-SEEDING (PR-201 pass, measured): HANDOFF section 7 items 0-15 (the
-pre-register ledger; step 4 replaces that prose with pointers here),
-the journal's `## Deferred big items` list, the OPENS/CLOSED fields
-and carried lists of records PR-185..PR-200, the ZARIA.01 audit gaps
+SEEDING (PR-201 pass, measured): HANDOFF section 7 items 0-15 -
+that ledger is now FROZEN verbatim at
+docs/archive/HANDOFF_SECTION7_OPEN_QUESTIONS.md (PR-202), and the
+"HANDOFF 7 item N" origins below resolve there -, the journal's
+`## Deferred big items` list, the OPENS/CLOSED fields and carried
+lists of records PR-185..PR-200, the ZARIA.01 audit gaps
 G-1..G-13, and the owner rulings of 2026-11-19. PR-195 estimated
 "about 40 rows"; the measured seed is larger because the earlier
 estimate never enumerated section 7's sub-threads.
 ORIGIN ids that are not OI ids resolve at stable archive paths:
 P/E/M- and T- at docs/archive/open-leo_native_port_review.md,
 T- also at docs/archive/open-leo_porting_tips.md, X/W/L/B- at
-docs/archive/PORT_DEEP_DIVE_2026-11.md (the history-override table
-maps every superseded sha).
+docs/archive/PORT_DEEP_DIVE_2026-11.md, "HANDOFF 7 item N" /
+"Q0" / "G-nn" at the frozen ledger named above (the
+history-override table maps every superseded sha).
 
 CITING RULE (for every writer): when a record or the plan restates a
 thread that has a row, cite the id instead of re-describing it. A new
@@ -722,7 +725,13 @@ OI-102: re_index's correction pointers stay prose-co-occurrence
 
 OI-103: doc step 4: HANDOFF sections 5/6/7 become pointers (this
   register is their target; removes the 41 over-79 table rows)
-  status: OPEN
+  status: CLOSED BY PR-202
+  notes: measured before doing it: the "41 over-79 table rows" sat
+    10/6/25 across HANDOFF sections 1/3/6, not all in section 6 -
+    this step removed only its own 30 lines (25 table rows reflowed
+    into ESTIMATE blocks, 4 section-5 lines re-wrapped, 1 section-7
+    line frozen into the archive); the ratchet dropped 71->41 and
+    the 16 section-1/3 rows stay under it.
 
 OI-104: doc step 5: NEXT_STEPS becomes journal-only: the stale
   status block -> a pointer, `## Next` moves to its one home

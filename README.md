@@ -320,6 +320,10 @@ Living:
   and authored name the records mention; regenerate with
   `python3 tools/re_index.py docs/RE_INDEX.md`, pinned by
   `make verify-index`.
+- `docs/OPEN_ITEMS.md` - the open-items register: every open thread
+  that spans PRs is one row with a stable OI-nnn id and a status;
+  P6 in verify-docs resolves every OI citation and pins ids as
+  appended-only. Records cite ids, they do not restate threads.
 - `original/README.md`, `ported/README.md`, `tools/*/README.md` -
   what each directory holds.
 
@@ -328,4 +332,6 @@ index and supersession table:
 `open-leo_native_port_review.md`, `open-leo_porting_tips.md`,
 `IMPROVEMENTS.md`, `PORT_DEEP_DIVE_2026-11.md`,
 `IMPLEMENTATION_PLAN.md`, `TEST_REPORT.md`,
-`VERIFICATION_2026-11-16.md`.
+`VERIFICATION_2026-11-16.md`,
+`HANDOFF_SECTION7_OPEN_QUESTIONS.md` (the pre-register
+open-questions ledger, extracted verbatim by PR-202).

@@ -39,6 +39,7 @@ THE SET:
 | `IMPLEMENTATION_PLAN.md` | the PR-25+ work order derived from the deep dive | `4c48dd0` | carried out in PR-25..PR-35 |
 | `TEST_REPORT.md` | first cold-run suite report | `c5be46c` (PR-19) | counts long superseded; current evidence is each record's GATE lines |
 | `VERIFICATION_2026-11-16.md` | full-suite audit + 91-run frame sweep | `dfb2bf2` (PR-46) | its findings fed PR-47..PR-51 |
+| `HANDOFF_SECTION7_OPEN_QUESTIONS.md` | the open-questions ledger — HANDOFF section 7, items 0-15 incl. G-1..G-13 — extracted VERBATIM from a SECTION of the living document (rule 3's `git mv` cannot apply: it was a section, not a file; the file's own header names the source commit and states the verbatim boundary) | `71a2262` | the open threads became rows of `docs/OPEN_ITEMS.md` (PR-201 seeded from this ledger); HANDOFF section 7 is now a pointer (PR-202); "HANDOFF 7 item N" / "Q0" / "G-nn" citations resolve in this file |
 
 Not archived, on purpose (and why): `PLAN.md` STAYS at the root — it
 is the RE-facts reference that the code itself cites ("PLAN 8b",

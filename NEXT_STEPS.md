@@ -3,7 +3,7 @@
 > **Start with HANDOFF.md** (the current map, rules, estimates, open
 > questions and the ordered task list). This file is the per-PR history:
 > each `## PR-nn` heading is one step with its evidence; the newest are at
-> the end, just before `## Next`. Numbering continues at PR-201.
+> the end, just before `## Next`. Numbering continues at PR-202.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -15887,11 +15887,20 @@ no port behaviour change)
   every OI citation resolve, ids appended-only, every row
   carry a status. From here on, records cite ids instead of
   re-describing threads.
-- THE DOCUMENT WORK REMAINING, IN ORDER: step 4, HANDOFF sections
-  5/6/7 become pointers (5 = a short current-truth map per subsystem,
-  6 = one greppable block per estimate - which also removes the 41
-  over-79 table rows, longest 3,512 columns - 7 = the register plus
-  pointers); step 5, NEXT_STEPS becomes journal-only: the stale
+- PR-202 IS SHIPPED (step 4): HANDOFF is a map, not a ledger. Its
+  section-7 pre-register ledger (4,696 lines, 55% of the file) is
+  FROZEN verbatim at docs/archive/HANDOFF_SECTION7_OPEN_QUESTIONS.md
+  (byte-identical extraction, names its source commit); section 7
+  itself is a pointer and the citation rule for "HANDOFF 7 item N"
+  / "Q0" / "G-nn" is stated there. Section 6's table rows (up to
+  3,512 columns) are reflowed word-for-word into greppable
+  `ESTIMATE:` blocks; section 5 measured out as already-a-map and
+  was re-wrapped, not rewritten. The ratchet drops 71->41 with the
+  measured reason: the audit's "41 table rows" were never all in
+  section 6 (10/6/25 across sections 1/3/6); the 16 outside these
+  sections await a status/map step, not this one.
+- THE DOCUMENT WORK REMAINING: step 5, NEXT_STEPS becomes
+  journal-only: the stale
   2026-11-14 status block becomes a 5-line pointer, `## Next` moves
   into HANDOFF section 8 (one plan, one place - 14 of its 15 keys are
   already duplicated there), `## Deferred big items` joins the
@@ -29243,6 +29252,124 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
 - REVERT: revert the commit; dropping docs/OPEN_ITEMS.md and the
   P6 block restores the previous census exactly (P5's required
   set goes back with them).
+
+## PR-202 — HANDOFF BECOMES A MAP, NOT A LEDGER: SECTION 7 IS
+## FROZEN VERBATIM INTO THE ARCHIVE WITH A POINTER IN ITS PLACE,
+## SECTION 6'S TABLE ROWS ARE REFLOWED AS GREPPABLE ESTIMATE
+## BLOCKS, WORD FOR WORD; THE WIDTH RATCHET DROPS 71->41 AND THE
+## AUDIT'S MISATTRIBUTION IS MEASURED AND CORRECTED
+
+KIND: docs
+SUBSYSTEM: HANDOFF sections 5/6/7 (doc step 4, row OI-103); the
+      P3 width ratchet; the archive gains its first extracted
+      section
+ADDRESSES: row OI-103 (doc step 4) - CLOSED by this shipping,
+      flipped exactly as the register's discipline says. Also the
+      audit's "41 over-79 table rows" claim: measured
+      distribution is 10/6/25 across HANDOFF sections 1/3/6, NOT
+      41 in section 6 (see CORRECTS). The register rows whose
+      origin column cites ledger items ("HANDOFF 7 item 0.4",
+      "G-3") keep resolving: the ledger text is frozen at a
+      stable path and the frozen file says so.
+NAMES: docs/archive/HANDOFF_SECTION7_OPEN_QUESTIONS.md,
+      ESTIMATE blocks, section 7 pointer, ratchet 41, the
+      HANDOFF 5/6/7 step
+CODE: yes: tools/doc_census.py (P3 floor HANDOFF 71 -> 41 with
+      its reason in the comment); new frozen archive file;
+      HANDOFF.md sections 5/6/7 rewritten as map/pointer;
+      docs/OPEN_ITEMS.md header pointers + row OI-103 status
+      flip; docs/archive/README.md one appended table row;
+      README.md Documents list gained docs/OPEN_ITEMS.md (PR-201
+      delivered the machine pin but left the human mirror
+      behind - measured drift) and the new frozen file; nothing
+      under ported/ or original/ changed.
+HOOKS: none
+OPENS: none new. Step 5 remains and is row OI-104; it keeps its
+      id.
+CLOSES: row OI-103 - the record that ships a step flips the
+      register's row in the SAME commit. This is the first time
+      that rule runs end to end, on itself.
+CORRECTS: PR-195 (the doc-plan line said step 4 "also removes
+      the 41 over-79 table rows, longest 3,512 columns".
+      Measured before acting: those 41 rows sit 10/6/25 across
+      HANDOFF sections 1/3/6; the step removes only what is in
+      its own three sections - 30 lines - and the floor becomes
+      41, not 30. The 16 section-1/3 table rows belong to a
+      status/map refresh step, not this one.) And PR-201 (its
+      P5 required docs/OPEN_ITEMS.md but did not add it to
+      README's Documents list - the two views of the standard
+      drifted in the same PR that created the pin.)
+
+GATE: make 0 warnings; verify-all fixtures rc=0 64 (ok); the
+      counts equal PR-201's ON PURPOSE - nothing under ported/
+      changed and verify-docs stays ONE leg (P6 prints inside
+      it, no new (ok) line); verify-docs and verify-index are
+      green on the final tree with the ratchet lines reading
+      HANDOFF.md 41/41, and every line this commit adds is
+      <=79 columns.
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+      verify-SKIPs, identical to PR-201's - the docs legs run in
+      both fixture modes and only their insides changed.
+
+- WHY THIS EXISTS, MEASURED FIRST. HANDOFF.md was 8,457 lines, of
+  which section 7 alone was 4,696 - 55% of the map document was a
+  pre-register ledger the register (PR-201) had already superseded.
+  The ratchet read 71/71, and the doc-plan claimed step 4 would
+  remove "41 over-79 table rows". Measured first, both claims got
+  corrected: the 41 table rows sit 10 in section 1, 6 in section
+  3, 25 in section 6 - and section 5, measured, IS already a short
+  current-truth map: every fact sourced, 110 lines, only 4 lines
+  over the width. So this PR does NOT rewrite section 5's content
+  (that would be churn the source records make unnecessary); it
+  re-wraps those 4 lines, adds the map sentence that says what the
+  section is, and repoints its one "HANDOFF 7.2" reference at the
+  frozen file.
+- RED FIRST, ON THE FLOOR: the ratchet constant went to 41 BEFORE
+  any prose moved, and verify-docs failed exactly as required:
+  "HANDOFF.md has 71 lines over 79 columns, the ratchet is 41
+  (longest now 3,512 columns: '| The unit of the row clock...').
+  Then the moves, and it passes at 41/41 with a stated reason in
+  the tool's comment.
+- THE FREEZE IS VERBATIM, BY CONSTRUCTION. A script extracted the
+  section-7 span (heading line through the blank line before
+  section 8) and asserted the written body byte-identical to the
+  source range; the file's header names the source commit
+  (71a22620..., HEAD when this ran) and states the boundary. The
+  frozen file carries exactly one over-79 line - the one the
+  ledger itself always had. Nothing was edited, trimmed or
+  reordered; the archive README's appended row and the frozen file
+  are the only places that comment on it.
+- SECTION 6 REFLOW, WORDS UNTOUCHED: the 26-row table (header +
+  25 data rows, up to 3,512 columns) became one block per
+  estimate: `ESTIMATE: <what>` with where/value/evidence lines -
+  `grep -n "^ESTIMATE" HANDOFF.md` enumerates them, which is what
+  the doc-plan asked for ("one greppable block per estimate"). The
+  cell text is the table's own, only re-wrapped; the dated
+  correction paragraphs under the blocks are untouched history and
+  the intro block says so, including that "the row above" wording
+  in them reads against the blocks.
+- THE POINTER AND THE CITATIONS: section 7 keeps its number and
+  heading (cross-references to "section 7" must survive), states
+  where the questions are (the register) and where the old ledger
+  is (the frozen file), and pins the citation rule: "HANDOFF 7
+  item N", "Q0", "G-nn" resolve in the frozen file, never by
+  re-opening the section. Section 8's older task text keeps its
+  §-citations - they resolve the same way; rewriting dated plan
+  prose is not this step.
+- WHY FROZEN AND NOT DELETED: same ruling as PR-200's moves -
+  the content was kept honest by past passes; only the STRUCTURE
+  was wrong. The register's origin column cites ledger items by
+  name ("HANDOFF 7 item 0.4", "G-3", "PR-93 11.4"); deleting the
+  ledger would have made 60+ origin citations dangle. The frozen
+  file makes every one of them resolve at a stable path.
+- RISK: LOW. No code touched; every test count is unchanged by
+  construction; the reflowed text is byte-preserved at word level
+  and the freeze is byte-preserved at line level. The only
+  machine-visible change is the ratchet floor, lowered by 30 with
+  the measurement that justifies it.
+- REVERT: revert the commit; HANDOFF, the tool constant, the
+  README lists and the archive row all go back together, and the
+  frozen archive file disappears with them.
 
 ## Deferred big items (deliberately out of scope so far)
 
