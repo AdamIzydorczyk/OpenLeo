@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-216.
+> at PR-217.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -31130,3 +31130,203 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
   selftest leg), the section 8 status block, the header
   numbering line and the regenerated index go back together;
   nothing else was touched.
+
+## PR-216 — THE LADDER'S ANSWER GATE IS THE ENGINE'S STATE
+## INDEX, AND THAT INDEX IS THE DECLARED STATE LIST, ONE-BASED:
+## THE PORT DROPS ITS ROW-CURSOR GATE, THE PARSER KEEPS THE
+## DECLARED LIST, AND DRAB.MOV ANSWERS ONLY IN A_DOWN
+
+KIND: port
+SUBSYSTEM: object contact answer and the .MOV script parser -
+  ported/ll_level.c (ladder_answer_core, ladder_answer_for, the
+  two ladder answer legs of play_collide and their logs),
+  ported/ll_play.c (ll_mov_parse), ported/ll_play.h
+  (ll_mov_st.decl_idx, ll_mov_t.decl/nddecl)
+ADDRESSES: 0x3f1c0, 0x3f1c6, 0x3f1dc, 0x3f1df, 0x3f1e4, 0x3f1ec,
+       0x3f1f6, 0x3f203, 0x3f214, 0x3f217, 0x3f364, 0x44ec0,
+       0x533de, 0x533e3, 0x53440, 0x53452, 0x5345d, 0x53461,
+       0x5346a, 0x53471, 0x53480, 0x53499, 0x534b6, 0x538ab,
+       0x53905, 0x53915, 0x53938, 0x53959, 0x53974, 0x5397a,
+       0x53994, 0x539aa, 0x539c5, 0x539e6, 0x922b0, 0x922ba,
+       0x76a69, 0x76a75, 0x51e0b, 0x3fe1c
+NAMES: ladder_answer_core, ladder_answer_for, ladder_class,
+       blk_of_obj, ll_mov_parse, ll_mov_find, decl_idx, decl,
+       nddecl, first_decl, start_st, DRAB.MOV, A_UP, A_DOWN,
+       A_DROP, K_GEN1, AC_BREAK_NEXT, AC_DRAB, AC_DRAB_CATCH,
+       DRAB_MOV, ladder_answer_selftest, idx_cases, BRODA1.MOV,
+       OI-078, PR-150, PR-157, PR-158, PR-159
+CODE: yes: ported/ll_play.c - ll_mov_parse now keeps the state
+       list a script declares before its first [STATE] in
+       m->decl[] (same per-line filter as before, all names not
+       just the first) and gives every parsed block its
+       st[].decl_idx = 1 + its position in that list, 0 when
+       the name is not declared; compared with strcasecmp
+       because the engine's comparator 0x76a69 folds A-Z at
+       0x76a75. ported/ll_level.c - ladder_answer_core's gate
+       is now `state != 2` and ladder_answer_for passes
+       st[o->sti].decl_idx instead of a clamped row cursor; the
+       two play_collide logs print the state index. No other
+       law in the answer changed: P1/P2/P3, the 70% probe, the
+       class scope and the 1x1 model default are PR-150's,
+       byte-for-byte, unchanged.
+MEASURED: three censuses, all on the 777 extracted .MOV texts
+       and the pre-fixup image, none fitted: (1) all 777
+       scripts declare a list; the longest is 40 names and the
+       longest name 17 chars; in 172 of them the engine's
+       state index differs from the block position for at
+       least one state; 768 declare exactly as many names as
+       they write blocks and 9 declare fewer (their extra
+       blocks are the not-declared index 0); exactly one file
+       (KADMAR.07's BRODA1.MOV) matches a block only
+       case-insensitively, which is why the compare folds case.
+       (2) 54 sites compare [obj+0x5c] with an immediate: 21
+       against 1, 8 against 3, 6 against 5, 5 against 2, 2
+       against 10, one against 0 and one against 130 - a
+       1-based index whose 1 means "the state it started in",
+       which is what the loader says it is. (3) The ZARIA.01
+       walk probe re-run on the new build is byte-for-behaviour
+       the same as the pinned one: no `ladder ... ANSWERS` line
+       at all, x=180 at tick 91, x=435 at tick 200, x=685 at
+       tick 300, no damage line, the lion never leaves A_WALK.
+       That last one is the point of the model note's item (ii):
+       the correction changes the MODEL, and at ZARIA.01 the placed
+       ladder answers in neither the old nor the new model.
+HOOKS: none new.
+OPENS: OI-078, narrowed to ONE named question by this PR: what
+       raises K_GEN1 on a DRABINKA. A level-placed ladder sits
+       in the first declared state (A_UP), the engine's index
+       1, and its only authored exit is `A_DROP(1)=K_GEN1`;
+       index 2 (A_DOWN) is the state that answers the lion, so
+       until something raises K_GEN1 the chain never gets
+       there. The chain after that is already authored and
+       readable (`A_DROP` row 1 -> `A_DOWN(1)=AC_BREAK_NEXT`),
+       so no new law is expected, only that signal's source.
+       Also still unmodelled, unchanged by this PR: the child
+       list [obj+0xa5] and the 0x44ec0 ANY-test that the
+       first-state branch really runs (its only effect is
+       [self+0x66] bit 6), and the node-list lifetime.
+CLOSES: the "which NAMES sit at the gate's values is blocked
+       on DRABINKA's binding order - the seq/param-entry pool
+       is encrypted" item of PR-157 (items 2/3) and PR-158
+       (item 1): the state numbering comes from the loader's
+       declared-list vector, not from any pool, and it is
+       readable without decrypting anything.
+CORRECTS: PR-150, which ported the gate as a 1-based ROW
+       position on o->fi (its own record flagged the
+       attribution as PR-157's correction; the units were still
+       wrong); and PR-158/PR-159's VALUE mapping, which had
+       `2 = the state entered by A_UP -> A_DROP, A_DROP's role`
+       - ZARIA.01's own DRAB.MOV declares A_UP, A_DOWN, A_DROP
+       but writes its blocks A_UP, A_DROP, A_DOWN, so 1 = A_UP
+       (the child-ANY branch, which answers nothing), 2 =
+       A_DOWN (the only answering state) and A_DROP = 3 is
+       inert. Their structure - a state test, first state
+       inert, second state answers - stands; only the names at
+       those numbers were wrong.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 21 named
+       verify-SKIPs.
+
+- FAILING TEST FIRST, MEASURED. The legs went in before the
+  code. With the legs present and the old gate in place,
+  ./ll_level --mov-selftest failed at the first leg that
+  separates the two readings:
+    ladder answer selftest: FAILED decision table: state 1
+      (A_DOWN) is the child-ANY branch ... (ask 120,124 state
+      1 got 1400 want 0)
+  (rc=1; the old model answered AC_DRAB|AC_DRAB_CATCH at
+  index 1 because it keyed on the row cursor). A SECOND red
+  came after the code change and was MY error, kept here
+  rather than hidden: I had written a leg expecting the
+  single-declared-state fixture to answer at the object pixel,
+  and it answered nothing - correctly, because a lone declared
+  state is index 1 = the child-ANY branch. The leg was fixed
+  to declare a throw-away state first so the block under test
+  is index 2; the model, not the leg, was right.
+- THE LOADER, WHICH IS WHAT WAS MISSING. The engine parses a
+  .MOV in this order: 0x53905 loops ` %[^[` (0x922b0) over the
+  text BEFORE the first block and pushes each name into the
+  vector at [obj+0x3c] (8-byte entries: the grow call 0x53949,
+  count++ at 0x53959, the element write 0x5396d); its length
+  goes to [obj+0x58] at 0x53977; 0x5397a allocs length+1
+  four-byte slots and stores them at [obj+0x50]. Then 0x539aa
+  scans ` [%[^]]]` (0x922ba) once per declared entry and calls
+  0x53480 for each block, which resolves the block's name with
+  0x53440 and stores the constructed record at
+  [[obj+0x50] + that_index*4] (0x534b6). 0x53440 is a linear
+  walk of the name vector (count test 0x53452, entry load
+  0x5345d, compare 0x53461 through 0x76a69) and RETURNS
+  position+1 on a hit (0x5346a: ebx was already incremented
+  before the compare) and 0 on a miss (0x53471). Three
+  independent details pin the one-based reading: the record-
+  ctor loop starts at byte 4, i.e. slot 1 (0x533de
+  `mov ebx,0x4`); the object ctor writes [obj+0x5c] = 1
+  (0x538ab); and the ENTER verb runs [[obj+0x50]+[obj+0x5c]*4]
+  straight after (0x539e6..0x539fb). 0x53440 has exactly three
+  callers - this block handler, 0x3fe1c and the transition
+  parser 0x51e0b - so the same one-based number is what a
+  transition like `A_DROP(1)=` writes when it fires.
+- WHY THE HEADER SCAN IS SAFE WITHOUT READING ITS DELIMITERS.
+  The scan at 0x53915 goes through 0x57d30, which composes the
+  real format from a template at 0xa9510, so its exact
+  delimiter set was NOT read. It does not matter for the port:
+  the vector is keyed by NAME, not by position - 0x53440
+  compares strings - so a vector holding one blob could not
+  work (every record would land in slot 0 and the ctor's index
+  1 would run an empty slot). And the shipped texts have the
+  shape the port assumes: one name per line, 768 of 777 with
+  the header count exactly equal to the block count, 9 with a
+  shorter header (their extra blocks are index 0), 0 with a
+  longer one, longest header 40 names, so the port's
+  LMOV_MAXST 64 never truncates a real script.
+- THE GATE ITSELF, RE-READ. 0x3f1c6 `mov ecx,eax` makes ecx =
+  SELF; 0x3f1d1 first runs the ASKER's +0x3c (is-enemy) gate,
+  unchanged. 0x3f1dc loads [self+0x5c]. `cmp 1` (0x3f1df) runs
+  the asker's +0x4c rectangle, the child list [self+0xa5]
+  through the 0x44ec0 ANY-test, and on a hit sets [self+0x66]
+  bit 6 (0x3f203..0x3f20c) - no signal at all - then jumps to
+  the inert exit. `cmp 2` (0x3f214) is the P1/P2/P3 tree the
+  port already ports; anything else falls through 0x3f217 to
+  0x3f364. So DRAB.MOV's A_UP asks its CHILDREN, A_DOWN asks
+  the LION, and A_DROP - the unrolling rope - answers nobody.
+  That is a coherent mechanic (a rope that is still unspooling
+  cannot be grabbed) and it is now the shipped model.
+- WHAT THE FIXTURES PIN. L4's DRAB_MOV is ZARIA.01's real
+  file: the declared list A_UP, A_DOWN, A_DROP and the block
+  order A_UP, A_DROP, A_DOWN, the shipped `A_DROP(1)=K_GEN1`
+  and `A_DOWN(1)=AC_BREAK_NEXT` arms, only the row numbers
+  trimmed. It carries two discriminators: block 1 (A_DROP) must
+  NOT answer and block 0 of a second fixture (the second
+  declared state written FIRST) MUST answer, so no
+  block-order or row-cursor model passes. L5 pins the numbers
+  the parser itself computes, including the case-folded
+  A_Go/A_GO shape the one shipped file uses and the
+  not-declared 0.
+- AT ZARIA.01 NOTHING OBSERVABLE CHANGES, and the probe says
+  so instead of the record asserting it: the pinned walk is
+  unchanged line for line. The placed ladder is in A_UP = index
+  1 = the child branch, which the port does not model, so it
+  answers nothing under the new model exactly as it did under
+  the old one - but for the RIGHT reason now, and the reason
+  names the blocker: the state that answers, A_DOWN, is two
+  authored transitions away and the first of them is gated on
+  K_GEN1, which PR-149 F5's census found never raised on a
+  DRABINKA. FOCUS 1's climb is therefore a signal-source
+  question, not a geometry or gate question, and the geometry
+  half (the [obj+0xb1] author-side writer, PR-149 item 3) is
+  not on the path either until that signal exists.
+- RISK: the answer's PREDICATE tree is untouched, so the risk
+  is confined to the index. The port's own state array stays
+  block-ordered everywhere else (o->sti, ll_mov_find,
+  start_st), and nothing else in the port compares a state
+  index against an engine literal, so decl_idx has exactly one
+  consumer today. If a future PR ports one of the other 53
+  compare sites, the same field feeds it. The one unproven
+  detail is the header delimiter set (above); the 777-file
+  census bounds it.
+- REVERT: revert this commit; this record, the OI-078 row
+  update, the ported/ll_level.c hunks (gate, logs, model note,
+  L2/L4/L5 legs and the selftest summary line), the
+  ported/ll_play.c parser pass, the ported/ll_play.h fields,
+  the section 8 status block, the header numbering line and the
+  regenerated index go back together; nothing else was touched.

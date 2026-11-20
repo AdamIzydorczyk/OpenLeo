@@ -563,17 +563,42 @@ OI-077: fixture hygiene: the five drawn-anchor test legs use a
 
 === gameplay behavior + capture-needed ============================
 
-OI-078: the in-game ZARIA.01 climb: what still blocks it - the
-  K_GEN1 arm + WAIT row-gate, the authored rectangle format
-  ([obj+0]==2 as a runtime gate vs [obj+0]/[obj+4] as rect
-  x/y, and what the row-start numbers change on screen), node
-  lifetime + the 0x54b6a merge guard, object-asked answers and
-  mid-air asking
+OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
+  DRABINKA (the one named blocker left), the authored rectangle
+  format ([obj+0]==2 as a runtime gate vs [obj+0]/[obj+4] as
+  rect x/y, and what the row-start numbers change on screen),
+  node lifetime + the 0x54b6a merge guard, object-asked answers
+  and mid-air asking
   status: PARTIAL
   notes: poster, pair-walk entry, node builders, feed law, guard,
     evaluator, ladder answer all read and shipped (PR-142..150);
     the named remainder lives in those records' counted items.
     ZARIA.01 x=180 still does not climb.
+    PR-216 CLOSED the gate half of this row. The answer branch
+    at 0x3f1c0 is gated on [obj+0x5c], the STATE index, and the
+    loader says what numbers it: 0x53905 reads the list a script
+    declares before its blocks into the vector [obj+0x3c],
+    0x53440 resolves a state name to that list's ONE-BASED
+    position (0 = not declared, 0x53471), 0x534b6 stores the
+    block's record at that slot of [obj+0x50] (allocated
+    length+1 at 0x5397a), the record-ctor loop starts at slot 1
+    (0x533de) and the object ctor writes [obj+0x5c] = 1
+    (0x538ab). Block order is not that order: ZARIA.01's
+    DRAB.MOV declares A_UP,A_DOWN,A_DROP but writes the blocks
+    A_UP,A_DROP,A_DOWN - so a placed ladder sits at index 1 =
+    the child-ANY branch (0x3f1e4/0x44ec0, sets [self+0x66]
+    bit 6, signals nothing) and the ONLY state that answers the
+    lion is index 2 = A_DOWN; A_DROP, the unrolling rope, is
+    index 3 = inert. PR-150's row-cursor gate is gone, and the
+    "binding order / encrypted pool" blocker of PR-157/158 is
+    gone with it. Census: 172 of the 777 shipped .MOV texts
+    differ between the two orders, 54 sites compare [obj+0x5c]
+    with a literal (21 of them `== 1`, the initial state), and
+    the pinned ZARIA.01 walk probe is unchanged, as expected:
+    the placed ladder answers in neither the old nor the new
+    model. What is left is ONE question: what raises K_GEN1 on
+    a DRABINKA, whose only authored exit is `A_DROP(1)=K_GEN1`.
+    The rest of this row's items are unchanged.
     PR-214 ANSWERED the "per-frame setter of the lion's
     contact target [obj+0xd2]" lead NEGATIVE: nothing writes
     it per frame. Full writer census (ELF sweep): the only

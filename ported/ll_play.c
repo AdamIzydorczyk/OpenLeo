@@ -459,16 +459,30 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                     m->drop_st++;
                 }
             } else if (m->nst == 0) {
-                /* before the first [STATE]: the declared state list; its
-                 * first name is the starting state */
-                if (!m->first_decl[0] && line[0] != ';' && line[0] != '/' &&
-                    !strchr(line, '=')) {
+                /* before the first [STATE]: the declared state list.
+                 * Its first name is the state the object starts in,
+                 * and its ORDER is the engine's state index space:
+                 * 0x53905 reads it into the vector [obj+0x3c] and
+                 * every state name afterwards is resolved through
+                 * 0x53440, which returns its 1-based position (see
+                 * ll_mov_st.decl_idx, PR-216). strcasecmp because the
+                 * engine's comparator 0x76a69 folds A-Z (0x76a75). */
+                if (line[0] != ';' && line[0] != '/' && !strchr(line, '=')) {
+                    char nm[24];
                     size_t k = 0;
-                    while (line[k] > ' ' && k < sizeof m->first_decl - 1) {
-                        m->first_decl[k] = line[k];
+                    while (line[k] > ' ' && k < sizeof nm - 1) {
+                        nm[k] = line[k];
                         k++;
                     }
-                    m->first_decl[k] = '\0';
+                    nm[k] = '\0';
+                    if (nm[0]) {
+                        if (!m->first_decl[0])
+                            memcpy(m->first_decl, nm, sizeof m->first_decl);
+                        if (m->nddecl < LMOV_MAXST) {
+                            memcpy(m->decl[m->nddecl], nm, sizeof m->decl[0]);
+                            m->nddecl++;
+                        }
+                    }
                 }
             } else if (m->nst > 0) {
                 ll_mov_st *s = &m->st[m->nst - 1];
@@ -787,6 +801,22 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
     if (m->first_decl[0]) {
         int k = ll_mov_find(m, m->first_decl);
         m->start_st = k > 0 ? k : 0;
+    }
+    /* PR-216: the engine's state index of each block, [obj+0x5c]
+     * while it runs = 1 + the position of its name in the declared
+     * list (0x53440 returns exactly that, 0 when the name is not in
+     * the list, and the loader stores the block's record at that slot
+     * of [obj+0x50]: 0x534b6). Block order is NOT that order: 172 of
+     * the 777 shipped scripts differ. */
+    for (int i = 0; i < m->nst; i++) {
+        int k = 0;
+
+        for (int d = 0; d < m->nddecl; d++)
+            if (strcasecmp(m->decl[d], m->st[i].name) == 0) {
+                k = d + 1;
+                break;
+            }
+        m->st[i].decl_idx = k;
     }
     return m->nst;
 }

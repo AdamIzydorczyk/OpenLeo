@@ -476,6 +476,23 @@ typedef struct {
     int directive;                          /* frame-line GEN/ATC/WAIT/...  */
     int field_other;                        /* sample= time= (time_scale=
                                              * is modelled since PR-110)   */
+    /* PR-216: the engine's state index for THIS state, the value of
+     * [obj+0x5c] while the object runs it. The engine numbers states
+     * by their position in the list a script declares BEFORE its
+     * blocks, ONE-BASED: the loader 0x53905 reads that list into the
+     * vector [obj+0x3c] and its length at [obj+0x58]; 0x5397a allocs
+     * count+1 record slots; the per-block handler 0x53480 stores its
+     * record at [[obj+0x50] + 0x53440(name)*4] and 0x53440 returns
+     * the 1-based position in that vector, 0 when the name is not
+     * declared; the record-ctor loop 0x533e3 starts at byte offset 4
+     * = slot 1; and the object ctor writes [obj+0x5c] = 1 (0x538ab),
+     * the first declared state. Block order is NOT the index space:
+     * 68 of the 777 shipped scripts (PR-51's count) put an [A_DEAD]
+     * block ahead of the declared start, and ZARIA.01's DRAB.MOV
+     * declares A_UP,A_DOWN,A_DROP but writes the blocks
+     * A_UP,A_DROP,A_DOWN. 0 = not in the list, the engine's own
+     * not-found value (0x53471). */
+    int decl_idx;
 } ll_mov_st;
 typedef struct {
     ll_mov_st st[LMOV_MAXST];
@@ -490,6 +507,17 @@ typedef struct {
      * that name among the blocks, 0 when absent/unmatched. */
     char first_decl[24];
     int start_st;
+    /* PR-216: the whole declared list, in the order the script writes
+     * it, kept because that order IS the engine's state index space
+     * (see ll_mov_st.decl_idx). Census of the 777 shipped .MOV texts:
+     * all 777 declare a list, the longest is 40 names (so
+     * LMOV_MAXST covers it; extras would be dropped like the blocks),
+     * the longest name 17 chars, and in 172 of them the engine's
+     * index differs from the block position for at least one state.
+     * A block whose name is NOT declared (9 files have one) gets
+     * decl_idx 0, the engine's own not-found value. */
+    char decl[LMOV_MAXST][24];
+    int nddecl;
 } ll_mov_t;
 
 int ll_mov_parse(const char *text, ll_mov_t *m);   /* returns m->nst      */

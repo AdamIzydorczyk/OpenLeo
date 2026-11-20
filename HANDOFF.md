@@ -2030,6 +2030,36 @@ the arm, green with it. No shipped fixture pin moved: 65 ok
 OI-092 (raw -1 on the same-state cursor 0x53616 vs 0x52381;
 held-arrow edge-vs-level).
 
+STATUS PR-216 (PORT, OI-078 GATE HALF CLOSED): the ladder's
+contact answer is gated on the engine's STATE index, not the
+row cursor PR-150 shipped, and the loader names that number
+space: the state list a script declares BEFORE its blocks,
+ONE-BASED (0x53905 fills the vector [obj+0x3c], 0x53440
+returns position+1 or 0 for an undeclared name, 0x534b6 stores
+the record at that slot of [obj+0x50], the record-ctor loop
+starts at slot 1, and the object ctor writes [obj+0x5c] = 1 at
+0x538ab). ll_mov_parse now keeps that list (m->decl) and gives
+every block st[].decl_idx; ladder_answer_core gates on it
+(`state != 2` answers nothing). ZARIA.01's own DRAB.MOV
+declares A_UP,A_DOWN,A_DROP but writes the blocks
+A_UP,A_DROP,A_DOWN, so a placed ladder sits at index 1 = A_UP =
+the child-ANY branch (0x3f1e4/0x44ec0, signals nothing), index
+2 = A_DOWN is the ONLY state that answers the lion, and A_DROP,
+the unrolling rope, is 3 = inert. That corrects PR-158/159's
+value mapping and closes their "binding order / encrypted pool"
+item. Failing test first: the L2 leg measured red at `state 1
+got 1400 want 0`; a second red was my own wrong expectation (a
+lone declared state IS index 1 and answers nothing) - the leg
+was wrong, not the model. Census: 172 of 777 texts differ
+between the two orders, 54 sites compare [obj+0x5c] with a
+literal (21 of them `== 1` = the initial state), one file
+matches only case-insensitively so the compare folds case. The
+ZARIA.01 walk probe is unchanged (no answer line; x=180 at
+tick 91, x=685 at 300) - the placed ladder answers in neither
+the old nor the new model. OI-078 now has ONE named blocker:
+what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
+fixtures, 13 ok + 21 named SKIPs without.
+
 PLAN STEP PR-206 (object placement fidelity, the user-visible
 thread; register row OI-108): two PRs after this step, neither part
 of closing T1. (5a) [READ] measure where the ORIGINAL draws `.MOV`

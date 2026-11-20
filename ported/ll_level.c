@@ -4253,10 +4253,14 @@ int ll_mov_selftest(void)
            " while the position path had already paid its 2 px on the"
            " sixth iteration; the old F=30 shape, 0.375 = 3/8 exact,"
            " lands exactly on 3.0 on time and leaves exactly 0.0"
-           " + PR-150 the ladder's contact answer: its row-position"
-           " gate (idle/first/park rows answer nothing, only the"
-           " second drop row does, and the row cursor clamps like"
-           " the shape path's), the full-extent then 70%%-probe"
+           " + PR-150/216 the ladder's contact answer: its state gate"
+           " (0x3f1dc reads [obj+0x5c], which numbers states by their"
+           " position in the list the script declares before its"
+           " blocks, ONE-BASED, so the first declared state and every"
+           " index but 2 answer nothing; block order is NOT that"
+           " order - ZARIA.01's own DRAB.MOV differs - and the"
+           " numbers the parser computes are legged on their own),"
+           " the full-extent then 70%%-probe"
            " predicate with the merged CATCH+DRAB and lone-DRAB"
            " tails and the inclusive bounds, the probe's truncating"
            " symmetric law at every w I pinned by hand, the edge"
@@ -4644,29 +4648,37 @@ static int clash_suppressed(const play_ctx *pl, int lx, int ox)
  *   the field's UNITS: it does NOT count rows, and the
  *   authored `( N )` lands in the current state record's ROW
  *   CURSOR [[rec]+4] (0x53616, PR-157 F3), not here. So the
- *   gate at 0x3f1dc/0x3f214 is a STATE test: 1 = the initial
- *   state (first bound record, A_UP's role) -> the FLAG
- *   branch, answering NOTHING; 2 = the state entered by
- *   `A_UP -> A_DROP` (K_GEN1-gated, A_DROP's role) -> the
- *   ONLY answering state; >= 3 -> the inert exit (A_DOWN's
- *   role and the 'none' stamp 55, 0x44910, included); 0 =
- *   row-less zeroed fields (0x524a0-0x524c8). What STANDS of
- *   PR-150: the getter formula, the frame-selector proof
- *   (obj_shape_elem feeds the same field to ll_mov_frame_ref),
- *   the PR-86/110 row-start law (the port's `(N)` -> fi =
- *   N-1 mapping feeds exactly what 0x53616 feeds the entered
- *   record's cursor), and the whole predicate tree below. THE
- *   PORT KEEPS THE fi-GATE, and that is leg-counted, not as-
- *   sumed: the two models AGREE on every ZARIA.01 path - the
- *   one authored transition never fires (PR-149 F5's census),
- *   so the port never passes row 0 of the single-row A_UP
- *   (the clamp) and the engine never leaves the initial state;
- *   they could diverge only for a multi-row FIRST state, and
- *   what the gate's VALUES mean is blocked on DRABINKA's
- *   binding order - the 'seq'/param-entry pool is encrypted
- *   (PR-157 items 2/3, PR-158 item 1). The port clamps fi
- *   exactly as obj_shape_elem does (`o->fi < nfr ?
- *   o->fi : nfr-1`).
+ *   gate at 0x3f1dc/0x3f214 is a STATE test, and PR-216 READS
+ *   what its numbers mean. The loader parses the state list a
+ *   script declares BEFORE its blocks into a name vector at
+ *   [obj+0x3c] (the 0x53905 loop, its count at [obj+0x58]),
+ *   allocates count+1 record slots (0x53974..0x53994), and the
+ *   per-block handler 0x53480 stores its record at
+ *   [[obj+0x50] + idx*4] where idx = 0x53440(name) = the
+ *   ONE-BASED position of that name in the vector, 0 when the
+ *   name is not declared (0x53471). Corroborating: the
+ *   record-ctor loop starts at byte 4 = slot 1 (0x533de), and
+ *   the object ctor writes [obj+0x5c] = 1 (0x538ab) before the
+ *   ENTER verb runs records[1] (0x539e6..0x539fb). So the
+ *   number is the DECLARED position, not the block order:
+ *   1 = the first declared state -> the FLAG branch (the child
+ *   ANY-test 0x44ec0 over [self+0xa5], sets [self+0x66] bit 6,
+ *   answers NOTHING); 2 = the SECOND declared state -> the ONLY
+ *   answering state, the P1/P2/P3 tree below; anything else,
+ *   the not-declared 0 included, takes 0x3f217 -> the inert
+ *   0x3f364. ZARIA.01's own DRAB.MOV is one of the 172 of 777
+ *   shipped scripts where the two orders differ (census of the
+ *   extracted texts): it DECLARES A_UP, A_DOWN, A_DROP but
+ *   writes the blocks A_UP, A_DROP, A_DOWN - so the answering
+ *   state is A_DOWN, NOT A_DROP. That CORRECTS PR-158/159's
+ *   value mapping; their structure stands (a state test, first
+ *   state inert, second state answers) - what was unknown then
+ *   was which NAMES sit at those numbers (PR-157 items 2/3,
+ *   PR-158 item 1's "binding order", the encrypted pool), and
+ *   the loader answers it without the pool. PR-216 ports the
+ *   state gate and DROPS the fi-gate: the row cursor is a
+ *   different field ([[rec]+4]) and nothing in 0x3f1c0 reads
+ *   it.
  *   THE PREDICATE, 0x23e00 verbatim (PR-106's point-in-rect:
  *   `p[0] in [q0..q2]` and `p[4] in [q1..q3]`, four signed
  *   jl/jg, INCLUSIVE): the asker side is its OWN first two dwords
@@ -4757,22 +4769,26 @@ static int clash_suppressed(const play_ctx *pl, int lx, int ox)
  * test of the row-1 branch (the port models no child list - the
  * feature was never read - so the engine's row-1 answer here is
  * the inert exit and [obj+0x66] bit 6 is never set, counted).
- * AT ZARIA.01 THIS CHANGES NOTHING OBSERVABLE, and the legs say
- * why instead of asserting it away: (i) the authored A_WALK token
+ * AT ZARIA.01 THIS STILL CHANGES NOTHING OBSERVABLE, and the legs
+ * say why instead of asserting it away: (i) the authored A_WALK token
  * carries no CHECK bit for the ladder's list (PR-131's gate, the
  * same gate the port's play_collide applies - zero answer
- * calls); (ii) even with the gate open the ladder would answer
- * nothing: its ONLY authored exit is `A_DROP(1)=K_GEN1`, K_GEN1
- * is never raised on it (PR-149 F5's census with its two
- * negatives), so the port's ladder sits in A_UP at row 0 = the
- * FLAG branch forever, and the answer row (fi 1, the `3,400`
- * line) is unreachable; and the engine's row-gate law is no
- * longer an unmodelled unknown either: the gate word is the
- * state record's row cursor (PR-157 F3), a field the port's
- * o->fi already tracks, and no port-reachable consumer of
- * ANOTHER object's cursor exists at T5 - the readers are the
- * ZARIA controller / other-era classes (PR-156 F5). Both
- * legs are below, not asserted away. */
+ * calls); (ii) even with the gate open the placed ladder answers
+ * nothing, because a level-placed ladder sits in the FIRST DECLARED
+ * state A_UP = index 1 = the FLAG branch (the child ANY-test, which
+ * the port does not model, counted), and its ONLY authored exit is
+ * `A_DROP(1)=K_GEN1`: K_GEN1 is never raised on it (PR-149 F5's
+ * census with its two negatives), so state 2, A_DOWN, the one that
+ * DOES answer, is unreachable - that and not the row cursor is the
+ * named blocker, and PR-216 narrows it to one question: what raises
+ * K_GEN1 on a DRABINKA. The transition into it is authored and
+ * readable (`A_UP -> A_DROP` on row 1, then `A_DOWN(1)=
+ * AC_BREAK_NEXT`), so once K_GEN1 is understood the chain needs no
+ * new law. What the row-cursor law of PR-157 F3 says still stands
+ * for the `WAIT K_GEN1`/`WAIT K_NEVER` row gate (a different field,
+ * [[rec]+4], which the port's o->fi tracks); what PR-216 corrects
+ * is only which field 0x3f1dc reads. Both legs are below, not
+ * asserted away. */
 static int ladder_class(const lvl_obj *o)
 {
     return o->sc && ci_eq(o->sc->leaf, "DRABINKA");
@@ -4812,18 +4828,35 @@ static void blk_probe70(ll_blk *b)
     b->x1 -= half;
 }
 
-static unsigned long long ladder_answer_core(int row, const ll_blk *edge,
+static unsigned long long ladder_answer_core(int state, const ll_blk *edge,
                                              const ll_blk *rung,
                                              const ll_pt *ask)
 {
     ll_blk probe;
 
-    if (row != 1)
-        return 0ull;                   /* the ONLY answer row (0x3f214);
-                                        * row 0 = the FLAG branch (its
-                                        * ANY-test never finds a child:
-                                        * the port models no child list,
-                                        * counted), row >= 2 = inert */
+    if (state != 2)
+        return 0ull;                   /* the ONLY answering state is
+                                        * the SECOND DECLARED one
+                                        * (0x3f1dc reads [self+0x5c],
+                                        * `cmp 2` at 0x3f214 -> the
+                                        * P1/P2/P3 path): 0x53440
+                                        * numbers states from the
+                                        * declared list, 1-based, and
+                                        * the ctor starts the object
+                                        * at 1, 0x538ab. `cmp 1` =
+                                        * the FIRST declared state:
+                                        * the child ANY-test 0x44ec0
+                                        * over [self+0xa5], which
+                                        * only sets [self+0x66] bit
+                                        * 6 and ends at the same
+                                        * inert exit - the port
+                                        * models no child list, so
+                                        * it answers nothing
+                                        * (counted). Any other
+                                        * index, including 0 = the
+                                        * name is not declared,
+                                        * falls to 0x3f217 ->
+                                        * 0x3f364, inert. */
     if (pt_in_blk(ask, edge))         /* P1: [self+0xc5] */
         return 1ull << LL_SIG_AC_EDGE;
     if (!pt_in_blk(ask, rung))        /* P2 FALSE: inert exit 0x3f364 */
@@ -4888,20 +4921,16 @@ static unsigned long long ladder_answer_for(const lvl_obj *o,
     ll_blk rung, edge;
     ll_pt p = pt_of(asker);
     const ll_mov_st *s = NULL;
-    int row;
+    int state;
 
     if (o->sc && o->sc->mov && o->sti >= 0 && o->sti < o->sc->mov->nst)
         s = &o->sc->mov->st[o->sti];
-    if (!s || s->nfr <= 0)
-        row = -1;                      /* no row list at all: no current
-                                        * row (the engine's moving objs
-                                        * always have one; empty lists
-                                        * are a shape the port permits,
-                                        * obj_state_selftest's first
-                                        * leg) */
-    else
-        row = o->fi < s->nfr ? o->fi : s->nfr - 1;  /* obj_shape_elem's
-                                                     * clamp, same field */
+    state = s ? s->decl_idx : 0;       /* the engine's [obj+0x5c] for
+                                        * the state this object runs;
+                                        * no state at all gives 0,
+                                        * which is also the engine's
+                                        * not-declared value (0x53440
+                                        * falls through to 0x53471) */
     if (!blk_of_obj(o, &rung)) {
         rung.x0 = rung.x1 = o->x;      /* the ctor-shaped 1x1 default */
         rung.y0 = rung.y1 = o->y;
@@ -4912,7 +4941,7 @@ static unsigned long long ladder_answer_for(const lvl_obj *o,
                                         * stores +0xc5; no authored
                                         * source exists) */
     edge.y0 = edge.y1 = o->y;
-    return ladder_answer_core(row, &edge, &rung, &p);
+    return ladder_answer_core(state, &edge, &rung, &p);
 }
 
 static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
@@ -5163,9 +5192,10 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
             if (ans) {
                 pl->p.sig |= ans;
                 if (verbose)
-                    printf("ll_level: play tick %d: ladder %s/%s row %d"
-                           " ANSWERS the lion: set %llx\n", tick,
-                           o->sc->leaf, o->sc->movname, o->fi, ans);
+                    printf("ll_level: play tick %d: ladder %s/%s state"
+                           " %d ANSWERS the lion: set %llx\n", tick,
+                           o->sc->leaf, o->sc->movname,
+                           o->sc->mov->st[o->sti].decl_idx, ans);
             }
         }
         if (verbose)
@@ -5230,10 +5260,11 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                 if (ans) {
                     pl->p.sig |= ans;
                     if (verbose)
-                        printf("ll_level: play tick %d: ladder %s/%s row"
-                               " %d ANSWERS the lion (non-solid):"
-                               " set %llx\n", tick, o->sc->leaf,
-                               o->sc->movname, o->fi, ans);
+                        printf("ll_level: play tick %d: ladder %s/%s"
+                               " state %d ANSWERS the lion"
+                               " (non-solid): set %llx\n", tick,
+                               o->sc->leaf, o->sc->movname,
+                               o->sc->mov->st[o->sti].decl_idx, ans);
                 }
             }
         }
@@ -5242,14 +5273,15 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
 
 /* PR-150 selftest: the ladder's contact answer, hand-derived from the
  * machine code quoted in the ladder_answer_* model note (0x3f1c0, the
- * 0x23e00 bounds test, the 0x49fb0 probe) and from the row structure
+ * 0x23e00 bounds test, the 0x49fb0 probe) and from the state index
  * its gate reads - the synthetic scripts mirror that shape, no game
  * data, no video. L1 pins the probe law at the truncation edges its
  * bytes decide (odd widths, w<=3, mirrored words); L2 the decision
- * table with the inclusive bounds and the edge block's priority; L3
- * the class scope; L4 the row-position gate and the no-art default
- * end to end, including the ZARIA-shaped idle row that answers
- * nothing at any asker and the shape path's row clamp. */
+ * table with the inclusive bounds, the edge block's priority and the
+ * state gate; L3 the class scope; L4 the gate end to end with the
+ * no-art default, including the declared-list order vs the block
+ * order and the not-declared 0; L5 the index the parser itself
+ * computes. */
 static int ladder_answer_selftest(void)
 {
     static const struct {
@@ -5269,30 +5301,33 @@ static int ladder_answer_selftest(void)
     static const unsigned long long m_cat = m_drab |
                                             (1ull << LL_SIG_AC_DRAB_CATCH);
     static const struct {
-        int row; ll_pt ask; unsigned long long want;
+        int state; ll_pt ask; unsigned long long want;
         const char *what;
     } core_cases[] = {
-        { 0, { 120, 124 }, 0ull, "row 0 (idle/first/park shape) answers"
-          " nothing, inside the probe" },
-        { 0, { 100, 100 }, 0ull, "row 0 even ON the edge pixel" },
-        { 2, { 120, 124 }, 0ull, "row 2 (drop rows past the second):"
-          " inert exit 0x3f214/0x3f364" },
-        { 9, { 100, 100 }, 0ull, "row 9 even on the edge pixel" },
-        { 1, { 100, 100 }, 1ull << LL_SIG_AC_EDGE, "P1 FIRST: on the"
-          " stored edge block, AC_EDGE only" },
-        { 1, { 106, 100 }, m_cat, "probe near corner inclusive: CATCH+DRAB"
-          " merged" },
-        { 1, { 120, 124 }, m_cat, "probe band middle: merged" },
-        { 1, { 136, 148 }, m_cat, "probe far corner inclusive (136,148):"
+        { 0, { 120, 124 }, 0ull, "state 0 (a block whose name is not"
+          " declared, 0x53471): no branch, nothing even inside the probe" },
+        { 0, { 100, 100 }, 0ull, "state 0 even ON the edge pixel" },
+        { 1, { 120, 124 }, 0ull, "state 1 (ZARIA.01's A_UP, the first"
+          " declared state) is the child-ANY branch (0x3f1e4/0x44ec0):"
+          " no child list modelled, so nothing answers" },
+        { 3, { 120, 124 }, 0ull, "state 3 (A_DROP): inert 0x3f217->0x3f364" },
+        { 9, { 100, 100 }, 0ull, "state 9 even on the edge pixel" },
+        { 2, { 100, 100 }, 1ull << LL_SIG_AC_EDGE, "state 2 (A_DOWN, the"
+          " second declared state): P1 FIRST, on the stored edge block,"
+          " AC_EDGE only" },
+        { 2, { 106, 100 }, m_cat, "probe near corner inclusive: CATCH+"
+          "DRAB merged" },
+        { 2, { 120, 124 }, m_cat, "probe band middle: merged" },
+        { 2, { 136, 148 }, m_cat, "probe far corner inclusive (136,148):"
           " merged (no y inset)" },
-        { 1, { 101, 124 }, m_drab, "inside the rung, left of the band:"
+        { 2, { 101, 124 }, m_drab, "inside the rung, left of the band:"
           " DRAB alone (0x3f355)" },
-        { 1, { 142, 148 }, m_drab, "rung far corner inclusive (142,148),"
+        { 2, { 142, 148 }, m_drab, "rung far corner inclusive (142,148),"
           " outside the band: alone" },
-        { 1, { 99, 124 }, 0ull, "one px left of the rung: P2 FALSE ->"
+        { 2, { 99, 124 }, 0ull, "one px left of the rung: P2 FALSE ->"
           " inert 0x3f364" },
-        { 1, { 100, 149 }, 0ull, "below the rung (y not inset): inert" },
-        { 1, { 143, 124 }, 0ull, "one px right of the rung: inert" },
+        { 2, { 100, 149 }, 0ull, "below the rung (y not inset): inert" },
+        { 2, { 143, 124 }, 0ull, "one px right of the rung: inert" },
     };
     const ll_blk rung = { 100, 100, 142, 148 };
     const ll_blk edge = { 100, 100, 100, 100 };
@@ -5314,14 +5349,14 @@ static int ladder_answer_selftest(void)
     for (k = 0; k < (int)(sizeof core_cases / sizeof core_cases[0]);
          k++) {
         unsigned long long got = ladder_answer_core(
-            core_cases[k].row, &edge, &rung, &core_cases[k].ask);
+            core_cases[k].state, &edge, &rung, &core_cases[k].ask);
 
         if (got != core_cases[k].want) {
             fprintf(stderr, "ladder answer selftest: FAILED decision"
-                            " table: %s (ask %d,%d row %d got %llx want"
-                            " %llx)\n", core_cases[k].what,
+                            " table: %s (ask %d,%d state %d got %llx"
+                            " want %llx)\n", core_cases[k].what,
                     core_cases[k].ask.x, core_cases[k].ask.y,
-                    core_cases[k].row, got, core_cases[k].want);
+                    core_cases[k].state, got, core_cases[k].want);
             return 1;
         }
     }
@@ -5332,7 +5367,7 @@ static int ladder_answer_selftest(void)
         static const ll_pt nask[] = { { 100, 120 }, { 102, 120 } };
 
         for (k = 0; k < 2; k++)
-            if (ladder_answer_core(1, &far_edge, &narrow, &nask[k]) !=
+            if (ladder_answer_core(2, &far_edge, &narrow, &nask[k]) !=
                 m_cat) {
                 fprintf(stderr, "ladder answer selftest: FAILED narrow"
                                 " rung (probe == rung must merge)\n");
@@ -5349,7 +5384,7 @@ static int ladder_answer_selftest(void)
                                       { 100, 148 } };
 
         for (k = 0; k < 3; k++)
-            if (ladder_answer_core(1, &off_edge, &down, &dask[k]) !=
+            if (ladder_answer_core(2, &off_edge, &down, &dask[k]) !=
                 0ull) {
                 fprintf(stderr, "ladder answer selftest: FAILED"
                                 " descending block must answer inert"
@@ -5383,35 +5418,91 @@ static int ladder_answer_selftest(void)
     {   /* L4, end to end with the model default: no art (obj_art_of
          * NULL through an empty table list), so both blocks are the
          * 1x1 at the object - the edge block wins AT the pixel (P1),
-         * one px away NOTHING answers, and the row gate holds. The
+         * one px away NOTHING answers, and the STATE gate holds. The
          * row texts mirror the shape the record quotes from drab.MOV
          * (`1,0` idle, `2,500`/`3,400` drop) as a synthetic script;
          * the authored file itself is NOT in this test. */
-        static const struct { const char *mov; int fi; double ax, ay;
+        /* PR-216: the gate is the object's STATE INDEX, not its row
+         * cursor, and that index is NOT the block position. 0x3f1dc
+         * reads [self+0x5c] and branches `cmp 1` (0x3f1e4: the child
+         * ANY-test over [self+0xa5], which only sets [self+0x66] bit
+         * 6 and ends at the inert exit) / `cmp 2` (0x3f214: the
+         * P1/P2/P3 path this model implements); anything else jumps
+         * to the inert 0x3f364. What numbers the states: the loader
+         * 0x53905 reads the list the script declares BEFORE its
+         * blocks into the vector [obj+0x3c], 0x53440 resolves every
+         * state name to that list's ONE-BASED position (0 when the
+         * name is not declared, 0x53471), 0x534b6 stores the block's
+         * record at that slot of an array of count+1 slots (0x5397a),
+         * the record-ctor loop 0x533e3 starts at slot 1, and the
+         * object ctor writes [obj+0x5c] = 1, the first declared state
+         * (0x538ab). ZARIA.01's own DRAB.MOV is one of the 172 of 777
+         * scripts where the two orders differ: it declares
+         * A_UP,A_DOWN,A_DROP but writes the blocks A_UP,A_DROP,
+         * A_DOWN - so A_UP = 1 = the child branch, A_DOWN = 2 = the
+         * answer path, A_DROP = 3 = inert. The fixture is that file's
+         * shape: the declared list, the block order and the
+         * `WAIT K_GEN1`/`A_DOWN(1)=AC_BREAK_NEXT` arms are the shipped
+         * ones; only the row numbers are trimmed. The `fi` column is
+         * the row cursor and no answer here depends on it: that is the
+         * discriminator against the old model, which keyed the branch
+         * on fi. */
+        static const char DRAB_MOV[] =
+            "A_UP\nA_DOWN\nA_DROP\n\n[A_UP]\ncontrol=BY_TIME\n"
+            "A_DROP(1)=K_GEN1\nseq=drab\n1,0,WAIT K_GEN1\n\n[A_DROP]\n"
+            "control=BY_TIME\nA_DOWN(1)=AC_BREAK_NEXT\nseq=drab\n"
+            "2,500\n3,400\n\n[A_DOWN]\ncontrol=BY_TIME\nseq=drab\n"
+            "11,0,WAIT K_NEVER\n";
+        static const struct { const char *mov; int sti, fi;
+                             double ax, ay;
                              unsigned long long want;
                              const char *what; } e_cases[] = {
-            { "[A_UP]\ncontrol=BY_TIME\n1,0\n", 0, 180, 510, 0ull,
-              "the idle single-row shape: its row 0 is the"
-              " FLAG branch, nothing answers even ON the object pixel" },
-            { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n", 0, 180, 510,
-              0ull, "a drop's first row (fi 0) answers nothing" },
-            { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n", 1, 180, 510,
-              1ull << LL_SIG_AC_EDGE, "the second row (fi 1) is the"
-              " answer row: on the default 1x1s the edge block wins at"
-              " the pixel, and only edge" },
-            { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n", 1, 181, 510,
-              0ull, "1 px away the default 1x1s answer nothing" },
-            { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n", 5, 180, 510,
-              1ull << LL_SIG_AC_EDGE, "fi past a 2-row list clamps to"
-              " row 1, exactly obj_shape_elem's clamp" },
-            { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n3,400\n", 2, 180,
-              510, 0ull, "row 2 of a 3-row list (drop `4,400` shape):"
-              " the gate holds even on the pixel" },
-            { "[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n3,400\n", 9, 180,
-              510, 0ull, "fi 9 clamps to row 2: inert there too" },
-            { "[A_UP]\ncontrol=BY_TIME\n", 0, 180, 510, 0ull,
-              "no rows at all: no current row exists (a shape the port"
-              " permits; the engine's moving objects have one)" },
+            { DRAB_MOV, 0, 0, 180, 510, 0ull,
+              "the FIRST DECLARED state (A_UP, block 0), ON the object"
+              " pixel: the child-ANY branch, so nothing answers - the"
+              " ladder a level places never answers" },
+            { DRAB_MOV, 1, 0, 180, 510, 0ull,
+              "A_DROP (block 1, declared index 3): no branch, inert"
+              " 0x3f217 -> 0x3f364 even at the pixel" },
+            { DRAB_MOV, 2, 0, 180, 510, 1ull << LL_SIG_AC_EDGE,
+              "A_DOWN (block 2 = declared index 2, NOT block index 2)"
+              " answers at the pixel: on the default 1x1s the edge"
+              " block wins, and only edge" },
+            { DRAB_MOV, 2, 1, 180, 510, 1ull << LL_SIG_AC_EDGE,
+              "the same at row 1: the row cursor changes nothing" },
+            { DRAB_MOV, 2, 9, 180, 510, 1ull << LL_SIG_AC_EDGE,
+              "fi 9 past the 2-row list: the shape still clamps"
+              " (obj_shape_elem's clamp) and the state gate still holds" },
+            { DRAB_MOV, 2, 0, 181, 510, 0ull,
+              "A_DOWN but 1 px away: the default 1x1s miss and P2's"
+              " FALSE path is the inert exit 0x3f364" },
+            { "[A_UP]\ncontrol=BY_TIME\n1,0\n", 0, 0, 180, 510, 0ull,
+              "no declared list at all: the block is the engine's"
+              " not-declared index 0, so nothing answers" },
+            { "A_UP\n\n[A_UP]\ncontrol=BY_TIME\n1,0\n2,500\n", 0, 1,
+              180, 510, 0ull,
+              "the FIRST declared state answers nothing even at its"
+              " SECOND row, where the old model answered AC_EDGE: the row"
+              " cursor and the row count are not the gate" },
+            { "A_UP\nA_DOWN\n\n[A_DOWN]\ncontrol=BY_TIME\n2,0\n\n"
+              "[A_UP]\ncontrol=BY_TIME\n1,0\n", 0, 0, 180, 510,
+              1ull << LL_SIG_AC_EDGE,
+              "the SECOND DECLARED state written FIRST: block 0 is"
+              " index 2 and answers, so the index is the declared order"
+              " and not the block order (the old model read the row"
+              " cursor here)" },
+            { "A_DOWN\n\n[A_UP]\ncontrol=BY_TIME\n1,0\n", 0, 0, 180, 510,
+              0ull,
+              "a block named in no list (0x53471's 0): inert" },
+            { "A_GONE\nA_UP\n\n[A_UP]\ncontrol=BY_TIME\n", 0, 3, 180,
+              510, 1ull << LL_SIG_AC_EDGE,
+              "no rows at all, row cursor 3: the gate is the index, not"
+              " the row list, so the second declared state with no art"
+              " still answers AT the pixel" },
+            { "A_GONE\nA_UP\n\n[A_UP]\ncontrol=BY_TIME\n", 0, 3, 181,
+              510, 0ull,
+              "the same state 1 px away: only the state gate is open,"
+              " the geometry is not" },
         };
 
         for (k = 0; k < (int)(sizeof e_cases / sizeof e_cases[0]);
@@ -5427,7 +5518,7 @@ static int ladder_answer_selftest(void)
                 return 1;
             }
             ll_mov_parse(e_cases[k].mov, m);
-            if (m->nst != 1) {
+            if (m->nst < 1 || e_cases[k].sti >= m->nst) {
                 fprintf(stderr, "ladder answer selftest: FAILED the"
                                 " synthetic script did not parse (%d)\n",
                         m->nst);
@@ -5441,19 +5532,63 @@ static int ladder_answer_selftest(void)
             o.sc = &sc;
             o.x = 180;
             o.y = 510;
+            o.sti = e_cases[k].sti;
             o.fi = e_cases[k].fi;
             memset(&asker, 0, sizeof asker);
             asker.x = e_cases[k].ax;
             asker.y = e_cases[k].ay;
             if (ladder_answer_for(&o, &asker) != e_cases[k].want) {
                 fprintf(stderr, "ladder answer selftest: FAILED end to"
-                                " end: %s (fi %d ask %d,%d)\n",
-                        e_cases[k].what, e_cases[k].fi,
+                                " end: %s (state %d fi %d ask %d,%d)\n",
+                        e_cases[k].what, e_cases[k].sti, e_cases[k].fi,
                         (int)e_cases[k].ax, (int)e_cases[k].ay);
                 free(m);
                 return 1;
             }
             free(m);
+        }
+        /* L5, the index space ITSELF (PR-216): ll_mov_parse must give
+         * every block the engine's number for it - 1 + its position in
+         * the declared list, 0 when its name is not declared - because
+         * that number, [obj+0x5c], is what every state-based branch in
+         * the game reads. The compare is case-insensitive because the
+         * engine's comparator 0x76a69 folds A-Z at 0x76a75; one
+         * shipped file (KADMAR.07's BRODA1.MOV, census of the 777)
+         * declares A_Go and writes the block [A_GO]. */
+        {
+            static const struct { const char *mov; int blk, want; }
+                idx_cases[] = {
+                { DRAB_MOV, 0, 1 }, { DRAB_MOV, 1, 3 }, { DRAB_MOV, 2, 2 },
+                { "A_Go\n\n[A_GO]\ncontrol=BY_TIME\n1,0\n", 0, 1 },
+                { "A_ONE\nA_TWO\n\n[A_ONE]\ncontrol=BY_TIME\n1,0\n"
+                  "[A_TWO]\ncontrol=BY_TIME\n2,0\n", 1, 2 },
+                { "[A_GONE]\ncontrol=BY_TIME\n1,0\n", 0, 0 },
+            };
+
+            for (k = 0; k < (int)(sizeof idx_cases /
+                                  sizeof idx_cases[0]); k++) {
+                ll_mov_t *m = calloc(1, sizeof *m);
+
+                if (!m) {
+                    fprintf(stderr, "ladder answer selftest: FAILED out"
+                                    " of memory\n");
+                    return 1;
+                }
+                ll_mov_parse(idx_cases[k].mov, m);
+                if (idx_cases[k].blk >= m->nst ||
+                    m->st[idx_cases[k].blk].decl_idx !=
+                                                    idx_cases[k].want) {
+                    fprintf(stderr, "ladder answer selftest: FAILED state"
+                                    " index of block %d (got %d want %d"
+                                    " nst %d)\n", idx_cases[k].blk,
+                            idx_cases[k].blk < m->nst ?
+                            m->st[idx_cases[k].blk].decl_idx : -1,
+                            idx_cases[k].want, m->nst);
+                    free(m);
+                    return 1;
+                }
+                free(m);
+            }
         }
     }
     return 0;
