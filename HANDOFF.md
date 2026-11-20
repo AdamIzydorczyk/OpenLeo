@@ -2067,6 +2067,27 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-234 (READ): the raiser census, closed and re-opened
+in one place. (a) The engine name block 0x91b40-0x91c68 read
+raw matches the port's LL_SIG_* order 68/68 - PR-225's
+"shipped words map to other indexes" alternative is ruled out;
+bit 54 = K_GEN1 stands. (b) FOUND the ladder's signal on the
+LION: 0x287a0 (its only call site = the collision loop
+0x3eac6/[obj+0x30] neighbour walk) raises AC_DRAB (10) on the
+lion by a synthetic type-0x10 tag-0x8138764 message, gated on
+[[other+8]+0x3c] plus the current STATE record's authored +0x4
+word == 6 or 0x12 - the `A_TURN_BACK(1)=K_UP,AC_DRAB` entry's
+missing raiser, PR-147's gap now named code. (c) K_NEVER is
+not bit 57 (0x47d60 parser special) - the port's park model is
+consistent, no fix needed. (d) Raised indexes anywhere: 33,28,
+27,21,30,10,57 - nothing raises 54; with the drabinka's null
+provider (PR-233) its own A_DROP(1)=K_GEN1 waits on either
+the GEN-tail admission effect (unread: 0x45920 delegates to
+the Wait execute 0x45870 and copies the node set) or the
+PR-227 attach-merge at [rel+0x10]. PR-235: port the AC_DRAB
+contact raise (state-ID gate to pin against LEW.ZAR). Light
+gate (docs-only).
+
 STATUS PR-233 (READ): OI-078's last named question ANSWERED,
 NEGATIVE. ZARIA.01's DRABINKA is built by the generic factory
 chain (0x4df10 <- level loader 0x4aac3; the class token is

@@ -817,6 +817,17 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     bit-0x20 writer of [obj+0xa5] is still the unnamed
     question (word writers measured: 0x2b6a0/0x2b840/0x54be9/
     0x54e24 + the LION keyed-list region 0x1e5xx).
+    PR-234: the name block 0x91b40-0x91c68 confirms the port's
+    68 ordinals (K_GEN1 = bit 54 stands); K_NEVER is a parser
+    special, NOT bit 57 (no contradiction with the collision
+    raise of 57); no raiser of 54 exists anywhere. FOUND: the
+    AC_DRAB raise on the LION - 0x287a0 (called only from the
+    collision loop 0x3eac6), gated on the state record's
+    authored +0x4 ID == 6 or 0x12, synthetic type-0x10 tag-
+    0x8138764 payload-10 message to the lion's +0x10. The
+    climb's missing named pieces now: that raise (PORT), the
+    GEN-tail admission effect (READ), the PR-227 attach-merge
+    reachability for [drab+0x10] (READ).
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

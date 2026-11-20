@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-234.
+> at PR-235.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -33274,5 +33274,82 @@ CORRECTS: PR-229's OPENS proposal (tie the drabinka to the
   ctor stores, not final object kinds. The overlap law itself
   (PR-229 (b)-(d)) stands for objects that DO carry a bit-5
   kind.
+GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-234 — THE NAME BLOCK CONFIRMS THE 68 ORDINALS; THE ENGINE
+## RAISES AC_DRAB ON THE LION AT THE LADDER CONTACT (0x287A0)
+```
+KIND: read
+SUBSYSTEM: objects/signals - the raiser census, the engine name
+  block, and the drabinka chain's reachable part (OI-078).
+ADDRESSES: 0x91b40, 0x91bcc, 0x91c68, 0x48000, 0x287a0, 0x2882d,
+  0x2885a, 0x3eac6, 0x3eae3, 0x3eaf1, 0x55760, 0x3eab3, 0x52b10,
+  0x2c99f, 0x3a1dc, 0x4bc40, 0x1f8ac, 0x536f0, 0x47d60
+NAMES: K_GEN1, K_NEVER, K_ANY, AC_DRAB, LL_SIG_AC_DRAB,
+  TEventSet, raiser census, state record word +0x4
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE NAME BLOCK IN PLACE. The data block
+  0x91b40-0x91c68 holds the NUL-separated name sequence (read
+  raw from the image: ... AC_KILOF, AC_KOREK, AC_KOLO, K_BKWD,
+  K_FWD, K_UP, K_DOWN, K_FIRE, K_ALT, K_F1..K_F12, K_JUMP,
+  K_GEN1@0x91bcc, K_GEN2, K_GEN3, K_GEN4, K_GEN5, AC_PLAT_OFF,
+  AC_PLAT_OUT, C_XCHG_LEVEL, C_SHOW_CROWN, AC_MSG_PUSH,
+  AC_WALK_UP, AC_WALK_DOWN, AC_APPEAR, AC_DISAPPEAR); the
+  name->bit function is 0x48000 (PR-88). The gap AC_KOLO ->
+  K_BKWD and the whole sequence order match the port's
+  LL_SIG_* enum 68/68 - so PR-225's alternative ("the shipped
+  .MOV maps K_GEN1 to a different index") is RULED OUT: the
+  authored words mean the port's ordinals; bit 54 = K_GEN1.
+  (b) A RAISER FOUND, AND IT IS THE LADDER'S: 0x287a0, called
+  ONLY from the collision loop at 0x3eac6 (PR-225's neighbour-
+  list loop: [ecx+0x30] list, count via 0x55760). eax = the
+  LION, ebx = the other object. It calls [[other+8]+0x3c] (a
+  probe, false -> leave), then [[lion+8]+0x6c] and reads word
+  +0x4 of the returned state record, and compares it with 6
+  (0x287de-0x287ed) or with 0x12 (0x2880b-0x28823, after
+  [[other+8]+0x6c] and [[S+0x44]+0x08]); on either match it
+  builds the synthetic signal message (type 0x10 at 0x2883f,
+  tag 0x8138764 at 0x2882d, payload edi=0xa = 10 = AC_DRAB at
+  0x28835) and calls the LION's vtable+0x10 (0x2885a) - the
+  handler that ORs the bit into [lion+0x60] (PR-225). So:
+  touching a ladder-like object while in those two states
+  raises AC_DRAB ON THE LION - the authored lion script's
+  `A_TURN_BACK(1)=K_UP,AC_DRAB` entry needs exactly this bit,
+  and PR-147's counted gap ("no port code raises AC_DRAB") is
+  now named code. (The compares at 6/0x12 are against the
+  state record's authored +0x4 ID, not a class constant -
+  pinning those two IDs against the ZARIA.01 LEW.ZAR state
+  table is the port's prerequisite.)
+  (c) K_NEVER IS NOT BIT 57: no name 'K_NEVER' exists in the
+  bit block (a); 0x47d60's clause parser special-cases it
+  (PR-88). The collision loop's raise of 57 (0x3eae3) is a
+  signal INDEX in message space, not the K_NEVER condition.
+  `A_DOWN(1)=11,0,WAIT K_NEVER` never admits under the port's
+  node-op model - consistent with the engine. No contradiction
+  to resolve.
+  (d) THE 54 CENSUS STAYS CLOSED: re-walked the six signal
+  producers plus the broadcast helper - raised indexes anywhere:
+  33, 28, 27, 21, 30, 10 (new, via 0x287a0), 57. NO raiser of
+  54 exists. With PR-233 (null provider for the drabinka's
+  kind), the drabinka's own `A_DROP(1)=K_GEN1` can only be fed
+  by (i) a GEN clause of its own state running (PR-224 paired
+  GEN -> 0xa11e0; its execute 0x45920 delegates to the Wait
+  execute 0x45870 and copies the node's 12-byte set - the
+  'raise on admit' half was never read) or (ii) the
+  attach-merge of PR-227(b) (related object's [rel+0x10]
+  record set OR-ed into [obj+0x60], 0x54b78-0x54b84).
+OPENS: OI-078 next named steps: (1) read the GEN tail's
+  admission effect in the row step (0x521f0/0x5232b region -
+  where an admitted clause set reaches [obj+0x60]); (2) the
+  PR-227 attach dispatch reachability for [drab+0x10];
+  (3) PORT half, independent of (1)/(2): the AC_DRAB raise at
+  the contact (0x287a0's law), gated on the two authored state
+  IDs - that is the FOCUS 1 piece the ZARIA.01 climb waits on.
+CLOSES: nothing in the register (OI-078 row updated).
+CORRECTS: PR-225's OPENS alternative (shipped-word index
+  mismatch) - ruled out by (a); PR-147's counted "what raises
+  AC_DRAB" gap now names 0x287a0.
 GATE: light: verify-index verify-docs rc=0 (ok);
 ```
