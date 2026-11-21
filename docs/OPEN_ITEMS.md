@@ -1153,10 +1153,28 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     with NO shape test anywhere (the animals' meet test
     0x53ae0 lives inside their own answer entry 0x552e0). The
     ladder's A_UP row is `1,0,WAIT K_GEN1`, so it waits
-    forever for its own flag. NEXT (PR-250): drive the ask
+    forever for its own flag. NEXT (PR-252): drive the ask
     per step from the requester's CHECK_ANI/CHECK_ZW bit
     matched with o->src, not from the solid-contact shape
     meet; test first.
+    PR-250 read the JUMP row-entry channel instead, and
+    it is settled: the tail tokens carry a channel id at
+    [node+0x10] ('FC' 1 -> the pull pair block+0x18/0x1c,
+    'F' 0 and 'I' 2 -> gated, 'IC' 3 -> the force pair),
+    the [obj+0x95] flag is reset at the head of every
+    state step (0x52217) and set only by the row-admission
+    tail (0x5234a), so an `I`/`F` pull is a ONE-SHOT at
+    row entry, and the sums are of the current row (the
+    chain head table is at [rec+0x2e] indexed by the row
+    cursor [rec+4], 0x5268e/0x52221 - PR-98's inference
+    now fact). Under that law ZARIA.01's authored A_JUMP
+    (T=20,1 G=0,55, `F 0,350` x2, `I 150,-1200`) peaks
+    50 px above the take-off on the port's 20 Hz clock -
+    a real gap against the 143 px PR-243's point gate
+    wants, stated before any fitting. NEXT (PR-251, test
+    first): keep the F/FC pairs in ll_mov_fr (the parser
+    counts them today), and replace the estimated /4
+    impulse with the 0x54170 pull law.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

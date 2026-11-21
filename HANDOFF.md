@@ -2067,6 +2067,32 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-250 (READ): the row-node channels and the
+jump's row-entry one-shot. The node factory 0x46878 builds
+one node class 0xa1090 for every pair tail and stores the
+CHANNEL ID at [node+0x10]: 'I' 2, 'F' 0, 'IC' 3, 'FC' 1,
+'M' 4 (token strings 0x91966..; pair-verifies the middle
+band PR-224 left open). The merge 0x52680 queries id 1
+('FC') into block+0x18/0x1c - the pair the integrator's
+velocity-SET leg 0x5433a/0x54348 feeds to the soft pull
+0x54170 - id 3 ('IC') into the F= force pair, and id 2
+('I') into block+0x20/0x24, whose consumer is still
+unfound. The gate is the [obj+0x95] flag: the state-record
+step 0x521f0 clears it at its head (0x52217) and sets it
+only in the row-admission tail (0x5232b compare, 0x52338
+row handler, 0x5234a set), so 'F'/'I' pulls are ONE-SHOT at
+row entry; the sums are of the CURRENT row (chain-head
+table at [rec+0x2e] indexed by the row cursor [rec+4],
+0x5268e/0x52221) - PR-98's item 3 and PR-100's caveat are
+closed. Arithmetic on ZARIA.01's authored A_JUMP (T=20,1,
+G=0,55, F 0,350 x2, I 150,-1200): one-shot v_y=-1200
+(-12 px/iter), apex 50 px at iteration 15 on the 20 Hz
+clock, ~75 px if the pull repeats while the row is current
+- against the 143 px the PR-243 point gate wants, so the
+gap is stated, not fitted. NEXT: PR-251 (test first) keeps
+F/FC pairs in ll_mov_fr and replaces the /4 impulse with
+the 0x54170 pull law; PR-252 is the ask channel.
+
 STATUS PR-249 (READ): who asks whom. The control word has
 THREE channels in the dispatcher 0x52790: CHECK_LEW (0x200)
 -> the walk 0x4bd30; CHECK_ANI (0x40) -> 0x4b890; CHECK_ZW

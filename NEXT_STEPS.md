@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-250.
+> at PR-251.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -34998,5 +34998,121 @@ that the ladder's answer needs a pair contact: for this
 family the walk calls +0x78 with no shape test at all. The
 port's CHECK_ALL mapping is NOT corrected - it already
 matches 0x1c0.
+GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-250 — THE ROW-NODE CHANNELS: `FC` FEEDS THE VELOCITY
+## PULL, `F`/`I` ARE ONE-SHOT AT ROW ENTRY ([obj+0x95] reset at
+## 0x52217, set only at 0x5234a); THE SUMS ARE OF THE CURRENT ROW
+```
+KIND: read
+SUBSYSTEM: the row-node channels - what each row directive
+feeds, the one-shot row-entry gate, and the current-row
+scope of the sums. No port code.
+ADDRESSES: 0x46878, 0x468a7, 0x46913, 0x46973, 0x469d9,
+0x46a14, 0x91966, 0x9196f, 0x91971, 0x91974, 0x91977,
+0x526e9, 0x52705, 0x52723, 0x52731, 0x5273d, 0x526f3,
+0x526fc, 0x45900, 0x45901, 0x45d50, 0x521f0, 0x52217,
+0x5231d, 0x5232b, 0x52338, 0x52341, 0x5234a, 0x5268e,
+0x52694, 0x52696, 0x52221, 0x52229, 0x5433a, 0x54348,
+0x54170, 0xa1090, 0xa25d4, 0xa25fc, 0xa2600
+NAMES: F, FC, I, IC, M, MOVE, node selector byte,
+[obj+0x95], row cursor, [rec+0x4], pull channel, OI-078
+CODE: no: this PR ships no code.
+HOOKS: none
+MEASURED: (a) THE DIRECTIVE-TO-CHANNEL IDS, at the node
+factory 0x46878-0x46a13: each tail token builds the SAME
+0x11-dword node of class 0xa1090 with a ` %i,%i` pair and
+stores ONE BYTE - the channel id - at [node+0x10], the
+selector 0x45d50 compares (`movsx`/`cmp eax,edx`, PR-98/
+PR-224). Token strings read from the file (the block at
+0x91966; the raw bytes sit at file 0xb1366, i.e. va+0x1fa00
+in that segment): 'I' id 2 (0x468af `mov dl,0x2`), 'F' id 0
+(0x46913 `xor dl,dl`), 'IC' id 3 (0x46973 `mov dl,0x3`),
+'FC' id 1 (0x469e3 `mov dl,0x1`), 'M' id 4 (0x46a14 next
+branch). PR-224's "middle band (smp/vol/goto/I/M...) NOT
+pair-verified" is pair-verified for I/F/IC/FC/M with this.
+(b) THE MERGE'S THREE QUERIES, exact out slots (0x52680,
+the record-class merge; the table 0xa25d4 is at 0xa2600 at
+its +0x2c, read from the ALIGNED dwords only): id 1 'FC'
+-> block+0x18/0x1c (0x526e9); id 3 'IC' -> block+0x0/0x4,
+the F= force pair (0x52705..0x5272a, inside the gate
+0x5270b `cmp DWORD PTR [eax+0x95],0`); id 2 'I' ->
+block+0x20/0x24 (0x52731 `lea ebp,[esi+0x18]` OUTSIDE the
+gate, 0x5273d with edx=2 writes ebp+8/+0xc, i.e. the pair
+AFTER the pull pair). The integrator's velocity-SET leg
+0x5433a/0x54348 reads block+0x18 x (times the terrain word
+[obj+0x6d]) and block+0x1c y, and 0x54170 is the soft
+pull: for a positive limit it moves v only while v < limit,
+stepping by the limit and clamping exactly to it; for a
+negative limit (the y launch) it applies only while
+-v <= -limit, i.e. while the velocity has not yet reached
+the target. So the pull channel carries the header-pair
+copy plus ΣFC plus (when [obj+0x95] is set) ΣF; the 'I'
+pair lands in block+0x20/0x24, whose consumer I have NOT
+found (OPENS). (c) THE ONE-SHOT GATE, the [obj+0x95]
+lifecycle end to end: the state-record step 0x521f0 clears
+it at its head (0x52217) and sets it at 0x5234a, three
+instructions after the row handler `[[rec+0x44]+0x18]`
+(0x52338) and the class verb +0xa4 (0x52341) - and that
+block is the row-admission tail: 0x52320 reads the current
+node's threshold [node+0x10], 0x52323 the distance
+accumulator [obj+0xa1], 0x5232b `cmp/jge` skips the whole
+tail when the threshold was NOT crossed. So the flag means
+"a row was admitted on THIS state step", reset every step -
+PR-98's item 6 and PR-100's reading, with the whole writer
+census now measured in one function plus the two sibling
+state-entry paths (0x535d1, 0x538b7, both right after their
+`mov [obj+0xa1],0`). (d) THE CURRENT-ROW SCOPE, closing
+PR-98's INFERENCE (its item 3): the merge takes the node
+chain 0x5268e `lea edi,[eax+0x2e]` / `mov edi,[edi]` /
+`mov edi,[edi+[A+0x4]*4]` and the step takes the same
+chain 0x52221-0x52229 - the head table is AT [rec+0x2e],
+indexed by the row cursor [rec+0x4]; the cursor is moved
+only by the id-6 query family of 0x520c0 and the `end_level`
+directive (PR-101). The sums are of the CURRENT ROW's
+directives, not of the state. (e) WHAT THE SHIPPED JUMP IS
+UNDER THIS LAW, arithmetic on the authored constants of
+ZARIA.01 LEW.MOV [A_JUMP] (T=20,1, G=0,55; rows 1,75,
+F 0,350 / 2,75,F 0,350 / 2,75,I 150,-1200 / 2,100 / 3,150,
+FC 30,0 / ...), run through the integrator order
+(v += G; v -= T*v/100; then the pull) with the one-shot
+rule of (c), at the port's 20 Hz iteration clock: the two
+F rows dip the lion ~7 px down, the I row sets v_y = -1200
+(-12 px/iter) ONCE, G_y=55 and the T_y=1 drag decay it,
+apex 50 px above the take-off at iteration 15, back level
+at iteration ~30. Applying the 'I' pull on EVERY iteration
+the row is current instead (the cursor may hold one chain
+while two same-index nodes sit in it: the row-vs-node
+granularity is NOT pinned) gives ~75 px. FOR THE PORT: the
+parser keeps only the `I` pairs (ll_play.h ll_mov_fr
+has_i/ix/iy) and COUNTS F/FC/IC as directives (ll_play.c
+553-559, 752), so PR-251 (port, test first) needs the F/
+FC pairs kept and would replace PR-74's estimated /4
+impulse with the 0x54170 pull law; and the point gate of
+PR-243 wants 143 px above the ZARIA.01 ground, so the
+climb needs more than this jump - name the gap before
+fitting anything.
+OPENS: the consumer of block+0x20/0x24, the 'I' pair slot;
+the row-vs-node granularity of the row cursor, whether one
+chain holding two same-index nodes is advanced once or
+twice; which object carries [obj+0x95], the 0x52705 read
+goes through [obj+0]; the row-cursor writer inside 0x520c0
+line by line; whether 0x45900, which zeroes both out
+parameters before the chain call at dl=0, is reached by any
+query in the image; the ask-channel port work of PR-252.
+CLOSES: PR-98 open item 3, the scope of the sums, and the
+PR-100 caveat on the [obj+0x95] flag, the flag is reset by
+the state step itself so it cannot be stale from an earlier
+tick; PR-98's item 6 mechanism and PR-224's unverified
+middle band for I/F/IC/FC/M.
+CORRECTS: PR-98's "0x5234a, inside 0x521f0 just after the
+threshold compare at 0x5232b passes and the row handler ...
+has been called" stands, but its summary line in OI-098 and
+PR-101's prose attach that block to 0x520c0: the block is
+inside 0x521f0, 0x521f0-0x5235c; 0x520c0 is the
+row-advance/id-6 family, a different function. Also
+PR-224's "middle band ... NOT pair-verified yet" is closed
+for I/F/IC/FC/M by (a).
 GATE: light: verify-index verify-docs rc=0 (ok);
 ```
