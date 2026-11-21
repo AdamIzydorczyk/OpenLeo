@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-242.
+> at PR-243.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -34139,4 +34139,114 @@ ANY-test 0x44ec0 ... only sets [self+0x66] bit 6" (ll_level.c
 named what that store IS (signal 54).
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
+```
+
+## PR-242 — THE PLACEMENT RECORD HAS A SECOND HALF: AN
+## AUTHORED CONTACT-POINT LIST; THE ANY-TEST IS A
+## POINT-IN-RECTANGLE; THE K_GEN1 GATE IS A LION-CLASS GATE
+```
+KIND: read
+SUBSYSTEM: levels/objects - THE PLACEMENT RECORD CONTINUES
+PAST ITS COORDINATES: an authored CONTACT-POINT LIST; the
+element class is a point-in-rectangle test; the ladder's
+K_GEN1 gate is a LION-class gate, not a parent.
+ADDRESSES: 0x3f0f0, 0x3f104, 0x3f110, 0x3f124, 0x3f154,
+0x3f159, 0x44f10, 0x44f32, 0x44e90, 0x44ec0, 0x4a0b0,
+0x49920, 0x49f90, 0x91d00, 0x91828, 0x9182b, 0x98274,
+0x98278, 0x98280, 0x23e00, 0x23e30, 0x23ea0, 0x97f50,
+0x97cdc, 0x97f54, 0x1fef4, 0x1ff15, 0x1f8f3, 0x1f947,
+0x23a20, 0x23c10, 0x230a0, 0x96960, 0x96a88, 0x52a50
+NAMES: placement record, contact point, contact vector,
+point-in-rectangle, bounding box, ANY-test, TLewZaria,
+K_GEN1, OI-078, poly, shortline
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE AUTHORED FIELD. The level container
+hd_files/ETAPY writes three more LINES after an object's five
+placement fields. ZARIA.01 verbatim (the byte range after
+0x2fed): `DRABINKA,drab.ani,drab.mov,180,510` then
+`1 33,-3`, `23,30;53,160`, `30,50`. Census over that whole
+file (a Python pass over the 7584 lines, measured now): 2076
+entry lines, 21 of them followed by these lines - 11 with the
+point list + rect + a third pair, 10 with the rect only - and
+they belong to SIX classes only: DRABINKA 4, LINA 7, KLINA 3,
+XCHG 3, PILAGEN 2, GUARD 2. The port reads none of them: its
+placement loop stops at the fifth field, so `23,30;53,160`
+falls into st->poly (it contains a ';') and `1 33,-3` /
+`30,50` into st->shortline (ll_level.c 8135-8141). (b) THE
+READER: the kind-table +0x18 verb is the parameter reader.
+The placed DRABINKA's table 0x97cdc +0x18 = 0x3f0f0 (exactly
+2 of the 186 tables carry it), the KAMIEN-family 0x96a88's =
+0x1e4a0; the common values are 0x23c60 (50 tables) and
+0x40eb0 (30). 0x3f0f0 calls 0x44f10 on the header at
+[obj+0xa5]: 0x49920 with the format "%d" (0x91828) writes the
+COUNT into [obj+0xa9], 0x44f32-0x44f4a allocates count*12+4
+bytes, stores the base in [obj+0xa5], then per element calls
+0x4a0b0 and consumes a separator with the format "d %c"
+(0x9182b); 0x4a0b0's own format slots 0x91d0f/0x91d15 hold a
+NUL, so the number scan is inside 0x49920/0x498f0 (NOT READ).
+Then 0x44e90 (0x3f110) walks the elements and ADDS [obj+0]
+and [obj+4] to element+0 / element+4: the authored numbers are
+RELATIVE to the placement and become ABSOLUTE ONCE, at build
+time. The second line is parsed by 0x49f90 with the format
+"%d,%d;%d,%d" (0x91d00) into the header at [obj+0xb1] and
+0x3f124-0x3f14e offsets that rectangle by the placement too:
+for ZARIA.01's ladder, x 203..233, y 540..670 - it reaches
+the authored ground line, while the port collides with the
+art bbox 42x48 at (180,510). The object ctor of the same
+class (the name-factory branch 0x1f8f3-0x1f947, which writes
+[obj+8] = 0x97cdc and [obj+0xc] = 0x97cd4) pre-initialises
+[obj+0xa9] = 0, [obj+0xad] = 0x97f50, [obj+0xb1..0xc0] =
+1,1,1,1 with [obj+0xc1] = 0x98274 and a second header at
+[obj+0xc5] with [obj+0xd5] = 0x98274. (c) THE VECTOR IS AN
+OBJECT: 0x97f50 is a method table - [0] = 0x44e40,
+[+4] = 0x44ec0 (PR-240's ANY-test), [+8] = 0x44f10,
+[+0x1c] = 0x23e00 - so [obj+0xa5] = {base, count, the vector
+class table 0x97f50}, which is what PR-239's "[obj+0xad] =
+0x97f50" was. The ELEMENT class: table 0x98274 (ctor
+0x23e30 = "the centre of a rectangle", setter 0x23ea0 =
+`mov [eax],edx; mov [eax+4],ebx`), and each element stores
+the descriptor 0x98278 = table+4 at element+8, so the
+ANY-test's `call [[elem+8]+8]` = dword 0x98280 = 0x23e00,
+which is a POINT-IN-RECTANGLE: element.x within
+[edx+0..edx+8] and element.y within [edx+4..edx+0xc]. So
+0x44ec0 asks: is any of MY authored contact points inside the
+asker's rectangle. (d) THE ASKER'S RECTANGLE IS UNIVERSAL:
+all 186 kind tables have +0x4c = 0x23a20 = `add eax,0x75;
+ret` - the rectangle is the plain field [obj+0x75..0x84]
+(x0,y0,x1,y1). (e) THE GATE IS A CLASS GATE, NOT A PARENT:
++0x3c is 0x23c10 (`xor eax,eax`, fails) in 171 tables and
+0x230a0 (`mov eax,1`, passes) in 15. The name factory
+resolves one of those 15 at 0x1fef4-0x1ff15: the name
+TLewZaria (0x9078b) allocates 0x12e bytes, calls the ctor
+0x1e0a0 and writes [obj+8] = 0x96960 - THE ZARIA LION IS ONE
+OF THE 15, so the gate is "the asker is a lion-class".
+(f) THE CHAIN, AUTHORED END TO END: ZARIA.01's ladder sits at
+its first declared state (PR-216) with ONE contact point at
+(180+33, 510-3) = (213,507); when the lion's own rectangle
+contains that point, the ladder raises K_GEN1 on itself
+(PR-240/241) and its own `A_DROP(1)=K_GEN1` line moves it to
+A_DROP. (213,507) is 3 px ABOVE the placement, so a lion
+walking on the ground at y around 680 never satisfies it: the
+climb needs the lion's box up at the ladder top, which is
+what the jump-on-a-ladder half of OI-078 is for.
+OPENS: what writes [obj+0x75] (the box), and its update rate;
+the parse inside 0x49920/0x498f0 (the two NUL format slots);
+the role of [obj+0xb1]'s authored rectangle in the engine's
+own collision (the port uses art bboxes), and the third
+authored pair (`30,50`); whether the 11 point-list classes
+are exactly the +0x18 = 0x3f0f0/0x1e4a0 families; the
+5 KLINA/XCHG/PILAGEN/GUARD families' own tables; PR-239's
+list (0x520c0's budget, the control-name bit map, 0x9a44c).
+CLOSES: none; OI-078's row now carries the authored gate and
+the six-class census.
+CORRECTS: PR-240 twice: (i) "the requester must have a
+PARENT ([[requester kind]+0x3c] = 0x23c10)" - 0x23c10 is the
+base method returning 0 and the alternative 0x230a0 returns
+the CONSTANT 1: the gate is a class-membership test (15 of
+186 tables, the lion classes among them), and no field is
+read; (ii) "the requester's [[kind]+0x4c] OBJECT" - +0x4c is
+0x23a20 in every kind table, the fixed field [obj+0x75], not
+a per-class object.
+GATE: light: verify-index verify-docs rc=0 (ok);
 ```

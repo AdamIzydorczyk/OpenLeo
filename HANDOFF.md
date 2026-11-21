@@ -2067,6 +2067,45 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-242 (READ): the K_GEN1 gate is authored data the
+port never reads. An object's placement record CONTINUES past
+its five fields: ZARIA.01's ladder carries `1 33,-3` (one
+contact point, relative to the placement), `23,30;53,160` (a
+rectangle) and `30,50` - measured verbatim in
+hd_files/ETAPY after 0x2fed. Census of that file: 2076 entry
+lines, 21 followed by those lines (11 points+rect+pair, 10
+rect only), SIX classes only: DRABINKA 4, LINA 7, KLINA 3,
+XCHG 3, PILAGEN 2, GUARD 2. The kind-table +0x18 verb is the
+reader (the placed rope's = 0x3f0f0, 2 of 186 tables; the
+common values are 0x23c60/0x40eb0): 0x44f10 parses the COUNT
+into [obj+0xa9] and allocates 12-byte elements at
+[obj+0xa5] - the header is itself an object whose method
+table is 0x97f50, the block PR-239 read as a value, which
+also holds 0x44ec0 and 0x44f10 - and 0x44e90 then ADDS the
+placement to every point, so the authored numbers are
+relative and become absolute once, at build time. The
+element class 0x98274 / descriptor 0x98278 has its +0x8 verb
+at 0x23e00 = POINT-IN-RECTANGLE, so the 0x44ec0 ANY-test =
+"is any of my authored points inside the asker's rectangle",
+and that rectangle is the plain field [obj+0x75..0x84]
+(+0x4c = 0x23a20 `add eax,0x75` in all 186 kind tables). The
+gate PR-240 called a parent is a CLASS gate: +0x3c = 0x23c10
+(`xor eax,eax`) in 171 tables, 0x230a0 (`mov eax,1`) in 15 -
+and the ZARIA lion is one of the 15 (the factory branch
+0x1fef4/0x1ff15 for TLewZaria allocates 0x12e bytes, calls
+the ctor 0x1e0a0 and writes [obj+8] = 0x96960). Authored
+chain, complete: the rope at A_UP with one point at (213,507)
+asked by the lion raises K_GEN1 on itself iff the lion's box
+covers that point - 3 px ABOVE the placement, so never a lion
+walking the ground at y about 680: that is the
+jump-onto-a-ladder half of OI-078. The second line becomes an
+absolute RECT at [obj+0xb1..]: this ladder's x 203..233, y
+540..670, down to the authored ground line - the port
+collides with the art bbox 42x48 at (180,510) instead, and
+its placement loop counts those three lines as poly/shortline
+noise (ll_level.c 8135-8141). NEXT: who writes [obj+0x75];
+parse the point list and the authored rect in the port.
+
 STATUS PR-241 (PORT): that raise is now in the port, test
 first. New selftest leg L7 in the ladder answer selftest: the
 authored `[A_UP]` pair (`A_DROP(1)=K_GEN1` and `1,0,WAIT

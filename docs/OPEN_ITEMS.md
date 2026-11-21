@@ -950,6 +950,39 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     elements' +0x8 verb tests; whose ask channel reaches a
     placed DRABINKA at all; and the other half of the climb,
     the lion getting to a ladder (OI-072/081/082/083).
+    PR-242 finds the gate is AUTHORED DATA the port never
+    reads. The placement record continues past its five
+    fields with three more lines: ZARIA.01's ladder carries
+    `1 33,-3` (ONE contact point, relative to the place),
+    `23,30;53,160` (a rectangle) and `30,50`. Census over
+    hd_files/ETAPY: 2076 entry lines, 21 with those lines
+    (11 points+rect+pair, 10 rect only), SIX classes -
+    DRABINKA 4, LINA 7, KLINA 3, XCHG 3, PILAGEN 2, GUARD 2.
+    The kind-table +0x18 verb reads them (the rope's =
+    0x3f0f0): 0x44f10 parses the count into [obj+0xa9] and
+    allocates 12-byte elements at [obj+0xa5] - a header that
+    is itself an object, its method table being the 0x97f50
+    block PR-239 read as a value, which also holds 0x44ec0 -
+    and 0x44e90 adds the placement to every point (relative
+    -> absolute, once, at build time). The element class
+    0x98274's verb is 0x23e00 = POINT-IN-RECTANGLE, so the
+    0x44ec0 ANY-test asks: is any of my authored points
+    inside the asker's box - that box being the plain field
+    [asker+0x75..0x84] (+0x4c = 0x23a20 in all 186 tables).
+    The other gate is a CLASS gate, not a parent: +0x3c is
+    `xor eax,eax` in 171 tables and `mov eax,1` in 15, and
+    the lion is one of the 15 (TLewZaria -> kind table
+    0x96960). So the authored chain is: the placed rope at
+    A_UP, its one point at (213,507), asked by the lion,
+    raises K_GEN1 on itself when the lion's box covers that
+    point - 3 px above the placement, i.e. only a lion up at
+    the ladder top, never one walking the ground at y about
+    680. NEXT: who writes [obj+0x75]; parsing the point list
+    in the port, which now counts those three lines as
+    poly/shortline noise (ll_level.c 8135-8141); and the
+    authored rectangle it ignores - this ladder's is x
+    203..233, y 540..670, down to the ground line, while the
+    port collides with the art bbox 42x48 at (180,510).
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
