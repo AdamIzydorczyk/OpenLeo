@@ -2067,6 +2067,31 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-252 (READ): the integration surface is complete
+and the `I`-consumer hunt closes negative. 0x54250 has
+exactly three call sites: the direct physics slot of 127
+class tables, two wrapped slots (0x989b4 -> 0x24700, which
+adds +60/+30 to the T pair when the class word is >0x640
+and the state decl is 1/3/4/0x10; 0x9d528 -> 0x33310,
+which shifts G_X by +/-5*[obj+0xf2] at decl 3/5), and one
+code site 0x321fe inside a class frame driver (its 0x321c0
+adds class-derived terms to G_Y and G_X at decls 3/4 and
+0xb/0x11/0x12). None reads block+0x20/+0x24, so the id-2
+`I` pairs have NO consumer in the engine as read - PR-98's
+account that the I sum joins the pull pair is the only
+behaviour-making reading. The integrator itself is now
+confirmed slot-exact: T pair +0x8/+0xc, F pair +0x0/+0x4
+(over [obj+0xba]/[obj+0xbe] /20), G pair +0x10/+0x14 with
+only the X leg scaled by [obj+0x6d], pull pair
++0x18/+0x1c, velocities [obj+0xc2]/[obj+0xc6], per-iter
+deltas [obj+0xca]/[obj+0xce] = v/100. And OI-015's
+conditional T>=20 raise is measured: 0x54266 calls the
+class verb at table+0xbc; when it returns true, block+0x8
+< 20 and [obj+0xb6] bit 1 is clear, 0x54275 sets T_X = 20
+- the Y term has no clamp. NEXT (PR-253, test first): the
+ask-channel port - drive the ask per step from the
+requester's CHECK_ANI/CHECK_ZW bit matched with o->src.
+
 STATUS PR-251 (READ): the `I` channel has no consumer, and
 the ZARIA.01 jump arc corrected. The record-class verb
 tables (15, base e.g. 0xa25d4) carry +0x18 = 0x520c0 (the

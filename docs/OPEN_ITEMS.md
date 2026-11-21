@@ -1178,9 +1178,19 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     contacts at 649, so this arc peaks at 540 and the
     authored point is 507 - 34 px beyond the jump: the
     climb needs the A_PRE_JUMP/A_JUMP_S route or a higher
-    take-off, not a re-fit. NEXT: read 0x33310's ctx edit
-    (the one integrator variant that touches the G term)
-    for the 'I' consumer; then the ask-channel port.
+    take-off, not a re-fit. PR-252 then read the WHOLE
+    integration surface: 0x54250 has exactly three call
+    sites - the direct table slot in 127 class tables, and
+    two decl-gated wrappers (0x24700: +60/+30 on the T
+    pair for decl 1/3/4/0x10; 0x33310: +/-5*[obj+0xf2] on
+    G_X) - none of which reads block+0x20/0x24. The `I`
+    pairs are consumed nowhere in the engine as read;
+    PR-98's pull-pair account stands as the only
+    behaviour-making one. The same read measures OI-015's
+    T>=20 clamp: 0x54266-0x54275 raises block+0x8 - T_X
+    ONLY - to 20 when the class verb table+0xbc returns
+    true and [obj+0xb6] bit 1 is clear. NEXT (PR-253,
+    test first): the ask-channel port.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

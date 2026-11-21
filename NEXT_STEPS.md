@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-252.
+> at PR-253.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -35189,5 +35189,68 @@ the model there applied gravity before the drag and kept the
 grounded velocity; the same model run correctly gives an
 apex of 109 px, and the repeated-pull variant is not the
 one-shot law of PR-250 (c).
+GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-252 — THE INTEGRATION SURFACE IS THREE SITES; THE `I`
+## PAIRS ARE CONSUMED NOWHERE; THE T>=20 CLAMP IS READ,
+## HORIZONTAL ONLY AND CLASS-GATED
+```
+KIND: read
+SUBSYSTEM: .MOV row runtime - the complete integrator call
+surface, the closure of the `I`-consumer hunt, and the
+measured T>=20 clamp gate. No port code.
+ADDRESSES: 0x54250, 0x5425c, 0x54266, 0x54275, 0x542c1,
+0x542e5, 0x5433a, 0x54348, 0x24700, 0x24721, 0x24731,
+0x32170, 0x321c0, 0x321fe, 0x33310, 0x33328, 0x989b4,
+0x9d528, 0x537f0, 0x23850, 0x529d0, 0xa25d4, 0x52680
+NAMES: I, FC, pull channel, block slot, T clamp, OI-078
+CODE: no: this PR ships no code.
+HOOKS: none
+MEASURED: (a) THE INTEGRATION SURFACE IS THREE SITES:
+0x54250 is called from exactly three places. 127 class
+tables of the 0x9693c-0xa65e8 family point their physics
+slot straight at it; exactly two point at a wrapper - the
+table entry 0x989b4 at 0x24700 and the entry 0x9d528 at
+0x33310 - and the third call site, 0x321fe, is not a table
+entry but code inside a class frame driver. All three wrap
+patterns are read: 0x24700 adds +60/+30 to the T pair
+(block+0x0/+0x4 as merged, the block slots +0x8/+0xc) when
+[obj] class word is > 0x640 and the state decl is 1, 3, 4
+or 0x10; 0x33310 subtracts 5*[obj+0xf2] from G_X at decl 3
+and adds it at decl 5; inside 0x321fe's driver, 0x321c0
+adds a class-word-derived term to G_Y at decl 3/4 and
+0x321c3 subtracts 30*(([obj]-0x300c)/10) from G_X at decl
+0xb/0x11/0x12. (b) THE `I` CONSUMER HUNT IS CLOSED
+NEGATIVE: no wrapper reads block+0x20/+0x24 and the
+integrator itself reads exactly the T pair +0x8/+0xc, the
+F pair +0x0/+0x4, the G pair +0x10/+0x14 and the pull pair
++0x18/+0x1c (0x542c1/0x542e5 scale only the X leg by the
+terrain word [obj+0x6d]; the pull X at 0x54340 likewise,
+the Y legs unscaled). So the id-2 `I` pairs written to
+block+0x20/+0x24 by 0x52731/0x5273d are consumed nowhere
+in the engine as read; PR-98's account that the `I` sum
+lands in the pull pair stays the only behaviour-making
+reading. (c) THE T>=20 CLAMP, the OI-015 item, is now
+measured and it is HORIZONTAL ONLY: 0x5425c calls the class
+verb at table+0xbc, and if that returns true while
+block+0x8 < 20 and [obj+0xb6] bit 1 is clear, 0x54275 sets
+block+0x8 = 20 - the Y drag term has no such clamp. Real
++0xbc verbs measured in the class tables: 0x537f0 (the
+base-family verb, which tail-calls 0x529d0), 0x23850,
+0x529d0, 0x40eb0. (d) THE INTEGRATOR'S REGISTER PAIRS ARE
+CONFIRMED whole: velocities [obj+0xc2]/[obj+0xc6] with the
+drag of the PRE-update v, sign-cross zeroing at
+0x5430a-0x54337, and integer per-iteration position deltas
+written to [obj+0xca]/[obj+0xce] as v/100.
+OPENS: none new - OI-078's next step is unchanged, the
+ask-channel port.
+CLOSES: PR-251's named lead: 0x33310 edits the G term per
+decl, it does not consume the I slots; the I-consumer
+question is closed as unread-in-engine.
+CORRECTS: PR-251 OPENS: "the animals' integrator variant
+0x33310 ... is the named next lead" - read in full, its
+block edit is a per-decl 5*[obj+0xf2] shift of G_X, with
+no read of block+0x20/+0x24.
 GATE: light: verify-index verify-docs rc=0 (ok);
 ```
