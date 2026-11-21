@@ -818,58 +818,54 @@ static void obj_draw(const lvl_obj *o, unsigned char *canvas, int cw,
  * mechanism-boundary question (counted open). What still stays
  * false (keys, AC_ONAIR, AC_ENEMY_ATC ...)
  * needs the lion/world signals feeding this set (open). First-match order
- * as the player's transitions; PR-88 aligned the grammar with the engine
- * too: the clause parser at 0x47d60 folds a ',' run into ONE node bit
- * mask (AND), '|' starts another node (OR) - the same OR-of-AND-groups
- * the player evaluator uses since PR-87. */
+ * as the player's transitions. PR-88 aligned the grammar with the engine;
+ * PR-264 completes that alignment: the clause parser at 0x47d60 compiles
+ * ONE bit mask and ONE operation byte per condition (it clears the byte
+ * at 0x47d73, '!'/'*'/'|' write 1/2/3 for the WHOLE clause, a ',' folds
+ * its name into the same mask), and TEventSet::match 0x47e40 tests
+ * mask-against-live with that operation - subset / disjoint / equal /
+ * intersects. The OR-of-AND-groups reading is gone on this side too;
+ * the match lives in one place, ll_mov_tr_mask plus this switch. */
 static int obj_cond_true(const lvl_obj *o, int brk, const ll_mov_tr *tr)
 {
-    for (int i = 0; i < tr->nc; ) {                 /* PR-87/88: same */
-        int g = tr->c[i].grp, all = 1;              /* OR-of-AND-groups */
-        for (; i < tr->nc && tr->c[i].grp == g; i++) { /* as the player: the */
-            int v;                                  /* engine folds a  */
-            switch (tr->c[i].cond) {                /* ',' run into ONE node */
-            case LL_COND_AC_BREAK_NEXT:             /* bit mask (clause */
-            case LL_COND_AC_TIME:                   /* parser 0x47d60) */
-                v = brk || ((o->sig >> LL_SIG_AC_TIME) & 1); break;
-            case LL_COND_K_GEN1:
-                v = (o->sig >> LL_SIG_K_GEN1) & 1; break;
-            case LL_COND_K_GEN2:
-                v = (o->sig >> LL_SIG_K_GEN2) & 1; break;
-            case LL_COND_K_GEN3:
-                v = (o->sig >> LL_SIG_K_GEN3) & 1; break;
-            case LL_COND_K_GEN4:
-                v = (o->sig >> LL_SIG_K_GEN4) & 1; break;
-            case LL_COND_K_GEN5:
-                v = (o->sig >> LL_SIG_K_GEN5) & 1; break;
-            case LL_COND_K_ANY:               /* PR-263: the engine
-                 * answers that name with a MASK, not with "a key is
-                 * down" (0x48000 OR-s 0x2001f8 into dword 1,
-                 * 0x48029-0x48048). For a scene object those seven
-                 * bits can only be in the set the way the engine
-                 * puts them there - merged into [obj+0x60] during
-                 * the step (0x53705-0x53725), which this port is a
-                 * row's `GEN <name>` tail - so the test is the
-                 * intersection. No shipped .MOV asks an object for
-                 * K_ANY: all 41 any-rows are lion texts. */
-                v = (o->sig & LL_SIG_K_ANY_MASK) != 0; break;
-            case LL_COND_OTHER:
-                v = tr->c[i].sig >= 0
-                    ? (int)((o->sig >> (unsigned)tr->c[i].sig) & 1)
-                    : 0;                            /* PR-88: a bare signal */
-                break;                              /* NAME tests the  */
-            default:                                /* object's own set - */
-                v = 0; break;                       /* still false until */
-            }                                       /* something raises */
-            if (tr->c[i].neg)                       /* it (keys/AC_* of  */
-                v = !v;                             /* the lion need the */
-            if (!v)                                 /* lion's own set:   */
-                all = 0;                            /* OPEN) */
-        }
-        if (all)
-            return 1;
+    /* The live set is exactly what the engine composes into [obj+0x60]
+     * before the pass (0x53705-0x53725, PR-262): this object's own
+     * raised bits, plus the list-end bit the walk arms (the port's
+     * `brk` argument stands in for the bit the engine ORs at
+     * 0x521c1-0x521c5). */
+    unsigned long long mask = ll_mov_tr_mask(tr);
+    unsigned long long live = o->sig;
+
+    if (brk)
+        live |= 1ull << LL_SIG_AC_BREAK_NEXT;
+    if (!mask)
+        return 0;               /* PR-88 convention kept (see the player
+                                 * evaluator): a name in NO table compiles
+                                 * to an empty mask; the port never takes
+                                 * it, the engine's subset arm arguably
+                                 * would. No shipped clause does it. */
+    switch (tr->op) {
+    case LL_TOP_NOT:                        /* '!' : share NOTHING */
+        return (mask & live) == 0ull;
+    case LL_TOP_EXACT:                      /* '*' : byte-identical
+                                            * (no shipped clause) */
+        return mask == live;
+    case LL_TOP_ANY:                        /* '|' : share ANYTHING. For
+                                            * a scene object even the
+                                            * input-key mask can only be
+                                            * live the way the engine
+                                            * puts bits in [obj+0x60] -
+                                            * a row's `GEN <name>` tail
+                                            * or the bus - so K_ANY
+                                            * needs no case here (all 41
+                                            * shipped any-rows are lion
+                                            * texts). */
+        return (mask & live) != 0ull;
+    default:                                /* 0: SUBSET - every name it
+                                            * names is up (the AND of a
+                                            * ',' list, PR-87) */
+        return (mask & ~live) == 0ull;
     }
-    return 0;
 }
 
 /* A state change. PR-101 read the engine's own: it is a TABLE, not a
@@ -2708,6 +2704,68 @@ static int obj_state_selftest(void)
         }
         free(af);
         free(ag);
+        if (!pass)
+            goto out;
+    }
+    {   /* PR-264 red: the same one-mask, one-operation law on the
+         * object side. The clause parser compiles `|AC_TIME,AC_EDGE`
+         * (the shape of ZARIA.02 line 119, `|K_GEN1,AC_BREAK_NEXT`)
+         * into ONE mask holding both names plus operation 3 - "the AND
+         * of the two sets is NOT empty" (TEventSet::match 0x47e40,
+         * PR-260) - so a raised AC_TIME ALONE is enough; the port's
+         * OR-of-AND-groups reading demanded both. `=!AC_TIME,AC_ONAIR`
+         * is operation 1 on its two-name mask - "the AND IS empty":
+         * with only an UNRELATED bit (AC_EDGE) in the set the clause
+         * is TRUE and must be taken; the port's per-token negation
+         * needed AC_ONAIR itself up and never took it. (What this leg
+         * does NOT settle: a NOT clause when the set is EMPTY - the
+         * port's `(o->sig || brk1)` gate skips the whole pass then,
+         * and whether the engine's 0x53520 has the same guard - the
+         * empty-test 0x495b0 - is unread.) Expectations are read from
+         * the operation table, not from this port's answer. */
+        static const char any_t[] =
+            "A_RUN\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\n"
+            "A_DEAD(1)=|AC_TIME,AC_EDGE\n1,100\n2,100,GEN AC_TIME\n"
+            "\n[A_DEAD]\ncontrol=BY_TIME\n3,100\n";
+        static const char bang_t[] =
+            "A_RUN\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\n"
+            "A_DEAD(1)=!AC_TIME,AC_ONAIR\n1,100\n2,100,GEN AC_EDGE\n"
+            "\n[A_DEAD]\ncontrol=BY_TIME\n3,100\n";
+        ll_mov_t *at = calloc(1, sizeof *at), *bt = calloc(1, sizeof *bt);
+        obj_script sta, stb;
+        lvl_obj oa, ob;
+        int pass = 0;
+        memset(&sta, 0, sizeof sta);
+        memset(&stb, 0, sizeof stb);
+        memset(&oa, 0, sizeof oa);
+        memset(&ob, 0, sizeof ob);
+        if (at && bt) {
+            ll_mov_parse(any_t, at);
+            ll_mov_parse(bang_t, bt);
+            sta.mov = at;
+            stb.mov = bt;
+            oa.sc = &sta;
+            ob.sc = &stb;
+            for (int i = 0; i < 2; i++) {
+                obj_advance(&oa, LL_ITER_MS);
+                obj_advance(&ob, LL_ITER_MS);
+            }
+            obj_advance(&oa, LL_ITER_MS);
+            obj_advance(&ob, LL_ITER_MS);
+            if (oa.sti != 1)
+                fprintf(stderr, "object state selftest: FAILED the"
+                                " `|AC_TIME,AC_EDGE` row refused the raised"
+                                " AC_TIME alone (state %d)\n", oa.sti);
+            else if (ob.sti != 1)
+                fprintf(stderr, "object state selftest: FAILED the"
+                                " `=!AC_TIME,AC_ONAIR` row refused while"
+                                " only AC_EDGE - in NEITHER name - was"
+                                " up (state %d)\n", ob.sti);
+            else
+                pass = 1;
+        }
+        free(at);
+        free(bt);
         if (!pass)
             goto out;
     }

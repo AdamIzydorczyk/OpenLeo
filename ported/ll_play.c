@@ -242,8 +242,8 @@ int ll_mov_row_start(const ll_mov_st *s, int entry)
 /* PR-88: name -> LL_SIG_* index. The table is the engine's own (name
  * block 0x919ec, bit constants from the comparison chain at 0x48000 -
  * see the ll_play.h enum comment). K_ANY / K_NEVER and their AC_ aliases
- * are NOT bits there (the parser turns them into node op tags), and our
- * cond_id already models them, so they return -1 here. */
+ * are NOT single bits there (the resolver answers them with WHOLE masks,
+ * PR-263), and our cond_id already models them, so they return -1 here. */
 int ll_sig_id(const char *name)
 {
     static const struct { const char *n; int id; } tbl[] = {
@@ -395,8 +395,15 @@ static void parse_pair(const char *v, int *a, int *b)
  * so the two share the -2 slot: it means "no bit to test", never a bit. */
 #define LL_COND_NOBIT  LL_COND_OTHER   /* LL_SIG_NOBIT is in ll_play.h */
 
+/* PR-264: `opp`, when given, takes the clause's OPERATION byte exactly as
+ * the engine's clause parser writes it - 0x47d73 clears it, and a token
+ * that begins with '!' writes 1 (0x47dd0-0x47dc8), '*' writes 2
+ * (0x47dc2), '|' writes 3 (0x47dbc); every operator sets the byte for the
+ * WHOLE clause, the last one seen wins, and the name after it folds into
+ * the same mask. A ',' writes nothing (0x47dfd). The row-clause capture
+ * passes NULL: it records tokens, not a match. */
 static void parse_cond(ll_mov_gate *c, int *ncp, int max,
-                       const char *expr)
+                       const char *expr, unsigned char *opp)
 {
     const char *q = expr;
     int grp = 0;
@@ -405,7 +412,8 @@ static void parse_cond(ll_mov_gate *c, int *ncp, int max,
         const char *bend = bar ? bar : q + strlen(q);
         /* PR-87: a bar segment is one AND-group; ',' splits its tokens
          * (see the ll_mov_tr.c comment). ';' inside stays inside one
-         * token -> OTHER (counted, never true). */
+         * token -> OTHER (counted, never true). PR-264: the groups are
+         * kept for the capture only; what matches is mask + op. */
         for (;;) {
             const char *comma = strchr(q, ',');
             const char *end = (comma && comma < bend) ? comma : bend;
@@ -414,6 +422,12 @@ static void parse_cond(ll_mov_gate *c, int *ncp, int max,
             int neg = 0;
             if (q < end && *q == '!') {
                 neg = 1;
+                if (opp)
+                    *opp = LL_TOP_NOT;
+                q++;
+            } else if (q < end && *q == '*') {
+                if (opp)
+                    *opp = LL_TOP_EXACT;
                 q++;
             }
             size_t n = 0;
@@ -463,7 +477,14 @@ static void parse_cond(ll_mov_gate *c, int *ncp, int max,
             q = end + 1;
         }
         grp++;
-        q = bar ? bar + 1 : bend;
+        if (bar) {
+            if (opp)
+                *opp = LL_TOP_ANY;       /* 0x47dbc: the pipe is the
+                                          * whole clause's operation */
+            q = bar + 1;
+        } else {
+            q = bend;
+        }
     }
 }
 
@@ -789,7 +810,7 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                                     if (an) {
                                         ll_mov_gate g[4];
                                         int gn = 0;
-                                        parse_cond(g, &gn, 4, arg);
+                                        parse_cond(g, &gn, 4, arg, NULL);
                                         if (gn == 1) {
                                             mf->gneg = (short)g[0].neg;
                                             mf->gsig_id = g[0].sig;
@@ -846,6 +867,10 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                         ll_mov_tr *tr = &s->tr[s->ntr++];
                         tr->tidx = -1;
                         tr->entry = 0;
+                        tr->op = 0;              /* PR-264: the clause
+                             * parser clears the operation byte first
+                             * (0x47d73); an authored line with no
+                             * operator keeps the default 0. */
                         const char *eq = strchr(line, '=');
                         const char *par = strchr(line, '(');
                         size_t n = 0;
@@ -863,7 +888,8 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                             if (pe && pe < eq)
                                 tr->entry = (int)strtol(par + 1, NULL, 10);
                         }
-                        parse_cond(tr->c, &tr->nc, LMOV_MAXCON, eq + 1);
+                        parse_cond(tr->c, &tr->nc, LMOV_MAXCON, eq + 1,
+                                   &tr->op);
                     } else {
                         m->drop_tr++;
                     }
@@ -1020,77 +1046,116 @@ void ll_player_set_contact(ll_player *p, int below_pos)
     p->contact = below_pos > 0 ? below_pos : 0;
 }
 
+/* PR-264: the mask a compiled condition carries, exactly as the engine
+ * composes it into the 21-byte entry (PR-261). The clause parser calls
+ * the name resolver 0x48000 once per name (0x47de5); that resolver
+ *   - answers a name IN the signal table with the /32,bit idiom OR-ing
+ *     its single bit into the mask (0x48087),
+ *   - answers K_ANY by CLEARING the 12 mask bytes and OR-ing 0x2001f8
+ *     into dword 1 (0x48029-0x48048, PR-263): a REPLACE, not a union,
+ *   - answers K_NEVER by OR-ing 0x60 into mask byte 4 = K_UP,K_DOWN
+ *     (0x4806f-0x4807d): a union,
+ *   - answers a name in NO table by writing nothing at all (the not-
+ *     found return 0x49541, and the resolver's value is discarded at
+ *     0x47de5): contributes NO bit.
+ * A ',' folds its name into the same mask (0x47dfd). No shipped clause
+ * mixes K_ANY with other names (counted over the 777 texts), so the
+ * replace step is only observable in fixtures; it is implemented in
+ * source order anyway, because that is what the bytes do. */
+unsigned long long ll_mov_tr_mask(const ll_mov_tr *tr)
+{
+    unsigned long long m = 0;
+
+    for (int i = 0; i < tr->nc; i++) {
+        if (tr->c[i].gop == LL_GOP_ANY)
+            m = LL_SIG_K_ANY_MASK;
+        else if (tr->c[i].gop == LL_GOP_NEVER)
+            m |= LL_SIG_K_NEVER_MASK;
+        else if (tr->c[i].sig >= 0)
+            m |= 1ull << (unsigned)tr->c[i].sig;
+    }
+    return m;
+}
+
+/* PR-264: the set a transition clause is matched AGAINST. The engine
+ * composes it in the object step: 0x536f0 OR-s two built sets into
+ * [obj+0x60] (0x53705-0x5370c, 0x53725) before it calls the pass that
+ * matches and clears (0x53520, PR-262), and one of those builders is
+ * 0x54910, whose entire output is the seven input-key bits plus nothing
+ * else. So the live set is the object's own raised bits plus the keys it
+ * is holding plus the arms its rows raised this iteration - and the
+ * clause's mask is tested against THAT, not against a per-token answer.
+ * PR-85 MODEL CHOICE, kept here where the bits are made (recorded,
+ * evidence-based): K_FWD/K_BKWD are FACING-RELATIVE - K_FWD = the arrow
+ * in the direction the lion faces, K_BKWD = the opposite arrow. DATA
+ * PROOF: ZARIA's LEW.ZAR has exactly ONE walk state (A_WALK, entered
+ * only by K_FWD from A_DRAP/A_WALK) and NO backward-walk state
+ * anywhere; under literal-key semantics its lion could never walk left
+ * at all (BKWD lines lead only into A_TURN, whose only exits are
+ * AC_BREAK_* back to the hub). On video the player obviously walks left
+ * (PR-72 measured the facing-left screen band 200-230). RAN's
+ * A_WALK_FWD/A_WALK_BKWD pair is consistent too: entered
+ * facing-relative, CH_DIR keeps face aligned, the pair is the same state
+ * written twice for a right-facing spawn. K_UP/K_DOWN stay literal
+ * (ladders/vines do not mirror). */
+static unsigned long long live_bits(const ll_player *p,
+                                   const ll_play_keys *k)
+{
+    int face = p->face >= 0 ? 1 : -1;
+    int fwd  = face  > 0 ? k->k_fwd : k->k_bkwd;
+    int bkwd = face  > 0 ? k->k_bkwd : k->k_fwd;
+    unsigned long long m = p->sig;
+    if (fwd)          m |= 1ull << LL_SIG_K_FWD;
+    if (bkwd)         m |= 1ull << LL_SIG_K_BKWD;
+    if (k->k_up)      m |= 1ull << LL_SIG_K_UP;
+    if (k->k_down)    m |= 1ull << LL_SIG_K_DOWN;
+    if (k->k_fire)    m |= 1ull << LL_SIG_K_FIRE;
+    if (k->k_alt)     m |= 1ull << LL_SIG_K_ALT;
+    if (k->k_jump)    m |= 1ull << LL_SIG_K_JUMP;
+    if (k->k_f1)      m |= 1ull << LL_SIG_K_F1;
+    if (k->k_f2)      m |= 1ull << LL_SIG_K_F2;
+    if (k->k_f3)      m |= 1ull << LL_SIG_K_F3;
+    if (k->k_f4)      m |= 1ull << LL_SIG_K_F4;
+    if (p->broke)     m |= 1ull << LL_SIG_AC_BREAK_NEXT;
+    if (p->ac_time)   m |= 1ull << LL_SIG_AC_TIME;
+    return m;
+}
+
+/* PR-264: and the match itself. The engine has ONE mask and ONE
+ * operation per compiled condition (PR-261) and 0x47e40 tests them with
+ * the four cases of PR-260; the OR-of-AND-groups reading of PR-87/PR-88
+ * is gone, because the engine has no second node - the ',' and '|' of an
+ * authored line differ only in which operation the clause carries. */
 static int cond_true(const ll_player *p, const ll_play_keys *k,
                      const ll_mov_tr *tr)
 {
-    /* PR-87, narrowed by PR-263 to the engine's own set: K_ANY is the
-     * MASK 0x2001f8-in-dword-1 (LL_SIG_K_ANY_MASK) - the seven bits the
-     * input bridge 0x54910 raises out of the key words. The weapon
-     * selectors K_F1..K_F4 are outside that constant, so they neither
-     * satisfy nor block an any-row. */
-    int any = k->k_fwd || k->k_bkwd || k->k_up || k->k_down ||
-              k->k_jump || k->k_fire || k->k_alt;
-    /* PR-85 MODEL CHOICE (recorded, evidence-based): K_FWD/K_BKWD are
-     * FACING-RELATIVE - K_FWD = the arrow in the direction the lion
-     * faces, K_BKWD = the opposite arrow. DATA PROOF: ZARIA's LEW.ZAR
-     * has exactly ONE walk state (A_WALK, entered only by K_FWD from
-     * A_DRAP/A_WALK) and NO backward-walk state anywhere; under
-     * literal-key semantics its lion could never walk left at all
-     * (BKWD lines lead only into A_TURN, whose only exits are
-     * AC_BREAK_* back to the hub). On video the player obviously walks
-     * left (PR-72 measured the facing-left screen band 200-230).
-     * RAN's A_WALK_FWD/A_WALK_BKWD pair is consistent too: entered
-     * facing-relative, CH_DIR keeps face aligned, the pair is the
-     * same state written twice for a right-facing spawn. K_UP/K_DOWN
-     * stay literal (ladders/vines do not mirror). */
-    int face = p->face >= 0 ? 1 : -1;
-    int fwd_rel  = face  > 0 ? k->k_fwd : k->k_bkwd;
-    int bkwd_rel = face  > 0 ? k->k_bkwd : k->k_fwd;
-    for (int i = 0; i < tr->nc; ) {                 /* PR-87: OR of AND- */
-        int g = tr->c[i].grp, all = 1;              /* groups ('|' then  */
-        for (; i < tr->nc && tr->c[i].grp == g; i++) { /* ',')           */
-            int v;
-            switch (tr->c[i].cond) {
-            case LL_COND_K_FWD:  v = fwd_rel;  break;
-            case LL_COND_K_BKWD: v = bkwd_rel; break;
-            case LL_COND_K_UP:   v = k->k_up;   break;
-            case LL_COND_K_DOWN: v = k->k_down; break;
-            case LL_COND_K_GEN1: v = (p->sig >> LL_SIG_K_GEN1) & 1; break;
-            case LL_COND_K_GEN2: v = (p->sig >> LL_SIG_K_GEN2) & 1; break;
-            case LL_COND_K_GEN3: v = (p->sig >> LL_SIG_K_GEN3) & 1; break;
-            case LL_COND_K_GEN4: v = (p->sig >> LL_SIG_K_GEN4) & 1; break;
-            case LL_COND_K_GEN5: v = (p->sig >> LL_SIG_K_GEN5) & 1; break;
-            case LL_COND_K_ANY:  v = any;       break;
-            case LL_COND_K_JUMP: v = k->k_jump; break;
-            case LL_COND_K_FIRE: v = k->k_fire; break;   /* PR-87 */
-            case LL_COND_K_F1:   v = k->k_f1;   break;
-            case LL_COND_K_F2:   v = k->k_f2;   break;
-            case LL_COND_K_F3:   v = k->k_f3;   break;
-            case LL_COND_K_F4:   v = k->k_f4;   break;
-            case LL_COND_K_ALT:  v = k->k_alt;  break;
-            case LL_COND_AC_BREAK_NEXT: v = p->broke; break;
-            case LL_COND_AC_TIME: v = p->ac_time; break;  /* PR-83: player-side
-                 * arm = the frame list wrapped (ZARIA A_WALK->A_DRAP idle chain) */
-            case LL_COND_OTHER:
-                v = tr->c[i].sig >= 0
-                    ? (int)((p->sig >> (unsigned)tr->c[i].sig) & 1)
-                    : 0;               /* PR-88: a bare signal NAME (AC_ONAIR,
-                                        * AC_EDGE, ...) tests the lion's own
-                                        * set - false until something raises
-                                        * it; an unknown token stays never-true
-                                        * OTHER (counted, not guessed) */
-                break;
-            default:             v = 0;         break;   /* not simulated */
-            }
-            if (tr->c[i].neg)
-                v = !v;
-            if (!v)
-                all = 0;
-        }
-        if (all)
-            return 1;
+    unsigned long long mask = ll_mov_tr_mask(tr);
+    unsigned long long live = live_bits(p, k);
+
+    if (!mask)
+        return 0;   /* PR-88 convention kept: a clause whose names are
+                     * in NO table compiles to an EMPTY mask, and the
+                     * engine's subset arm would take it VACUOUSLY. The
+                     * port never does (counted: no shipped clause has
+                     * such a name; the hermetic `AC_BOGUS` legs pin
+                     * this side). Unmodelled engine half, recorded. */
+    switch (tr->op) {
+    case LL_TOP_NOT:                        /* '!' : share NOTHING (the
+                                            * 0x47edc arm) */
+        return (mask & live) == 0ull;
+    case LL_TOP_EXACT:                      /* '*' : byte-identical (the
+                                            * 0x47fb2 arm; no shipped
+                                            * clause writes it) */
+        return mask == live;
+    case LL_TOP_ANY:                        /* '|' : share ANYTHING (the
+                                            * 0x47f42 arm) */
+        return (mask & live) != 0ull;
+    default:                                /* the default 0: the clause
+                                            * is a SUBSET of the live set
+                                            * (the 0x47e63 arm) - every
+                                            * name it names is up */
+        return (mask & ~live) == 0ull;
     }
-    return 0;
 }
 
 /* PR-256: this port keeps the velocity in a double of px per second,
@@ -2065,7 +2130,11 @@ int ll_play_selftest(void)
 
     /* PR-87: ',' groups are AND ('|' alternatives stay as before): the
      * unmodeled token poisons only its own group; a leading '|' is an
-     * empty group (no-op). The reading of ',' is argued in ll_play.h. */
+     * empty group (no-op). The reading of ',' is argued in ll_play.h.
+     * PR-264 REPLACES that grammar for the MATCH (one mask + one
+     * operation, 0x47d60/0x47e40) but the group split stays in the
+     * capture, and the operation byte the parser records is pinned
+     * here too: a '|' writes 3, anything else leaves the cleared 0. */
     ll_mov_t mfg;
     ll_mov_parse("A_STAY\nA_FIGHT\n[A_STAY]\r\n"
                  "A_FIGHT(1)=K_FIRE,K_F1\r\n"
@@ -2082,6 +2151,12 @@ int ll_play_selftest(void)
           mfg.st[0].tr[1].c[2].cond == LL_COND_OTHER);
     CHECK(mfg.st[0].tr[2].nc == 1 &&
           mfg.st[0].tr[2].c[0].cond == LL_COND_K_ALT);
+    /* PR-264: the operation byte the parser records per clause,
+     * exactly as 0x47d60 writes it (clear at 0x47d73, '|' -> 3 at
+     * 0x47dbc; ',' and bare names leave the byte alone). */
+    CHECK(mfg.st[0].tr[0].op == LL_TOP_SUBSET);
+    CHECK(mfg.st[0].tr[1].op == LL_TOP_ANY);
+    CHECK(mfg.st[0].tr[2].op == LL_TOP_ANY);
 
     ll_mov_t m2;
     ll_mov_parse("X\n[A]\n0,0\n1,-5\n", &m2);
@@ -2657,6 +2732,12 @@ int ll_play_selftest(void)
         CHECK(am && an);
         ll_mov_parse(AM, am);
         ll_mov_parse(AN, an);
+        /* PR-264 capture pins: `=|K_ANY` carries operation 3 on the
+         * resolver's whole mask, `=!K_ANY` operation 1 on the same
+         * mask (0x47dbc / 0x47dc8 / 0x48029-0x48048). */
+        CHECK(am->st[0].tr[0].op == LL_TOP_ANY);
+        CHECK(an->st[0].tr[0].op == LL_TOP_NOT);
+        CHECK(ll_mov_tr_mask(&am->st[0].tr[0]) == LL_SIG_K_ANY_MASK);
         ll_player_start(&q, am, 500, 100, 1);
         kk.k_f2 = 1;                       /* a selector key: not in the */
         ll_player_step(&q, NULL, &kk, 0, 2000, LL_ITER_MS);
@@ -2674,6 +2755,47 @@ int ll_play_selftest(void)
         CHECK(q.sti == 0);                 /* K_ALT (40) is in the mask  */
         free(am);
         free(an);
+    }
+    {   /* PR-264 red: the comma is NOT an AND when the clause carries
+         * an operation. The clause parser 0x47d60 compiles ONE mask and
+         * ONE operation byte per condition - it clears the byte at
+         * 0x47d73, a '|' token writes 3 (0x47dbc), '*' writes 2
+         * (0x47dc2), '!' writes 1 (0x47dd0/0x47dc8), a ',' writes
+         * nothing and folds its name into the SAME mask (0x47dfd-
+         * 0x47de5) - and TEventSet::match 0x47e40 picks its comparator
+         * from that byte: 3 is "the AND of the two sets is NOT empty"
+         * (PR-260). So in `A_WALK(1)=|K_JUMP,K_UP`, the exact words of
+         * ENA.03 line 551 and ENA2 line 213, BOTH names sit in one
+         * mask and the operation is intersects: holding K_UP ALONE is
+         * enough. The expectation is read from that table, not from
+         * this port's answer. */
+        static const char AP[] =
+            "A_STAY\nA_WALK\n\n[A_STAY]\ncontrol=BY_TIME|CHECK_LN\n"
+            "F=600,0\nT=90,90\nG=0,0\nA_WALK(1)=|K_JUMP,K_UP\nseq=a\n"
+            "1,100\n\n[A_WALK]\ncontrol=BY_TIME\nF=0,0\nT=0,0\nG=0,0\n"
+            "seq=a\n1,300\n2,300\n";
+        ll_mov_t *ap = calloc(1, sizeof *ap);
+        ll_player q;
+        ll_play_keys kk = { 0 };
+        CHECK(ap != NULL);
+        ll_mov_parse(AP, ap);
+        kk.k_up = 1;                       /* K_UP (38) alone: the AND  */
+        ll_player_start(&q, ap, 500, 100, 1);
+        ll_player_step(&q, NULL, &kk, 0, 2000, LL_ITER_MS);
+        CHECK(q.sti == 1);                 /* intersects, not subset     */
+        kk = (ll_play_keys){ .k_jump = 1 };/* K_JUMP (53) alone: the same*/
+        ll_player_start(&q, ap, 500, 100, 1);
+        ll_player_step(&q, NULL, &kk, 0, 2000, LL_ITER_MS);
+        CHECK(q.sti == 1);                 /* answer                   */
+        kk.k_jump = 1; kk.k_up = 1;        /* both: true in either      */
+        ll_player_start(&q, ap, 500, 100, 1);
+        ll_player_step(&q, NULL, &kk, 0, 2000, LL_ITER_MS);
+        CHECK(q.sti == 1);                 /* reading - no divergence   */
+        kk = (ll_play_keys){ 0 };          /* neither: the empty AND    */
+        ll_player_start(&q, ap, 500, 100, 1);
+        ll_player_step(&q, NULL, &kk, 0, 2000, LL_ITER_MS);
+        CHECK(q.sti == 0);                 /* stays false               */
+        free(ap);
     }
     {   /* PR-82: states whose DIRECTION IS AUTHORED stay out of facing.
          * The real shape is RAN LEW's A_GO_TO_BALON_L: control=BY_X with

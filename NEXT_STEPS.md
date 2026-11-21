@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-264.
+> at PR-265.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -36519,4 +36519,158 @@ GATE: make 0 warnings; verify-all fixtures rc=0 67 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named (the 23rd SKIP line
 is the cmake-windows parity check, which names its own reason:
 no vendor/SDL2-2.32.10/x86_64-w64-mingw32 prefix in this tree)
+```
+
+## PR-264 — ONE MASK AND ONE OPERATION PER COMPILED
+## CONDITION: THE FOUR ARMS OF 0x47e40, AND THE AND-GROUP
+## GRAMMAR IS GONE FROM BOTH EVALUATORS
+```
+KIND: port
+SUBSYSTEM: the transition matcher - ll_mov_tr gains the
+engine's operation byte, one shared clause-mask builder, and
+the four match arms replace PR-87's OR-of-AND-groups in both
+the lion's and the object's evaluator.
+ADDRESSES: 0x47d60, 0x47d73, 0x47d9f, 0x47da9, 0x47dbc,
+0x47dc2, 0x47dc8, 0x47dd0, 0x47dfd, 0x47e30, 0x47e40,
+0x47e4b, 0x47e50, 0x47e63, 0x47ec1, 0x47edc, 0x47f35,
+0x47f42, 0x47f9b, 0x47fa2, 0x47fb2, 0x47fd8, 0x49550,
+0x49559, 0x4956a, 0x49580, 0x495b0, 0x52000, 0x52024,
+0x52033, 0x5203a, 0x53520, 0x5356b, 0x536f0, 0x53705,
+0x53733, 0xa68b4, 0xa92d4
+NAMES: LL_TOP_SUBSET, LL_TOP_NOT, LL_TOP_EXACT, LL_TOP_ANY,
+ll_mov_tr.op, ll_mov_tr_mask, live_bits, TEventSet::match,
+Bledna operacja, repz cmps, OI-114, OI-115, PR-87, PR-88,
+PR-218, PR-260, PR-261, PR-262, PR-263
+CODE: yes: (i) ll_mov_tr carries `op`, the operation byte,
+written by parse_cond exactly as the engine's clause parser
+does - 0x47d73 clears it, '!' writes 1, '*' writes 2, '|'
+writes 3, a ',' writes nothing, last write wins; the row-
+clause capture passes NULL and keeps only tokens; (ii)
+ll_mov_tr_mask (ll_play.c, declared in ll_play.h) composes
+the clause mask: each resolved name's bit, K_ANY's REPLACE
+(0x48037-0x48048), K_NEVER's union (0x4806f-0x4807d), and
+NOTHING for a name in no table (the resolver's not-found
+return 0x49541, its value discarded at 0x47de5); (iii)
+cond_true (ll_play.c) and obj_cond_true (ll_level.c) answer
+the four arms over a COMPOSED live set: live_bits() = the
+lion's p->sig plus the facing-relative key bits plus the
+broke/ac_time bits (what 0x54910 and the rows put into
+[obj+0x60], PR-262/263); the object's o->sig plus the brk
+bit; (iv) an empty mask is never taken - PR-88's convention
+kept, now written as a named guard. The group numbers and
+per-term negs stay in the terms for the row-clause capture;
+they mean nothing to a match.
+HOOKS: red first, four checks, all failing at HEAD and all
+derived from the table at 0x47e30 and the fixture's own
+authored words, never from this port's output. Play
+selftest, ENA.03's exact line 551 `A_WALK(1)=|K_JUMP,K_UP`:
+holding K_UP ALONE, `q.sti == 1` FAILED - the port demanded
+both; K_JUMP alone FAILED likewise; the controls (both,
+neither) frame it. Mov selftest: an object's
+`A_DEAD(1)=|AC_TIME,AC_EDGE` with a `2,100,GEN AC_TIME` row
+- "refused the raised AC_TIME alone" FAILED; and
+`=!AC_TIME,AC_ONAIR` with only AC_EDGE in the set - the
+engine's disjoint arm answers TRUE, the port never took it.
+All four green now. Capture pins added: op == 3 for `|`
+clauses, op == 1 for `!`, and
+ll_mov_tr_mask(`|K_ANY`) == LL_SIG_K_ANY_MASK. PR-263's
+K_ANY pair and every earlier grammar leg pass unchanged.
+MEASURED: (a) THE MATCH. 0x47e40 (eax = the compiled 21-byte
+entry, edx = the set handed to it): `mov al,[eax+0xc] /
+cmp al,3 / ja 0x47fd8` then `jmp [eax*4+0x47e30]`
+(0x47e4b-0x47e62) - four entries, and the fifth arm builds
+the string at 0xa92d4, PR-260's "TEventSet::match :Bledna
+operacja". The arms: 0 SUBSET (0x47e63) copies the clause,
+ANDs the two sets through the AND method 0x49550 (the dword
+loop 0x49559-0x4956a is `and edi,ebx` per dword) and
+requires the AND byte-identical to the CLAUSE (`repz cmps`
+0x47ec1) - true iff EVERY name in the clause is live;
+1 DISJOINT (0x47edc) runs the same AND and hands it to the
+empty-test 0x495b0 (call at 0x47f35); 2 EQUAL (0x47fb2)
+`repz cmps` of the two sets directly; 3 INTERSECTS (0x47f42)
+runs the AND and answers `sete` of 0x495b0 (0x47f9b,
+0x47fa2) - NOT empty. PR-260's "0 subset, 1 disjoint, 2
+equal, 3 intersects" is the code, not an inference.
+(b) THE OP CHAIN, PR-261's reading confirmed with one new
+detail: a token whose first char is alphanumeric (the
+ctype-table test `test BYTE PTR [edx+0xa68b4],0xc0` at
+0x47da9) goes straight to the name path 0x47de0, so an
+operator is its OWN token: 0x47dbc writes 3 for '|', 0x47dc2
+2 for '*', 0x47dc8/0x47dd0 1 for '!', all jmp 0x47dd2 and
+the loop runs on while the delimiter is ',' (0x47dfd) -
+every later name folds into the SAME mask under the SAME
+byte. There is no second node: PR-87's "engine's own
+evidence for OR-of-AND-groups", written into the ll_play.h
+enum comment, is wrong; that comment is corrected in place,
+and obj_cond_true's PR-88 paragraph with it.
+(c) NO GUARD ON THE PATH. The step 0x536f0 merges the two
+built sets into [obj+0x60] (0x53705-0x5370c,
+0x5371c-0x53725 - the second merge is the row/key builder
+0x523f0's) and calls `[obj.vmt+0x54]` at 0x53733 with NO
+test of the set; 0x53520 copies the 13 bytes (0x53531-
+0x53559) and calls the walk 0x52000 (0x5356b); 0x52000
+walks EVERY entry and calls TEventSet::match on each
+(0x52024-0x5203a). 0x495b0 appears on this path only INSIDE
+match's own arms. So on the path read so far an empty
+composed set still asks, and under arm 1 a `!`-clause is
+TRUE on a clean step. What is NOT read: which method
+[vmt+0x54] is for the .MOV state-record class (0x53520's
+address is at no data site, PR-261 counted) and whether it
+guards. This port keeps its object-side gate `(o->sig ||
+brk1)`; removing it moves shipped rows, so it needs the
+method read first - that, and the empty-mask question, are
+OI-115.
+(d) REACH, recounted over the 777 texts (2764 clauses):
+ALL 47 '|' clauses LEAD a comma list; exactly 7 mix '|'
+with a ',': ENA.03:551/575 `|K_JUMP,K_UP`, ENA2:213
+`|K_FWD,AC_BREAK_NEXT`, KADMAR.07_0_0:660 and ZARIA.02
+LEW:119/LEWPL:116 `|K_GEN1,AC_BREAK_NEXT`, KADMAR2:288
+`|AC_DUP,AC_TIME`. Those 7 are the ONLY shipped rows whose
+reading changes - under the old grammar they ANDed the
+comma list, under the engine's they intersect. No clause
+combines '!' with ',' (0 of 87), none uses '*', none names
+K_NEVER, so the shipped corpus exercises operations 0, 1
+and 3, and the '!'-arm difference exists only in fixture
+shapes. ZARIA.01 has no mixed clause - its 8 any-rows are
+all the single-name `=|K_ANY`, which read identically both
+ways. Measured: the whole fixture suite and the ZARIA.01
+climb legs are byte-identical, and none of the 7 clauses
+is driven anywhere in it.
+(e) THE PORT: the match lives once per side; both call
+ll_mov_tr_mask. An unresolved name contributes no bit, so a
+clause naming only such tokens masks to 0 and is refused by
+the guard - the engine's arm 0 would take it vacuously;
+that half-ask is recorded, not guessed (no shipped clause
+does it).
+OPENS: in order: (i) OI-115 (a) - which method
+[obj.vmt+0x54] is for the .MOV record class, the only
+unread step on the match path, and with it whether the
+port's object-side `(o->sig || brk1)` gate may go;
+(ii) OI-115 (b), the empty-mask/vacuous subset; (iii) the
+top of a climb, AC_EDGE / A_PODCIAG (OI-078's lead);
+(iv) the entry's +0x11 downstream and 0x53815's four-field
+reader (PR-261 (iii)); (v) a raise landing between the
+pass and 0x535a0 (PR-262 (d)); (vi) `[[obj+8]+0x8c]` /
+`+0x90]` and the other 67 callers of 0x49580; (vii) the
+rest of the OI-078 list unchanged.
+CLOSES: OI-114 - item (a) (the operation, carried and
+matched) was its only open half, item (b) closed at PR-263;
+PR-261's "7 clauses where this port differs" is discharged,
+those 7 now read as the engine reads them. The mechanism
+row is gone; its unread residue opened as OI-115.
+CORRECTS: PR-87's line in the ll_play.h enum comment -
+"'|' = separate node = OR ... the engine's own evidence for
+PR-87's OR-of-AND-groups reading": there is no second node
+and no group semantics in the compiled entry (fixed in
+place). PR-88's obj_cond_true paragraph - "'|' starts
+another node (OR) - the same OR-of-AND-groups the player
+evaluator uses": same correction, replaced by the arms
+above. And PR-261's "the corpus writing the pipe 40 times
+out of 41 is the data-side proof" - ALL 47 pipes lead a
+comma list, which is the same point measured cleanly.
+GATE: make 0 warnings; verify-all fixtures rc=0 67 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named (the 23rd SKIP
+line is the cmake-windows parity check, which names its own
+reason: no vendor/SDL2-2.32.10/x86_64-w64-mingw32 prefix
+in this tree)
 ```

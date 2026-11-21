@@ -231,10 +231,13 @@ enum {
  * AC_BREAK_NEXT 0x2; AC_ENEMY mov dl,0x7; AC_ONAIR mov dl,0x12;
  * K_GEN1 mov al,0x36 = 54; K_GEN2 0x37 - PR-70's "bit 54 = K_GEN1"
  * assumption CONFIRMED). K_ANY (and the AC_K_ANY alias) and K_NEVER /
- * AC_K_NEVER are NOT bits: the clause parser at 0x47d60 special-cases them
- * into node op tags ('!' = negate, '*' = and-with-set, '|' = separate node
- * = OR), and a ',' keeps folding bits into the SAME node mask - the
- * engine's own evidence for PR-87's OR-of-AND-groups reading. AC_EV_MAX =
+ * AC_K_NEVER are NOT single bits: the resolver 0x48000 answers them with
+ * WHOLE masks - 0x2001f8 in dword 1 and 0x60 in byte 4 (PR-263) - and
+ * the clause parser at 0x47d60 compiles ONE mask plus ONE operation
+ * byte per condition ('!' = disjoint, '*' = equal, '|' = intersects,
+ * plain = subset; a ',' folds its name into the same mask). PR-87's
+ * OR-of-AND-groups reading was superseded by that one-mask reading
+ * (PR-261, ported by PR-264). AC_EV_MAX =
  * 68 bounds the table, so the node/set masks are 3 dwords. */
 enum {
     LL_SIG_AC_BLOK = 0,     LL_SIG_AC_BLOK_Y,     LL_SIG_AC_BREAK_NEXT,
@@ -290,6 +293,20 @@ enum {
                            (1ull << LL_SIG_K_UP) | (1ull << LL_SIG_K_DOWN) | \
                            (1ull << LL_SIG_K_FIRE) | (1ull << LL_SIG_K_ALT) | \
                            (1ull << LL_SIG_K_JUMP))
+/* PR-263 (c): the same resolver's K_NEVER branch OR-s 0x60 into mask
+ * BYTE 4 (0x4806f-0x4807d) = signals 37,38 = K_UP,K_DOWN. */
+#define LL_SIG_K_NEVER_MASK ((1ull << LL_SIG_K_UP) | (1ull << LL_SIG_K_DOWN))
+/* PR-264: the four operations a compiled condition is matched with. The
+ * clause parser writes the byte (0x47d73 clears it; '!' at 0x47dc8, '*'
+ * at 0x47dc2, '|' at 0x47dbc), and TEventSet::match 0x47e40 switches on
+ * it through the table at 0x47e30: 0 is true when the clause mask is a
+ * SUBSET of the set handed to it, 1 when the AND is EMPTY, 2 when the
+ * two sets are byte-identical, 3 when the AND is NOT empty (PR-260,
+ * PR-261). */
+#define LL_TOP_SUBSET 0
+#define LL_TOP_NOT    1
+#define LL_TOP_EXACT  2
+#define LL_TOP_ANY    3
 int ll_sig_id(const char *name);
 
 typedef struct { int frame; unsigned thresh; int dx, dy;
@@ -487,9 +504,24 @@ typedef struct {
      * the engine's no-bit group (K_ANY/K_NEVER and their aliases, and
      * names in no table at all). The transition switch answers modelled
      * tokens first and only reads sig in its OTHER arm; the `Wait`-clause
-     * capture (PR-217) reads sig directly. */
+     * capture (PR-217) reads sig directly.
+     * PR-264 REPLACES that grammar in the evaluators with the engine's
+     * own: `op` is the operation byte the clause parser writes for the
+     * WHOLE mask - 0 when it names no operator, 1 for '!', 2 for '*',
+     * 3 for '|' (0x47d73 clears it and 0x47dc8/0x47dc2/0x47dbc write
+     * those three; the last one seen wins, and the parser puts it on the
+     * compiled entry, PR-261). The group numbers stay in the terms
+     * because the row-clause capture still reads them; they no longer
+     * mean anything to a match. */
+    unsigned char op;
     int nc;
 } ll_mov_tr;
+/* The mask a compiled condition carries: the union of its tokens' bits,
+ * K_ANY's and K_NEVER's whole masks included, and nothing at all for a
+ * name in no table - the resolver's return value is DISCARDED at its
+ * call site 0x47de5, so an unresolved name simply contributes no bit
+ * (PR-264). */
+unsigned long long ll_mov_tr_mask(const ll_mov_tr *tr);
 typedef struct {
     char name[24];
     char seqkey[16];                        /* per-state seq= art select   */

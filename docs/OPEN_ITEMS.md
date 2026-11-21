@@ -628,9 +628,6 @@ OI-078: the in-game ZARIA.01 climb, now MOVING to the top at
   0x5358e, one call after the apply - the per-iteration
   `p->sig = 0` / `o->sig = 0` is the engine's law, not this
   port's stand-in): the lead is the top of a climb,
-  `A_PODCIAG(1)=AC_EDGE,K_UP` with AC_EDGE unmodelled, then
-  the group grammar that still differs on 7 clauses (OI-114
-  item (a)),
   `A_PODCIAG(1)=AC_EDGE,K_UP` with AC_EDGE unmodelled (what
   raises K_GEN1 was PR-257: the lion's own rows, and
   `A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR` is CLOSED as a non-lead,
@@ -1534,6 +1531,15 @@ OI-078: the in-game ZARIA.01 climb, now MOVING to the top at
     holds a selector key in one of those states, so the whole
     suite is unchanged by the fix (measured); the fixture pair
     in the play and mov selftests is what pins the mask.
+    PR-264 removes the group-grammar lead: both evaluators now
+    match the way the engine does, ONE clause mask against the
+    composed live set under the clause's operation byte
+    (OI-114 CLOSED). ZARIA.01 has no mixed pipe/comma clause
+    - its eight pipe-rows are all the single-name `=|K_ANY` -
+    which read identically under the new grammar, and the
+    climb chain, the ASK legs and the whole fixture suite are
+    byte-identical (measured). What the replacement leaves
+    open is the empty-set pair of questions, now OI-115.
     PR-262 withdraws the PR-260 sentence above ("RAISED BITS
     ARE NEVER LOWERED") and with it the first paragraph's
     claim that the climb ends on this port's clear. Re-read
@@ -2372,12 +2378,13 @@ OI-113: the engine control bit table is read (PR-230) and the
     shared walk 0x4b500. CHECK_BASE_LN is 0x4000 (0x51ca9),
     not 0x400000; CHECK_ALL_PLANE is 0x8000 (0x51d2b).
 
-OI-114: the OPERATION byte of a compiled transition condition is
-  read end to end (PR-261) and the K_ANY half of it is ported
-  (PR-263); the operation itself is still not modelled: one
-  mask plus one op (0 all, 1 none, 2 exactly, 3 any), where
-  this port splits '|' into AND-groups
-  status: PARTIAL
+OI-114: the OPERATION byte of a compiled transition condition was
+  read end to end (PR-261), its K_ANY half ported (PR-263),
+  and the operation itself ported (PR-264): one mask plus one
+  op (0 subset, 1 disjoint, 2 equal, 3 intersects) tested by
+  both evaluators against a composed live set - the port's
+  AND-group grammar is gone from the match
+  status: CLOSED BY PR-264
   origin: PR-261 (the mechanism itself is OI-111 items (1) and
     (2); what is new here is the compiler path, the corpus
     census, and the K_ANY consequence)
@@ -2465,3 +2472,83 @@ OI-114: the OPERATION byte of a compiled transition condition is
     open in this row: item (a), carrying the operation instead
     of the group split - the 7 clauses that mix '|' with a ','
     list still read differently here - and the K_NEVER mask.
+    PR-264 does that item (a) and closes the row. THE MATCH,
+    followed into its arms: 0x47e40 reads the byte (`mov al,
+    [eax+0xc] / cmp al,3 / ja` to the error word 0xa92d4,
+    0x47e4b-0x47e50) and jumps through the four-entry table
+    at 0x47e30. Arm 0 (0x47e63) ANDs the two sets through the
+    AND method 0x49550 (dword loop 0x49559-0x4956a) and
+    requires the AND byte-identical to the CLAUSE mask
+    (`repz cmps` 0x47ec1): a SUBSET, every name it names is
+    up. Arm 1 (0x47edc) runs the same AND and hands it to the
+    empty-test 0x495b0 (0x47f35): DISJOINT. Arm 2 (0x47fb2)
+    `repz cmps` of the two masks: EQUAL. Arm 3 (0x47f42) runs
+    the AND, hands the copy to the empty-test 0x495b0 at
+    0x47f9b and answers `sete` of it (0x47fa2): INTERSECTS.
+    The op chain gains one detail: a token whose first char
+    is alnum (the ctype-table
+    `test BYTE PTR [edx+0xa68b4],0xc0` at 0x47da9) goes
+    straight to the name path, so an operator is its OWN
+    token; one byte per clause, last write wins. CENSUS,
+    re-run: all 47 pipe clauses LEAD a comma list - the 7
+    mixed ones are ENA.03:551/575 `|K_JUMP,K_UP`, ENA2:213
+    `|K_FWD,AC_BREAK_NEXT`, KADMAR.07:660 `|K_GEN1,
+    AC_BREAK_NEXT`, KADMAR2:288 `|AC_DUP,AC_TIME`, ZARIA.02
+    LEW:119/LEWPL:116 `|K_GEN1,AC_BREAK_NEXT` - no '!'
+    clause combines with a ',' and none uses '*', so the
+    shipped corpus exercises operations 0 and 1 ONLY and the
+    only rows whose reading changes are those 7. THE PORT:
+    ll_mov_tr carries `op`, parse_cond writes it the way
+    0x47d60 does (the row-clause capture passes NULL);
+    ll_mov_tr_mask (ll_play.c) builds the clause mask - each
+    name's bit, K_ANY's REPLACE, K_NEVER's union, an
+    unresolved name nothing; cond_true and obj_cond_true
+    answer with the four arms over a composed live set (the
+    lion's p->sig plus the facing-relative keys plus the
+    broke/ac_time bits, mirroring what 0x54910 and the rows
+    put into [obj+0x60]; the object's o->sig plus the brk
+    bit). Red legs: the `|K_JUMP,K_UP` play pair (K_UP alone,
+    K_JUMP alone) and the object pair (`|AC_TIME,AC_EDGE`
+    must take a lone raised AC_TIME; `=!AC_TIME,AC_ONAIR`
+    must take a set holding only AC_EDGE) - all red at HEAD,
+    green now. The whole fixture suite, ZARIA.01's climb legs
+    included, is byte-identical: none of the 7 clauses is
+    driven anywhere. The two empty-set questions this
+    replacement makes visible are now OI-115; the K_NEVER
+    mask has no model action (counted: no shipped clause
+    names it) and stays recorded there.
+
+OI-115: whether the engine's transition pass runs on an EMPTY
+  composed set is half-read (PR-264: nothing between the step
+  and the match guards it); what an EMPTY compiled mask
+  matches, and this port's `(o->sig || brk1)` gate, are open
+  status: OPEN
+  origin: PR-264 (the match arms, the mask builder and the
+    operation port are OI-114, CLOSED; what is new here is
+    the empty-set pair the replacement makes visible)
+  notes: (a) PR-264 read the walk: 0x536f0 composes
+    [obj+0x60] (0x53705-0x5370c, 0x5371c-0x53725) and calls
+    `[obj.vmt+0x54]` at 0x53733 with NO test of the set;
+    0x53520 copies the 13 bytes and calls the walker 0x52000
+    at 0x5356b, and 0x52000 walks EVERY entry calling
+    TEventSet::match 0x47e40 on each (0x52024-0x5203a) -
+    no empty-test on that path (0x495b0 is called by match's
+    own arms, 0x47f35/0x47f9b). What is NOT read: which
+    method [vmt+0x54] is for the .MOV state-record class
+    (0x53520's address appears at no data site, PR-261
+    counted), and whether that method adds a guard. Until
+    then the port keeps its object-side gate - obj_advance
+    calls obj_transition only when `o->sig || brk1` - while
+    the lion's loop asks every iteration (ll_play.c:1303).
+    Dropping the gate would make shipped `!`-rows of scene
+    objects (e.g. `A_FALL_DOWN(1)=!AC_DRAB`-shape lines)
+    fire on every clean step; that is the engine's answer IF
+    [vmt+0x54] is 0x53520, and it moves level numbers, so
+    it needs its own read plus its own legs.
+    (b) a clause whose names are ALL in no table compiles to
+    an empty mask, and the subset arm takes it VACUOUSLY;
+    both evaluators now carry `if (!mask) return 0;` - the
+    PR-88 convention kept, and counted: no shipped clause
+    does it. (c) operation 2 ('*') and the K_NEVER mask are
+    implemented but no shipped clause writes either; unit
+    fixtures only.
