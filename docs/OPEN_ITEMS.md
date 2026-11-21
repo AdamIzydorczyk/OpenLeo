@@ -627,8 +627,11 @@ OI-078: the in-game ZARIA.01 climb, now MOVING to the top at
   transition pass 0x53520 memsets the 12 mask bytes at
   0x5358e, one call after the apply - the per-iteration
   `p->sig = 0` / `o->sig = 0` is the engine's law, not this
-  port's stand-in): the lead is the top of a climb,
-  `A_PODCIAG(1)=AC_EDGE,K_UP` with AC_EDGE unmodelled (what
+  port's stand-in): the lead was the top of a climb,
+  `A_PODCIAG(1)=AC_EDGE,K_UP` with AC_EDGE unmodelled - PR-267
+  measures that away (the ladder's own answer verb is dead by
+  construction) and moves the lead to the six counted AC_EDGE
+  raisers (what
   raises K_GEN1 was PR-257: the lion's own rows, and
   `A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR` is CLOSED as a non-lead,
   PR-258), the authored rectangle
@@ -1568,6 +1571,28 @@ OI-078: the in-game ZARIA.01 climb, now MOVING to the top at
     inert duplicates here; they matter only if a raise ever
     lands between the pass and the switch.
 
+    PR-267 removes this row's AC_EDGE lead by measurement and
+    opens a new one. The ZARIA.01 ladder's class (DRABINKA)
+    is built at 0x1f8ac: its [obj+0xc5] block - the one P1 of
+    its answer verb 0x3f1c0 tests, the branch that would
+    answer AC_EDGE - is four ZEROS, and no site in the image
+    writes it again; its [obj+0xb1] block is (1,1,1,1). The
+    predicate 0x23e00 is inclusive, so for any real position
+    P1 and P2 are both false and the verb takes the inert
+    exit 0x3f364: a placed ladder answers NOTHING, in any
+    state. (The class's +0x8c collector is 0x23a60, the
+    empty-set stub, so it raises nothing of its own either.)
+    Counted, exactly six sites in the image raise AC_EDGE:
+    the two answer verbs' P1 branches (0x3f24d, 0x3f41d -
+    dead as above), the position-comparison pair 0x27ea3 /
+    0x2811c, which also raise K_GEN1/K_GEN2 at 0x28127-
+    0x2812a, the rect test at 0x3c2d3, and one self-raise
+    0x41aa0 (`lea eax,[ecx+0x60] / or BYTE PTR [eax+1],1`)
+    gated by an fcmp of the floats [ecx+0x10b] / [ecx+0x12f]
+    and [ecx+0x5c] == 1. None of the six is in the lion's own
+    0x96874 or any TLew* table. NEW LEAD: which of those
+    owners sits at the top of the ZARIA.01 ladder - start at
+    0x41aa0. See OI-117 for the blocks.
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
   recovery on the next input?)
@@ -2623,3 +2648,31 @@ OI-116: who raises the F-family (K_F1..K_F12) and K_FIRE, and
     occurrences can never match here. No climb row in the
     ZARIA.01 chain names an F-signal, so OI-078's lead is
     unchanged.
+OI-117: the answer verb's two rectangles: this port builds
+  them from the object's own shape element, the engine's are
+  class-ctor constants (the DRABINKA's are (1,1,1,1) and
+  (0,0,0,0)), so its verb answers nothing at all
+  status: OPEN
+  origin: PR-267 (reading the DRABINKA class to its
+    constructor)
+  notes: `ladder_answer_core` (ll_level.c:5204) takes `edge`
+    = the P1 block and `rung` = the P2/P3 block, and both are
+    derived in this port from `obj_shape_elem` - the current
+    row's element box positioned at the object, the same path
+    play_collide uses. That is what the pinned legs print:
+    `...213,507 ... 168,517..215,583 -> no` (Makefile:1835)
+    and the mirror at 1874. The engine has no such derivation
+    for this class: both ctors (0x1f8ac-0x1f962 and
+    0x4e822-0x4e8cb) install the blocks as constants, the
+    [obj+0xc5] one is never written again anywhere in the
+    image (five references, three of them reads inside the
+    two verbs), and no function reachable from the class
+    table 0x97cdc calls the parameter parser 0x49920, while
+    other classes do parse ` damage`/` up` into that field
+    region (0x2e051, 0x30167, 0x30189). So a placed DRABINKA
+    takes P1 false, P2 false, the inert exit at 0x3f364, for
+    every position - and this port's legs agree in outcome by
+    a different route. OPEN: which classes DO get real blocks
+    (the sibling verb 0x3f390 is held once, at 0xa1e74), and
+    whether any authored field fills them. Nothing in the
+    suite moves today: both in-game asks are pinned `-> no`.

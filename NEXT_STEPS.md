@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-267.
+> at PR-268.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -36947,5 +36947,172 @@ raises six names - 35, 36, 37, 38, 40, 53 - and never 39
 K_FIRE, so K_ANY's mask is not that bridge's output; and the
 lion's collector is not 0x54910 but 0x504e0, which calls
 0x54910 and unions one F-signal onto it.
+GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-267 — ZARIA.01'S LADDER CLASS, READ TO ITS CONSTRUCTOR:
+## ITS AC_EDGE BRANCH IS DEAD BY CONSTRUCTION, AND SIX SITES
+## RAISE AC_EDGE IN THE WHOLE IMAGE
+```
+KIND: read
+SUBSYSTEM: the object the ZARIA.01 climb stands on - the
+DRABINKA class (its factory branch, its constructor, its two
+rectangle blocks, its answer verb 0x3f1c0) - and the complete
+list of places that raise AC_EDGE (bit 8).
+ADDRESSES: 0x129ac, 0x1349d, 0x1f8ac, 0x1f8c5, 0x1f8d4,
+0x1f8de, 0x1f8e9, 0x1f8f3, 0x1f8f9, 0x1f903, 0x1f90f, 0x1f91a,
+0x1f922, 0x1f925, 0x1f93a, 0x1f941, 0x1f947, 0x1f951, 0x23a60,
+0x23a67, 0x23a74, 0x23a79, 0x23e00, 0x23e03, 0x23e07, 0x23e80,
+0x23e85, 0x23ea0, 0x23f00, 0x27ea3, 0x2811c, 0x28127, 0x2812a,
+0x2e051, 0x2e058, 0x2e9ce, 0x30167, 0x30174, 0x30189, 0x3c2d3,
+0x3f115, 0x3f159, 0x3f228, 0x3f24d, 0x3f278, 0x3f2dc, 0x3f313,
+0x3f355, 0x3f364, 0x3f390, 0x3f3f8, 0x3f41d, 0x3f448, 0x3f5ec,
+0x3f680, 0x41aa0, 0x49920, 0x4e822, 0x4e831, 0x4e845, 0x4e862,
+0x4e87a, 0x4e881, 0x4e88c, 0x4e8ba, 0x4e8c4, 0x4e8cb, 0x531f0,
+0x536f0, 0x53df0, 0x550a0, 0x5c320, 0x749a0, 0x76a69, 0x906ff,
+0x90bad, 0x90de8, 0x90df6, 0x96874, 0x97cd4, 0x97cdc,
+0x97f50, 0x98274, 0xa1e74
+NAMES: OI-078, OI-115, OI-116, OI-117, DRABINKA, KDRABINA,
+the class behavior table, the answer verb, the P1/P2/P3 tree,
+[obj+0xb1], [obj+0xc5], the empty-set collector, AC_EDGE,
+AC_DRAB, AC_DRAB_CATCH, K_GEN1, K_GEN2, ladder_answer_core,
+pt_in_blk, blk_probe70, PR-106, PR-146, PR-149, PR-216,
+PR-255, PR-257, PR-266
+CODE: no: no line of `ported/` changes. What this record
+found - that the two blocks the answer verb tests are
+class-ctor constants, and that the AC_EDGE branch is
+therefore dead for every object of this class - changes no
+outcome the suite observes (both ladder-ask legs already
+assert `-> no`), and the divergence it exposes goes to OI-117
+with its own legs.
+HOOKS: no red leg: nothing in `ported/` moved. Everything
+below is read from the image - the disassembly at adjust-vma
+0x10000, the data dumped byte-wise, and counted greps over
+the whole image - plus the two existing ladder-ask legs,
+whose pinned text this record quotes rather than re-derives.
+MEASURED: (a) THE CLASS, TOP TO BOTTOM. The factory branch
+0x1f8ac: strcmp against 0x906ff = `DRABINKA` (0x76a69),
+allocate 0xd9 (0x5c320), `call 0x531f0` (the class ctor),
+then the branch itself writes [obj+0xa5] = 0, [obj+0xa9] = 0,
+[obj+0xad] = 0x97f50, and two BLOCKS: at [obj+0xb1] four
+dwords 1,1,1,1 with the shape interface installed at
+[obj+0xc1] = 0x98274; at [obj+0xc5] four dwords 0,0,0,0 with
+[obj+0xd5] = 0x98274 (0x1f903-0x1f941); then the behavior
+table: [obj+8] = 0x97cdc and [obj+0xc] = 0x97cd4 (0x1f947,
+0x1f951) - the table this port already names (ll_level.c:5122
+`table 0x97cdc, +0x78 = 0x3f1c0`). A SECOND constructor
+0x4e822-0x4e8cb builds the same class (same 0xd9 size, same
+ctor 0x531f0, same table 0x97cdc) with the [obj+0xb1] block
+filled through the 4-argument shape setter 0x23e80 from its
+own arguments, which are 1,1,_,1 (0x4e856, 0x4e862, 0x4e877,
+0x4e881), and the [obj+0xc5] block zeroed again (0x4e891-
+0x4e8ba). The shape array at 0x98274 has four entries:
++0x04 0x23ea0 (`[p]=x; [p+4]=y`), +0x08 ..., +0x0c 0x23e00 =
+the point-in-rect predicate this port ports as pt_in_blk
+(PR-106: `p[0] in [q0..q2]` and `p[4] in [q1..q3]`, signed,
+INCLUSIVE on both axes, 0x23e03/0x23e07).
+(b) THE TABLE IS ONE ARRAY WITH SEVERAL INTERFACES, and the
+step is one of its verbs. 0x97cdc read as dwords: +0x04 =
+0x23ea0, +0x08 = 0x23e00 (the shape verbs), +0x14 = 0x536f0,
++0x28 = 0x52a90, +0x2c = 0x53d80, +0x54 = 0x53df0, +0x78 =
+0x3f1c0, +0x8c = 0x23a60. So the object step this session
+read (PR-262/PR-265) is itself a slot, at +0x14, and
+`call DWORD PTR [reg+0x14]` sites exist (0x129ac, 0x1349d,
+0x2e9ce, 0x3f5ec, 0x3f680).
+(c) A THIRD COLLECTOR FAMILY, and this class is in it:
++0x8c = 0x23a60, whose whole body is `mov BYTE PTR
+[edx+0xc],0x0` plus memset(edx,0,12) (0x23a6e-0x23a74) and
+`mov eax,[esp]` back: it returns an EMPTY set. Objects of
+this family raise nothing of their own; 34 of the 408 tables
+carry it (KDRABINA, POCISK, SOPEL, SKJUMP, KOLUMNA, ...).
+This family's +0x54 hook is 0x53df0, not 0x55070.
+(d) THE ANSWER VERB AND ITS BLOCKS. 0x3f1c0 (slot +0x78,
+called with eax = self, ebx = the asker, edx = the answer
+set): state gate [self+0x5c] == 2 (PR-216); P1 (0x3f228-
+0x3f24d) = the asker's point in [self+0xc5] -> the answer is
+AC_EDGE ALONE; P2 (0x3f256-0x3f2a4) = the point in
+[self+0xb1..0xbd] at full extent, FALSE -> inert (0x3f364);
+P3 (0x3f2dc-0x3f355) = the point in that block inset to its
+middle 70% (n = 0x46 at 0x3f278) -> AC_DRAB|AC_DRAB_CATCH,
+else AC_DRAB alone. This port models it as ladder_answer_core
+(ll_level.c:5204-5241) with the SAME three steps. The sibling
+verb 0x3f390 (held once, at 0xa1e74 - another class) is the
+same tree with n = 0x32 (0x3f448) and its own AC_EDGE branch
+at 0x3f41d.
+(e) THE MEASURED CONSEQUENCE: for THIS class both blocks are
+constants, so the verb answers NOTHING, in any state, at any
+position. [self+0xc5] is (0,0,0,0) from both ctors and is
+never written again: the image contains FIVE references to
++0xc5 in all - 0x3f159, 0x3f228, 0x3f3f8 (all `lea`, all
+reads, all inside the two verbs) and 0x1f91d / 0x4e88c (the
+ctors' own zero-fill). The [obj+0xb1] block is (1,1,1,1) or
+(1,1,_,1); its 29 write sites in the image belong to other
+classes' ctors and to the per-class parameter parsers - which
+do exist and do fill this field region: 0x2e051 sscanf's
+` damage = %d` (0x90bad) into [obj+0xb1], and 0x30167/
+0x30174/0x30189 parse ` damage` (0x90de8) into [obj+0xb1] and
+` up = %d` (0x90df6) into [obj+0xee], the format-string pool
+at 0x90b80-0x90e5d being the authored per-class grammar
+(`damage`, `energy`, `up`, `fire`, `v_bounds`, `cord`, `dir`,
+`ident`, `number`) - but NOT ONE function reachable from
+0x97cdc's slots calls the parser 0x49920 (every slot function
+scanned, 0x400 bytes each: zero hits). With pt_in_blk
+INCLUSIVE, a point lies in (0,0,0,0) or (1,1,1,1) only at
+those coordinates, so P1 and P2 are both FALSE for a lion
+standing at, say, (213,507): the verb takes the inert exit.
+The port's two pinned legs agree in OUTCOME - `play tick 119:
+asked ladder DRABINKA/drab.mov at state [23]: ... 213,507 ...
+168,517..215,583 -> no` (Makefile:1835) and the mirror at
+1874 - but by a different route: the port hands P1/P2 blocks
+built from the object's own shape element (the `168,517..
+215,583` in the leg text), the engine hands (0,0,0,0) and
+(1,1,1,1). That divergence is OI-117.
+(f) EVERY RAISER OF AC_EDGE IN THE IMAGE, counted: exactly
+six sites set bit 8 of a set. Two are the answer verbs' P1
+branches, 0x3f24d and 0x3f41d, dead as shown above. Two are
+inside one comparison family that works on the object's own
+position fields: 0x27ea3 (`esi = [obj+0x126] - its
+counterpart's x`, `test esi,esi / jl` then the or) and
+0x2811c (`eax = [obj+0x126] - [that].x`), and the SAME
+function raises K_GEN1/K_GEN2 two instructions later -
+0x28127 `cmp [obj+0x112],0` / 0x2812a `sete al / add al,0x36`
+(54/55). One, 0x3c2d3, ors bit 8 into a stack set after a
+rect test against [esi+0x50]. The last, 0x41aa0, is the only
+one that raises AC_EDGE INTO ITS OWN OBJECT'S SET - `lea eax,
+[ecx+0x60] / or BYTE PTR [eax+1],1` - and it is gated by an
+fcmp of two FLOATS, [ecx+0x10b] against [ecx+0x12f]
+(0x41a8c-0x41a9b), plus [ecx+0x5c] == 1 at 0x41ab1. None of
+the six belongs to the lion's own class table 0x96874 or to
+any TLew* table. So the AC_EDGE that ZARIA.01's
+`A_PODCIAG(1)=AC_EDGE,K_UP` needs comes from an object the
+lion stands on, and which of these owners it is - above all
+0x41aa0, the float-gated self-raiser - is the lead now.
+OPENS: in order: (i) the owner of 0x41aa0's function and of
+the 0x27ea3/0x2811c family (what classes, what [obj+0x10b]/
+[obj+0x12f] floats are), matched against the objects ZARIA.01
+places at the top of the ladder - this is OI-078's new lead;
+(ii) OI-117, the answer verb's blocks: this port feeds P1/P2
+from its own element box, the engine's are class-ctor
+constants, and no authored parameter fills them for this
+class; (iii) OI-116, the F-family and the missing K_FIRE
+raiser; (iv) OI-115 (b), the empty compiled mask; (v) the
+entry's +0x11 downstream and 0x53815's four-field reader;
+(vi) a raise landing between the pass and 0x535a0; (vii) the
+rest of the OI-078 list unchanged.
+CLOSES: OI-078's "AC_EDGE unmodelled" lead for the ladder:
+the engine's ladder never raises AC_EDGE either - its answer
+verb is dead by construction - so the port's ladder model is
+not the missing piece, and the search moves to the raiser
+census at (f).
+CORRECTS: PR-266 (c)'s "the step 0x536f0 has exactly ONE
+caller, 0x550b4 inside 0x550a0": true of DIRECT calls, but
+0x536f0 is also a class verb - it sits at +0x14 of the
+0x97cdc family tables, and `call DWORD PTR [reg+0x14]` sites
+exist. PR-266 (b)'s two-collector list is incomplete: a third
+family (34 tables, this class among them) has +0x8c = 0x23a60,
+the empty-set stub, so those objects have no signal collector
+at all. And this port's own model note (ll_level.c:5057) is
+right that P1 tests [self+0xc5] but never asked what that
+block holds: for this class it is four zeros.
 GATE: light: verify-index verify-docs rc=0 (ok);
 ```
