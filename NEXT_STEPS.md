@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-266.
+> at PR-267.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -36768,4 +36768,184 @@ GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named (the 23rd SKIP
 line is the cmake-windows parity check, which names its own
 reason: no vendor/SDL2-2.32.10/x86_64-w64-mingw32 prefix
 in this tree)
+```
+
+## PR-266 — [obj+8] IS THE CLASS BEHAVIOR TABLE: THE FACTORY
+## INSTALLS IT, THE +0x8c SLOT IS THE CLASS'S SIGNAL COLLECTOR
+## (0x54910 / 0x504e0), AND THE ENGINE'S OWN NAME POOL IS IN
+## BIT ORDER
+```
+KIND: read
+SUBSYSTEM: what the object step's un-named calls through
+[obj+8] are - the class behavior table, the per-class signal
+collectors that fill [obj+0x60], and the name table that
+decides every condition token's bit (this port's LL_SIG_*).
+ADDRESSES: 0x3ee18, 0x48009, 0x48019, 0x4804f, 0x4805f,
+0x48087, 0x48097, 0x480d4, 0x48b0a, 0x49071, 0x49081, 0x494f4,
+0x49541, 0x49543, 0x49580, 0x495b0, 0x504b0, 0x504e0, 0x504ee,
+0x504f1, 0x50504, 0x50514, 0x50526, 0x50530, 0x50542, 0x50634,
+0x50648, 0x5064e, 0x50653, 0x5065b, 0x5068c, 0x506a8, 0x506d6,
+0x506ee, 0x524a0, 0x524ba, 0x52508, 0x52a90, 0x52a99, 0x52ab2,
+0x536f0, 0x536f8, 0x536ff, 0x5370c, 0x5371c, 0x53725, 0x5372a,
+0x53733, 0x53750, 0x53755, 0x5375d, 0x539d4, 0x53d80, 0x53d97,
+0x53d9c, 0x541f0, 0x544f0, 0x54910, 0x54931, 0x5493a, 0x5493f,
+0x5494d, 0x54956, 0x5495b, 0x54964, 0x5496b, 0x5496e, 0x5499d,
+0x549a6, 0x549ab, 0x549b4, 0x549d1, 0x55070, 0x55075, 0x5507e,
+0x55084, 0x5508c, 0x55096, 0x550a0, 0x550b4, 0x5c320, 0x62e40,
+0x62e59, 0x62e67, 0x749a0, 0x76a69, 0x906fa, 0x919ec, 0x919f5,
+0x919fb, 0x91a06, 0x91a0e, 0x91a20, 0x91b60, 0x91b86, 0x91bc5,
+0x91c5e, 0x96874, 0x96960, 0x96fd8, 0x97bc0, 0xa25d4, 0xa348c
+NAMES: OI-115, OI-116, the class behavior table, [obj+8], the
+signal collector, the F-family, K_F1, K_F12, AC_EV_MAX,
+AC_K_ANY, AC_K_NEVER, TLewZaria, TLewZariaB, SEP2, ARMATA,
+[obj+0xa5], [obj+0xb6], [obj+0xba], [obj+0xbe], [obj+0xee],
+ds:0xcef5c, live_bits, LL_SIG_*, OI-078, PR-101, PR-217,
+PR-259, PR-262, PR-263, PR-265
+CODE: no: no line of `ported/` changes. The three gaps this
+record counts - the F-family's source, the name of K_FIRE's
+raiser, and the twelve control/global tests - each need their
+own legs; they go to OI-116, not into a read record.
+HOOKS: no red leg: nothing in `ported/` moved. Every claim
+below is read from the image (a disassembly of
+build/leo/leo.img at adjust-vma 0x10000 plus a byte dump of
+its data) or counted over the 777 captured .MOV texts.
+MEASURED: (a) WHAT [obj+8] IS. The step keeps the object in
+ecx and reads [ecx+8] four times - 0x536f8 (then +0x8c at
+0x536ff), 0x5372a (then +0x54 at 0x53733), 0x53750 (+0x54
+again at 0x53755), 0x53758 (+0x28 at 0x5375d). [obj+8] is a
+PLAIN DATA ARRAY of code pointers, stride 4: read the SEP2
+class's table 0x96fd8 as bytes and its entries are
++0x28 -> 0x52a90, +0x2c -> 0x53d80, +0x54 -> 0x55070,
++0x8c -> 0x54910, +0x98 -> 0x23a50, +0xb0 -> 0x544f0. So
+the slots the step calls are compile-time data, which is why
+PR-265 found no code site storing a function address into
+them. Installed at construction, counted 408 sites of the
+shape `mov [reg+8],0x9xxxx`; in 312 of them a companion
+`mov [reg+0xc],<same table - 8>` follows within 3
+instructions - always that same base minus 8 - and in the
+other 96 it is not adjacent. The pattern around
+one (0x1f872-0x1f8a2): compare a class-name string with
+0x76a69 (verified: walks two strings, returns the
+difference), `mov eax,0x12c / call 0x5c320` (the allocation
+helper: size in eax, calls 0x7521f), `call 0x62e40` (the
+base object ctor: calls 0x3ff70, zeroes +0x120/+0x124,
+installs 0x97bc0/0x97bb8 and then 0xa348c/0xa3484 at +8/
++0xc), then the override. 138 of the 408 installs name to a
+class string that way; they are the level scripts' class
+names (ARMATA, BRAMA, KALAMARN, SEP2, ...) and the player's
+own (TLewZaria, TLewZariaB, TLewEna2, TLewKadmar2,
+TLewKara, TLewJunction, TLewTunga1). The step 0x536f0 has
+exactly ONE caller: 0x550b4, inside 0x550a0 (which zeroes
+[obj+0xe6]/[obj+0xea] and enters the step); 0x550a0 is the
+shared advance-entry, called from 10 sites.
+(b) THE +0x8c SLOT IS THE CLASS'S SIGNAL COLLECTOR, and it
+differs by class: 0x54910 in 207 of the 408 tables (the
+scene-object families), 0x504e0 in the 18 tables of the
+TLew* classes. 0x54910 builds a 12-byte set from the object
+OWN fields: [obj+0xa5] bit 0x1 -> 35, bit 0x10 -> 40, bit
+0x20 -> 53; if [obj+0xba] != 0 then [obj+0xb6] bit 0x10 ?
+36 : 35 (`sete al / add al,0x23`, 0x54964-0x5496e); [obj+
+0xbe] < 0 -> 37 (0x549a6), > 0 -> 38 (0x549b4). It writes
+13 bytes (the 12 bits plus the byte at +0xc) into the
+caller's out-param and returns it (0x549c1-0x549db) - the
+same 13-byte shape PR-260 read. 0x504e0 (the lion classes)
+first calls [[obj+8]+0xf8] and tests it (0x504ee-0x504f9);
+then twelve tests of the form (`[obj+0xa5]/[0xa6]/[0xa7]`
+bit set AND `ds:0xcef5c..0xcef80` != 0) each store an index
+0..11 at [obj+0xee], last match wins (0x50514-0x50631);
+then `cmp [obj+0xee],0xb / ja` and `jmp cs:[eax*4+0x504b0]`
+(0x5064e-0x50653) into a 12-case table whose entries
+0x5065b..0x506a8 OR exactly one bit into a fresh 12-byte
+set - index i -> bit 41+i, i.e. K_F1..K_F12; then it calls
+0x54910 on the same object (0x506d6) and merges the two
+sets with 0x49580 (0x506ee). So a lion step's live set =
+the field-derived set UNION at most one F-signal. What the
++0xf8 slot means is NOT read: 0x96fd8's is the advance-entry
+0x550a0, TLewZaria's (0x96960) is 0x1e2f0 = `return [obj+
+0xee] == 2 || == 3`, and 0x96874's is 0x22f10 = `return ds:
+0xceba4`.
+(c) THE +0x54 SLOT IS 0x55070 and it holds no guard: its
+whole body is three calls - [[tbl]+0xb0] (0x544f0) with
+edx = &obj+0xd6, 0x541f0 with edx = &obj+0x89, and [[tbl]+
+0x98] (0x23a50) - with no test of [obj+0x60] anywhere
+(0x55070-0x5509f). PR-265's finding holds at this level
+too: the two calls that bracket the pass and the apply are
+themselves unguarded. The +0x2c slot (called at spawn,
+0x539cf-0x539d4, with edx = [obj+8]) is 0x53d80: `mov eax,
+0x28 / call 0x5c320 / call 0x56620(edx=1) / mov [obj+0x54],
+eax` - it FILLS the object's [obj+0x54] field with a
+40-byte sub-object. The +0x28 slot 0x52a90 calls [[tbl]+
+0x30], compares with ds:0xcf0e4, calls [[tbl]+0x20], negs
+and adds 0x17c and clamps to 0xff (0x52a99-0x52ac3): a
+frame/index computation, read no further. The other
+[[reg+0x8c]] call site in the image is 0x3ee18, inside a
+short function that merges a set into [[ecx+0x3c]+0x60] and
+returns - not the step.
+(d) THE NAME POOL IS IN BIT ORDER, and this port's table
+matches it exactly. The resolver is one unrolled chain of 73
+strcmp calls through 0x76a69 from 0x48000 to 0x49540: first
+0x919ec AC_K_ANY / 0x919f5 K_ANY -> dword 1 |= 0x2001f8
+(PR-263's mask), then 0x919fb AC_K_NEVER / 0x91a06 K_NEVER
+-> byte 4 |= 0x60, then 69 names from 0x91a0e to 0x91c5e,
+each branch storing its OWN hardcoded index - AC_BLOK 0 ...
+AC_KOLO 34, K_BKWD 35 ... K_ALT 40, K_F1 41 ... K_F12 52,
+K_JUMP 53, K_GEN1 54 ... K_GEN5 58, AC_PLAT_OFF 59 ...
+AC_DISAPPEAR 67, AC_EV_MAX 68 (spot-checked: the K_JUMP
+branch at 0x49071 stores 0x35; the AC_BREAK_NEXT branch is
+0x48121 = entry 2). An unknown token falls through to 0x49541
+`xor edx,edx` - no bit set, "not found" - and the K_ANY
+branch jumps to 0x49543, past that zeroing, i.e. it reports
+"found". The pool order IS the bit order, and it reproduces
+every number of this port's LL_SIG_* table (ll_play.h:243-
+266, PR-217) name for name: 0..34, 35..40, 41..52, 53,
+54..58, 59..67, 68 = AC_EV_MAX. It also shows two spellings
+this port does not accept, AC_K_ANY and AC_K_NEVER; counted,
+0 shipped clauses use them.
+(e) THE F-FAMILY'S REACH, counted over the 777 texts: 199
+active condition lines name K_F1..K_F12 (K_F1 111, K_F2 55,
+K_F3 14, K_F4 7, K_F6 1, K_F7 1, K_F8 2, K_F10 1, K_F12 7)
+in 12 files, and every one of those 12 is a lion text - 10
+`*_LEW*` files plus KADMAR.07_0_0's player-shaped block;
+ZARIA.01's two lion texts carry 24 each. No scene-object
+text names an F-signal, which fits (b): 0x54910, the scene
+classes' collector, raises none. This port raises K_F1..K_F4
+from the raw F1..F4 keys (ll_play.c:1108-1118) and never
+raises K_F5..K_F12, so those 12 name occurrences can never
+match here, and the 187 others match from a different input
+than the engine's. Recorded as OI-116.
+OPENS: in order: (i) the top of a climb, AC_EDGE / A_PODCIAG
+(OI-078's lead, unchanged by this record: no climb row names
+an F-signal); (ii) OI-116 - the F-family's source: what
+[obj+0xa5]/[0xa6]/[0xa7] are and who writes them, what the
+twelve globals ds:0xcef5c..0xcef80 hold (one writer is the
+indexed store at 0x39df4/0x39e03), and what [obj+0xee]
+means; (iii) who raises K_FIRE 39 - 0x54910 does not raise
+it, yet ZARIA.01's texts name it 56 times, so a second
+writer of [obj+0x60] exists and is un-named; (iv) OI-115
+(b), the empty compiled mask; (v) the entry's +0x11
+downstream and 0x53815's four-field reader (PR-261 (iii));
+(vi) a raise landing between the pass and 0x535a0 (PR-262
+(d)); (vii) the rest of the OI-078 list unchanged.
+CLOSES: OI-115 (d) - what [obj+8] is (the class behavior
+table, installed by the name-comparing factory) and which
+methods answer its +0x8c (the collector: 0x54910 generic,
+0x504e0 for the lion classes), +0x54 (0x55070, three calls,
+no guard), +0x28 (0x52a90) and +0x2c (0x53d80) slots. Also
+settles the name question PR-263 left: the bit numbers are
+the pool order at 0x91a0e, and this port already agrees with
+all 69.
+CORRECTS: PR-265 (d)'s wording. It spoke of "the base record
+ctors ZERO +0x54 (0x524ba, 0x52548)" while asking about the
+step's slots: those two stores zero the +0x54 of the .MOV
+STATE-RECORD class (the same ctors store the 0xa25d4 table
+at +0x44, PR-101), while the step's calls go through the
+SCENE OBJECT's table [[obj+8]+0x8c / +0x54 / +0x28] - two
+different +0x54 slots, and the object's own +0x54 is a
+heap pointer filled by 0x53d80, not a function. PR-263's
+"bit-identical to what input bridge 0x54910 raises": 0x54910
+raises six names - 35, 36, 37, 38, 40, 53 - and never 39
+K_FIRE, so K_ANY's mask is not that bridge's output; and the
+lion's collector is not 0x54910 but 0x504e0, which calls
+0x54910 and unions one F-signal onto it.
+GATE: light: verify-index verify-docs rc=0 (ok);
 ```

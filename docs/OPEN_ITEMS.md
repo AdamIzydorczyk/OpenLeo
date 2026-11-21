@@ -2518,11 +2518,11 @@ OI-114: the OPERATION byte of a compiled transition condition was
     mask has no model action (counted: no shipped clause
     names it) and stays recorded there.
 
-OI-115: the transition pass was proven UNCONDITIONAL - the
-  empty composed set still asks - and the port's object-side
-  gate is gone (PR-265); what [obj+8] is and what its
-  +0x8c / +0x54 / +0x28 / +0x2c methods do, what an EMPTY
-  compiled mask matches, and the no-data operations stay open
+OI-115: the transition pass was proven UNCONDITIONAL (the
+  empty composed set still asks, PR-265) and [obj+8] is now
+  named - the class behavior table, with its +0x8c collector
+  and +0x54 method read (PR-266); what an EMPTY compiled mask
+  matches, and the no-data operations stay open
   status: OPEN
   origin: PR-264 (the match arms, the mask builder and the
     operation port are OI-114, CLOSED; what is new here is
@@ -2554,16 +2554,29 @@ OI-115: the transition pass was proven UNCONDITIONAL - the
     paragraph when the row opened is a LION row, and the
     lion side never had a gate (ll_play.c:1302-1303, one
     ungated cond_true call site).
-    (d) NEW LEAD: what [obj+8] is, and which methods answer
-    its +0x2c (spawn, 0x539d4), +0x8c (0x536ff), +0x54
-    (0x53733 and 0x53755) and +0x28 (0x5375d) slots. The
-    base record ctors ZERO +0x54 (0x524ba, 0x52548); NO
-    immediate stores a function address into those slots
-    (counted); register stores exist at 0x2e57c, 0x32700,
-    0x3808f (+0x54) and 0x5f483, 0x5ffa9 (+0x8c) whose
-    families are unattributed. That read names the last
-    un-named calls on the step; the +0x8c set-builder and
-    +0x90 slot of PR-262 are part of the same family.
+    (d) CLOSED at PR-266. [obj+8] is the CLASS BEHAVIOR
+    TABLE: a plain data array of code pointers (stride 4),
+    installed at construction by a factory that strcmp's a
+    class name, allocates, runs the base ctor 0x62e40 and
+    stores the table at [obj+8] (and its base minus 8 at
+    +0xc) - 408 such sites, 138 named to class strings
+    (ARMATA, SEP2, TLewZaria, ...). The slots are
+    compile-time data, which is why no code site writes them.
+    For SEP2's table 0x96fd8: +0x28 = 0x52a90 (a frame/index
+    computation), +0x2c = 0x53d80 (fills the object's own
+    [obj+0x54] with a 40-byte sub-object - the writer
+    PR-265 looked for), +0x54 = 0x55070 (three calls, NO
+    test of the set - PR-265 confirmed at this level too),
+    +0x8c = the signal collector. The collector is
+    class-specific: 0x54910 in 207 tables - it raises 35/36
+    from [obj+0xba] and [obj+0xb6] bit 4, 37/38 from the
+    sign of [obj+0xbe], 40 and 53 from [obj+0xa5] bits 4 and
+    5, and NEVER 39 K_FIRE - and 0x504e0 in the 18 TLew*
+    tables, which calls 0x54910 and unions one of K_F1..K_F12
+    chosen by [obj+0xee]. PR-265's (d) wording conflated two
+    +0x54 slots (the state-record class's, whose ctors zero
+    it, and the object's); see that record's CORRECTS. The
+    F-family's source and the K_FIRE raiser move to OI-116.
     (b) a clause whose names are ALL in no table compiles to
     an empty mask, and the subset arm takes it VACUOUSLY;
     both evaluators now carry `if (!mask) return 0;` - the
@@ -2571,3 +2584,42 @@ OI-115: the transition pass was proven UNCONDITIONAL - the
     does it. (c) operation 2 ('*') and the K_NEVER mask are
     implemented but no shipped clause writes either; unit
     fixtures only.
+OI-116: who raises the F-family (K_F1..K_F12) and K_FIRE, and
+  on what state: the lion's collector 0x504e0 picks ONE of
+  twelve signals from three object bytes and twelve globals,
+  and this port raises F-keys from the raw keys instead
+  status: OPEN
+  origin: PR-266 (reading the +0x8c slot of the TLew* class
+    tables; the name pool at 0x91a0e fixed the numbers)
+  notes: (a) MEASURED. The TLew* tables (18: TLewZaria,
+    TLewZariaB, TLewEna2, TLewKadmar2, TLewKara,
+    TLewJunction, TLewTunga1) put 0x504e0 at +0x8c, not
+    0x54910. 0x504e0: twelve tests of the form ([obj+0xa5]
+    bits 0x2/0x40/0x80, [obj+0xa6] bits 0x1/0x2/0x40/0x80,
+    [obj+0xa7] bits ... AND ds:0xcef5c, 0xcef60, 0xcef64,
+    0xcef68, 0xcef6c, 0xcef70, 0xcef74, 0xcef80 ... != 0)
+    each store an index 0..11 at [obj+0xee] (0x50514-0x50631,
+    last match wins); `jmp cs:[eax*4+0x504b0]` then ORs bit
+    41+i - K_F1..K_F12 - into a fresh set, and 0x54910 is
+    called and merged (0x506d6-0x506ee). OPEN: what the three
+    bytes are (they are the same bytes 0x54910 reads for
+    K_BKWD/K_ALT/K_JUMP), who writes them, what the twelve
+    globals hold (one writer: the indexed store at 0x39df4 /
+    0x39e03), and what [obj+0xee] means elsewhere (the
+    TLewZaria +0xf8 getter 0x1e2f0 tests it for 2 or 3).
+    (b) K_FIRE 39 is in NO collector: 0x54910 raises 35, 36,
+    37, 38, 40, 53 only, yet the texts name K_FIRE 56 times
+    in ZARIA.01 alone. Some other writer of [obj+0x60] - or
+    of the row-builder output 0x523f0 (0x5371c/0x53725) -
+    exists and is un-named.
+    (c) REACH, counted over the 777 texts: 199 active
+    condition lines name K_F1..K_F12 (111/55/14/7 for F1..F4,
+    and F6 1, F7 1, F8 2, F10 1, F12 7) in 12 files, all of
+    them lion texts (10 *_LEW* files + KADMAR.07_0_0's
+    player-shaped block; ZARIA.01's two texts 24 each). No
+    scene-object text names one, matching (a). This port
+    raises K_F1..K_F4 from the raw F1..F4 keys (ll_play.c:
+    1108-1118) and never K_F5..K_F12, so those 12
+    occurrences can never match here. No climb row in the
+    ZARIA.01 chain names an F-signal, so OI-078's lead is
+    unchanged.
