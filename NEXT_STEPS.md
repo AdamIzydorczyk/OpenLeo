@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-248.
+> at PR-249.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -34798,4 +34798,86 @@ tables); PR-244's "walks [[requester+0x64]]" (it walks
 rect's field, order and absolute-ness from PR-242/PR-246
 are CONFIRMED, not corrected.
 GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-248 — THE ASK IS NOT GATED AGAINST THE AUTHORED
+## RECTANGLE: PR-246S CANDIDATE FILTER IS REMOVED (IT IS CLASS
+## SLOT +0x64, THE BROAD PHASES ACTIVE-WINDOW TEST); THE
+## RECTANGLE PARSE AND STORAGE STAND
+```
+KIND: port
+SUBSYSTEM: the ladder's self-raise gate - THE ASK IS NOT GATED
+AGAINST THE AUTHORED RECTANGLE. PR-247's measurement turned
+into a deletion. Test first.
+ADDRESSES: 0x23140, 0x23b80, 0x4bd81, 0x4b970, 0x4b940,
+0x4ba4a, 0x4ba6e, 0x3f1e9, 0x44ec0, 0x3f0f0, 0x49f90,
+0x3f124, 0x23a20, 0x23e00, 0x97cdc, 0x96960
+NAMES: candidate filter, contact node, active window,
+authored rectangle, live box, ladder_ask_raise, OI-078, L8
+CODE: yes: ported/ll_level.c - ladder_ask_raise loses the
+rectangle test PR-246 added (its `nrect`/`arx*` check before
+the point loop); the parse, the storage and the report line
+stay. Three comments corrected to the measured chain: the
+lvl_obj field block (the engine reads the record verb's rect
+through 0x49f90 and makes it absolute at 0x3f124-0x3f14b,
+layout x0,y0,x1,y1; its uses are the +0x64 window test and
+the state-2 answer), place_rect's header, and the ask site
+itself. No new hook; the L8 leg grew one expectation change
+and no legs were removed.
+HOOKS: none new, none touched.
+MEASURED: (a) TEST FIRST. The L8 case now reads `a box that
+covers the point but MISSES the authored rectangle: the ask
+still runs`; on the pre-change build it fails - "ladder
+answer selftest: FAILED the contact-point gate (... the ask
+is NOT gated against the authored rectangle): state 0 set 0,
+wanted the raise", --mov-selftest exit 1 - and passes once
+the filter is gone. The other seven L8 cases are unchanged
+and still pin: no authored points -> no raise; the ZARIA.01
+point (213,507) against a walking lion's ground box -> none;
+a 1 px miss -> none; an inclusive corner touch -> the raise
+into A_DROP; a covering box -> the raise; a lion box inside
+the authored rect but not covering the point -> none (the
+0x44ec0 point gate refuses); no authored rect at all -> the
+generic path raises. (b) WHY: the walk's filter at 0x4bd81
+calls the candidate's class verb +0x60, and 0x97cdc's +0x60
+is 0x23b80 - the plain `mov eax,[obj+0x2c]` getter, the same
+verb 156 of the 186 classes use - so the port's shape-meet
+ask site stands for it exactly as before. The intersection
+verb 0x23140 is slot +0x64 and belongs to the broad phase
+0x4b970, which builds a per-layer ACTIVE WINDOW (0x4b940:
+the layer origin from 0x57500/0x57530, expanded by
+-0xa0,-0x78,+0x1e0,+0x140) and writes the answer into that
+same contact-node field. The rectangle is therefore the
+object's in-play box, not the asker's test; leaving the
+filter in would have refused asks the engine runs - exactly
+the case above, and the geometry ZARIA.01 authors (the point
+(213,507) is ABOVE the rectangle's top edge y=540). (c) THE
+RECTANGLE ITSELF STAYS: the record verb 0x3f0f0 reads list,
+rect and the third block in that order and 0x3f124-0x3f14b
+adds the placement x,y to all four words, so the port's
+absolute x0,y0,x1,y1 storage is the engine's; the L9 grammar
+legs are untouched. (d) NOTHING ELSE MOVES: the ZARIA.01
+walking probe's log is IDENTICAL to the same build with the
+filter kept (diff empty after excluding the three "authors
+an authored rectangle" lines, whose wording changed - they
+named the wrong mechanism and now say the broad phase tests
+the rectangle against each layer's window); still no K_GEN1
+or ANSWERS line - the authored point stays above a walking
+lion, so the jump half remains the gate. make 0 warnings,
+verify-all 65 (ok), fixture-free 13 (ok) + 22 named.
+OPENS: modelling the active-window culling (it needs the
+layer transform inputs of 0x57500/0x57530); the jump half
+that lets the point gate pass at all; the AC_DRAB/AC_DRABK
+answer branch (0x3f214's state-2 half); who calls the live-
+box writer 0x23a51 and what sits at [lion+0xd6]; the
+[obj+0xc5] block and its width+1 container; the other four
++0x64 verbs; 0x4ba90; PR-239's list.
+CLOSES: none. OI-078's row drops the "engine collision box
+is the authored rect" claim.
+CORRECTS: PR-246 - the candidate filter it shipped in
+ladder_ask_raise is not the engine's ask filter (PR-247
+measured the slot and the caller); its parse and storage
+stand. Nothing else changes.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
 ```

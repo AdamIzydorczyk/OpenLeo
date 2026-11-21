@@ -2067,6 +2067,31 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-248 (PORT): the ask is not gated against the
+authored rectangle - PR-246's filter is deleted. The walk's
+candidate filter (0x4bd81) calls class verb +0x60, which for
+the ladder family is 0x23b80, the plain [obj+0x2c] getter 156
+classes use, so the port's shape meet stands for it as before;
+the rectangle test 0x23140 is class slot +0x64, called by the
+broad phase 0x4b970 against a LAYER'S ACTIVE WINDOW (0x4b940:
+the layer origin from 0x57500/0x57530 expanded by
+-0xa0,-0x78,+0x1e0,+0x140), and its answer is one of the
+writers of that contact node. TEST FIRST: the re-pinned L8
+case - a lion box covering the authored point (213,507) but
+missing the authored rectangle (y 540..670), which IS the
+authored geometry since the point sits above the rect - fails
+on the filtered build (exit 1) and passes after the deletion;
+the other seven L8 cases and the L9 grammar legs are
+untouched. The rectangle parse, its absolute x0,y0,x1,y1
+storage (0x3f0f0 + 0x3f124 confirm both) and the report line
+stay - the line's wording now names the broad phase.
+Measured: the walking probe's log is identical to the
+filtered build's apart from that wording, still no K_GEN1
+(the jump half is the real gate); make 0 warnings, verify-all
+65 ok, fixture-free 13 + 22 named. NEXT: the jump half, then
+the AC_DRAB/AC_DRABK answer branch (0x3f214); the active-
+window culling model waits on the layer transform.
+
 STATUS PR-247 (READ): the ask's filters, measured. The
 authored rectangle is class slot +0x64 (NOT +0x60, which is
 the plain [obj+0x2c] getter for the ladder like for 156

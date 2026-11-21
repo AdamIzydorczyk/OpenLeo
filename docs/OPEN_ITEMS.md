@@ -1118,6 +1118,26 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     list, not the requester's. NEXT: drop PR-246's asker-box
     filter (test first), then the jump half so the point
     gate can pass.
+    PR-248 SHIPS THAT DELETION. ladder_ask_raise loses the
+    rectangle test: the walk's filter 0x4bd81 is class verb
+    +0x60, and for this family that is 0x23b80 - the plain
+    [obj+0x2c] getter 156 classes use - so the port's shape
+    meet stands for it unchanged; 0x23140 is +0x64, the broad
+    phase 0x4b970's test of the rectangle against a LAYER'S
+    ACTIVE WINDOW (0x4b940 expands the layer origin by
+    -0xa0,-0x78,+0x1e0,+0x140), whose answer is what sets
+    that contact node. Test first: the re-pinned L8 case (a
+    box covering the authored point but missing the rectangle
+    - the ZARIA.01 geometry, the point sits above the rect's
+    top edge) fails on the filtered build, exit 1, and passes
+    after the deletion; the other seven L8 cases and the L9
+    grammar legs are untouched. Measured unchanged: the
+    walking probe's log is identical to the filtered build
+    (only the report line's wording moved), no K_GEN1; make 0
+    warnings, verify-all 65, fixture-free 13 + 22. The rect
+    parse and its absolute x0,y0,x1,y1 storage stay (0x3f0f0
+    confirms both) as data for a future culling model. NEXT:
+    the jump half, then the AC_DRAB answer branch.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

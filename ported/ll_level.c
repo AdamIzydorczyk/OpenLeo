@@ -546,17 +546,23 @@ typedef struct {                     /* one placement of a script        */
      * which answers FALSE (0x44ec0: the count at [hdr+4] is not > 0). */
     unsigned char npts;
     short cpx[OBJ_MAXPTS], cpy[OBJ_MAXPTS];
-    /* PR-246: the AUTHORED RECTANGLE the same entry's next line
-     * authors (`x0,y0;x1,y1`, offsets from the placement). The
-     * engine keeps it at [obj+0xb1..0xbd] and USES it: the placed
-     * rope's kind verb +0x60 (0x23140) intersects it with the
-     * requester's live box and writes the result into the
-     * contact-node field [obj+0x2c] - the candidate filter of the
-     * ask walk (PR-245) - and the rope's state-2 answer tests it
-     * too (PR-244). Stored ABSOLUTE, like the points. nrect = 0
-     * when the entry authors none; the third authored pair
-     * (`30,50`, [obj+0xc5]'s set, PR-242) is consumed and COUNTED
-     * (npair) but not modelled. */
+    /* PR-246/PR-247: the AUTHORED RECTANGLE the same entry's
+     * next line authors (`x0,y0;x1,y1`, offsets from the
+     * placement). The engine reads it into [obj+0xb1..0xbd] and
+     * makes it ABSOLUTE in the same record verb that reads the
+     * points (0x3f0f0's 0x49f90 call, then 0x3f124-0x3f14b adds
+     * the placement x,y), with the layout x0,y0,x1,y1 - the port
+     * stores the same four in the same order. Its measured uses:
+     * the class verb +0x64 (0x23140) intersects it with a
+     * LAYER'S ACTIVE WINDOW in the broad phase 0x4b970 and
+     * writes that answer into the contact-node field [obj+0x2c];
+     * the ladder's state-2 answer copies it into a window for
+     * its element test (0x3f256-0x3f29f, PR-244). NOT the ask's
+     * candidate filter (that is +0x60, PR-247). nrect = 0 when
+     * the entry authors none; the third authored line (`30,50`)
+     * is the [obj+0xc5] block = (x, y-0x50, x, y) plus a
+     * (width+1)-element container - consumed and COUNTED (npair),
+     * not modelled. */
     unsigned char nrect, npair;
     short arx0, arx1, ary0, ary1;
     unsigned char atc;
@@ -5211,18 +5217,19 @@ static void ladder_ask_raise(lvl_obj *o, const int ab[4], int verbose,
      * ladder or rope that authors no points never raises this signal:
      * PR-241's unconditional raise was too broad, and the L8 leg below
      * pins the difference. */
-    /* PR-246: the walk's FIRST gate, the candidate filter. 156
-     * of the 186 classes answer it with [obj+0x2c], "a contact
-     * node was planted in me" - the port's ask site IS a shape
-     * meet, so that is satisfied; the PLACED LADDER family
-     * answers with its kind verb 0x23140 instead: an
-     * intersection of the AUTHORED rectangle with the asker's
-     * live box. An entry that authors no rectangle keeps the
-     * generic (already-modelled) path. */
-    if (o->nrect &&
-        !(ab[0] <= o->arx1 && o->arx0 <= ab[2] &&
-          ab[1] <= o->ary1 && o->ary0 <= ab[3]))
-        return;                       /* 0x23140: the rects miss */
+    /* PR-247/PR-248: the walk's first gate (0x4bd81) is the
+     * candidate's class verb +0x60, and for this family that is
+     * the SAME getter 156 of the 186 classes use - 0x23b80 =
+     * `mov eax,[obj+0x2c]`, "a contact node was planted in me"
+     * - so the port's ask site, which IS a shape meet, stands
+     * for it. The authored rectangle belongs to a DIFFERENT
+     * verb: class slot +0x64 (0x23140), called by the broad
+     * phase 0x4b970 against a LAYER'S ACTIVE WINDOW, and its
+     * answer is one of the things that write that contact node.
+     * It does not gate the ask itself, so the rectangle test
+     * PR-246 put here is removed; the rectangle stays parsed on
+     * the record (OI-078) for the culling model, which waits on
+     * the layer transform. */
     for (k = 0; k < o->npts; k++)
         if (ab[0] <= o->cpx[k] && o->cpx[k] <= ab[2] &&
             ab[1] <= o->cpy[k] && o->cpy[k] <= ab[3]) {
@@ -6132,11 +6139,15 @@ static int ladder_answer_selftest(void)
                   " ([obj+0x2c], the port's shape meet) stands, the"
                   " raise still fires" },
                 { 1, 213, 507, 1, { 400, 540, 460, 670 },
-                  { 100, 300, 300, 539 }, 0,
-                  "a box that covers the point but MISSES the"
-                  " authored rect (y 540..670): the 0x23140"
-                  " candidate filter refuses the ask - this leg"
-                  " fails without the filter" },
+                  { 100, 300, 300, 539 }, 1,
+                  "PR-248: a box that covers the point but"
+                  " MISSES the authored rectangle: the ask still"
+                  " runs. 0x23140 is class slot +0x64, the"
+                  " broad phase's ACTIVE-WINDOW test that writes"
+                  " the contact node [obj+0x2c]; the walk's"
+                  " filter is +0x60, which only reads that node"
+                  " (0x23b80) - the ask is NOT gated against the"
+                  " authored rectangle" },
             };
             for (unsigned g = 0; g < sizeof gate / sizeof gate[0]; g++) {
                 ll_mov_t *m2 = calloc(1, sizeof *m2);
@@ -8207,17 +8218,20 @@ static const char *place_points(const char *p, const char *end,
     return eol;
 }
 
-/* PR-246: the second extra line of an entry - the AUTHORED
- * RECTANGLE `x0,y0;x1,y1`, offsets from the placement (the engine
- * reads it into [obj+0xb1..0xbd]; its use, per PR-244/245: the
- * placed rope's kind verb +0x60 0x23140 intersects it with the
- * requester's live box and feeds the result to the contact-node
- * field [obj+0x2c], which is the ask walk's candidate filter).
- * Stored ABSOLUTE. A degenerate rect (right < left, or bottom <
+/* PR-246/PR-247: the second extra line of an entry - the AUTHORED
+ * RECTANGLE `x0,y0;x1,y1`, offsets from the placement. The engine
+ * reads it in the record verb 0x3f0f0 through 0x49f90 into
+ * [obj+0xb1..0xbd] and adds the placement there, so it is kept
+ * ABSOLUTE. Measured uses: the class verb +0x64 (0x23140) in the
+ * broad phase 0x4b970, against a layer's active window, writing
+ * the contact node [obj+0x2c]; and the ladder's state-2 answer
+ * (0x3f256). It is NOT what the ask walk filters on. A degenerate rect (right < left, or bottom <
  * top) is swapped: the engine's intersect at 0x23145-0x23170
  * compares [0]/[8] against the other rect's low edges and
  * [4]/[0xc] against its high edges, so an unsorted authoring
- * matches nothing at all; sorting is a counted model choice. The
+ * matches nothing at all; sorting is a counted model choice.
+ * (PR-247 measured the other rectangle: a LAYER'S ACTIVE WINDOW
+ * from 0x4b940, not a requester's box.) The
  * third authored line (`30,50`, the [obj+0xc5] set) is consumed
  * and counted, not modelled. */
 static const char *place_rect(const char *p, const char *end,
@@ -8802,9 +8816,10 @@ static void des_place_file(place_ctx *pc, const char *fname,
                         if (o->nrect && st->rect_lines <= 3)
                             printf("ll_level: placement %s: %s/%s authors"
                                    " an authored rectangle: absolute"
-                                   " (%d,%d)-(%d,%d); the engine's"
-                                   " 0x23140 intersects it with the"
-                                   " asker's box\n",
+                                   " (%d,%d)-(%d,%d); the broad"
+                                   " phase 0x4b970 tests it against"
+                                   " each layer's active window"
+                                   " (class verb +0x64, 0x23140)\n",
                                    fname, o->sc->leaf, o->sc->movname,
                                    o->arx0, o->ary0, o->arx1, o->ary1);
                         if (st->pts_lines <= 3)
