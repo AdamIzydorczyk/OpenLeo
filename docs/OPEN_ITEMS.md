@@ -1138,6 +1138,25 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     parse and its absolute x0,y0,x1,y1 storage stay (0x3f0f0
     confirms both) as data for a future culling model. NEXT:
     the jump half, then the AC_DRAB answer branch.
+    PR-249 FINDS WHY NOTHING EVER ASKS IT. The authored
+    DRAB.MOV has `control=BY_TIME` in all three states - no
+    SOLID - so the port's solid loop skips the ladder before
+    the shape test (measured with a temporary probe print at
+    the ask call: zero evaluations over a 6 s walk and an 8 s
+    walk+jump run, including the pinned tick 91 at the ladder
+    column 180,650). The engine reaches it from the LION's
+    CHECK_ANI channel (his A_WALK/A_JUMP/A_LOOKUP/A_DRAP/
+    A_WSP states all spell CHECK_ALL = ANI|ZW|LN): the walk
+    0x4b500 iterates the class group's instance arrays,
+    filters on [cand+0x2c] and the plane, skips self, and
+    calls the candidate's +0x78 with ebx = the requester -
+    with NO shape test anywhere (the animals' meet test
+    0x53ae0 lives inside their own answer entry 0x552e0). The
+    ladder's A_UP row is `1,0,WAIT K_GEN1`, so it waits
+    forever for its own flag. NEXT (PR-250): drive the ask
+    per step from the requester's CHECK_ANI/CHECK_ZW bit
+    matched with o->src, not from the solid-contact shape
+    meet; test first.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
@@ -1931,3 +1950,17 @@ OI-113: the engine control bit table is read (PR-230) and the
     object's +0x60 is the plain [obj+0x2c] getter for the
     ladder too - the authored rectangle sits at +0x64 and is
     used by the broad phase, not by the ask.
+    PR-249 WITHDRAWS the CHECK_LEW addition above: the
+    keyword table pairs every name with its own OR, and
+    CHECK_ALL is `or WORD PTR [esi+0x12],0x1c0` (0x51c73) =
+    ANI|ZW|LN - CHECK_LEW (0x200) is a separate keyword
+    (0x51c8f) that no ZARIA.01 lion state spells, though 535
+    authored control lines in 205 .MOV files do. The port's
+    ctrl_flag (ll_play.c:338, CHECK_ALL -> ANI|ZW|LN) is
+    already exact; half one is CLOSED as measured, no code
+    change. The dispatcher 0x52790 has three channels:
+    CHECK_LEW -> the walk 0x4bd30, CHECK_ANI (0x40) ->
+    0x4b890, CHECK_ZW (0x80) -> 0x4b870; the latter two walk
+    the class groups at [ds:0xa94ec]/[ds:0xcef44] through the
+    shared walk 0x4b500. CHECK_BASE_LN is 0x4000 (0x51ca9),
+    not 0x400000; CHECK_ALL_PLANE is 0x8000 (0x51d2b).

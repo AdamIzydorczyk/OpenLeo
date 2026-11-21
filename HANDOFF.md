@@ -2067,6 +2067,32 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-249 (READ): who asks whom. The control word has
+THREE channels in the dispatcher 0x52790: CHECK_LEW (0x200)
+-> the walk 0x4bd30; CHECK_ANI (0x40) -> 0x4b890; CHECK_ZW
+(0x80) -> 0x4b870, the last two walking the class groups at
+[ds:0xa94ec]/[ds:0xcef44] through the shared walk 0x4b500
+(instance count [class+0x44], array [class+0x58], chained by
+[obj+0x34]), with the same law as 0x4bd30 and NO shape test
+anywhere: [class+0x60] candidate filter, plane test with the
+CHECK_ALL_PLANE exception, skip self, then call the
+candidate's +0x78 with ebx = the requester. The keyword
+masks are measured one instruction each: CHECK_ALL = 0x1c0 =
+ANI|ZW|LN (0x51c73) and CHECK_LEW is a separate keyword
+(0x51c8f); CHECK_BASE_LN = 0x4000 (0x51ca9, not 0x400000),
+CHECK_ALL_PLANE = 0x8000 (0x51d2b). Authored census:
+CHECK_LEW in 535 control lines / 205 files, CHECK_ALL 360.
+The port's ctrl_flag already matches 0x1c0 - OI-113's
+CHECK_LEW addition is withdrawn, half one closed. Why the
+climb is stuck: ZARIA.01's DRAB.MOV authors `control=BY_TIME`
+in all three ladder states, so the port's solid loop skips
+the ladder before the shape test (a temporary probe print at
+the ask call: zero evaluations across a 6 s walk and an 8 s
+walk+jump run, including tick 91 at the ladder column), while
+the engine reaches it from the lion's CHECK_ANI channel.
+NEXT: PR-250 - drive the ask per step from the requester's
+CHECK_ANI/CHECK_ZW bit matched with o->src.
+
 STATUS PR-248 (PORT): the ask is not gated against the
 authored rectangle - PR-246's filter is deleted. The walk's
 candidate filter (0x4bd81) calls class verb +0x60, which for

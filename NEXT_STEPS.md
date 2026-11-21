@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-249.
+> at PR-250.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -34880,4 +34880,123 @@ measured the slot and the caller); its parse and storage
 stand. Nothing else changes.
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
+```
+
+## PR-249 — WHO ASKS WHOM: THE CONTROL WORD HAS THREE
+## CHANNELS (CHECK_LEW / CHECK_ANI / CHECK_ZW); CHECK_ALL =
+## ANI|ZW|LN AND NOT LEW; THE LADDER IS REACHED THROUGH THE
+## LIONS CHECK_ANI WALK, WITH NO SHAPE TEST
+```
+KIND: read
+SUBSYSTEM: who asks whom - the control word's THREE channels,
+the keyword masks that set them, and why the port never asks
+ZARIA.01's ladder. No port code.
+ADDRESSES: 0x51b5f, 0x51c25, 0x51c3f, 0x51c59, 0x51c73,
+0x51c8f, 0x51ca9, 0x51d2b, 0x51d5f, 0x527b3, 0x527db,
+0x52805, 0x527c5, 0x4bd30, 0x4b890, 0x4b870, 0x4b500,
+0x4b59a, 0x4b5a1, 0x4b5af, 0x4b5be, 0x53ae0, 0x552e0,
+0x3f1c0, 0x23140, 0x9216e, 0xa94ec, 0xcef44, 0xcef40,
+0x97cdc, 0x96960
+NAMES: CHECK_ALL, CHECK_LEW, CHECK_ANI, CHECK_ZW,
+CHECK_ALL_PLANE, CHECK_BASE_LN, ask channel, class group,
+instance array, plane gate, OI-078, OI-113
+CODE: no: this PR ships no code.
+HOOKS: none
+MEASURED: (a) THE KEYWORD TABLE, every name paired with the
+one instruction that sets its bit (the name block runs
+0x9216e-0x9222f: BY_X, BY_Y, BY_TIME, BY_TX, BY_TY,
+FRAME_REV, SEQ_REV_X, SEQ_REV_Y, CHECK_ZW, CHECK_ANI,
+CHECK_LN, CHECK_ALL, CHECK_LEW, CHECK_BASE_LN, SOLID,
+CH_DIR, INV_V, DANGER, CHECK_ALL_PLANE, ANTI_SOLID, SOLID2,
+SEMI_SOLID, ANTI_POCISK; the parser zeroes the DWORD at
+[rec+0x12] at 0x51b2e). Masks: BY_X sets NOTHING (it is the
+default), BY_Y 0x1 (0x51b6f), BY_TIME 0x2, BY_TX 0x3, BY_TY
+0x4, FRAME_REV 0x8, SEQ_REV_X 0x10, SEQ_REV_Y 0x20,
+CHECK_ZW 0x80 (0x51c25), CHECK_ANI 0x40 (0x51c3f), CHECK_LN
+0x100, CHECK_ALL `or WORD PTR [esi+0x12],0x1c0` (0x51c73) =
+ANI|ZW|LN - THREE check bits, NOT four, because CHECK_LEW is
+its own keyword (0x51c8f, `or BYTE PTR [esi+0x13],0x2` =
+0x200); CHECK_BASE_LN 0x4000 (0x51ca9), SOLID 0x400, CH_DIR
+0x800, INV_V 0x1000, DANGER 0x2000, CHECK_ALL_PLANE 0x8000
+(0x51d2b - the bit the layer argument masks), ANTI_SOLID
+0x10000, SOLID2 0x20400, SEMI_SOLID 0x40400, ANTI_POCISK
+0x80000. Authored census over the 777 extracted .MOV texts
+(2256 control lines): CHECK_LEW 535 lines in 205 files
+(ENA.03's BERLO/GLAZ/KORONA/KOLC/KRAB pickups among them),
+CHECK_ALL 360, CHECK_LN 340, CHECK_ANI 168, CHECK_ALL_PLANE
+62, CHECK_ZW 47, CHECK_BASE_LN 8. The port's ctrl_flag is
+already exact (ll_play.c:338 maps CHECK_ALL to ANI|ZW|LN and
+no CHECK_LEW): nothing to change, OI-113's requested
+addition is what was wrong. (b) THE THREE CHANNELS, the
+dispatcher 0x52790 read in full: 0x527b3 `test BYTE PTR
+[esi+0x13],0x2` (CHECK_LEW) -> the walk 0x4bd30; 0x527db
+`test BYTE PTR [esi+0x12],0x40` (CHECK_ANI) -> 0x4b890,
+which loads ecx = [ds:0xa94ec] and calls the walk 0x4b500;
+0x52805 `test BYTE PTR [esi+0x12],0x80` (CHECK_ZW) ->
+0x4b870, ecx = [ds:0xcef44], the same walk 0x4b500. Every
+call takes eax = ds:0xcef40 (the scene, the array of CLASS
+descriptors), ebx = [[rec]] (the requester object) and
+ecx = the control word masked 0x8000 (0x527c5,
+CHECK_ALL_PLANE) as the layer exception. (c) THE WALK 0x4b500
+has the same law as 0x4bd30 and NO shape test anywhere: for
+each class descriptor its instance count [class+0x44] and
+array [class+0x58], instances chained by [obj+0x34]; the
+candidate filter is [class+0x60] (0x4b59a); then the plane
+test [cand+0x24] vs [requester+0x24] with the
+CHECK_ALL_PLANE exception (0x4b5a1-0x4b5ad); then skip self
+(0x4b5af); then `call DWORD PTR [cand class+0x78]` with
+ebx = the requester (0x4b5be). The candidate's OWN control
+word is never read: SOLID belongs to the physics pass, whose
+shape test 0x53ae0 sits INSIDE the animals' answer entry
+0x552e0 - that is why the port's shape-meet site reproduced
+the animals correctly. (d) THE AUTHORED LADDER, ZARIA.01's
+DRABINKA/DRAB.MOV in full: three states A_UP, A_DOWN,
+A_DROP, every one `control=BY_TIME` - no SOLID and no CHECK
+bit, so the ladder never asks anyone; A_UP's only row is
+`1,0,WAIT K_GEN1` (it sits there until the bit appears in
+its own set) and its exit line is `A_DROP(1)=K_GEN1`;
+A_DROP runs rows 2..10 with `sample=6` and `3,400,smpauto`;
+A_DOWN ends at `11,0,WAIT K_NEVER`. (e) THE CONSEQUENCE IN
+THE PORT, measured: the ask/answer calls live inside
+play_collide's solid loop, behind `if (!(c & LL_CTRL_SOLID))
+continue;`, so this ladder never reaches them. A temporary
+probe print (not shipped) at the ask call printed ZERO lines
+across a 6 s walk and an 8 s walk+jump run of ZARIA.01 -
+including tick 91, where the pinned traverse leg puts the
+lion at the ladder column (180,650); the loop skips the
+ladder object before the shape test. The engine reaches it
+through the LION's CHECK_ANI channel: ZARIA.01's lion
+[A_WALK], [A_JUMP], [A_LOOKUP], [A_DRAP], [A_WSP] all carry
+CHECK_ALL, which sets CHECK_ANI, and the ladder's answer
+verb 0x3f1c0 gates on the requester's class verb +0x3c and
+its OWN authored points, never on a meet. (f) The port
+already names the two groups: lvl_obj.src 0 = ZW-placed,
+1 = ANI-placed - exactly what 0x4b870 and 0x4b890 select
+between. (g) ZARIA.01's lion script carries the climb
+vocabulary the chain needs (A_DRAP, A_WSP, A_WSP_LIN,
+A_PRE_JUMP, A_JUMP_S with `A_WSP(1)=AC_DRAB_CATCH,AC_ONAIR`
+and `A_WSP_LIN(3)=AC_LINA_CATCH,AC_ONAIR`), beside the
+A_UP/A_DROP/A_DOWN ladder pair PR-240 read.
+OPENS: how the two class groups are registered (what fills
+the counts at [ds:0xa94ec] and [ds:0xcef44]); 0x4b500's
+out-parameter and how its callers use the result; whether the
+CHECK_LEW walk 0x4bd30 is the channel of the PR-235 AC_DRAB
+raise on the lion (535 authored lines spell CHECK_LEW,
+ZARIA.01's lion does not); the other writers of [obj+0x2c];
+the jump geometry that lets the point gate pass.
+CLOSES: none. OI-113's half-one note about CHECK_LEW is
+withdrawn; OI-078 gains the channel that reaches the ladder.
+CORRECTS: PR-245 three times - "CHECK_ALL ORs all four check
+bits (0x1c0 = ANI+ZW+LN+LEW)" (0x1c0 is ANI|ZW|LN; LEW is
+0x200, a separate keyword at 0x51c8f), its branch labels
+(CHECK_ANI -> 0x4b890 and CHECK_ZW -> 0x4b870;
+CHECK_ALL_PLANE is the layer argument, not a channel), and
+"CHECK_BASE_LN is engine bit 0x400000" (0x51ca9 sets byte
+[esi+0x13] bit 0x40 = 0x4000, which the rest of the
+repository already says). It also corrects PR-150's framing
+that the ladder's answer needs a pair contact: for this
+family the walk calls +0x78 with no shape test at all. The
+port's CHECK_ALL mapping is NOT corrected - it already
+matches 0x1c0.
+GATE: light: verify-index verify-docs rc=0 (ok);
 ```
