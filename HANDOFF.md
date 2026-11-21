@@ -2067,6 +2067,34 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-246 (PORT): the record's extra lines are now all
+read and the authored rect gates the ladder. The placement
+loop follows an entry through its continuation lines in the
+engine's order - `N dx,dy` list, `x0,y0;x1,y1` rect, bare
+`x,y` pair - consuming and counting all three (the PR-243
+one-line version never saw a rect); the rect is stored
+ABSOLUTE on the placement. Measured on shipped data:
+ZARIA.01 reports DRABINKA's rect absolute (203,540)-
+(233,670) (= 180,510 + 23,30;53,160, PR-242's exact
+rect) and the (125,292) LINA's (148,322)-(156,492); the
+full census is read - 11 entries with lists, 21 records
+with any extra lines, across 14 .DES files; TUNGA.11
+ANI2.DES's six rect-only entries are XCHG x3, KLINA x2,
+GUARD x1. ladder_ask_raise now applies the walk's first
+gate first (0x23140: authored rect must intersect the
+asker's live box; entries with no rect keep the generic
+contact-node path, already stood in by the shape meet).
+TEST FIRST: the L8 case "box covers the point but misses
+the rect" fails without the filter (exit 1) and passes
+with it; L9 pins the grammars (reversed rect sorts -
+counted model choice; `30,50` is a pair not a rect).
+Nothing else moved: walking probe unchanged (no K_GEN1 -
+the authored point is above a walking lion), verify-all 65
+ok, fixture-free 13 + 22 named, make 0 warnings. NEXT:
+use the parsed rect for physics collision, then the jump
+half so the point gate can pass, then the pair set's
+consumers.
+
 STATUS PR-245 (READ): the ask channel is the CONTROL WORD.
 The per-step key builder 0x523f0 calls the record class's
 +0x10 verb with the live set (0x5242e-0x52435); for the

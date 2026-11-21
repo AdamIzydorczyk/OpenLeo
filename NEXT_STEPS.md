@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-246.
+> at PR-247.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -34585,4 +34585,97 @@ starts at BY_X = default (sets nothing); BY_Y = 0x1,
 BY_TIME = 0x2 (0x51b56-0x51b8d), so the PR-230 table - not
 the PR-239 letter list - is the right one to use.
 GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-246 — THE AUTHORED RECTANGLE LINE IS READ (ABSOLUTE,
+## LIKE THE POINTS) AND THE 0x23140 CANDIDATE FILTER GATES
+## THE LADDER SELF-RAISE; THE RECORD EXTRA LINES ARE ALL
+## CONSUMED: 21/21 SHIPPED
+```
+KIND: port
+SUBSYSTEM: placement record - THE AUTHORED RECTANGLE LINE IS
+READ (abs, like the points) AND THE 0x23140 CANDIDATE
+FILTER GATES THE LADDER'S SELF-RAISE. Test first.
+ADDRESSES: 0x23140, 0x23145, 0x23174, 0x44e90, 0x44ec0,
+0x23e00, 0x23b80, 0x4bd81, 0x3f1d1, 0x3f203, 0x97cdc,
+0x49fb0, 0x49920, 0x498f0
+NAMES: authored rectangle, contact point, contact list, bare
+pair, candidate filter, rectangle intersection, place_rect,
+place_pair, K_GEN1, OI-078, L8, L9
+CODE: yes: ported/ll_level.c - lvl_obj gains nrect/arx0..ary1
+and npair; place_rect parses the `x0,y0;x1,y1` line (and a
+degenerate `x,y` is NOT a rect), place_pair reads the bare
+`x,y` third line and only counts it; the placement loop now
+reads the record's extra lines in a LOOP (list, rect, pair -
+the engine's order) and consumes them all; the report line
+counts all three kinds; ladder_ask_raise first applies the
+0x23140 filter: with an authored rectangle present it must
+intersect the asker's live box, else nothing happens. No new
+hook; the L8 gate leg gained three cases and place_points_
+selftest (L9) six grammar cases.
+HOOKS: none new, none touched.
+MEASURED: (a) TEST FIRST. With the filter stubbed out the
+new L8 case fails - "the contact-point gate (a box that
+covers the point but MISSES the authored rect (y 540..670):
+the 0x23140 candidate filter refuses the ask...): state 1
+set 0, wanted nothing", --mov-selftest exit 1 - and with it
+0. L8 now pins: no points -> nothing; the ZARIA.01 point
+(213,507) with a walking lion's ground box -> nothing; a 1
+px miss -> nothing; an inclusive corner touch -> the raise
+into A_DROP; a covering box -> the raise; a lion box INSIDE
+the authored rect but not covering the point -> nothing (the
+filter passes, 0x44ec0 refuses); NO authored rect -> the
+generic filter (the port's shape meet stands for [obj+0x2c])
+still raises; a box covering the point but missing a rect at
+(400,540)-(460,670) -> nothing. (b) THE PARSE, on the
+shipped data: place_points alone used to stop at the first
+extra line, so the PR-243 reader left `23,30;53,160` counted
+as a polyline and `30,50` as a group line - and the port
+saw ZERO rects. With the loop: the port's ZARIA.01 run
+reports `DRABINKA/drab.mov authors an authored rectangle:
+absolute (203,540)-(233,670)` - 180,510 + 23,30;53,160,
+exactly the rect PR-242 measured - and the LINA rope at
+(125,292) gets (148,322)-(156,492). Counted over the logs:
+11 entries with lists (ANI/ANI1/ANIDEMO/PLAT 5, ZARIA.01's
+ANI2/ANI1/ANIPL2 3) and 21 total records with extra lines
+across ANI.DES, ANI1.DES, ANI2.DES, ANI3.DES, ANI4.DES,
+ANIDEMO.DES, ANIM.DES, ANIM3.DES, ANIMDEMO.DES, ANIPL1.DES,
+ANIPL2.DES, PLAT.DES, ZWIERZ2.DES, ZWIERZ3.DES - the
+PR-242 census exactly (11 with points, 21 with any), and
+TUNGA.11 ANI2.DES's six rect-only entries are XCHG x3,
+KLINA x2, GUARD x1. L9 pins the grammars: `23,30;53,160`
+and `23,30;31,200` parse, a reversed rect SORTS (counted
+model choice: the engine's 0x23145-0x23170 compares low vs
+high edges, so an unsorted rect would match nothing), `30,50`
+parses as a pair but NOT as a rect, `23,30;53,160 junk` and
+`23,30` (as a rect) are refused. (c) WHY THE FILTER: the
+ask walk's first gate 0x4bd81 is the candidate's kind verb
++0x60; 156 of the 186 classes answer `[obj+0x2c]` ("a
+contact node was planted") - the port's ask site already IS
+a shape meet - but the ladder-family element answers with
+0x23140 instead: intersect the authored rectangle
+[obj+0xb1..0xbd] with the requester's live box (PR-245).
+An entry with no authored rectangle keeps the generic,
+already-modelled path. (d) NOTHING ELSE MOVES: the ZARIA.01
+walking-lion probe still prints no K_GEN1 line (the point
+gate refuses, by authored design - the jump half stays
+next); make 0 warnings, verify-all 65 (ok), fixture-free
+13 (ok) + 22 named; no fixture counts moved (the polyline
+pins are the PLT parser's).
+OPENS: the [obj+0xc5] pair set's consumers (npair counted,
+not modelled); using the authored rect for the port's
+PHYSICS collision (the lion walking INTO the ladder span
+x 203..233) - now that the data is parsed; whether the
+engine stores box[8]/box[0xc] as extent or last pixel; the
+element class 0x978dc, [0xcef40+0x394], 0xceeac; the other
+families' answer verbs; PR-239's list.
+CLOSES: none; OI-078's row now carries the parsed rect and
+the filter.
+CORRECTS: PR-243's reader once: it offered place_points at
+ONE line and so never read the rect/pair lines that follow
+a list (its report said 0 of them); with the loop the same
+files report 3 lists + 3 rects + 3 pairs per pass. Nothing
+else in PR-243 changes.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
 ```

@@ -546,6 +546,19 @@ typedef struct {                     /* one placement of a script        */
      * which answers FALSE (0x44ec0: the count at [hdr+4] is not > 0). */
     unsigned char npts;
     short cpx[OBJ_MAXPTS], cpy[OBJ_MAXPTS];
+    /* PR-246: the AUTHORED RECTANGLE the same entry's next line
+     * authors (`x0,y0;x1,y1`, offsets from the placement). The
+     * engine keeps it at [obj+0xb1..0xbd] and USES it: the placed
+     * rope's kind verb +0x60 (0x23140) intersects it with the
+     * requester's live box and writes the result into the
+     * contact-node field [obj+0x2c] - the candidate filter of the
+     * ask walk (PR-245) - and the rope's state-2 answer tests it
+     * too (PR-244). Stored ABSOLUTE, like the points. nrect = 0
+     * when the entry authors none; the third authored pair
+     * (`30,50`, [obj+0xc5]'s set, PR-242) is consumed and COUNTED
+     * (npair) but not modelled. */
+    unsigned char nrect, npair;
+    short arx0, arx1, ary0, ary1;
     unsigned char atc;
     unsigned char atc_hit;          /* PR-90: this object's window has    *
                                      * already landed its one hit (mirror  *
@@ -5198,6 +5211,18 @@ static void ladder_ask_raise(lvl_obj *o, const int ab[4], int verbose,
      * ladder or rope that authors no points never raises this signal:
      * PR-241's unconditional raise was too broad, and the L8 leg below
      * pins the difference. */
+    /* PR-246: the walk's FIRST gate, the candidate filter. 156
+     * of the 186 classes answer it with [obj+0x2c], "a contact
+     * node was planted in me" - the port's ask site IS a shape
+     * meet, so that is satisfied; the PLACED LADDER family
+     * answers with its kind verb 0x23140 instead: an
+     * intersection of the AUTHORED rectangle with the asker's
+     * live box. An entry that authors no rectangle keeps the
+     * generic (already-modelled) path. */
+    if (o->nrect &&
+        !(ab[0] <= o->arx1 && o->arx0 <= ab[2] &&
+          ab[1] <= o->ary1 && o->ary0 <= ab[3]))
+        return;                       /* 0x23140: the rects miss */
     for (k = 0; k < o->npts; k++)
         if (ab[0] <= o->cpx[k] && o->cpx[k] <= ab[2] &&
             ab[1] <= o->cpy[k] && o->cpy[k] <= ab[3]) {
@@ -6078,20 +6103,40 @@ static int ladder_answer_selftest(void)
                 "A_DROP(1)=K_GEN1\n1,0,WAIT K_GEN1\n\n[A_DROP]\n"
                 "control=BY_TIME\n2,500\n\n[A_DOWN]\ncontrol=BY_TIME\n"
                 "11,0,WAIT K_NEVER\n";
-            static const struct { int npts, px, py; int box[4]; int want;
+            static const struct { int npts, px, py; int nrect;
+                                 int rect[4]; int box[4]; int want;
                                  const char *what; } gate[] = {
-                { 0, 0, 0, { 200, 500, 260, 560 }, 0,
+                { 0, 0, 0, 0, { 0 }, { 200, 500, 260, 560 }, 0,
                   "no authored points: the empty vector answers false"
                   " (0x44ec0), so no raise" },
-                { 1, 213, 507, { 100, 650, 300, 690 }, 0,
+                { 1, 213, 507, 1, { 203, 540, 233, 670 },
+                  { 100, 650, 300, 690 }, 0,
                   "a lion walking the ground: his box never covers the"
                   " point 3 px above the placement" },
-                { 1, 213, 507, { 214, 508, 260, 560 }, 0,
+                { 1, 213, 507, 1, { 203, 540, 233, 670 },
+                  { 214, 508, 260, 560 }, 0,
                   "the box 1 px off on both axes: the point is outside" },
-                { 1, 213, 507, { 213, 507, 260, 560 }, 1,
+                { 1, 213, 507, 1, { 203, 540, 233, 670 },
+                  { 213, 507, 260, 560 }, 1,
                   "the box touching the point on its inclusive edge:" },
-                { 1, 213, 507, { 100, 400, 300, 600 }, 1,
+                { 1, 213, 507, 1, { 203, 540, 233, 670 },
+                  { 100, 400, 300, 600 }, 1,
                   "a box that covers it: the raise fires" },
+                { 1, 213, 507, 1, { 203, 540, 233, 670 },
+                  { 150, 600, 250, 690 }, 0,
+                  "PR-246: a walking lion INSIDE the authored rect -"
+                  " the candidate filter 0x23140 passes, but the point"
+                  " gate (0x44ec0) still does not" },
+                { 1, 213, 507, 0, { 0 }, { 100, 400, 300, 600 }, 1,
+                  "no authored rect: the generic candidate filter"
+                  " ([obj+0x2c], the port's shape meet) stands, the"
+                  " raise still fires" },
+                { 1, 213, 507, 1, { 400, 540, 460, 670 },
+                  { 100, 300, 300, 539 }, 0,
+                  "a box that covers the point but MISSES the"
+                  " authored rect (y 540..670): the 0x23140"
+                  " candidate filter refuses the ask - this leg"
+                  " fails without the filter" },
             };
             for (unsigned g = 0; g < sizeof gate / sizeof gate[0]; g++) {
                 ll_mov_t *m2 = calloc(1, sizeof *m2);
@@ -6116,6 +6161,13 @@ static int ladder_answer_selftest(void)
                 for (int q = 0; q < gate[g].npts; q++) {
                     o2.cpx[q] = (short)gate[g].px;
                     o2.cpy[q] = (short)gate[g].py;
+                }
+                o2.nrect = (unsigned char)gate[g].nrect;
+                if (gate[g].nrect) {
+                    o2.arx0 = (short)gate[g].rect[0];
+                    o2.ary0 = (short)gate[g].rect[1];
+                    o2.arx1 = (short)gate[g].rect[2];
+                    o2.ary1 = (short)gate[g].rect[3];
                 }
                 ladder_ask_raise(&o2, gate[g].box, 0, 0);
                 if ((gate[g].want != 0) !=
@@ -7607,6 +7659,11 @@ typedef struct {                    /* counted while reading, never guessed */
      * = entries that carry one, read = points stored as absolute
      * positions, extra = points beyond OBJ_MAXPTS (counted, kept out). */
     int pts_lines, pts_read, pts_extra;
+    /* PR-246: the authored rectangle / pair lines consumed with an
+     * entry (the engine's [obj+0xb1] rect and [obj+0xc5] pair).
+     * Consumed lines are no longer counted as polyline/group
+     * noise: every shipped rect line was in st->poly before. */
+    int rect_lines, pair_lines;
     /* PR-93: the two placement grammars the census proved. Static image
      * lines ("<LEAF>,<name>.seq,<x>,<y>", 3 commas) place one image whose
      * .SEQ is named by the line itself; attached children are the five-
@@ -8109,7 +8166,8 @@ static const char *place_points(const char *p, const char *end,
     while (b < eol && (*b == ' ' || *b == '\t'))
         b++;
     const char *e = eol;
-    while (e > b && (e[-1] == ' ' || e[-1] == '\t'))
+    while (e > b && (e[-1] == ' ' || e[-1] == '\t' ||
+                               e[-1] == '\r'))
         e--;
     if (e == b)
         return p;
@@ -8146,6 +8204,112 @@ static const char *place_points(const char *p, const char *end,
     }
     o->npts = (unsigned char)(got > OBJ_MAXPTS ? OBJ_MAXPTS : got);
     st->pts_lines++;
+    return eol;
+}
+
+/* PR-246: the second extra line of an entry - the AUTHORED
+ * RECTANGLE `x0,y0;x1,y1`, offsets from the placement (the engine
+ * reads it into [obj+0xb1..0xbd]; its use, per PR-244/245: the
+ * placed rope's kind verb +0x60 0x23140 intersects it with the
+ * requester's live box and feeds the result to the contact-node
+ * field [obj+0x2c], which is the ask walk's candidate filter).
+ * Stored ABSOLUTE. A degenerate rect (right < left, or bottom <
+ * top) is swapped: the engine's intersect at 0x23145-0x23170
+ * compares [0]/[8] against the other rect's low edges and
+ * [4]/[0xc] against its high edges, so an unsorted authoring
+ * matches nothing at all; sorting is a counted model choice. The
+ * third authored line (`30,50`, the [obj+0xc5] set) is consumed
+ * and counted, not modelled. */
+static const char *place_rect(const char *p, const char *end,
+                              lvl_obj *o, obj_stats *st)
+{
+    const char *eol = p;
+    int v[4];
+    int i;
+
+    while (eol < end && *eol != '\n' && *eol != '\r')
+        eol++;
+    const char *b = p;
+    while (b < eol && (*b == ' ' || *b == '\t'))
+        b++;
+    const char *e = eol;
+    while (e > b && (e[-1] == ' ' || e[-1] == '\t' ||
+                               e[-1] == '\r'))
+        e--;
+    const char *q = b;
+    for (i = 0; i < 4; i++) {
+        const char *s1 = place_int(q, e, &v[i]);
+        if (!s1)
+            return p;
+        if (i == 0 || i == 2) {         /* ',' between the pair's */
+            q = place_comma(s1, e);     /* two numbers            */
+            if (!q)
+                return p;
+        } else
+            q = s1;                     /* i==1: the ';' comes next */
+        if (i == 1) {                   /* ';' between the pairs   */
+            while (q < e && (*q == ' ' || *q == '\t'))
+                q++;
+            if (q >= e || *q != ';')
+                return p;
+            q++;
+        }
+        if (i < 3) {
+            while (q < e && (*q == ' ' || *q == '\t'))
+                q++;
+        }
+    }
+    while (q < e && (*q == ' ' || *q == '\t'))
+        q++;
+    if (q != e)
+        return p;                       /* trailing text: not this */
+    o->arx0 = (short)(o->x + v[0]);
+    o->ary0 = (short)(o->y + v[1]);
+    o->arx1 = (short)(o->x + v[2]);
+    o->ary1 = (short)(o->y + v[3]);
+    if (o->arx1 < o->arx0) {
+        short t = o->arx0; o->arx0 = o->arx1; o->arx1 = t;
+    }
+    if (o->ary1 < o->ary0) {
+        short t = o->ary0; o->ary0 = o->ary1; o->ary1 = t;
+    }
+    o->nrect = 1;
+    st->rect_lines++;
+    return eol;
+}
+
+/* PR-246: the third authored line, a bare `x,y` pair. Read and
+ * counted, not modelled: the engine's element ctor path
+ * (0x49920/0x498f0, whose format slots 0x91d0f/0x91d15 are
+ * empty) builds it into the [obj+0xc5] set; its consumers are
+ * open (OI-078). */
+static const char *place_pair(const char *p, const char *end,
+                              lvl_obj *o, obj_stats *st)
+{
+    const char *eol = p;
+    int vx = 0, vy = 0;
+
+    while (eol < end && *eol != '\n' && *eol != '\r')
+        eol++;
+    const char *b = p;
+    while (b < eol && (*b == ' ' || *b == '\t'))
+        b++;
+    const char *e = eol;
+    while (e > b && (e[-1] == ' ' || e[-1] == '\t' ||
+                               e[-1] == '\r'))
+        e--;
+    const char *s1 = place_int(b, e, &vx);
+    const char *s2 = s1 ? place_comma(s1, e) : NULL;
+    const char *s3 = s2 ? place_int(s2, e, &vy) : NULL;
+
+    if (!s3)
+        return p;
+    while (s3 < e && (*s3 == ' ' || *s3 == '\t'))
+        s3++;
+    if (s3 != e)
+        return p;
+    o->npair = 1;
+    st->pair_lines++;
     return eol;
 }
 
@@ -8198,6 +8362,89 @@ static int place_points_selftest(void)
                     pl[q].what, o3.npts, o3.cpx[0], o3.cpy[0],
                     r != pl[q].text);
             return 1;
+        }
+    }
+
+    /* PR-246: the rectangle and pair lines of the same record. */
+    {
+        static const struct { const char *text; int kind; int v[4];
+                             const char *what; } rl[] = {
+            { "23,30;53,160\n", 1, { 203, 540, 233, 670 },
+              "ZARIA.01's DRABINKA rect (180,510 + 23,30;53,160)" },
+            { "23,30;31,200\n", 1, { 203, 540, 211, 710 },
+              "ZARIA.01's first LINA rect" },
+            { "53,160;23,30\n", 1, { 203, 540, 233, 670 },
+              "a reversed rect: sorted, counted model choice" },
+            { "23,30;53,160\n", 2, { 0 }, "rect parsed, pair refused" },
+            { "30,50\n", 2, { 0, 0 }, "the third authored pair" },
+            { "23,30;53,160 junk\n", 0, { 0 }, "trailing text: refused" },
+            { "23,30\n", 1, { 0 }, "a bare pair is NOT a rect:"
+                                    " refused, and it is consumed as"
+                                    " the pair below" },
+        };
+        for (unsigned q = 0; q < sizeof rl / sizeof rl[0]; q++) {
+            obj_stats stt2;
+            lvl_obj o4;
+            size_t len2 = strlen(rl[q].text);
+            const char *r2;
+
+            memset(&stt2, 0, sizeof stt2);
+            memset(&o4, 0, sizeof o4);
+            o4.x = o4.bx = 180;
+            o4.y = o4.by = 510;
+            if (rl[q].kind == 1)
+                r2 = place_rect(rl[q].text, rl[q].text + len2,
+                                &o4, &stt2);
+            else
+                r2 = place_pair(rl[q].text, rl[q].text + len2,
+                                &o4, &stt2);
+            if (rl[q].kind == 1) {
+                int want = rl[q].v[2] > 0;
+                if ((o4.nrect != 0) != want ||
+                    (want && (o4.arx0 != rl[q].v[0] ||
+                              o4.ary0 != rl[q].v[1] ||
+                              o4.arx1 != rl[q].v[2] ||
+                              o4.ary1 != rl[q].v[3])) ||
+                    (want ? r2 == rl[q].text : r2 != rl[q].text)) {
+                    fprintf(stderr, "contact-point parse selftest:"
+                                    " FAILED the rect parse of %s:\n"
+                                    "  nrect %d got (%d,%d)-(%d,%d)"
+                                    " consumed %d\n", rl[q].what,
+                            o4.nrect, o4.arx0, o4.ary0, o4.arx1,
+                            o4.ary1, r2 != rl[q].text);
+                    return 1;
+                }
+            } else {
+                if (q == 3) {           /* pair asked of a rect line */
+                    if (o4.npair) {
+                        fprintf(stderr, "contact-point parse selftest:"
+                                        " FAILED: a rect line parsed as"
+                                        " a bare pair\n");
+                        return 1;
+                    }
+                } else if (q == 5) {
+                    if (o4.npair || r2 != rl[q].text) {
+                        fprintf(stderr, "contact-point parse selftest:"
+                                        " FAILED: trailing text accepted"
+                                        " as a pair\n");
+                        return 1;
+                    }
+                } else if (q == 6) {    /* "23,30" IS a well-formed pair */
+                    if (!o4.npair || r2 == rl[q].text) {
+                        fprintf(stderr, "contact-point parse selftest:"
+                                        " FAILED: `23,30` refused as a"
+                                        " pair (that is its grammar)\n");
+                        return 1;
+                    }
+                } else {
+                    if (!o4.npair || r2 == rl[q].text) {
+                        fprintf(stderr, "contact-point parse selftest:"
+                                        " FAILED the pair parse of %s\n",
+                                rl[q].what);
+                        return 1;
+                    }
+                }
+            }
         }
     }
 
@@ -8534,9 +8781,32 @@ static void des_place_file(place_ctx *pc, const char *fname,
                     const char *np = eol;
                     while (np < end && (*np == '\n' || *np == '\r'))
                         np++;
-                    const char *ne = place_points(np, end, o, st);
+                    const char *ne = np;
+                    for (;;) {  /* PR-246: the record's extra lines
+                                 * continue one after another: list,
+                                 * rect, pair (the engine's record
+                                 * reads them in that order) */
+                        const char *nx = place_points(ne, end, o, st);
+                        if (nx == ne)
+                            nx = place_rect(ne, end, o, st);
+                        if (nx == ne)
+                            nx = place_pair(ne, end, o, st);
+                        if (nx == ne)
+                            break;
+                        ne = nx;
+                        while (ne < end && (*ne == '\n' || *ne == '\r'))
+                            ne++;
+                    }
                     if (ne != np) {
                         skip_to = ne;
+                        if (o->nrect && st->rect_lines <= 3)
+                            printf("ll_level: placement %s: %s/%s authors"
+                                   " an authored rectangle: absolute"
+                                   " (%d,%d)-(%d,%d); the engine's"
+                                   " 0x23140 intersects it with the"
+                                   " asker's box\n",
+                                   fname, o->sc->leaf, o->sc->movname,
+                                   o->arx0, o->ary0, o->arx1, o->ary1);
                         if (st->pts_lines <= 3)
                             printf("ll_level: placement %s: %s/%s"
                                    " authors %d contact point(s); the"
@@ -8564,13 +8834,14 @@ next:
                " file holds %d entry line(s) - count lines are stale in 38"
                " of the 68 shipped files, so every line is read\n",
                fname, declared, entries);
-    if (st->pts_lines)
+    if (st->pts_lines || st->rect_lines || st->pair_lines)
         printf("ll_level: placement %s: %d entry line(s) carry an authored"
-               " contact-point list; %d point(s) read as the absolute"
-               " positions the engine builds at load (0x44e90), %d point(s)"
-               " beyond the %d the model keeps\n",
-               fname, st->pts_lines, st->pts_read, st->pts_extra,
-               OBJ_MAXPTS);
+               " contact-point list, %d a rectangle, %d a bare pair;"
+               " %d point(s) read as the absolute positions the engine"
+               " builds at load (0x44e90), %d point(s) beyond the %d the"
+               " model keeps\n",
+               fname, st->pts_lines, st->rect_lines, st->pair_lines,
+               st->pts_read, st->pts_extra, OBJ_MAXPTS);
     st->files++;
 }
 

@@ -1065,6 +1065,30 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     live use of that rectangle (with PR-244's state-2
     answer): the engine's collision box is the authored
     rect. No code shipped.
+    PR-246 PORTS THE PARSE AND THE FILTER. The placement
+    reader now follows the record: list, `x0,y0;x1,y1`
+    rect, bare `x,y` pair - all consumed, all counted; the
+    rect is stored ABSOLUTE like the points (the earlier
+    one-line version saw none). Measured: ZARIA.01 now
+    reports `DRABINKA/drab.mov authors an authored
+    rectangle: absolute (203,540)-(233,670)`, TUNGA.11's
+    six rect-only entries are XCHG x3/KLINA x2/GUARD x1,
+    and the whole census 11 lists + 21 records is now read
+    (PR-242's numbers exactly). ladder_ask_raise gained
+    0x23140's filter first: with an authored rect present
+    it must intersect the asker's live box (an entry with
+    no rect keeps the generic contact-node path, which the
+    port's shape meet already stands for). Test first: the
+    new L8 case (box covers the point, misses the rect)
+    fails without the filter, exit 1, passes with it; L9
+    pins the rect/pair grammars incl. the sorted-degenerate
+    model choice. Nothing else moved: the walking probe
+    still prints no K_GEN1 (the authored point stays 3 px
+    above a walking lion), verify-all 65 ok, fixture-free
+    13 + 22. NEXT: use the parsed rect for PHYSICS
+    (walking INTO the ladder), then the jump half so the
+    point gate can pass, then the [obj+0xc5] pair's
+    consumers.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
