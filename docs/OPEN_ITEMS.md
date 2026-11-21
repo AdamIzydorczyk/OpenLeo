@@ -2518,33 +2518,52 @@ OI-114: the OPERATION byte of a compiled transition condition was
     mask has no model action (counted: no shipped clause
     names it) and stays recorded there.
 
-OI-115: whether the engine's transition pass runs on an EMPTY
-  composed set is half-read (PR-264: nothing between the step
-  and the match guards it); what an EMPTY compiled mask
-  matches, and this port's `(o->sig || brk1)` gate, are open
+OI-115: the transition pass was proven UNCONDITIONAL - the
+  empty composed set still asks - and the port's object-side
+  gate is gone (PR-265); what [obj+8] is and what its
+  +0x8c / +0x54 / +0x28 / +0x2c methods do, what an EMPTY
+  compiled mask matches, and the no-data operations stay open
   status: OPEN
   origin: PR-264 (the match arms, the mask builder and the
     operation port are OI-114, CLOSED; what is new here is
     the empty-set pair the replacement makes visible)
-  notes: (a) PR-264 read the walk: 0x536f0 composes
-    [obj+0x60] (0x53705-0x5370c, 0x5371c-0x53725) and calls
-    `[obj.vmt+0x54]` at 0x53733 with NO test of the set;
-    0x53520 copies the 13 bytes and calls the walker 0x52000
-    at 0x5356b, and 0x52000 walks EVERY entry calling
-    TEventSet::match 0x47e40 on each (0x52024-0x5203a) -
-    no empty-test on that path (0x495b0 is called by match's
-    own arms, 0x47f35/0x47f9b). What is NOT read: which
-    method [vmt+0x54] is for the .MOV state-record class
-    (0x53520's address appears at no data site, PR-261
-    counted), and whether that method adds a guard. Until
-    then the port keeps its object-side gate - obj_advance
-    calls obj_transition only when `o->sig || brk1` - while
-    the lion's loop asks every iteration (ll_play.c:1303).
-    Dropping the gate would make shipped `!`-rows of scene
-    objects (e.g. `A_FALL_DOWN(1)=!AC_DRAB`-shape lines)
-    fire on every clean step; that is the engine's answer IF
-    [vmt+0x54] is 0x53520, and it moves level numbers, so
-    it needs its own read plus its own legs.
+  notes: (a) CLOSED at PR-265. The pass 0x53520 has exactly
+    ONE call site in the image, the DIRECT call at 0x5373c
+    inside the step 0x536f0, and the step reaches it in a
+    straight line: merge 0x53705-0x5370c, 0x523f0 + merge
+    0x5371c-0x53725, `call [[obj+8]+0x54]` 0x53733, the
+    pass, the apply 0x535a0 0x5374b, +0x54 AGAIN 0x53755,
+    `[[obj+8]+0x28]` 0x5375d. NO test of [obj+0x60]
+    between the merges and the pass, and the walk 0x52000
+    asks EVERY entry (0x52020-0x5203a). PR-264's framing -
+    that 0x53520's absence from the data sites left the
+    path's reachability or a possible guard open - is
+    resolved: the pass is called directly, not reached
+    through a table, and nothing guards it. The port's
+    `(o->sig || brk1)` guard had no engine counterpart and
+    is removed. Red leg, the KADMAR.07 stairs shape
+    (SCHODY_SCH01..03 line 10): an object's `=!K_GEN3` row
+    is taken at its FIRST, empty-set step under the
+    disjoint arm; the control, an unraised subset row, is
+    not. REACH, counted: of the 87 shipped `!`-clauses, 74
+    sit in `*_LEW*` texts, 10 in KADMAR.07_0_0.MOV (that
+    level's PLAYER text, PR-263), and 3 - the three
+    identical stairs files - in true scene-object scripts;
+    none is driven and no shipped number moves (measured).
+    The `A_FALL_DOWN(1)=!AC_DRAB` row named in this
+    paragraph when the row opened is a LION row, and the
+    lion side never had a gate (ll_play.c:1302-1303, one
+    ungated cond_true call site).
+    (d) NEW LEAD: what [obj+8] is, and which methods answer
+    its +0x2c (spawn, 0x539d4), +0x8c (0x536ff), +0x54
+    (0x53733 and 0x53755) and +0x28 (0x5375d) slots. The
+    base record ctors ZERO +0x54 (0x524ba, 0x52548); NO
+    immediate stores a function address into those slots
+    (counted); register stores exist at 0x2e57c, 0x32700,
+    0x3808f (+0x54) and 0x5f483, 0x5ffa9 (+0x8c) whose
+    families are unattributed. That read names the last
+    un-named calls on the step; the +0x8c set-builder and
+    +0x90 slot of PR-262 are part of the same family.
     (b) a clause whose names are ALL in no table compiles to
     an empty mask, and the subset arm takes it VACUOUSLY;
     both evaluators now carry `if (!mask) return 0;` - the

@@ -1476,7 +1476,16 @@ static void obj_advance(lvl_obj *o, unsigned dt_ms)
      * transitions test, and they are cleared here rather than by the
      * step that raised them. */
     int brk1 = (int)o->brk_arm;         /* the bit the PREVIOUS step armed */
-    int hit1 = (o->sig || brk1) && obj_transition(o, mov, brk1);
+    /* PR-265: the pass is asked on EVERY step, empty set or not. The
+     * engine's step 0x536f0 calls 0x53520 at 0x5373c unconditionally -
+     * its only call site in the image - and the walk 0x52000 matches
+     * EVERY entry (0x52024-0x5203a), so an `=!X` row (op 1, "the AND
+     * IS empty", 0x47edc/0x47f35) is TRUE on a clean step and a
+     * subset row (op 0) is false unless its names are live. The old
+     * `(o->sig || brk1)` guard was the port's own; it had no engine
+     * counterpart and hid exactly the rows KADMAR.07's stairs text
+     * (SCHODY_SCH01..03 line 10 `=!K_GEN3`-shape) authors. */
+    int hit1 = obj_transition(o, mov, brk1);
 
     o->sig = 0;
     o->brk_arm = 0;
@@ -2766,6 +2775,62 @@ static int obj_state_selftest(void)
         }
         free(at);
         free(bt);
+        if (!pass)
+            goto out;
+    }
+    {   /* PR-265 red: the transition pass is UNCONDITIONAL. The step
+         * 0x536f0 composes [obj+0x60] and calls the pass 0x53520 at
+         * 0x5373c with no test of the set anywhere on the path
+         * (0x536ff-0x5374b, and 0x5373c is the pass's ONLY call site
+         * in the image), and 0x52000 then asks EVERY entry (0x52024-
+         * 0x5203a). So on a step whose set is EMPTY the match still
+         * runs, and TEventSet::match's disjoint arm (op 1: the AND of
+         * the two sets IS empty, 0x47edc/0x47f35, PR-264) answers TRUE
+         * for `=!X` rows. The port's object step skipped the whole
+         * pass when nothing was armed (`o->sig || brk1`) - no engine
+         * counterpart. KADMAR.07's stairs text (SCHODY_SCH01..03 line
+         * 10, `A_...(...)=!K_GEN3`) is exactly that row shape; a
+         * clean object takes it at its FIRST step. The control: a
+         * plain subset row on an empty set (op 0) stays false. */
+        static const char ung_eq[] =
+            "A_RUN\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\n"
+            "A_DEAD(1)=!K_GEN3\n1,100\n2,100,GEN K_GEN3\n\n[A_DEAD]\n"
+            "control=BY_TIME\n3,100\n";
+        static const char ung_ne[] =
+            "A_RUN\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\n"
+            "A_DEAD(1)=AC_ENEMY\n1,100\n2,100\n\n[A_DEAD]\n"
+            "control=BY_TIME\n3,100\n";
+        ll_mov_t *ue = calloc(1, sizeof *ue), *un = calloc(1, sizeof *un);
+        obj_script sue, sun;
+        lvl_obj ea, en;
+        int pass = 0;
+        memset(&sue, 0, sizeof sue);
+        memset(&sun, 0, sizeof sun);
+        memset(&ea, 0, sizeof ea);
+        memset(&en, 0, sizeof en);
+        if (ue && un) {
+            ll_mov_parse(ung_eq, ue);
+            ll_mov_parse(ung_ne, un);
+            sue.mov = ue;
+            sun.mov = un;
+            ea.sc = &sue;
+            en.sc = &sun;
+            obj_advance(&ea, LL_ITER_MS);
+            obj_advance(&en, LL_ITER_MS);
+            if (ea.sti != 1)
+                fprintf(stderr, "object state selftest: FAILED the"
+                                " `=!K_GEN3` row was NOT taken on the"
+                                " first, empty-set step (state %d)\n",
+                        ea.sti);
+            else if (en.sti != 0)
+                fprintf(stderr, "object state selftest: FAILED an"
+                                " unraised `AC_ENEMY` subset row was taken"
+                                " on an empty set (state %d)\n", en.sti);
+            else
+                pass = 1;
+        }
+        free(ue);
+        free(un);
         if (!pass)
             goto out;
     }

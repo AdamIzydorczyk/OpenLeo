@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-265.
+> at PR-266.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -36668,6 +36668,101 @@ evaluator uses": same correction, replaced by the arms
 above. And PR-261's "the corpus writing the pipe 40 times
 out of 41 is the data-side proof" - ALL 47 pipes lead a
 comma list, which is the same point measured cleanly.
+GATE: make 0 warnings; verify-all fixtures rc=0 67 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named (the 23rd SKIP
+line is the cmake-windows parity check, which names its own
+reason: no vendor/SDL2-2.32.10/x86_64-w64-mingw32 prefix
+in this tree)
+```
+
+## PR-265 — THE TRANSITION PASS IS UNCONDITIONAL: 0x53520'S
+## ONLY CALL SITE IS A DIRECT CALL FROM THE STEP, AND THE
+## PORT'S OBJECT-SIDE `(o->sig || brk1)` GATE GOES
+```
+KIND: port
+SUBSYSTEM: the object step's per-iteration transition ask -
+the port's guard that skipped the whole pass when nothing was
+armed, removed; the engine asks EVERY step, empty set or not.
+ADDRESSES: 0x47e40, 0x47edc, 0x47f35, 0x495b0, 0x52020,
+0x52024, 0x52033, 0x5203a, 0x524ba, 0x52548, 0x53520,
+0x536f0, 0x536ff, 0x53705, 0x5371c, 0x53725, 0x53733,
+0x5373c, 0x5374b, 0x53755, 0x5375d
+NAMES: OI-115, SCHODY_SCH01..03, KADMAR.07, =!K_GEN3,
+TEventSet::match, obj_transition, PR-163, PR-261, PR-262,
+PR-264
+CODE: yes: obj_advance (ll_level.c) now calls obj_transition
+on EVERY iteration - the `(o->sig || brk1) &&` guard is
+removed, with the 0x5373c/0x52024-0x5203a evidence in its
+comment. The lion's side already asked every step (its
+transition loop has a single, ungated cond_true call site,
+ll_play.c:1302-1303 - measured now, and unchanged).
+HOOKS: red first, at HEAD: an object with a leading
+`A_DEAD(1)=!K_GEN3` row - the shape KADMAR.07's stairs text
+ships three times (SCHODY_SCH01/02/03 line 10) -
+"was NOT taken on the first, empty-set step (state 0)"
+FAILED; it passes now: with the disjoint arm (op 1, "the AND
+of the two sets IS empty", 0x47edc + the empty-test 0x495b0
+at 0x47f35) the row is TRUE on a step whose set is EMPTY,
+and the pass runs on that step. The control, an
+`A_DEAD(1)=AC_ENEMY` subset row on the same empty set,
+stays FALSE in both readings (op 0 demands the name live);
+it is green before and after and frames the arm. The whole
+fixture suite is byte-identical (measured): no driven leg
+touches any object that ships a `!`-row.
+MEASURED: (a) THE ONLY CALL SITE. `call 0x53520` occurs
+exactly once in the image, at 0x5373c, a direct rel32 call
+INSIDE the step 0x536f0. The step runs in a straight line:
+`call [[obj+8]+0x8c]` (0x536ff) then merge (0x53705-
+0x5370c), 0x523f0 (0x5371c) then merge (0x53725),
+`call [[obj+8]+0x54]` (0x53733), the pass (0x5373c), the
+apply 0x535a0 (0x5374b), `[[obj+8]+0x54]` AGAIN (0x53755)
+and `[[obj+8]+0x28]` (0x5375d). NO test of [obj+0x60]
+exists between the merges and the pass. PR-261's "0x53520's
+address sits at no data site" stands and explains itself:
+the pass is not reached through a table, it is called.
+(b) THE WALK ASKS EVERY ENTRY. 0x52000 steps its 0x15-byte
+entries (0x52020-0x5203a) and calls TEventSet::match per
+entry (0x52033), stepping on with `test eax,eax / je` -
+there is no empty short-circuit; 0x495b0 appears on this
+path only inside match's own arms (0x47f35, 0x47f9b). So a
+clean step still asks, and its answer for `!`-rows is TRUE.
+(c) THE REACH, counted: of 87 shipped `!`-clauses, 74 sit in
+`*_LEW*` texts and 10 in KADMAR.07_0_0.MOV - which carries
+the lion-shape blocks of that level's player text (PR-263) -
+so only 3 rows sit in a true scene-object script: the three
+identical KADMAR.07 stairs files, line 10. None of them is
+driven by any leg, and no shipped level number moves
+(measured). The player side already behaved this way, which
+is why PR-259's chain and the ZARIA.01 legs are untouched.
+(d) UNREAD, and now the lead: what [obj+8] IS, and which
+methods answer its +0x8c / +0x54 / +0x28 / +0x2c slots. The
+base record ctors ZERO +0x54 twice (0x524ba, 0x52548) and NO
+site in the image stores a function ADDRESS immediate into
+those slots (counted); three stores through registers exist
+- 0x2e57c, 0x32700, 0x3808f write `[reg+0x54] = reg`, and
+0x5f483 / 0x5ffa9 touch a `[ebp+0x8c]` - but the families
+they belong to are not identified. That is where reading
+(d) starts. Recorded as OI-115 (d), not guessed.
+OPENS: in order: (i) OI-115 (d) - what [obj+8] is and what
+its +0x8c / +0x54 / +0x28 / +0x2c methods do, the only
+un-named calls left on the step; (ii) OI-115 (b), the
+empty-mask vacuous ask; (iii) the top of a climb, AC_EDGE /
+A_PODCIAG (OI-078's lead); (iv) the entry's +0x11
+downstream and 0x53815's four-field reader (PR-261 (iii));
+(v) a raise landing between the pass and 0x535a0 (PR-262
+(d)); (vi) the rest of the OI-078 list unchanged.
+CLOSES: OI-115 (a) - whether the pass runs on an empty
+composed set: it does, unconditionally, and the port's
+object-side gate - with no engine counterpart - is gone.
+The engine asks every step and its match answers decide;
+this port now does the same on both sides.
+CORRECTS: PR-264's framing in its OPENS (i) and in OI-115:
+"which method is [obj.vmt+0x54] for the .MOV record class"
+treated that virtual call as the road to the pass. It is
+not: the pass 0x53520 is a DIRECT call at 0x5373c, right
+after it; the +0x54 call is a separate method whose body is
+still unnamed. The empty-set question needed no such read -
+the straight-line step settles it.
 GATE: make 0 warnings; verify-all fixtures rc=0 67 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named (the 23rd SKIP
 line is the cmake-windows parity check, which names its own
