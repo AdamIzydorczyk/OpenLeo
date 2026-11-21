@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-268.
+> at PR-269.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -37114,5 +37114,226 @@ the empty-set stub, so those objects have no signal collector
 at all. And this port's own model note (ll_level.c:5057) is
 right that P1 tests [self+0xc5] but never asked what that
 block holds: for this class it is four zeros.
+GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-268 — THE CLASS FACTORY, CENSUSED; ZARIA.01'S LADDER
+## ANSWERS ON AUTHORED RECTANGLES THIS PORT HAS NEVER USED
+```
+KIND: read
+SUBSYSTEM: the object-class factory (0x4df10's chain of name
+tests against the class-name pool, each one a 0x76a69 call),
+the behavior table each class installs, the per-class record
+verb that reads a placed object's authored parameter block,
+and the owners of every AC_EDGE raise in the image.
+ADDRESSES: 0x1f8b3, 0x23900, 0x23b60, 0x23e00, 0x27e40,
+0x27eb1, 0x27fd0, 0x2812a, 0x287a0, 0x3b500, 0x3b6d0,
+0x3c250, 0x3c270, 0x3f0f0, 0x3f115, 0x3f11f, 0x3f124,
+0x3f154, 0x3f159, 0x3f178, 0x3f182, 0x3f1c0, 0x3f222,
+0x3f256, 0x3f293, 0x3f29f, 0x3f2b1, 0x3f390, 0x3f4ac,
+0x3f525, 0x44ec0, 0x49920, 0x49f90, 0x49fb0, 0x4a050,
+0x4a0b0, 0x4df10, 0x4e81d, 0x4e8c4, 0x4e8d2, 0x523f0,
+0x52416, 0x52423, 0x52860, 0x531f0, 0x532c0, 0x53ff0,
+0x54004, 0x54030, 0x54e02, 0x54e0a, 0x76a69, 0x91d00,
+0x91d0f, 0x96960, 0x97cdc, 0x97d54, 0x97f64, 0x9803c,
+0x98274, 0x98278, 0x99828, 0x9a778, 0x9a820, 0xa0230,
+0xa02a8, 0xa1dfc, 0xa1e74, 0xa23b0, 0xa23b8
+NAMES: OI-078, OI-115, OI-116, OI-117, OI-118, the class
+factory, the class behavior table, the record verb, DRABINKA,
+LINA, DRAB, ZWIERZ, CAMEL, ZOLW, PTAKPLAT, TWINDA, GEJZER,
+TLewZaria, AC_EDGE, AC_DRAB, AC_DRAB_CATCH, AC_LINA,
+AC_LINA_CATCH, K_GEN1, K_GEN2, the authored rectangle, the
+contact-point list, the bare pair, the ask point,
+ladder_answer_core, blk_of_obj, pt_in_blk, blk_probe70,
+PR-149, PR-216, PR-240, PR-242, PR-243, PR-244, PR-246,
+PR-247, PR-254, PR-257, PR-262, PR-265, PR-266, PR-267
+CODE: no: no line of `ported/` changes. What follows is read
+from the image and from the shipped placement text, and no
+outcome the suite observes moves: the two ladder-ask legs
+still print `-> no`, because they print the 0x44ec0 point
+test, not the answer verb this record reads.
+HOOKS: no red leg: nothing in `ported/` moved. The measurement
+is (i) a walk of the image - the factory chain, every table
+cell, the parse helpers, register-offset tracking through the
+`add eax,0xd6` / `mov [eax-0x2e],T` idiom, in the scripts
+/tmp/opencode/pr268_census.py, pr268_owner.py,
+pr268_params.py; (ii) the shipped placement text -
+hd_files/ETAPY's ZARIA.01 block read as bytes, quoted here;
+and (iii) the port's own already-shipped placement report,
+quoted rather than re-derived.
+MEASURED: (a) THE FACTORY, IN FULL. 357 strcmp branches, 223
+that allocate, 218 distinct class names, 197 behavior tables
+now named to their class. Each branch: `mov eax,<size>; call
+0x5c320`, one initializer, and - in the branch or in that
+initializer - `mov [obj+8],<table>` with `[obj+0xc] =
+<table>-8`. Most classes share a small set of initializers:
+96 branches call 0x53ff0, 39 call 0x531f0 (itself a wrapper
+of 0x52860), 27 call 0x52860, 5 of the lion classes call
+0x500b0. 0x53ff0 is the DEFAULT initializer: 0x53ff0-0x5402b
+zeroes [obj+0xb5], builds the embedded point object described
+in (d), and stores the pair 0xa23b8/0xa23b0 at [obj+8] and
+[obj+0xc] - so a class that installs no table of its own is
+still a working object. The rest have their own (0x1e0a0
+TLewZaria -> table 0x96960; 0x62e40 SEP -> 0x97bc0; and a
+second default initializer, 0x54030, at 38 call sites, which
+calls 0x532c0 and repeats the same point-object stores).
+(b) THE +0x18 SLOT IS THE RECORD VERB: it is the only slot in
+any table that calls the scanf helper 0x49920 - 82 tables do,
+no other slot in any table does - and each one reads its own
+class's parameters out of the placed object's authored block:
+` damage = %d`, ` bounds = %d, %d`, ` v_bounds = %d, %d`,
+` speed`, ` invincible`, ` hit_time`, ` scope`, ` xchg`,
+` end_pos = %i , %i` ... The formats live at 0x90b80-0x91d20.
+The two the OI-078 lead wanted, ` bounds = %d, %d` (0x3b500)
+and ` v_bounds = %d, %d` (0x3b6d0), fill [obj+0x122] and
+[obj+0x126] in the +0x18 verbs of PTAKPLAT, TWINDA and
+GEJZER - the fields 0x27e40 and 0x27fd0 compare against
+another object's position (see (f)).
+(c) THE LADDER'S TWO RECTANGLES ARE AUTHORED TEXT, END TO
+END. ZARIA.01's own placement text (hd_files/ETAPY, read as
+bytes) authors four lines per climbable object:
+`DRABINKA,drab.ani,drab.mov,180,510` / `1 33,-3` /
+`23,30;53,160` / `30,50`, and the same shape for two LINA
+ropes at (125,292) and (525,525). The class's +0x18 verb
+(0x3f0f0, held by BOTH 0x97cdc and 0xa1dfc) reads all three:
+0x44f10/0x44e90 for the contact-point list; then 0x49f90
+with the format at 0x91d00 = `%d,%d;%d,%d , ` into
+[obj+0xb1..0xbd] as x0,y0,x1,y1, and 0x3f124-0x3f14b adds
+the placement x,y so the column is ABSOLUTE from load and
+never follows the object; then 0x4a0b0 with the format at
+0x91d0f = `%d,%d` reads the bare pair (a,b) and
+0x3f159-0x3f175 writes [obj+0xc5..0xd1] as x0 = x1 = a, y0 =
+b-0x50, y1 = b, and 0x4a050 widens it: `n = [obj+0xb9] -
+[obj+0xb1] + 1` (the authored column's width plus one),
+`half = ((x1-x0) - n) halved with sign`, then x0 += half and
+x1 -= half - for x0 = x1 = a and n = 31 that is a-15 .. a+15,
+as wide as the authored column and centred on a; and
+0x3f187-0x3f1a7 adds the placement x,y to that block as well.
+This port parses all three lines (PR-243/PR-246/PR-247) and
+its loader prints the same column this arithmetic gives:
+`DRABINKA/drab.mov authors an authored rectangle: absolute
+(203,540)-(233,670)`.
+(d) THE ANSWER VERB ASKS WITH THE ASKER'S LIVE POSITION, AND
+WITH THOSE RECTANGLES - AND 144 CLASSES SHARE THE PROTOCOL.
+0x3f1c0's three tests, read through: 0x3f222 calls the ASKER's
++0x68 verb - 0x23900, three instructions, `add eax,0xd6; ret`,
+and it is the +0x68 verb of 144 of the 204 class tables -
+which hands back the asker's own embedded point object at
+[obj+0xde]. That object is filled by the engine on every step:
+0x54e0a-0x54e17 copies [obj+0x00] and [obj+0x04] (the live
+x,y) into [obj+0xd6] and [obj+0xda], and the default
+initializers build it: 0x53ff0 zero [obj+0xd6]/[obj+0xda] and
+store the shared table 0x98278 at [obj+0xde] (0x54004-0x5400b,
+repeated by the other default initializer 0x54030 at
+0x5403c-0x54045), and 0x98278's +0x8 verb is 0x23e00. So
+0x3f230 asks the asker's point object, through its own +0x8
+verb, "are you inside MY [obj+0xc5]": P1 is the asker's live
+position inside the edge band. P2 (0x3f256, 0x3f29f) is the
+same verb against MY [obj+0xb1] column, and P3
+(0x3f283-0x3f2b1) copies that column into a stack object
+carrying the table at 0x98274, narrows it with 0x49fb0 at
+n = 0x46 = 70 per cent (x only) and asks again. So the
+engine's ladder answers with AUTHORED geometry and the asker's
+live point; and the port's `ladder_answer_core` already has
+exactly that shape (P1 edge, P2 rung, P3 the 70% copy,
+`pt_in_blk`, `blk_probe70` = 0x49fb0, and `ask` = `pt_of(
+asker)` = the lion's rounded position) - it only builds the
+two rectangles from the wrong source: `blk_of_obj` takes the
+object's current art bbox.
+(e) THE NUMBERS, FOR ZARIA.01. Placement (180,510), pair
+(a,b) = (30,50), column 23,30;53,160. The engine's column is
+(203,540)-(233,670) - 31 px wide, 130 px tall, the authored
+ladder from its top at y 540 to its foot at y 670; its edge
+band is x = 30+-15 plus 180 = 195..225 and y = 50-80..50 plus
+510 = 480..560, the top of that column and 80 px above it;
+its P3 middle is x = 207..229. This port builds both roles
+from `blk_of_obj`: the current row's element box positioned at
+the object, which for this class is the DRAB.SEQ art shape,
+42x48 by the port's own note at ll_level.c:5110. Those are
+different rectangles from the engine's on both axes, so an ask
+at a given position can answer either way; in game terms the
+engine's AC_EDGE is the top of the authored ladder - which is
+what the level's own script asks for,
+`A_PODCIAG(1)=AC_EDGE,K_UP` and `A_SCIAG(1)=AC_EDGE,K_DOWN`.
+The two pinned legs are not moved by any of this: they print
+the 0x44ec0 contact-point test (PR-254's ask probe) against
+the ASKER's box, not this verb, and both stay `-> no`.
+(f) EVERY AC_EDGE RAISER, BY OWNER. Six sites raise bit 8,
+each found through the table cell that holds its function:
+0x3f1c0 at 0x97cdc+0x78 (DRABINKA), 0x3f390 at 0xa1dfc+0x78
+(LINA), 0x3c270 at 0xa0230+0x78 (DRAB - a third ladder-like
+class, size 0x64, ctor 0x52860, with its two rectangles
+inline at [obj+0x3c] and [obj+0x50] and a +0x18 verb 0x3c250
+that fills both through 0x49f90), 0x27e40 at 0x9a778+0xa8
+(CAMEL and ZOLW), 0x27fd0 at 0x99828+0xa8 (ZOLW's second
+table), 0x41a50 at 0x97f64+0xd8 (the ZWIERZ animal base).
+The two +0xa8 raisers compare [obj+0x126]/[obj+0x12a]
+against another object's position - the fields the authored
+` bounds`/` v_bounds` parameters fill, see (b) - and they are
+the only two raisers of K_GEN1/K_GEN2 in the image (`sete al
+/ add al,0x36` at 0x27eb1 and 0x2812a). ZARIA.01's own
+object corpus names 22 classes (ANIBACK, ANITAB, BAL,
+DRABINKA, GWIAZDKI, KAMIEN, KATAPULT, KORONA, LICHA, LINA,
+NOSOROG, PAJAK, PALMA, PIANA, POCISK, RYBA, SEP, SPLYW,
+SURPRISE, WODA, ZARROW and its lion TLewZaria); none of the
+other five owners is among them, so this level's AC_EDGE can
+only come from the two climbable objects' +0x78 verbs.
+(g) THE TWO LADDER CLASSES ARE NOT ONE. DRABINKA (0x1f8b3)
+installs 0x97cdc/0x97cd4; LINA (0x4e81d) allocates the same
+0xd9, calls the same 0x531f0, writes the same member table
+0x97f50 at [obj+0xad], installs 0x97cdc at 0x4e8c4 and then
+OVERWRITES it at 0x4e8d2 with 0xa1dfc/0xa1df4. The two tables
+differ in their answer verb: 0x3f1c0 against 0x3f390. The
+LINA verb keeps the same P1/P2/P3 tree with n = 0x32 = 50 per
+cent and raises AC_LINA (0x3f525, byte 2 bit 5 = bit 21) and
+AC_LINA_CATCH (0x3f4ac, bit 22) where the DRABINKA table
+raises the AC_DRAB pair, and its state-1 branch raises
+K_GEN1 into [obj+0x66] bit 6 (0x3f3d9 `or ah,0x40`) when
+0x44ec0's test over [obj+0xa5] is true. ZARIA.01 places both
+and its lion script asks for all four signals by name -
+`A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR`,
+`A_WSP_LIN(3)=AC_LINA_CATCH,AC_ONAIR`,
+`A_WSP(1)=AC_BREAK_NEXT,AC_DRAB`, `A_FALL_DOWN(1)=!AC_DRAB`.
+This port models the AC_DRAB family only (ll_level.c:5124
+still says the AC_LINA twins "have never been" anchored; this
+record anchors them).
+OPENS: in order: (i) the PORT PR this record exists to
+unblock: feed `ladder_answer_core` the authored edge band and
+column (o->arx0/ary0/arx1/ary1 and the bare pair the loader
+already parses) instead of `blk_of_obj`, with red legs built
+from the numbers in (e); (ii) OI-118, new: 0x523f0 raises
+through [[obj+0x00]+8]+0xac and +0xa8 (0x52416/0x52423), a
+SECOND object's table, and no ctor in the image installs one
+at [obj+0x00] - while (d) shows the engine does embed objects
+inside objects, with their own tables, one field away; (iii)
+whether the authored blocks are absolute-once (0x3f124) or
+followed: the port's objects do move, so a moving object's
+authored rectangles must be re-derived - nothing measured
+says; (iv) OI-116, unchanged; (v) OI-115 (b), unchanged;
+(vi) the entry's +0x11 downstream, 0x53815's four-field
+reader, a raise landing between the pass and 0x535a0; (vii)
+the rest of the OI-078 list unchanged.
+CLOSES: OI-117. Which classes get real rectangles, and from
+what: the record verb at +0x18 of the class's own table, read
+out of the placement text quoted in (c) - 0x49f90 puts the
+`x0,y0;x1,y1` column into [obj+0xb1..0xbd] and 0x4a0b0 +
+0x3f159 + 0x4a050 build the edge band at [obj+0xc5..0xd1]
+from the bare `a,b` pair widened to that column's width, both
+made absolute with the placement x,y. The ctor constants
+PR-267 found are the pre-load state only, and ZARIA.01
+authors values for all three of its climbable objects.
+CORRECTS: PR-267 (e): "no function reachable from 0x97cdc's
+slots calls the parameter parser 0x49920" - its +0x18 verb
+0x3f0f0 does, through 0x49f90 at 0x3f11f, which is why that
+record's "never written again" holds only of paths that do
+not run the record verb; and PR-267's reading of the second
+0xd9 class as "the same class" - the LINA branch overwrites
+the table at 0x4e8d2, and that difference is what turns the
+AC_DRAB family into the AC_LINA family. Also this port's
+model note at ll_level.c:5100-5116, which still treats the
+art bbox as "the one rectangle every authored ladder provably
+has" and calls the edge block's authoring un-read: it is
+authored, in the placement text, three lines below the
+placement line.
 GATE: light: verify-index verify-docs rc=0 (ok);
 ```

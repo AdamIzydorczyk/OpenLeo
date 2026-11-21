@@ -629,16 +629,16 @@ OI-078: the in-game ZARIA.01 climb, now MOVING to the top at
   `p->sig = 0` / `o->sig = 0` is the engine's law, not this
   port's stand-in): the lead was the top of a climb,
   `A_PODCIAG(1)=AC_EDGE,K_UP` with AC_EDGE unmodelled - PR-267
-  measures that away (the ladder's own answer verb is dead by
-  construction) and moves the lead to the six counted AC_EDGE
-  raisers (what
+  measured that away, PR-268 re-opens it the other way: the
+  ladder's answer verb IS alive and its two rectangles are
+  AUTHORED text, and this port hands the verb its own element
+  box instead (what
   raises K_GEN1 was PR-257: the lion's own rows, and
   `A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR` is CLOSED as a non-lead,
-  PR-258), the authored rectangle
-  format ([obj+0]==2 as a runtime gate vs [obj+0]/[obj+4] as
-  rect x/y, and what the row-start numbers change on screen),
-  node lifetime + the 0x54b6a merge guard, object-asked answers
-  and mid-air asking
+  PR-258), the AC_LINA twins of AC_DRAB (the LINA class raises
+  them, the port models only the AC_DRAB pair), node lifetime +
+  the 0x54b6a merge guard, object-asked answers and mid-air
+  asking
   status: PARTIAL
   notes: poster, pair-walk entry, node builders, feed law, guard,
     evaluator, ladder answer all read and shipped (PR-142..150);
@@ -1572,11 +1572,15 @@ OI-078: the in-game ZARIA.01 climb, now MOVING to the top at
     lands between the pass and the switch.
 
     PR-267 removes this row's AC_EDGE lead by measurement and
-    opens a new one. The ZARIA.01 ladder's class (DRABINKA)
+    opens a new one. (PR-268 shows the middle of this
+    paragraph is wrong - the blocks it calls constants are
+    rewritten by the record verb; kept for the count it
+    carries.) The ZARIA.01 ladder's class (DRABINKA)
     is built at 0x1f8ac: its [obj+0xc5] block - the one P1 of
     its answer verb 0x3f1c0 tests, the branch that would
-    answer AC_EDGE - is four ZEROS, and no site in the image
-    writes it again; its [obj+0xb1] block is (1,1,1,1). The
+    answer AC_EDGE - is four ZEROS at the constructor, and
+    PR-267 read no site as writing it again; its [obj+0xb1]
+    block is (1,1,1,1). The
     predicate 0x23e00 is inclusive, so for any real position
     P1 and P2 are both false and the verb takes the inert
     exit 0x3f364: a placed ladder answers NOTHING, in any
@@ -1590,9 +1594,37 @@ OI-078: the in-game ZARIA.01 climb, now MOVING to the top at
     0x41aa0 (`lea eax,[ecx+0x60] / or BYTE PTR [eax+1],1`)
     gated by an fcmp of the floats [ecx+0x10b] / [ecx+0x12f]
     and [ecx+0x5c] == 1. None of the six is in the lion's own
-    0x96874 or any TLew* table. NEW LEAD: which of those
-    owners sits at the top of the ZARIA.01 ladder - start at
-    0x41aa0. See OI-117 for the blocks.
+    0x96874 or any TLew* table. PR-268 reads the six owners and
+    settles the question for this level. By table+slot they
+    are 0x3f1c0 at 0x97cdc+0x78 (DRABINKA), 0x3f390 at
+    0xa1dfc+0x78 (LINA), 0x3c270 at 0xa0230+0x78 (DRAB),
+    0x27e40 at 0x9a778+0xa8 (CAMEL, ZOLW), 0x27fd0 at
+    0x99828+0xa8 (ZOLW) and 0x41a50 at 0x97f64+0xd8 (the
+    ZWIERZ animal base). ZARIA.01 places none of the last
+    four, so its AC_EDGE can only come from the two climbable
+    objects' own answer verbs - and those verbs are NOT dead:
+    PR-267's constants are the ctor state only, and the record
+    verb at table slot +0x18 (0x3f0f0) refills both blocks
+    from the authored placement text (OI-117). NEW LEAD, with
+    the numbers: the engine's P1 asks whether the ASKER's live
+    position (the block at [asker+0xd6], filled from [obj+0]/
+    [obj+4] at 0x54e0a) lies inside the ladder's edge band -
+    for `DRABINKA,...,180,510` plus the bare pair `30,50`
+    that band is x 195..225, y 480..560, the top of the
+    authored ladder, and its P2 column is (203,540)-(233,670)
+    with P3 the middle 70% of it. This port answers from
+    `blk_of_obj`, the object's current art box, in both roles
+    - a 42x48 DRAB.SEQ box against the engine's 80 px band and
+    130 px column, different rectangles on both axes, so an
+    ask at a given position can answer either way. That is the
+    exact shape of `ladder_answer_core`, so the fix is the
+    rectangle source, not the predicate. The two pinned legs
+    are unaffected: they print the 0x44ec0 contact-point test
+    against the asker's box, not this verb. Second lead: the
+    same level places two LINA ropes whose verb 0x3f390 raises
+    AC_LINA and AC_LINA_CATCH (bits 21, 22) at 0x3f4ac/
+    0x3f525, which the lion's script asks for by name and this
+    port does not model.
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
   recovery on the next input?)
@@ -2648,31 +2680,69 @@ OI-116: who raises the F-family (K_F1..K_F12) and K_FIRE, and
     occurrences can never match here. No climb row in the
     ZARIA.01 chain names an F-signal, so OI-078's lead is
     unchanged.
-OI-117: the answer verb's two rectangles: this port builds
-  them from the object's own shape element, the engine's are
-  class-ctor constants (the DRABINKA's are (1,1,1,1) and
-  (0,0,0,0)), so its verb answers nothing at all
-  status: OPEN
+OI-117: the answer verb's two rectangles - where the engine
+  gets them, and why this port's verb answers nothing
+  status: CLOSED BY PR-268
   origin: PR-267 (reading the DRABINKA class to its
     constructor)
-  notes: `ladder_answer_core` (ll_level.c:5204) takes `edge`
-    = the P1 block and `rung` = the P2/P3 block, and both are
-    derived in this port from `obj_shape_elem` - the current
-    row's element box positioned at the object, the same path
-    play_collide uses. That is what the pinned legs print:
-    `...213,507 ... 168,517..215,583 -> no` (Makefile:1835)
-    and the mirror at 1874. The engine has no such derivation
-    for this class: both ctors (0x1f8ac-0x1f962 and
-    0x4e822-0x4e8cb) install the blocks as constants, the
-    [obj+0xc5] one is never written again anywhere in the
-    image (five references, three of them reads inside the
-    two verbs), and no function reachable from the class
-    table 0x97cdc calls the parameter parser 0x49920, while
-    other classes do parse ` damage`/` up` into that field
-    region (0x2e051, 0x30167, 0x30189). So a placed DRABINKA
-    takes P1 false, P2 false, the inert exit at 0x3f364, for
-    every position - and this port's legs agree in outcome by
-    a different route. OPEN: which classes DO get real blocks
-    (the sibling verb 0x3f390 is held once, at 0xa1e74), and
-    whether any authored field fills them. Nothing in the
-    suite moves today: both in-game asks are pinned `-> no`.
+  notes: RESOLVED by PR-268, and PR-267's reading was wrong.
+    The blocks are ctor constants ONLY until the placed
+    object's record verb runs: slot +0x18 of the class's own
+    table is the record verb (it is the only slot in any of
+    the 197 named tables that calls the scanf helper 0x49920),
+    and the ladder/rope verb 0x3f0f0 reads both blocks out of
+    the object's authored placement block - 0x49f90 with the
+    format at 0x91d00 = `%d,%d;%d,%d , ` into
+    [obj+0xb1..0xbd], then 0x3f124-0x3f14b adds the placement
+    x,y, then 0x4a0b0 (`%d,%d`, 0x91d0f) reads a bare pair
+    (a,b) and 0x3f159-0x3f182 builds [obj+0xc5..0xd1] as
+    x0 = x1 = a, y0 = b-0x50, y1 = b, then 0x4a050 widens
+    that to the authored column's width centred on a - a band
+    inclusive 15..45 for `30,50` with the column 23..53 -
+    also made absolute. ZARIA.01's own text authors
+    `23,30;53,160` and `30,50` after
+    `DRABINKA,drab.ani,drab.mov,180,510`, i.e. the column
+    (203,540)-(233,670) and the edge band (195,480)-(225,560)
+    - and this port already parses those numbers
+    (PR-243/PR-246/PR-247); it just does not hand them to
+    `ladder_answer_core`, which builds both roles from
+    `blk_of_obj` - the object's current art box (ll_level.c
+    :5204). The consequence is in OI-078. Nothing in the suite
+    moved while this row was open or closed: both in-game asks
+    are pinned `-> no` and print the 0x44ec0 contact-point
+    test, not this verb.
+OI-118: 0x523f0 raises signals through a SECOND object: the
+  per-step pass calls [[obj+0x00]+8]+0xac and +0xa8
+  (0x52416/0x52423), and no constructor in the image installs
+  a behavior table at [obj+0x00]
+  status: OPEN
+  origin: PR-268 (walking the class factory and the +0xa8
+    verb owners)
+  notes: The port has always read that pair of calls as the
+    object's OWN table - 0x96960+0xa8 = 0x50720 is the lion's
+    invulnerability countdown decrement (PR-105), and 0x9a778
+    +0xa8 = 0x27e40 is CAMEL/ZOLW's AC_EDGE+K_GEN1/K_GEN2
+    raiser - and those slots do hold exactly those functions,
+    so the reading has been harmless so far. But the machine
+    code loads the table through [obj+0x00], the only such
+    dereference in the step path, and no factory or ctor in
+    the image ever writes [obj+0x00]: the three base ctors
+    (0x52860, 0x531f0, 0x53ff0) and all 218 named classes
+    leave it alone. Either every object self-points through a
+    path this read did not find, or the +0xa8/+0xac verbs run
+    on some other object and the port's +0xa8 uses (the
+    countdown, and any future signal raise from that pass)
+    need re-reading. OPEN: find what writes [obj+0x00]. The
+    question is sharper because the engine DOES nest objects
+    inside objects with their own tables: the base ctor 0x53ff0
+    ends with `add eax,0xd6` and 0x54004-0x5400b stores a
+    zeroed point object at [obj+0xd6]/[obj+0xda] with the
+    shared table 0x98278 at [obj+0xde] (the same three stores
+    are repeated by the other default initializer 0x54030 at
+    0x5403c-0x54045), 0x54e0a refreshes
+    its x,y from [obj+0]/[obj+4] every step, and 144 of the
+    204 class tables hand that object out as their +0x68 verb
+    (0x23900 = `add eax,0xd6; ret`), 0x98278's +0x8 verb
+    being the point-in-rectangle test 0x23e00. So a second
+    table at [obj+0x00] is exactly the shape the engine uses
+    elsewhere - but nothing installs it.
