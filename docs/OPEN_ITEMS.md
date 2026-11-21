@@ -1261,6 +1261,33 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     wait. NEXT: the asker's box as the state's extents (test
     first, the ly_zask leg is the failing test), then the
     AC_DRAB/AC_DRABK half of 0x3f214.
+    PR-255 READS THAT BOX AND THE LEAD IS WRONG. 0x534e0 takes
+    the position twice through the +0x68 getter and the extents
+    through +0x48 (0x23aa0: the state instance's frame vector
+    at [inst+0x2e] indexed by its own cursor [inst+0x4] - the
+    CURRENT FRAME, not the state), then calls through
+    [frame+0x33], and that field has exactly one writer in the
+    image (0x41f4d stores the shared block 0xa0c08): the box
+    builder is 0x42930. It writes corners from the same four
+    signed words FUN_000420b0 computes - the bbox the port
+    already models - with an inclusive convention that matches
+    0x23e00, and it MIRRORS by the sign from the +0x50 verb
+    0x53e40 ([frame+0x14] = `w0 & 8`, negated only with
+    [inst+0x12] bit 3 set and [obj+0x6d] == -1): sign > 0 gives
+    x0 = x + m0c, x1 = x0 + m10, sign <= 0 gives x1 = x - m0c,
+    x0 = x1 - m10. The port ships that branch (live_box, leg
+    L10, plus the ly_zask2 leg): measured at pos 190,649 the
+    box goes 169,618..216,683 -> 164,618..211,683, the same
+    width mirrored about the position point. So the remaining
+    2 px at the ZARIA.01 ladder are NOT box-model questions:
+    the box is confirmed, and what is left is the arc (the port
+    apexes at pos 542 where the authored point needs 541) and
+    the ground line the ladder's own column sits on (the .plt
+    surface steps 649 -> 650 at x 180). The state-instance bit
+    3 / [obj+0x6d] == -1 negation is not modelled - the port
+    passes its own drawn polarity - and stays counted here.
+    NEXT unchanged in substance: the arc/ground pair, then the
+    AC_DRAB/AC_DRABK half of 0x3f214.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

@@ -1753,6 +1753,34 @@ ifeq ($(PX_DATA),1)
 	  || { echo "play ZARIA ladder ask grep FAILED"; \
 	       grep -E 'asked ladder|tick 119:' /tmp/opencode/ly_zask.log; \
 	       exit 1; }
+# PR-255, same probe, the MIRRORED branch of the asker's box: the lion
+# turns left at the ladder column and the ask line follows him with the
+# box on the other side of his position point. At pos 190,649 the
+# A_JUMP_S frame-2 box reads 164,618..211,683 = x -26..+21, which is
+# that frame's authored margins (x -21, width 47) through 0x42930's
+# mirrored branch (x1 = x - m0c, x0 = x1 - m10). Measured with the
+# branch removed, the SAME run writes 169,618..216,683 = x -21..+26:
+# the box stands where the lion is NOT facing, and the authored point
+# 213,507 sits inside its x span instead of outside it. Same x width,
+# mirrored about the position point, exactly as the engine builds it.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_PLAY_ASK=1 LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=8 \
+	  LEO_PLAY_SCRIPT="1:FWD 95:BKWD 100:JUMP 115:NONE" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_zask2.ppm LEO_LEVEL_PPM_TICK=112 \
+	  ./ll_level $(DATA) ZARIA.01 --play --no-audio \
+	  > /tmp/opencode/ly_zask2.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play ZARIA ladder ask-mirror FAILED"; \
+	    cat /tmp/opencode/ly_zask2.log; exit 1; fi
+	@grep -q 'play tick 108: state A_JUMP_S seq fall_dn frame 2 pos 190,649 grounded 1' \
+	    /tmp/opencode/ly_zask2.log \
+	  && grep -qE 'play tick 108: asked ladder DRABINKA/drab\.mov at state 1: .*213,507.*164,618\.\.211,683 -> no' \
+	      /tmp/opencode/ly_zask2.log \
+	  && echo "play ladder ask mirror (PR-255): the asker's live box" \
+	     "mirrors with the lion, built from the same authored margins" \
+	     "through 0x42930's second branch (ok)" \
+	  || { echo "play ZARIA ladder ask-mirror grep FAILED"; \
+	       grep -E 'asked ladder|tick 108:' /tmp/opencode/ly_zask2.log; \
+	       exit 1; }
 # PR-87: the fire-family keys + comma-group AND semantics on REAL data.
 # ZARIA's attack entry is literally `A_FIGHT(1)=K_FIRE,K_F1` ("fire
 # WHILE weapon 1 is selected" - the AND reading is argued in

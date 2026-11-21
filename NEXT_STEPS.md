@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-255.
+> at PR-256.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -35393,5 +35393,77 @@ test, never the gate. It also corrects PR-248's "the port's
 shape meet stands for [obj+0x2c]": the meet is not the ask and
 not that filter either; it is the animal's own internal test.
 GATE: make 0 warnings; verify-all fixtures rc=0 66 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
+```
+
+## PR-255 — THE ASKER'S LIVE BOX, READ TO THE INSTRUCTION:
+## THE CURRENT FRAME'S MARGINS, AND IT MIRRORS
+```
+KIND: port
+SUBSYSTEM: the asker's live rectangle - the box 0x44ec0's
+point test decides against, and the verbs that build it.
+ADDRESSES: 0x534e0, 0x23a20, 0x23a50, 0x23aa0, 0x53e40,
+0x42930, 0x42980, 0xa0c08, 0x41f4d, 0x420b0, 0x23e00, 0x44ec0
+NAMES: live box, shape margins, mirror bit, w0&8, frame
+record, state instance, OI-078
+CODE: yes: live_box() in ported/ll_level.c, the two branches
+of 0x42930, called by player_shape_box with the same polarity
+this pass already uses for the lion's drawn shape; leg L10 in
+ladder_answer_selftest; and the ly_zask2 leg in verify-play.
+HOOKS: --mov-selftest L10 (red without the mirror branch:
+with the branch removed it prints "FAILED live_box case 1 word
+0: 188, want 183"), and the real-data ly_zask2 leg, which is
+red at HEAD for the same reason.
+MEASURED: (a) 0x534e0 builds the rectangle in four steps: the
+position twice through the class getter +0x68 (the lion's is
+`add eax,0xd6`), written as [edx] and [edx+4]; then the
+extents through +0x48 and +0x50; then a call through a
+function pointer it reads back out of the +0x48 result.
+(b) THE EXTENTS ARE THE CURRENT FRAME'S, NOT THE STATE'S:
+0x23aa0 walks [obj+0x5c] (the state index) into the state
+instance at [obj+0x50], takes the frame vector at [inst+0x2e]
+and indexes it by that instance's own cursor [inst+0x4]. (c)
+THAT POINTER IS ONE GLOBAL: the only writer of [frame+0x33] in
+the image is 0x41f4d, `mov DWORD PTR [ebx+0x33],0xa0c08`, and
+0xa0c08 is the frame records' shared method block - 0x42930,
+0x42980, 0x429d0, 0x42a20, 0x421f0, ... (d) ITS FIRST ENTRY
+IS THE BOX: 0x42930 reads four signed words [frame+0x0c/0x0e/
+0x10/0x12] and writes corners, inclusive, exactly as 0x23e00
+tests them: y0 = y + m0e, y1 = y0 + m12, and x by the sign -
+sign > 0: x0 = x + m0c, x1 = x0 + m10; sign <= 0: x1 = x -
+m0c, x0 = x1 - m10. Those four words are the same bbox
+FUN_000420b0 computes from the parsed art, which is what
+ll_seq.h already records ("the game computes at load
+(obj+0x0c..0x12 bbox, obj+0x14 = w0&8)") - so the port's box
+model stands. (e) THE SIGN comes from the +0x50 verb 0x53e40:
+-1 if [frame+0x14] is set else +1 - that field is `w0 & 8`,
+the authored mirror bit - negated only when the state
+instance's [+0x12] bit 3 is set AND [obj+0x6d] == -1, the same
+signed word the integrator scales the X legs by (PR-252). (f)
+MEASURED ON REAL DATA, the same run twice: at pos 190,649 a
+left-facing lion's A_JUMP_S frame-2 box reads 164,618..211,683
+through the branch and 169,618..216,683 without it - the same
+47 px width, mirrored about the position point, and the
+authored point 213,507 moves from inside the x span to outside
+it. Nothing else in the suite moved: verify-play, verify-all
+67 (the count is the legs' own success lines, +1 per new leg),
+fixture-free 13 + 22.
+OPENS: the negation condition is NOT modelled: the port passes
+its own drawn polarity (PR-82's model of that bit, confirmed by
+the pinned PPM legs), not the frame bit with the instance bit 3
+and the [obj+0x6d] == -1 test; [cand+0x2c] is still unmodelled
+(PR-254); and the last 2 px at ZARIA's ladder are no longer
+box-model questions: with the box confirmed, they belong to the
+arc (this port apexes at pos 542 where the authored point needs
+541) and to the ground line the ladder's own column sits on (the
+.plt surface steps 649 -> 650 at x 180). Both stay on OI-078.
+CLOSES: none.
+CORRECTS: PR-254's OPENS item (i) - "the engine's live box is
+the CURRENT STATE's extents" - withdrawn: (b) above is the
+frame record, and the box is per-frame. And PR-243's model
+choice, repeated in PR-247 - "the drawn mirror is not applied
+to that box" - is removed: 0x42930 does mirror it, in both
+directions, from the same authored margins.
+GATE: make 0 warnings; verify-all fixtures rc=0 67 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
 ```

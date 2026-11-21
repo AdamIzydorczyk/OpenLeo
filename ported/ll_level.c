@@ -5186,19 +5186,59 @@ static void ladder_flag_raise(lvl_obj *o)
  * sideways, and every shipped contact point sits on its own object's
  * column), and the port's box comes from the art, not from the
  * `x0,y0;x1,y1` rectangle the same placement line carries (that rect is
- * an open item, OI-078). */
+ * an open item, OI-078).
+ * PR-255 READS THAT CHAIN TO THE INSTRUCTION and it says two things.
+ * (1) THE EXTENTS ARE THE CURRENT FRAME'S, not the state's: the +0x48
+ * verb 0x23aa0 walks [obj+0x5c] (the state index) into the state
+ * instance at [obj+0x50], takes the frame vector at [inst+0x2e] and
+ * indexes it by that instance's own cursor [inst+0x4]; 0x534e0 then
+ * calls the function pointer at [frame+0x33], and every frame record
+ * carries the SAME pointer there - the only writer of that field in the
+ * image is 0x41f4d `mov DWORD PTR [ebx+0x33],0xa0c08`, and 0xa0c08 is
+ * the frame records' shared method block (0x42930, 0x42980, 0x429d0,
+ * 0x42a20, 0x421f0, ...). Its first entry, 0x42930, builds the
+ * rectangle from [frame+0x0c/0x0e/0x10/0x12] - the same four values
+ * FUN_000420b0 computes from the parsed art, which is exactly the box
+ * this port already models (ll_seq.h names that field run: "the game
+ * computes at load (obj+0x0c..0x12 bbox, obj+0x14 = w0&8)"). So the
+ * box model stands and PR-254's "the CURRENT STATE's extents" lead is
+ * withdrawn here. (2) THE RECTANGLE IS CORNER-BASED AND MIRRORED:
+ * 0x42930 takes a sign from the +0x50 verb 0x53e40 - the frame
+ * record's [0x14], which ll_seq.h records as `w0 & 8`, the authored
+ * mirror bit, negated only when the state instance's [+0x12] bit 3 is
+ * set and [obj+0x6d] == -1 - and then
+ *   sign > 0:   x0 = x + m0c, x1 = x0 + m10
+ *   sign <= 0:  x1 = x - m0c, x0 = x1 - m10
+ * with y never mirrored: y0 = y + m0e, y1 = y0 + m12. The port ships
+ * that branch below (live_box, leg L10) with the sign it already uses
+ * for the lion's drawn shape in this same pass - PR-82's model of that
+ * bit, which the pinned PPM legs confirm. The state-instance bit 3 and
+ * the [obj+0x6d] == -1 condition are NOT modelled: [obj+0x6d] is the
+ * same signed word the integrator scales the X legs by (PR-252), and
+ * the port's stand-in for it is the facing (PR-253), counted there. */
+static void live_box(int x, int y, int bx0, int by0, int bw0, int bh0,
+                     int sign, int ab[4])
+{
+    if (sign > 0) {
+        ab[0] = x + bx0;
+        ab[2] = ab[0] + bw0;
+    } else {                    /* 0x42930's mirrored branch */
+        ab[2] = x - bx0;
+        ab[0] = ab[2] - bw0;
+    }
+    ab[1] = y + by0;
+    ab[3] = ab[1] + bh0;
+}
+
 static void player_shape_box(play_ctx *pl, const ll_seq *lseq,
-                             const ll_seq_elem *le, int ab[4])
+                             const ll_seq_elem *le, int mirror, int ab[4])
 {
     int bx0, by0, bw0, bh0;
     int lx = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5);
     int ly = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5);
 
     ll_seq_shape_bbox(lseq, le, &bx0, &by0, &bw0, &bh0);
-    ab[0] = lx + bx0;
-    ab[1] = ly + by0;
-    ab[2] = ab[0] + bw0;
-    ab[3] = ab[1] + bh0;
+    live_box(lx, ly, bx0, by0, bw0, bh0, mirror ? -1 : 1, ab);
 }
 
 /* PR-254: the ask-channel probe switch (LEO_PLAY_ASK=1), read once. */
@@ -5553,7 +5593,7 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
             {   int ab[4];            /* PR-243: the asker's rectangle,
                      * per the gate above */
 
-                player_shape_box(pl, lseq, le, ab);
+                player_shape_box(pl, lseq, le, lm, ab);
                 ladder_ask_raise(o, ab, verbose, tick);
             }
         }
@@ -5652,7 +5692,7 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                  * `A_DROP(1)=K_GEN1` exit. */
                 {   int ab[4];        /* PR-243: same gate, same box */
 
-                    player_shape_box(pl, lseq, le, ab);
+                    player_shape_box(pl, lseq, le, lm, ab);
                     ladder_ask_raise(o, ab, verbose, tick);
                 }
             }
@@ -6236,6 +6276,52 @@ static int ladder_answer_selftest(void)
                     return 1;
                 }
                 free(m2);
+            }
+        }
+        {   /* L10 (PR-255): live_box, the two branches of 0x42930,
+             * quoted from it: y0 = y + m0e, y1 = y0 + m12, and the x
+             * pair comes from the sign the +0x50 verb 0x53e40 returns -
+             * sign > 0: x0 = x + m0c, x1 = x0 + m10; sign <= 0:
+             * x1 = x - m0c, x0 = x1 - m10. The first pair is the frame
+             * ZARIA.01's A_JUMP is on at the tick the ly_zask leg pins:
+             * the ask probe prints that frame's margins as
+             * -21,-33,47,66 at pos 209,542, which is the box
+             * 188,509..235,575 in that log line. The mirrored case is
+             * the same frame with the sign flipped - the same width on
+             * the other side of the position point, which is what makes
+             * the port's old "mirror not applied" model choice a real
+             * gap and not a rounding question. The third pair takes a
+             * POSITIVE x margin, where the branches differ by more than
+             * a shift, and the last is the 1x1 no-shape default with
+             * sign 0 = the `<= 0` branch. */
+            static const struct {
+                int x, y, mx, my, mw, mh, sign, want[4];
+            } bx[] = {
+                { 209, 542, -21, -33, 47, 66,  1,
+                                        { 188, 509, 235, 575 } },
+                { 209, 542, -21, -33, 47, 66, -1,
+                                        { 183, 509, 230, 575 } },
+                { 100,  50,   3,  -2, 10,  6,  1,
+                                        { 103,  48, 113,  54 } },
+                { 100,  50,   3,  -2, 10,  6, -1,
+                                        {  87,  48,  97,  54 } },
+                { 100,  50,   0,   0,  0,  0,  0,
+                                        { 100,  50, 100,  50 } },
+            };
+
+            for (unsigned g = 0; g < sizeof bx / sizeof bx[0]; g++) {
+                int ab[4];
+
+                live_box(bx[g].x, bx[g].y, bx[g].mx, bx[g].my, bx[g].mw,
+                         bx[g].mh, bx[g].sign, ab);
+                for (int q = 0; q < 4; q++)
+                    if (ab[q] != bx[g].want[q]) {
+                        fprintf(stderr, "ladder answer selftest: FAILED"
+                                        " live_box case %d word %d: %d,"
+                                        " want %d (0x42930, sign %d)\n",
+                                g, q, ab[q], bx[g].want[q], bx[g].sign);
+                        return 1;
+                    }
             }
         }
         if (place_points_selftest())      /* L9 (PR-243), with the reader */
