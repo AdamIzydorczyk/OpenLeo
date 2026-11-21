@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-262.
+> at PR-263.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -36247,5 +36247,144 @@ are two of three, the third being every transition row; and
 the arm pairs of OI-111 item (2), which the table at 0x47e30
 sends the other way: op 2 is 0x47fb2 (byte-identical) and
 op 3 is 0x47f42 (the AND is NOT empty).
+GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-262 — THE ENGINE DOES LOWER THE SIGNAL BITS: THE
+## TRANSITION PASS MEMSETS THE 12 MASK BYTES RIGHT AFTER
+## THE APPLY, SO THE PER-ITERATION CLEAR IS THE ENGINE'S OWN
+```
+KIND: read
+SUBSYSTEM: the lifetime of [obj+0x60] inside one object step -
+the two merge points, the transition pass, and the fill that
+follows it - which is what the port's per-iteration
+`p->sig = 0` / `o->sig = 0` stands in for.
+ADDRESSES: 0x536f0, 0x53705, 0x5370c, 0x523f0, 0x5371c,
+0x53725, 0x53520, 0x53536, 0x5353b, 0x5353f, 0x5354f, 0x5356b,
+0x5357d, 0x53583, 0x5358e, 0x535a0, 0x535ad, 0x535f7, 0x53620,
+0x52000, 0x5204f, 0x49580, 0x495b0, 0x495e2, 0x47e40,
+0x749a0, 0x749a2, 0x77c00, 0x77c37, 0x3f355, 0x550b4
+NAMES: TEventSet, the merge 0x49580, 0x536f0 the key
+compositor, the transition pass 0x53520, 0x535a0 the
+record/frame switch,
+memset 0x749a0, the fill 0x77c00, one-tick pulses, AC_DRAB,
+AC_TIME, AC_DUP, A_FALL_DOWN, A_WSP, OI-078, PR-98, PR-100,
+PR-182, PR-260, PR-261
+CODE: no: no line of `ported/` changes. The port already
+clears where the engine clears (ll_play.c:1327 after the
+play transition pass, ll_level.c:1474 after obj_transition),
+which
+is what this record is for: it moves that clear from the
+port's invention to the engine's law and withdraws the claim
+that made it a deviation.
+HOOKS: no red leg: nothing in `ported/` moved. What the record
+rests on is the byte reading below, three whole-image scans
+(every rel32 call/jmp in the image, and every 4-byte data
+site holding 0x53520, 0x52000 or 0x495e2), and one
+experiment kept out of the tree, reported in (g).
+MEASURED: (a) THE STEP, as PR-98 read it and now re-read one
+call deeper. 0x536f0 is the per-object step - one direct
+caller, 0x550b4, and 31 method-table slots. Order: `[[obj+8]
++0x8c]` fills a scratch buffer and 0x53705-0x5370c ORs it into
+[obj+0x60]; the current record `[[obj+0x50]+[obj+0x5c]*4]`
+goes to 0x523f0, which builds the 13-byte record key and
+0x53725 ORs THAT in too; then `[[obj+8]+0x54]`, then 0x53520,
+then 0x535a0. 0x49580 is the OR: `lea ecx,[eax+0xc]` bounds a
+three-dword loop `[eax+i] |= [edx+i]`, the raiser this project
+counts at 69 callers; 0x495b0 next door is its empty test.
+(b) THE PASS AND ITS FILL. 0x53520 copies the live set to the
+stack - 0x53536 `add eax,0x60`, 0x5353b `mov [esp+0x10],eax`
+keeps that pointer, 0x5353f reads the op byte at +0xc, 0x5354f
+`rep movs` moves the three mask dwords - and calls the walker
+0x52000 with the copy in edx. That call site, 0x5356b, is the
+only one: no rel32 in the image points at 0x52000 from
+anywhere else and no data site holds its address, so the walk
+PR-261 described has exactly this one user. After it,
+0x5357d calls `[[obj+8]+0x90]` - the apply - and with NO
+branch between them 0x53583-0x5358e run `mov ebx,0xc / mov
+eax,[esp+0x10] / xor edx,edx / call 0x749a0`: memset
+(obj+0x60, 0, 12). 0x749a0 spreads the fill byte through edx
+(0x749a2-0x749ae), puts the count in ecx and calls 0x77c00,
+which byte-fills to an alignment, then dword-fills through
+0x77c37 - the image's fill helper, and 0x77c00 has exactly ONE
+caller, that one. The no-match path is the same: 0x52000's
+loop exit at 0x5204f calls its own +0x4 verb and returns to
+0x53583 too. So the mask is lowered after EVERY transition
+pass, matched or not.
+(c) THE EXTENT IS EXACTLY THE MASK: 12 bytes, signals 0..95.
+The op byte at +0xc and the payload dwords at +0xd and +0x11
+are left alone - the same 3-dword extent 0x49580 merges,
+0x495b0 tests and 0x495e2 zeroes in an entry's ctor.
+(d) THE SWITCH DOES NOT CLEAR. 0x535a0 takes
+`lea ebx,[obj+0x60]` at 0x535ad only to pass it as edx to
+`[[obj+8]+0xac]` - at 0x535f7, and again at 0x53620 on the
+arm that keeps the state. No fill, no store. So the port's
+state-entry clears (ll_level.c:1020, 1159, 1241) are inert
+duplicates of (b): they always run on a mask that (b) has
+already emptied. Left as they are; they become a difference
+only if a later read finds a raise landing between the pass
+and the switch, and that is named in OPENS.
+(e) WHY PR-260 MISSED IT: (b)'s writes reach the bytes through
+a pointer built by `add eax,0x60` and a CALL, so the method
+PR-260 used - scan the image for instructions that write a
+`+0x60` displacement, indexed or not - cannot see them. That
+scan stays correct about what it did find: there is no
+AND-with-complement lowering instruction anywhere in the code.
+(f) THE SHIPPED DATA REQUIRES THE LOWERING. ZARIA.01's own
+[A_WSP] block ends with `A_FALL_DOWN(1)=!AC_DRAB`, and after
+the lion has once held a ladder that row is true again only if
+AC_DRAB is lowered when the answer stops raising it. The same
+texts carry a self-entry `A_JUMP(11)=AC_DUP`, and [A_WALK]
+raises AC_TIME from rows 10, 11, 3, 4, 5 at gate 6 to arm
+`A_DRAP(1)=AC_TIME`: with a monotone mask every one of those
+rows would be permanent, and 87 `!`-clauses across the corpus
+name signals the game expects to see go away.
+(g) THE EXPERIMENT, NOT SHIPPED. With EVERY clear
+commented out at HEAD except the one that initialises a
+fresh object - the player's ll_play.c:1327, the object
+step's ll_level.c:1474, the four bus-raise sites 4719,
+5339, 5377, 5421 and the three
+state-entry sites 1020, 1159, 1241 - the
+ZARIA.01 ladder probe still prints every pin this project
+holds at 106 and 119 (the A_JUMP positions 189,602 and
+189,550, the frames, DRABINKA's and LINA's `takes its
+own K_GEN1` lines), but the `asked ladder DRABINKA`
+answers for state 2 from 107 through 120 are gone, and
+SURPRISE's 117 line with them: a bit that stays set lets an
+earlier entry take the iteration. Five selftest lines that
+pin one-tick pulses fail under it. That is what a persistent
+mask does, and 0x5358e is
+what the engine forbids.
+OPENS: in order: (i) the K_ANY evaluation gap, OI-114 - now
+first, since the lifetime question that sat in front of it is
+closed; (ii) 0x54c00, the ground contact PR-259's guard stands
+in for; (iii) AC_EDGE / A_PODCIAG at the top of a climb; (iv)
+what the entry's +0x11 is downstream and 0x53815's four-field
+reader (PR-261 (iii)); (v) the 7 clauses where the group
+grammar differs (PR-261 (iv)); (vi) a raise between the pass
+and 0x535a0, which is the only way the port's state-entry
+clears of (d) could ever matter; (vii) the `[[obj+8]+0x8c]`
+and `[[obj+8]+0x90]` slots named in (a)/(b) and the other 67
+callers of 0x49580; (viii) the rest of the OI-078 list
+unchanged.
+CLOSES: PR-261's open item (i), and the two questions PR-260
+put before "dropping the clear" in PR-261: there is nothing to
+drop - the clear is the engine's, at the same point in the
+step - and the AC_TIME / K_GENn / AC_BREAK_NEXT legs a
+persistent set would move stay exactly as PR-182, PR-217 and
+PR-257 derived them.
+CORRECTS: PR-260's centre sentence - "RAISED BITS ARE NEVER
+LOWERED ... every write that clears those bytes is an
+allocator/ctor path ... the 21-byte clear 0x495e2 has ZERO
+references" - the clear is 0x5358e, inside the transition
+pass 0x53520, reached from the step 0x536f0 PR-98 had already
+mapped; PR-260 read 0x536f0's two merges and stopped one call
+short of the fill. It corrects that record's "the per-frame
+key assembler 0x536f0 ... zeroes nothing" only in its
+consequence: 0x536f0 does not zero, the pass it calls does.
+And with it, the OI-078 header that made the end of the
+ZARIA.01 climb this port's own deviation: the climb ends at
+298 because the engine's own fill empties the mask when
+the ask stops answering.
 GATE: light: verify-index verify-docs rc=0 (ok);
 ```

@@ -623,12 +623,12 @@ OI-077: fixture hygiene: the five drawn-anchor test legs use a
 
 OI-078: the in-game ZARIA.01 climb, now MOVING to the top at
   1 px per iteration (PR-259 ships 0x542cd's y force) and
-  stopped there by the PORT's own signal clear, not by the
-  engine (PR-260: the live set at [obj+0x60] is a TEventSet
-  and NOTHING in the image lowers a bit): the lead is the
-  per-iteration `p->sig = 0` / `o->sig = 0` and who writes
-  the match-op byte of a compiled row entry, then the top of
-  a climb,
+  stopped there by the ENGINE's own signal clear (PR-262: the
+  transition pass 0x53520 memsets the 12 mask bytes at
+  0x5358e, one call after the apply - the per-iteration
+  `p->sig = 0` / `o->sig = 0` is the engine's law, not this
+  port's stand-in): the lead is the untested K_ANY mask
+  (OI-114), then the top of a climb,
   `A_PODCIAG(1)=AC_EDGE,K_UP` with AC_EDGE unmodelled (what
   raises K_GEN1 was PR-257: the lion's own rows, and
   `A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR` is CLOSED as a non-lead,
@@ -1520,6 +1520,33 @@ OI-078: the in-game ZARIA.01 climb, now MOVING to the top at
     names are exactly the intent words this port already
     carries, so a leg is writable; the mechanism row is
     OI-114.
+    PR-262 withdraws the PR-260 sentence above ("RAISED BITS
+    ARE NEVER LOWERED") and with it the first paragraph's
+    claim that the climb ends on this port's clear. Re-read
+    one call deeper: the object step 0x536f0 merges two sets
+    into [obj+60h] (0x53705-0x5370c from the class table's
+    +8Ch verb, 0x53725 the record key 0x523f0 builds), calls
+    the transition pass 0x53520 - whose stack copy at
+    0x53536-0x5354f is the ONE and only operand ever handed to
+    the walker 0x52000 - and 0x53583-0x5358e then run
+    `mov ebx,0Ch / mov eax,[esp+10h] / xor edx,edx / call
+    749A0h`: memset(obj+60h, 0, 12) through the image's fill
+    77C00h, which has exactly that one caller. It runs whether
+    or not an entry matched. So the mask is lowered after
+    every transition pass, and the port's clears are the
+    engine's own: AC_DRAB is absent on 297/298 because the
+    engine's fill emptied it, exactly as the port does. The
+    data demanded it anyway: [A_WSP]'s `A_FALL_DOWN(1)=
+    !AC_DRAB`, [A_JUMP]'s self-entry `A_JUMP(11)=AC_DUP` and
+    [A_WALK]'s six `GEN AC_TIME` rows all assume a bit that
+    goes away. Experiment, not shipped: with every clear but
+    the fresh-object one removed, 5 selftest lines fail and
+    the ladder ASK rows stop running from 107 on. The three
+    state-entry clears (ll_level.c 1020, 1159, 1241) have no
+    engine counterpart - 0x535A0 passes the mask pointer to
+    the class table's +ACh verb and stores nothing - and are
+    inert duplicates here; they matter only if a raise ever
+    lands between the pass and the switch.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
