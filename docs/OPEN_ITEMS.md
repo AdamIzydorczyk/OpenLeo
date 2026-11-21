@@ -1383,6 +1383,40 @@ OI-078: the in-game ZARIA.01 climb: what the DOWNED rope
     [obj+0xea]) is named, not modelled. Leads (2) and (3)
     stand as written; the [obj+0x6d] negation stays
     unmodelled and counted.
+    PR-258 closes lead (2) as a NON-LEAD, read to the byte:
+    ZARIA.01 has no AC_ONAIR poster. Nothing in the image
+    OR-s an immediate into a live set; a raise is a 0x49580
+    merge of a stack mask, one of two register read-modify-
+    write sites (0x3f203, 0x3b601), or PR-224's kind-0x10
+    record. A literal bit 18 would be a 0x00040000 dword or a
+    0x04 byte at mask +2: the image holds 6 uses of that
+    dword and none is a mask, and every 0x04 byte write at a
+    mask base sits at +1 (AC_DRAB), +3 (bit 26 - and 0x3e0a8
+    raises it onto ANOTHER object, [ecx+0x112]+0x60, an
+    "attached object" field this project has not named) or
+    +7. PR-224's 0x12 senders are class entries of 0x977f0
+    (JBRANCH's sub-object), 0x9de64 (KBLOKZ) and 0x9fb24
+    (XCHG); ZARIA.01 ships no script and places no object of
+    any of them, so `A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR` can
+    never match there. What that level DOES reach in the port
+    at HEAD: the index-2 answer `set 400` from 127,
+    `A_WALK -> A_DRAP` on the walk's own `A_DRAP(1)=AC_TIME`
+    row, `A_DRAP -> A_LOOKUP` on K_UP, and from A_TURN_BACK
+    a real A_WSP through `A_WSP(1)=AC_BREAK_NEXT,AC_DRAB` -
+    PR-148's wrap-armed AC_BREAK_NEXT plus the pair's
+    AC_DRAB - whose rows admit at the authored 300,200,...
+    while every one of its 17 ticks reads `pos 214,648`: the
+    climb runs IN PLACE. Lead (2) is therefore ONE law,
+    PR-148's open item 1: the v_y force at 0x542cd fed by the
+    vertical-intent word [obj+0xbe]. 0x54910 (one caller,
+    0x506d6, the lion family) is the input bridge that names
+    that word - it turns the live input block into the key
+    mask (K_UP/K_DOWN/K_FWD/K_BKWD/K_JUMP/K_FIRE/K_F1) - and
+    the param field behind 0x542cd stays the open question.
+    New and unmodelled from the same reading: 0x55130, the
+    mask builder the lion's own +0x78 entry calls, raises
+    AC_DRAB_CATCH on a comparison of the pair's [obj+0xad]
+    words and AC_ENEMY otherwise.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

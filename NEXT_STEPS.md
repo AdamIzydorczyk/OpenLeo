@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-258.
+> at PR-259.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -35652,4 +35652,124 @@ blocker: the point gate is real but off the chain - the
 level waits on a row directive, not on a jump apex.
 GATE: make 0 warnings; verify-all fixtures rc=0 67 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
+```
+
+## PR-258 — THE SIGNAL SET'S RAISE PATHS, READ TO THE BYTE:
+## NOTHING IN ZARIA.01 POSTS AC_ONAIR, AND THE CLIMB THAT
+## CHAIN REACHES RUNS IN PLACE
+```
+KIND: read
+SUBSYSTEM: how a signal bit gets INTO an object's live
+set, what the ladder answer verb RETURNS byte by byte, and
+the AC_ONAIR poster census OI-078's climb row rests on.
+ADDRESSES: 0x49580, 0x749a0, 0x553f0, 0x5542b, 0x55250,
+0x55130, 0x550c0, 0x3f1c0, 0x3f2dc, 0x3f304, 0x3f313,
+0x3f355, 0x3e060, 0x3e0a8, 0x4bc40, 0x52b10, 0x53770,
+0x54910, 0x506d6, 0x1f468, 0x3457c, 0x34a71, 0x34a9a,
+0x3a20d, 0x977f0, 0x9de64, 0x9fb24, 0x97cdc, 0x97cd4
+NAMES: live set [obj+0x60], the 12-byte mask, AC_ONAIR,
+AC_DRAB, AC_DRAB_CATCH, AC_SPOKUJ, AC_ENEMY, K_UP, K_DOWN,
+K_FWD, K_BKWD, K_JUMP, K_FIRE, K_F1, [obj+0xad],
+[obj+0x112], [obj+0xbe], [obj+0xa5], [obj+0xba], A_WSP,
+A_DRAP, A_LOOKUP, OI-078, PR-148's open item 1
+CODE: no: no line of `ported/` changes. The ask-probe
+suffix this reading used - the answer branch's three
+rectangles printed on the ask line - was reverted before
+this commit; what it measured is quoted in (f).
+HOOKS: no red leg: nothing in `ported/` moved, so there is
+no expectation to pin first. The leg OI-078's row points
+at - an A_WSP entry fed by AC_ONAIR - would pin a line
+this level can never take, and (e) is what says so.
+MEASURED: (a) THE SET AND ITS WRITERS. A signal mask is 12
+bytes plus a count byte at +0xc, built on the stack by
+0x749a0 (the count in ebx) and merged by 0x49580, which
+OR-s three dwords src into dst: 69 call sites. Nothing
+OR-s an immediate into a live set anywhere in the image;
+the only direct writes are register read-modify-write at
+two sites (0x3f203 `mov ah,[obj+0x66] / or ah,0x40 /
+mov [obj+0x66],ah`, PR-241's flag branch, and 0x3b601),
+and the record path reaches the same merge: 0x53770 takes a
+record of kind 0x10 tagged 0x8138764 whose +0xc byte is the
+signal ORDINAL and raises it through 0x49580.
+(b) THE ANSWER VERB RETURNS, IT DOES NOT RAISE. 0x3f1c0
+writes its caller's buffer: 0x3f2dc puts 0x10 at mask byte
++1 (bit 12 = AC_DRAB_CATCH) and 0x3f313 merges 0x04 at +1
+(bit 10 = AC_DRAB) into it; the no-catch path 0x3f355
+writes 0x04 at +1 alone. PR-245/246's packet is confirmed
+at byte level - `set 1400` and `set 400` in the port's own
+probe words - and NEITHER packet carries AC_ONAIR.
+(c) WHERE A RETURNED MASK LANDS. 0x553f0..0x5542b walks an
+object's [obj+0x3c] count of array elements at [obj+0x40],
+calls each element's class verb +0x78 and OR-s each
+returned mask into the accumulator; the single-pair form
+0x55250..0x552d1 does the same and adds a byte-0 0x80 mask
+(bit 7 = AC_ENEMY). So the answer packet does reach a live
+set. Counted: which member's set that accumulator is, was
+NOT read; the port keeps applying it to the player's
+one-tick vector (PR-92's model).
+(d) A SECOND AC_DRAB_CATCH RAISER, new to this project:
+0x55130, the mask builder the lion's own +0x78 entry
+0x50f80 calls, asks 0x550c0 and then compares the two
+members' [obj+0xad] words - the greater wins: byte 2 bit 0
+(bit 16 = AC_DRAB_CATCH), the other branch gives bit 7 =
+AC_ENEMY. [obj+0xad] is the same counter the K_GEN1 gate at
+0x50df4 tests against 100. Named, not modelled.
+(e) AC_ONAIR HAS NO POSTER IN ZARIA.01. Bit 18 is byte 2
+bit 2 of the middle dword, so a literal raise is a
+0x00040000 dword or a 0x04 byte at mask +2. The image holds
+6 uses of 0x00040000 and not one is a mask; every 0x04 byte
+write at a mask base sits at +1 (AC_DRAB: 0x3f304, 0x3f355,
+0x28805, 0x2c460, 0x36a1f, 0x37ab0, 0x37dfd, 0x3c2b9), at
++3 (bit 26 = AC_SPOKUJ - and 0x3e0a8/0x3e0b5 raise it onto
+ANOTHER object, [ecx+0x112]+0x60, an "attached object"
+field not named here), or at +7 (bit 58, 0x2e417). The only
+sites that carry 0x12 as a value are the broadcaster
+0x4bc40 at 0x1f468 - the class 0x977f0 entry, JBRANCH's
+sub-object, gated on [self+0x5c] == 9 and the pair pass -
+0x3457c, 0x34a71, 0x34a9a (the KBLOKZ class 0x9de64) and
+0x3a20d (the XCHG class 0x9fb24, ctor 0x3a110). ZARIA.01
+ships no script and places no object of any of those
+classes: its placement list is DRABINKA, LINA, KORONA, BAL,
+POCISK, KAMIEN, SEP, SEP2, RYBA, WODA, ZARROW, LICHA,
+PALMA, PAJAK, NOSOROG, KATAPULT, PICT, ANITAB, ANIBACK.
+That lion is never told it is on air.
+(f) THE CHAIN THE PORT DOES REACH, measured at HEAD with
+the probe, logs out of git at /tmp/opencode/pr258_grab.log
+and /tmp/opencode/pr258_up4.log. With FWD to the ladder and
+Up held: tick 106 is PR-257's bus tick and the ladder
+unrolls; from 127 the DOWNED ladder answers at index 2 with
+the no-catch packet `set 400`; the walk's own
+`A_DRAP(1)=AC_TIME` row takes A_WALK -> A_DRAP and
+`A_DRAP(1)=K_UP` takes A_DRAP -> A_LOOKUP - the standing
+ladder stance, live for the first time. A second script
+reaches `A_TURN_BACK -> A_WSP` at 153 and its climb rows
+admit at the authored 300,200,... - and all 17 of its ticks
+read `pos 214,648`: the climb runs IN PLACE.
+(g) WHAT OWNS THAT MOTION is PR-148's open item 1, and
+0x54910 (exactly one caller, 0x506d6, the lion family)
+names the feed: it turns the LIVE INPUT block into the key
+mask - [obj+0xa5] bit 0 -> bit 39 K_FIRE, bit 4 -> bit 40
+K_F1, bit 5 -> bit 53 K_JUMP; [obj+0xba] != 0 -> bit 35
+K_BKWD / bit 36 K_FWD; [obj+0xbe] < 0 -> bit 37 K_UP, > 0
+-> bit 38 K_DOWN. That [obj+0xbe] IS the word PR-148's
+BY_TY guard tests, so holding Up both raises K_UP in the key
+mask and opens the row feed; the motion itself can only
+come from 0x542cd, which PR-148 left as "intent * param/20
+-> v_y, the param field unread".
+OPENS: PR-259's law, narrowed by (f) and (g): a BY_TY state
+must move its object and 0x542cd's v_y force is the only
+path the engine has - the param field behind it is the
+question PR-148 named. Then, in order: 0x55130's
+[obj+0xad] comparison as a second CATCH path; whose set the
+accumulator in (c) is; [obj+0x112]; PR-257's object-side
+row start; PR-217's WAIT meter; RAN.01's A_LADOW.
+CLOSES: the OI-078 lead that AC_ONAIR is the missing feeder
+for the ZARIA.01 climb. It is unreachable in that level,
+and the entry the level does use is already live.
+CORRECTS: PR-108/PR-257's treatment of `A_WSP(3)=AC_DRAB_
+CATCH,AC_ONAIR` as the entry to model for ZARIA.01; and
+PR-257's DRABINKA table address - the two tables are
+0x97cdc and 0x97cd4, with 0x3f1c0 at slot +0x78 of both
+and 0x53db0 at +0x94.
+GATE: light: verify-index verify-docs rc=0 (ok);
 ```
