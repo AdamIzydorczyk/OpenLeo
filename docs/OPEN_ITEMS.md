@@ -182,6 +182,42 @@ OI-015: the PR-135 non-modelled list: vertical constants not
     LL_PLAY_V_EPS, the `vy >= 0` ground-snap guard, and the
     50 ms clock. The T>=20 raise of the list is CLOSED by
     PR-252 (horizontal only, class-verb gated).
+    PR-256 REPLACES THE UNIT READING ABOVE. [obj+0xc2]/
+    [obj+0xc6] are integers in hundredths of a px per
+    iteration: 0x54250 steps drag = idiv(T*v,100) from the OLD
+    v, adds idiv(F*s,20) and the record's G word, subtracts
+    the drag, and zeroes ONLY on a sign cross (0x5430a-
+    0x54337). 0x54358-0x54372 write [obj+0xca]/[obj+0xce] =
+    idiv(v,100) and 0x54827-0x54829 add those WHOLE numbers -
+    the idiv remainder is DROPPED, and [obj+0xe2/0xe6/0xea] is
+    the SEQ step-motion verb, not a sub-pixel carry.
+    Consequences measured on real data and NOT fitted: the
+    A_JUMP apex is exactly 100 px; ZARIA's walk settles at
+    register 250 = 2 px an iteration (3 iterations per 6-unit
+    pose, PR-134's video count is 2.4 - 20% off); the worm
+    pair settles at 125 = 1 px (4 per pose against 3.2
+    measured, 25% off); a released key leaves a 4 px slide and
+    a residue that never zeroes; an FC pair pulls the register
+    in its own unit (the punch's FC 100 is a 1 px step, not
+    14 px). NEW open questions from this read, named and not
+    fitted: (a) either the engine carries the idiv remainder
+    somewhere this read did not find, or the BY_X feed is not
+    the post-truncation step - the gaits' 20-25% difference is
+    that question; (b) the port's ground query looks only at
+    this iteration's position, so a fall at 17-20 px an
+    iteration (A_DRAP's own G=0,250 with T_y=15) steps THROUGH
+    the authored line - the engine's ground answer is the
+    shape-box test FUN_00042a70 / the push-out 0x42de0; (c)
+    LL_PLAY_GRAVITY = 200 has no author and no video check -
+    it is now only the fallback for a state that authors no G
+    word (RAN.01's A_WALK_FWD G=0,0), while ZARIA's states
+    author theirs (A_WALK G=30,350, A_DRAP G=0,250, A_JUMP
+    G=0,55); (d) the engine's y pass looks unconditional where
+    this port gates it on !grounded, and G_x stays unmodelled.
+    The "raw/5 px/s and raw*4 px/s^2" conversion note above is
+    WITHDRAWN: the row pull words and the G words are register
+    adds in that one unit; only the DISPLAYED u/s divides by
+    LL_PLAY_RAW_VDIV.
 
 OI-016: the BY_TY vertical feed law
   status: CLOSED BY PR-147/PR-148/PR-168/PR-178
@@ -1286,8 +1322,32 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     surface steps 649 -> 650 at x 180). The state-instance bit
     3 / [obj+0x6d] == -1 negation is not modelled - the port
     passes its own drawn polarity - and stays counted here.
-    NEXT unchanged in substance: the arc/ground pair, then the
-    AC_DRAB/AC_DRABK half of 0x3f214.
+    PR-256 MOVES THAT GAP THE WRONG WAY, AND THE SHAPE OF THE
+    GAP CHANGES THE LEAD. At the register's own unit the
+    authored A_JUMP words apex at exactly 100 px, not 108, and
+    the integer walk reaches the ladder column later: the press
+    at FWD 100 lands at x=189 and the apex at 189,550, so the
+    live box on the ask frame reads 168,517..215,583 - the
+    authored point 213,507 is INSIDE its x span at last and 10
+    px of y away from it. PR-254's state-extents idea cannot be
+    10 px. What the geometry says: the ladder's art hangs
+    510..558 and its authored point sits 3 px above that top,
+    143 px above the walk line under it, while A_JUMP's own
+    words measure 100 - so the point gate is probably not the
+    trigger at all. The leads, in the order PR-257 works them:
+    (1) the ladder's own A_UP/A_DROP/A_DOWN states, where
+    `A_DROP(1)=K_GEN1` is authored - the asker lives in the
+    ladder's .MOV, not in the lion's box; (2) the
+    `A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR` and `A_WSP_LIN(3)=
+    AC_LINA_CATCH,AC_ONAIR` transitions ZARIA's A_JUMP
+    declares, which name a CATCH SIGNAL, not a position; (3)
+    RAN.01's A_LADOW, the BY_TIME state its lion authors right
+    next to A_START_LAD1 (`G=0,200`,
+    `A_STAY(1)=AC_BREAK_NEXT`, 23 rows of 400) - a CLIMB STATE
+    entered on a signal, not a jump arc. The state-instance bit
+    3 / [obj+0x6d] == -1 negation stays unmodelled and counted
+    here. NEXT: those three, then the AC_DRAB/AC_DRABK half of
+    0x3f214.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

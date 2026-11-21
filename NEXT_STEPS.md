@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-256.
+> at PR-257.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -35464,6 +35464,105 @@ frame record, and the box is per-frame. And PR-243's model
 choice, repeated in PR-247 - "the drawn mirror is not applied
 to that box" - is removed: 0x42930 does mirror it, in both
 directions, from the same authored margins.
+GATE: make 0 warnings; verify-all fixtures rc=0 67 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
+```
+
+## PR-256 — THE VELOCITY REGISTER IS INTEGER HUNDREDTHS,
+## AND THE POSITION STEP IS THE TRUNCATED PART OF IT
+```
+KIND: port
+SUBSYSTEM: the player's velocity and position integration -
+what 0x54250 works on, and what 0x54827 adds to the
+position.
+ADDRESSES: 0x54250, 0x54266, 0x5427f, 0x542a7, 0x54304,
+0x5430a, 0x54311, 0x54325, 0x54337, 0x54348, 0x54358,
+0x54372, 0x54827, 0x54829, 0x54759, 0x547c8, 0x4549a,
+0x454ba, 0x4c8b7, 0x543a0, 0x521f0, 0x5232b
+NAMES: velocity register, hundredths of a px, idiv, drag
+percent, sign-cross zero, pull to target, sub-pixel
+accumulator, LL_PLAY_GRAVITY, LL_PLAY_RAW_VDIV, OI-015,
+OI-078
+CODE: yes: ll_play.c's ll_play_v_raw/ll_play_v_px/
+ll_play_v_step/ll_play_pull helpers (pull_axis and
+ll_play_acc_raw are gone), the x and y passes and the
+integrate step of ll_player_step; ll_play.h's
+LL_PLAY_GRAVITY = 200 with its unit named; tools/
+jump_law_measure.py re-derived to the same law.
+HOOKS: tools/jump_law_measure.py first, and it was RED at
+HEAD - the build answered an apex of 108 px where the same
+authored words give 100.0. Then every selftest leg that
+reads a position: ST_MOV, JM, JM2/PR-86, the ZM lion gait,
+the worm gait, A_RUN/A_PULL, PR-91's A_DOSTAL - 454 failing
+CHECKs against the first build of the new arithmetic, 0 now.
+MEASURED: (a) [obj+0xc2]/[obj+0xc6] are INTEGERS in
+hundredths of a px per iteration. 0x54250 computes
+drag = idiv(T*v,100) from the OLD v, adds idiv(F*s,20) and
+the record's G word, subtracts the drag, and its zero test
+at 0x5430a-0x54337 fires ONLY on a sign cross between the
+pre-drag and post-drag value - a drag that never reaches
+zero leaves the residue. (b) 0x54358-0x54372 write
+[obj+0xca] = idiv(v_x,100) and [obj+0xce] = idiv(v_y,100),
+and 0x54827-0x54829 add those WHOLE numbers to the
+position. NOTHING carries the idiv remainder: a part of a px
+in one iteration is dropped. [obj+0xe2]/[obj+0xe6]/
+[obj+0xea] is not a sub-pixel accumulator - it is the SEQ
+step-motion verb, set at 0x4549a-0x454ba and consumed at
+0x54759-0x547c8. (c) C's signed / is x86 idiv, so the port
+needs no rounding helper. (d) CONSEQUENCES, MEASURED ON REAL
+DATA, none of them fitted: the authored A_JUMP words apex at
+exactly 100 px (was 108) and the tool's closed form agrees;
+ZARIA's A_WALK register settles at 250 = F*s/T and his body
+walks 2 px an iteration, 3 iterations per 6-unit pose; the
+worm pair (100,40) settles at 125 and walks 1 px, 4
+iterations per pose; a released key leaves a 4 px slide and a
+residue that never zeroes, which then feeds the 0x54170
+pulls; an FC pair pulls the register in ITS unit, so the
+punch's FC 100 is a 1 px step (the punch moved 14 px under
+the old reading, now 3). PR-134's video counts are 2.4 and
+3.2 iterations per pose - 20% and 25% faster than this - and
+that difference is the truncation, not a constant to tune:
+either the engine keeps the remainder somewhere this read did
+not find, or the BY_X feed is not the post-truncation step.
+Named at OI-015. (e) What the truncation exposes downstream:
+A_DRAP's own G=0,250 with T_y=15 has terminal
+idiv(25000,15) = 1666 = 16 px an iteration, and the port's
+ground query looks only at the position it stands on THIS
+iteration, so a jump that ends in A_DRAP walks straight
+through the authored grass (668 at 70, 688 at 71, the line
+at 681). The engine's ground answer is the shape-box test
+(FUN_00042a70, the push-out 0x42de0); a one-point query
+cannot reproduce it. (f) OI-078 moves the WRONG way and this
+record says so: at the new 2 px walk the press lands at x=189
+and the apex at 189,550, so the ask now spans the ladder
+point's x (168,517..215,583 against 213,507) and misses its
+y by 10 px where PR-254 was 2 px away. The ladder's art hangs
+510..558 and its point is 3 px above that, 143 px above the
+walk line - more than A_JUMP's own words measure.
+OPENS: OI-015 grows: the idiv-remainder question above, the
+unmodelled [obj+0x6d] x multiplier and G_x add, the engine's
+unconditional y pass against this port's !grounded gate, the
+one-point ground query above, and the fact that
+LL_PLAY_GRAVITY = 200 has no author and no video check - it
+is a fallback only for a state that authors no G word
+(RAN.01's A_WALK_FWD, G=0,0), while ZARIA's states author
+theirs (A_WALK G=30,350, A_DRAP G=0,250, A_JUMP G=0,55).
+OI-078 keeps the ladder and gains the 10 px plus the three
+leads PR-257 works in order: the ladder's own A_DROP(1)=
+K_GEN1 ask, the A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR and
+A_WSP_LIN(3)=AC_LINA_CATCH,AC_ONAIR lines ZARIA's A_JUMP
+declares, and RAN.01's A_LADOW climb state next to
+A_START_LAD1. A swept ground test is NOT attempted here.
+CLOSES: none.
+CORRECTS: PR-253's unit note in ll_play.h - "one authored
+G= word is raw*4 px/s^2 (LL_PLAY_RAW_GMUL)" - is withdrawn:
+G is a per-iteration register add in the same hundredths
+unit, and the jumping/x4 split was a unit mistake, not a law.
+PR-135's "steady at F*s/T, below one register unit it is
+zero" is replaced by the fixed point of the idiv steps (250
+for F=100 T=20, 223 for F=400 T=90, 125 for the worm pair).
+And this port's [obj+0xca] as a sub-pixel accumulator is
+withdrawn - (b) above.
 GATE: make 0 warnings; verify-all fixtures rc=0 67 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
 ```

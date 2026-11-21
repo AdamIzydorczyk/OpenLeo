@@ -37,11 +37,13 @@
  *                 K_F1..F12, the engine-internal AC_* signals) evaluate
  *                 FALSE - nothing is guessed.
  * Physics constants therefore come from the data; the single project-owned
- * constant is LL_PLAY_GRAVITY (200 px/s^2, the same magnitude as the real
- * A_START_LAD1 G=) used only when a state marked CHECK_LN loses its ground
- * without an authored fall state to route into (documented simplification:
- * RAN.01's authored chain A_START_LAD1 -> A_LADOW is an 18.4 s scripted
- * waterfall landing, not a curb step; see NEXT_STEPS.md PR-43).
+ * constant is LL_PLAY_GRAVITY (the authored G=0,200 of RAN.01's real
+ * A_START_LAD1, in the engine's own unit for that add: the per-iteration
+ * increment of the velocity register, see LL_PLAY_RAW_GMUL) used only when
+ * a state marked CHECK_LN loses its ground without an authored fall state
+ * to route into (documented simplification: RAN.01's authored chain
+ * A_START_LAD1 -> A_LADOW is an 18.4 s scripted waterfall landing, not a
+ * curb step; see NEXT_STEPS.md PR-43).
  */
 #ifndef LL_PLAY_H
 #define LL_PLAY_H
@@ -747,8 +749,17 @@ typedef struct { int k_fwd, k_bkwd, k_up, k_down, k_jump,
 #define LL_PLAY_V_EPS 0.2
 
 /* Project constant, see header note; used only when airborne with a
- * CHECK_LN state that carries no authored fall route. */
-#define LL_PLAY_GRAVITY 200.0
+ * CHECK_LN state that carries no authored fall route. PR-256 fixes its
+ * UNIT: the value is the word RAN.01's real A_START_LAD1 authors (its
+ * header says `G=0,200`), and 0x542ee shows what such a word does - it
+ * is added to the velocity register once per iteration, in the register's
+ * own unit. Reading it as 200 px/s^2 made this add four times smaller
+ * than the authored word is (and with a state T_y of 90, as RAN's
+ * A_WALK carries, the resulting terminal speed of 0.56 px per iteration
+ * truncated to a step of ZERO px: the body reported AIR and then did not
+ * move). Counted as an open item, not smoothed over: this is a project
+ * route, not an authored one, and its magnitude has no video check. */
+#define LL_PLAY_GRAVITY 200
 /* PR-253 replaces the PR-73/74 ESTIMATES (LL_PLAY_JUMP_DIV=4,
  * LL_PLAY_JUMP_G=1650) with the measured unit law. The engine keeps its
  * velocities in hundredths of a pixel per iteration (the /100 at
