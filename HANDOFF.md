@@ -2067,6 +2067,42 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-243 (PORT): that authored list is now read and it
+gates the raise. The placement parser takes the `N dx,dy ...`
+line as part of the entry (place_points) and stores the
+points ABSOLUTE on the placement, the way the engine's
+0x44e90 does at load; the line is consumed, so it is no
+longer classified as a group-header line. ladder_ask_raise
+now requires the 0x44ec0 test first: some authored point
+inside the asker's live rectangle, else nothing happens (an
+empty vector answers FALSE, so 171 of the 186 classes never
+raise this signal - PR-241's unconditional raise was too
+broad). The asker's rectangle is the field [obj+0x75..0x84]
+(+0x4c = 0x23a20 in every kind table), refreshed by the
+kind-table +0x94 verb (0x53db0 at 0x97d70/0x969f4) through
++0x98 (0x23a50 -> 0x534e0): position from the +0x68 getter
+(the lion's 0x23900 = `add eax,0xd6`; the rope's 0x23b60 is
+a bare `ret`, returning the object), extents from the state
+record's +0x48 (0x23aa0) and +0x50 (0x53e40) verbs. The port
+stands in its own frame SEQ shape box for those extents
+(same as its balloon hit test); counted model choices: art
+based, drawn mirror not applied. TEST FIRST: leg L8 - no
+points, a walking lion's box, a 1 px miss, an exact inclusive
+edge touch, a covering box - fails on the ungated build
+("no authored points: the empty vector answers false") and
+passes with the gate; place_points_selftest pins the grammar
+(`1 33,-3`, `1 0,200`, `2 -4,0 4,314` parse; `30,50`,
+`23,30;53,160`, trailing junk and a zero count are refused).
+Measured on the shipped data: the port's ZARIA.01 run prints
+the DRABINKA's point at (213,507) = 180+33, 510-3 and the
+two LINA points at (125,492) and (525,525); 3 list lines per
+placement pass. No play-probe or fixture moves (65 ok,
+fixture-free 13 + 22 named): the ladder's only point is 3 px
+above its placement, so a lion walking the ground never
+covers it. NEXT: use the authored `x0,y0;x1,y1` rect as the
+collision box (this ladder spans x 203..233, y 540..670 down
+to the ground), and the other 18 list-bearing entries.
+
 STATUS PR-242 (READ): the K_GEN1 gate is authored data the
 port never reads. An object's placement record CONTINUES past
 its five fields: ZARIA.01's ladder carries `1 33,-3` (one

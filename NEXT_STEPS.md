@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-243.
+> at PR-244.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -34249,4 +34249,94 @@ read; (ii) "the requester's [[kind]+0x4c] OBJECT" - +0x4c is
 0x23a20 in every kind table, the fixed field [obj+0x75], not
 a per-class object.
 GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-243 — THE AUTHORED CONTACT-POINT LIST IS READ, AND
+## IT GATES THE LADDER'S K_GEN1 SELF-RAISE (0x44ec0 + 0x23e00):
+## TEST-FIRST L8, WITH THE ASKER'S LIVE RECTANGLE READ TOO
+```
+KIND: port
+SUBSYSTEM: objects/ask gate - THE AUTHORED CONTACT POINTS
+ARE READ AND THEY GATE THE LADDER'S K_GEN1 SELF-RAISE
+(0x44ec0 + its element verb 0x23e00); the pair contact
+alone no longer raises. Test first.
+ADDRESSES: 0x44ec0, 0x23e00, 0x44e90, 0x44f10, 0x3f0f0,
+0x97cdc, 0x97d70, 0x969f4, 0x53db0, 0x53e00, 0x55096,
+0x55070, 0x23a50, 0x534e0, 0x23a20, 0x23900, 0x23b60,
+0x23aa0, 0x53e40, 0x96960, 0x98274, 0x98278, 0x98280,
+0x3f1fb
+NAMES: contact point, contact list, point-in-rectangle,
+live rectangle, shape box, place_points, K_GEN1, OI-078, L8
+CODE: yes: ported/ll_level.c +324/-3 - lvl_obj gains
+npts/cpx/cpy (OBJ_MAXPTS 8), place_points parses the list
+line and the placement loop consumes it, per-file report
+line, player_shape_box, the gate inside ladder_ask_raise,
+both PR-150 ask sites pass the asker's box, the L8 gate leg
+and place_points_selftest (the L9 grammar leg). No new hook;
+the two ask sites gained one argument.
+HOOKS: none new, none touched.
+MEASURED: (a) TEST FIRST. L8 is five cases around the same
+placed ladder: no authored points with a box that covers the
+object -> NOTHING happens; the ZARIA.01 point (213,507) with
+a walking lion's box (100,650)-(300,690) -> nothing; that
+point with a box 1 px off on both axes -> nothing; a box
+whose inclusive corner touches it -> the raise, and the
+authored A_UP line takes the ladder to A_DROP; a covering
+box -> the raise. With the gate stubbed out (hit = 1) the
+leg fails - "the contact-point gate (no authored points: the
+empty vector answers false (0x44ec0), so no raise): state 1
+set 0, wanted nothing", --mov-selftest exit 1 - and with the
+gate it passes (exit 0). (b) THE PARSE, on the shipped data:
+the port's own run of ZARIA.01 now reports `placement
+ANI2.DES: DRABINKA/drab.mov authors 1 contact point(s) ...
+first at (213,507)` - exactly the engine's 180+33, 510-3 -
+and the level's two LINA ropes at (125,492) (the authored
+0,200) and (525,525) (0,0); the summary line reports 3 list
+lines and 3 points per placement pass. L9 pins the grammar
+itself: `1 33,-3`, `1 0,200` and `2 -4,0 4,314` parse, while
+`30,50`, `23,30;53,160`, `1 33,-3 junk` and `0 1,2` are
+refused and stay classified as before. (c) THE ASKER'S BOX,
+read to justify the port's version: the rectangle lives at
+[obj+0x75..0x84] (the +0x4c getter is 0x23a20 = `add
+eax,0x75` in all 186 kind tables) and the kind-table +0x94
+verb (0x53db0, named at the tables' 0x97d70 and 0x969f4)
+refreshes it by calling +0x98 (0x23a50 -> 0x534e0):
+box[0]/box[4] come from the +0x68 position getter, which is
+0x23900 = `add eax,0xd6` for the lion and 0x23b60 = a bare
+`ret` (it returns the object itself, which is how the rope's
+box uses [obj+0]/[obj+4]), and the extents come from the
+current state record through the +0x48 verb 0x23aa0 and the
++0x50 verb 0x53e40; +0x94 then copies the position to
+[obj+0x89]. The other call of +0x98 is inside 0x55070, at
+0x55096. The port's equivalent of those extents is the
+frame's SEQ shape box, which its balloon hit test already
+uses, with the same x..x+w / y..y+h inclusive convention.
+MODEL CHOICES, counted in the code: the drawn mirror is not
+applied to that box, and the box comes from the art, not from
+the authored `x0,y0;x1,y1` rectangle the same placement lines
+carry. (d) NO PLAY-PROBE OR FIXTURE MOVES: the ZARIA.01
+ladder's only point is 3 px ABOVE its placement, so the
+walking-lion probe prints no K_GEN1 line before or after;
+make 0 warnings, verify-all 65 (ok), fixture-free 13 (ok).
+OPENS: the authored rectangle as the object's collision box
+- placed there, ZARIA.01's ladder spans x 203..233, y
+540..670, down to the ground line the lion walks on - while
+the port still collides with art bboxes; whether the engine
+keeps box[8]/box[0xc] as an extent or as a last pixel; the
+other 18 shipped list-bearing entries (KLINA, XCHG, PILAGEN,
+GUARD and 5 more LINA) and their answer verbs; the element
+ctor path 0x4a0b0 -> 0x49920 (its format slots 0x91d0f and
+0x91d15 are empty); PR-239's list (0x520c0's budget, the
+control-name bit map, 0x9a44c's name).
+CLOSES: none; OI-078's row now carries the gate as modelled.
+CORRECTS: PR-241 once - the raise is NOT unconditional on the
+pair contact: 0x44ec0 first requires an authored contact
+point inside the asker's rectangle, and an object with no
+list (171 of the 186 classes) never raises. PR-242 once - the
+short list lines do not fall into st->shortline: a line with
+no '=' and no ';' and fewer than four commas lands in
+st->group, so only `23,30;53,160` reaches st->poly as was
+claimed.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
 ```

@@ -983,6 +983,34 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     authored rectangle it ignores - this ladder's is x
     203..233, y 540..670, down to the ground line, while the
     port collides with the art bbox 42x48 at (180,510).
+    PR-243 READS and USES that list. The placement parser
+    now takes the `N dx,dy ...` line with the entry, stores
+    the points ABSOLUTE on the placement (the engine's
+    0x44e90 does exactly that at load), and the K_GEN1
+    self-raise of PR-241 is gated by 0x44ec0's test: some
+    point must lie inside the ASKER'S live rectangle, and an
+    object with no list answers FALSE, so 171 of the 186
+    classes never raise. Measured on the shipped data: the
+    port's run of ZARIA.01 reports the DRABINKA's point at
+    (213,507) - the engine's 180+33, 510-3 - and its two
+    LINA ropes at (125,492) and (525,525); 3 list lines per
+    placement pass. The asker's rectangle is now read too:
+    [obj+0x75..0x84], refreshed by the kind-table +0x94 verb
+    0x53db0 -> +0x98 (0x23a50 -> 0x534e0), which takes the
+    position from the +0x68 getter and the extents from the
+    state record's +0x48/+0x50 verbs; the port stands in the
+    frame's SEQ shape box for those extents (counted: art
+    based, mirror not applied). Test first: the L8 leg
+    (no points, a walking lion's box, a 1 px miss, an exact
+    edge touch, a covering box) fails on the ungated build
+    and passes with the gate; L9 pins the list grammar. No
+    play-probe or fixture moves - the ladder's only point is
+    3 px above its placement, so a lion walking the ground
+    never covers it, which is the jump-onto-a-ladder half
+    again. NEXT: the authored `x0,y0;x1,y1` rect as the
+    collision box (this ladder's spans x 203..233, y
+    540..670, reaching the ground), and the other 18
+    list-bearing entries' answer verbs.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

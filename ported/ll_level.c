@@ -425,6 +425,11 @@ int ll_level_anims(const char *dir, const char *level)
  * placement (RAN.01 places the same 2 cloud scripts 184 times). Nothing
  * is instantiated that the level's data does not name. */
 
+#define OBJ_MAXPTS 8       /* authored contact points one placement names.
+                            * Measured: every one of the 21 shipped lists
+                            * (PR-243 census of hd_files/ETAPY) authors a
+                            * count of 1; the array is wider so an
+                            * over-run is counted, never dropped silently. */
 #define OBJ_MAXART 16      /* distinct seq= names one .MOV selects; 10 is
                             * the measured maximum (PLAN 8g) */
 
@@ -527,6 +532,20 @@ typedef struct {                     /* one placement of a script        */
      * this is the ONLY path an authored damage= takes - the engine has
      * no unconditional contact damage, 0x50f80's gate at 0x50ff1). */
     int hp, hit_cd;
+    /* PR-243: the AUTHORED CONTACT-POINT LIST that follows an entry line
+     * in the placement file - the engine's [obj+0xa5] vector. Its
+     * kind-table +0x18 verb (0x3f0f0 for the placed DRABINKA) parses
+     * `N dx,dy ...` with 0x44f10 into N 12-byte elements (x, y, the
+     * element class 0x98274), and 0x44e90 immediately ADDS the
+     * placement to every point: the authored numbers are offsets and the
+     * live values are ABSOLUTE from load and never follow the object
+     * (PR-242). The only consumer measured so far is the 0x44ec0
+     * ANY-test in front of the ladder's K_GEN1 self-raise (PR-240/241),
+     * whose element verb 0x23e00 is a point-in-rectangle test against
+     * the ASKER's live rectangle. npts = 0 is the engine's empty vector,
+     * which answers FALSE (0x44ec0: the count at [hdr+4] is not > 0). */
+    unsigned char npts;
+    short cpx[OBJ_MAXPTS], cpy[OBJ_MAXPTS];
     unsigned char atc;
     unsigned char atc_hit;          /* PR-90: this object's window has    *
                                      * already landed its one hit (mirror  *
@@ -4134,6 +4153,8 @@ static int obj_layer_selftest(void);
 static int plany_selftest(void);
 static int contact_model_selftest(void);
 static int ladder_answer_selftest(void);
+static int place_points_selftest(void);  /* L9 (PR-243): defined with the
+                                            * placement reader it tests */
 
 /* FIX-13 (X-11) selftest, test-only entry point (ll_level.h): proves the
  * two .MOV duration invariants without any window or game data:
@@ -5133,10 +5154,58 @@ static void ladder_flag_raise(lvl_obj *o)
  * that beat, and clear. The one-record-step deferral is NOT modelled
  * here and is counted as a model choice; the selftest leg (L7) pins
  * the deferred shape through obj_advance, which does model it. */
-static void ladder_ask_raise(lvl_obj *o, int verbose, int tick)
+/* PR-243: the asker's live rectangle, the thing the engine's element
+ * verb 0x23e00 tests its points against. The engine keeps it at
+ * [obj+0x75..0x84] - every kind table answers the +0x4c getter with
+ * 0x23a20 = `add eax,0x75` - and refreshes it through the +0x98 verb
+ * 0x23a50 -> 0x534e0: the position through the +0x68 getter plus the
+ * current state's extents through its +0x48/+0x50 verbs. The port's
+ * equivalent of those extents is the frame's SEQ shape bbox, the same
+ * box its balloon hit test uses (balloon_hit, PR-88), with the same
+ * x..x+w / y..y+h inclusive convention. MODEL CHOICE, counted: the drawn
+ * mirror is not applied to that box (a mirror shifts a shape box
+ * sideways, and every shipped contact point sits on its own object's
+ * column), and the port's box comes from the art, not from the
+ * `x0,y0;x1,y1` rectangle the same placement line carries (that rect is
+ * an open item, OI-078). */
+static void player_shape_box(play_ctx *pl, const ll_seq *lseq,
+                             const ll_seq_elem *le, int ab[4])
 {
+    int bx0, by0, bw0, bh0;
+    int lx = (int)(pl->p.x >= 0 ? pl->p.x + 0.5 : pl->p.x - 0.5);
+    int ly = (int)(pl->p.y >= 0 ? pl->p.y + 0.5 : pl->p.y - 0.5);
+
+    ll_seq_shape_bbox(lseq, le, &bx0, &by0, &bw0, &bh0);
+    ab[0] = lx + bx0;
+    ab[1] = ly + by0;
+    ab[2] = ab[0] + bw0;
+    ab[3] = ab[1] + bh0;
+}
+
+static void ladder_ask_raise(lvl_obj *o, const int ab[4], int verbose,
+                             int tick)
+{
+    int k, hit = 0;
+
     if (o->sig & (1ull << LL_SIG_K_GEN1))
         return;                       /* the port's set is one beat   */
+    /* PR-243: the gate the engine puts IN FRONT of that raise. 0x44ec0
+     * walks the asked object's authored contact points (PR-242: the
+     * placement's `N dx,dy` list, made absolute at load by 0x44e90) and
+     * calls the element verb 0x23e00, a point-in-rectangle test against
+     * the asker's live rectangle. An empty vector answers FALSE
+     * (0x44ec0 returns 0 unless the count at [hdr+4] is > 0), so a
+     * ladder or rope that authors no points never raises this signal:
+     * PR-241's unconditional raise was too broad, and the L8 leg below
+     * pins the difference. */
+    for (k = 0; k < o->npts; k++)
+        if (ab[0] <= o->cpx[k] && o->cpx[k] <= ab[2] &&
+            ab[1] <= o->cpy[k] && o->cpy[k] <= ab[3]) {
+            hit = 1;
+            break;
+        }
+    if (!hit)
+        return;                       /* 0x3f1fb: je 0x3f364, the tail */
     ladder_flag_raise(o);
     if (!(o->sig & (1ull << LL_SIG_K_GEN1)))
         return;
@@ -5423,7 +5492,12 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
              * its first declared state the ladder raises K_GEN1 on
              * ITSELF (0x3f203) and answers nothing; that bit is the
              * feed of its own authored `A_DROP(1)=K_GEN1` exit. */
-            ladder_ask_raise(o, verbose, tick);
+            {   int ab[4];            /* PR-243: the asker's rectangle,
+                     * per the gate above */
+
+                player_shape_box(pl, lseq, le, ab);
+                ladder_ask_raise(o, ab, verbose, tick);
+            }
         }
         if (verbose)
             printf("ll_level: play tick %d: solid %s/%s %s at %d,%d push"
@@ -5508,7 +5582,11 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                  * asked ladder at its first declared state raises
                  * K_GEN1 on itself (0x3f203), the feed of its own
                  * `A_DROP(1)=K_GEN1` exit. */
-                ladder_ask_raise(o, verbose, tick);
+                {   int ab[4];        /* PR-243: same gate, same box */
+
+                    player_shape_box(pl, lseq, le, ab);
+                    ladder_ask_raise(o, ab, verbose, tick);
+                }
             }
         }
     }
@@ -5986,6 +6064,83 @@ static int ladder_answer_selftest(void)
             }
             free(m);
         }
+        {   /* L8 (PR-243): the GATE in front of that raise. 0x44ec0
+             * (PR-240) walks the ASKED object's own contact vector and
+             * its element verb 0x23e00 is a point-in-rectangle test
+             * against the asker's live rectangle ([asker+0x75],
+             * PR-242); an empty vector answers FALSE (the count at
+             * [hdr+4] is not > 0). The numbers are ZARIA.01's: the
+             * placed DRABINKA sits at (180,510) and authors the list
+             * `1 33,-3`, which 0x44e90 makes absolute at load as
+             * (213,507) - 3 px above its own placement. */
+            static const char UP2_MOV[] =
+                "A_UP\nA_DOWN\nA_DROP\n\n[A_UP]\ncontrol=BY_TIME\n"
+                "A_DROP(1)=K_GEN1\n1,0,WAIT K_GEN1\n\n[A_DROP]\n"
+                "control=BY_TIME\n2,500\n\n[A_DOWN]\ncontrol=BY_TIME\n"
+                "11,0,WAIT K_NEVER\n";
+            static const struct { int npts, px, py; int box[4]; int want;
+                                 const char *what; } gate[] = {
+                { 0, 0, 0, { 200, 500, 260, 560 }, 0,
+                  "no authored points: the empty vector answers false"
+                  " (0x44ec0), so no raise" },
+                { 1, 213, 507, { 100, 650, 300, 690 }, 0,
+                  "a lion walking the ground: his box never covers the"
+                  " point 3 px above the placement" },
+                { 1, 213, 507, { 214, 508, 260, 560 }, 0,
+                  "the box 1 px off on both axes: the point is outside" },
+                { 1, 213, 507, { 213, 507, 260, 560 }, 1,
+                  "the box touching the point on its inclusive edge:" },
+                { 1, 213, 507, { 100, 400, 300, 600 }, 1,
+                  "a box that covers it: the raise fires" },
+            };
+            for (unsigned g = 0; g < sizeof gate / sizeof gate[0]; g++) {
+                ll_mov_t *m2 = calloc(1, sizeof *m2);
+                obj_script sc2;
+                lvl_obj o2;
+
+                if (!m2) {
+                    fprintf(stderr, "ladder answer selftest: FAILED out of"
+                                    " memory\n");
+                    return 1;
+                }
+                ll_mov_parse(UP2_MOV, m2);
+                memset(&sc2, 0, sizeof sc2);
+                strcpy(sc2.leaf, "DRABINKA");
+                sc2.mov = m2;
+                memset(&o2, 0, sizeof o2);
+                o2.sc = &sc2;
+                o2.x = o2.bx = 180;
+                o2.y = o2.by = 510;
+                o2.sti = 0;                     /* A_UP = declared 1 */
+                o2.npts = (unsigned char)gate[g].npts;
+                for (int q = 0; q < gate[g].npts; q++) {
+                    o2.cpx[q] = (short)gate[g].px;
+                    o2.cpy[q] = (short)gate[g].py;
+                }
+                ladder_ask_raise(&o2, gate[g].box, 0, 0);
+                if ((gate[g].want != 0) !=
+                    ((o2.sig & (1ull << LL_SIG_K_GEN1)) != 0 ||
+                     o2.sti != 0)) {
+                    fprintf(stderr, "ladder answer selftest: FAILED the"
+                                    " contact-point gate (%s): state %d set"
+                                    " %llx, wanted %s\n", gate[g].what,
+                            o2.sti, o2.sig,
+                            gate[g].want ? "the raise" : "nothing");
+                    free(m2);
+                    return 1;
+                }
+                if (gate[g].want && o2.sti != 1) {
+                    fprintf(stderr, "ladder answer selftest: FAILED:"
+                                    " the raise did not take the authored"
+                                    " A_DROP line (state %d)\n", o2.sti);
+                    free(m2);
+                    return 1;
+                }
+                free(m2);
+            }
+        }
+        if (place_points_selftest())      /* L9 (PR-243), with the reader */
+            return 1;
     }
     return 0;
 }
@@ -7447,6 +7602,11 @@ typedef struct {                    /* counted while reading, never guessed */
         state_noart;
     int prop, group, comment, class_hint, shortline, poly;
     int param_extra, field_space, entry_noext, longline;
+    /* PR-243: the authored contact-point list that follows an entry line
+     * (the engine's [obj+0xa5] vector). Read and used, not noise: lines
+     * = entries that carry one, read = points stored as absolute
+     * positions, extra = points beyond OBJ_MAXPTS (counted, kept out). */
+    int pts_lines, pts_read, pts_extra;
     /* PR-93: the two placement grammars the census proved. Static image
      * lines ("<LEAF>,<name>.seq,<x>,<y>", 3 commas) place one image whose
      * .SEQ is named by the line itself; attached children are the five-
@@ -7920,6 +8080,130 @@ static const char *place_comma(const char *p, const char *end)
     return p + 1;
 }
 
+/* PR-243: the AUTHORED CONTACT-POINT LIST that continues an entry: the
+ * line right after a five-field entry names `N dx,dy[ dx,dy ...]`. The
+ * engine reads it as part of that entry - the kind-table +0x18 verb
+ * (0x3f0f0 for the placed DRABINKA, 2 of the 186 tables) calls 0x44f10,
+ * which parses N into the vector count at [obj+0xa9] and allocates N
+ * 12-byte elements at [obj+0xa5], and 0x44e90 then adds the placement to
+ * every point, so the authored offsets become ABSOLUTE once, at load,
+ * and never move with the object (PR-242). Measured grammar over
+ * hd_files/ETAPY: 21 of its 2076 entry lines carry the list, in SIX
+ * classes (DRABINKA 4, LINA 7, KLINA 3, XCHG 3, PILAGEN 2, GUARD 2),
+ * and N is 1 in every one of them. The points are stored absolute on
+ * the placement (o->cpx/cpy); the list line is CONSUMED, so it is no
+ * longer counted as a group-header line the way this reader used to
+ * classify it (a list line has no '=' and fewer than four commas, so it
+ * fell through to st->group). Returns the end of the line it took, or p
+ * unchanged when the line at p is not a list: a line this reader cannot
+ * classify stays classified, nothing is guessed. */
+static const char *place_points(const char *p, const char *end,
+                                lvl_obj *o, obj_stats *st)
+{
+    const char *eol = p;
+    int n = -1, dx[OBJ_MAXPTS], dy[OBJ_MAXPTS], i, got = 0;
+
+    while (eol < end && *eol != '\n' && *eol != '\r')
+        eol++;
+    const char *b = p;
+    while (b < eol && (*b == ' ' || *b == '\t'))
+        b++;
+    const char *e = eol;
+    while (e > b && (e[-1] == ' ' || e[-1] == '\t'))
+        e--;
+    if (e == b)
+        return p;
+    const char *q = place_int(b, e, &n);
+    if (!q || n <= 0)
+        return p;                       /* 0 or no count: not this grammar */
+    for (i = 0; i < n; i++) {
+        int vx = 0, vy = 0;
+        const char *s1 = place_int(q, e, &vx);
+        const char *s2 = s1 ? place_comma(s1, e) : NULL;
+        const char *s3 = s2 ? place_int(s2, e, &vy) : NULL;
+        if (!s3)
+            return p;                   /* malformed: leave it classified */
+        if (got < OBJ_MAXPTS) {
+            dx[got] = vx;
+            dy[got] = vy;
+        } else
+            st->pts_extra++;
+        got++;
+        q = s3;
+        if (i + 1 < n) {
+            while (q < e && (*q == ' ' || *q == '\t'))
+                q++;
+        }
+    }
+    while (q < e && (*q == ' ' || *q == '\t'))
+        q++;
+    if (q != e || got != n)
+        return p;                       /* trailing text: not this grammar */
+    for (i = 0; i < got && i < OBJ_MAXPTS; i++) {
+        o->cpx[i] = (short)(o->x + dx[i]);      /* the engine's 0x44e90:  */
+        o->cpy[i] = (short)(o->y + dy[i]);      /* absolute from load     */
+        st->pts_read++;
+    }
+    o->npts = (unsigned char)(got > OBJ_MAXPTS ? OBJ_MAXPTS : got);
+    st->pts_lines++;
+    return eol;
+}
+
+/* L9 (PR-243): the authored contact-point grammar, tested next to
+ * the reader it belongs to. */
+static int place_points_selftest(void)
+{
+/* (PR-242 census: 21 of the 2076 entry lines carry one,
+ * every shipped count is 1). The points come back ABSOLUTE:
+ * 0x44e90 adds the placement at load. */
+    static const struct { const char *text; int n; int dx[2],
+                          dy[2]; const char *what; } pl[] = {
+        { "1 33,-3\n", 1, { 33, 0 }, { -3, 0 },
+          "ZARIA.01's DRABINKA list" },
+        { "1 0,200\n", 1, { 0, 0 }, { 200, 0 },
+          "ZARIA.01's LINA list" },
+        { "2 -4,0 4,314\n", 2, { -4, 4 }, { 0, 314 },
+          "a two-point list (the UZWIERZ ropes)" },
+        { "30,50\n", 0, { 0, 0 }, { 0, 0 },
+          "the third authored line is not a list" },
+        { "23,30;53,160\n", 0, { 0, 0 }, { 0, 0 },
+          "the authored rect is not a list" },
+        { "1 33,-3 junk\n", 0, { 0, 0 }, { 0, 0 },
+          "trailing text: refused, stays classified" },
+        { "0 1,2\n", 0, { 0, 0 }, { 0, 0 },
+          "a zero count: the engine's empty vector" },
+    };
+    for (unsigned q = 0; q < sizeof pl / sizeof pl[0]; q++) {
+        obj_stats stt;
+        lvl_obj o3;
+        size_t len = strlen(pl[q].text);
+        const char *r;
+
+        memset(&stt, 0, sizeof stt);
+        memset(&o3, 0, sizeof o3);
+        o3.x = o3.bx = 180;
+        o3.y = o3.by = 510;
+        r = place_points(pl[q].text, pl[q].text + len, &o3, &stt);
+        if (o3.npts != pl[q].n ||
+            (pl[q].n > 0 &&
+             (o3.cpx[0] != 180 + pl[q].dx[0] ||
+              o3.cpy[0] != 510 + pl[q].dy[0] ||
+              (pl[q].n > 1 &&
+               (o3.cpx[1] != 180 + pl[q].dx[1] ||
+                o3.cpy[1] != 510 + pl[q].dy[1])))) ||
+            (pl[q].n > 0 ? r == pl[q].text : r != pl[q].text)) {
+            fprintf(stderr, "contact-point parse selftest: FAILED the"
+                            " contact-point parse of %s: npts %d"
+                            " first (%d,%d) consumed %d\n",
+                    pl[q].what, o3.npts, o3.cpx[0], o3.cpy[0],
+                    r != pl[q].text);
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 /* read one placement file: every line is classified, nothing is skipped in
  * silence and nothing is invented */
 static void des_place_file(place_ctx *pc, const char *fname,
@@ -7928,6 +8212,11 @@ static void des_place_file(place_ctx *pc, const char *fname,
     obj_stats *st = &pc->st;
     const char *p = txt, *end = txt + len;
     int declared = -1, entries = 0;
+    const char *skip_to = NULL;         /* PR-243: set when a line belongs
+                                         * to the entry before it (the
+                                         * contact-point list) and has been
+                                         * read there, so it is not
+                                         * classified a second time */
     int last_obj = -1;                  /* the placed object the following
                                          * key=value lines belong to */
     int after_prop = 0;                 /* PR-95: 1 while inside last_obj's
@@ -8238,10 +8527,35 @@ static void des_place_file(place_ctx *pc, const char *fname,
                                           * property block; a property line
                                           * that follows re-arms after_prop */
                 st->placed++;
+                {   /* PR-243: the contact-point list of THIS entry,
+                     * if it authors one (see place_points). The
+                     * engine reads it as part of the same entry, so
+                     * the port reads it here and consumes the line. */
+                    const char *np = eol;
+                    while (np < end && (*np == '\n' || *np == '\r'))
+                        np++;
+                    const char *ne = place_points(np, end, o, st);
+                    if (ne != np) {
+                        skip_to = ne;
+                        if (st->pts_lines <= 3)
+                            printf("ll_level: placement %s: %s/%s"
+                                   " authors %d contact point(s); the"
+                                   " engine turns them absolute at"
+                                   " load (0x44e90) and tests them"
+                                   " against the asker's box"
+                                   " (0x23e00): first at (%d,%d)\n",
+                                   fname, o->sc->leaf, o->sc->movname,
+                                   o->npts, o->cpx[0], o->cpy[0]);
+                    }
+                }
             }
         }
 next:
         p = eol;
+        if (skip_to && skip_to > p)
+            p = skip_to;        /* PR-243: read as part of the entry
+                                 * above, so not classified again */
+        skip_to = NULL;
         while (p < end && (*p == '\n' || *p == '\r'))
             p++;
     }
@@ -8250,6 +8564,13 @@ next:
                " file holds %d entry line(s) - count lines are stale in 38"
                " of the 68 shipped files, so every line is read\n",
                fname, declared, entries);
+    if (st->pts_lines)
+        printf("ll_level: placement %s: %d entry line(s) carry an authored"
+               " contact-point list; %d point(s) read as the absolute"
+               " positions the engine builds at load (0x44e90), %d point(s)"
+               " beyond the %d the model keeps\n",
+               fname, st->pts_lines, st->pts_read, st->pts_extra,
+               OBJ_MAXPTS);
     st->files++;
 }
 
