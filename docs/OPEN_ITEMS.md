@@ -1007,10 +1007,42 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     play-probe or fixture moves - the ladder's only point is
     3 px above its placement, so a lion walking the ground
     never covers it, which is the jump-onto-a-ladder half
-    again. NEXT: the authored `x0,y0;x1,y1` rect as the
-    collision box (this ladder's spans x 203..233, y
-    540..670, reaching the ground), and the other 18
-    list-bearing entries' answer verbs.
+    again.
+    PR-244 READS THE ASK ITSELF. An ask is a record-class
+    row-bit channel: 0x52790 - a method of the placed
+    rope's own class table (slot +0x14 at 0x97cd0) - tests
+    row bit 0x20000 and calls the delivery walk 0x4bd30
+    (out-packet, the level singleton 0xcef40, the row's
+    OBJECT word, that word masked 0x8000 as the layer).
+    0x4bd30 walks [[requester+0x64]] and asks each
+    candidate whose +0x60 verb answers true and whose layer
+    matches, with ebx = the requester; every answer is
+    OR-merged into the set the transition key is built
+    from (0x523f0's +0x10 verb, 0x52435). The parent gate
+    PR-242 censused is called at 0x3f1d1, on the REQUESTER
+    (PR-240 cited 0x3f1e9, which is really the rectangle
+    getter); re-census confirms 171 fail / 15 pass and the
+    lion is among the 15 (0x9699c = 0x96960+0x3c), while
+    the rope's own +0x3c (0x23270, unique) returns the
+    never-null global 0xceeac. So a ladder only answers for
+    one of those 15 requester classes - the port's ask
+    sites are lion-contact-only, already right by
+    construction. And the rope's STATE-2 branch (0x3f214 =
+    its A_DOWN) ANSWERS: requester position inside its
+    first authored element -> bit 8 = AC_DRABK; inside the
+    built rectangle from [self+0xb1] (0x49fb0, class
+    0x98274) -> bit 12 = AC_TIME; else bit 10 = AC_DRAB -
+    names shipped in table order at 0x919ec, matching the
+    port's enum. The lion side is authored: ZARIA.01
+    LEW.MOV `A_WSP(1)=AC_BREAK_NEXT,AC_DRAB` (328) and
+    `A_FALL_DOWN(1)=!AC_DRAB` (363); LONA.05
+    `A_WSP_LIN_UP(1)=K_UP,AC_DRAB` / `A_WSP_LIN_DOWN(1)=
+    K_DOWN,AC_DRABK` (58/59). No code shipped. NEXT:
+    decode the control-name bit map (row bits 0x20000 /
+    0x40 / 0x80), what writes [[obj+0x64]] and the +0x60
+    filter, the authored rect as a live box so a hanging
+    rope can ANSWER AC_DRAB, the other 18 list-bearing
+    entries, and the jump-onto-a-ladder half.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

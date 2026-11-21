@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-244.
+> at PR-245.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -34339,4 +34339,141 @@ st->group, so only `23,30;53,160` reaches st->poly as was
 claimed.
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
+```
+
+## PR-244 — THE LADDER ASK CHANNEL: DELIVERY (0x52790 ->
+## 0x4bd30), THE PARENT GATE AT ITS REAL SITE 0x3f1d1, AND
+## THE HANGING ROPE ANSWERS AC_DRABK / AC_TIME / AC_DRAB
+```
+KIND: read
+SUBSYSTEM: objects/ladder ask channel - WHO DELIVERS AN ASK,
+THE PARENT GATE'S OWN SITE (0x3f1d1, CORRECTING 0x3f1e9),
+AND THE ROPE'S STATE-2 ANSWER: AC_DRABK / AC_TIME / AC_DRAB
+ADDRESSES: 0x52790, 0x527b3, 0x527cb, 0x527db, 0x527f5,
+0x52805, 0x4bd30, 0x4bd6c, 0x4bd71, 0x4bd81, 0x4bd8c,
+0x4bd9c, 0x4bda9, 0x4bdb6, 0x4bdf6, 0x4be09, 0x553e0,
+0x55412, 0x55421, 0x5542b, 0x546a0, 0x3f1d1, 0x3f1e9,
+0x3f214, 0x3f222, 0x3f230, 0x3f256, 0x3f293, 0x3f29f,
+0x3f2ad, 0x3f2dc, 0x3f24d, 0x3f355, 0x49fb0, 0x23270,
+0x23c10, 0x230a0, 0x231d0, 0x3d0f0, 0x3d1c3, 0x919ec,
+0x97ce8, 0x97d54, 0x97cd0, 0x9699c, 0x96960, 0x97cdc,
+0xcef40, 0xceeac, 0x523f0, 0x52435, 0x5371c, 0x98eb0,
+0x1eba0, 0x97954, 0x978dc, 0x55380
+NAMES: ask channel, candidate walk, parent gate, ask
+delivery, row-step, AC_DRAB, AC_DRABK, AC_TIME, A_WSP,
+A_WSP_LIN_UP, A_WSP_LIN_DOWN, A_FALL_DOWN, signal bit
+convention, control-name bit map, OI-078, L8
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE ASK IS A RECORD-CLASS CHANNEL, AND ITS
+FLAGS ARE ROW BITS. 0x52790 is a method of the placed
+rope's OWN class table - its slot +0x14 at 0x97cd0 is
+0x52790 (the rope table 0x97cdc reads: +0x10 = 0x53770 the
+signal receiver, +0x14 = 0x52790; PR-238's factory chain
+0x1f8ac/0x23248 -> 0x97cdc). 0x52790 reads its row-step
+argument at bits of its word [esi+0x12]: bit 0x20000 (byte
+[+0x13] bit 1) -> the ASK branch 0x527b3-0x527cb, bit 0x40
+-> 0x4b890 at 0x527db-0x527f5, bit 0x80 -> a third branch
+at 0x52805. The ask call 0x4bd30 takes: out-packet edx =
+the local 12-byte set, this eax = the level singleton
+[ds:0xcef40], ebx = the row-step's own OBJECT word [esi],
+ecx = the SAME word masked with 0x8000. Every branch's
+answer is OR-merged into the caller's set (0x49580,
+0x527d6/0x52800) and copied out at 0x527b7-0x527e9, i.e.
+the answer joins the set the transition key is built from -
+the channel 0x523f0's +0x10 verb (0x5242e-0x52435, PR-239's
+key composition, called per step at 0x5371c).
+(b) THE CANDIDATE WALK 0x4bd30, read whole: it walks the
+chain [[ebx+0x64]] -> [rec+0x34] (0x4bd6c-0x4bd76), keeps a
+candidate only if its kind verb +0x60 answers true
+(0x4bd81; the rope's is 0x23140, the lion's 0x238e0) AND
+[rec+0x24] equals the candidate's own layer [cand+0x24]
+(0x4bd8c) AND the candidate is not the requester itself
+(0x4bd98), then calls the CANDIDATE's verb +0x78 with
+this = candidate, ebx = the requester (0x4bda0-0x4bda9) and
+ecx = the input set, and ORs each answer (0x4bdb6 ->
+0x495b0 tests whether anything arrived). With no matching
+candidate it falls through at 0x4bdf6 to `this`'s member at
+[[0xcef40+0x394]] and calls THAT object's +0x78. The
+sibling ask verb 0x553e0 asks an object's CHILD vector
+instead ([obj+0x3c] count, [obj+0x40] vector, 0x55412-
+0x5542b); it is the +0x1c verb of the element class whose
+descriptor 0x98278 is at 0x98eb0, and its callers are the
+element proxy 0x1eba0 (slot +0x78 of the ELEMENT-child class
+0x978dc, built by ctor 0x1ec00) and 0x380d0.
+(c) THE PARENT GATE'S SITE, CORRECTED. Inside the ladder
+answer 0x3f1c0 the +0x3c call is at 0x3f1d1 - on ebx, THE
+REQUESTER, at the ENTRY, before the state switch - not at
+0x3f1e9 (PR-240's citation); 0x3f1e9 is the requester's
++0x4c rectangle getter, already modelled by PR-243. With
+that correction PR-242(e) reads exactly right: re-censused
+over the kind tables (the set whose +0x4c = 0x23a20, 186 of
+them), +0x3c is 0x23c10 (`xor eax,eax`) in 171 and 0x230a0
+(`mov eax,1`) in 15, and the lion table 0x96960 is one of
+the 15 - its site 0x9699c = 0x96960+0x3c. So the ladder
+answers ONLY for a requester of those 15 classes; the placed
+rope's OWN +0x3c is the single 0x23270 (at 0x97ce8, 0x231d0
+shares it): `mov eax,ds:0xceeac` - a global object built
+once in the 22-object block at 0x3d0f0-0x3d1d2 (globals
+0xcee60..0xceeb0; the store at 0x3d1c3, never rewritten),
+so the rope never fails its own gate but is asked as a
+candidate only through some requester's chain.
+(d) THE STATE-2 BRANCH OF THE SAME VERB (0x3f214): with
+[self+0x5c] == 2 - ZARIA.01's rope has exactly the declared
+states A_UP=1, A_DOWN=2, A_DROP=3, so that is A_DOWN, the
+hanging state - it takes the REQUESTER's position through
+its +0x68 getter (0x3f222), tests it with the element verb
++0x8 (the PR-242/243 point-in-rectangle) against the rope's
+FIRST authored element, and answers `or byte [edx+1],0x1` -
+BIT 8 of the signal table. Otherwise it builds a 4-field
+vector from the authored rectangle at [self+0xb1..0xbd] (the
+rect PR-242 measured: ZARIA.01 x 203..233, y 540..670) with
+0x49fb0 using the class descriptor 0x98274 (0x3f256-0x3f293),
+tests the position against it the same way (0x3f29f), and
+answers `or byte [edx+1],0x10` - BIT 12; if even the second
+test fails (0x3f33f) it answers `or byte [edx+1],0x4` - BIT
+10. The signal names are shipped at 0x919ec in table order:
+bit 8 = AC_DRABK, bit 10 = AC_DRAB, bit 12 = AC_TIME - the
+bit convention matches the port's enum (ll_play.h 237-262)
+exactly. So a hanging rope ANSWERS with the rope-grab
+signals, keyed on the requester's position inside its own
+authored element or rectangle.
+(e) THE AUTHORED LION SIDE EXISTS AND READS THOSE NAMES:
+ZARIA.01's LEW.MOV line 328 `A_WSP(1)=AC_BREAK_NEXT,AC_DRAB`
+and line 363 `A_FALL_DOWN(1)=!AC_DRAB`; LONA.05's LEW.MOV
+lines 58/59 `A_WSP_LIN_UP(1)=K_UP,AC_DRAB` and
+`A_WSP_LIN_DOWN(1)=K_DOWN,AC_DRABK` (and 152/153 again);
+AC_TIME is consumed by the lion's A_DRAP (line 134
+`A_DRAP(1)=AC_TIME`) and many other states. That is the
+other half of OI-078 authored end to end: the rope answers,
+the answer enters the requester's key set through (a)/(b),
+and the lion's authored transitions read it.
+(f) THE PORT NEEDS NO CHANGE FROM (c): both ladder ask
+sites in play_collide run only when the LION is in contact,
+and the lion class is one of the 15 that pass the 0x3f1d1
+gate, so the gate is already satisfied by construction -
+counted here, not coded.
+OPENS: which authored control/row names set row bits
+0x20000 / 0x40 / 0x80 (PR-239's control-name bit map, now
+with three named bits to look for); what the +0x60 verb is
+(the candidate filter) and who writes the [[obj+0x64]]
+record-candidate chain; the identity of the level member at
+[0xcef40+0x394] (the no-candidate fallback) and of the
+global 0xceeac; whether the FIRST authored element (the
+state-2 test at 0x3f230) is the [obj+0xa5] point list or
+the [obj+0xc5] header's set; the port of the state-2 answer
+(AC_DRAB/AC_DRABK/AC_TIME) - it wants the authored
+rectangle as a live box first, the open item PR-243 named;
+the 0x4b890 (bit 0x40) and 0x52805 (bit 0x80) branches;
+PR-243's list stands (the other 18 list-bearing entries,
+0x49920/0x498f0's parse, 0x520c0's budget, 0x9a44c).
+CLOSES: none; OI-078's row now carries the ask delivery
+path, the corrected gate site, and the authored AC_DRAB half.
+CORRECTS: PR-240 once: the parent gate is called at 0x3f1d1
+in 0x3f1c0 (on ebx, the requester, at the entry), NOT at
+0x3f1e9 - 0x3f1e9 is the requester's +0x4c rectangle getter
+(PR-242(d)/PR-243). Nothing else in PR-240 or PR-242
+changes: re-census confirms 171/15, and 204 dwords equal
+0x23c10 in total, 171 of them at +0x3c of a kind table.
+GATE: light: verify-index verify-docs rc=0 (ok);
 ```

@@ -2067,6 +2067,42 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-244 (READ): the ask itself, end to end. An ask is
+a record-class row-bit channel: 0x52790 is a method of the
+placed rope's own class table (slot +0x14 at 0x97cd0); bit
+0x20000 of its row-step word calls the delivery walk
+0x4bd30 (out-packet, level singleton 0xcef40, the row's
+OBJECT word, that word masked 0x8000 as a layer filter);
+bits 0x40/0x80 call sibling branches 0x4b890/0x52805 - all
+answers OR-merge into the set the transition key is built
+from (0x523f0's +0x10 verb at 0x52435). 0x4bd30 walks
+[[requester+0x64]], keeps candidates passing their kind
++0x60 verb and matching layers, and calls the candidate's
++0x78 with ebx = the requester; with no candidate it falls
+back to the level member [[0xcef40+0x394]]'s +0x78. The
+parent gate PR-242 censused is called at 0x3f1d1 - on the
+REQUESTER, at the entry of 0x3f1c0 - not at 0x3f1e9, which
+is the rectangle getter (PR-240 citation corrected;
+re-census confirms 171 fail/15 pass, the lion among the 15
+at 0x9699c; the rope's own +0x3c = 0x23270 returns the
+never-null global 0xceeac, unique to that table). The
+rope's STATE-2 branch (its A_DOWN, 0x3f214) ANSWERS:
+requester position in its first authored element -> bit 8 =
+AC_DRABK; in the rectangle built from [self+0xb1] (0x49fb0,
+descriptor 0x98274) -> bit 12 = AC_TIME; else bit 10 =
+AC_DRAB. Signal names are shipped in table order at
+0x919ec and match the port's enum bit-for-bit (AC_DRAB=10,
+AC_DRABK=8, AC_TIME=12). The lion half is authored:
+ZARIA.01 LEW.MOV `A_WSP(1)=AC_BREAK_NEXT,AC_DRAB` (328),
+`A_FALL_DOWN(1)=!AC_DRAB` (363); LONA.05 lines 58/59 climb
+ropes with AC_DRAB/AC_DRABK. No code shipped: the port's
+ask sites are lion-contact-only, and the lion class passes
+the 0x3f1d1 gate by construction. NEXT: the control-name
+bit map (the three row bits), [[obj+0x64]] and the +0x60
+filter, the authored rect as a live box (then a hanging
+rope can answer AC_DRAB), the other 18 list-bearing
+entries, the jump half.
+
 STATUS PR-243 (PORT): that authored list is now read and it
 gates the raise. The placement parser takes the `N dx,dy ...`
 line as part of the entry (place_points) and stores the
