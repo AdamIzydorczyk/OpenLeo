@@ -2067,6 +2067,40 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-245 (READ): the ask channel is the CONTROL WORD.
+The per-step key builder 0x523f0 calls the record class's
++0x10 verb with the live set (0x5242e-0x52435); for the
+placed rope that verb is 0x52790, which switches on the
+control word [rec+0x12..] that the PR-230 keyword table
+fills: CHECK_LEW (engine 0x200, port 0x8000) -> the ask
+walk 0x4bd30 (the CHECK_ALL_PLANE bit passed as its layer
+argument, 0x527c0-0x527c5), CHECK_ZW (0x8000) -> 0x4b890,
+CHECK_ALL_PLANE (0x8000000) -> 0x4b870. CHECK_ALL ORs all
+four check bits (0x51c73, 0x1c0 = ANI+ZW+LN+LEW) - the
+port's ctrl_flag CHECK_ALL lacks its CHECK_LEW bit (OI-113
+half one grows that entry; no port code tests the bit yet).
+Measured in the shipped data: ZARIA.01's DRABINKA/LINA
+states are bare control=BY_TIME (records never ask), the
+lion's states carry CHECK_ALL / CHECK_BASE_LN - so the ask
+runs from the LION per step, exactly PR-150's shape with
+its enabling bit now named. The walk's candidate filter is
+the kind verb +0x60: 156 of 186 tables answer 0x23b80 =
+`mov eax,[obj+0x2c]; ret` - the contact-node field, set to
+1 at 9 sites - so only a TOUCHED object is asked; then the
+layer must match unless the CHECK_ALL_PLANE bit is clear.
+The rope's own +0x60 (0x23140) is a rectangle-intersect of
+the AUTHORED rect [obj+0xb1..0xbd] against the requester's
+live box, writing the result to [obj+0x2c] - a second live
+use of the authored rectangle (with PR-244's state-2
+answer): the engine collides with the authored rect, not
+the art bbox. Corrections: the ask bit is 0x200 not
+0x20000; 0x52790 sits at 0x97cd0, 0xc below the kind
+table, not at slot +0x14; and the control chain starts at
+BY_X = default/sets nothing, BY_Y = 0x1, BY_TIME = 0x2
+(PR-239(e) shifted it). NEXT: [[obj+0x64]] and the
+contact-node writers, 0x4b890/0x4b870, the authored rect as
+the port's collision box, then the AC_DRAB answer.
+
 STATUS PR-244 (READ): the ask itself, end to end. An ask is
 a record-class row-bit channel: 0x52790 is a method of the
 placed rope's own class table (slot +0x14 at 0x97cd0); bit

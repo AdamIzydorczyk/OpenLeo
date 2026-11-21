@@ -1043,6 +1043,28 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     filter, the authored rect as a live box so a hanging
     rope can ANSWER AC_DRAB, the other 18 list-bearing
     entries, and the jump-onto-a-ladder half.
+    PR-245 NAMED THE CHANNEL: the per-step key builder
+    0x523f0 calls the record class's +0x10 verb (0x52435,
+    0x52790 for the placed rope's class), and 0x52790
+    switches on the control word it already reads: bit
+    CHECK_LEW -> the ask walk 0x4bd30 (with the
+    CHECK_ALL_PLANE bit as its layer argument), bit
+    CHECK_ZW -> 0x4b890, bit CHECK_ALL_PLANE -> 0x4b870.
+    CHECK_ALL sets all four check bits (0x51c73). ZARIA.01's
+    ropes author bare BY_TIME - their records never ask -
+    while the lion's states carry CHECK_ALL, so the ask
+    comes from the lion, per step: PR-150's shape, now with
+    its enabling bit. The walk's first gate is the
+    candidate's +0x60 verb: 156 of 186 tables answer
+    0x23b80 = `mov eax,[obj+0x2c]` - the contact-node
+    field - so only a TOUCHED object is asked; the second
+    gate is the layer match unless the CHECK_ALL_PLANE bit
+    is clear. And the rope's own +0x60 (0x23140) is a
+    rectangle-intersect of the AUTHORED rect [obj+0xb1..
+    0xbd] against the requester's live box - the second
+    live use of that rectangle (with PR-244's state-2
+    answer): the engine's collision box is the authored
+    rect. No code shipped.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
@@ -1821,3 +1843,11 @@ OI-113: the engine control bit table is read (PR-230) and the
     CHECK_BASE_LN/INV_V/BY_TX/SEQ_REV_X/Y; the [obj+0x99]
     row-order word, the backward cursor walk, and the
     ldir/rdir/chdir/rev apply verbs are still unmodelled.
+    PR-245 adds to half one: the engine's CHECK_ALL
+    (0x51c73, `or word [rec+0x12],0x1c0`) covers FOUR
+    engine bits - ANI + ZW + LN + LEW - so the port's
+    CHECK_ALL must also set its LL_CTRL_CHECK_LEW; that
+    bit is the ask channel (PR-245), so the ask port sets
+    it. PR-245 also corrects PR-239's letter list: BY_X is
+    the DEFAULT name setting nothing, BY_Y = 0x1, BY_TIME =
+    0x2 (0x51b56-0x51b8d) - the PR-230 table is right.

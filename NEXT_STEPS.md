@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-245.
+> at PR-246.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -34475,5 +34475,114 @@ in 0x3f1c0 (on ebx, the requester, at the entry), NOT at
 (PR-242(d)/PR-243). Nothing else in PR-240 or PR-242
 changes: re-census confirms 171/15, and 204 dwords equal
 0x23c10 in total, 171 of them at +0x3c of a kind table.
+GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-245 — THE ASK CHANNEL IS THE CONTROL WORD: CHECK_LEW
+## OPENS IT (CHECK_ALL IMPLIES IT), THE CANDIDATE FILTER IS
+## THE CONTACT-NODE FIELD [obj+0x2c], AND THE AUTHORED RECT
+## FILTERS CANDIDATES TOO
+```
+KIND: read
+SUBSYSTEM: state control words / the ask channel - THE THREE
+ROW-STEP CHANNELS ARE THE CONTROL WORD'S CHECK_* BITS, AND
+THE CANDIDATE FILTER IS THE OBJECT'S CONTACT-NODE FIELD
+ADDRESSES: 0x527b3, 0x527db, 0x527cb, 0x527c5, 0x527f5,
+0x52805, 0x5281f, 0x523f0, 0x52435, 0x536f0, 0x5371c,
+0x52790, 0x4bd8c, 0x4bd91, 0x4bd96, 0x4bd81, 0x23b80,
+0x23140, 0x23145, 0x9216e, 0x51b49, 0x51b56, 0x51b6f,
+0x51b78, 0x51b89, 0x51c62, 0x51c73, 0x51c8f, 0x51d1a,
+0x921c6, 0x921d0, 0x92202, 0x9185d, 0x97cdc, 0x97cd0,
+0x96960, 0x53670, 0x9a44c
+NAMES: ask channel, CHECK_LEW, CHECK_ZW, CHECK_ALL_PLANE,
+CHECK_ALL, contact node, [obj+0x2c], candidate filter,
+control word, row-step, OI-078, OI-113
+CODE: no: this PR ships no code.
+HOOKS: none new, none touched.
+MEASURED: (a) THE ASK IS A CONTROL-WORD CHANNEL. The record
+driver 0x536f0 (the placed rope's kind-table slot +0x14)
+builds the transition key every step at 0x5371c through
+0x523f0, and that composition calls the record-class +0x10
+verb at 0x5242e-0x52435 with the object's live set; for the
+placed rope's class that verb is 0x52790 (the dword at
+0x97cd0, the word just BELOW the kind table 0x97cdc, PR-244
+read it as a +0x14 slot - see CORRECTS). 0x52790 then
+switches on the SAME record's control word [esi+0x12..] -
+the field PR-230's keyword table fills:
+  bit 0x200 (engine CHECK_LEW, the port's LL_CTRL_CHECK_LEW
+    = 0x8000) -> the ASK branch 0x527b3, delivery walk
+    0x4bd30 at 0x527cb;
+  bit 0x8000 (engine CHECK_ZW, port LL_CTRL_CHECK_ZW) ->
+    0x4b890 at 0x527db-0x527f5;
+  bit 0x8000000 (engine CHECK_ALL_PLANE, port
+    LL_CTRL_CHECK_ALL_PLANE) -> 0x4b870 at
+    0x52805-0x5281f;
+  and the layer argument handed to the walk is exactly that
+  bit: `mov ecx,[esi+0x12]; and ecx,0x8000` (0x527c0-
+  0x527c5). So PR-239's "control-gated ask channel" is
+  fully named: the channel bit is the control word's
+  CHECK_LEW, and CHECK_ALL sets it - 0x51c73 `or WORD
+  PTR [esi+0x12],0x1c0` covers the engine bits 0x40 ANI /
+  0x80 ZW / 0x100 LN / 0x200 LEW, i.e. the engine's
+  CHECK_ALL = ANI + ZW + LN + LEW.
+(b) THE SHIPPED DATA DECIDES IT: ZARIA.01's DRABINKA and
+LINA states are all bare `control=BY_TIME` - no CHECK_LEW,
+so those records NEVER ask; the ZARIA.01 lion's states carry
+CHECK_ALL (LEW.MOV 52/74/101/215) or CHECK_ANI|CHECK_ZW|
+CHECK_BASE_LN (40) - CHECK_BASE_LN is engine bit 0x400000,
+a fifth, different bit (0x51ca9). So the ask that can reach
+a ladder runs from the LION's states, per step, over the
+lion's candidate chain - which is exactly the shape PR-150
+modelled (the ask sites sit in the lion's contact path), now
+with its enabling bit named. OI-113 item 1 grows one more
+entry: the port's ctrl_flag CHECK_ALL (ll_play.c, set by
+PR-231 to CHECK_ANI|CHECK_ZW|CHECK_LN) does NOT set its
+LL_CTRL_CHECK_LEW bit, while the engine's CHECK_ALL does -
+no port code tests CHECK_LEW today, so nothing moves; the
+ask port must set it.
+(c) THE CANDIDATE FILTER IS THE CONTACT-NODE FIELD. The
+walk's first gate 0x4bd81 calls the candidate's kind verb
++0x60; 156 of the 186 kind tables answer with 0x23b80 =
+`mov eax,[eax+0x2c]; ret` - the object's contact-node field
+(PR-149's node list head), set to 1 at 9 sites
+(0x2b809/0x2db80/0x36610/0x3f7a0/0x52926/0x59b2e/0x604e6/
+0x60b81/0x60f4a). So a candidate is only asked if something
+has planted a contact node in it - the pair contact, again,
+is what opens the channel; the second gate 0x4bd8c-0x4bd96
+requires the candidate's layer [cand+0x24] to equal the
+record's [rec+0x24] unless the mask (CHECK_ALL_PLANE) is
+zero, in which case the candidate is skipped.
+(d) THE CONTROL BITS RE-READ, ONE CORRECTION: the chain
+0x51b49-0x51d93 compares BY_X FIRST and on a match sets
+NOTHING (0x51b56 jumps straight to the end); BY_Y sets bit
+0x1 (0x51b6f), BY_TIME 0x2 (0x51b89), BY_TX 0x3, BY_TY 0x4,
+then 0x8/0x10/0x20/0x40/0x80 as PR-230 lists. PR-239(e)'s
+"BY_X = 1, BY_Y = 2, BY_TIME = 4" shifted the chain by one
+name. (The engine's BY_X is the walk mode 0x543a0 selects
+for distance-clock feeding; the port's model names stay as
+they are.)
+OPENS: what writes [[obj+0x64]], the chain the walk follows
+(the rope's own +0x64 verb is 0x23140 - the RECT-INTERSECT
+test of the authored rectangle at [obj+0xb1..0xbd] against
+the requester's live box, writing its result into [obj+0x2c]
+at 0x23140-0x23174: a SECOND live use of that rectangle, on
+top of PR-244's state-2 answer, and the strongest evidence
+yet that the authored rect, not the art bbox, is the
+engine's collision box); the bodies of 0x4b890 (the
+CHECK_ZW ask) and 0x4b870 (the CHECK_ALL_PLANE ask); what
+[rec+0x24] holds and how it tracks [obj+0x24]; the 9
+writers of [obj+0x2c]; PR-244's list (the element-child
+class 0x978dc, [0xcef40+0x394], 0xceeac) and PR-243's.
+CLOSES: none; OI-078's ask half is now fully named, and
+OI-113 gains the CHECK_ALL/CHECK_LEW entry.
+CORRECTS: PR-244 three times: (i) the ASK branch is gated
+by control-word bit 0x200, not 0x20000; (ii) 0x52790 is not
+"slot +0x14" of the kind table 0x97cdc - it sits at 0x97cd0,
+0xc bytes BELOW it; (iii) "AC_TIME = bit 12" stands but the
+branch description should read bit 0x10 of packet byte 1 =
+engine-table position 12. PR-239(e) once: the control chain
+starts at BY_X = default (sets nothing); BY_Y = 0x1,
+BY_TIME = 0x2 (0x51b56-0x51b8d), so the PR-230 table - not
+the PR-239 letter list - is the right one to use.
 GATE: light: verify-index verify-docs rc=0 (ok);
 ```
