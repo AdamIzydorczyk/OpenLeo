@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-259.
+> at PR-260.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -35772,4 +35772,146 @@ PR-257's DRABINKA table address - the two tables are
 0x97cdc and 0x97cd4, with 0x3f1c0 at slot +0x78 of both
 and 0x53db0 at +0x94.
 GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-259 — THE CLIMB MOVES: 0x542cd's Y FORCE IS THE AUTHORED
+## F PAIR'S SECOND NUMBER TIMES THE VERTICAL-INTENT WORD
+```
+KIND: port
+SUBSYSTEM: the player's vertical velocity law - the motion of
+the vertical-intent states (the ladder climb), the second
+consumer of the engine's y-intent word [obj+0xbe].
+ADDRESSES: 0x54250, 0x54266, 0x5427f, 0x54292, 0x542a7,
+0x542ab, 0x542c7, 0x542cd, 0x542e3, 0x542ee, 0x54311,
+0x54348, 0x54358, 0x54372, 0x5441b, 0x54910, 0x506d6,
+0x54c00, 0x52590, 0x24731, 0x24db3, 0x321fe, 0x33348
+NAMES: F= pair, [ebx+0x0], [ebx+0x4], [ebx+0x8],
+[ebx+0x14], [obj+0xba], [obj+0xbe], vert_intent, fy,
+LL_PLAY_INTENT_FULL, LL_PLAY_GRAVITY, BY_TY, BY_Y,
+A_WSP A_LOOKUP A_TURN_BACK A_PODCIAG A_FALL_DOWN, DRABINKA,
+OI-078, PR-148's open item 1
+CODE: yes: ll_play.c's y pass. (i) the register add gains
+the 0x542cd-0x542e3 term, `idiv(st->fy * p->vert_intent,
+20)`, added to the authored G_y word exactly as the body
+orders it; (ii) the pass's door is widened: a state in the
+engine's vertical-intent control mode (BY_TY / BY_Y) that
+authors a second F number and no G_y runs the pass even with
+ground under it; (iii) the project's stand-in gravity term
+becomes `ay == 0 && !p->grounded && CHECK_LN`.
+HOOKS: the PR-108/PR-148 BY_TY leg, whose motion pins are
+REPLACED - RED first: at HEAD that leg asserts `u.y == 500
+&& u.vx == 0 && u.vy == 0` ("no vertical MOTION is modelled
+for this state yet") and every new expectation failed before
+the code changed. Every number is arithmetic on the
+fixture's OWN authored words - the same [A_WSP] block the
+level runs, `F=0,100`, `T=160,50`, `G=0,0`, `control=
+BY_TY|CHECK_ALL|SEQ_REV_Y`, the row list 300,200,...,300 -
+plus the port's one validated intent scale
+LL_PLAY_INTENT_FULL = 10: the add is idiv(100 * -10, 20) =
+-50 on PR-256's integer register, against the authored y
+drag of 50 percent of the OLD register. Hand-run in
+ll_play_v_step's exact order: -50, -75, -88, -94, -97, -99,
+and -100 from t=7, the equilibrium of a 50 add against a 50
+percent drag (100 = 2*50). The position takes the TRUNCATED
+register, so those six sub-pixel iterations move nothing and
+from t=7 the body rises 1 px per one: 499 ... 491 at t=15.
+Release at t=16,17 leaves the drag running, -50 then -25,
+both sub-pixel, y held. Down at t=18,19,20 turns the
+register through (-25+50) - idiv(-25*50,100) = 37, then
+(37+50) - 18 = 69, then (69+50) - 34 = 85 - all sub-pixel,
+so y holds through the turn-around; a model without the drag
+would read 25, 75, 125 there. FOUR MUTATIONS each break the
+leg: drop the add (the leg stays at y=500); keep the old
+`!p->grounded`-only door; drop the y drag; drop the /20.
+MEASURED: (a) THE PARAMETER FIELD PR-148 LEFT UNREAD is
+[ebx+0x4], the SECOND number of the state's `F=` pair. The
+proof is the body itself: 0x542ab-0x542c7 multiplies
+[ebx+0x0] by the horizontal intent [obj+0xba] and divides
+by 20 - the law PR-132 shipped as `idiv(F*s,20)` - and
+0x542cd-0x542e3 is the same pair of instructions with
+[ebx+0x4] and [obj+0xbe]; [ebx+0x14], the `G=` pair's
+second word, is added AFTER that idiv at 0x542ee, which is
+why the divide does not reach G_y. The two axes are the
+same shape, and the header line writes both pairs
+(`F=0,100` = F_x, F_y), which is the authoring the merge
+PR-98/99 reads into that record. The 0x54266-0x54275 T
+raise tests [ebx+0x8] only, so it stays an x-side rule and
+the y drag keeps its authored percent - as ll_play.c
+already assumed. (b) THE PASS IS UNCONDITIONAL IN THE
+ENGINE: nothing in 0x54292-0x54311 asks whether the body
+stands on anything. What holds a standing body still is its
+ground contact, reached through the class vtable's +0x74
+(0x54c00, still unread - PR-148's item 3), so the port's
+`!p->grounded` is a stand-in for that contact and cannot
+cover a state whose own control mode is the vertical-intent
+mode. MODEL CHOICE, counted at OI-078: the door is widened
+by the state's authoring - BY_TY or BY_Y, an F pair with a
+non-zero second number, and G_y = 0 - and 0x54c00 stays
+unread. The shipped authoring bounds the reach: of the 1376
+state blocks in the 777 .MOV texts that write an `F=` line,
+59 give a non-zero SECOND number, 53 of those author
+G_y = 0, and exactly 15 are player states in a
+vertical-intent mode - the 12 BY_TY climb blocks of PR-108's
+census (ZARIA.01's and ZARIA.02's A_WSP and A_WSP_LIN,
+TUNGA.11's two, TUNGA2.12's A_DRAB, KARA.07's A_WSP_LIN)
+and the 3 BY_Y ones (ENA.03's A_UP/A_DOWN, ENA2's
+A_CLIMB). The other 25 player-side blocks are BY_TIME
+swim/fire/cutscene states and this term does not reach
+them. (c) THE COLLATERAL the widening exposed, caught by
+the leg: PR-231 maps `CHECK_ALL` to CHECK_LN|CHECK_ANI|
+CHECK_ZW, and ll_play.c's implicit-gravity term fires on
+`ay == 0 && CHECK_LN` - on a grounded climb with no key
+held it would add LL_PLAY_GRAVITY (200) every iteration,
+which the probe measured as the register jumping -100 -> 150
+at the release tick. The term is now scoped to
+`!p->grounded`, the case its own note in ll_play.h names
+("a state marked CHECK_LN loses its ground"); on the
+pre-existing path that term is already true, so nothing
+there can change. (d) THE LEVEL, and the first PASS the
+port has ever had on ZARIA.01's ladder: with
+`1:FWD 112:JUMP 116:UP,JUMP 130:UP ... 400:UP` the chain
+PR-257 opened now reaches `A_TURN_BACK -> A_WSP` at tick
+151 at 213,652 and climbs at EXACTLY the rate the
+arithmetic gives - 1 px per iteration once the sub-pixel
+ramp closes: 647 at 161, 597 at 211, 547 at 261, 517 at
+291, 141 px over 147 A_WSP ticks. At tick 263 the ladder's
+authored contact point 213,507 falls INSIDE the asker's
+live box for the first time (`200,503..229,579 -> PASS`)
+and the DOWNED rope answers `set 1400` = AC_DRAB,
+AC_DRAB_CATCH, the pair 0x3f1c0 returns at 0x3f2dc/0x3f304
+(PASS count 44 before the chain ends; PR-258's same-area
+probe never moved him, so it never had one). The chain still
+ends there: at 297 and 298 the ask PASSES but no answer
+line follows, so nothing is raised on those iterations, and
+of A_WSP's four row conditions the only one that can then
+fire with Up held and no jump - AC_EDGE and K_DOWN/K_JUMP
+being unheld or unmodelled - is its own
+`A_FALL_DOWN(1)=!AC_DRAB`, which takes him down to 651,
+grounded, where he stays to the end of the run at 430.
+OPENS: in order: (i) why the answer verb goes silent on
+two consecutive ticks with the same asked object in the
+same state - PR-257 named 0x3f1c0's [obj+0x54] asker
+memory as read-but-not-modelled and this is where it bites;
+(ii) the LIFETIME of the port's player signal set against
+the engine's persistent 12 bytes at [obj+0x60], which is
+what makes `!AC_DRAB` true for one iteration; (iii)
+0x54c00, the ground-contact method that is the real half of
+the guard this PR widened; (iv) `A_PODCIAG(1)=AC_EDGE,K_UP`
+at the top of a climb, AC_EDGE having no raiser modelled;
+(v) 0x55130's [obj+0xad] CATCH path; (vi) whose set the
+0x553f0 accumulator is; (vii) [obj+0x112]; (viii) PR-217's
+persistent WAIT meter; (ix) RAN.01's A_LADOW.
+CLOSES: PR-148's open item 1 - "intent * param/20 -> v_y,
+the param field unread": the parameter word is the state
+record's [ebx+0x4], the authored F pair's second number,
+and the term is now shipped. It also closes PR-258's
+observation (f), that the climb this chain reaches "runs IN
+PLACE": at HEAD that same script now climbs the ladder.
+CORRECTS: PR-108/PR-148's leg pin `CHECK(u.y == 500)` /
+"no vertical MOTION is modelled for this state yet" and the
+same sentence in that leg's description text; PR-256's
+companion note that the y-intent force is "counted open...
+no shipped leg exercises it" - this PR ships it.
+GATE: make 0 warnings; verify-all fixtures rc=0 67 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
 ```

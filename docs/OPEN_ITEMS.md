@@ -621,10 +621,16 @@ OI-077: fixture hygiene: the five drawn-anchor test legs use a
 
 === gameplay behavior + capture-needed ============================
 
-OI-078: the in-game ZARIA.01 climb: what the DOWNED rope
-  (index 2) answers on a meet and how that feeds
-  `A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR` (what raises K_GEN1 was
-  PR-257: the lion's own rows), the authored rectangle
+OI-078: the in-game ZARIA.01 climb, now MOVING (PR-259 ships
+  0x542cd's y force): the chain reaches the ladder's authored
+  contact point and stops there, so the lead is what the
+  DOWNED rope (index 2) answers on the ticks it says nothing
+  on - 0x3f1c0's [obj+0x54] asker memory and the lifetime of
+  the raised bits - and the top of a climb,
+  `A_PODCIAG(1)=AC_EDGE,K_UP` with AC_EDGE unmodelled (what
+  raises K_GEN1 was PR-257: the lion's own rows, and
+  `A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR` is CLOSED as a non-lead,
+  PR-258), the authored rectangle
   format ([obj+0]==2 as a runtime gate vs [obj+0]/[obj+4] as
   rect x/y, and what the row-start numbers change on screen),
   node lifetime + the 0x54b6a merge guard, object-asked answers
@@ -633,7 +639,8 @@ OI-078: the in-game ZARIA.01 climb: what the DOWNED rope
   notes: poster, pair-walk entry, node builders, feed law, guard,
     evaluator, ladder answer all read and shipped (PR-142..150);
     the named remainder lives in those records' counted items.
-    ZARIA.01 x=180 still does not climb.
+    ZARIA.01's lion climbs the whole ladder from PR-259;
+    the chain ends at its top.
     PR-216 CLOSED the gate half of this row. The answer branch
     at 0x3f1c0 is gated on [obj+0x5c], the STATE index, and the
     loader says what numbers it: 0x53905 reads the list a script
@@ -1417,6 +1424,36 @@ OI-078: the in-game ZARIA.01 climb: what the DOWNED rope
     mask builder the lion's own +0x78 entry calls, raises
     AC_DRAB_CATCH on a comparison of the pair's [obj+0xad]
     words and AC_ENEMY otherwise.
+    PR-259 ships the MOTION that paragraph left open. The
+    add is `idiv([ebx+0x4] * [obj+0xbe], 20)` at
+    0x542cd-0x542e3, and [ebx+0x4] is the SECOND number of
+    the state's authored F pair: the x side of that same
+    body, 0x542ab, multiplies [ebx+0x0] by the horizontal
+    intent word and is the law PR-132 shipped, and the
+    `G=` pair's second word is added after the idiv at
+    0x542ee. The pass's door is widened by the STATE's
+    authoring - a BY_TY or BY_Y state with a non-zero second
+    F number and G_y = 0 runs the drag and the force even
+    with ground under it, because what holds a standing body
+    still in the engine is its ground contact at 0x54c00,
+    which stays unread; 15 player-authored blocks qualify,
+    every one of them a climb, so the reach is bounded (the
+    census is in the PR-259 record). The project constant
+    LL_PLAY_GRAVITY, which CHECK_ALL would otherwise put on
+    a released climb, is scoped to `!p->grounded`. Measured
+    at HEAD: the chain reaches `A_TURN_BACK -> A_WSP` at
+    tick 151 and climbs 1 px per iteration - 141 px over 147
+    ticks - and the ladder's authored contact point 213,507
+    is inside the asker's live box from tick 263, the DOWNED
+    rope answering `set 1400` = AC_DRAB,AC_DRAB_CATCH. It
+    ends at 298: the ask PASSES on 297 and 298 with NO
+    answer line, so no bit is raised on those iterations and
+    the authored `A_FALL_DOWN(1)=!AC_DRAB` row takes him
+    down. The next links, in order: why the answer verb is
+    silent two ticks running (PR-257's [obj+0x54] asker
+    memory), the lifetime of the port's player signal set
+    against the engine's persistent 12 bytes at [obj+0x60],
+    0x54c00, then AC_EDGE / A_PODCIAG at the top.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

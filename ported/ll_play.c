@@ -1498,11 +1498,12 @@ static int player_iterate(ll_player *p, const ll_plt *ground,
      * LL_PLAY_INTENT_FULL (the keyboard's own constant is 20, the
      * contact chain writes 10, the port's one validated scale is 10).
      * The contact-node override (the kind-4 arm, 0x54b16) is PR-149's
-     * route. The consumer modelled here is section 7's mode-4 row
-     * feed guard (the engine's 0x5441b); the y-FORCE path (this word
-     * into v_y, 0x542cd) is counted open in the PR-148 record and
-     * not modelled: no shipped leg exercises it and the engine's own
-     * parameter word at [ebx+0x4] is unread there. */
+     * route. The consumer modelled here was section 7's mode-4 row
+     * feed guard (the engine's 0x5441b); PR-259 adds the second
+     * consumer, the y force of 0x542cd-0x542e3, whose parameter word
+     * [ebx+0x4] is the authored F pair's SECOND number: the x side of
+     * the same body multiplies [ebx+0x0] by the horizontal intent and
+     * is the law PR-132 shipped as idiv(F*s,20). */
     p->vert_intent = keys->k_up ? -LL_PLAY_INTENT_FULL
                                 : (keys->k_down ? LL_PLAY_INTENT_FULL : 0);
 
@@ -1514,22 +1515,73 @@ static int player_iterate(ll_player *p, const ll_plt *ground,
      * its delta output, the CURRENT row's `FC` pair pulls both axes
      * UNGATED, every iteration the row stays current (PR-250/PR-251:
      * channel id 1 bypasses the [obj+0x95] one-shot gate). */
-    if (!p->grounded) {
+    /* PR-259: the second half of this guard is the y-intent force's
+     * door, and the door is the STATE, not the key. The engine's block
+     * is ONE unconditional stretch: the drag at 0x54292-0x542a7, the
+     * adds at 0x542cd-0x542fa, the subtraction at 0x54311. What keeps
+     * a standing body still there is its ground contact (0x54c00,
+     * reached through the lion's vtable +0x74; PR-148's item 3), not
+     * the arithmetic, and the port's `!p->grounded` stands in for that
+     * contact. A stand-in cannot cover the case this PR needs: the
+     * vertical-intent modes - the engine's BY_TY and BY_Y, the same
+     * two the row-feed guard above is keyed to - author an F pair with
+     * a SECOND number and no G_y for a ground pull to cancel it, so
+     * one more term opens the door on the STATE's own control mode:
+     * such a state runs the pass even with ground under it, and runs
+     * the drag with it, key held or not, which is what stops a climb
+     * when the key is let go. The shipped authoring bounds how few
+     * states that is: of the 1376 state blocks in the 777 .MOV texts
+     * that write an F= line, 59 give it a non-zero second number, 53
+     * of those author G_y = 0, and only 15 of those are player states
+     * in a vertical-intent mode - the 12 BY_TY climb blocks of
+     * PR-108's census (ZARIA.01/.02 A_WSP and A_WSP_LIN, TUNGA.11's
+     * two, TUNGA2.12's A_DRAB, KARA.07's A_WSP_LIN) and the 3 BY_Y
+     * ones (ENA.03's A_UP/A_DOWN, ENA2's A_CLIMB). The other 25
+     * player blocks are BY_TIME swim/fire/cutscene states and are NOT
+     * reached by this term. MODEL CHOICE, counted at OI-078: the
+     * guard is widened, not replaced, and the ground-contact path at
+     * 0x54c00 itself stays unread. */
+    if (!p->grounded ||
+        ((st->ctrl & (LL_CTRL_BY_TY | LL_CTRL_BY_Y)) &&
+         st->fy != 0 && st->gy == 0)) {
         /* PR-256: one rule, the engine's. 0x542cd-0x542fa add the state
          * record's G_y word to the y register EVERY iteration the body is
          * in this pass - there is no "while jumping" branch in the body,
          * and the old GMUL-only-while-jumping split was a unit mistake:
          * the authored word IS the per-iteration register add, which at
          * this clock is raw*4 px/s^2 on both paths. */
-        long long ay = (long long)st->gy; /* the authored word IS this
-                                           * add: 0x542ee adds [ebx+0x14]
-                                           * to the register, whole, once
-                                           * per iteration (the px/s^2
-                                           * reading of it is that word
-                                           * times LL_PLAY_RAW_GMUL) */
-        if (ay == 0 && (st->ctrl & LL_CTRL_CHECK_LN))
+        long long ay = (long long)st->gy +
+                       ((long long)st->fy *
+                        (long long)p->vert_intent) / 20LL;
+                                          /* PR-256: the authored G_y
+                                           * word IS this add - 0x542ee
+                                           * adds [ebx+0x14] to the
+                                           * register, whole, once per
+                                           * iteration (the px/s^2
+                                           * reading is that word times
+                                           * LL_PLAY_RAW_GMUL). And
+                                           * PR-259: plus the intent
+                                           * force of 0x542cd-0x542e3,
+                                           * idiv([ebx+0x4] *
+                                           * [obj+0xbe], 20), the F
+                                           * pair's second word,
+                                           * divided BEFORE G_y is
+                                           * added, as the idiv does. */
+        if (ay == 0 && !p->grounded && (st->ctrl & LL_CTRL_CHECK_LN))
             ay = LL_PLAY_GRAVITY;         /* the same unit, the same kind
-                                           * of word: see ll_play.h */
+                                           * of word: see ll_play.h. The
+                                           * project constant's own note
+                                           * bounds it to a CHECK_LN state
+                                           * that LOSES its ground, and
+                                           * PR-108/PR-231 make CHECK_ALL
+                                           * imply CHECK_LN - so without
+                                           * this term the stand-in would
+                                           * fall on a lion standing on
+                                           * the ground with no key held,
+                                           * a case the new guard opens.
+                                           * On the old path the extra
+                                           * term cannot change anything:
+                                           * it was already true there. */
         int tyd = (int)st->ty;
         if (tyd > 130)
             tyd = 130;        /* the same 0x52590 parse cap the x
@@ -3407,9 +3459,27 @@ int ll_play_selftest(void)
          *   t=8  -> 6                    t=10 -> 7  t=12 -> 8
          *   t=14 -> 9 (the last 200-row closes, the 300-row opens)
          *   t=15 rem 100 against the 300-row, still index 9
-         * - and the held climb does NOT move x, y, v_x or v_y:
-         * holding Up on a ladder only drives the row clock in this
-         * model, the y-force path being the counted open item.
+         * - and the climb MOVES: PR-259's half of this leg. The
+         * register add is `idiv([ebx+0x4] * [obj+0xbe], 20)`,
+         * 0x542cd-0x542e3: the second word of the authored F pair
+         * times the vertical intent - the param field PR-148 left
+         * unread. The x side of the same body (0x542ab) multiplies
+         * [ebx+0x0] by the horizontal intent word [obj+0xba], the
+         * law PR-132 shipped as `idiv(F*s,20)`, so [ebx+0x0] is F_x
+         * and [ebx+0x4] is F_Y - the pair this fixture's header
+         * writes, `F=0,100`. With the port's one validated intent
+         * scale (LL_PLAY_INTENT_FULL = 10) the add is
+         * idiv(100 * -10, 20) = -50 hundredths an iteration, against
+         * the authored y drag T_y = 50 percent of the OLD register
+         * (0x54292-0x542a7, applied at 0x54311). Hand-run on the
+         * integer register with toward-zero idiv, the exact order of
+         * ll_play_v_step: t=1 -50, t=2 -75, t=3 -88, t=4 -94,
+         * t=5 -97, t=6 -99, t=7 onward -100 - the equilibrium of a
+         * 50 add against a 50% drag (100 = 2*50). The position takes
+         * the TRUNCATED register (PR-256), so those six sub-pixel
+         * iterations move NOTHING (no carry, no rounding: the part of
+         * a px is dropped) and from t=7 the body rises one px per
+         * iteration: 499, 498, ... 491 at t=15.
          * LEG 3, release mid-row: t=16,17 hold NO key. The row
          * clock freezes at index 9 - no feed - but the carried
          * accumulator (100 of the 300-row) survives untouched,
@@ -3419,18 +3489,36 @@ int ll_play_selftest(void)
          * that deletes the guard wrapped HERE (the PR-108 spans),
          * and one that zeroes the accumulator on a non-qualifying
          * iteration loses the carry and wraps at t=20, not t=19.
+         * The body keeps its momentum and the drag keeps working with
+         * no key held: the guard this PR widens opens on the STATE's
+         * authoring, not on the key, so the same 50% drag runs
+         * undisturbed - -100 -> -50 -> -25 - and both are under a
+         * whole px, so y stays at 491 while the register decays.
+         * That decay is what stops a released climb; an
+         * implementation that gates the pass on the intent instead of
+         * the state would freeze the register at -100 here and the
+         * body would rise forever.
          *   t=18 Down held: the clock restarts ON THE CARRIED 100
          *   (the engine's [obj+0xa1] does the same): 100 + 100 =
-         *   200 < 300, the row does NOT close.
+         *   200 < 300, the row does NOT close. The register turns
+         *   around, drag first: idiv(-25*50,100) = -12, the add is
+         *   +50, (-25 + 50) - (-12) = 37.
          *   t=19 still Down: 200 + 100 = 300 -> the list WRAPS to
          *   index 0 and arms AC_BREAK_NEXT (readable only on the
-         *   step that armed it, `broke` clears at iteration head).
+         *   step that armed it, `broke` clears at iteration head);
+         *   the register is (37 + 50) - idiv(37*50,100) = 87 - 18 =
+         *   69.
          *   t=20 still Down: index 0's 300-row takes a fresh 100,
-         *   no close.
+         *   no close; the register is (69 + 50) - idiv(69*50,100) =
+         *   119 - 34 = 85. A model without the drag would sit at
+         *   25, 75, 125 through those three steps: the numbers that
+         *   make this half of the leg pin 0x54292-0x542a7 and not
+         *   only the add. All three steps are sub-pixel, so y holds
+         *   at 491 through the whole turn-around.
          * The clock is sign-blind, Up and Down qualifying alike -
          * the guard tests `!= 0`, exactly like 0x5441b /
-         * `cmp [obj+0xbe],0; je` - and only the unmodelled force
-         * path would care which way. */
+         * `cmp [obj+0xbe],0; je` - and only the force's sign, not the
+         * clock, cares which way. */
         static const char CE[] =
             "A_JUMP\nA_WSP\nA_FALL_DOWN\nA_PRE_JUMP\nA_TURN_BACK\n"
             "A_PODCIAG\n\n[A_JUMP]\ncontrol=BY_TIME|CHECK_ALL\nF=0,100\n"
@@ -3521,6 +3609,12 @@ int ll_play_selftest(void)
                 u.sig |= (1ull << LL_SIG_AC_DRAB_CATCH) |
                          (1ull << LL_SIG_AC_ONAIR);
             ll_player_step(&u, NULL, &rk, 0, 2000, LL_ITER_MS);
+            /* PR-259: the climb MOVES. The register is under one whole
+             * pixel for the six ramp iterations - and the position takes
+             * the TRUNCATED register (PR-256), so y is untouched until
+             * t=7 and then falls exactly one px per iteration. */
+            if (u.y != (t <= 6 ? 500.0 : 500.0 - (double)(t - 6)))
+                bad = 1;
             if (nx < (int)(sizeof at / sizeof at[0]) && t == at[nx]) {
                 if (u.sti != 1 || u.fi != want[nx] ||
                     ll_player_frame(&u) != want[nx] + 1)
@@ -3530,29 +3624,36 @@ int ll_play_selftest(void)
         }
         CHECK(!bad && nx == (int)(sizeof at / sizeof at[0]));
         CHECK(u.sti == 1 && u.fi == 9 && u.row_t == 100);
-        CHECK(u.y == 500);        /* no vertical MOTION is modelled for   */
-        CHECK(u.x == 500 && u.vx == 0 && u.vy == 0);   /* this state yet */
+        CHECK(u.y == 491);                        /* 500 - (15 - 6)     */
+        CHECK(u.x == 500 && u.vx == 0);           /* no x force: F_x = 0 */
+        CHECK(ll_play_v_raw(u.vy) == -100);       /* the drag equilibrium */
         rk.k_up = 0;
         for (int t = 16; t <= 17; t++) {
             u.sig |= 1ull << LL_SIG_AC_DRAB;
             ll_player_step(&u, NULL, &rk, 0, 2000, LL_ITER_MS);
             CHECK(u.sti == 1 && u.fi == 9 && u.row_t == 100);
-            CHECK(u.y == 500 && u.vy == 0);
+            /* the drag runs with no key: -100 -> -50 -> -25, and
+             * neither is a whole px, so y holds at 491 */
+            CHECK(u.y == 491);
+            CHECK(ll_play_v_raw(u.vy) == (t == 16 ? -50 : -25));
             CHECK(u.broke == 0);        /* NO wrap at t=17: the guard     */
         }
         rk.k_down = 1;
         u.sig |= 1ull << LL_SIG_AC_DRAB;
         ll_player_step(&u, NULL, &rk, 0, 2000, LL_ITER_MS);       /* t=18 */
         CHECK(u.sti == 1 && u.fi == 9 && u.row_t == 200);
+        CHECK(ll_play_v_raw(u.vy) == 37); /* (-25+50) - idiv(-25*50,100)*/
         u.sig |= 1ull << LL_SIG_AC_DRAB;
         ll_player_step(&u, NULL, &rk, 0, 2000, LL_ITER_MS);       /* t=19 */
         CHECK(u.sti == 1 && u.fi == 0 && u.broke == 1);
         CHECK(u.row_t == 0);            /* the wrap: index 0, BREAK_NEXT  */
+        CHECK(ll_play_v_raw(u.vy) == 69);  /* (37+50) - 18              */
         u.sig |= 1ull << LL_SIG_AC_DRAB;
         ll_player_step(&u, NULL, &rk, 0, 2000, LL_ITER_MS);       /* t=20 */
         CHECK(u.sti == 1 && u.fi == 0 && u.row_t == 100);
-        CHECK(u.y == 500 && u.vy == 0); /* Down qualifies the clock like  */
-                                        /* Up: the guard is sign-blind    */
+        CHECK(u.y == 491);              /* Down qualifies the clock like  */
+                                        /* Up: the guard is sign-blind,   */
+        CHECK(ll_play_v_raw(u.vy) == 85); /* (69+50) - 34                */
         rk.k_down = 0;
         free(cm);
     }
@@ -3962,7 +4063,14 @@ int ll_play_selftest(void)
                " 3,2,2,2,2,2,2,2,3; release mid-row keeps the carried"
                " 100 and wraps only when Down restarts it - the clock"
                " is sign-blind like the engine's cmp/je; x, y, v_x,"
-               " v_y never move (the v_y-force path is counted open);"
+               " the 0x542cd y force moves it: the register ramps"
+               " -50,-75,-88,-94,-97,-99 to the -100 equilibrium"
+               " and, because the position takes the TRUNCATED"
+               " register, y is unmoved for six iterations and then"
+               " the drag keeps"
+               " pulling after the key is let go (-50, -25) and Down"
+               " turns the register around (+37, +69, +85), every one"
+               " of those steps sub-pixel, so y holds);"
                " !AC_DRAB drops him into A_FALL_DOWN from a state"
                " whose list never ticked), "
                "PR-110: the row clock is that iteration"
