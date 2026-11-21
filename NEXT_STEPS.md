@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-241.
+> at PR-242.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -34061,4 +34061,82 @@ rope); PR-237's step-(4) name "PR-150's child-ANY bit" for
 the [asked+0x66] 0x40 store: it is signal 54 = K_GEN1 on
 the asked object.
 GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-241 — THE FLAG BRANCH RAISE IS PORTED: AN ASKED
+## LADDER AT ITS FIRST DECLARED STATE RAISES K_GEN1 ON
+## ITSELF (0x3f203) - LADDER ANSWER SELFTEST LEG L7, TEST FIRST
+```
+KIND: port
+SUBSYSTEM: objects/ladder - THE FLAG BRANCH'S RAISE IS
+PORTED: the asked ladder at its FIRST declared state raises
+K_GEN1 ON ITSELF (0x3f203-0x3f20c), the feed of its own
+authored `A_DROP(1)=K_GEN1` exit; test-first.
+ADDRESSES: 0x3f1c0, 0x3f1dc, 0x3f1e2, 0x3f1e4, 0x3f1f6,
+0x3f1fb, 0x3f203, 0x3f20c, 0x3f20f, 0x3f364, 0x44ec0,
+0x44eea, 0x44ed4, 0x53725, 0x53520, 0x52000, 0x97cdc
+NAMES: ladder answer, FLAG branch, child-ANY test, K_GEN1,
+bit 54, live set, contact vector, parent, OI-078, L7
+CODE: yes: ported/ll_level.c +165 lines - two new helpers
+(ladder_flag_raise, ladder_ask_raise) and one new selftest
+leg (L7) in the ladder answer selftest. No new hook: both
+call sites already existed (the PR-150 solid and non-solid
+ladder ask sites).
+HOOKS: none new, none touched.
+MEASURED: (a) TEST FIRST. The L7 leg was written before the
+behaviour: it builds a hand-derived three-state script whose
+`[A_UP]` block is ZARIA.01's authored pair (`A_DROP(1)=K_GEN1`
+and the row `1,0,WAIT K_GEN1`), places a ladder-class object
+on the ask pixel at its first declared state, and pins THREE
+things - the state-1 branch ANSWERS NOTHING (the engine's
+0x3f20f jumps to the empty tail 0x3f364), it RAISES K_GEN1 on
+the ladder itself (0x3f203-0x3f20c), and the four following
+record steps of the SAME object take the authored exit
+(A_UP -> the A_DROP block). The control half runs the same
+script unasked for four steps: no move, no armed bit (PR-149
+F5 still stands). With the helpers stubbed to do nothing the
+leg fails at HEAD ("the state-1 branch raised no K_GEN1 on
+the ladder itself"), and passes once the raise is added:
+--mov-selftest exit 1 then 0. (b) THE PORT:
+ladder_flag_raise is the branch test only (no state -> the
+engine's not-declared 0; decl_idx != 1 -> the 0x3f214 tree;
+else [self+0x66] |= 0x40 = bit 54). ladder_ask_raise is the
+same beat's consumption, the way the port already consumes its
+other object-side raises (the balloon pop and PR-92's
+AC_ENEMY touch): arm, test that object's own lines at this
+beat, clear. MODEL CHOICES, counted in the code comments: the
+port has no [obj+0xa5] contact vector and no [obj+0x30]
+parent field, so PR-150's counted pair-contact model stands
+for the 0x44ec0 ANY-test and the requester's parent gate is
+not modelled; and the engine leaves the bit in [obj+0x60] for
+the ladder's NEXT record step (the level pump calls the slot
++0x14 every frame), which the probe path does not run, so the
+one-step deferral is applied at the ask beat instead - the
+deferred shape IS pinned, through obj_advance, by the L7 leg.
+(c) NO PLAY-PROBE CHANGE, measured: the pinned ZARIA.01 walk
+(`LEO_PLAY_SCRIPT="1:FWD"`, 12 s) prints ZERO K_GEN1 lines
+before and after - the lion never reaches the ladder's pixel:
+the rope is placed at (180,510) with a 42x48 bbox while the
+authored ground he follows runs at y=680 and ENDS at x=408
+(PR-231's re-pin of ZARIA_A.PLT `-50,680!408,684`). The
+climb therefore still needs the other half of OI-078 - the
+lion's own state reaching the ladder - and no fixture moves:
+make 0 warnings, verify-all 65 (ok), fixture-free 13 (ok).
+OPENS: the paired read of the real ask - who writes the
+[obj+0xa5] contact vector and what its
+elements' class verb +0x8 tests (0x44ec0 calls it), and whose
+ask channel reaches a placed DRABINKA at all (PR-239 found its
+own control=BY_TIME ask channel OFF); the FOCUS 1 other half,
+the lion reaching a ladder (OI-072/081/082/083); the type-0xe
+and type-0x21 senders; PR-239's list (0x520c0's budget, the
+control-name bit map, 0x9a44c's name).
+CLOSES: none. OI-078's headline stays closed as of PR-240 and
+is now MODELLED, not just read; its "what reaches the ask"
+sub-question stays open.
+CORRECTS: none. The port's own comment "the child
+ANY-test 0x44ec0 ... only sets [self+0x66] bit 6" (ll_level.c
+4782/4965/5601, PR-150's note) stays true in form; PR-240
+named what that store IS (signal 54).
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
 ```

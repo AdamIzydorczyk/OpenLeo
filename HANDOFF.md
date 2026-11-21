@@ -2067,6 +2067,30 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-241 (PORT): that raise is now in the port, test
+first. New selftest leg L7 in the ladder answer selftest: the
+authored `[A_UP]` pair (`A_DROP(1)=K_GEN1` and `1,0,WAIT
+K_GEN1`), a ladder-class object at the ask pixel at its FIRST
+declared state - it answers NOTHING (0x3f20f -> 0x3f364), it
+raises K_GEN1 ON ITSELF (0x3f203-0x3f20c), and the following
+record steps take the A_DROP block; the same script unasked
+never moves nor arms a bit. The leg fails on the stubbed
+helper (selftest exit 1) and passes with the raise (exit 0).
+Two helpers: ladder_flag_raise (the branch test, decl_idx 1
+only) and ladder_ask_raise (arm, test that object's own lines
+at this beat, clear - the port's existing shape for object-
+side raises), called from the two PR-150 ladder ask sites.
+Counted model choices: no [obj+0xa5] vector (the pair contact
+stands for the 0x44ec0 ANY-test), no parent gate, and the
+engine's one-record-step delay applied at the ask beat. The
+pinned ZARIA.01 walk is UNCHANGED and prints no K_GEN1 line:
+the lion never reaches (180,510) - the authored ground he
+follows is at y=680 and ends at x=408 - so the climb still
+needs the lion-side half (OI-072/081/082/083) and the read of
+who writes [obj+0xa5] / whose ask channel reaches a placed
+DRABINKA. GATE: make 0 warnings; verify-all 65 (ok);
+fixture-free 13 (ok) + 22 named SKIP.
+
 STATUS PR-240 (READ): OI-078's headline is ANSWERED. The
 ladder raises K_GEN1 on ITSELF while answering an ask: 0x3f1c0
 at the asked's first declared state ([asked+0x5c] == 1,

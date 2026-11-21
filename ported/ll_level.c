@@ -5091,6 +5091,66 @@ static unsigned long long ladder_answer_for(const lvl_obj *o,
     return ladder_answer_core(state, &edge, &rung, &p);
 }
 
+/* PR-241: the OTHER half of the same verb - a raise, not an answer.
+ * 0x3f1dc-0x3f20c: when the ASKED ladder is at its FIRST declared
+ * state ([obj+0x5c] == 1, the branch the port has until now treated
+ * as inert) and the ask passes the 0x44ec0 ANY-test - the ladder's
+ * [obj+0xa5] contact vector, each element's class verb +0x8 against
+ * the requester's [[kind]+0x4c] object (PR-240) - the verb writes
+ * `[asked+0x66] |= 0x40`: bit 54 of the asked's own live set, the
+ * signal the engine's name block calls K_GEN1. It answers NOTHING
+ * (0x3f20f jumps to the empty tail 0x3f364). The bit is then the
+ * feed of that state's own authored exit - ZARIA.01's `[A_UP]` line
+ * `A_DROP(1)=K_GEN1` - because the next record step's key
+ * composition OR-s the live set into the transition key (0x53725 ->
+ * 0x53520 -> 0x52000, PR-239). MODEL CHOICES, counted: the port has
+ * no [obj+0xa5] vector and no [obj+0x30] parent field, and its ask
+ * site IS a pair contact (PR-150's counted model of the engine's
+ * candidate walk), so the pair contact stands for the ANY-test here
+ * exactly as it does for the answer branch, and the requester's
+ * parent gate is not modelled at all. */
+static void ladder_flag_raise(lvl_obj *o)
+{
+    const ll_mov_st *s;
+
+    if (!o->sc || !o->sc->mov || o->sti < 0 ||
+        o->sti >= o->sc->mov->nst)
+        return;                       /* the engine's not-declared 0 */
+    s = &o->sc->mov->st[o->sti];
+    if (s->decl_idx != 1)
+        return;                       /* 0x3f1e2 / the 0x3f214 tree */
+    o->sig |= 1ull << LL_SIG_K_GEN1;  /* [asked+0x66] |= 0x40       */
+}
+
+/* PR-241: and the consumption half. The engine leaves that bit in
+ * [obj+0x60] and the LADDER's own next record step feeds it to the
+ * transition match (0x53725 -> 0x53520 -> 0x52000, PR-239) - the
+ * level pump calls every object's slot +0x14 once per frame. The
+ * port's probe runs no per-object record machine, so the raise is
+ * applied the way the port already applies its other object-side
+ * raises: the balloon's K_GEN1 pop and the AC_ENEMY touch raise
+ * (obj_touch_enemy, PR-92) both arm, test the object's own lines at
+ * that beat, and clear. The one-record-step deferral is NOT modelled
+ * here and is counted as a model choice; the selftest leg (L7) pins
+ * the deferred shape through obj_advance, which does model it. */
+static void ladder_ask_raise(lvl_obj *o, int verbose, int tick)
+{
+    if (o->sig & (1ull << LL_SIG_K_GEN1))
+        return;                       /* the port's set is one beat   */
+    ladder_flag_raise(o);
+    if (!(o->sig & (1ull << LL_SIG_K_GEN1)))
+        return;
+    if (verbose)
+        printf("ll_level: play tick %d: asked ladder %s/%s at state %d"
+               " raises K_GEN1 on itself (0x3f203)\n", tick, o->sc->leaf,
+               o->sc->movname, o->sc->mov->st[o->sti].decl_idx);
+    if (obj_transition(o, o->sc->mov, 0) && verbose)
+        printf("ll_level: play tick %d: %s/%s takes its own K_GEN1"
+               " line: state %s\n", tick, o->sc->leaf, o->sc->movname,
+               o->sc->mov->st[o->sti].name);
+    o->sig = 0;
+}
+
 static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                          int verbose, int tick)
 {
@@ -5359,6 +5419,11 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                            pl->mov->st[pl->p.sti].block_pos,
                            o->sc->mov->st[o->sti].block_pos);
             }
+            /* PR-241: the FLAG branch of the answer verb itself - at
+             * its first declared state the ladder raises K_GEN1 on
+             * ITSELF (0x3f203) and answers nothing; that bit is the
+             * feed of its own authored `A_DROP(1)=K_GEN1` exit. */
+            ladder_ask_raise(o, verbose, tick);
         }
         if (verbose)
             printf("ll_level: play tick %d: solid %s/%s %s at %d,%d push"
@@ -5439,6 +5504,11 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                                pl->mov->st[pl->p.sti].block_pos,
                                o->sc->mov->st[o->sti].block_pos);
                 }
+                /* PR-241: the FLAG branch, same as the solid site: the
+                 * asked ladder at its first declared state raises
+                 * K_GEN1 on itself (0x3f203), the feed of its own
+                 * `A_DROP(1)=K_GEN1` exit. */
+                ladder_ask_raise(o, verbose, tick);
             }
         }
     }
@@ -5820,6 +5890,101 @@ static int ladder_answer_selftest(void)
                             law_cases[k].lid, law_cases[k].oid);
                     return 1;
                 }
+        }
+        {   /* L7 (PR-241): the FLAG branch's RAISE, which is not an
+             * answer. 0x3f1dc-0x3f20c (PR-240): at the ASKED
+             * ladder's FIRST declared state the answer verb writes
+             * `[asked+0x66] |= 0x40` on ITSELF - byte 6 mask 0x40 of
+             * the live set at [asked+0x60] = bit 54, which the
+             * engine's own name block calls K_GEN1 - and answers
+             * NOTHING (the tail 0x3f364). The feed is then the .MOV's
+             * own line: ZARIA.01's `[A_UP]` `A_DROP(1)=K_GEN1`
+             * matches that bit in the next record step (the key
+             * composition 0x53725 hands it to 0x53520 -> 0x52000,
+             * PR-239). That chain is the ladder climb OI-078 has been
+             * after. Everything here is hand-derived from the bytes
+             * quoted in the PR-240 record; the two conditions the
+             * port does not model (the requester's [obj+0x30] parent,
+             * and the [obj+0xa5] contact vector the 0x44ec0 ANY-test
+             * walks) are counted in the model note below the helper. */
+            static const char UP_MOV[] =
+                "A_UP\nA_DOWN\nA_DROP\n\n[A_UP]\ncontrol=BY_TIME\n"
+                "A_DROP(1)=K_GEN1\n1,0,WAIT K_GEN1\n\n[A_DROP]\n"
+                "control=BY_TIME\n2,500\n\n[A_DOWN]\ncontrol=BY_TIME\n"
+                "11,0,WAIT K_NEVER\n";
+            ll_mov_t *m = calloc(1, sizeof *m);
+            obj_script sc;
+            lvl_obj o, ctl;
+            ll_player asker;
+            int st;
+
+            if (!m) {
+                fprintf(stderr, "ladder answer selftest: FAILED out of"
+                                " memory\n");
+                return 1;
+            }
+            ll_mov_parse(UP_MOV, m);
+            if (m->nst != 3 || m->st[0].decl_idx != 1) {
+                fprintf(stderr, "ladder answer selftest: FAILED the A_UP"
+                                " script (nst %d)\n", m->nst);
+                free(m);
+                return 1;
+            }
+            memset(&sc, 0, sizeof sc);
+            strcpy(sc.leaf, "DRABINKA");
+            sc.mov = m;
+            memset(&asker, 0, sizeof asker);
+            asker.x = 180;                 /* on the rung: the ask that */
+            asker.y = 510;                 /* reaches the flag branch   */
+            memset(&o, 0, sizeof o);
+            o.sc = &sc;
+            o.x = 180;
+            o.y = 510;
+            o.sti = 0;                     /* A_UP = declared index 1  */
+            if (ladder_answer_for(&o, &asker) != 0ull) {
+                fprintf(stderr, "ladder answer selftest: FAILED: the"
+                                " state-1 branch answered something"
+                                " (0x3f20f goes to the inert tail)\n");
+                free(m);
+                return 1;
+            }
+            ladder_flag_raise(&o);
+            if (!(o.sig & (1ull << LL_SIG_K_GEN1))) {
+                fprintf(stderr, "ladder answer selftest: FAILED: the"
+                                " state-1 branch raised no K_GEN1 on the"
+                                " ladder itself (0x3f203-0x3f20c)\n");
+                free(m);
+                return 1;
+            }
+            for (st = 0; st < 4 && o.sti == 0; st++)
+                obj_advance(&o, 100);
+            if (o.sti != 1) {              /* A_DROP is block 1 of that */
+                fprintf(stderr, "ladder answer selftest: FAILED: the"
+                                " authored A_DROP(1)=K_GEN1 line did not"
+                                " take the raised bit (state %d after"
+                                " %d steps)\n", o.sti, st);
+                free(m);
+                return 1;
+            }
+            /* The control: nothing asked this one. The same script,
+             * the same placement, four record steps: PR-149 F5's inert
+             * A_UP still stands when no ask arms the bit. */
+            memset(&ctl, 0, sizeof ctl);
+            ctl.sc = &sc;
+            ctl.x = 180;
+            ctl.y = 510;
+            ctl.sti = 0;
+            for (st = 0; st < 4; st++)
+                obj_advance(&ctl, 100);
+            if (ctl.sti != 0 || ctl.sig) {
+                fprintf(stderr, "ladder answer selftest: FAILED: an"
+                                " unasked A_UP moved or armed a key"
+                                " (state %d set %llx)\n", ctl.sti,
+                        ctl.sig);
+                free(m);
+                return 1;
+            }
+            free(m);
         }
     }
     return 0;

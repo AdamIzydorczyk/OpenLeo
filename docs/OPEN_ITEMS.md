@@ -933,6 +933,23 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     store, an ARM of the base handler 0x52bb0 at 0x52bef,
     not a table slot) and type 0x21 (which sets the
     frame-step flag [obj+0x28] - a second feed of it).
+    PR-241 PORTS that self-raise, test first: the ladder
+    answer selftest gains leg L7, which builds the authored
+    `[A_UP]` pair (`A_DROP(1)=K_GEN1` + row `1,0,WAIT
+    K_GEN1`), asks a placed ladder at its first declared
+    state, and pins that it answers NOTHING, raises K_GEN1 on
+    ITSELF, and reaches the A_DROP block in the following
+    record steps - unasked, it stays put. The leg fails on
+    the stub and passes with the raise; no fixture moves and
+    the pinned ZARIA.01 walk is unchanged because it never
+    reaches the rope's pixel (180,510 vs ground y=680 ending
+    at x=408). NOT MODELLED, counted: the [obj+0xa5] vector
+    (PR-150's pair contact stands for the 0x44ec0 ANY-test),
+    the requester's parent gate, and the engine's one-record-
+    step delay. NEXT: who writes [obj+0xa5] and what its
+    elements' +0x8 verb tests; whose ask channel reaches a
+    placed DRABINKA at all; and the other half of the climb,
+    the lion getting to a ladder (OI-072/081/082/083).
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
