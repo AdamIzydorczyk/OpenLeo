@@ -1819,6 +1819,10 @@ static int player_iterate(ll_player *p, const ll_plt *ground,
             p->y += st->fr[p->fi].dy;
             unsigned long long gf = st->fr[p->fi].gsig;
             p->sig |= gf;                            /* PR-88: any named  */
+            p->gsig_last |= gf;                     /* PR-257: the level-bus
+                                                     * copy of this admit's
+                                                     * GEN bits (K_GEN* only
+                                                     * - see ll_level.c)   */
             if (gf & (1ull << LL_SIG_AC_TIME))       /* signal raises on  */
                 p->ac_time = 1;                      /* frame completion  */
             if (gf & (1ull << LL_SIG_AC_BREAK_NEXT))

@@ -858,6 +858,12 @@ typedef struct {
                                * (K_GEN2 = bit 54+1 on landing), and read
                                * by name conditions. The old gen[3] array
                                * is the same K_GENn pulses at bits 54..56. */
+    unsigned long long gsig_last;
+                                /* PR-257: the GEN bits raised by the rows
+                                 * admitted since the last level tick - the
+                                 * level-bus copy of p->sig, consumed and
+                                 * cleared by the level loop (ll_level.c's
+                                 * gen_bus_raise), never read here. */
     int broke;                  /* AC_BREAK_NEXT pending (frame list just
                                  * completed)                             */
     int ac_time;                /* PR-83: AC_TIME pending - raised by a

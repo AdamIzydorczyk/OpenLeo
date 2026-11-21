@@ -621,8 +621,10 @@ OI-077: fixture hygiene: the five drawn-anchor test legs use a
 
 === gameplay behavior + capture-needed ============================
 
-OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
-  DRABINKA (the one named blocker left), the authored rectangle
+OI-078: the in-game ZARIA.01 climb: what the DOWNED rope
+  (index 2) answers on a meet and how that feeds
+  `A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR` (what raises K_GEN1 was
+  PR-257: the lion's own rows), the authored rectangle
   format ([obj+0]==2 as a runtime gate vs [obj+0]/[obj+4] as
   rect x/y, and what the row-start numbers change on screen),
   node lifetime + the 0x54b6a merge guard, object-asked answers
@@ -1348,6 +1350,39 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     3 / [obj+0x6d] == -1 negation stays unmodelled and counted
     here. NEXT: those three, then the AC_DRAB/AC_DRABK half of
     0x3f214.
+
+    PR-257 ANSWERS the question PR-216 left open, "what
+    raises K_GEN1 on a DRABINKA": the lion's OWN row
+    directives - the K_GENn family is the level's signal bus
+    in the authoring itself. ZARIA.01's raisers: A_JUMP rows
+    4..7 `GEN K_GEN1`, the A_DRAP idle loop, A_FALL_DOWN's
+    `s idle 1,300,GEN K_GEN1`, A_DEAD, A_KILOF, the fight
+    states. Its consumers in the same level: both ladder
+    .MOVs' A_UP (`A_DROP(1)=K_GEN1` + `1,0,WAIT K_GEN1`),
+    KORONA's A_TWIST, every BAL's A_DEAD, POCISK, SURPRISE,
+    WODA, ZARROW. A row's GEN admit now lands the K_GEN1..5
+    bits on every scripted object (ll_level.c
+    gen_bus_raise, one beat), and the placed ladder takes its
+    authored A_DROP line at tick 106 of the pinned script -
+    derived from the row's own thresholds (row 6 admits at
+    106) - with NO shape, point or distance in the chain.
+    Lead (1) is DONE. The 0x3f1c0 branch gate is implemented
+    as PR-216 worded it: flag branch only at index 1, AC
+    answer only at index 2, the tail elsewhere - so the point
+    gate's 10 px were never the trigger, only the flag
+    branch's own gate. What is left, in order: what index 2
+    ANSWERS on a meet (the probe answers 0 at every meet of
+    that leg) and the A_WSP entry those answers must feed;
+    the object-side settling - the unrolled rope reaches
+    A_DOWN in the port's first object step because of the
+    `(1)` start-row token, an object-side row-start mapping
+    named here, untouched; PR-217's persistent WAIT meter;
+    the bus is one beat only; and 0x53db0's [obj+0x54]
+    asker-memory (the verb clears its stale asker link, that
+    asker's +0x14 = 0x550a0 zeroes its [obj+0xe6]/
+    [obj+0xea]) is named, not modelled. Leads (2) and (3)
+    stand as written; the [obj+0x6d] negation stays
+    unmodelled and counted.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

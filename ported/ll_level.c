@@ -4951,6 +4951,15 @@ static int ladder_class(const lvl_obj *o)
     return o->sc && ci_eq(o->sc->leaf, "DRABINKA");
 }
 
+/* PR-257: the 0x3f1c0 branch gate for the AC answer packet. The verb
+ * reaches that branch only at [obj+0x5c] == 2, the DOWNED state an
+ * unrolled rope settles in; a ladder in its waiting state (1) or
+ * mid-unroll (3) takes the verb's tail - no answer at all. */
+static int ladder_answer_branch(const lvl_obj *o)
+{
+    return o->sc->mov->st[o->sti].decl_idx == 2;
+}
+
 typedef struct { int x0, y0, x1, y1; } ll_blk;   /* the engine's block
                                                   * order: [p]/[p+4] vs
                                                   * [q0..q3] at 0x23e00 */
@@ -5304,6 +5313,18 @@ static void ladder_ask_raise(lvl_obj *o, const int ab[4], int verbose,
                 ab[0], ab[1], ab[2], ab[3], hit ? "PASS" : "no");
     if (!hit)
         return;                       /* 0x3f1fb: je 0x3f364, the tail */
+    /* PR-257: the 0x3f1c0 branch gate, read at last. The answer verb
+     * branches on the ASKED object's own current table index, [obj+0x5c]
+     * - the same index 0x54250's physics pass and 0x53672's mirror arm
+     * read ([obj+0x50] is the .mov class table, [obj+0x5c] the record
+     * index; the table is 1-based, decl_idx 0 is the engine's not-found
+     * value). Index 1 = the flag branch modelled here; index 2 = the AC
+     * answer packet (ladder_answer_for, PR-150, gated there too); any
+     * other index - a ladder mid-unroll in A_DROP, e.g. - takes the
+     * verb's tail: `param_2[3] = 0`, no answer at all. The ask itself
+     * ran either way, which is why the probe line above prints first. */
+    if (o->sc->mov->st[o->sti].decl_idx != 1)
+        return;
     ladder_flag_raise(o);
     if (!(o->sig & (1ull << LL_SIG_K_GEN1)))
         return;
@@ -5316,6 +5337,45 @@ static void ladder_ask_raise(lvl_obj *o, const int ab[4], int verbose,
                " line: state %s\n", tick, o->sc->leaf, o->sc->movname,
                o->sc->mov->st[o->sti].name);
     o->sig = 0;
+}
+
+/* PR-257: the K_GENn family is the LEVEL's bus, not a private wire.
+ * The shipped .MOV texts use those names across objects: ZARIA.01's
+ * DRAB.MOV and LINA.MOV name `A_DROP(1)=K_GEN1` in A_UP with the row
+ * `1,0,WAIT K_GEN1`, and NOTHING in either file raises K_GEN1 - the
+ * only K_GEN1 raisers in that level's words are the lion's own rows,
+ * A_JUMP rows 4..7 (`4,150,GEN K_GEN1` ...), the A_DRAP idle loop's
+ * rows 8/9, A_FALL_DOWN's `s idle 1,300,GEN K_GEN1`, A_DEAD, the
+ * fight states. A row's `GEN` admit therefore lands the bit on every
+ * scripted object's vector, and an object whose current state names
+ * that signal takes the transition on the spot (0x5360f's match arm,
+ * the port's obj_transition). One beat, cleared after the attempt -
+ * the persistent WAIT-row meter is PR-217's, still open. The AC_*
+ * names are NOT broadcast: their raisers are modelled per pair
+ * (PR-92/94/235), and a row's `GEN AC_TIME`/`GEN AC_BREAK_NEXT`
+ * stays player-local exactly as PR-83/88 had it. */
+static void gen_bus_raise(play_ctx *pl, lvl_obj *objs, int nobj,
+                          int verbose, int tick)
+{
+    unsigned long long kb = pl->p.gsig_last &
+        ((1ull << (LL_SIG_K_GEN5 + 1)) - (1ull << LL_SIG_K_GEN1));
+
+    pl->p.gsig_last = 0;
+    if (!kb)
+        return;
+    for (int k = 0; k < nobj; k++) {
+        lvl_obj *o = &objs[k];
+
+        if (!o->sc || !o->sc->mov || o->sti < 0 ||
+            o->sti >= o->sc->mov->nst)
+            continue;
+        o->sig |= kb;
+        if (obj_transition(o, o->sc->mov, 0) && verbose)
+            printf("ll_level: play tick %d: %s/%s takes its own K_GEN1"
+                   " line: state %s\n", tick, o->sc->leaf,
+                   o->sc->movname, o->sc->mov->st[o->sti].name);
+        o->sig = 0;                   /* one beat, as above */
+    }
 }
 
 static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
@@ -5561,7 +5621,8 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
              * time), so the answer is taken from the post-push shape
              * and state (PR-92's order note: the engine answers after
              * the push-out). */
-            unsigned long long ans = ladder_answer_for(o, &pl->p);
+            unsigned long long ans =
+                ladder_answer_branch(o) ? ladder_answer_for(o, &pl->p) : 0;
 
             if (ans) {
                 pl->p.sig |= ans;
@@ -5664,7 +5725,8 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                  * SOLID flag), and every shipped AC_* consumer lives
                  * in a non-solid state (PR-92's census). Evaluated at
                  * the lion's post-push position, like the touch. */
-                unsigned long long ans = ladder_answer_for(o, &pl->p);
+                unsigned long long ans =
+                ladder_answer_branch(o) ? ladder_answer_for(o, &pl->p) : 0;
 
                 if (ans) {
                     pl->p.sig |= ans;
@@ -6485,6 +6547,7 @@ static void play_advance(play_ctx *pl, const ll_play_keys *keys,
     if (pl->p.grounded && nc != pl->p.contact)
         pl->p.y += (double)(pl->p.contact - nc);
     ll_player_set_contact(&pl->p, nc);
+    gen_bus_raise(pl, (lvl_obj *)objs, nobj, verbose, tick);
     play_collide(pl, objs, nobj, verbose, tick);
     if (pl->danger && pl->have) {   /* PR-90 stand-in for the engine's
                                      * per-class attack AI: see

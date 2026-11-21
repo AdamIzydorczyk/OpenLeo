@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-257.
+> at PR-258.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -35563,6 +35563,93 @@ zero" is replaced by the fixed point of the idiv steps (250
 for F=100 T=20, 223 for F=400 T=90, 125 for the worm pair).
 And this port's [obj+0xca] as a sub-pixel accumulator is
 withdrawn - (b) above.
+GATE: make 0 warnings; verify-all fixtures rc=0 67 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
+```
+
+## PR-257 — THE `GEN` ROW DIRECTIVES ARE THE LEVEL'S SIGNAL
+## BUS: A_JUMP'S OWN ROW 6 UNROLLS EVERY WAITING LADDER, AND
+## THE LADDER ANSWER VERB BRANCHES KEY ON THE ASKED STATE
+```
+KIND: port
+SUBSYSTEM: the signal wiring between the player's row
+directives and the objects' authored transitions; the branch
+gate of the ladder answer verb 0x3f1c0.
+ADDRESSES: 0x3f1c0, 0x3f1e4, 0x3f203, 0x3f364, 0x3f278,
+0x44ec0, 0x23e00, 0x49fb0, 0x53db0, 0x55070, 0x550a0,
+0x53672, 0x54250, 0x521f0, 0x5232b, 0x4b500, 0x97d34
+NAMES: K_GEN1, GEN, level signal bus, A_UP A_DOWN A_DROP,
+decl_idx, [obj+0x5c], [obj+0x54], gen_bus_raise,
+ladder_answer_branch, gsig_last, OI-078, PR-217's WAIT rows
+CODE: yes: ll_play.h's ll_player gsig_last field;
+ll_play.c's row-admit arm, which now copies the admitted
+GEN bits there; ll_level.c's gen_bus_raise (called every
+tick between the player's step and play_collide), the
+ladder_answer_branch helper gating BOTH ladder_answer_for
+sites, and the decl_idx == 1 gate in ladder_ask_raise.
+HOOKS: the ly_zask leg's new greps first - RED at HEAD,
+which printed the ask at state 1 forever and never a
+`takes its own` line. The pins are arithmetic on the
+fixture's own words, not on the build: A_JUMP's row
+thresholds 75,75,75,100,150,150,225,900,225 with the
+0x4c8b7 feed of 100 an iteration and PR-100's one admit -
+row 6 admits at 106 from the press at 100 (25+100 = 125
+misses at 105, 225 >= 150 admits at 106), and row 6 IS
+`4,150,GEN K_GEN1`. The same tick draws frame 5 at
+189,602, and the state-index pins follow the declared list
+DRAB.MOV and LINA.MOV write before their blocks.
+MEASURED: (a) 0x3f1c0's branches key on the ASKED object's
+own [obj+0x5c] - the same record index 0x54250's physics
+pass and 0x53672's mirror arm read ([obj+0x50] +
+[obj+0x5c]*4). Index 1 = the flag branch (a ladder waiting
+in A_UP), 2 = the AC answer packet with its 0x49fb0 rect
+registration (the DOWNED rope), and any other index - a
+rope mid-unroll at 3, e.g. - takes the verb's tail at
+0x3f364: `param_2[3] = 0`, no answer. PR-216 recorded that
+index space; this PR puts its gate on the two branches.
+(b) The verb's first call, the class's +0x3c, is 0x53db0:
+a ladder REMEMBERS its last asker at [obj+0x54] - the verb
+clears the stale link first, calling that asker's +0x14
+(0x550a0: zeroes its [obj+0xe6]/[obj+0xea] seq-step
+words), then writes the sentinel [0xcf0e4]. Named, not
+modelled. (c) THE K_GENn FAMILY IS CROSS-OBJECT IN THE
+AUTHORING ITSELF: in ZARIA.01 the raisers are the lion's
+own rows - A_JUMP rows 4..7 `GEN K_GEN1`, the A_DRAP idle
+loop's rows 8/9, A_FALL_DOWN's `s idle 1,300,GEN K_GEN1`,
+A_DEAD, A_KILOF, the fight states - and the named consumers
+are OTHER scripts' lines: both ladder .MOVs' A_UP
+(`A_DROP(1)=K_GEN1` with `1,0,WAIT K_GEN1`), KORONA's
+A_TWIST, every BAL's A_DEAD, POCISK, SURPRISE, WODA,
+ZARROW. ll_play.c already called them "the K_GEN1 cutscene
+walkers". A row's GEN admit therefore lands the K_GEN1..5
+bits on every scripted object's vector, and the object's own
+match arm (0x5360f) runs on the spot. One beat, cleared
+after the attempt - PR-217's persistent WAIT meter is open.
+The AC_* names stay player-local: their raisers are the
+per-pair paths (PR-92/94/235). (d) ZARIA.01's first ladder
+now unrolls at tick 106 of the pinned script with NO shape,
+point or distance anywhere in the chain, and both LINA
+ropes do the same. (e) The point gate's 10 px were never
+the trigger: they gate only the flag branch, which belongs
+to the waiting state the authored bus does not need, and
+after the unroll that branch is closed for that ladder for
+the rest of the level (its A_DOWN authors `WAIT K_NEVER`).
+OPENS: OI-078's next links, in order: what the DOWNED rope
+(index 2, now live) ANSWERS on a meet - the probe answers 0
+at every meet in this leg - and the `A_WSP(3)=AC_DRAB_
+CATCH,AC_ONAIR` entry those answers must feed; the
+object-side settling row: the unrolled rope reaches A_DOWN
+in the port's first object step because of the `(1)`
+start-row token, an object-side row-start mapping named and
+untouched; the bus's persistence (one beat here, PR-217's
+meter); [obj+0x54]'s asker memory; and RAN.01's A_LADOW,
+still lead (3).
+CLOSES: the one question PR-216 left open - "what raises
+K_GEN1 on a DRABINKA" - and with it the flag-branch state
+gate PR-241 raised unconditionally.
+CORRECTS: PR-254/PR-256's "10 px of y" as OI-078's named
+blocker: the point gate is real but off the chain - the
+level waits on a row directive, not on a jump apex.
 GATE: make 0 warnings; verify-all fixtures rc=0 67 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
 ```

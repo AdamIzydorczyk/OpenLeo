@@ -1770,20 +1770,52 @@ ifeq ($(PX_DATA),1)
 # of them WITHOUT a shape meet - the lion is 100 px above the ladder's
 # art) and what stands between it and K_GEN1 is 0x44ec0's point gate,
 # 10 px of y. RED before this PR: zero ask lines at any script.
-# Those 10 px are the named next step and PR-256 does not fit them away.
-# What the shape of the gap says: the ladder's art hangs 510..558 and
-# its authored point is 3 px above its own top, while the walk line
-# under it is 650 - a 143 px rise, where A_JUMP's own words measure 100.
-# So the point gate is probably not the trigger at all, and PR-254's
-# state-extents idea (1 px of the old 2) cannot be 10. The leads PR-257
-# works through, in order: the ladder's own A_UP/A_DROP/A_DOWN states
-# with `A_DROP(1)=K_GEN1` (the asker lives in the ladder's .MOV, not in
-# the lion's box); the A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR and
-# A_WSP_LIN(3)=AC_LINA_CATCH,AC_ONAIR transitions ZARIA's A_JUMP
-# declares, which name a CATCH SIGNAL rather than a position; and
-# RAN.01's A_LADOW - the BY_TIME state its lion authors right next to
-# A_START_LAD1 (`G=0,200`, `A_STAY(1)=AC_BREAK_NEXT`, 23 rows of 400) -
-# a CLIMB STATE entered once a catch signal is up, not a jump arc.
+# Those 10 px are the named next step and PR-256 does not fit them
+# away. What the shape of the gap says: the ladder's art hangs
+# 510..558 and its authored point is 3 px above its own top, while the
+# walk line under it is 650 - a 143 px rise, where A_JUMP's own words
+# measure 100. So the point gate is not the trigger at all. PR-257
+# worked the first lead: THE LADDER'S OWN STATES AND THE K_GEN BUS.
+# 0x3f1c0's branches key on the ASKED object's [obj+0x5c] - its
+# current state record in the DECLARED-list index space (the same
+# table 0x54250's physics pass walks: [obj+0x50] + [obj+0x5c]*4, and
+# [obj+0x5c]/[obj+0x50] is exactly how 0x53672's mirror arm indexes a
+# state's flag word). Index 1 = the flag branch (a ladder waiting in
+# A_UP), 2 = the AC answer packet (the DOWNED rope - that gate sits
+# on ladder_answer_for too), anything else takes the verb's tail, no
+# answer. And the unroll trigger is not geometry at all: ZARIA.01's
+# only K_GEN1 raisers are the lion's OWN row directives - A_JUMP rows
+# 4..7 `GEN K_GEN1`, the A_DRAP idle loop, A_FALL_DOWN's `s idle
+# 1,300,GEN K_GEN1`, A_DEAD, the fight states - while the consumers
+# are the two ladder .MOVs' A_UP (`A_DROP(1)=K_GEN1` + `1,0,WAIT
+# K_GEN1`). K_GENn is the level's signal bus: the row admit lands the
+# bit on every scripted object, and the ladder takes its A_DROP line
+# with no shape, point or distance anywhere in that chain. The open
+# leads after it: the A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR entry A_JUMP
+# declares (the answer branch raises those, and it needs the rope
+# DOWNED - A_DROP's wrap exit into A_DOWN is object-side AC_BREAK_NEXT,
+# PR-217's WAIT-meter territory), and RAN.01's A_LADOW climb state.
+# PR-257 DERIVES THE TICK FROM THE FIXTURE'S OWN ROWS. A_JUMP's rows
+# carry thresholds 75,75,75,100,150,150,225,900,225; the accumulator
+# is fed 100 an iteration (0x4c8b7, PR-100), admits AT MOST ONE row
+# per iteration with the remainder carried, and the entry iteration
+# admits row 1. From the press at 100: r2 at 101 (25+100 >= 75), r3
+# at 102, r4 at 103 (75+100 >= 100), r5 at 104 (75+100 >= 150, carry
+# 25), r6 MISSES at 105 (25+100 = 125 < 150) and ADMITS at 106 (225
+# >= 150). Row 6 IS `4,150,GEN K_GEN1` - the first bus raise, at 106;
+# the frame cursor lands on row 7 (frame 5), so the same tick's state
+# line reads frame 5 at 189,602, the already-derived PR-256 arc.
+# DRAB.MOV and LINA.MOV both DECLARE A_UP,A_DOWN,A_DROP before their
+# blocks (decl_idx = 1 + position in that list, 0x53440) - so their
+# A_UP is 1: the flag branch is theirs, and from 106 on the ask probe
+# prints a state OTHER than 1 - the mid-unroll A_DROP (3) or the
+# settled A_DOWN (2), which of them depends on the object-side row
+# clock and the `(1)` start-row token, both named and untouched here.
+# The K_GEN1 line is not the ladder's alone: KORONA, BAL, POCISK,
+# SURPRISE, WODA, ZARROW all name K_GEN1 in authored lines in this
+# one level - the bus the port already half-knew (ll_play.c names the
+# `K_GEN1 cutscene walkers`). Those objects take their authored lines
+# at the same tick; every one of them is data, not collateral.
 	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 	  LEO_PLAY_ASK=1 LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=8 \
 	  LEO_PLAY_SCRIPT="1:FWD 100:JUMP 122:NONE" \
@@ -1794,18 +1826,25 @@ ifeq ($(PX_DATA),1)
 	    cat /tmp/opencode/ly_zask.log; exit 1; fi
 	@grep -q 'play tick 119: state A_JUMP seq jump frame 8 pos 189,550 grounded 0' \
 	    /tmp/opencode/ly_zask.log \
-	  && grep -qE 'play tick 119: asked ladder DRABINKA/drab\.mov at state 1: .*213,507.*168,517\.\.215,583 -> no' \
+	  && grep -q 'play tick 106: state A_JUMP seq jump frame 5 pos 189,602 grounded 0' \
+	      /tmp/opencode/ly_zask.log \
+	  && grep -q 'play tick 106: DRABINKA/drab.mov takes its own K_GEN1' \
+	      /tmp/opencode/ly_zask.log \
+	  && grep -q 'play tick 106: LINA/lina.mov takes its own K_GEN1' \
+	      /tmp/opencode/ly_zask.log \
+	  && grep -qE 'play tick 119: asked ladder DRABINKA/drab\.mov at state [23]: .*213,507.*168,517\.\.215,583 -> no' \
 	      /tmp/opencode/ly_zask.log \
 	  && ! grep -q 'raises K_GEN1 on itself' /tmp/opencode/ly_zask.log \
-	  && echo "play ladder ask (PR-254): the ask walks from the lion's" \
-	     "CHECK_ANI bit with no shape test at all, it reaches the" \
-	     "DRABINKA at its declared state 1 = the flag branch, and only" \
-	     "the authored point gate (0x44ec0 -> 0x23e00) stands between" \
-	     "that and K_GEN1 - its `A_DROP(1)=K_GEN1` line and the" \
-	     "`1,0,WAIT K_GEN1` row that has waited since the level began" \
-	     "(PR-217) are the two lines that would then run (ok)" \
+	  && echo "play ladder ask (PR-257): A_JUMP's own row 6 (`4,150," \
+	     "GEN K_GEN1`) admits at tick 106 by the row arithmetic above," \
+	     "the K_GEN1 bus reaches the waiting DRABINKA and both LINA" \
+	     "ropes with no geometry in the chain, each takes its authored" \
+	     "`A_DROP(1)=K_GEN1` line into the unroll, and the ask probe" \
+	     "afterwards reads a state OTHER than 1 - the point gate's" \
+	     "10 px provably not what the level waits on (ok)" \
 	  || { echo "play ZARIA ladder ask grep FAILED"; \
-	       grep -E 'asked ladder|tick 119:' /tmp/opencode/ly_zask.log; \
+	       grep -E 'asked ladder|takes its own|tick (106|119):' \
+	         /tmp/opencode/ly_zask.log; \
 	       exit 1; }
 # PR-255, same probe, the MIRRORED branch of the asker's box: the lion
 # turns left at the ladder column and the ask line follows him with the
