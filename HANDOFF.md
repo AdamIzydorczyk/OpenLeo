@@ -2067,6 +2067,36 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-247 (READ): the ask's filters, measured. The
+authored rectangle is class slot +0x64 (NOT +0x60, which is
+the plain [obj+0x2c] getter for the ladder like for 156
+tables), and its caller is the broad phase 0x4b970: for
+every layer it builds that layer's screen window (0x4b940:
+origin from 0x57500/0x57530, expanded -0xa0,-0x78,+0x1e0,
++0x140 = 640x440) and asks every instance of the object's
+class chain and of [obj+0x64] through [class+0x64]; 0x23140
+answers authored-rect-in-window and writes [obj+0x2c].
+Census of +0x64: an empty ret (always yes) in 109 tables,
+0x53490/0x23ba0/0x23bd0/0x37380 in 21/16/4/2, and 0x23140
+in exactly two (0x97cdc, 0xa1dfc). So PR-246's asker-box
+filter is a test the engine does not run - the ask is not
+gated by the authored rect; the rect gates whether the
+object counts as in-play. Confirmed instead: the record
+parser 0x3f0f0 reads list -> rect -> third block in that
+order and 0x3f124-0x3f14b makes the rect ABSOLUTE with
+layout x0,y0,x1,y1 (the port's place_rect matches); the
+third block is [obj+0xc5]=(v,y-0x50,v,y) plus a
+(width+1)-element container, counted not modelled. The
+point gate's asker rect is the live box [obj+0x75] via
+class verb +0x4c = 0x23a20 for lion and ladder alike -
+runtime state (0x534e0 from the +0x68 verb: the lion's is
+`add eax,0xd6`, the current frame), which is what the
+port's player_shape_box stands in for. The walk 0x4bd30
+walks [[0xcef40]+0x64], the global scene list, with the
+layer test [cand+0x24] vs [requester+0x24] unless
+CHECK_ALL_PLANE is set. NEXT: remove the asker-box filter
+(test first), then the jump half.
+
 STATUS PR-246 (PORT): the record's extra lines are now all
 read and the authored rect gates the ladder. The placement
 loop follows an entry through its continuation lines in the

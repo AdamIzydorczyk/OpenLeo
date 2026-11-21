@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-247.
+> at PR-248.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -34678,4 +34678,124 @@ files report 3 lists + 3 rects + 3 pairs per pass. Nothing
 else in PR-243 changes.
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
+```
+
+## PR-247 — THE ASKS FILTERS, MEASURED: THE AUTHORED RECT IS
+## AN ACTIVE-WINDOW BOX (CLASS SLOT +0x64, THE BROAD
+## PHASE 0x4b970), NOT THE ASKERS TEST; THE ASKERS RECT IS
+## THE RUN-TIME LIVE BOX [obj+0x75]
+```
+KIND: read
+SUBSYSTEM: the ask's FILTERS, end to measured: what writes
+the contact-node field, what the authored rectangle really
+gates, and where the asker's rectangle comes from. No code.
+ADDRESSES: 0x3f0f0, 0x44f10, 0x44e90, 0x49f90, 0x49920,
+0x3f124, 0x3f159, 0x23140, 0x23b80, 0x23b70, 0x23b60,
+0x23940, 0x23900, 0x23a20, 0x23a51, 0x534e0, 0x4b970,
+0x4b940, 0x4ba4a, 0x4ba6e, 0x4aeac, 0x57500, 0x57530,
+0x4bd30, 0x4bd61, 0x4bd81, 0x527bb, 0x52f66, 0x530dc,
+0x97cdc, 0xa1dfc, 0x96960, 0xcef40, 0x23e00, 0x44ec0
+NAMES: contact node, active window, broad phase, live box,
+authored rectangle, class verb +0x4c, class verb +0x60,
+class verb +0x64, class verb +0x68, OI-078
+CODE: no: this PR ships no code.
+HOOKS: none
+MEASURED: (a) THE RECORD PARSER IS ONE FUNCTION AND THE
+ORDER IS LIST, RECT, THIRD BLOCK: 0x97cdc slot +0x18 =
+0x3f0f0, and its body 0x3f0fc-0x3f1a7 does `lea ecx,
+[eax+0xa5]` -> 0x44f10 (the point list into the container
+at [obj+0xa5]), 0x44e90 (points made ABSOLUTE by adding the
+placement x,y), then `lea ecx,[esi+0xb1]` -> 0x49f90 (four
+numbers through the 0x49920 scan engine, reader at 0x91d00)
+and then 0x3f124-0x3f14b adds the placement x,y to all four
+words: [obj+0xb1]=x0, [obj+0xb5]=y0, [obj+0xb9]=x1,
+[obj+0xbd]=y1, ABSOLUTE - the port's place_rect stores the
+same four in the same order, so PR-246's reader matches the
+engine. Then 0x3f159 writes the THIRD block: [obj+0xc5]=v,
+[obj+0xc9]=y-0x50, [obj+0xcd]=v, [obj+0xd1]=y, and 0x3f178
+resizes a container to ([obj+0xb9]-[obj+0xb1]+1) elements
+made absolute - counted, not modelled (npair stands).
+(b) CORRECTION, the intersection verb is table slot +0x64,
+not +0x60: 0x97cdc's slots are +0x3c 0x23c10, +0x4c 0x23a20
+(the box getter, PR-242/245 confirmed), +0x60 0x23b80 (the
+plain [obj+0x2c] getter - the same verb 156 classes use),
++0x64 0x23140, +0x68 0x23b60, +0x78 0x3f1c0. The walk's
+filter 0x4bd81 therefore calls +0x60 for the ladder too:
+it only READS the contact-node field.
+(c) WHO WRITES IT - the broad phase 0x4b970 (called at
+0x4aeac between 0x222d0 and 0x4ba90): it reads the layer
+count [[obj+0x390]+0x18], allocates 20 bytes per layer, and
+for each layer index calls 0x57530/0x57500 (the scene's
+per-layer origin transform) and 0x4b940, which writes a rect
+(X-0xa0, Y-0x78, X+0x1e0, Y+0x140) - 640x440, the SCREEN
+window of that layer. Then it calls [[class]+0x64] (eax =
+the instance, edx = that rect) for every instance of the
+object's CLASS CHAIN ([obj+0], [obj+4], [obj+8] -> count at
+[class+0x44], instances at [class+0x58], chained by
+[obj+0x34]) and for every object in [obj+0x64] (0x4ba6e);
+0x23140 answers authored-rect-intersects-that-window and
+writes it to [obj+0x2c] (0x23176). Census of slot +0x64:
+0x23940 = an EMPTY ret (always yes) in 109 tables, 0x53490
+in 21, 0x23ba0 in 16, 0x23bd0 in 4, 0x37380 in 2, and
+0x23140 in exactly 2 - 0x97cdc and 0xa1dfc, the ladder
+family only. So the authored rectangle is the object's
+ACTIVE-WINDOW box (a culling/contact flag), NOT the test
+against the asker: PR-246's filter (authored rect vs the
+asker's live box) is not what the engine does, and the
+model the port needs is "the ask is not gated by the
+authored rect; the authored rect gates whether the object
+counts as in-play".
+(d) THE WALK'S LIST IS THE WORLD'S: 0x527bb loads eax =
+ds:0xcef40 and 0x4bd61 reads [[eax]+0x64] - the global
+scene object's list, not the requester's (correcting
+PR-244); the requester travels in ebx (0x527c6 `mov ebx,
+[esi]` = the record's owner object), its layer is
+[requester+0x24] compared with [candidate+0x24] at 0x4bd8c
+unless the CHECK_ALL_PLANE-masked bit is non-zero
+(0x4bd91), and self is skipped at 0x4bd98. Only THEN comes
+the answer call [candidate class+0x78] with ebx = the
+requester (0x4bda9) - the ladder's 0x3f1c0.
+(e) THE ASKER'S RECTANGLE IS THE LIVE BOX, AND IT IS RUN-
+TIME STATE: 0x3f1e9 calls the requester's +0x4c verb; for
+the lion (0x96960) and the ladder (0x97cdc) alike that verb
+is 0x23a20 = `add eax,0x75; ret`, and 0x44ec0 hands the
+result to the element verb +0x8 = 0x23e00, whose compare
+order fixes the layout: [edx]=x0, [edx+4]=y0, [edx+8]=x1,
+[edx+0xc]=y1 - the same layout as the authored rectangle.
+The two-object collision helpers 0x52f66 and 0x530dc take
+BOTH boxes the same way (+0x4c on each) and compare x0/y0/
+x1/y1 the same way. In 201,475 instructions only two name
+that field: the getter 0x23a20 and the writer wrapper
+0x23a51 (`lea edx,[eax+0x75]; call 0x534e0`). 0x534e0
+fills box[0]/box[4] from the class verb +0x68's object -
+the lion's is 0x23900 = `add eax,0xd6` (the lion's own
+frame field), the ladder's is 0x23b60 = `ret` (itself),
+then chains +0x48, +0x33 and +0x50 for the rest. So the
+box the point gate tests is built from the CURRENT FRAME,
+never authored - which is exactly the model the port's
+player_shape_box (the SEQ shape bbox) stands in for.
+OPENS: the exact inputs of the layer origin transform
+0x57500/0x57530 (the scene fields +0x10/+0x14/+0x1c/+0x24/
++0x28) and whether the port should model the active-window
+culling at all; who calls 0x23a51 (no xref, not in any of
+the 189 indexed tables - a per-frame box refresh?) and what
+lies at [lion+0xd6]; the [obj+0xc5] third block and its
+(width+1)-element container; the other four +0x64 verbs
+(0x53490 in 21 tables, 0x23ba0 in 16); 0x4ba90; the 21
+rect-only families (XCHG/KLINA/GUARD) and which of the 186
+classes answer +0x64 with a real test.
+CLOSES: none. OI-078's row now carries the measured filter
+chain and corrects PR-246's gate; OI-113's row notes that
+the ladder's +0x60 is the generic getter.
+CORRECTS: PR-246 (its ladder_ask_raise gate treats 0x23140
+as the ask's candidate filter against the asker's box; the
+verb is class slot +0x64, its argument is the layer's
+active window from the broad phase 0x4b970, and its result
+only sets [obj+0x2c]); PR-245's "the rope's own +0x60 is
+0x23140" (it is +0x64; +0x60 = 0x23b80 like the other 156
+tables); PR-244's "walks [[requester+0x64]]" (it walks
+[[0xcef40]+0x64], the global scene list). The authored
+rect's field, order and absolute-ness from PR-242/PR-246
+are CONFIRMED, not corrected.
+GATE: light: verify-index verify-docs rc=0 (ok);
 ```

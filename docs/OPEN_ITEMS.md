@@ -1089,6 +1089,35 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     (walking INTO the ladder), then the jump half so the
     point gate can pass, then the [obj+0xc5] pair's
     consumers.
+    PR-247 READS THE FILTERS AND CORRECTS HALF OF THAT.
+    0x23140 is class slot +0x64, not +0x60 (+0x60 = the
+    generic [obj+0x2c] getter here too, like 156 tables).
+    Its caller is the broad phase 0x4b970: per layer it
+    builds the layer's SCREEN window (0x4b940: origin from
+    0x57500/0x57530, expanded -0xa0,-0x78,+0x1e0,+0x140),
+    then asks every instance of the object's class chain and
+    of [obj+0x64] via [class+0x64]; the answer sets
+    [obj+0x2c]. Census of +0x64: 109 empty rets (always
+    yes), 21/16/4/2 others, and 0x23140 in exactly 2 tables
+    (0x97cdc, 0xa1dfc - the ladder family). So the authored
+    rect is an active-window/culling box, and PR-246's
+    asker-box filter modelled a test the engine does not
+    run: the ask is NOT gated by the authored rect. The
+    rectangle's field, order (x0,y0,x1,y1) and absolute-
+    ness are CONFIRMED by the record parser itself (0x3f0f0:
+    list 0x44f10 -> 0x44e90 absolute -> 0x49f90 rect ->
+    0x3f124 adds the placement), and its third block
+    [obj+0xc5] = (v, y-0x50, v, y) plus a (width+1)-element
+    container stays counted only. The asker's rect in the
+    point gate is the live box [obj+0x75] via the class verb
+    +0x4c = 0x23a20 (`add eax,0x75`) for lion and ladder
+    alike - runtime state built by 0x534e0 from the +0x68
+    verb (the lion's = `add eax,0xd6`, the current frame),
+    so the port's shape-bbox stand-in is the right model.
+    The walk also walks [[0xcef40]+0x64], the global scene
+    list, not the requester's. NEXT: drop PR-246's asker-box
+    filter (test first), then the jump half so the point
+    gate can pass.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
@@ -1875,3 +1904,10 @@ OI-113: the engine control bit table is read (PR-230) and the
     it. PR-245 also corrects PR-239's letter list: BY_X is
     the DEFAULT name setting nothing, BY_Y = 0x1, BY_TIME =
     0x2 (0x51b56-0x51b8d) - the PR-230 table is right.
+    PR-247 measures the walk itself: the candidate list is
+    [[0xcef40]+0x64] (the global scene object), the layer
+    test is [candidate+0x24] vs [requester+0x24] unless the
+    CHECK_ALL_PLANE-masked bit is set, and the asked
+    object's +0x60 is the plain [obj+0x2c] getter for the
+    ladder too - the authored rectangle sits at +0x64 and is
+    used by the broad phase, not by the ask.
