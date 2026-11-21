@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-251.
+> at PR-252.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -35114,5 +35114,80 @@ inside 0x521f0, 0x521f0-0x5235c; 0x520c0 is the
 row-advance/id-6 family, a different function. Also
 PR-224's "middle band ... NOT pair-verified yet" is closed
 for I/F/IC/FC/M by (a).
+GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-251 — THE `I` ROW PAIRS LAND IN AN UNCONSUMED
+## BLOCK SLOT (base +0x30 verb 0x2b4d0 = `ret`); THE AUTHORED
+## A_JUMP ARC IS 109 PX, NOT THE 50 PR-250 PRINTED
+```
+KIND: read
+SUBSYSTEM: .MOV row runtime - the `I` row pairs and the
+absence of their consumer, and the corrected ZARIA.01 jump
+arc. No port code.
+ADDRESSES: 0xa25d4, 0xa2604, 0x520c0, 0x52680, 0x2b4d0,
+0x4ff80, 0x61250, 0x617d0, 0x61830, 0x52731, 0x5273d,
+0x526f3, 0x526fc, 0x5433a, 0x54348, 0x54170, 0x54250,
+0x33310, 0x52a90, 0x97c9c, 0x9a894, 0x9a8cc, 0x9a85c
+NAMES: I, FC, pull channel, block slot, OI-078
+CODE: no: this PR ships no code.
+HOOKS: none
+MEASURED: (a) THE RECORD-CLASS VERB TABLES, read from the
+aligned dwords: 15 tables carry the same base, each with the
+BLOCK verbs at the slots PR-98/PR-101 named - base+0x18 =
+0x520c0, the row-advance family, which is the handler the
+state step calls at 0x52338; base+0x2c = 0x52680, the merge
+that fills the physics block; base+0x34 = 0x52790, the ask
+dispatcher of PR-245. The base's +0x0c is 0x521f0 and its
++0x08 is 0x52750, the frame driver. (b) THE +0x30 VERB IS
+EMPTY: the base record class 0xa25d4 carries 0x2b4d0 there,
+which is `ret` - the verb that runs right after the
+integrator in 0x52750's sequence does nothing for the base
+family; its ten provider variants 0x4ff80, and the three
+0x61250/0x617d0/0x61830 found in the other tables, read
+block+0x20/+0x24 nowhere. (c) NO CONSUMER OF THE 'I' SLOT:
+PR-250 (b) located the id-2 'I' query's out pair at
+block+0x20/+0x24 - 0x52731 `lea ebp,[esi+0x18]` sits
+OUTSIDE the [obj+0x95] gate and 0x5273d's handler adds into
+ebp+8/+0xc - and the integrator reads only block+0x0..0x1c
+(0x5433a/0x54348 take the pull pair at +0x18/+0x1c). No
+verb of the record-class family reads +0x20/+0x24; the only
++0x20/+0x24 hits among the family's verbs are vtable calls
+in 0x52a90, not data reads. So the engine as read carries
+the `I` pairs into a slot nothing consumes, while the
+`F` pairs reach the pull and `FC` reaches it ungated.
+PR-98's view, quoted in its own words, is that the id-2
+query writes the SAME ctx+0x18/0x1c pair - in the PR-250
+block view that is the next pair, and the two views cannot
+both be right; the bytes at 0x526f0-0x526fc and 0x5273d are
+quoted there and stand either way. (d) THE CORRECTED ARC:
+the PR-250 (e) arithmetic was run wrong - it added G before
+the drag and never cleared the grounded velocity, and it
+counted a pull that repeats. On the port's exact order,
+with the I pair taken as the pull of PR-98's account, one
+shot at row entry from v_y = 0, G_y = 55 and T_y = 1, the
+authored ZARIA.01 A_JUMP rises 109 px above its take-off,
+apex at iteration 19, 39 iterations of air, ground again at
+iteration 40. The 50 px printed there is withdrawn; it was
+an artifact of that wrong order. The comparison that
+matters for OI-078: from the ZARIA.01 ground the lion
+contacts at 649, so this arc peaks at y = 540, and the
+authored ladder point is 507 - 143 px above the contact
+line, 34 px more than this jump gives. The climb therefore
+needs the A_PRE_JUMP/A_JUMP_S route, or a higher take-off,
+not a re-fit of this arc.
+OPENS: the consumer of block+0x20/+0x24 anywhere in the
+image - the animals' integrator variant 0x33310, which
+PR-107 measured as the only one that EDITS the ctx G term,
+is the named next lead; the 34 px between this arc and the
+authored point gate; whether the id-2 out pair is the pull
+pair or the slot after it.
+CLOSES: none. OI-078's jump note is corrected in place.
+CORRECTS: PR-250 (e): "apex 50 px above the take-off at
+iteration 15 ... approximately 75 px if the pull repeats" -
+the model there applied gravity before the drag and kept the
+grounded velocity; the same model run correctly gives an
+apex of 109 px, and the repeated-pull variant is not the
+one-shot law of PR-250 (c).
 GATE: light: verify-index verify-docs rc=0 (ok);
 ```

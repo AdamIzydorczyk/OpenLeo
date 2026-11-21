@@ -1167,14 +1167,20 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     row entry, and the sums are of the current row (the
     chain head table is at [rec+0x2e] indexed by the row
     cursor [rec+4], 0x5268e/0x52221 - PR-98's inference
-    now fact). Under that law ZARIA.01's authored A_JUMP
-    (T=20,1 G=0,55, `F 0,350` x2, `I 150,-1200`) peaks
-    50 px above the take-off on the port's 20 Hz clock -
-    a real gap against the 143 px PR-243's point gate
-    wants, stated before any fitting. NEXT (PR-251, test
-    first): keep the F/FC pairs in ll_mov_fr (the parser
-    counts them today), and replace the estimated /4
-    impulse with the 0x54170 pull law.
+    now fact). PR-251 CORRECTS the arc numbers PR-250
+    printed: run right, one-shot, the authored A_JUMP arc
+    is 109 px (apex iteration 19, land 40) - PR-250's
+    "50 px" applied gravity before the drag. And PR-251
+    measured that the `I` pairs' slot, block+0x20/0x24,
+    has NO consumer in the record-class family: the base
+    +0x30 post-integrate verb 0x2b4d0 is `ret`, and no
+    provider reads that slot. From the ground the lion
+    contacts at 649, so this arc peaks at 540 and the
+    authored point is 507 - 34 px beyond the jump: the
+    climb needs the A_PRE_JUMP/A_JUMP_S route or a higher
+    take-off, not a re-fit. NEXT: read 0x33310's ctx edit
+    (the one integrator variant that touches the G term)
+    for the 'I' consumer; then the ask-channel port.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

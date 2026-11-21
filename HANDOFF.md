@@ -2067,6 +2067,29 @@ the old nor the new model. OI-078 now has ONE named blocker:
 what raises K_GEN1 on a DRABINKA. 0 warnings; 65 ok with
 fixtures, 13 ok + 21 named SKIPs without.
 
+STATUS PR-251 (READ): the `I` channel has no consumer, and
+the ZARIA.01 jump arc corrected. The record-class verb
+tables (15, base e.g. 0xa25d4) carry +0x18 = 0x520c0 (the
+row-advance, the handler the state step calls at 0x52338),
++0x2c = 0x52680 (the block merge), +0x34 = 0x52790 (the
+ask dispatcher); the +0x30 post-integrate verb of the base
+class is 0x2b4d0 = `ret`, and no provider 0x4ff80/0x61250/
+0x617d0/0x61830 reads block+0x20/+0x24, where the id-2 'I'
+query writes (0x52731/0x5273d; the integrator reads only
++0x0..+0x1c). So `I` pairs land in an unconsumed slot while
+`F` reaches the pull pair +0x18/+0x1c and `FC` reaches it
+ungated - PR-98's account that 'I' joins ctx+0x18/0x1c is
+the other reading; the bytes stand either way. Taking PR-98
+with the one-shot law and running the port's EXACT order
+(v += G; v -= v*T/100; integrate), the authored A_JUMP arc
+is 109 px rise, apex iteration 19, air 39, land 40 - the
+PR-250 "50 px" was an arithmetic artifact, withdrawn in the
+PR-251 record. From the ground contact 649 the peak is 540;
+the authored ladder point is 507, 34 px above it: the climb
+needs the A_PRE_JUMP/A_JUMP_S route, not a re-fit. NEXT:
+0x33310 (the only integrator variant that edits the ctx G
+term) as the 'I'-consumer lead, then the ask-channel port.
+
 STATUS PR-250 (READ): the row-node channels and the
 jump's row-entry one-shot. The node factory 0x46878 builds
 one node class 0xa1090 for every pair tail and stores the
@@ -2087,11 +2110,10 @@ table at [rec+0x2e] indexed by the row cursor [rec+4],
 closed. Arithmetic on ZARIA.01's authored A_JUMP (T=20,1,
 G=0,55, F 0,350 x2, I 150,-1200): one-shot v_y=-1200
 (-12 px/iter), apex 50 px at iteration 15 on the 20 Hz
-clock, ~75 px if the pull repeats while the row is current
-- against the 143 px the PR-243 point gate wants, so the
-gap is stated, not fitted. NEXT: PR-251 (test first) keeps
-F/FC pairs in ll_mov_fr and replaces the /4 impulse with
-the 0x54170 pull law; PR-252 is the ask channel.
+clock - CORRECTED BY PR-251: run in the port's exact
+order that arc is 109 px, and the 50 px figure was an
+arithmetic artifact. NEXT (as PR-251 later shipped): the
+'I' consumer lead 0x33310, then the ask channel.
 
 STATUS PR-249 (READ): who asks whom. The control word has
 THREE channels in the dispatcher 0x52790: CHECK_LEW (0x200)
