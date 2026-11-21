@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-263.
+> at PR-264.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -36387,4 +36387,136 @@ ZARIA.01 climb this port's own deviation: the climb ends at
 298 because the engine's own fill empties the mask when
 the ask stops answering.
 GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-263 — K_ANY IS A MASK, NOT "A KEY IS DOWN": 0x48000
+## ANSWERS THE NAME WITH 0x2001f8 IN DWORD 1, AND THIS PORT'S
+## ANY-ROWS ACCEPTED FOUR KEYS THAT ARE NOT IN IT
+```
+KIND: port
+SUBSYSTEM: what a `=|K_ANY` / `=!K_ANY` transition row means -
+the name resolver's mask operand, the port's two condition
+evaluators, and the seven input bits that mask names.
+ADDRESSES: 0x48000, 0x48009, 0x48019, 0x48029, 0x48032,
+0x48037, 0x4803d, 0x48043, 0x48048, 0x4804f, 0x4806f,
+0x48075, 0x4807d,
+0x48087, 0x49541, 0x49543, 0x54910, 0x54931, 0x5493a, 0x54948,
+0x54956, 0x54964, 0x549a6, 0x549b4, 0x919ec, 0x919f5, 0x919fb,
+0x91a06, 0x53705, 0x53725, 0x523f0
+NAMES: K_ANY, AC_K_ANY, K_NEVER, LL_SIG_K_ANY_MASK, K_BKWD,
+K_FWD, K_UP, K_DOWN, K_FIRE, K_ALT, K_F1..K_F4, 0x2001f8,
+0x60, OI-114, OI-078, PR-87, PR-218, PR-260, PR-261, PR-262
+CODE: yes: (i) cond_true's `any` (ll_play.c) drops k_f1..k_f4
+- the four weapon-selector keys are signals 41..44, bits 9..12
+of the same dword, and the engine's constant lacks them;
+(ii) obj_cond_true (ll_level.c) gains the K_ANY case it never
+had, testing the object's set against LL_SIG_K_ANY_MASK; (iii)
+that mask is defined once, in ll_play.h, from the LL_SIG_*
+table with the 0x2001f8 provenance in the comment. The
+parser's LL_GOP_ANY capture (PR-218) is untouched: it records
+WHICH operand a clause names, and this record is what gives
+it a meaning.
+HOOKS: red first, three checks, all failing at HEAD and all
+derived from the constant above and the fixture's own words,
+not from this port's output. Play selftest: with a
+`A_WALK(1)=|K_ANY` row (ZARIA.01's `[A_TO_BOR] A_DRAP(1)=
+|K_ANY` shape) holding K_F2 alone, `q.sti == 0` FAILED - the
+port walked; and with `A_LAY(1)=!K_ANY` (SADES.06's shipped
+line 210) holding K_F2 alone, `q.sti == 1` FAILED - the port
+refused to lie down. Mov selftest: with `[A_RUN]
+A_DEAD(1)=|K_ANY` and a row `2,100,GEN K_FWD`, "a `|K_ANY`
+row ignored the K_FWD that was in the set (state 0)" FAILED -
+that half was dead code for objects. After the change all
+three pass, and so does the pair's other half: `|K_ANY` takes
+K_JUMP (53), `=!K_ANY` refuses K_ALT (40), and an object's
+`GEN K_GEN1` (54) never satisfies an any-row.
+MEASURED: (a) THE MASK. 0x48000 (eax = the set, edx = the
+name) starts by comparing the token against the two strings at
+0x919ec and 0x919f5 = `AC_K_ANY` / `K_ANY` (0x48009, 0x48019,
+through the string-compare 0x76a69); if either matches it
+memset-s the 12 mask bytes (0x48029-0x48032, the fill 0x749a0
+again), reads dword 1, OR-s in the immediate 0x2001f8 and
+writes it back (0x48037-0x48048). In this port's signal table
+that constant is bits 3,4,5,6,7,8 and 21 of dword 1 = signals
+35,36,37,38,39,40,53 = K_BKWD, K_FWD, K_UP, K_DOWN, K_FIRE,
+K_ALT, K_JUMP. It then returns 1 (`mov edx,1 / jmp 0x49543`,
+and 0x49543 is `mov eax,edx / ret`; the sibling epilogue
+0x49541 `xor edx,edx` is the not-found return). So 0x48000
+never writes the op byte at +0xc - PR-261's reading that the
+clause parser owns that byte stands - and it REPLACES the mask
+built so far, which is why no shipped clause mixes K_ANY with
+other names.
+(b) THE SAME MASK IS THE INPUT SET. 0x54910 builds the record
+key the step ORs into [obj+0x60] at 0x53725 (PR-98, PR-262),
+and the only bits it ever sets are those seven: [obj+0xa5] bit
+0 -> 39, bit 4 -> 40, bit 5 -> 53 (0x54931-0x54956),
+[obj+0xba] nonzero with [obj+0xb6] bit 4 -> 36 else 35
+(0x54964-0x5499a, the /32 ordinal idiom), [obj+0xbe] negative
+-> 37 and positive -> 38 (0x549a6, 0x549b4). The constant at
+(a) is that set, bit for bit. K_ANY does not mean "any key";
+it names the input-key mask.
+(c) K_NEVER, the other half of the resolver. The second name
+pair at 0x4804f/0x4805f (`AC_K_NEVER` / `K_NEVER`) takes the
+branch at 0x4806f: `mov ah,[ecx+4] / or ah,0x60 / mov
+[ecx],ah` - bits 5 and 6 of mask BYTE 4 = signals 37 and 38 =
+K_UP, K_DOWN. So an authored K_NEVER is not empty and not a
+bit: it is "both direction intents", the pair that a standing
+state never holds. PR-218's "an EMPTY data set" was wrong and
+PR-261's "(K_UP,K_DOWN)" is what the bytes say; the port's
+capture keeps that name distinct (LL_GOP_NEVER) and no model
+acts on it yet, which is unchanged here.
+(d) THE REACH, counted over the 777 texts. 41 any-clauses sit
+in 14 texts - 40 written `=|K_ANY`, one `=!K_ANY` (SADES.06
+line 210), four of them in ZARIA.01's own lion text. All of
+them sit in blocks of the lion's
+shape - [A_ZABLOK], [A_DEAD], [A_TURN_BACK], [A_TO_BOR],
+[A_BORRING], [A_WSP]-shaped names - including the only text
+not named `*_LEW.*` (KADMAR.07_0_0.MOV, whose blocks are
+[A_ZABLOK], [A_DEAD], [A_TURN_BACK], [A_BORRING]). No
+object-only text asks for an any-row, so the object half of
+this change has no shipped row behind it: it aligns the second
+evaluator with the law and is legged in the unit fixture only.
+(e) WHAT THE PORT DID, and what that looked like. The lion's
+evaluator answered LL_COND_K_ANY with `any` = eleven keys
+(ll_play.c, PR-87) - the seven plus k_f1..k_f4 - so on shipped
+data an any-row fired on a weapon-selector key the engine's
+mask would not have accepted, and its `!K_ANY` mirror refused
+one it would have accepted. K_F1..K_F4 are signals 41..44,
+bits 9..12 of the same dword, absent from 0x2001f8, and they
+are real bits: the resolver takes them through the /32 path at
+0x48087, and the data uses them in AND groups
+(`A_FIGHT_UP(1)=K_FIRE,K_GEN1,K_F1`, ZARIA.01 line 82). For
+scene objects the case simply did not exist: obj_cond_true's
+switch fell to `default: v = 0`, so an object any-row could
+never match whatever was in its set.
+OPENS: in order: (i) OI-114's other half - carrying the
+operation byte instead of the group split, which is where the
+7 clauses mixing '|' with a ',' list still differ; (ii) the
+K_NEVER mask of (c) and any model that would act on it; (iii)
+0x54c00, the ground contact PR-259's guard stands in for;
+(iv) AC_EDGE / A_PODCIAG at the top of a climb; (v) the
+entry's +0x11 downstream and 0x53815's four-field reader
+(PR-261 (iii)); (vi) a raise landing between the pass and
+0x535a0 (PR-262 (d)); (vii) `[[obj+8]+0x8c]` /
+`[[obj+8]+0x90]` and the other 67 callers of 0x49580; (viii)
+the rest of the OI-078 list unchanged.
+CLOSES: OI-114's item (b) - "test K_ANY as intersects the
+input-key mask" - and with it the claim, made in PR-261's
+record and in the OI-078 paragraph, that the any-rows are dead
+rows. They are not dead on the lion's side; they were ANSWERED
+TOO WIDELY, which is a different and smaller bug.
+CORRECTS: PR-260's (f) and PR-261's sentence "K_ANY's mask =
+signals 35,36,37,38,39,53 ... the six keys ... minus K_ALT":
+the constant is 0x2001f8, which includes bit 8 of that dword,
+signal 40 = K_ALT - seven keys, and it is exactly the set
+0x54910 raises, so the two readings are the same read. It also
+corrects PR-261's "nothing evaluates gop, so all 41 clauses
+are dead rows": cond_true has answered LL_COND_K_ANY since
+PR-87;
+what was wrong was its key set, and the dead half was the
+object evaluator, which no shipped text reaches.
+GATE: make 0 warnings; verify-all fixtures rc=0 67 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named (the 23rd SKIP line
+is the cmake-windows parity check, which names its own reason:
+no vendor/SDL2-2.32.10/x86_64-w64-mingw32 prefix in this tree)
 ```

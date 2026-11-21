@@ -842,6 +842,17 @@ static int obj_cond_true(const lvl_obj *o, int brk, const ll_mov_tr *tr)
                 v = (o->sig >> LL_SIG_K_GEN4) & 1; break;
             case LL_COND_K_GEN5:
                 v = (o->sig >> LL_SIG_K_GEN5) & 1; break;
+            case LL_COND_K_ANY:               /* PR-263: the engine
+                 * answers that name with a MASK, not with "a key is
+                 * down" (0x48000 OR-s 0x2001f8 into dword 1,
+                 * 0x48029-0x48048). For a scene object those seven
+                 * bits can only be in the set the way the engine
+                 * puts them there - merged into [obj+0x60] during
+                 * the step (0x53705-0x53725), which this port is a
+                 * row's `GEN <name>` tail - so the test is the
+                 * intersection. No shipped .MOV asks an object for
+                 * K_ANY: all 41 any-rows are lion texts. */
+                v = (o->sig & LL_SIG_K_ANY_MASK) != 0; break;
             case LL_COND_OTHER:
                 v = tr->c[i].sig >= 0
                     ? (int)((o->sig >> (unsigned)tr->c[i].sig) & 1)
@@ -2625,6 +2636,80 @@ static int obj_state_selftest(void)
             fprintf(stderr, "object state selftest: FAILED CHECK_LN settle\n");
             goto out;
         }
+    }
+    {   /* PR-263: the same K_ANY mask on the object side. obj_cond_true
+         * had no K_ANY case at all, so an any-row was dead for a scene
+         * object. The mask is the one the engine's resolver 0x48000 OR-s
+         * in for the name (0x2001f8 in dword 1 = signals 35..40 and 53),
+         * and for an object those bits can only arrive the way the engine
+         * raises them - merged into [obj+0x60] by the step (0x53705-
+         * 0x53725), which in this port is a row's `GEN <name>` tail. So
+         * the pair is one script with a different GEN name, and the
+         * cadence is obj_state_selftest's own derived one: close row 1,
+         * close the GEN row (the list wraps and arms), and the THIRD
+         * call's composition is where a match lands. `GEN K_FWD` (36) is
+         * in the mask and enters A_DEAD; `GEN K_GEN1` (54) is not and
+         * never does. No shipped .MOV puts K_ANY in an OBJECT's text -
+         * all 41 shipped any-rows are lion texts - so this leg pins the
+         * law, not a level. */
+        static const char any_fwd[] =
+            "A_RUN\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\n"
+            "A_DEAD(1)=|K_ANY\n1,100\n2,100,GEN K_FWD\n\n[A_DEAD]\n"
+            "control=BY_TIME\n3,100\n";
+        static const char any_gen[] =
+            "A_RUN\nA_DEAD\n\n[A_RUN]\ncontrol=BY_TIME\n"
+            "A_DEAD(1)=|K_ANY\n1,100\n2,100,GEN K_GEN1\n\n[A_DEAD]\n"
+            "control=BY_TIME\n3,100\n";
+        ll_mov_t *af = calloc(1, sizeof *af), *ag = calloc(1, sizeof *ag);
+        obj_script sf, sg2;
+        lvl_obj of, og;
+        int pass = 0;
+        memset(&sf, 0, sizeof sf);
+        memset(&sg2, 0, sizeof sg2);
+        memset(&of, 0, sizeof of);
+        memset(&og, 0, sizeof og);
+        if (af && ag) {
+            ll_mov_parse(any_fwd, af);
+            ll_mov_parse(any_gen, ag);
+            sf.mov = af;
+            sg2.mov = ag;
+            of.sc = &sf;
+            og.sc = &sg2;
+            for (int i = 0; i < 2; i++) {
+                obj_advance(&of, LL_ITER_MS);
+                obj_advance(&og, LL_ITER_MS);
+            }
+            if (!(of.sti == 0 && (of.sig & (1ull << LL_SIG_K_FWD))))
+                fprintf(stderr, "object state selftest: FAILED the"
+                                " `GEN K_FWD` row did not raise signal 36"
+                                " in the object's own set (state %d sig"
+                                " %llu)\n", of.sti,
+                        (unsigned long long)of.sig);
+            else if (!(og.sti == 0 && (og.sig & (1ull << LL_SIG_K_GEN1))))
+                fprintf(stderr, "object state selftest: FAILED the"
+                                " `GEN K_GEN1` row did not raise its bit"
+                                " (state %d sig %llu)\n", og.sti,
+                        (unsigned long long)og.sig);
+            else {
+                obj_advance(&of, LL_ITER_MS);
+                obj_advance(&og, LL_ITER_MS);
+                if (of.sti != 1)
+                    fprintf(stderr, "object state selftest: FAILED a"
+                                    " `|K_ANY` row ignored the K_FWD that"
+                                    " was in the set (state %d)\n", of.sti);
+                else if (og.sti != 0)
+                    fprintf(stderr, "object state selftest: FAILED a"
+                                    " `|K_ANY` row took the K_GEN1 that is"
+                                    " outside the mask (state %d)\n",
+                            og.sti);
+                else
+                    pass = 1;
+            }
+        }
+        free(af);
+        free(ag);
+        if (!pass)
+            goto out;
     }
     rc = 0;
 out:

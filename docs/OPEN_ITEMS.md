@@ -627,8 +627,10 @@ OI-078: the in-game ZARIA.01 climb, now MOVING to the top at
   transition pass 0x53520 memsets the 12 mask bytes at
   0x5358e, one call after the apply - the per-iteration
   `p->sig = 0` / `o->sig = 0` is the engine's law, not this
-  port's stand-in): the lead is the untested K_ANY mask
-  (OI-114), then the top of a climb,
+  port's stand-in): the lead is the top of a climb,
+  `A_PODCIAG(1)=AC_EDGE,K_UP` with AC_EDGE unmodelled, then
+  the group grammar that still differs on 7 clauses (OI-114
+  item (a)),
   `A_PODCIAG(1)=AC_EDGE,K_UP` with AC_EDGE unmodelled (what
   raises K_GEN1 was PR-257: the lion's own rows, and
   `A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR` is CLOSED as a non-lead,
@@ -1520,6 +1522,18 @@ OI-078: the in-game ZARIA.01 climb, now MOVING to the top at
     names are exactly the intent words this port already
     carries, so a leg is writable; the mechanism row is
     OI-114.
+    PR-263 writes that leg and corrects the paragraph above in
+    two places. The any-rows were never dead: cond_true has
+    answered K_ANY since PR-87; what was wrong is that it
+    answered ELEVEN keys where the engine's constant
+    (0x2001f8 in dword 1) names SEVEN - the four weapon
+    selectors are outside it and K_ALT is inside it, so
+    PR-261's "six keys ... minus K_ALT" goes too. The dead
+    half was obj_cond_true, which had no case at all, and no
+    shipped text puts an any-row in an object. No shipped leg
+    holds a selector key in one of those states, so the whole
+    suite is unchanged by the fix (measured); the fixture pair
+    in the play and mov selftests is what pins the mask.
     PR-262 withdraws the PR-260 sentence above ("RAISED BITS
     ARE NEVER LOWERED") and with it the first paragraph's
     claim that the climb ends on this port's clear. Re-read
@@ -2359,10 +2373,11 @@ OI-113: the engine control bit table is read (PR-230) and the
     not 0x400000; CHECK_ALL_PLANE is 0x8000 (0x51d2b).
 
 OI-114: the OPERATION byte of a compiled transition condition is
-  read end to end (PR-261) and is not modelled: one mask plus
-  one op (0 all, 1 none, 2 exactly, 3 any), where this port
-  splits '|' into AND-groups and never tests K_ANY's mask
-  status: OPEN
+  read end to end (PR-261) and the K_ANY half of it is ported
+  (PR-263); the operation itself is still not modelled: one
+  mask plus one op (0 all, 1 none, 2 exactly, 3 any), where
+  this port splits '|' into AND-groups
+  status: PARTIAL
   origin: PR-261 (the mechanism itself is OI-111 items (1) and
     (2); what is new here is the compiler path, the corpus
     census, and the K_ANY consequence)
@@ -2410,3 +2425,43 @@ OI-114: the OPERATION byte of a compiled transition condition is
     intent words the port already keeps (the horizontal word,
     PR-259's vertical word [obj+0xbe], and the fire/alt/jump
     flags of 0x54910's [obj+0xa5]).
+    PR-263 does (b) and corrects the two sentences above that
+    called the any-rows dead. THE MASK: the resolver's K_ANY
+    branch (0x48029-0x48048) memsets the 12 mask bytes and OR-s
+    the immediate 0x2001f8 into dword 1, which is signals
+    35,36,37,38,39,40,53 = K_BKWD, K_FWD, K_UP, K_DOWN,
+    K_FIRE, K_ALT, K_JUMP - SEVEN keys, not six: bit 8 of that
+    dword is K_ALT, and PR-260 (f)/PR-261's "minus K_ALT" is
+    withdrawn. The constant is bit-for-bit the set the input
+    bridge 0x54910 raises from [obj+0xa5] bits 0/4/5,
+    [obj+0xb6] bit 4 and the intent words [obj+0xba]/[obj+0xbe]
+    (0x54931-0x549b4), so K_ANY names the input-key mask and
+    not "some key is down". The sibling branch answers
+    K_NEVER with `or ah,0x60` into mask byte 4 (0x4806f-0x4807d)
+    = signals 37,38 = K_UP,K_DOWN - PR-218's "EMPTY data set"
+    is wrong, and no model acts on it. 0x48000 never writes the
+    op byte at +0xc (the `mov edx,1 / jmp 0x49543` at 0x48043
+    is its resolved-return; 0x49541 is the not-found return),
+    which leaves PR-261's "the clause parser owns that byte"
+    standing. REACH, recounted: 41 any-clauses in 14 texts (40
+    `=|K_ANY`, one `=!K_ANY`), every one of them in a block of
+    the lion's shape - including KADMAR.07_0_0.MOV, whose
+    blocks are [A_ZABLOK]/[A_DEAD]/[A_TURN_BACK]/[A_BORRING];
+    no object-only text asks for one. THE PORT, and what was
+    actually wrong: cond_true has answered the name since PR-87,
+    but with ELEVEN keys - the seven plus k_f1..k_f4 (signals
+    41..44, bits 9..12, outside the constant), so the lion's
+    any-rows fired on a weapon-selector key the engine would
+    not accept and its `!K_ANY` mirror refused one it would;
+    and obj_cond_true had no case at all, so an object any-row
+    was dead - with no shipped row behind it. Now: the mask is
+    defined once as LL_SIG_K_ANY_MASK (ll_play.h, with the
+    0x2001f8 provenance), the player's set drops the four
+    selectors, and the object evaluator tests the intersection
+    against the bits a `GEN <name>` row put in the set. Red
+    legs: two play checks (`|K_ANY` must refuse K_F2,
+    `=!K_ANY` must take it) and one object check (`|K_ANY`
+    must take a `GEN K_FWD`), all three failing at HEAD. Still
+    open in this row: item (a), carrying the operation instead
+    of the group split - the 7 clauses that mix '|' with a ','
+    list still read differently here - and the K_NEVER mask.

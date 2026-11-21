@@ -276,6 +276,20 @@ enum {
 #define LL_GOP_NEVER 1
 #define LL_GOP_ANY   2
 #define LL_GOP_NONE  3
+/* PR-263: the MASK the engine answers the name K_ANY with - its name
+ * comparator 0x48000 clears the set and OR-s the constant 0x2001f8 into
+ * dword 1 (0x48029-0x48048), which in this table is signals 35..40 and
+ * 53: K_BKWD, K_FWD, K_UP, K_DOWN, K_FIRE, K_ALT, K_JUMP, the seven bits
+ * the input bridge 0x54910 raises out of [obj+0xa5] bits 0/4/5,
+ * [obj+0xb6] bit 4 and the intent words [obj+0xba]/[obj+0xbe]. The
+ * weapon selectors K_F1..K_F4 (41..44) are NOT in it. Its sibling
+ * K_NEVER is answered with 0x60 in the same dword = K_UP,K_DOWN
+ * (0x4806f-0x4807d). Both are ordinary masks: what combines them with
+ * the live set is the clause's operation byte, PR-261. */
+#define LL_SIG_K_ANY_MASK ((1ull << LL_SIG_K_BKWD) | (1ull << LL_SIG_K_FWD) | \
+                           (1ull << LL_SIG_K_UP) | (1ull << LL_SIG_K_DOWN) | \
+                           (1ull << LL_SIG_K_FIRE) | (1ull << LL_SIG_K_ALT) | \
+                           (1ull << LL_SIG_K_JUMP))
 int ll_sig_id(const char *name);
 
 typedef struct { int frame; unsigned thresh; int dx, dy;

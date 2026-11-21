@@ -1023,9 +1023,13 @@ void ll_player_set_contact(ll_player *p, int below_pos)
 static int cond_true(const ll_player *p, const ll_play_keys *k,
                      const ll_mov_tr *tr)
 {
+    /* PR-87, narrowed by PR-263 to the engine's own set: K_ANY is the
+     * MASK 0x2001f8-in-dword-1 (LL_SIG_K_ANY_MASK) - the seven bits the
+     * input bridge 0x54910 raises out of the key words. The weapon
+     * selectors K_F1..K_F4 are outside that constant, so they neither
+     * satisfy nor block an any-row. */
     int any = k->k_fwd || k->k_bkwd || k->k_up || k->k_down ||
-              k->k_jump || k->k_fire || k->k_f1 || k->k_f2 ||
-              k->k_f3 || k->k_f4 || k->k_alt;
+              k->k_jump || k->k_fire || k->k_alt;
     /* PR-85 MODEL CHOICE (recorded, evidence-based): K_FWD/K_BKWD are
      * FACING-RELATIVE - K_FWD = the arrow in the direction the lion
      * faces, K_BKWD = the opposite arrow. DATA PROOF: ZARIA's LEW.ZAR
@@ -2620,6 +2624,56 @@ int ll_play_selftest(void)
         ll_player_step(&q, NULL, &kk, 0, 2000, LL_ITER_MS);
         CHECK(q.sti == 1);                  /* AND holds: fight */
         free(fk);
+    }
+    {   /* PR-263: K_ANY IS THE INPUT-KEY MASK, NOT "some key is held".
+         * The engine's name resolver 0x48000 answers AC_K_ANY/K_ANY
+         * (the strings at 0x919ec/0x919f5) by CLEARING the set and OR-ing
+         * the constant 0x2001f8 into its second dword (0x48029-0x48048).
+         * In the signal layout that is bits 3,4,5,6,7,8 and 21 of dword 1
+         * = signals 35,36,37,38,39,40,53 = K_BKWD, K_FWD, K_UP, K_DOWN,
+         * K_FIRE, K_ALT, K_JUMP - and those are exactly the seven bits the
+         * input bridge 0x54910 raises out of [obj+0xa5] bits 0/4/5,
+         * [obj+0xb6] bit 4 and the intent words [obj+0xba]/[obj+0xbe].
+         * The weapon selectors K_F1..K_F4 (41..44, bits 9..12 of the same
+         * dword) are NOT in the constant. So the fixture words below -
+         * ZARIA.01's `[A_TO_BOR] A_DRAP(1)=|K_ANY` and SADES.06's
+         * `[A_...] A_LAY(1)=!K_ANY`, both shipped - answer to K_F2 with
+         * the OPPOSITE of what "any key" would: an any-row refuses it and
+         * a not-any-row takes it. Nothing here is read off this port's
+         * evaluator: the expectation is the mask against the keys. */
+        static const char AM[] =
+            "A_STAY\nA_WALK\n\n[A_STAY]\ncontrol=BY_TIME|CHECK_LN\n"
+            "F=600,0\nT=90,90\nG=0,0\nA_WALK(1)=|K_ANY\nseq=a\n"
+            "1,100\n\n[A_WALK]\ncontrol=BY_TIME\nF=0,0\nT=0,0\nG=0,0\n"
+            "seq=a\n1,300\n2,300\n";
+        static const char AN[] =
+            "A_STAY\nA_LAY\n\n[A_STAY]\ncontrol=BY_TIME|CHECK_LN\n"
+            "F=600,0\nT=90,90\nG=0,0\nA_LAY(1)=!K_ANY\nseq=a\n"
+            "1,100\n\n[A_LAY]\ncontrol=BY_TIME\nF=0,0\nT=0,0\nG=0,0\n"
+            "seq=a\n1,300\n2,300\n";
+        ll_mov_t *am = calloc(1, sizeof *am), *an = calloc(1, sizeof *an);
+        ll_player q;
+        ll_play_keys kk = { 0 };
+        CHECK(am && an);
+        ll_mov_parse(AM, am);
+        ll_mov_parse(AN, an);
+        ll_player_start(&q, am, 500, 100, 1);
+        kk.k_f2 = 1;                       /* a selector key: not in the */
+        ll_player_step(&q, NULL, &kk, 0, 2000, LL_ITER_MS);
+        CHECK(q.sti == 0);                 /* mask, so `|K_ANY` refuses  */
+        kk.k_jump = 1;                     /* K_JUMP (53) IS in it        */
+        ll_player_step(&q, NULL, &kk, 0, 2000, LL_ITER_MS);
+        CHECK(q.sti == 1);
+        ll_player_start(&q, an, 500, 100, 1);
+        kk = (ll_play_keys){ .k_f2 = 1 };  /* and `=!K_ANY` is the exact */
+        ll_player_step(&q, NULL, &kk, 0, 2000, LL_ITER_MS);
+        CHECK(q.sti == 1);                 /* mirror: it takes the same  */
+        ll_player_start(&q, an, 500, 100, 1);
+        kk = (ll_play_keys){ .k_alt = 1 }; /* key the any-row refused.  */
+        ll_player_step(&q, NULL, &kk, 0, 2000, LL_ITER_MS);
+        CHECK(q.sti == 0);                 /* K_ALT (40) is in the mask  */
+        free(am);
+        free(an);
     }
     {   /* PR-82: states whose DIRECTION IS AUTHORED stay out of facing.
          * The real shape is RAN LEW's A_GO_TO_BALON_L: control=BY_X with
