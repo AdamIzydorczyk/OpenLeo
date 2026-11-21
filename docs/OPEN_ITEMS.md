@@ -150,7 +150,8 @@ OI-014: ds:0xcef40 +0x388 as a frame-advance distance accumulator
     literal 100/tick). Row kept for citation stability.
 
 OI-015: the PR-135 non-modelled list: vertical constants not
-  re-fitted (jump apex 20 px vs ~24 px - a known regression), the
+  re-fitted (jump apex 20 px vs ~24 px - a known regression,
+  overtaken by PR-253, see the note at the end of this row), the
   engine's conditional raise of T to >=20, partial `s` between 0 and
   +/-10, the object's own velocity register, velocity across state
   change, state-change feed consumption, the `nfr == 0` guard,
@@ -160,6 +161,27 @@ OI-015: the PR-135 non-modelled list: vertical constants not
   of the engine's loop
   status: OPEN
   origin: PR-135 (HANDOFF 13.8)
+  notes: PR-253 OVERTAKES the first item and moves the question.
+    The vertical unit is no longer a fit: LL_PLAY_JUMP_DIV=4 and
+    LL_PLAY_JUMP_G=1650 are gone, replaced by the measured
+    conversions of the authored words (a row pull pair is raw/5
+    px/s, an authored G= word raw*4 px/s^2, the pull verb being
+    0x54170 with the one-shot/ungated split of PR-250/PR-251).
+    ZARIA.01's own A_JUMP then reaches 108 px, which is the
+    closed form of its own words (PR-253's
+    tools/jump_law_measure.py pins that arithmetic, not a
+    number). The ~24 u of PR-73/74 was fitted to ONE jump on
+    another level and has never been re-derived from that
+    level's authored state; what is open now is not a missing
+    scale factor - PR-252 read the Y legs of 0x54250/0x54340 as
+    UNSCALED - but whether the two footage readings ever
+    described the same state. The row's other items are
+    unchanged: the partial-`s` question, the object's own
+    velocity register, velocity across a state change,
+    state-change feed consumption, the `nfr == 0` guard,
+    LL_PLAY_V_EPS, the `vy >= 0` ground-snap guard, and the
+    50 ms clock. The T>=20 raise of the list is CLOSED by
+    PR-252 (horizontal only, class-verb gated).
 
 OI-016: the BY_TY vertical feed law
   status: CLOSED BY PR-147/PR-148/PR-168/PR-178
@@ -1191,7 +1213,26 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     ONLY - to 20 when the class verb table+0xbc returns
     true and [obj+0xb6] bit 1 is clear. NEXT (PR-253,
     test first): the ask-channel port.
-
+    PR-253 SHIPPED the pull law instead (the ask channel
+    waits one more PR): `F`/`I` applies once when its row
+    becomes CURRENT and `FC` every iteration its row stays
+    CURRENT, in 0x54170's own shape (from rest or the same
+    sign it SETS the axis to the target, from the opposite
+    sign it climbs by |target| and never past), with the
+    authored units taken seriously - a row pair is raw/5
+    px/s, a G= word raw*4 px/s^2 - and the PR-73/74
+    LL_PLAY_JUMP_DIV/LL_PLAY_JUMP_G fit retired. The
+    measured run now agrees with PR-251's number on its own
+    terms: the authored A_JUMP reaches apex y 541 from the
+    649 line (108 px, 20 climbing iterations - the closed
+    form, asserted by tools/jump_law_measure.py, RED at
+    HEAD), the row 0/1 `F 0,350` heads break the contact
+    one row early, and the list wrap exits the jump
+    MID-AIR (A_WALK at 144,549, grounded 0, tick 63). The
+    34 px gap to the authored point 507 stands unchanged;
+    the row's next step is the ask-channel port (the
+    requester's CHECK_ANI/CHECK_ZW matched with o->src,
+    replacing the shape-meet ask sites).
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
   recovery on the next input?)

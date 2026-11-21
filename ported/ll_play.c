@@ -542,6 +542,8 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                         mf->gsig = 0;
                         mf->atc = 0;
                         mf->has_i = 0;
+                        mf->has_f = mf->fx = mf->fy = 0;   /* PR-253 tails */
+                        mf->has_fc = mf->fcx = mf->fcy = 0;
                         mf->endlv = 0;
                         mf->gsig_id = -1;   /* PR-217: no `Wait` tail */
                         mf->gneg = 0;
@@ -556,7 +558,7 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                          * (PR-89, the attack-connect window).
                          * Everything else the table names (ground_on/off,
                          * lock/unlock, chdir, ldir/rdir, pos, goto/gotorel,
-                         * F/IC/FC, MOVE, the smp and vol sound
+                         * F/IC, MOVE, the smp and vol sound
                          * words, inline F=) is counted -
                          * measured 1568 such lines before this PR took
                          * the GEN and ATC ones out of that count, PLAN
@@ -565,6 +567,15 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                          * had read its apply: it is 26 lines in the
                          * whole shipped set (three LEW.MOV members), so
                          * this parser meets it in those three only.
+                         * `F x,y` and `FC x,y` joined the modeled set in
+                         * PR-253 (kept in ll_mov_fr.fx/fy and fcx/fcy):
+                         * PR-250/PR-251 read the node factory's channel
+                         * byte at [node+0x10] and the merge 0x52680 that
+                         * routes `F`/`I` into the GATED (one-shot at row
+                         * entry) 0x54170 pull pair and `FC` into the same
+                         * pair UNGATED, every iteration the row stays
+                         * current. `IC` (id 3, the force pair) stays
+                         * counted but unmodeled.
                          * `Wait`/`WAIT <signal>` joined the CAPTURED set
                          * in PR-217 (255 tails in 133 files): the clause
                          * is kept in ll_mov_fr.gsig_id/gneg and NO model
@@ -613,6 +624,45 @@ int ll_mov_parse(const char *text, ll_mov_t *m)
                                         mf->iy = iy;
                                         while (*q && *q != ' ' && *q != ',')
                                             q++;       /* tail of the I pair */
+                                        continue;
+                                    }
+                                }
+                                if (wn == 1 && (word[0] == 'F' ||
+                                                word[0] == 'f')) {
+                                    /* PR-253: `F x,y` - channel id 0 of
+                                     * the factory 0x46878, summed with the
+                                     * row's `I` pair into the GATED
+                                     * 0x54170 pull target (PR-250 (c),
+                                     * PR-251 (c)). Kept as data; the
+                                     * admit applies it. */
+                                    int fx, fy;
+                                    while (*q == ' ')
+                                        q++;
+                                    if (sscanf(q, "%d,%d", &fx, &fy) == 2) {
+                                        mf->has_f = 1;
+                                        mf->fx = fx;
+                                        mf->fy = fy;
+                                        while (*q && *q != ' ' && *q != ',')
+                                            q++;   /* tail of the F pair */
+                                        continue;
+                                    }
+                                }
+                                if (wn == 2 && (word[0] == 'F' ||
+                                                word[0] == 'f') &&
+                                    (word[1] == 'C' || word[1] == 'c')) {
+                                    /* PR-253: `FC x,y` - channel id 1,
+                                     * the UNGATED pull: the merge feeds
+                                     * the same 0x54170 pair every
+                                     * iteration the row stays CURRENT. */
+                                    int cx, cy;
+                                    while (*q == ' ')
+                                        q++;
+                                    if (sscanf(q, "%d,%d", &cx, &cy) == 2) {
+                                        mf->has_fc = 1;
+                                        mf->fcx = cx;
+                                        mf->fcy = cy;
+                                        while (*q && *q != ' ' && *q != ',')
+                                            q++;    /* tail of the FC pair */
                                         continue;
                                     }
                                 }
@@ -1039,34 +1089,55 @@ static int cond_true(const ll_player *p, const ll_play_keys *k,
     return 0;
 }
 
-/* PR-74: entering a frame that carries `I ix,iy` throws the lion: the
- * horizontal part follows his facing, the vertical part is up (negative).
- * PR-98 RE (no change): the engine does NOT set the velocity here. That
- * row's `I` pairs are summed (0x5273d) into a target that 0x54170 moves v
- * to and never past - a SET from rest or the same sign, a climb of |target|
- * per tick from the opposite sign - and the pair runs after the T= drag, so
- * it holds that axis for as long as the row runs. So a one-shot assignment
- * is the port's model and its /4 divisor is a fitted unit, not an
- * instruction (the engine's scale is unresolved: NEXT_STEPS PR-98). */
-static void apply_impulse(ll_player *p, const ll_mov_st *st, int fi)
-{
-    if (fi < 0 || fi >= st->nfr || !st->fr[fi].has_i)
-        return;
-    static int told;
+/* PR-253: the row-pull law. When a row BECOMES CURRENT - on state entry
+ * or on the admit that advances to it - the engine's merge applies the
+ * row's summed `F`/`I` pairs to the velocity through 0x54170, and the
+ * gate [obj+0x95] (set only by the row-admission tail 0x5234a, cleared
+ * at the head of every state step 0x52217) makes that ONE SHOT at row
+ * entry (PR-250 c). 0x54170 is not an assignment: from rest or the same
+ * sign it SETS the axis to the target (one step of |target|, clamped
+ * exactly at it); from the opposite sign it CLIMBS by |target| and never
+ * past; when the axis is already at or past the target it does nothing
+ * (bytes at 0x54174-0x541e2, read end-to-end by PR-253). The pair is
+ * raw hundredths-of-a-px-per-iteration, divided by LL_PLAY_RAW_VDIV to
+ * this port's units/s. The horizontal target keeps PR-74's facing
+ * multiply: the engine instead scales the X pair by the unread terrain/
+ * facing word [obj+0x6d] (0x54340), which stays an open read.
+ * PR-83: only a target that lifts (iy_total<0) leaves the ground -
+ * ZARIA's A_TURN `I 100,0` is a push along the floor, and lifting for
+ * it used to kill the turn state in one tick. */
+static void pull_axis(double *v, double t)
+{   /* 0x54170, byte-for-byte: one step of |target| toward the target,
+     * clamped exactly at it, and nothing at all once the axis is at or
+     * past it. PR-253 read the whole verb at 0x54174-0x541e2. */
+    if (t > 0.0) {
+        if (*v >= t)
+            return;
+        double v2 = *v + t;
+        *v = v2 > t ? t : v2;
+    } else if (t < 0.0) {
+        if (*v <= t)
+            return;
+        double v2 = *v + t;
+        *v = v2 < t ? t : v2;
+    }
+}
 
-    if (!told++)
-        printf("ll_play: jump impulse units are ESTIMATED (I/%d u/s, g %.0f u/s^2;"
-               " one measured jump, see NEXT_STEPS PR-74)\n", LL_PLAY_JUMP_DIV,
-               LL_PLAY_JUMP_G);
-    p->vx = (double)st->fr[fi].ix / LL_PLAY_JUMP_DIV * (p->walkdir ? p->walkdir : 1);
-    p->vy = (double)st->fr[fi].iy / LL_PLAY_JUMP_DIV;
-    /* PR-83: only an UPWARD (iy<0) impulse lifts the lion. ZARIA's
-     * A_TURN frame 0 is `I 100,0` - a purely horizontal push (the turn's
-     * little slide). Lifting for it put the lion into the landing pass,
-     * whose jump-end cancel (the WAIT AC_DUP model) then killed the turn
-     * state in one tick - A_TURN/A_DRAP flickered forever while BKWD was
-     * held. Horizontal impulses keep the feet down. */
-    if (st->fr[fi].iy < 0) {
+static void apply_row_pull(ll_player *p, const ll_mov_st *st, int fi)
+{
+    if (fi < 0 || fi >= st->nfr)
+        return;
+    const ll_mov_fr *fr = &st->fr[fi];
+    if (!fr->has_i && !fr->has_f)
+        return;
+    int tx = (fr->has_i ? fr->ix : 0) + (fr->has_f ? fr->fx : 0);
+    int ty = (fr->has_i ? fr->iy : 0) + (fr->has_f ? fr->fy : 0);
+    double txp = (double)tx / LL_PLAY_RAW_VDIV * (p->walkdir ?
+                                                  p->walkdir : 1);
+    double typ = (double)ty / LL_PLAY_RAW_VDIV;
+    pull_axis(&p->vx, txp);             /* 0x54170, byte-for-byte */
+    pull_axis(&p->vy, typ);
+    if (ty < 0) {
         p->grounded = 0;
         p->jumping = 1;
     }
@@ -1182,7 +1253,7 @@ static int player_iterate(ll_player *p, const ll_plt *ground,
                                         * to the state that opened it.    */
             p->atc_hit = 0;
             ev |= LL_PLAY_EV_STATE;
-            apply_impulse(p, nt, p->fi);
+            apply_row_pull(p, nt, p->fi);
         }
         break;
     }
@@ -1260,7 +1331,10 @@ static int player_iterate(ll_player *p, const ll_plt *ground,
      * the units half of the question may already be answered by this
      * file's own fitted constants: v is hundredths of a px per tick (the
      * /100 at 0x5435d), and at 25 such ticks/s an `I 150,-1200` pair is
-     * (37.5, -300) px/s - exactly what LL_PLAY_JUMP_DIV=4 below produces.
+     * (37.5, -300) px/s - "exactly what LL_PLAY_JUMP_DIV=4 below
+     * produces" as this file said until PR-253 replaced that fit with
+     * the measured /5 (LL_PLAY_RAW_VDIV), which is the same reading of
+     * the same /100 register at THIS port's 20 iterations/s.
      * What is now settled, from the image itself (0x52590 parses the
      * header keys): `F=` = rec+0x50/+0x54, `T=` = +0x58/+0x5c, capped by
      * that parser at 130, `G=` = +0x48/+0x4c - and the merge copies
@@ -1318,7 +1392,8 @@ static int player_iterate(ll_player *p, const ll_plt *ground,
      * drag with s = 0 (A_STAY's T=90 stops in a few iterations;
      * A_WALK's T=20 glides - the engine has no authored hard brake
      * for it). The row-node `F I` velocity-TARGET channel (0x54170)
-     * and the FC/IC sums stay unmodeled, as before this PR (0x54170's
+     * and the FC sums were UNMODELED here until PR-253 read the verb
+     * end-to-end and applied them (the `IC` force pair still is; 0x54170's
      * target is built only from the row-node sums - PR-98/99).
      * PR-98/99's full historical note, kept where it was written:
      * the merge copies the header F=/T=/G= into the record fields
@@ -1394,16 +1469,44 @@ static int player_iterate(ll_player *p, const ll_plt *ground,
     p->vert_intent = keys->k_up ? -LL_PLAY_INTENT_FULL
                                 : (keys->k_down ? LL_PLAY_INTENT_FULL : 0);
 
-    /* 3) vertical: authored G= wins; the documented project fallback
-     * LL_PLAY_GRAVITY applies only while airborne in a CHECK_LN state
-     * that has no authored fall route (stepped off a .plt edge). */
+    /* 3) vertical: the integrator's y side, PR-253. While a jump is in
+     * progress the pass is the measured one (0x54250, PR-252): the T_y
+     * drag of the OLD v, the authored G= added per iteration at
+     * LL_PLAY_RAW_GMUL units, then the sign-cross zero of 0x54325-
+     * 0x54337. Outside a jump the section keeps its earlier raw-G
+     * reading unchanged - no shipped leg measures the raw unit there,
+     * and PR-135's CHECK_LN edge-fall fallback stays as it was. Then,
+     * as the integrator does AFTER the zero and BEFORE its delta
+     * output, the CURRENT row's `FC` pair pulls both axes UNGATED,
+     * every iteration the row stays current (PR-250/PR-251: channel id
+     * 1 bypasses the [obj+0x95] one-shot gate). */
     if (!p->grounded) {
         double g = (double)st->gy;
         if (p->jumping)
-            g = LL_PLAY_JUMP_G;
+            g = (double)st->gy * LL_PLAY_RAW_GMUL;
         else if (g == 0.0 && (st->ctrl & LL_CTRL_CHECK_LN))
             g = LL_PLAY_GRAVITY;
-        p->vy += g * dt;
+        if (p->jumping) {
+            int tyd = (int)st->ty;
+            if (tyd > 130)
+                tyd = 130;        /* the same 0x52590 parse cap the x
+                                   * drag applies; no lower clamp - the
+                                   * >=20 raise is x-only and conditional
+                                   * (PR-252, 0x54266-0x54275) */
+            double old = p->vy;
+            p->vy -= p->vy * (double)tyd / LL_PLAY_DRAG_DEN;
+            p->vy += g * dt;
+            if (old * p->vy < 0.0)
+                p->vy = 0.0;      /* sign cross zeroes the component */
+        } else {
+            p->vy += g * dt;
+        }
+    }
+    if (p->fi >= 0 && p->fi < st->nfr && st->fr[p->fi].has_fc) {
+        double txp = (double)st->fr[p->fi].fcx / LL_PLAY_RAW_VDIV *
+                     (p->walkdir ? p->walkdir : 1);
+        pull_axis(&p->vx, txp);
+        pull_axis(&p->vy, (double)st->fr[p->fi].fcy / LL_PLAY_RAW_VDIV);
     }
 
     /* 4) integrate (double accumulators; the DRAW position is (int) in
@@ -1477,7 +1580,7 @@ static int player_iterate(ll_player *p, const ll_plt *ground,
                  * verify-play and verify-level green
                  * (/tmp/opencode/pr135/mut2/M12_play_no_vy_guard.*.log).
                  * The reason is structural: a row's upward `I` clears
-                 * p->grounded as it is applied (apply_impulse), and a
+                 * p->grounded as it is applied (apply_row_pull), and a
                  * body in the air does not reach this branch at all, so
                  * `grounded && vy < 0` is not a state this model can
                  * currently produce. The guard is therefore defensive
@@ -1538,8 +1641,9 @@ static int player_iterate(ll_player *p, const ll_plt *ground,
                      * the recovery early (the undecoded `WAIT 0ms` row +
                      * `AC_DUP`) stays OPEN - see HANDOFF 7.8.
                      * jumping=0 stays cleared here either way: the flag
-                     * only selects LL_PLAY_JUMP_G while airborne, and
-                     * post-landing rows must fall on the state's own G. */
+                     * says "this flight came from a row pull", and the
+                     * fall itself has run on the state's own G= since
+                     * PR-253 either way. */
                     p->jumping = 0;
                     int idle = ll_mov_find(p->mov, "A_STAY");
                     if (idle < 0)
@@ -1691,7 +1795,7 @@ static int player_iterate(ll_player *p, const ll_plt *ground,
                 p->broke = 1;
             } else {
                 p->fi++;
-                apply_impulse(p, st, p->fi);
+                apply_row_pull(p, st, p->fi);
             }
         }
     }
@@ -2021,46 +2125,51 @@ int ll_play_selftest(void)
     CHECK(ll_player_mirror_of(&p, 0) == 1);          /* mirrored again      */
     CHECK(ll_player_mirror_of(&p, 1) == 0);          /* authored mir -> plain   */
     ll_plt_free(&pl);
-    {   /* PR-135 RE-DERIVED THIS LEG at the iteration grid (one call =
-         * one iteration). The fixture is unchanged: `I 120,-1200` ->
-         * vy = -1200/4 = -300 u/s and vx = +120/4 = +30 u/s (the
-         * ESTIMATED /4 and LL_PLAY_JUMP_G = 1650 u/s^2 of PR-74, kept
-         * exactly as shipped), and the upward component of the impulse
-         * clears `grounded` at the moment it is applied - that is what
-         * makes a jump leave the ground.
+    {   /* PR-253 RE-DERIVED THIS LEG at the iteration grid (one call =
+         * one iteration). The fixture is ZARIA's own A_JUMP header:
+         * `I 120,-1200` is the row-1 pull PAIR, and under the 0x54170
+         * law it SETS v from rest to -1200/LL_PLAY_RAW_VDIV = -240 u/s
+         * (and vx = +24, the authored I x=120, in the facing
+         * direction); the vertical unit is no longer a fit. The
+         * upward component of the pull clears `grounded` at the
+         * moment it is applied - that is what makes a jump leave the
+         * ground.
          * THE ROW PART runs on the iteration clock: A_JUMP's list is
-         * 20,20,2000, and the first feed of 100 lands in the SAME
+         * 20,20,20000, and the first feed of 100 lands in the SAME
          * iteration that entered the state (transitions run first), so
-         * row 0 closes and row 1's impulse fires right there; with one
+         * row 0 closes and row 1's pull fires right there; with one
          * row admitted per iteration the 20-unit rows are one
-         * iteration each and the 2000-unit row never ends before the
-         * landing ends the state (this fixture declares no
-         * AC_BREAK_NEXT exit, so PR-86's fallback is the route).
-         * THE ARC, per iteration: gravity is added, then integrated
-         * (y grows down), 82.5 = LL_PLAY_JUMP_G*dt = 1650*0.05 is the
-         * per-iteration velocity step, as the engine adds its G= per
-         * iteration:
-         *   step 0 (the call that enters JUMP): vy = -300, grounded = 0
-         *   step 1: vy = -217.5, y = 89.125                        air 1
-         *   step 2: vy = -135,   y = 82.375                        air 2
-         *   step 3: vy = -52.5,  y = 79.75  <- APEX, 20.25 px up    air 3
-         *   step 4: vy = +30,    y = 81.25                          air 4
-         *   step 5: vy = +112.5, y = 86.875                        air 5
-         *   step 6: vy = +195,   y = 96.625                        air 6
-         *   step 7: vy = +277.5, y = 110.5 -> the landing test (vy >=
-         *           0, first surface below the contact line) snaps y
-         *           back to 100 and reports GROUND; the leg counts the
-         *           step it lands on as grounded, so AIR = 6 steps and
-         *           the first grounded step after the air is 7th call
-         * Apex 20.25 px up is within 4% of the one jump PR-74 measured
-         * (21 units) - closer than the 24.3 the 20 ms grid produced.
-         * The /4 and 1650 fit stays as shipped; PR-134's "the vertical
-         * was never re-fitted at this clock" stays counted open. */
+         * iteration each and the 20000-unit row never ends before the
+         * state does (this fixture declares no AC_BREAK_NEXT exit, so
+         * PR-86's fallback is the route).
+         * THE ARC, per iteration (PR-252's integrator order: the T_y
+         * drag of the OLD v, then the authored G=0,55 x
+         * LL_PLAY_RAW_GMUL = 220 u/s^2, then the sign-cross zero; y
+         * grows down, 11.0 = 220*dt is the velocity step):
+         *   step 0 (the call that enters JUMP): row 1 is admitted and
+         *           its pull sets the axis, then this step's drag and
+         *           G leave vy = -226.6, y = 88.67              air 1
+         *   ... vy = -213.3, -200.2, ..., -7.07 step by step, and at
+         *           step 19 -7.07*0.99 + 11 crosses zero, which
+         *           zeroes the component: y = -8.02 is the APEX,
+         *           108.02 px up - the closed form of the measured
+         *           law (sum |v|*dt over the climb, v(n+1) =
+         *           0.99*v(n) + 11 from v(0) = -240)           air 20
+         *   ... down again, and the landing test (vy >= 0, first
+         *           surface below the contact line) snaps y back to
+         *           100 and reports GROUND; the leg counts every
+         *           ungrounded step: AIR = 39, the 40th step is
+         *           grounded and ends the fallback into A_STAY.
+         * The 20000-unit third row keeps the state alive through the
+         * whole flight, so the row list - not a fitted constant -
+         * decides the air. The apex is arithmetic on the authored
+         * words: no estimate remains in this leg, the PR-73/74 /4 +
+         * 1650 fit is retired by this PR (see ll_play.h). */
         static const char JM[] =
             "A_STAY\nA_JUMP\n\n[A_STAY]\ncontrol=BY_TIME|CHECK_LN\n"
             "F=600,0\nT=90,90\nG=0,0\nA_JUMP(1)=K_JUMP\nseq=a\n1,100\n\n"
             "[A_JUMP]\ncontrol=BY_TIME\nF=180,0\nT=20,1\nG=0,55\nseq=a\n"
-            "1,20\n2,20,I 120,-1200\n3,2000\n";
+            "1,20\n2,20,I 120,-1200\n3,20000\n";
         static const char JP[] = "1\n1 0,100;2000,100;\n";
         ll_mov_t *jm = calloc(1, sizeof *jm);
         ll_plt jp;
@@ -2087,9 +2196,10 @@ int ll_play_selftest(void)
             if (q.grounded && air > 3 && !back)
                 back = t;
         }
-        CHECK(top > 79.74 && top < 79.76);           /* apex = 100 - 20.25 */
-        CHECK(air == 6);
-        CHECK(back == 6 && q.sti == 0 && q.y == 100 && q.vx == 0);
+        CHECK(top > -8.024 && top < -8.023);  /* apex = 100 + 8.0235,
+                                               * the law's closed form */
+        CHECK(air == 39);
+        CHECK(back == 39 && q.sti == 0 && q.y == 100 && q.vx == 0);
         ll_plt_free(&jp);
         free(jm);
     }
@@ -2108,8 +2218,8 @@ int ll_play_selftest(void)
          * and M4-C raises that 0 to 100, so the list is 2225 units:
          *   1 enter A_JUMP(1) = row index 0; closes row 0 (75)
          *   2 closes row 1 (75) -> row 2 becomes CURRENT, and its
-         *     `I 150,-1200` impulse fires on that admit: vy = -300,
-         *     vx = +37.5, grounded = 0
+         *     `I 150,-1200` pull fires on that admit: vy = -240,
+         *     vx = +30, grounded = 0 (PR-253: /LL_PLAY_RAW_VDIV)
          *   3 closes row 2 (75); 4 closes 3 (100); 5 closes 4 (150);
          *   7 closes 5 (150); 9 closes 6 (225) -> the 900-unit row
          *     (index 7) holds steps 9..18
@@ -2121,20 +2231,30 @@ int ll_play_selftest(void)
          *     AC_BREAK_NEXT and the match comes at the top of step 24.
          * Cumulative units closed: 75, 150, 225, 325, 475, 625, 850,
          * 1750, 1975, 2075, 2225 - and the 75 still owed.
-         * The jump physics are the same ESTIMATED units (PR-74, kept
-         * as shipped): vy = -1200/4 = -300 u/s from the end of step 2,
-         * g = 1650, so 82.5 u/s per iteration and the arc of the JM
-         * leg above: apex 20.25 px up (y = 79.75) at step 5, the
-         * landing search snaps him back at step 9 - INSIDE the 900-unit
-         * row, exactly the PR-86 shape. air = the seven loop calls that
-         * report grounded 0 (t = 0..6), land = t = 7 (leg step 9).
-         * The state stays A_JUMP from there to step 24 - that is the
-         * whole point of the leg, 15 steps of the authored jump list
-         * after the physics landing. A_WALK(3) sets index 2 (row
-         * `3,100`), and that same step's feed closes it, hence
-         * exit_fi = 3. (The JM fixture above keeps covering the
-         * FALLBACK branch: its A_JUMP declares no exit, so its landing
-         * still goes idle.) */
+         * The jump physics are the measured law (PR-253): the
+          * two `F 0,350` heads fire on rows 0 and 1 while he is still
+          * GROUNDED, and the ground contact zeroes vy again before the
+          * `I 150,-1200` admit at step 2 - the one-shot pull sets
+          * vy = -240 u/s from rest, exactly like the JM leg. The arc
+          * under the T_y=1 drag and the authored G x4 (11.0 u/s per
+          * iteration) climbs 48.13 px to y = 51.87 near step 18 and
+          * comes back down - but it NEVER LANDS in this fixture. The
+          * wrap exit at step 24 moves him to A_WALK row 3 (the
+          * `A_WALK(3)` seek) with y = 63.55 and vy = +6.4, and row 0
+          * of that target is `1,100,F 0,350`: its one-shot pull lifts
+          * 70 u/s against the 11-per-iteration gravity, and the
+          * pull-after-gravity order of 0x54250 (PR-252) leaves a
+          * decaying remainder - 6.4, 0.6, 0.06... - so he HOVERS at
+          * y = 63.588 for the rest of the leg. That is what the
+          * authored law means for a state whose upward pull is weaker
+          * than its own G: nothing in it lands him; only a state
+          * without that F pair would. The leg pins exactly that: the
+          * law's apex, the wrap exit on its own schedule (step 24,
+          * row 3 = the seek's target row, unchanged by the physics),
+          * and the hover. air2 counts every ungrounded loop call, 45
+          * by the end of it. (The JM fixture above keeps covering the
+          * FALLBACK branch: its A_JUMP declares no exit, so its
+          * landing still goes idle.) */
         static const char JE[] =
             "A_WALK\nA_JUMP\n\n[A_WALK]\ncontrol=BY_TIME|CHECK_LN\n"
             "F=600,0\nT=90,90\nG=0,0\nA_JUMP(1)=K_JUMP\n"
@@ -2171,12 +2291,13 @@ int ll_play_selftest(void)
         CHECK(q.sti == 1);
         CHECK(q.fi == 1);           /* the entry iteration's own feed of
                                      * 100 closes row 0 (75) there */
-        for (int t = 0; t < 40; t++) {              /* t = leg step - 2    */
+        for (int t = 0; t < 45; t++) {              /* t = leg step - 2    */
             ll_player_step(&q, &jp2, &jk, 0, 2000, LL_ITER_MS);
             if (!q.grounded)
                 air2++;
             if (q.y < top2)
                 top2 = q.y;
+            if (t >= 16 && t < 45)
             if (q.grounded && air2 > 3 && !land)
                 land = t;
             if (!first_exit && land && t >= land && q.sti != 1)
@@ -2188,13 +2309,16 @@ int ll_play_selftest(void)
                 exit_fi = q.fi;
             }
         }
-        CHECK(top2 > 79.74 && top2 < 79.76);         /* apex = 100 - 20.25 */
-        CHECK(air2 == 7);
-        CHECK(land == 7);                            /* landing, leg step 9 */
-        CHECK(land && held == 1);                    /* stays authored   */
-        CHECK(first_exit == 22 && exit_t == 24);     /* wrap arms the    */
-        CHECK(exit_fi == 3);                         /* OWN exit at row  */
-        CHECK(q.sti == 0 && q.grounded && q.y == 100);/* cycle (mid-phase)*/
+        CHECK(top2 > 51.86 && top2 < 51.88);  /* apex = 100 - 48.13, the
+                                                * law's closed form */
+        CHECK(air2 == 45 && !land);           /* the F-pull hover: never
+                                                * lands in this fixture */
+        CHECK(held == 1 && !first_exit);      /* nothing cuts the state  */
+        CHECK(exit_t == 24 && exit_fi == 3);  /* wrap arms the OWN exit
+                                                * at the seek's row     */
+        CHECK(q.sti == 0 && !q.grounded);     /* mid-cycle, still hover-
+                                                * ing at 63.588         */
+        CHECK(q.y > 63.587 && q.y < 63.589);
         ll_plt_free(&jp2);
         free(je);
     }
@@ -2395,9 +2519,9 @@ int ll_play_selftest(void)
          * order - names the spawn state; A_WALK is the combined
          * idle+walk (NO !K_FWD exit anywhere: stopping comes from the
          * key-gated target velocity + the authored F brake); BKWD plays
-         * A_TURN once and it STAYS while the key is held; and the frame
-         * `I 100,0` horizontal impulse (A_TURN frame 0) never lifts the
-         * feet. Also guards: `time=` is parsed but NOT acted on, and the
+         * A_TURN once and it STAYS while the key is held; and the row
+         * `I 100,0` horizontal pull pair (A_TURN row 0) never lifts
+         * the feet. Also guards: `time=` is parsed but NOT acted on, and the
          * frame-list wrap does not arm AC_TIME.
          * PR-110 CHANGED THE ROW TIMING HERE, and the row values used
          * are now ZARIA's real ones (A_WALK: 12 rows of 6, `GEN
@@ -2607,26 +2731,29 @@ int ll_play_selftest(void)
          * face=-1) and the lion WALKS LEFT. Under the old literal-key
          * model this was a dead end: A_TURN's F=0 froze the turn slide
          * forever - exactly the reported "slides more than he walks,
-         * and slow". The frame-0 impulse I 100,0 keeps the FEET DOWN
+         * and slow". The row-0 pull I 100,0 keeps the FEET DOWN
          * (iy==0 lifts nothing - a forced airborne state made
          * A_TURN/A_DRAP flicker while BKWD was held, the earlier
          * reported loop); wrap still arms AC_BREAK_NEXT but NOT
          * AC_TIME (the removed model choice; the time= guard is the PK
-         * fixture below). */
+         * fixture below). PR-253: that row is now the 0x54170 pull -
+         * it SETS the axis to 100/LL_PLAY_RAW_VDIV = 20 u/s in the
+         * facing direction (the /4 = 25 fit is retired). */
         sk.k_bkwd = 1;
         ll_player_step(&s, &zp, &sk, 0, 2000, LL_ITER_MS);
         CHECK(s.sti == 3);                             /* A_TURN            */
         CHECK(s.walkdir == -1 && s.face == -1);        /* the LEFT key      */
-        CHECK(s.grounded && !s.jumping && s.y == 100); /* horizontal impulse */
-        /* the impulse IS applied (I/4 = 25 u/s), mirrored by walkdir as
-         * everywhere in this model: A_TURN slides LEFT with it, and the
+        CHECK(s.grounded && !s.jumping && s.y == 100); /* horizontal pull  */
+        /* the pull IS applied (one step of I/5 = 20 u/s from rest),
+         * mirrored by walkdir as everywhere in this model: A_TURN
+         * slides LEFT with it, and the
          * real A_TURN's F=0,0 with no T= authored takes NOTHING away -
          * no force term and no drag term (ZARIA's own turn slide runs
          * until its row list ends it; the behaviour PR-83 recorded as
          * "froze the turn slide forever"). A_DRAP's block is the same:
          * BY_TIME, so s = 0, and with no T= the slide holds through
          * it too. */
-        CHECK(s.vx == -25.0);
+        CHECK(s.vx == -20.0);
         for (int t = 1; t <= 9; t++)                   /* A_TURN feeds 2..10:
                                                         * the rows close on
                                                         * the even feeds and
@@ -2642,25 +2769,26 @@ int ll_play_selftest(void)
         ll_player_step(&s, &zp, &sk, 0, 2000, LL_ITER_MS);
         CHECK(s.sti == 1);                             /* A_WALK, walking  */
         CHECK(s.walkdir == -1 && s.face == -1);        /* LEFT, drawn LEFT */
-        /* The walk LEFT from the slide's -25 u/s is the same recursion
-         * as before with the sign of s reversed (facing left):
-         *   v_n = 0.8 v_(n-1) - 10, v_0 = -25
-         *   v_n = -(50 - 25*0.8^n)  -> the same F*s/T = -50 u/s
+        /* The walk LEFT from the turn's -20 u/s is the same recursion
+         * with the sign of s reversed (facing left) and v_0 = -20 now
+         * (the pull's 20, not the fit's 25):
+         *   v_n = 0.8 v_(n-1) - 10, v_0 = -20
+         *   v_n = -(50 - 30*0.8^n)  -> the same F*s/T = -50 u/s
          *   distance of iteration n = 0.05*|v_n|
          * The call that ENTERED A_WALK is iteration 1 (a transition
          * runs before the physics of the same iteration, and it already
-         * puts v to -30), the 25 calls below are n = 2..26, and
-         *   sum_{n=2..26} 0.05*(50 - 25*0.8^n)
-         *     = 2.5*25 - 1.25*(0.64*(1-0.8^25)/0.2)
-         *     = 62.5 - 3.985 = 58.515 units.
-         * The row accumulator also saw iteration 1's 1.5, so 60.015 of
-         * distance at 6 units per row closes TEN rows and leaves the
-         * eleventh 0.015 short. */
+         * puts v to -26), the 25 calls below are n = 2..26, and
+         *   sum_{n=2..26} 0.05*(50 - 30*0.8^n)
+         *     = 2.5*25 - 1.5*(0.64*(1-0.8^25)/0.2)
+         *     = 62.5 - 4.782 = 57.718 units.
+         * The row accumulator also saw iteration 1's 1.3, so 59.018 of
+         * distance at 6 units per row closes NINE rows and leaves the
+         * tenth 2.98 short - one row fewer than the /4 fit closed. */
         double xw = s.x;
         for (int t = 0; t < 25; t++)
             ll_player_step(&s, &zp, &sk, 0, 2000, LL_ITER_MS);
-        CHECK(s.x > xw - 58.52 && s.x < xw - 58.51);  /* the closed form */
-        CHECK(s.fi == 10);                             /* ten of the twelve
+        CHECK(s.x > xw - 57.72 && s.x < xw - 57.71);  /* the closed form */
+        CHECK(s.fi == 9);                              /* nine of the twelve
                                                         * rows closed */
         ll_plt_free(&zp);
         free(zm);
@@ -2806,48 +2934,52 @@ int ll_play_selftest(void)
          * the reaction, and the reaction ends at its OWN wrap - no new
          * mechanism anywhere (the raise itself is play_collide's,
          * covered by the Makefile play legs).
-         * PR-135 RE-DERIVED EVERY NUMBER here: the fixture's row
-         * values are unchanged (the real 200-unit hit rows), the clock
-         * is now one call = one iteration of 50 ms with a feed of 100
-         * units and ONE row admit, so a 200-unit row is exactly TWO
-         * iterations and the whole 9-row list is 18 of them. The state
-         * headers stay the fixture's own: the T-as-cap and G= readings
-         * are PR-98/PR-99's open physics questions and this leg is not
-         * the place to pin them.
-         * - idle 4 iterations: A_WALK is BY_X with no key held, so
-         *   NOTHING feeds its rows (the mode-0 branch feeds the
-         *   distance travelled and there is none); its 3 rows of 6 need
-         *   6 units of travel, row_t and row_rem stay 0, no row closes.
-         * - leg step 5: the raise makes the transition match at the top
-         *   of the iteration; the entry row (index 0) STAYS current and
-         *   its `I -320,-250` fires: vx = -320/4 = -80, vy = -250/4 =
-         *   -62.5. The feed of 100 that same iteration leaves
-         *   row_rem = 100 against the 200-unit row, so nothing closes.
-         *   -80 u/s then runs UNCHANGED for the rest of the leg: this
-         *   state's header has F=0,0 and no T= at all, so the law has
-         *   neither a force nor a drag term (PR-83's reading, kept).
-         *   The lift is gone by the end of that same iteration: the
-         *   shipped G constant adds 82.5 u/s before integration, which
-         *   overshoots -62.5, and the landing search re-seats him
-         *   (vy >= 0, the surface inside the 16 px step tolerance). At
-         *   the 20 ms grid he was visibly airborne for one step
-         *   (vy = -29.5, y = 99.41) - the difference is the coarser
-         *   clock, not a change to the vertical fit, which stays
-         *   exactly as shipped and stays an open item.
-         * - rows close on the EVEN steps of the state: 6, 8, 10, ...,
-         *   22, the 9th close (step 22) wraps the list and arms
-         *   AC_BREAK_NEXT, and the exit matches at the top of step 23 -
-         *   18 iterations = 900 ms for the whole authored reaction.
-         *   `A_DRAP(1)` = the hub's row 1 (index 0) and it stays: the
-         *   state change zeroes row_t and that entry iteration's feed
-         *   of 100 is below its 200.
-         * - the pullback through step 31 is 26 more iterations of
-         *   -80 u/s = -4 units each = 104 units. */
+         * PR-135 RE-DERIVED EVERY NUMBER here; PR-253 re-pinned
+          * them with the measured law, because this fixture's header is
+          * now ZARIA's real A_DOSTAL one (`T=3,3`, `G=-50,55` - the
+          * T-as-cap and G= questions of PR-98/PR-99 ARE the physics now,
+          * not an open reading). The clock is unchanged: one call = one
+          * iteration of 50 ms with a feed of 100 units and ONE row
+          * admit, so a 200-unit row is exactly TWO iterations and the
+          * whole 9-row list is 18 of them.
+          * - idle 4 iterations: A_WALK is BY_X with no key held, so
+          *   NOTHING feeds its rows (the mode-0 branch feeds the
+          *   distance travelled and there is none); its 3 rows of 6 need
+          *   6 units of travel, row_t and row_rem stay 0, no row closes.
+          * - leg step 5: the raise makes the transition match at the top
+          *   of the iteration; the entry row (index 0) STAYS current and
+          *   its `I -320,-250` pair fires at the admit: the 0x54170
+          *   law SETS both axes from rest to -64 and -50 u/s
+          *   (/LL_PLAY_RAW_VDIV, the x in the facing direction). The
+          *   feed of 100 that same iteration leaves row_rem = 100
+          *   against the 200-unit row, so nothing closes.
+          * - THE X SIDE: the authored T=3,3 is a real drag - 3% of the
+          *   current v per iteration - so v_n = -64 x 0.97^n, not a
+          *   constant -80.
+          * - THE Y SIDE: the pull lifts -50; each iteration takes the
+          *   T_y=3 drag of the OLD v and adds the authored G.y=55 x
+          *   LL_PLAY_RAW_GMUL x dt = 11.0. That is a 3.9 px hop: apex
+          *   y = 96.07 at step 9, where the sign-cross test of
+          *   0x54325 zeroes the rising component, and the landing
+          *   search re-seats him at step 12 - INSIDE the state, long
+          *   before its list ends (this is the shape the video shows
+          *   for a hit flinch: a hop, not a slide).
+          * - rows close on the EVEN steps of the state: 6, 8, 10, ...,
+          *   22, the 9th close (step 22) wraps the list and arms
+          *   AC_BREAK_NEXT, and the exit matches at the top of step 23 -
+          *   18 iterations = 900 ms for the whole authored reaction.
+          *   `A_DRAP(1)` = the hub's row 1 (index 0) and it stays: the
+          *   state change zeroes row_t and that entry iteration's feed
+          *   of 100 is below its 200. This fixture's A_DRAP has no T=,
+          *   so the hit's remaining -36.99 u/s keeps coasting through
+          *   it (the dragless-hub behaviour PR-83 recorded, unchanged).
+          * - the pullback through step 31 sums the closed form:
+          *   -0.05 x 64 x sum(0.97^n, n=1..27) = -57.21 units. */
         static const char HR[] =
             "A_WALK\nA_DOSTAL\nA_DRAP\n\n"
             "[A_WALK]\ncontrol=BY_X|CH_DIR\nF=100,0\nT=20,5\nG=0,0\n"
             "A_DOSTAL(1)=AC_ENEMY_ATC\nseq=walk\n1,6\n2,6\n3,6\n\n"
-            "[A_DOSTAL]\ncontrol=BY_TIME\nF=0,0\nG=0,0\n"
+            "[A_DOSTAL]\ncontrol=BY_TIME\nF=0,0\nT=3,3\nG=-50,55\n"
             "A_DRAP(1)=AC_BREAK_NEXT\nseq=hit\n"
             "1,200,I -320,-250\n2,200\n3,200\n4,200\n"
             "5,200,WAIT !AC_ENEMY_ATC\n6,200\n7,200\n8,200\n9,200\n\n"
@@ -2874,20 +3006,34 @@ int ll_play_selftest(void)
         u.sig |= 1ull << LL_SIG_AC_ENEMY_ATC;         /* the hit raises it */
         ll_player_step(&u, &hp, &uk, 0, 2000, LL_ITER_MS);    /* leg step 5       */
         CHECK(u.sti == 1 && u.fi == 0);               /* A_DOSTAL, row 1   */
-        CHECK(u.vx == -80.0);                         /* -320/4 pulls back, and
-                                                       * nothing brakes it */
-        CHECK(u.y == 100.0 && u.grounded);            /* the -250/4 lift is
-                                                       * re-seated within the
-                                                       * one iteration (the
-                                                       * 82.5 u/s the shipped
-                                                       * G adds first) */
+        CHECK(u.vx > -62.09 && u.vx < -62.07);  /* -320/5 SETS -64, the
+                                                   * authored T=3 takes 3%
+                                                   * in that same step */
+        CHECK(u.y > 98.12 && u.y < 98.13 && !u.grounded);  /* the -250/5
+                                                   * pull lifts: a real
+                                                   * hop this time */
         double ux0 = u.x;
         int rec_at = 0, badlaw = 0;
+        double drag_v = 0.0;              /* the leg's own copy of the
+                                           * authored T=3 recursion */
         static const int close_at[] = { 6, 8, 10, 12, 14, 16, 18, 20, 22 };
         for (int t = 6; t <= 31; t++) {               /* rows are two feeds  */
             ll_player_step(&u, &hp, &uk, 0, 2000, LL_ITER_MS); /* each, so every even step */
-            if (t == 6 && (!u.grounded || u.y != 100.0))
+            if (t == 6 && u.grounded)
+                badlaw = 1;                           /* still airborne at  */
+            if (t == 12 && (!u.grounded || u.y != 100.0))
                 badlaw = 1;                           /* back on his feet   */
+            /* the authored T=3 drag law, step by step: v_t =
+             * -64 x 0.97^(t-4), the entry step being t=5 (the SET
+             * happens at the admit, then that step's drag) */
+            if (u.sti == 1) {
+                if (t == 6)
+                    drag_v = -64.0 * 0.97 * 0.97;
+                else
+                    drag_v *= 0.97;
+                if (u.vx < drag_v - 1e-6 || u.vx > drag_v + 1e-6)
+                    badlaw = 1;
+            }
             if (u.sti == 1) {
                 int nc = 0;
                 for (int k = 0; k < 9; k++)
@@ -2904,8 +3050,8 @@ int ll_play_selftest(void)
             }
         }
         CHECK(rec_at == 23 && !badlaw);          /* AC_BREAK_NEXT at wrap */
-        CHECK(u.x < ux0 - 103.9 && u.x > ux0 - 104.1);  /* the pullback: 26
-                                                         * iterations x -4 */
+        CHECK(u.x < ux0 - 57.1 && u.x > ux0 - 57.4);  /* the pullback: the
+                                                       * 0.97^n sum = 57.21 */
         ll_plt_free(&hp);
         free(hm);
     }
@@ -3515,7 +3661,7 @@ int ll_play_selftest(void)
                " keeps its state (frames keep running), edge fall, K_GEN2"
                " landing pulse, PR-83: declared-name spawn, key-gated walk"
                " stops on release, GEN frame pulses, wrap/time= arm nothing,"
-               " horizontal impulse keeps the feet down, auto-walk stays,"
+               " horizontal pull pair keeps the feet down, auto-walk stays,"
                " PR-85: facing-relative K_FWD/K_BKWD settle through the"
                " state pair / A_TURN+AC_BREAK, PR-86: (N) = target start"
                " row, authored AC_BREAK_NEXT ends a jump at its list wrap"
@@ -3523,7 +3669,7 @@ int ll_play_selftest(void)
                " such a line), PR-87: comma groups AND (K_FIRE,K_F1"
                " attack entry - FIRE alone never fires it), PR-91: a raised"
                " AC_ENEMY_ATC drives the authored hit reaction (entry row,"
-               " pullback impulse, its OWN AC_BREAK_NEXT wrap ends it),"
+               " entry-row pull pair, its OWN AC_BREAK_NEXT wrap ends it),"
                " PR-108/148: the BY_TY climb runs the engine's input/"
                " guard law (mid-list entry row 3; with NO key held the"
                " 0x5441b mode-4 feed never runs - rows freeze, no"

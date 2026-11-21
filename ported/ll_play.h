@@ -279,8 +279,18 @@ int ll_sig_id(const char *name);
 typedef struct { int frame; unsigned thresh; int dx, dy;
                  unsigned long long gsig; unsigned char atc;
                  int has_i, ix, iy, endlv;
+                 int has_f, fx, fy;           /* PR-253 row `F x,y` tail  */
+                 int has_fc, fcx, fcy;       /* PR-253 row `FC x,y` tail */
                  short gsig_id; short gneg; short gop; } ll_mov_fr;
-                 /* has_i: `I ix,iy` impulse tail */
+                 /* has_i: `I ix,iy` row pull pair (PR-98/PR-250: with the
+                  * `F` pair it forms the one-shot 0x54170 target applied
+                  * when this row becomes CURRENT; the old "impulse" name
+                  * is retired by PR-253).
+                 * has_f/has_fc: the `F` (channel id 0, gated with I,
+                  * one-shot at row entry) and `FC` (id 1, UNGATED - the
+                  * pull re-applies every iteration the row stays current)
+                  * tails of PR-250/PR-251. The `IC` tail (id 3, force
+                  * pair) has no shipped instance's consumer modeled here. */
                  /* gsig_id / gneg: this row's `Wait <signal>` tail, kept as
                  * DATA and NOT yet acted on (PR-217). -1 = the row carries
                  * no Wait tail; -2 = a token the engine's signal table has
@@ -739,13 +749,17 @@ typedef struct { int k_fwd, k_bkwd, k_up, k_down, k_jump,
 /* Project constant, see header note; used only when airborne with a
  * CHECK_LN state that carries no authored fall route. */
 #define LL_PLAY_GRAVITY 200.0
-/* PR-74 ESTIMATES (one measured jump, NEXT_STEPS PR-73/74): a frame's `I x,y`
- * impulse is divided by LL_PLAY_JUMP_DIV to get world units/s, and a lion in
- * the air after an impulse falls at LL_PLAY_JUMP_G units/s^2 (the state's
- * G.y=55 x 30). Both reproduce the vine jump measured on video (apex ~21 u,
- * v0 ~262 u/s, g ~1640) within 5%, from a single jump. */
-#define LL_PLAY_JUMP_DIV 4
-#define LL_PLAY_JUMP_G 1650.0
+/* PR-253 replaces the PR-73/74 ESTIMATES (LL_PLAY_JUMP_DIV=4,
+ * LL_PLAY_JUMP_G=1650) with the measured unit law. The engine keeps its
+ * velocities in hundredths of a pixel per iteration (the /100 at
+ * 0x5435d/0x54370) and this port runs one iteration per LL_ITER_MS
+ * (PR-135's 50 ms clock), so one authored row-pull pair value is raw/5
+ * px/s (LL_PLAY_RAW_VDIV) and one authored G= word is raw*4 px/s^2
+ * (LL_PLAY_RAW_GMUL). These are unit conversions of measured words, not
+ * fits: the pull itself is 0x54170, byte-read in PR-98 and re-read
+ * end-to-end in PR-253. */
+#define LL_PLAY_RAW_VDIV 5
+#define LL_PLAY_RAW_GMUL 4
 /* Vertical snap tolerance while walking, BOTH directions (slope
  * following; the real .plt slopes need far less, this bounds curbs and
  * short same-height line gaps - RAN.PLT's 302->323 shelf step is 1 px
@@ -870,7 +884,8 @@ typedef struct {
                                  * (cutscene walkers: RAN A_GO_TO_BALON_*
                                  * walks on K_GEN1 with no key held)     */
     double air_from;            /* position-point y when ground was lost  */
-    int jumping;                /* PR-74: an impulse put the lion in the air */
+    int jumping;                /* a row `F`/`I` pair put the lion in the
+                                 * air (PR-253's name for that verb) */
     int support;                /* a solid object holds the feet up (set by
                                  * the collision pass, PR-59)              */
     int contact;                /* PR-97: the y BELOW this position point at

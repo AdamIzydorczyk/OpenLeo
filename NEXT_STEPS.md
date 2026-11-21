@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-253.
+> at PR-254.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -35253,4 +35253,69 @@ CORRECTS: PR-251 OPENS: "the animals' integrator variant
 block edit is a per-decl 5*[obj+0xf2] shift of G_X, with
 no read of block+0x20/+0x24.
 GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-253 — THE PULL LAW SHIPS: `F`/`I` IS ONE-SHOT AT ROW
+## ENTRY, `FC` EVERY ITERATION; THE /4 + 1650 FIT IS RETIRED
+```
+KIND: port
+SUBSYSTEM: the player's velocity - ll_play.c's row-pull pass,
+the parser's row `F`/`FC` tails, and the airborne y pass.
+ADDRESSES: 0x54170, 0x54174, 0x541e2, 0x54250, 0x54266,
+0x54325, 0x54337, 0x54340, 0x5435d, 0x52680, 0x5234a, 0x52217
+NAMES: F, FC, I, IC, pull pair, one-shot gate, OI-078, OI-015
+CODE: yes: pull_axis and apply_row_pull in ported/ll_play.c,
+the `F`/`FC` parser arms (ll_mov_fr has_f/fx/fy, has_fc/fcx/
+fcy), the reordered airborne y pass, and LL_PLAY_RAW_VDIV /
+LL_PLAY_RAW_GMUL in ported/ll_play.h replacing
+LL_PLAY_JUMP_DIV / LL_PLAY_JUMP_G.
+HOOKS: tools/jump_law_measure.py, the closed form of the
+authored jump words, asserted against the play log.
+MEASURED: (a) 0x54170 end to end (0x54174-0x541e2): from rest
+or the same sign a target t SETS the axis to t in one step;
+from the opposite sign it CLIMBS by |t| per application and
+never past; already at or past t it does nothing. (b) THE
+UNITS ARE ARITHMETIC, NOT A FIT: the engine's velocity
+registers are hundredths of a px per iteration (0x5435d), and
+this port runs one iteration per LL_ITER_MS, so a row pair is
+raw/5 px/s and an authored G= word is raw*4 px/s^2. (c) THE
+GATE: the `F`/`I` sum applies when its row BECOMES CURRENT -
+state entry or the row admit - the `[obj+0x95]` one-shot flag
+PR-250 read; `FC` is the same pair UNGATED, applied every
+iteration its row stays CURRENT, after the G term and the
+sign-cross zero, in the integrator's own order (PR-252).
+(d) TEST FIRST: the new tool derives the closed form of
+ZARIA.01's OWN A_JUMP words (`I 150,-1200` + `T=20,1` +
+`G=0,55`) and asserts it on the run: 108.0 px above the 649
+line, 20 climbing iterations, air 22. It was RED at HEAD,
+where the fit reaches 20 px. (e) WHAT THE LAW MOVES, all of
+it its own arithmetic: A_DOSTAL's `I -320,-250` meets a walk
+of +50 u/s and lands the axis on -14, so the hit is a flinch
+with a 3.9 px hop on the state's own `T=3,3`/`G=-50,55`
+instead of the fit's -80 u/s slide, and the DANGER leg's
+second chain shifts 98/114/115/133 -> 93/109/110/128;
+A_FIGHT's `FC 100,0`/`FC 90,0` rows step the punch forward
+14 px (50 -> 64); A_TURN's `I 100,0` SETS 20 u/s, not 25.
+Every leg and selftest number that carried those values is
+re-pinned in this same commit.
+OPENS: none new. The unit tension this exposes - 108 px for
+ZARIA's authored A_JUMP against the ~24 u PR-73/74 measured on
+another level's jump - is counted on OI-015's row; the `IC`
+force pair still has no consumer modelled; the pull X keeps
+the facing multiply as the stand-in for the unread
+[obj+0x6d] terrain scalar; and the port applies a row pull
+one iteration later than the engine's merge -> integrator
+same-iteration order (PR-100's one row per step plus PR-252's
+call order), a named port artifact, not fixed.
+CLOSES: none.
+CORRECTS: PR-251's "apex 109 px ... the authored ladder point
+is 507, 34 px above it" - the number stands (108), the reason
+does not: the row 0/1 `F 0,350` heads break the ground
+contact one row BEFORE the `I` admit, the run's own apex is
+541 from the 649 line, and the list wrap now exits MID-AIR
+(A_WALK at 144,549, grounded 0, at tick 63). The climb still
+needs the A_PRE_JUMP/A_JUMP_S route, and the next step is
+unchanged: the ask channel.
+GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
 ```
