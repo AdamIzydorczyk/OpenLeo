@@ -1233,6 +1233,35 @@ OI-078: the in-game ZARIA.01 climb: what raises K_GEN1 on a
     the row's next step is the ask-channel port (the
     requester's CHECK_ANI/CHECK_ZW matched with o->src,
     replacing the shape-meet ask sites).
+    PR-254 SHIPS THAT ASK CHANNEL. play_collide's non-solid
+    pass is split the way the engine is: the paired-shape test
+    stays where the meet actually lives (the animals' own
+    answer entry 0x552e0 -> 0x53ae0, the port's
+    obj_touch_enemy), and the ask - the requester's
+    CHECK_ZW/CHECK_ANI bits matched with o->src, the plane,
+    the self skip - now runs with NO shape test at all. It is
+    measured with a new opt-in probe (LEO_PLAY_ASK=1, stderr,
+    pinned by the verify-play ly_zask leg): in the ZARIA.01
+    `1:FWD 100:JUMP 122:NONE` run 120 ask steps reach the
+    DRABINKA at its declared state 1 = the flag branch, every
+    one of them without a meet. What stands is now only
+    0x44ec0's point gate, and the numbers say how close: at
+    tick 119 the authored point 213,507 is tested against the
+    lion's live box 188,509..235,575 - x covered, y short by
+    2 px. The 2 px are named, not fitted: (i) the engine's box
+    is the CURRENT STATE's extents (0x534e0 through the class
+    verbs +0x48/+0x50), the port's is the current frame's
+    shape margins; measured over ZARIA's 11-frame A_JUMP list
+    the extents are top -34 / bottom +34 against that frame's
+    -31 / +32, one px of the gap; (ii) the surface under the
+    ladder's own column is the 650 line (the .plt line steps
+    649 -> 650 at x 180), so the take-off for an apex under
+    that point is 1 px lower. K_GEN1 still never fires, so the
+    `A_DROP(1)=K_GEN1` line and the `WAIT K_GEN1` row still
+    wait. NEXT: the asker's box as the state's extents (test
+    first, the ly_zask leg is the failing test), then the
+    AC_DRAB/AC_DRABK half of 0x3f214.
+
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
   recovery on the next input?)

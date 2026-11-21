@@ -5201,6 +5201,16 @@ static void player_shape_box(play_ctx *pl, const ll_seq *lseq,
     ab[3] = ab[1] + bh0;
 }
 
+/* PR-254: the ask-channel probe switch (LEO_PLAY_ASK=1), read once. */
+static int ask_probe(void)
+{
+    static int cached = -1;
+
+    if (cached < 0)
+        cached = getenv("LEO_PLAY_ASK") ? 1 : 0;
+    return cached;
+}
+
 static void ladder_ask_raise(lvl_obj *o, const int ab[4], int verbose,
                              int tick)
 {
@@ -5236,6 +5246,22 @@ static void ladder_ask_raise(lvl_obj *o, const int ab[4], int verbose,
             hit = 1;
             break;
         }
+    /* PR-254: the ask-channel probe, opt-in (LEO_PLAY_ASK=1). This is the
+     * only place where "the pair was asked" and "the raise happened" are
+     * different facts: the engine's walk 0x4b500 asks, and 0x44ec0's point
+     * test is what decides. Before this PR the question never got asked
+     * (the ask sites were shape-meet tests, PR-249), so the CI leg that
+     * pins the ladder chain needs to see the ask itself, not only its
+     * answer. stderr, so a --play log stays what it was. */
+    if (ask_probe())
+        fprintf(stderr, "ll_level: play tick %d: asked ladder %s/%s at"
+                " state %d: %s %d,%d tested against the asker's live box"
+                " %d,%d..%d,%d -> %s (0x4b500 -> 0x3f1c0 -> 0x44ec0)\n",
+                tick, o->sc->leaf, o->sc->movname,
+                o->sc->mov->st[o->sti].decl_idx,
+                o->npts ? "its authored contact point" : "NO authored point",
+                o->npts ? o->cpx[0] : 0, o->npts ? o->cpy[0] : 0,
+                ab[0], ab[1], ab[2], ab[3], hit ? "PASS" : "no");
     if (!hit)
         return;                       /* 0x3f1fb: je 0x3f364, the tail */
     ladder_flag_raise(o);
@@ -5569,17 +5595,27 @@ static void play_collide(play_ctx *pl, const lvl_obj *objs, int nobj,
                 continue;
             if (o->layer != pl->layer && !(ls->ctrl & LL_CTRL_CHECK_ALL_PLANE))
                 continue;
+            /* PR-254 SPLITS THIS TEST IN TWO, the way the engine does.
+             * The paired-shape meet is NOT how a pair gets asked: the
+             * requester's walk 0x4b500 goes from ITS CHECK_ZW/CHECK_ANI
+             * bits (the gates above) through the instance arrays into the
+             * candidate's answer entry +0x78 with NO shape test at all
+             * (PR-249). The meet test 0x53ae0 the port used to stand in
+             * for the ask lives INSIDE the animals' own answer entry
+             * 0x552e0 - so it stays, but as what the animal does when it
+             * is asked, never as the ask. That is why the ladder was
+             * unreachable: no shipped ladder state is a solid, and its
+             * frames do not meet the lion. */
             int om;
             const ll_seq *oseq = NULL;
             const ll_seq_elem *oe = obj_shape_elem(o, &om, &oseq);
-            if (!oe)
-                continue;
-            int d1, d2;
-            ll_seq_shape_push2(oseq, oe, o->x, o->y, om ? -1 : 1,
-                               lseq, le, lx2, ly2, lm ? -1 : 1, &d1, &d2);
-            if (d1 == 0 && d2 == 0)
-                continue;                       /* no shape meet: no touch  */
-            obj_touch_enemy(o, verbose, tick);
+            int d1 = 0, d2 = 0;
+            if (oe)
+                ll_seq_shape_push2(oseq, oe, o->x, o->y, om ? -1 : 1,
+                                   lseq, le, lx2, ly2, lm ? -1 : 1,
+                                   &d1, &d2);
+            if (d1 != 0 || d2 != 0)             /* the animal's own test  */
+                obj_touch_enemy(o, verbose, tick);
             if (ladder_class(o)) {
                 /* PR-150: same answer path for a NON-solid ladder
                  * state - the engine's candidate walk is not gated on

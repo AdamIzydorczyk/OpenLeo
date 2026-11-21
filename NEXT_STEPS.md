@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-254.
+> at PR-255.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -35317,5 +35317,81 @@ contact one row BEFORE the `I` admit, the run's own apex is
 needs the A_PRE_JUMP/A_JUMP_S route, and the next step is
 unchanged: the ask channel.
 GATE: make 0 warnings; verify-all fixtures rc=0 65 (ok);
+GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
+```
+
+## PR-254 — THE LADDER IS ASKED NOW: THE REQUESTER'S CHANNEL,
+## NOT A PAIRED-SHAPE MEET
+```
+KIND: port
+SUBSYSTEM: the level's contact pass - play_collide's ask walk
+for a NON-solid candidate, and the ask sites it reaches.
+ADDRESSES: 0x4b500, 0x4bd81, 0x4b970, 0x23140, 0x3f1c0,
+0x3f203, 0x44ec0, 0x23e00, 0x53ae0, 0x552e0, 0x534e0, 0x23a20
+NAMES: CHECK_ANI, CHECK_ZW, src, candidate, ask channel, shape
+meet, contact point, live box, flag branch, OI-078
+CODE: yes: play_collide's non-solid pass, split into the
+candidate's own meet test (obj_touch_enemy, unchanged) and the
+ask, which no longer tests shapes; and ask_probe(), the
+LEO_PLAY_ASK=1 line in ladder_ask_raise that reports an ask
+with its point gate (ported/ll_level.c).
+HOOKS: the verify-play ladder-ask leg (ly_zask.log): the
+ZARIA.01 FWD-100-then-JUMP run with the probe on.
+MEASURED: (a) WHAT THE ENGINE DOES, PR-249's read, now shipped:
+the requester's walk 0x4b500 iterates the class group's
+instance arrays, filters the candidate's [cand+0x2c] and the
+plane, skips self, and calls the candidate's answer entry
++0x78 with ebx = the requester. There is NO shape test in that
+walk; the meet test 0x53ae0 the port was using lives inside the
+animals' own entry 0x552e0. The port's two ask sites were both
+behind ll_seq_shape_push2, and no shipped ladder state is
+SOLID, so the ask was unreachable - that was OI-078's named
+blocker, and the split is what closes it. (b) THE REQUESTER
+GATES WERE ALREADY RIGHT and are what remains: the state's
+CHECK_ZW for src 0 (zwierzaki=), CHECK_ANI for src 1
+(animacje=), the plane, and the self skip. (c) MEASURED ON
+REAL DATA, ZARIA.01, script `1:FWD 100:JUMP 122:NONE`: 120
+ask steps reach the DRABINKA, every one of them WITHOUT a shape
+meet (the lion is ~100 px above its 42x48 art at 180,510), and
+the candidate is at its declared state 1 = the flag branch.
+0x44ec0's point gate then decides: at tick 119 the authored
+point 213,507 is tested against the lion's live box
+188,509..235,575 - the x span covers it, the y misses by 2 px,
+so 0x3f203 does not fire and its `A_DROP(1)=K_GEN1` line and
+the `1,0,WAIT K_GEN1` row (PR-217) still never run. (d) THE
+2 px, measured rather than guessed: the arc apexes at pos
+209,542 because the surface under the ladder's column is the
+650 line - the .plt surface steps 649 -> 650 exactly at x 180 -
+and the port's live box is the CURRENT FRAME's shape margins
+(-31..+32 on that frame). Measured over the same state's whole
+11-frame list the extents are top -34 / bottom +34, which is
+1 px of the 2. (e) NOTHING ELSE MOVED: the meet still gates the
+enemy touch, so no other leg's log changed; verify-play is
+green with the new leg. The gate's "(ok)" count moves 65 -> 66
+because this PR adds a leg, and the probe writes to stderr so
+the --play logs are byte-for-byte what they were.
+OPENS: the last pixel, on OI-078: the engine's live box is the
+CURRENT STATE's extents (0x534e0 reads them through the class
+verbs +0x48/+0x50), the port's is one frame's shape margins -
+1 px; and the ladder's own column sits on the lower of two
+ground lines 1 px apart, which is the other. Both are named and
+measured, neither is fitted. Also counted, unchanged: nothing
+models [cand+0x2c] (the node the broad phase 0x4b970 sets from
+the authored rect against a layer's active window), so the port
+asks every candidate the requester's bits allow; only the LION
+asks; and the AC_DRAB/AC_DRABK answer half of 0x3f214 is still
+the next-but-one step.
+CLOSES: PR-249's NEXT line - "drive the ask per step from the
+requester's CHECK_ANI/CHECK_ZW bit matched with o->src, not
+from the solid-contact shape meet".
+CORRECTS: PR-150's parenthetical "(i) the authored A_WALK token
+carries no CHECK bit for the ladder's list ... zero answer
+calls": measured, ZARIA's A_WALK/A_JUMP spell CHECK_ALL, which
+PR-231 expands to ANI|ZW|LN, so the requester gate is open and
+the ask count in that run is 120. What stood was the shape
+test, never the gate. It also corrects PR-248's "the port's
+shape meet stands for [obj+0x2c]": the meet is not the ask and
+not that filter either; it is the animal's own internal test.
+GATE: make 0 warnings; verify-all fixtures rc=0 66 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
 ```

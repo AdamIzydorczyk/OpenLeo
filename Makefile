@@ -1699,6 +1699,60 @@ ifeq ($(PX_DATA),1)
 	  || { echo "play ZARIA jump cam-y grep FAILED"; \
 	       grep -E 'tick (62|63|69|70|82):' /tmp/opencode/ly_zjump.log \
 	         /tmp/opencode/ly_zland.log; exit 1; }
+# PR-254, FOCUS 1 / OI-078: THE ASK IS A REQUESTER-CHANNEL WALK, NOT
+# A SHAPE MEET. PR-249 found the port never asks the ladder at all:
+# its two ask sites sat behind a paired-shape test, while the engine's
+# walk 0x4b500 goes from the REQUESTER's CHECK_ZW/CHECK_ANI bits
+# through the instance arrays straight into the candidate's answer
+# entry +0x78 with NO shape test anywhere (the animals' meet test
+# 0x53ae0 lives INSIDE their own entry 0x552e0, which is where the
+# port keeps obj_touch_enemy). The ladder's states are BY_TIME with no
+# SOLID, and its 42x48 art at (180,510) never meets a lion standing
+# on the 650 line under it, so no pair ever reached it. The probe line
+# this leg greps is new with this PR (LEO_PLAY_ASK=1, stderr): it is
+# the only place where "the pair was asked" and "the raise happened"
+# are different facts, which is exactly the distinction the engine
+# makes. ZARIA.01's authored ladder carries one contact point,
+# (213,507) (PR-242: made absolute at load by 0x44e90, tested against
+# the asker's live box at 0x23e00), and the PR-253 arc is the first
+# the port reaches that gets near it: from FWD 100 the A_JUMP apexes
+# at pos 209,542 and the live box on that frame is 188,509..235,575 -
+# it spans the point's x and misses its y by 2 px. So the ask channel
+# is open now (120 candidate steps in this run, every one of them
+# WITHOUT a shape meet - the lion is 100 px above the ladder's art)
+# and what stands between it and K_GEN1 is 0x44ec0's point gate. RED
+# before this PR: zero ask lines at any script. The 2 px are the named
+# next step: the engine's box is the CURRENT STATE's extents (0x534e0
+# reads them through the class verbs +0x48/+0x50) and the port's is
+# the CURRENT FRAME's shape margins; measured over ZARIA's 11-frame
+# A_JUMP list the extents are top -34 / bottom +34 against that
+# frame's -31 / +32, which is 1 px of the 2, and the last one is the
+# ground: the .plt surface steps 649 -> 650 at x 180, the ladder's own
+# column, so the take-off for an apex under that point is on the lower
+# line.
+	@env -u DISPLAY SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+	  LEO_PLAY_ASK=1 LEO_HD_DIR=$(HD) LEO_HELP_SECS=0 LEO_LEVEL_SECS=8 \
+	  LEO_PLAY_SCRIPT="1:FWD 100:JUMP 122:NONE" \
+	  LEO_LEVEL_PPM=/tmp/opencode/ly_zask.ppm LEO_LEVEL_PPM_TICK=120 \
+	  ./ll_level $(DATA) ZARIA.01 --play --no-audio \
+	  > /tmp/opencode/ly_zask.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then echo "play ZARIA ladder ask FAILED (rc=$$rc)"; \
+	    cat /tmp/opencode/ly_zask.log; exit 1; fi
+	@grep -q 'play tick 119: state A_JUMP seq jump frame 8 pos 209,542 grounded 0' \
+	    /tmp/opencode/ly_zask.log \
+	  && grep -qE 'play tick 119: asked ladder DRABINKA/drab\.mov at state 1: .*213,507.*188,509\.\.235,575 -> no' \
+	      /tmp/opencode/ly_zask.log \
+	  && ! grep -q 'raises K_GEN1 on itself' /tmp/opencode/ly_zask.log \
+	  && echo "play ladder ask (PR-254): the ask walks from the lion's" \
+	     "CHECK_ANI bit with no shape test at all, it reaches the" \
+	     "DRABINKA at its declared state 1 = the flag branch, and only" \
+	     "the authored point gate (0x44ec0 -> 0x23e00) stands between" \
+	     "that and K_GEN1 - its `A_DROP(1)=K_GEN1` line and the" \
+	     "`1,0,WAIT K_GEN1` row that has waited since the level began" \
+	     "(PR-217) are the two lines that would then run (ok)" \
+	  || { echo "play ZARIA ladder ask grep FAILED"; \
+	       grep -E 'asked ladder|tick 119:' /tmp/opencode/ly_zask.log; \
+	       exit 1; }
 # PR-87: the fire-family keys + comma-group AND semantics on REAL data.
 # ZARIA's attack entry is literally `A_FIGHT(1)=K_FIRE,K_F1` ("fire
 # WHILE weapon 1 is selected" - the AND reading is argued in
