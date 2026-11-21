@@ -1496,6 +1496,30 @@ OI-078: the in-game ZARIA.01 climb, now MOVING to the top at
     side of that word at all - and the name resolver 0x48000
     gives K_ANY the mask of those six keys minus K_ALT and
     K_NEVER the mask of K_UP,K_DOWN.
+    PR-261 closes that op-byte question and finds a FOCUS 1 gap
+    in the same place. A .MOV transition line is compiled at
+    0x51e4d through the thunk 0x49610 into the clause parser
+    0x47d60, so an authored condition IS a 13-byte TEventSet,
+    carried in the state record's vector at [rec+0x1a] as the
+    21-byte entries 0x52000 walks, and matched with the
+    ENTRY's op byte: ',' folds names into one mask with op 0
+    (ALL of them), '!' sets op 1 (NONE), '|' sets op 3 (ANY).
+    The port's grammar (parse_cond ll_play.c:398,
+    obj_cond_true ll_level.c:825: OR-of-AND-groups with a
+    per-name neg) agrees with the engine on every shipped
+    shape except 7 clauses that mix '|' with a ',' list
+    (ENA.03 A_TO_SWIM twice, ENA2 A_WALK, KADMAR.07 and
+    ZARIA.02's two texts A_DRAP, KADMAR2 A_UPADEK) - the
+    census over all 777 texts is in the PR-261 record. The
+    live gap is K_ANY: 41 clauses ask for it, 40 written
+    `=|K_ANY` = "any key pressed", and the port only records
+    it (LL_GOP_ANY) - no evaluator reads gop, so every one of
+    those rows is dead, including 8 in ZARIA.01's own lion
+    (A_WALK(x), A_DEAD(33), A_DRAP(1), A_BORRING(10) in each
+    of ZAR_LEW.MOV and ZAR_LEWPL.MOV). The six keys that mask
+    names are exactly the intent words this port already
+    carries, so a leg is writable; the mechanism row is
+    OI-114.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel
@@ -2006,8 +2030,11 @@ OI-111: which row-step path the port's row clock models -
     (0x47e63) is true when (self AND other) EQUALS self byte
     for byte, i.e. the clause is a SUBSET of the set handed
     to it; mode 1 (0x47edc) when the AND is EMPTY (shares
-    nothing); mode 2 (0x47f42) when it is NOT empty; mode 3
-    (0x47fb2) when the two sets are byte-identical. (3) The
+    nothing); mode 2 (0x47fb2) when the two sets are
+    byte-identical; mode 3 (0x47f42) when the AND is NOT
+    empty - PR-261 re-read the table at 0x47e30, whose slots
+    send 2 to 0x47fb2 and 3 to 0x47f42, the pairing this row
+    had the other way. (3) The
     row step 0x521f0 asks the ROW object ([rec+0x2e][rec+0x4],
     class 0xa2638) through its test slot +0x8, which IS the
     chain delegate 0x45800; the ctor 0x45780 stores each
@@ -2303,3 +2330,56 @@ OI-113: the engine control bit table is read (PR-230) and the
     the class groups at [ds:0xa94ec]/[ds:0xcef44] through the
     shared walk 0x4b500. CHECK_BASE_LN is 0x4000 (0x51ca9),
     not 0x400000; CHECK_ALL_PLANE is 0x8000 (0x51d2b).
+
+OI-114: the OPERATION byte of a compiled transition condition is
+  read end to end (PR-261) and is not modelled: one mask plus
+  one op (0 all, 1 none, 2 exactly, 3 any), where this port
+  splits '|' into AND-groups and never tests K_ANY's mask
+  status: OPEN
+  origin: PR-261 (the mechanism itself is OI-111 items (1) and
+    (2); what is new here is the compiler path, the corpus
+    census, and the K_ANY consequence)
+  notes: The chain, all read: the state block's transition line
+    at 0x51e07 resolves the target state (0x53440), captures
+    the `(...)` text (0x9225c, copied by 0x57fd0) and calls
+    0x51e4d -> the thunk 0x49610 (`call 0x47d50`, then
+    `mov [eax+0xd], ebx` = the target index, `mov [eax+0x11],
+    ecx` = that captured text), and 0x47d50 calls the clause
+    parser 0x47d60. 0x47d60 clears the op byte and the 12 mask
+    bytes (0x47d73, 0x47d77), pulls tokens with 0x57d30 and
+    the format ` %[^, \r\n\t]` (0x919bc), resolves names
+    through 0x48000 - which has exactly ONE caller in the
+    image, 0x47de5 here - and writes the operation for the
+    whole mask: '!' -> 1 (0x47dd0/0x47dc8), '*' -> 2
+    (0x47dc2), '|' -> 3 (0x47dbc); a ',' (0x47dfd) folds the
+    next name into the same mask and leaves the byte alone. No
+    second mask, no node tree. The 21 bytes are then pushed
+    into the record's vector at [rec+0x1a] (0x51e54, `rep
+    movs` 5 dwords + 1 byte).
+    Corpus census (PR-261, script /tmp/opencode/pr261_census.py
+    over the 777 .MOV texts): 409 texts carry transition
+    clauses, 2764 clauses, 429 naming two or more signals. 87
+    use '!' and NONE of them combines it with ',' or '|'; 47
+    use '|'; 0 use '*'; 0 name K_NEVER. Exactly 7 clauses mix
+    '|' with a ',' list - the only shipped rows where
+    "any of A,B,C" (the engine) and "(A and B) or C" (the
+    port) differ. K_ANY appears in 41 clauses, 40 as `=|K_ANY`
+    and once as `!K_ANY`; PR-260 read that mask (signals
+    35..39 + 53 = K_BKWD, K_FWD, K_UP, K_DOWN, K_FIRE,
+    K_JUMP), which is "any key" exactly under op 3 and "all
+    six at once" under the default op 0 - the corpus writing
+    the pipe 40 times out of 41 is the data-side proof of the
+    operation table.
+    The port: parse_cond (ll_play.c:398) splits '|' into
+    groups and ',' into terms with a per-term neg, and
+    obj_cond_true (ll_level.c:825) ORs the groups. Equivalent
+    on every shipped shape but those 7. The real hole is
+    LL_GOP_ANY (set at ll_play.c:453, matched by the PR-218
+    selftest only): nothing evaluates gop, so all 41 K_ANY
+    clauses are dead rows. Two separable changes, each with
+    its own leg: (a) carry the operation with the compiled
+    clause instead of the group split; (b) test K_ANY as
+    "intersects the input-key mask", whose six bits are the
+    intent words the port already keeps (the horizontal word,
+    PR-259's vertical word [obj+0xbe], and the fire/alt/jump
+    flags of 0x54910's [obj+0xa5]).

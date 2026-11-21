@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-261.
+> at PR-262.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -36105,5 +36105,147 @@ the bit's ORDINAL, the mask is always computed by the /32
 addressing, and the only stored mask constants are K_ANY's
 and K_NEVER's, which PR-88 called non-bits and which do
 carry whole masks.
+GATE: light: verify-index verify-docs rc=0 (ok);
+```
+
+## PR-261 — AN AUTHORED TRANSITION CONDITION IS COMPILED
+## INTO A TEventSet: '!' IS DISJOINT, '|' IS ANY, ',' IS ALL,
+## AND THE PORT'S GRAMMAR DIFFERS ON SEVEN SHIPPED CLAUSES
+```
+KIND: read
+SUBSYSTEM: the transition condition of a .MOV state block -
+the authored text to the 21-byte entry the record walk
+matches, and what the engine's four operations mean for this
+port's condition grammar (parse_cond / obj_cond_true).
+ADDRESSES: 0x47d50, 0x47d60, 0x47d73, 0x47d8c, 0x47d9c,
+0x47da9,
+0x47db2, 0x47dbc, 0x47dc2, 0x47dc8, 0x47dd2, 0x47de0, 0x47dfd,
+0x48000, 0x495e2, 0x49610, 0x51e07, 0x51e13, 0x51e2a, 0x51e36,
+0x51e43, 0x51e54, 0x51e8f, 0x52000, 0x52033, 0x53440, 0x53815,
+0x57d30, 0x57fd0, 0x919bc, 0x9225c, 0x9229c, 0x922ba
+NAMES: TEventSet, the op byte, subset / disjoint / equal /
+intersects, '!', '*', '|', ',', K_ANY, K_NEVER, AC_BREAK_NEXT,
+[rec+0x1a], the 21-byte entry, parse_cond, obj_cond_true,
+LL_GOP_ANY, OI-078, PR-87, PR-88, PR-100, PR-101, PR-260
+CODE: no: no line of `ported/` changes. The two gaps this
+record counts - the group grammar, which differs on 7
+clauses, and the K_ANY mask, which 41 clauses ask for and
+this port never tests - are separate changes with separate
+legs and are put on OI-078, not bundled into a read record.
+HOOKS: no red leg: nothing in `ported/` moved. What the record
+rests on is the byte-level reading below, one whole-image scan
+(0x48000 has exactly one caller), and a census over the 777
+texts whose script is kept at /tmp/opencode/pr261_census.py.
+MEASURED: (a) THE COMPILER. A .MOV state block's transition
+line is read at 0x51e07: the target state's NAME is resolved
+to its declared index with 0x53440 (PR-216's one-based list),
+the text inside the parentheses is captured by the scanf
+format at 0x9225c (' ( %[^) ] %*[)] = ') and copied by
+0x57fd0, and the condition text after '=' is handed in edx.
+0x51e4d then
+calls 0x49610, which is a 10-byte thunk sitting in the padding
+right after the 21-byte entry initializer 0x495e2:
+`call 0x47d50 / mov [eax+0xd], ebx / mov [eax+0x11], ecx /
+ret`. 0x47d50 saves the set pointer and calls 0x47d60 - the
+clause parser - so the entry IS a TEventSet, exactly the 13
+bytes 0x495e2 clears plus the two payload dwords. The finished
+21 bytes are pushed into the state record's vector at
+[rec+0x1a] (0x51e54 `lea eax,[esi+0x1a]`, the vector's
+{data,size,capacity} header, `rep movs` of 5 dwords + 1 byte,
+size at +0x8 = the count 0x52000 reads) - PR-101's table.
+(b) THE OP BYTE IS AUTHORED. 0x47d60 (eax = the set, edx = the
+text) starts by writing 0 to the op byte at +0xc and memsets
+the 12 mask bytes (0x47d73, 0x47d77). It then pulls tokens
+with 0x57d30 and the format ` %[^, \r\n\t]` (0x919bc) and
+looks at the first character: an ordinary name goes to 0x47de0
+and 0x48000, which ORs that bit into the SAME mask; a ',' is
+answered at 0x47dfd by taking the next token into the same
+mask; and the three operator characters write the op byte of
+the whole set - '!' at 0x47dd0/0x47dc8 sets 1, '*' at
+0x47dc2 sets 2, '|' at 0x47dbc sets 3, and any of them then
+falls through to 0x47de0 so the name after it joins the same
+mask. There is no second mask and no node list: one mask, one
+operation, last operator wins. Since 0x48000 has exactly ONE
+caller in the whole image (0x47de5, inside 0x47d60), this
+function is the only place a signal name becomes a bit - the
+GEN and Wait clause objects of PR-217/218 are its only other
+users (0x46b2f, 0x46b9d).
+(c) WHAT THE OPERATIONS DO, restated from PR-260 (b) with the
+authoring side: op 0 (subset) = every named bit must be in the
+live set, so `A,B` means BOTH; op 1 (disjoint) = none of them
+may be, so `!A` means A is absent; op 3 (intersects) = at
+least one, so `A|B` means EITHER; op 2 (equal) = exactly that
+set. 0x52000 uses the entry's own op byte (match's A side)
+against the object's composed key, first match wins.
+(d) THE DATA, counted over all 777 texts (script named in
+HOOKS): 409 texts carry at least one transition clause, 2764
+clauses in all, 429 naming two or more signals. 87 clauses use
+'!' - and none of them combines it with ',' or '|', so the
+per-name reading is unambiguous in every shipped case. 47 use
+'|', 40 of them as the single token `K_ANY`; 7 combine '|'
+with a ',' list: ENA.03 A_TO_SWIM(1)=|K_JUMP,K_UP (twice),
+ENA2 A_WALK(1)=|K_FWD,AC_BREAK_NEXT, KADMAR.07 and ZARIA.02's
+two texts A_DRAP(1)=|K_GEN1,AC_BREAK_NEXT, KADMAR2
+A_UPADEK(1)=|AC_DUP,AC_TIME. No clause anywhere uses '*', and
+none names K_NEVER; K_ANY appears 41 times, 40 with '|' and
+once as `!K_ANY` (SADES.06 A_LAY(1)). ZARIA.01's own lion
+texts carry 8 `=|K_ANY` rows (A_WALK(x), A_DEAD(33),
+A_DRAP(1), A_BORRING(10) in each of ZAR_LEW.MOV and
+ZAR_LEWPL.MOV).
+(e) WHY `|K_ANY` IS THE PROOF. PR-260 (f) read K_ANY's mask:
+signals 35..39 and 53 = K_BKWD, K_FWD, K_UP, K_DOWN, K_FIRE,
+K_JUMP - the six keys the input bridge 0x54910 builds from
+[obj+0xa5]/[obj+0xb6]/[obj+0xbe]. With the default op 0 that
+mask would mean "all six keys at once", which is nonsense as a
+row condition; with op 3 it means "any key", which is exactly
+what a `A_WALK = |K_ANY` row wants. The authors write the pipe
+40 times out of 41 - the corpus itself confirms the operation
+table, and `!K_ANY` = "no key pressed" confirms op 1 the same
+way.
+(f) THE PORT, and the two places it differs. parse_cond
+(ll_play.c:398) splits on '|' into AND-groups and ',' into
+terms with a per-term neg, and obj_cond_true (ll_level.c:825)
+ORs the groups. Case by case that is the same engine law for
+every shipped shape except the 7 of (d): bare names are AND
+(subset), '!' is neg (disjoint, and no shipped clause mixes it
+with a list), a lone '|' is OR (intersects over single-term
+groups); only `A,B|C` diverges - the engine asks for ANY of
+A, B, C, the port for (A AND B) OR C. The second gap is
+bigger: the port records K_ANY as LL_GOP_ANY (ll_play.c:453)
+and NOTHING evaluates gop, so all 41 clauses are dead rows,
+including ZARIA.01's 8.
+OPENS: in order: (i) the signal-set lifetime PR-260 put first
+- still first, and now measurable in one leg that carries the
+op byte too, since a row's condition and a persistent set
+are read by the same 0x47e40 call; (ii) the
+K_ANY gap as a FOCUS 1 item: the six keys of PR-260 (f) are
+words this port already carries (the intent words of PR-259),
+so an "intersects the input key set" leg is writable, and it
+would light 8 dead rows in ZARIA.01; (iii) what the entry's
++0x11 really is downstream: the .MOV line compiler stores the
+heap copy of the `(...)` text there (0x51e36, 0x49610), while
+PR-101 read that slot as a row index, and 0x53815's
+`%[^,], %[^,],%d,%d` (0x9229c) is a second reader of the same
+4-field shape that was not followed; (iv) the 7 diverging
+clauses of (d); (v) the rest of the OI-078 list unchanged.
+CLOSES: PR-260's open item (i) - who writes the op byte of a
+compiled condition: the clause parser 0x47d60 writes it from
+the authored '!', '*' and '|' at 0x47d73/0x47dbc/0x47dc2/
+0x47dc8, and the transition entries carry it from there into
+the walk 0x52000. It also settles the shape of the test the
+port has been standing in for: a condition is ONE mask and ONE
+operation, not a tree of nodes.
+CORRECTS: PR-88's "'|' starts another node (OR)" and the
+"OR-of-AND-groups" grammar PR-87 shipped as the engine's: the
+pipe only sets the operation byte of the one mask, and the
+engine has no second node; PR-101's "[entry] +0x11 = a row
+index" - on the .MOV path the value stored there is the heap
+copy of the text captured from the parentheses (0x51e2a-
+0x51e43, `mov [eax+0x11], ecx` in 0x49610); and PR-217/218's
+framing of `GEN`/`Wait` as the only TEventSet users - they
+are two of three, the third being every transition row; and
+the arm pairs of OI-111 item (2), which the table at 0x47e30
+sends the other way: op 2 is 0x47fb2 (byte-identical) and
+op 3 is 0x47f42 (the AND is NOT empty).
 GATE: light: verify-index verify-docs rc=0 (ok);
 ```
