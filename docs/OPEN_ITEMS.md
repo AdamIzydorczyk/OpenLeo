@@ -621,12 +621,14 @@ OI-077: fixture hygiene: the five drawn-anchor test legs use a
 
 === gameplay behavior + capture-needed ============================
 
-OI-078: the in-game ZARIA.01 climb, now MOVING (PR-259 ships
-  0x542cd's y force): the chain reaches the ladder's authored
-  contact point and stops there, so the lead is what the
-  DOWNED rope (index 2) answers on the ticks it says nothing
-  on - 0x3f1c0's [obj+0x54] asker memory and the lifetime of
-  the raised bits - and the top of a climb,
+OI-078: the in-game ZARIA.01 climb, now MOVING to the top at
+  1 px per iteration (PR-259 ships 0x542cd's y force) and
+  stopped there by the PORT's own signal clear, not by the
+  engine (PR-260: the live set at [obj+0x60] is a TEventSet
+  and NOTHING in the image lowers a bit): the lead is the
+  per-iteration `p->sig = 0` / `o->sig = 0` and who writes
+  the match-op byte of a compiled row entry, then the top of
+  a climb,
   `A_PODCIAG(1)=AC_EDGE,K_UP` with AC_EDGE unmodelled (what
   raises K_GEN1 was PR-257: the lion's own rows, and
   `A_WSP(3)=AC_DRAB_CATCH,AC_ONAIR` is CLOSED as a non-lead,
@@ -1454,6 +1456,46 @@ OI-078: the in-game ZARIA.01 climb, now MOVING (PR-259 ships
     memory), the lifetime of the port's player signal set
     against the engine's persistent 12 bytes at [obj+0x60],
     0x54c00, then AC_EDGE / A_PODCIAG at the top.
+    PR-260 reads that set to the byte and turns the tail of
+    the paragraph above into the PORT's deviation. The live
+    set is a TEventSet: 12 mask bytes at [obj+0x60] plus a
+    match-OP byte at [obj+0x6c] (PR-258's "count byte" -
+    corrected: 0 subset, 1 disjoint, 2 equal, 3 intersects,
+    >3 the error branch at 0x47fd8, whose string is
+    "TEventSet::match :Bledna operacja"). 0x47e40 is that
+    test, four operations over the same three-dword layout,
+    and it has exactly two users: the transition-list walker
+    0x52000 (21-byte entries = TEventSet + two payload
+    dwords, at [[record+0x1a]], count [record+0x22]) and
+    PR-100's row step, which asks match(row's own compiled
+    condition key, the object's live blob OR the caller's
+    key). RAISED BITS ARE NEVER LOWERED: raises OR a bit
+    straight into the blob (0x3f203, 0x3b5f3 = bit 54), the
+    per-frame key assembler 0x536f0 ORs two more masks in and
+    zeroes nothing, every write that clears those bytes is an
+    allocator/ctor path (0x32535, 0x32825 after 0x52860;
+    0x4457b), and the dedicated 21-byte clear 0x495e2 has
+    ZERO references in the shipped image (no data site holds
+    its address, no rel32 call/jmp targets it). So the engine
+    still holds tick 296's AC_DRAB when A_WSP's
+    `A_FALL_DOWN(1)=!AC_DRAB` row is evaluated and cannot
+    take him down; the port clears p->sig (ll_play.c:1327)
+    and o->sig (ll_level.c:1020) every tick, and that is what
+    ends the climb at 298. Two questions come before dropping
+    the clear in PR-261: who sets the op byte of a COMPILED
+    condition (the row class's slot +8, `call [[row+4]+8]` at
+    0x52235, fills the key - the clause parser's `!` tag at
+    0x47d60 has no read path to +0xc, and `!AC_DRAB` as op 1
+    versus op 3-negated is not the same test), and re-deriving
+    the AC_TIME / K_GENn / AC_BREAK_NEXT legs a persistent
+    set would move. New and unmodelled from the same read:
+    the input-key builder 0x54910 maps [obj+0xa5] bits 0/4/5
+    to K_FIRE/K_ALT/K_JUMP, [obj+0xb6] bit 4 to K_FWD else
+    K_BKWD, and the vertical-intent word [obj+0xbe] to K_UP
+    (negative) and K_DOWN (positive) - the port has no signal
+    side of that word at all - and the name resolver 0x48000
+    gives K_ANY the mask of those six keys minus K_ALT and
+    K_NEVER the mask of K_UP,K_DOWN.
 
 OI-079: AC_DUP: the engine's attach machine is named (PR-179) -
   model it? what ends a JUMP early (does the original cancel

@@ -12,7 +12,7 @@
 > own status block, `## Next`, `## Deferred big items` and
 > `## Standing rules` - all four had drifted, and P2 now fails the
 > build if any of them appears here again.) Numbering continues
-> at PR-260.
+> at PR-261.
 
 The P/E/M and T work-order ids cited across this journal come from
 the external review documents, now under `docs/archive/` with every
@@ -35914,4 +35914,196 @@ companion note that the y-intent force is "counted open...
 no shipped leg exercises it" - this PR ships it.
 GATE: make 0 warnings; verify-all fixtures rc=0 67 (ok);
 GATE-FIXTURE-FREE: rc=0 13 (ok) + 22 named
+```
+
+## PR-260 — THE SIGNAL SET IS A TEventSet AND NOTHING IN THE
+## IMAGE LOWERS A BIT: THE CLIMB ENDS ON THE PORT'S OWN CLEAR
+```
+KIND: read
+SUBSYSTEM: the object's live signal set - where its bits
+live, how a transition row tests them, and how long a raised
+bit survives; the mechanism behind the ZARIA.01 chain end
+PR-259 measured at tick 298.
+ADDRESSES: 0x47e30, 0x47e40, 0x47e63, 0x47edc, 0x47f35,
+0x47f42, 0x47f9b, 0x47fb2, 0x47fd8, 0x48000, 0x48029,
+0x48037, 0x4806f, 0x48087, 0x480e4, 0x48131, 0x49550,
+0x49580, 0x495b0, 0x495b2, 0x495e2, 0x52000, 0x52033,
+0x52221, 0x52235, 0x5223c, 0x52255, 0x522bc, 0x522e6,
+0x523f0, 0x536f0, 0x3f203, 0x3b5f3, 0x3b601, 0x54910,
+0x5492c, 0x54931, 0x54964, 0x5499d, 0x549ab, 0x749a0,
+0x76a69, 0x52860, 0x32530, 0x32825, 0x4457b, 0x919ca,
+0x91a0e
+NAMES: TEventSet, TEventSet::match, the op byte at +0xc,
+subset / disjoint / equal / intersects, the 21-byte
+transition entry, [obj+0x60], K_ANY, K_NEVER, AC_K_ANY,
+K_UP, K_DOWN, K_JUMP, K_ALT, [obj+0xa5], [obj+0xb6],
+[obj+0xbe], ll_sig_id, p->sig, o->sig, OI-078, PR-88,
+PR-100, PR-258's "count byte"
+CODE: no: no line of `ported/` changes. The deviation this
+record names is left to PR-261, with its legs, because
+removing the clear changes the AC_TIME / K_GENn /
+AC_BREAK_NEXT legs and that set of expectations has to be
+re-derived, not pinned to whatever the port then prints.
+HOOKS: no red leg: nothing in `ported/` moved. What the
+record rests on is the byte-level reading below plus two
+machine-wide scans whose counts are quoted, and one
+measurement already on the record from PR-259.
+MEASURED: (a) THE SET. The live set is 12 mask bytes at
+[obj+0x60]..[obj+0x6b] plus the op byte at [obj+0x6c], and
+the class names itself: the branch at 0x47fd8 pushes
+0x919ca, whose string is "TEventSet::match :Bledna
+operacja" ("invalid operation"). Four operations, all
+three-dword loops on that
+layout: 0x49550 AND-into-place, 0x49580 OR-into-place,
+0x495b2 "are all three dwords zero" (entered as 0x495b0,
+the padding before it, from 4 sites), 0x495e2 clears a
+transition ENTRY: memset 12 bytes through 0x749a0, zero the
+byte at +0xc, zero the dwords at +0xd and +0x11 - a
+TEventSet plus its two payload dwords.
+(b) THE BYTE AT +0xc IS A MATCH OPERATION, NOT A COUNT.
+0x47e40 = TEventSet::match(A = eax, B = edx) reads A's byte
+at +0xc, `cmp al,3; ja 0x47fd8` to the error string, and
+jumps through the table at 0x47e30: op 0 (0x47e63) copies B,
+ANDs A into it with 0x49550, and `repz cmps` compares 12
+bytes with A - TRUE when A AND B == A, i.e. A is a SUBSET of
+B; op 1 (0x47edc) does the same AND and returns 0x495b0's
+answer directly - TRUE when the intersection is EMPTY
+(disjoint); op 2 (0x47fb2) compares the two 12-byte masks
+directly - EXACT equality; op 3 (0x47f42) ANDs and returns
+the negation of 0x495b0 - TRUE when the intersection is NOT
+empty. So one test routine carries the positive and the
+negative form of a signal condition, and the compiled
+condition's own op byte selects which.
+(c) WHERE IT IS USED. TEventSet::match has exactly TWO call
+sites in the image, 0x52033 and 0x522e6. 0x52033 is inside
+0x52000, a transition-list walker: entries are 21 bytes (the
+`add ebx,0x15` stride) at [[record+0x1a]] with a count at
+[record+0x22], laid out {12 mask bytes, op byte at +0xc,
+dword at +0xd, dword at +0x11} - the same 21 bytes 0x495e2
+clears, i.e. a TEventSet plus two payload dwords - and the
+walk takes the FIRST entry whose set matches, copies those
+two payload dwords out to the caller's two output pointers,
+and then calls [[record+0x44]+0x4]. Here A is the ENTRY, so
+the compiled entry's own op byte selects the operation.
+PR-100's row step is the other user, and its shape is now
+read: 0x52221-0x52235 loads the current row
+[[ctx+0x2e] + [ctx+4]*4] and calls its class slot +8 to make
+the row's AUTHORED CONDITION key into [esp+0x40]; 0x5223c
+asks 0x495b0 whether that key is EMPTY (no bits at all) -
+empty takes 0x52251, where the caller's key (arg at
+[esp+0x68], e.g. 0x54910's input key) and the object's live
+blob ([ebp+0]+0x60, op byte at +0x6c, read at 0x5228d and
+merged by 0x49580 at 0x522bc) are ORed into one buffer,
+keeping the CALLER's op byte; then 0x522e6 calls
+match(A = the row's condition key, B = that merged live
+key). So in both users the op byte that decides the test
+belongs to the COMPILED condition, not to the live set.
+(d) RAISED BITS ARE NEVER LOWERED. The raise sites OR a bit
+straight into the blob: 0x3f203-0x3f20c and 0x3b5f3-0x3b601
+are both `mov ah,[obj+0x66] / or ah,0x40 / mov [obj+0x66],ah`
+= bit 54 = K_GEN1, the first one being 0x3f1c0's flag branch
+the port already models. The per-frame assembler 0x536f0 does
+not rebuild the blob either: it calls the class hook
+[[obj+8]+0x8c] and ORs the answer into [obj+0x60], then
+builds the current record's key with 0x523f0 and ORs THAT in
+too - no memset, no zeroing, before or after. Every write
+that zeroes those bytes on an object is a construction or
+reset path: 0x32535 and 0x32825 sit immediately after
+`call 0x52860` (the allocator) and each is followed by the
+class's vtable installs at +0x8/+0xc; 0x4457b-0x44590 zeroes
++0x58, +0x5c, +0x60, +0x64 as one block. The dedicated
+clear 0x495e2 is UNREACHABLE in the shipped image: a
+little-endian scan of the whole image finds 0 sites holding
+that address, and a scan of every rel32 call/jmp encoding
+finds 0 sites whose target is it.
+(e) THE CONSEQUENCE, and it is the port's, not the engine's.
+ll_play.c:1327 `p->sig = 0;  /* one-tick pulses */` and the
+object-side `o->sig = 0` sites make every signal in this
+port a one-iteration pulse, so a row conditioned on `!AC_DRAB`
+is TRUE on any iteration where nothing re-raised it. PR-259's
+probe shows exactly that ending the climb: the ladder's
+answer verb says nothing on ticks 297 and 298, nothing is
+raised on those iterations, and A_WSP's authored
+`A_FALL_DOWN(1)=!AC_DRAB` row takes the lion down. In the
+image that silence changes nothing: the bit raised on tick 296
+is still in the blob when the row is evaluated, because no
+code lowers it. The chain-break is the port's clear.
+(f) THE KEY BUILDERS, and a correction to PR-88's wording.
+0x48000 compares the token case-insensitively (0x76a69
+upcases) against the four special names first - 'AC_K_ANY'
+(0x919ec), 'K_ANY' (0x919f5), 'AC_K_NEVER' (0x919fb),
+'K_NEVER' (0x91a06) - and for those two a MASK is built
+directly: K_ANY memsets 12 bytes (0x749a0) then `or
+DWORD PTR [base+4], 0x2001f8` = signals 35,36,37,38,39 and
+53 = K_BKWD, K_FWD, K_UP, K_DOWN, K_FIRE and K_JUMP; K_NEVER
+`or BYTE PTR [base+4], 0x60` = signals 37 and 38 = K_UP,
+K_DOWN. Every other name is a chain of string compares
+against the block at 0x91a0e and, on a hit, `mov al,
+<the name's ordinal>` and the /32 ADDRESSING inlined (0x480e4
+is AC_BLOK_Y with al = 1, 0x48131 AC_BREAK_NEXT with al = 2:
+`shr 5` picks the dword, `idiv 0x20` and `shl eax,1:rem`
+pick the bit, OR into that dword). So PR-88's "EXPLICIT
+constant per name" is right about the ORDINAL and wrong about
+the constant: no mask literal is ever stored, and the only
+real mask constants in the function are K_ANY and K_NEVER.
+The port's ll_sig_id plus `1ull << bit` is already the
+addressing, and PR-88's "K_ANY/K_NEVER are not bits" stands -
+they have no ordinal - but they are not merely node-op tags:
+they carry whole masks. 0x54910 builds its input key on the
+stack the same way and its mapping is now read end to end:
+memset 12 at 0x5492c with op byte 0 (subset) at +0xc, then
+[obj+0xa5] bit 0 -> bit 39 K_FIRE, bit 4 -> 40 K_ALT, bit 5
+-> 53 K_JUMP (0x54931-0x54956, direct byte ORs), [obj+0xb6]
+bit 4 -> 36 K_FWD else 35 K_BKWD (`sete` + `add al,0x23`
+then the /32 addressing, 0x54964-0x5499a), and the VERTICAL
+INTENT WORD: [obj+0xbe] < 0 -> 37 K_UP (0x5499d), > 0 -> 38
+K_DOWN (0x549ab). K_ANY is exactly those six keys minus
+K_ALT. The 12 bytes plus the op byte are then copied to the
+caller at 0x549c8-0x549d8, so a caller's key carries its own
+op with it.
+(g) A TRAP FOR THE NEXT READER OF THESE OFFSETS. +0x60 is
+overloaded: 0x65154/0x6562c read and write +0x62/+0x66 of a
+session-state record with a jump table at 0x65080, 0x5da60-
+0x5dab1 zeroes a group at +0x5c..+0x68 of a record/node
+structure whose own fields are at +0x4..+0x18, and the whole
+0x4c9xx-0x4cbxx .MOV-registration stretch writes ebp- and
+esp-relative LOCALS at +0x62/+0x66/+0x6a. Every claim about
+the signal blob has to name the base register and the guard
+chain that makes it an object.
+OPENS: in order: (i) who writes the op byte of a COMPILED
+condition - it is the row class's slot +8 (`call
+[[row+4]+8]` at 0x52235) that fills the key whose byte at
++0xc is read, and the .MOV `!` token is tagged by the clause
+parser at 0x47d60, but the path from that tag to +0xc is
+unread; it decides whether `!AC_DRAB` is op 1 (disjoint) or
+op 3 negated, and the port has no such choice; (ii) whether
+the port drops the per-iteration clear (PR-261), and what
+that does to the AC_TIME, K_GENn and AC_BREAK_NEXT legs -
+the honest re-derivation of those expectations is the work;
+(iii) 0x54c00, the ground contact PR-259's guard still stands
+in for; (iv) AC_EDGE and A_PODCIAG at the top of a climb,
+and the port's missing K_UP/K_DOWN signal side of [obj+0xbe]
+that (f) just named; (v) the 69 callers of 0x49580 - who
+else merges a mask into a live blob; (vi) the rest of the
+OI-078 list: 0x55130's [obj+0xad], the 0x553f0 accumulator,
+[obj+0x112], PR-217's WAIT meter, RAN.01's A_LADOW.
+CLOSES: the question PR-259 put first - "why the answer verb
+goes silent on two consecutive ticks" is no longer what ends
+the ZARIA.01 climb. Whatever the verb does, the engine's
+blob keeps the bit; it is the port's own per-iteration clear
+that makes `!AC_DRAB` true at 298.
+CORRECTS: PR-258's "12 bytes + count byte at +0xc" - the
+byte at +0xc is the match-OPERATION selector (0 subset,
+1 disjoint, 2 equal, 3 intersects, >3 the error branch), and
+0x495e2 is not a set-clear but a 21-byte transition-entry
+clear; PR-100's "looks the result up with 0x47e40 (null =
+return)" - it is TEventSet::match, a four-operation test
+returning 0 or 1, and its A side is the row's own compiled
+condition key, not the merged live set; and PR-88's "sets an
+EXPLICIT bit constant per name" - the per-name constant is
+the bit's ORDINAL, the mask is always computed by the /32
+addressing, and the only stored mask constants are K_ANY's
+and K_NEVER's, which PR-88 called non-bits and which do
+carry whole masks.
+GATE: light: verify-index verify-docs rc=0 (ok);
 ```
